@@ -1567,9 +1567,9 @@
   {
     "id": "aloc-imp-v3-55",
     "cama_id": "cama-imp-55",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "61e8ba2e-b143-48e9-bb89-e6d6efabb24a",
+    "alojamento_codigo": "AL-ITA-66",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 66",
     "worker_id": "03c352f0-326d-4a17-8681-27fa4c5ebf7f",
     "worker_nome": "JOSE DE JESUS MENDOZA PADILLA",
     "codigo_colab": "E0163",
@@ -1590,15 +1590,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 66 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 6383.333333333334
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-56",
     "cama_id": "cama-imp-56",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "feeb848f-8913-4740-8e4d-453bad8cfd81",
+    "alojamento_codigo": "AL-ITA-79",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 79",
     "worker_id": "3985b441-f8b1-43fe-a3c4-d12bb3f11e9d",
     "worker_nome": "YANNY ALBERTO HERNANDEZ LOZANO",
     "codigo_colab": "E1788",
@@ -1619,8 +1619,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 79 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 5983.333333333334
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-57",
@@ -1654,9 +1654,9 @@
   {
     "id": "aloc-imp-v3-58",
     "cama_id": "cama-imp-58",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "feeb848f-8913-4740-8e4d-453bad8cfd81",
+    "alojamento_codigo": "AL-ITA-79",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 79",
     "worker_id": "a63c0408-97b8-44d2-b6a0-7325d7f15df6",
     "worker_nome": "CARLOS ALBERTO RAMOS URBANO",
     "codigo_colab": "E0155",
@@ -1677,8 +1677,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 79 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 6383.333333333334
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-59",
@@ -1712,9 +1712,9 @@
   {
     "id": "aloc-imp-v3-60",
     "cama_id": "cama-imp-60",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "7c4ce041-1964-48d9-a56b-4c0e4a2f9cba",
+    "alojamento_codigo": "AL-ITA-69",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 69",
     "worker_id": "941168bf-51b6-4f5b-9185-70f5aaab9768",
     "worker_nome": "ALVARO ENRIQUE ROJAS DE LA OSSA",
     "codigo_colab": "E0166",
@@ -1735,15 +1735,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "lo cambiaron al apto 69//apto 80 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 6383.333333333334
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-61",
     "cama_id": "cama-imp-61",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "7c4ce041-1964-48d9-a56b-4c0e4a2f9cba",
+    "alojamento_codigo": "AL-ITA-69",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 69",
     "worker_id": "0c4bda3d-6a03-4603-bb19-415f73ab6bc6",
     "worker_nome": "GUILLERMO LEON POSADA LONDONO",
     "codigo_colab": "E0151",
@@ -1764,15 +1764,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "lo cambiaron al apto 69//apto 80 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 6383.333333333334
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-62",
     "cama_id": "cama-imp-62",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "c5de2fb1-c177-4fbe-b79b-a87d5328cc16",
+    "alojamento_codigo": "AL-ITA-81",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 81",
     "worker_id": "144d0ff5-fc83-4ca4-96ea-015069afcbd1",
     "worker_nome": "JIM PAUL CHUNGA LUJAN",
     "codigo_colab": "E0123",
@@ -1793,8 +1793,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 81 (4 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 6116.666666666667
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-63",
@@ -1828,9 +1828,9 @@
   {
     "id": "aloc-imp-v3-64",
     "cama_id": "cama-imp-64",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "c5de2fb1-c177-4fbe-b79b-a87d5328cc16",
+    "alojamento_codigo": "AL-ITA-81",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 81",
     "worker_id": "033e8227-731f-408a-a9b6-d91845685abe",
     "worker_nome": "RENZO JUNIOR CHUNGA LUJAN",
     "codigo_colab": "E1426",
@@ -1851,15 +1851,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 81 (4 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 6116.666666666667
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-65",
     "cama_id": "cama-imp-65",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "c5de2fb1-c177-4fbe-b79b-a87d5328cc16",
+    "alojamento_codigo": "AL-ITA-81",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 81",
     "worker_id": "b8578e13-391b-4320-9517-2029753e66c0",
     "worker_nome": "WILMER YANAYACO PINEDO",
     "codigo_colab": "E0296",
@@ -1880,15 +1880,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 81 (4 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 6116.666666666667
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-66",
     "cama_id": "cama-imp-66",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "61e8ba2e-b143-48e9-bb89-e6d6efabb24a",
+    "alojamento_codigo": "AL-ITA-66",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 66",
     "worker_id": "9fc4e6f9-a5c3-4cf4-9cd4-5af0e5f2c323",
     "worker_nome": "NELSON JAIME PITRE CASTILLA",
     "codigo_colab": "E1751",
@@ -1909,8 +1909,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 66 (3 camas) Marcelo informo via whatsapp que continuaba laborando",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 5316.666666666667
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-67",
@@ -1943,9 +1943,9 @@
   {
     "id": "aloc-imp-v3-68",
     "cama_id": "cama-imp-68",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "61e8ba2e-b143-48e9-bb89-e6d6efabb24a",
+    "alojamento_codigo": "AL-ITA-66",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 66",
     "worker_id": "ccf0df6c-cc55-418e-8067-6848251729e6",
     "worker_nome": "YOBER HUAMAN VELASQUE",
     "codigo_colab": "E0032",
@@ -1966,15 +1966,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 66 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 4616.666666666667
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-69",
     "cama_id": "cama-imp-69",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "3ca966ff-88e3-4499-a8b8-fcaed032d424",
+    "alojamento_codigo": "AL-ITA-82",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 82",
     "worker_id": "worker-imp-69",
     "worker_nome": "ALEJANDRO RIOS RIOS",
     "codigo_colab": "E-XXXX",
@@ -1995,15 +1995,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 82 (3 camas)///apto 47 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 2250
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-70",
     "cama_id": "cama-imp-70",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "7c4ce041-1964-48d9-a56b-4c0e4a2f9cba",
+    "alojamento_codigo": "AL-ITA-69",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 69",
     "worker_id": "6def279c-f91e-43e7-af83-6b20d2ca2013",
     "worker_nome": "ROMER DAVID RODRIGUEZ GONZALEZ",
     "codigo_colab": "E2051",
@@ -2024,15 +2024,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "lo cambiaron al apto 69//apto 80 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 2250
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-71",
     "cama_id": "cama-imp-71",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "feeb848f-8913-4740-8e4d-453bad8cfd81",
+    "alojamento_codigo": "AL-ITA-79",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 79",
     "worker_id": "a59cbf59-d8ec-43d6-a1ae-9e11cd3d1d86",
     "worker_nome": "JOHN FREDY VELEIZANO PULIDO",
     "codigo_colab": "E1961",
@@ -2053,15 +2053,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 79 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 2250
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-72",
     "cama_id": "cama-imp-72",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "3ca966ff-88e3-4499-a8b8-fcaed032d424",
+    "alojamento_codigo": "AL-ITA-82",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 82",
     "worker_id": "38c5c68e-276f-443d-afd9-5145782aab84",
     "worker_nome": "FREDY GONZALES MAMANI",
     "codigo_colab": "E2160",
@@ -2082,8 +2082,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 82 (3 camas)///apto 47 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 2250
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-73",
@@ -2117,9 +2117,9 @@
   {
     "id": "aloc-imp-v3-74",
     "cama_id": "cama-imp-74",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "3ca966ff-88e3-4499-a8b8-fcaed032d424",
+    "alojamento_codigo": "AL-ITA-82",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 82",
     "worker_id": "050ea107-3e88-4e84-a95a-d5c4d1e984aa",
     "worker_nome": "CARLOS ANDRES QUINTERO ARCIA",
     "codigo_colab": "E1989",
@@ -2140,8 +2140,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 82 (3 camas)///apto 47 (3 camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 2033.3333333333335
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-75",
@@ -2377,9 +2377,9 @@
   {
     "id": "aloc-imp-v3-83",
     "cama_id": "cama-imp-83",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "67aedba3-6be1-413a-805f-965b7606caaa",
+    "alojamento_codigo": "AL-ITA-72",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 72",
     "worker_id": "c748215e-cc50-474b-8e9f-d0b2fd156a87",
     "worker_nome": "CARLOS EDUARDO DE RESENDE SILVA",
     "codigo_colab": "E2165",
@@ -2400,15 +2400,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 72 (3camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 1550
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-84",
     "cama_id": "cama-imp-84",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "67aedba3-6be1-413a-805f-965b7606caaa",
+    "alojamento_codigo": "AL-ITA-72",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 72",
     "worker_id": "9794059a-4c44-4381-b1a0-ff73a1bf5e84",
     "worker_nome": "ROBER HENRRY CHUMBES ROJAS",
     "codigo_colab": "E0082",
@@ -2429,15 +2429,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 72 (3camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 1550
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-85",
     "cama_id": "cama-imp-85",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "a5d42ed4-4ca5-4381-a2d0-1556a58ba40e",
+    "alojamento_codigo": "AL-ITA-80",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 80",
     "worker_id": "2f4a1285-525e-4912-859a-1c639e8028f9",
     "worker_nome": "JORDY ALEXANDER ALVA PAYAC",
     "codigo_colab": "E0034",
@@ -2458,15 +2458,15 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 80 (3camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 1150
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-86",
     "cama_id": "cama-imp-86",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "a5d42ed4-4ca5-4381-a2d0-1556a58ba40e",
+    "alojamento_codigo": "AL-ITA-80",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 80",
     "worker_id": "9d5b3b2e-3908-40ca-a9eb-d8ab896c1379",
     "worker_nome": "CARLOS ADRIAN CAMELO CALDERON",
     "codigo_colab": "E0152",
@@ -2487,8 +2487,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 80 (3camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 1150
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-87",
@@ -2522,9 +2522,9 @@
   {
     "id": "aloc-imp-v3-88",
     "cama_id": "cama-imp-88",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "67aedba3-6be1-413a-805f-965b7606caaa",
+    "alojamento_codigo": "AL-ITA-72",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 72",
     "worker_id": "aebb712f-9424-4809-a73e-2274d58c4167",
     "worker_nome": "FRANKLIN JOSE DIAZ LINCE",
     "codigo_colab": "E2115",
@@ -2545,8 +2545,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 72 (3camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 716.6666666666667
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-89",
@@ -3591,9 +3591,9 @@
   {
     "id": "aloc-imp-v3-125",
     "cama_id": "cama-imp-125",
-    "alojamento_id": "243c29b0-362f-492f-9bc5-1e4481a40359",
-    "alojamento_codigo": "AL-0712",
-    "alojamento_nome": "RAVENNA - Via caravaggio 40 lido adriano villaggio blue marlin",
+    "alojamento_id": "a5d42ed4-4ca5-4381-a2d0-1556a58ba40e",
+    "alojamento_codigo": "AL-ITA-80",
+    "alojamento_nome": "RAVENNA - Via Caravaggio 40 (Villaggio Blue Marlin) - Apto 80",
     "worker_id": "ce43c50c-7878-4a8c-8fe7-7b6079253989",
     "worker_nome": "JHON FREDY MADERA GARCIA",
     "codigo_colab": "E2273",
@@ -3614,8 +3614,8 @@
     "data_checkout_prevista": "2026-09-01",
     "observacoes": "apto 80 (3camas)",
     "status": "Ocupada",
-    "tipo_alojamento": "Fijo",
-    "custo_alojamento": 366.6666666666667
+    "tipo_alojamento": "Cliente",
+    "custo_alojamento": 0
   },
   {
     "id": "aloc-imp-v3-126",
