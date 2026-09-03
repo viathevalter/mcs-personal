@@ -196,11 +196,18 @@ serve(async (req) => {
       let rawSender = company?.marketing_sender_email || company?.proposal_sender_email || "comercial1@mail.luminousalley.com";
       let validSenderEmail = rawSender;
       const lowerSender = rawSender.toLowerCase();
-      if (!lowerSender.includes("gestaologinpro.com") && !lowerSender.includes("luminousalley.com") && !lowerSender.includes("mastercorp")) {
+      if (
+        !lowerSender.includes("triangulolda.com") &&
+        !lowerSender.includes("wiseowe.com") &&
+        !lowerSender.includes("luminousalley.com") &&
+        !lowerSender.includes("gestaologinpro.com") &&
+        !lowerSender.includes("universatv.com") &&
+        !lowerSender.includes("mastercorp")
+      ) {
         validSenderEmail = "alex@mail.gestaologinpro.com";
       }
 
-      const senderName = company?.trade_name || "Luminous";
+      const senderName = company?.trade_name || "Comercial";
       const fromHeader = rawSender.includes("<") ? rawSender : `${senderName} <${validSenderEmail}>`;
 
       try {
