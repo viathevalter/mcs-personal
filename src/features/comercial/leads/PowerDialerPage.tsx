@@ -66,6 +66,7 @@ import { useSalespeople } from './hooks/useLeads';
 import { QuickPresupuestoModal } from './components/QuickPresupuestoModal';
 import { SalesScriptCard } from './components/SalesScriptCard';
 import { LeadCallHistoryTimeline } from './components/LeadCallHistoryTimeline';
+import { ScheduleCallbackModal } from './components/ScheduleCallbackModal';
 import type { CallOutcome, RejectionReason, DialerQueueItem } from './types/dialerTypes';
 
 const countryFlags: Record<string, string> = {
@@ -224,14 +225,14 @@ export function PowerDialerPage() {
     await handleOutcomeSubmit('answered_converted');
   };
 
-  const handleScheduleCallbackSubmit = () => {
-    if (!callbackDate) {
-      toast.error('Informe a data do retorno');
-      return;
-    }
-    const combined = new Date(`${callbackDate}T${callbackTime}:00`).toISOString();
+  const handleConfirmScheduleCallback = async (
+    scheduledIso: string, 
+    richNotes: string, 
+    priority: 'high' | 'normal' | 'low'
+  ) => {
     setIsCallbackModalOpen(false);
-    handleOutcomeSubmit('answered_callback', combined);
+    setCallNotes(richNotes);
+    await handleOutcomeSubmit('answered_callback', scheduledIso);
   };
 
   const handleNextLead = () => {
@@ -750,71 +751,14 @@ export function PowerDialerPage() {
         />
       )}
 
-      {/* Schedule Callback Modal */}
-      <Dialog open={isCallbackModalOpen} onOpenChange={setIsCallbackModalOpen}>
-        <DialogContent className="sm:max-w-md bg-card border-border text-foreground p-6 shadow-2xl">
-          <DialogHeader className="pb-3 border-b border-border">
-            <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-indigo-500" />
-              Agendar Retorno com Prioridade
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              O sistema colocará este lead com prioridade máxima no topo da fila quando o horário chegar.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-foreground">Data do Retorno</Label>
-                <Input
-                  type="date"
-                  value={callbackDate}
-                  onChange={e => setCallbackDate(e.target.value)}
-                  className="bg-background border-input text-foreground text-xs h-9"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs text-foreground">Horário</Label>
-                <Input
-                  type="time"
-                  value={callbackTime}
-                  onChange={e => setCallbackTime(e.target.value)}
-                  className="bg-background border-input text-foreground text-xs h-9"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs text-foreground">Motivo do Agendamento</Label>
-              <Input
-                value={callNotes}
-                onChange={e => setCallNotes(e.target.value)}
-                placeholder="Ex: Decisor estará em reunião até às 15h..."
-                className="bg-background border-input text-foreground text-xs h-9"
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="pt-3 border-t border-border flex justify-between">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsCallbackModalOpen(false)}
-              className="border-input"
-            >
-              Cancelar
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleScheduleCallbackSubmit}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5"
-            >
-              <Check className="w-4 h-4" /> Salvar Agendamento
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Schedule Callback Modal (Expanded with Calendar & Rich Text) */}
+      <ScheduleCallbackModal
+        isOpen={isCallbackModalOpen}
+        onClose={() => setIsCallbackModalOpen(false)}
+        lead={currentLead}
+        onConfirm={handleConfirmScheduleCallback}
+        isSubmitting={isLoggingCall}
+      />
     </div>
   );
 }
