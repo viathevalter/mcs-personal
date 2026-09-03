@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -9,9 +9,10 @@ import { useClientSites } from '@/features/master-data/client-sites/hooks/useCli
 import { useLeads } from '@/features/comercial/leads/hooks/useLeads';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
 import { CountrySelector } from '@/features/master-data/locations/components/LocationSelectors';
-import { Calendar, Trash2 } from 'lucide-react';
+import { Calendar, Trash2, Search, X, Check, Building2, User, Globe, ChevronDown, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { detectLeadCountry, COUNTRY_UUIDS, COUNTRY_LABELS } from '@/features/comercial/leads/utils/leadCountryUtils';
 
 const countryLanguageMap: Record<string, string> = {
   '8caaddaf-88cd-4a50-aff6-127b8979b1c3': 'es', // Espanha
@@ -104,6 +105,58 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
   const { data: leads = [], isLoading: isLoadingLeads } = useLeads({ global: true });
   const { data: sites = [], isLoading: isLoadingSites } = useClientSites(data.client_id || undefined);
   const { data: paymentTerms = [] } = usePaymentTerms();
+
+  // Fast Search & Country Filter State for Leads
+  const [leadCountryFilter, setLeadCountryFilter] = useState<string>('ES');
+  const [leadSearchTerm, setLeadSearchTerm] = useState<string>('');
+  const [isLeadSearchOpen, setIsLeadSearchOpen] = useState<boolean>(false);
+
+  const selectedLeadObj = useMemo(() => {
+    if (!data.lead_id) return null;
+    return leads.find(l => l.id === data.lead_id) || null;
+  }, [leads, data.lead_id]);
+
+  const { matchingLeads, totalMatching } = useMemo(() => {
+    let list = leads;
+    if (leadCountryFilter !== 'all') {
+      list = list.filter(l => detectLeadCountry(l) === leadCountryFilter);
+    }
+    if (leadSearchTerm.trim()) {
+      const term = leadSearchTerm.toLowerCase().trim();
+      list = list.filter(l =>
+        (l.company_name && l.company_name.toLowerCase().includes(term)) ||
+        (l.name && l.name.toLowerCase().includes(term)) ||
+        (l.email && l.email.toLowerCase().includes(term)) ||
+        (l.tax_id && l.tax_id.toLowerCase().includes(term)) ||
+        (l.city && l.city.toLowerCase().includes(term)) ||
+        (l.province && l.province.toLowerCase().includes(term)) ||
+        (l.sector && l.sector.toLowerCase().includes(term))
+      );
+    }
+    return {
+      matchingLeads: list.slice(0, 40),
+      totalMatching: list.length
+    };
+  }, [leads, leadCountryFilter, leadSearchTerm]);
+
+  const handleSelectLead = (lead: any) => {
+    const cCode = detectLeadCountry(lead);
+    const countryUuid = COUNTRY_UUIDS[cCode] || data.country_id;
+    const docLang = COUNTRY_LABELS[cCode]?.lang || 'es';
+    const defaultTerm = paymentTerms.find(pt => pt.id === lead?.payment_term_id);
+
+    onChange({
+      lead_id: lead.id,
+      contact_name: lead.name || lead.company_name || '',
+      contact_email: lead.email || '',
+      country_id: countryUuid,
+      document_language: docLang,
+      payment_term_id: defaultTerm ? defaultTerm.id : '',
+      payment_terms: defaultTerm ? defaultTerm.name : ''
+    });
+    setIsLeadSearchOpen(false);
+    setLeadSearchTerm('');
+  };
 
   // Auto-select site if client has exactly one site
   useEffect(() => {
@@ -201,35 +254,181 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
           </div>
         ) : (
           <div className="space-y-2">
-            <Label htmlFor="lead_id">{t('comercial.stepGeneral.marketingLead')} <span className="text-red-500">*</span></Label>
-            <Select 
-              value={data.lead_id || ''} 
-              onValueChange={(val) => {
-                const selectedLead = leads.find(l => l.id === val);
-                const defaultTerm = paymentTerms.find(pt => pt.id === selectedLead?.payment_term_id);
-                onChange({ 
-                  lead_id: val, 
-                  contact_name: selectedLead?.name || '',
-                  contact_email: selectedLead?.email || '',
-                  payment_term_id: defaultTerm ? defaultTerm.id : '',
-                  payment_terms: defaultTerm ? defaultTerm.name : ''
-                });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={isLoadingLeads ? t('comercial.stepGeneral.loading') : t('comercial.stepGeneral.selectLead')} />
-              </SelectTrigger>
-              <SelectContent>
-                {leads.map(lead => (
-                  <SelectItem key={lead.id} value={lead.id}>
-                    <div className="flex flex-col text-left py-0.5">
-                      <span className="font-medium text-sm">{lead.company_name || t('comercial.stepGeneral.noCompany')}</span>
-                      <span className="text-[11px] text-muted-foreground mt-0.5">{lead.name}</span>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="lead_id" className="flex items-center gap-1.5">
+                <span>{t('comercial.stepGeneral.marketingLead')}</span>
+                <span className="text-red-500">*</span>
+              </Label>
+              {selectedLeadObj && (
+                <button
+                  type="button"
+                  onClick={() => setIsLeadSearchOpen(prev => !prev)}
+                  className="text-xs text-yellow-600 hover:text-yellow-700 dark:text-yellow-500 font-medium underline"
+                >
+                  {isLeadSearchOpen ? 'Fechar busca' : 'Trocar Lead'}
+                </button>
+              )}
+            </div>
+
+            {/* If lead is selected and search is closed, show selected lead card */}
+            {selectedLeadObj && !isLeadSearchOpen ? (
+              <div className="p-3 bg-card border rounded-lg shadow-sm flex items-start justify-between gap-2 border-yellow-500/30 bg-yellow-500/5">
+                <div className="space-y-1 text-left min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-foreground truncate max-w-xs">
+                      {selectedLeadObj.company_name || selectedLeadObj.name || t('comercial.stepGeneral.noCompany')}
+                    </span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                      {COUNTRY_LABELS[detectLeadCountry(selectedLeadObj)]?.flag} {COUNTRY_LABELS[detectLeadCountry(selectedLeadObj)]?.name}
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                    {selectedLeadObj.name && <span>{selectedLeadObj.name}</span>}
+                    {selectedLeadObj.email && <span>• {selectedLeadObj.email}</span>}
+                    {selectedLeadObj.phone && <span>• {selectedLeadObj.phone}</span>}
+                  </div>
+                  {selectedLeadObj.sector && (
+                    <div className="text-[11px] text-yellow-600 dark:text-yellow-400 font-medium">
+                      Setor: {selectedLeadObj.sector}
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onChange({
+                      lead_id: null,
+                      contact_name: '',
+                      contact_email: '',
+                      payment_term_id: '',
+                      payment_terms: ''
+                    });
+                    setIsLeadSearchOpen(true);
+                  }}
+                  className="h-7 px-2 text-muted-foreground hover:text-red-500 shrink-0"
+                  title="Remover seleção"
+                >
+                  <X size={14} />
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 border rounded-lg p-2.5 bg-slate-50/50 dark:bg-slate-900/40">
+                {/* Country Filter Tabs */}
+                <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => setLeadCountryFilter('ES')}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors shrink-0 ${
+                      leadCountryFilter === 'ES'
+                        ? 'bg-yellow-500 text-slate-950 font-bold shadow-sm'
+                        : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    🇪🇸 Espanha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLeadCountryFilter('FR')}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors shrink-0 ${
+                      leadCountryFilter === 'FR'
+                        ? 'bg-yellow-500 text-slate-950 font-bold shadow-sm'
+                        : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    🇫🇷 França
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLeadCountryFilter('PT')}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors shrink-0 ${
+                      leadCountryFilter === 'PT'
+                        ? 'bg-yellow-500 text-slate-950 font-bold shadow-sm'
+                        : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    🇵🇹 Portugal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLeadCountryFilter('all')}
+                    className={`px-2.5 py-1 rounded text-xs font-medium transition-colors shrink-0 ${
+                      leadCountryFilter === 'all'
+                        ? 'bg-yellow-500 text-slate-950 font-bold shadow-sm'
+                        : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    🌐 Todos
+                  </button>
+                </div>
+
+                {/* Instant Search Input */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Filtrar por empresa, contato, e-mail, NIF ou cidade..."
+                    className="pl-8 pr-8 h-8 text-xs bg-background"
+                    value={leadSearchTerm}
+                    onChange={(e) => setLeadSearchTerm(e.target.value)}
+                    autoFocus={isLeadSearchOpen}
+                  />
+                  {leadSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setLeadSearchTerm('')}
+                      className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Fast Results List (Capped at 40 results for instant rendering without DOM freeze) */}
+                <div className="max-h-48 overflow-y-auto divide-y border rounded bg-background">
+                  {isLoadingLeads ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">Carregando base de leads...</div>
+                  ) : matchingLeads.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">
+                      Nenhum lead encontrado com os filtros atuais.
+                    </div>
+                  ) : (
+                    matchingLeads.map(lead => {
+                      const c = detectLeadCountry(lead);
+                      const isSelected = data.lead_id === lead.id;
+                      return (
+                        <div
+                          key={lead.id}
+                          onClick={() => handleSelectLead(lead)}
+                          className={`p-2 hover:bg-muted/60 cursor-pointer text-xs flex items-center justify-between gap-2 transition-colors ${
+                            isSelected ? 'bg-yellow-500/10 font-medium' : ''
+                          }`}
+                        >
+                          <div className="min-w-0 text-left">
+                            <div className="flex items-center gap-1.5 truncate font-medium">
+                              <span>{COUNTRY_LABELS[c]?.flag || '🌐'}</span>
+                              <span className="text-foreground">{lead.company_name || lead.name || 'Sem Nome'}</span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5 mt-0.5">
+                              {lead.name && lead.company_name && <span>{lead.name}</span>}
+                              {lead.city && <span>({lead.city})</span>}
+                              {lead.email && <span>• {lead.email}</span>}
+                            </div>
+                          </div>
+                          {isSelected && <CheckCircle2 className="h-4 w-4 text-yellow-500 shrink-0" />}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {totalMatching > 40 && (
+                  <div className="text-[10px] text-muted-foreground text-right px-1">
+                    Mostrando 40 de {totalMatching} leads. Digite na busca para refinar.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

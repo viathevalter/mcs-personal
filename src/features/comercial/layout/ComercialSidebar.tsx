@@ -42,16 +42,6 @@ export function ComercialSidebar() {
 
     const sections: SidebarSection[] = [
         {
-            titleKey: 'comercial.sidebar.powerDialer',
-            titleDefault: 'Power Dialer (SDR)',
-            links: [
-                { to: '/comercial/discador', label: 'Cockpit Discador', icon: PhoneCall, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/discador/trabalhos', label: 'Trabalhos & Filas', icon: Layers, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/discador/supervisao', label: 'Supervisão & KPIs', icon: BarChart3, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/discador/operadores', label: 'Operadores & Scripts', icon: Users, roles: ['admin', 'commercial', 'rh'] },
-            ]
-        },
-        {
             titleKey: 'comercial.sidebar.gestaoComercial',
             titleDefault: 'Gestão Comercial',
             links: [
@@ -68,6 +58,16 @@ export function ComercialSidebar() {
                 { to: '/comercial/prospector', label: t('comercial.sidebar.prospector') || 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/kanban', label: t('comercial.sidebar.kanban') || 'Funil de Vendas', icon: Kanban, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/campanhas', label: t('comercial.sidebar.campaigns') || 'Campanhas de Marketing', icon: Mail, roles: ['admin', 'commercial', 'rh'] },
+            ]
+        },
+        {
+            titleKey: 'comercial.sidebar.powerDialer',
+            titleDefault: 'Power Dialer (SDR)',
+            links: [
+                { to: '/comercial/discador', label: 'Cockpit Discador', icon: PhoneCall, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/discador/trabalhos', label: 'Trabalhos & Filas', icon: Layers, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/discador/supervisao', label: 'Supervisão & KPIs', icon: BarChart3, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/discador/operadores', label: 'Operadores & Scripts', icon: Users, roles: ['admin', 'commercial', 'rh'] },
             ]
         },
         {

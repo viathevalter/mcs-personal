@@ -55,8 +55,13 @@ export class ProspectingService {
   private static sanitizeUrl(url?: string | null): string | null {
     if (!url) return null;
     let clean = url.trim();
-    if (clean === 'null' || clean === '' || clean === 'undefined' || clean.includes('example.com') || clean.includes('domain.es')) {
+    if (clean === 'null' || clean === '' || clean === 'undefined') {
       return null;
+    }
+
+    const invalidDomains = ['example.com', 'domain.es', 'domain.fr', 'time.com', 'dumas.com', 'perfecta.com', 'rbs.fr', 'smi.com', 'cti.com', 'tms.com', 'ecta.com', 'gds.eu', 'ipcs.com', 'ert.eu', 'tscti.com', 'acti.com'];
+    for (const d of invalidDomains) {
+      if (clean.toLowerCase().includes(d)) return null;
     }
 
     if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
@@ -264,9 +269,12 @@ export class ProspectingService {
       // Dispatch parallel multi-hub workers
       const hubPromises = targetProvinces.map(async (provinceName) => {
         const prompt = isFrance 
-          ? `Provide 20 real, active small/medium industrial workshops, fabricators and subcontractors (PME / SAS / SARL / Ateliers de chaudronnerie, tuyauterie industrielle, charpente métallique, mécano-soudure TIG/MIG, usinage CNC, maintenance industrielle) located in Zones Industrielles (Z.I.) or Parcs d'Activités across "${provinceName}", France matching: "${cleanKeywords}".
+          ? `Provide 20 real, active small/medium industrial workshops, fabricators and subcontractors (PME / SAS / SARL / Ateliers de chaudronnerie, tuyauterie industrielle, charpente métallique, mécano-soudure TIG/MIG, usinage CNC, maintenance industrielle lourde) located in Zones Industrielles (Z.I.) or Parcs d'Activités across "${provinceName}", France matching: "${cleanKeywords}".
 Target medium and small workshops (10 to 80 workers) in industrial zones (Zones Industrielles) that subcontract welders (soudeurs), pipefitters (tuyautiers) and boilermakers (chaudronniers).
-Only return registered French companies with their official active website (.fr or .com) and corporate contact email.${excludeInstruction}
+CRITICAL RULES:
+1. ONLY return real industrial metalworking, welding, piping, naval, or boiler fabrication companies.
+2. STRICTLY EXCLUDE: real estate (immobilier), auto repair garages (garage auto/carrosserie), restaurants/hotels, schools/training (formation), town halls (mairies), cleaning services, healthcare, or retail shops.
+3. Every company MUST have an active official company website and genuine contact email (never use time.com, example.com, or placeholder domains).${excludeInstruction}
 
 Return JSON array only:
 [

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useLeads, useMutateLead } from './hooks/useLeads';
 import { normalizeSectorName } from './services/prospectingService';
+import { detectLeadCountry, COUNTRY_LABELS } from './utils/leadCountryUtils';
 import { useKanbanStages } from './hooks/useKanban';
 import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
@@ -750,87 +751,61 @@ export function LeadsPage() {
   };
 
   const [selectedSector, setSelectedSector] = useState<string>('all');
-  const [selectedCountry, setSelectedCountry] = useState<string>('all');
+  const [selectedCountry, setSelectedCountry] = useState<string>('ES');
   const [selectedCompanySize, setSelectedCompanySize] = useState<string>('all');
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
 
-  const detectLeadCountry = (lead: any) => {
-    if (lead.country_id) {
-      const c = String(lead.country_id).toUpperCase();
-      if (['ES', 'PT', 'FR', 'DE', 'IT', 'NL', 'BE', 'GB'].includes(c)) {
-        return c;
+  const countryLabels = COUNTRY_LABELS;
+
+  // Single-pass computation of lead counts per country with useMemo
+  const countryCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      total: leads.length,
+      ES: 0,
+      PT: 0,
+      FR: 0,
+      DE: 0,
+      IT: 0,
+      NL: 0,
+      BE: 0,
+      GB: 0,
+      OTHER: 0,
+    };
+    for (const l of leads) {
+      const c = detectLeadCountry(l);
+      if (c in counts) {
+        counts[c]++;
+      } else {
+        counts.OTHER++;
       }
     }
-    if (lead.phone) {
-      const p = String(lead.phone).trim();
-      if (p.startsWith('+34') || p.startsWith('34')) return 'ES';
-      if (p.startsWith('+351') || p.startsWith('351')) return 'PT';
-      if (p.startsWith('+33') || p.startsWith('33')) return 'FR';
-      if (p.startsWith('+49') || p.startsWith('49')) return 'DE';
-      if (p.startsWith('+39') || p.startsWith('39')) return 'IT';
-      if (p.startsWith('+31') || p.startsWith('31')) return 'NL';
-      if (p.startsWith('+32') || p.startsWith('32')) return 'BE';
-      if (p.startsWith('+44') || p.startsWith('44')) return 'GB';
-    }
-    if (lead.email) {
-      const em = String(lead.email).toLowerCase().trim();
-      if (em.endsWith('.es')) return 'ES';
-      if (em.endsWith('.pt')) return 'PT';
-      if (em.endsWith('.fr')) return 'FR';
-      if (em.endsWith('.de')) return 'DE';
-      if (em.endsWith('.it')) return 'IT';
-      if (em.endsWith('.nl')) return 'NL';
-      if (em.endsWith('.be')) return 'BE';
-      if (em.endsWith('.uk') || em.endsWith('.co.uk')) return 'GB';
-    }
-    if (Array.isArray(lead.tags)) {
-      const tagStr = lead.tags.join(' ').toLowerCase();
-      if (tagStr.includes('portugal') || tagStr.includes('🇵🇹')) return 'PT';
-      if (tagStr.includes('frança') || tagStr.includes('france') || tagStr.includes('🇫🇷')) return 'FR';
-      if (tagStr.includes('alemanha') || tagStr.includes('germany') || tagStr.includes('🇩🇪')) return 'DE';
-      if (tagStr.includes('itália') || tagStr.includes('italia') || tagStr.includes('italy') || tagStr.includes('🇮🇹')) return 'IT';
-      if (tagStr.includes('holanda') || tagStr.includes('netherlands') || tagStr.includes('🇳🇱')) return 'NL';
-      if (tagStr.includes('bélgica') || tagStr.includes('belgium') || tagStr.includes('🇧🇪')) return 'BE';
-      if (tagStr.includes('reino unido') || tagStr.includes('uk') || tagStr.includes('gb') || tagStr.includes('🇬🇧')) return 'GB';
-    }
-    if (lead.province && typeof lead.province === 'string') {
-      const provStr = lead.province.toLowerCase();
-      if (provStr.includes('(mi)') || provStr.includes('(bs)') || provStr.includes('(bg)') || provStr.includes('(va)') || provStr.includes('(to)') || provStr.includes('(vi)') || provStr.includes('(vr)') || provStr.includes('(tv)') || provStr.includes('(bo)') || provStr.includes('(ra)') || provStr.includes('(lu)') || provStr.includes('(ge)') || provStr.includes('(ts)') || provStr.includes('(li)')) {
-        return 'IT';
-      }
-    }
-    return 'ES';
-  };
+    return counts;
+  }, [leads]);
 
-  const countryLabels: Record<string, { name: string; flag: string }> = {
-    ES: { name: 'Espanha', flag: '🇪🇸' },
-    PT: { name: 'Portugal', flag: '🇵🇹' },
-    FR: { name: 'França', flag: '🇫🇷' },
-    DE: { name: 'Alemanha', flag: '🇩🇪' },
-    IT: { name: 'Itália', flag: '🇮🇹' },
-    NL: { name: 'Holanda', flag: '🇳🇱' },
-    BE: { name: 'Bélgica', flag: '🇧🇪' },
-    GB: { name: 'Reino Unido', flag: '🇬🇧' },
-    OTHER: { name: 'Outros', flag: '🌍' },
-  };
+  // Leads scoped to the currently selected country (or all)
+  const countryFilteredBaseLeads = useMemo(() => {
+    if (selectedCountry === 'all') return leads;
+    return leads.filter((l) => detectLeadCountry(l) === selectedCountry);
+  }, [leads, selectedCountry]);
 
-  const countryCounts = {
-    total: leads.length,
-    ES: leads.filter((l) => detectLeadCountry(l) === 'ES').length,
-    PT: leads.filter((l) => detectLeadCountry(l) === 'PT').length,
-    FR: leads.filter((l) => detectLeadCountry(l) === 'FR').length,
-    DE: leads.filter((l) => detectLeadCountry(l) === 'DE').length,
-    IT: leads.filter((l) => detectLeadCountry(l) === 'IT').length,
-    NL: leads.filter((l) => detectLeadCountry(l) === 'NL').length,
-    BE: leads.filter((l) => detectLeadCountry(l) === 'BE').length,
-    GB: leads.filter((l) => detectLeadCountry(l) === 'GB').length,
-    OTHER: leads.filter((l) => detectLeadCountry(l) === 'OTHER').length,
-  };
+  // Sector counts scoped dynamically to active country filter
+  const sectorCounts = useMemo(() => {
+    return {
+      total: countryFilteredBaseLeads.length,
+      naval: countryFilteredBaseLeads.filter((l) => normalizeSectorName(l.sector) === 'Construção & Reparação Naval').length,
+      caldereria: countryFilteredBaseLeads.filter((l) => normalizeSectorName(l.sector) === 'Calderería & Tubería Industrial').length,
+      estructuras: countryFilteredBaseLeads.filter((l) => normalizeSectorName(l.sector) === 'Estructuras Metálicas & Montajes').length,
+      quimica: countryFilteredBaseLeads.filter((l) => normalizeSectorName(l.sector) === 'Industria Química & Petroquímica').length,
+      geral: countryFilteredBaseLeads.filter((l) => normalizeSectorName(l.sector) === 'Industrial Geral').length,
+    };
+  }, [countryFilteredBaseLeads]);
 
-  const availableSectors = Array.from(
-    new Set(leads.map((l) => normalizeSectorName(l.sector)).filter(Boolean))
-  );
+  const availableSectors = useMemo(() => {
+    return Array.from(
+      new Set(countryFilteredBaseLeads.map((l) => normalizeSectorName(l.sector)).filter(Boolean))
+    );
+  }, [countryFilteredBaseLeads]);
 
   const availableCompanySizes = [
     { label: '🏢 Gran Empresa (Tier 1)', value: 'Gran Empresa (Tier 1)' },
@@ -838,22 +813,17 @@ export function LeadsPage() {
     { label: '⚙️ Taller / Pequeña (Tier 3)', value: 'Pequeña Empresa / Taller (Tier 3)' },
   ];
 
-  const availableRegions = Array.from(
-    new Set(leads.map((l: any) => l.region).filter(Boolean))
-  ).sort() as string[];
+  const availableRegions = useMemo(() => {
+    return Array.from(
+      new Set(countryFilteredBaseLeads.map((l: any) => l.region).filter(Boolean))
+    ).sort() as string[];
+  }, [countryFilteredBaseLeads]);
 
-  const availableProvinces = Array.from(
-    new Set(leads.map((l: any) => l.province).filter(Boolean))
-  ).sort() as string[];
-
-  const sectorCounts = {
-    total: leads.length,
-    naval: leads.filter((l) => normalizeSectorName(l.sector) === 'Construção & Reparação Naval').length,
-    caldereria: leads.filter((l) => normalizeSectorName(l.sector) === 'Calderería & Tubería Industrial').length,
-    estructuras: leads.filter((l) => normalizeSectorName(l.sector) === 'Estructuras Metálicas & Montajes').length,
-    quimica: leads.filter((l) => normalizeSectorName(l.sector) === 'Industria Química & Petroquímica').length,
-    geral: leads.filter((l) => normalizeSectorName(l.sector) === 'Industrial Geral').length,
-  };
+  const availableProvinces = useMemo(() => {
+    return Array.from(
+      new Set(countryFilteredBaseLeads.map((l: any) => l.province).filter(Boolean))
+    ).sort() as string[];
+  }, [countryFilteredBaseLeads]);
 
   const handleExportExcel = () => {
     if (filteredLeads.length === 0) {
@@ -1096,6 +1066,95 @@ export function LeadsPage() {
         </div>
       </div>
 
+      {/* Country Selection Header Tabs (Separar por País) */}
+      <div className="flex items-center justify-between gap-3 flex-wrap bg-card/60 p-2.5 rounded-xl border">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+          <Globe className="w-4 h-4 text-yellow-500" />
+          <span>Filtrar Base por País:</span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setSelectedCountry('ES')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+              selectedCountry === 'ES'
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🇪🇸</span>
+            <span>Espanha</span>
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+              {countryCounts.ES}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedCountry('FR')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+              selectedCountry === 'FR'
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🇫🇷</span>
+            <span>França</span>
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+              {countryCounts.FR}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedCountry('PT')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+              selectedCountry === 'PT'
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🇵🇹</span>
+            <span>Portugal</span>
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+              {countryCounts.PT}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedCountry('IT')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+              selectedCountry === 'IT'
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🇮🇹</span>
+            <span>Itália</span>
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+              {countryCounts.IT}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedCountry('all')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+              selectedCountry === 'all'
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <span>🌐</span>
+            <span>Todos os Países</span>
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+              {countryCounts.total}
+            </span>
+          </button>
+        </div>
+      </div>
+
       {/* Premium Executive KPI Dashboard Cards (Clickable Bento Grid) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Total Base */}
@@ -1108,13 +1167,15 @@ export function LeadsPage() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Base CRM</span>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              {selectedCountry === 'all' ? 'Base CRM' : `Base (${COUNTRY_LABELS[selectedCountry]?.flag || ''} ${selectedCountry})`}
+            </span>
             <Building2 className="w-4 h-4 text-amber-500" />
           </div>
           <div className="mt-2 text-2xl font-bold text-foreground">{sectorCounts.total}</div>
           <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-            Ver Todos os Leads
+            {selectedCountry === 'all' ? 'Ver Todos os Leads' : `Leads em ${COUNTRY_LABELS[selectedCountry]?.name || selectedCountry}`}
           </div>
         </div>
 

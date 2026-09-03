@@ -31,6 +31,7 @@ export interface UseLeadsOptions {
   empresaId?: string | null;
   assignedTo?: string | null;
   global?: boolean;
+  countryId?: string | null;
 }
 
 export function useLeads(options?: UseLeadsOptions) {
@@ -38,9 +39,10 @@ export function useLeads(options?: UseLeadsOptions) {
   const targetEmpresaId = options?.global ? null : (options?.empresaId !== undefined ? options.empresaId : selectedEmpresaId);
   const assignedTo = options?.assignedTo || null;
   const isGlobal = options?.global || false;
+  const countryId = options?.countryId || null;
 
   return useQuery({
-    queryKey: ['leads', isGlobal ? 'global' : targetEmpresaId, assignedTo],
+    queryKey: ['leads', isGlobal ? 'global' : targetEmpresaId, assignedTo, countryId],
     queryFn: async () => {
       if (!isGlobal && !targetEmpresaId) return [];
 
@@ -64,6 +66,10 @@ export function useLeads(options?: UseLeadsOptions) {
           query = query.eq('assigned_to', assignedTo);
         }
 
+        if (countryId && countryId !== 'all') {
+          query = query.eq('country_id', countryId);
+        }
+
         const { data, error } = await query.range(from, to);
 
         if (error) throw error;
@@ -80,7 +86,8 @@ export function useLeads(options?: UseLeadsOptions) {
       }
       return allLeads;
     },
-    refetchInterval: 10000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 }
 
