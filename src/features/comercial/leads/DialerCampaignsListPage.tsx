@@ -96,7 +96,7 @@ export function DialerCampaignsListPage() {
   return (
     <div className="flex flex-col space-y-6 p-4 lg:p-8 max-w-7xl mx-auto w-full">
       {/* Header Bar */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800/80 pb-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
         <div>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
@@ -105,7 +105,7 @@ export function DialerCampaignsListPage() {
             <div>
               <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
                 Trabalhos & Filas de Discagem
-                <Badge className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-xs">
+                <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-xs">
                   Power Dialer
                 </Badge>
               </h1>
@@ -120,15 +120,15 @@ export function DialerCampaignsListPage() {
           <Button
             onClick={() => navigate('/comercial/discador')}
             variant="outline"
-            className="border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 text-xs font-semibold gap-2"
+            className="border-input bg-background hover:bg-muted text-foreground text-xs font-semibold gap-2"
           >
-            <PhoneCall className="w-4 h-4 text-emerald-400" />
+            <PhoneCall className="w-4 h-4 text-emerald-500" />
             Abrir Discador
           </Button>
 
           <Button
             onClick={() => navigate('/comercial/leads')}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs shadow-md shadow-blue-900/30 gap-2"
+            className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-900/30 gap-2"
           >
             <Plus className="w-4 h-4" />
             Gerar Fila da Base de Leads
@@ -138,42 +138,42 @@ export function DialerCampaignsListPage() {
 
       {/* KPI Cards Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="p-4 rounded-xl bg-card border shadow-sm space-y-1">
+        <div className="p-4 rounded-xl bg-card border border-border shadow-sm space-y-1">
           <span className="text-xs text-muted-foreground uppercase font-bold">Total de Trabalhos</span>
           <p className="text-2xl font-black text-foreground">{totalCampaigns}</p>
-          <p className="text-[11px] text-blue-500 font-semibold">{activeCampaignsCount} ativos no momento</p>
+          <p className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold">{activeCampaignsCount} ativos no momento</p>
         </div>
 
-        <div className="p-4 rounded-xl bg-card border shadow-sm space-y-1">
+        <div className="p-4 rounded-xl bg-card border border-border shadow-sm space-y-1">
           <span className="text-xs text-muted-foreground uppercase font-bold">Leads Enfileirados</span>
           <p className="text-2xl font-black text-foreground">{totalLeadsEnqueued}</p>
-          <p className="text-[11px] text-slate-400">Distribuídos em lotes</p>
+          <p className="text-[11px] text-muted-foreground">Distribuídos em lotes</p>
         </div>
 
-        <div className="p-4 rounded-xl bg-card border shadow-sm space-y-1">
-          <span className="text-xs text-emerald-500 uppercase font-bold">Leads Concluídos</span>
-          <p className="text-2xl font-black text-emerald-500">{totalCompletedLeads}</p>
-          <p className="text-[11px] text-slate-400">
+        <div className="p-4 rounded-xl bg-card border border-border shadow-sm space-y-1">
+          <span className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-bold">Leads Concluídos</span>
+          <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{totalCompletedLeads}</p>
+          <p className="text-[11px] text-muted-foreground">
             {totalLeadsEnqueued > 0 ? Math.round((totalCompletedLeads / totalLeadsEnqueued) * 100) : 0}% do mailing processado
           </p>
         </div>
 
-        <div className="p-4 rounded-xl bg-card border shadow-sm space-y-1">
-          <span className="text-xs text-indigo-500 uppercase font-bold">Disponíveis p/ Discagem</span>
-          <p className="text-2xl font-black text-indigo-500">{totalLeadsEnqueued - totalCompletedLeads}</p>
-          <p className="text-[11px] text-slate-400">Aguardando atendimento</p>
+        <div className="p-4 rounded-xl bg-card border border-border shadow-sm space-y-1">
+          <span className="text-xs text-indigo-600 dark:text-indigo-400 uppercase font-bold">Disponíveis p/ Discagem</span>
+          <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{totalLeadsEnqueued - totalCompletedLeads}</p>
+          <p className="text-[11px] text-muted-foreground">Aguardando atendimento</p>
         </div>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-card border rounded-xl">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-card border border-border rounded-xl shadow-sm">
         <div className="relative w-full sm:w-96">
           <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
           <Input
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             placeholder="Buscar por nome do trabalho, operador ou script..."
-            className="pl-9 bg-background text-xs h-9"
+            className="pl-9 bg-background border-input text-foreground text-xs h-9"
           />
         </div>
 
@@ -203,10 +203,10 @@ export function DialerCampaignsListPage() {
           </Button>
         </div>
       ) : (
-        <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+        <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-muted/40 text-muted-foreground uppercase font-bold border-b">
+              <thead className="bg-muted/40 text-muted-foreground uppercase font-bold border-b border-border">
                 <tr>
                   <th className="py-3.5 px-4">Nome do Trabalho</th>
                   <th className="py-3.5 px-4">Operador / Vendedor</th>
@@ -256,7 +256,7 @@ export function DialerCampaignsListPage() {
 
                       {/* Script */}
                       <td className="py-4 px-4">
-                        <Badge variant="outline" className="text-[11px] font-normal border-slate-700">
+                        <Badge variant="outline" className="text-[11px] font-normal border-border">
                           {camp.script?.title || 'Script Padrão Industrial'}
                         </Badge>
                       </td>
@@ -265,10 +265,10 @@ export function DialerCampaignsListPage() {
                       <td className="py-4 px-4">
                         <div className="w-44 mx-auto space-y-1 text-center">
                           <div className="flex justify-between text-[11px] font-mono">
-                            <span className="text-emerald-500 font-bold">{completed} concluídos</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">{completed} concluídos</span>
                             <span className="text-muted-foreground">{pending} restam ({total})</span>
                           </div>
-                          <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                          <div className="h-2 w-full bg-muted rounded-full overflow-hidden border border-border">
                             <div
                               className="h-full bg-gradient-to-r from-blue-500 to-teal-400 rounded-full transition-all duration-300"
                               style={{ width: `${percent}%` }}
@@ -281,10 +281,10 @@ export function DialerCampaignsListPage() {
                       <td className="py-4 px-4 text-center">
                         <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border uppercase ${
                           camp.status === 'active'
-                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
                             : camp.status === 'paused'
-                            ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                            : 'bg-muted text-muted-foreground border-border'
                         }`}>
                           {camp.status === 'active' ? 'Ativa' : camp.status === 'paused' ? 'Pausada' : 'Concluída'}
                         </span>
@@ -325,7 +325,7 @@ export function DialerCampaignsListPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleToggleStatus(camp)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-400"
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-amber-500"
                             title={camp.status === 'active' ? 'Pausar trabalho' : 'Ativar trabalho'}
                           >
                             {camp.status === 'active' ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
@@ -354,31 +354,31 @@ export function DialerCampaignsListPage() {
 
       {/* Modal: View Queue Leads */}
       <Dialog open={isQueueModalOpen} onOpenChange={setIsQueueModalOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto bg-slate-950 border border-slate-800 text-slate-100 p-0 shadow-2xl">
-          <DialogHeader className="p-6 pb-4 border-b border-slate-800">
-            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <Layers className="w-5 h-5 text-blue-400" />
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto bg-card border-border text-foreground p-0 shadow-2xl">
+          <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/30">
+            <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+              <Layers className="w-5 h-5 text-blue-500" />
               Fila de Leads: {selectedCampaignForQueue?.title}
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Relação de todas as empresas incluídas nesta campanha e status de contato individual.
             </DialogDescription>
           </DialogHeader>
 
           <div className="p-6 space-y-4">
             {loadingQueue ? (
-              <div className="p-8 text-center text-slate-400">
+              <div className="p-8 text-center text-muted-foreground">
                 <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-500 mb-2" />
                 Carregando leads da fila...
               </div>
             ) : inspectedQueue.length === 0 ? (
-              <div className="p-8 text-center text-slate-400 text-xs">
+              <div className="p-8 text-center text-muted-foreground text-xs">
                 Nenhum lead nesta fila.
               </div>
             ) : (
-              <div className="rounded-xl border border-slate-800 overflow-hidden">
+              <div className="rounded-xl border border-border overflow-hidden">
                 <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900 text-slate-400 font-bold border-b border-slate-800">
+                  <thead className="bg-muted/40 text-muted-foreground font-bold border-b border-border">
                     <tr>
                       <th className="py-2.5 px-3">#</th>
                       <th className="py-2.5 px-3">Empresa</th>
@@ -387,29 +387,29 @@ export function DialerCampaignsListPage() {
                       <th className="py-2.5 px-3 text-center">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y divide-border">
                     {inspectedQueue.map((item, idx) => (
-                      <tr key={item.id} className="hover:bg-slate-900/40">
-                        <td className="py-2.5 px-3 text-slate-500 font-mono">{idx + 1}</td>
-                        <td className="py-2.5 px-3 font-semibold text-white">
+                      <tr key={item.id} className="hover:bg-muted/30">
+                        <td className="py-2.5 px-3 text-muted-foreground font-mono">{idx + 1}</td>
+                        <td className="py-2.5 px-3 font-semibold text-foreground">
                           {item.lead.company_name || item.lead.name}
-                          <p className="text-[10px] text-slate-400 font-normal">
+                          <p className="text-[10px] text-muted-foreground font-normal">
                             {item.lead.city || item.lead.province || 'Espanha'} • {item.lead.sector || 'Industrial'}
                           </p>
                         </td>
-                        <td className="py-2.5 px-3 font-mono text-slate-300">{item.lead.phone || '-'}</td>
-                        <td className="py-2.5 px-3 text-center font-bold text-slate-300">{item.attempts_count}</td>
+                        <td className="py-2.5 px-3 font-mono text-foreground">{item.lead.phone || '-'}</td>
+                        <td className="py-2.5 px-3 text-center font-bold text-foreground">{item.attempts_count}</td>
                         <td className="py-2.5 px-3 text-center">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                             item.status === 'converted'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                               : item.status === 'scheduled'
-                              ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                              ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
                               : item.status === 'rejected'
-                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
                               : item.status === 'no_answer'
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : 'bg-slate-800 text-slate-300'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                              : 'bg-muted text-muted-foreground'
                           }`}>
                             {item.status}
                           </span>
@@ -422,12 +422,12 @@ export function DialerCampaignsListPage() {
             )}
           </div>
 
-          <DialogFooter className="p-4 border-t border-slate-800">
+          <DialogFooter className="p-4 border-t border-border flex justify-between">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsQueueModalOpen(false)}
-              className="bg-slate-900 border-slate-700 text-slate-300"
+              className="border-input"
             >
               Fechar
             </Button>

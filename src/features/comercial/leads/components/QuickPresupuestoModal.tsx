@@ -102,18 +102,15 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!items[0].job_function_id && jobFunctions.length > 0) {
-      // Pick first available job function if left blank
-      items[0].job_function_id = jobFunctions[0].id;
-      items[0].job_title = jobFunctions[0].name;
+    if (items.some(it => !it.job_function_id)) {
+      toast.error('Selecione o cargo/função para todos os itens');
+      return;
     }
 
     try {
       setIsSubmitting(true);
       await onSave({
-        empresa_id: selectedEmpresaId,
         lead_id: lead.id,
-        title: `Pré-Orçamento: ${lead.company_name || lead.name} (${workCity || 'Espanha'})`,
         contact_name: contactName,
         contact_email: contactEmail,
         work_city: workCity,
@@ -133,20 +130,20 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
   return (
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto bg-slate-950 border border-slate-800 text-slate-100 p-0 shadow-2xl">
-        <DialogHeader className="p-6 pb-4 border-b border-slate-800/80 bg-gradient-to-r from-emerald-950/40 via-slate-900 to-slate-950">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto bg-card border-border text-foreground p-0 shadow-2xl">
+        <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <Sparkles className="w-5 h-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
                 Gerar Pré-Orçamento Rápido
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                   Inside Sales
                 </span>
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-400">
+              <DialogDescription className="text-xs text-muted-foreground">
                 Preencha os perfis técnicos solicitados pelo cliente durante a ligação para gerar a estimativa comercial.
               </DialogDescription>
             </div>
@@ -155,13 +152,13 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Header Summary Card */}
-          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+          <div className="p-4 rounded-xl bg-muted/40 border border-border flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <Building2 className="w-5 h-5 text-indigo-400" />
+              <Building2 className="w-5 h-5 text-indigo-500" />
               <div>
-                <p className="text-sm font-semibold text-white">{lead.company_name || lead.name}</p>
-                <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
-                  <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                <p className="text-sm font-semibold text-foreground">{lead.company_name || lead.name}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
                   {lead.city || lead.province || lead.country_id || 'Espanha'} • {lead.sector || 'Industrial'}
                 </p>
               </div>
@@ -169,12 +166,12 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
             <div className="flex items-center gap-6 text-right">
               <div>
-                <p className="text-xs text-slate-400 uppercase font-medium">Horas Estimadas/Mês</p>
-                <p className="text-base font-bold text-slate-200">{totalMonthlyHours}h</p>
+                <p className="text-xs text-muted-foreground uppercase font-medium">Horas Estimadas/Mês</p>
+                <p className="text-base font-bold text-foreground">{totalMonthlyHours}h</p>
               </div>
               <div>
-                <p className="text-xs text-emerald-400 uppercase font-medium">Faturamento Estimado</p>
-                <p className="text-lg font-bold text-emerald-400">
+                <p className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-medium">Faturamento Estimado</p>
+                <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                   {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalEstimatedRevenue)}
                 </p>
               </div>
@@ -184,52 +181,52 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
           {/* Form Fields: General */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-medium">Nome do Decisor / Contato</Label>
+              <Label className="text-xs text-foreground font-medium">Nome do Decisor / Contato</Label>
               <Input
                 value={contactName}
                 onChange={e => setContactName(e.target.value)}
                 placeholder="Ex: Carlos Gutierrez"
-                className="bg-slate-900 border-slate-800 text-white text-sm"
+                className="bg-background border-input text-foreground text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-medium">E-mail para Envio da Proposta</Label>
+              <Label className="text-xs text-foreground font-medium">E-mail para Envio da Proposta</Label>
               <Input
                 type="email"
                 value={contactEmail}
                 onChange={e => setContactEmail(e.target.value)}
                 placeholder="carlos@empresa.es"
-                className="bg-slate-900 border-slate-800 text-white text-sm"
+                className="bg-background border-input text-foreground text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-medium">Local da Obra / Cidade</Label>
+              <Label className="text-xs text-foreground font-medium">Local da Obra / Cidade</Label>
               <Input
                 value={workCity}
                 onChange={e => setWorkCity(e.target.value)}
                 placeholder="Ex: Bilbao, País Vasco"
-                className="bg-slate-900 border-slate-800 text-white text-sm"
+                className="bg-background border-input text-foreground text-sm"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-medium">Data Prevista de Início</Label>
+              <Label className="text-xs text-foreground font-medium">Data Prevista de Início</Label>
               <Input
                 type="date"
                 value={expectedStartDate}
                 onChange={e => setExpectedStartDate(e.target.value)}
-                className="bg-slate-900 border-slate-800 text-white text-sm"
+                className="bg-background border-input text-foreground text-sm"
               />
             </div>
             <div className="sm:col-span-2 space-y-1.5">
-              <Label className="text-xs text-slate-300 font-medium">Observações da Negociação</Label>
+              <Label className="text-xs text-foreground font-medium">Observações da Negociação</Label>
               <Input
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 placeholder="Ex: Cliente tem parada técnica de 45 dias no estaleiro..."
-                className="bg-slate-900 border-slate-800 text-white text-sm"
+                className="bg-background border-input text-foreground text-sm"
               />
             </div>
           </div>
@@ -237,8 +234,8 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
           {/* Technical Team Items */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-semibold text-white flex items-center gap-2">
-                <Calculator className="w-4 h-4 text-emerald-400" />
+              <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-emerald-500" />
                 Mão de Obra Solicitada (Perfis Técnicos)
               </Label>
               <Button
@@ -246,7 +243,7 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                 variant="outline"
                 size="sm"
                 onClick={handleAddItem}
-                className="h-8 text-xs bg-slate-900 border-slate-700 hover:bg-slate-800 text-emerald-400 hover:text-emerald-300 gap-1.5"
+                className="h-8 text-xs bg-background border-input hover:bg-muted text-emerald-600 dark:text-emerald-400 gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" /> Adicionar Função
               </Button>
@@ -256,23 +253,23 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
               {items.map((item, index) => (
                 <div 
                   key={index}
-                  className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-3 relative group"
+                  className="p-4 rounded-xl bg-muted/30 border border-border space-y-3 relative group"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                     {/* Function Selector */}
                     <div className="sm:col-span-4 space-y-1">
-                      <Label className="text-xs text-slate-400">Função / Categoria</Label>
+                      <Label className="text-[11px] text-muted-foreground">Cargo / Especialidade Técnica</Label>
                       <Select
                         value={item.job_function_id}
                         onValueChange={val => handleItemChange(index, 'job_function_id', val)}
                       >
-                        <SelectTrigger className="bg-slate-950 border-slate-800 text-white text-xs h-9">
-                          <SelectValue placeholder="Selecione a função..." />
+                        <SelectTrigger className="bg-background border-input text-foreground text-xs h-9">
+                          <SelectValue placeholder="Selecione o cargo..." />
                         </SelectTrigger>
-                        <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                        <SelectContent className="bg-card text-card-foreground border-border text-xs">
                           {jobFunctions.map(jf => (
-                            <SelectItem key={jf.id} value={jf.id} className="text-xs">
-                              {jf.name}
+                            <SelectItem key={jf.id} value={jf.id}>
+                              {jf.name} ({jf.code || 'TEC'})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -281,93 +278,88 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
                     {/* Quantity */}
                     <div className="sm:col-span-2 space-y-1">
-                      <Label className="text-xs text-slate-400">Qtd Técnicos</Label>
+                      <Label className="text-[11px] text-muted-foreground">Qtd Técnicos</Label>
                       <Input
                         type="number"
-                        min="1"
-                        max="100"
+                        min={1}
                         value={item.quantity}
                         onChange={e => handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
-                        className="bg-slate-950 border-slate-800 text-white text-xs h-9"
-                      />
-                    </div>
-
-                    {/* Rate/Hour */}
-                    <div className="sm:col-span-2 space-y-1">
-                      <Label className="text-xs text-slate-400">Tarifa Venda (€/h)</Label>
-                      <Input
-                        type="number"
-                        step="0.5"
-                        min="10"
-                        value={item.sell_rate_hour}
-                        onChange={e => handleItemChange(index, 'sell_rate_hour', parseFloat(e.target.value) || 28)}
-                        className="bg-slate-950 border-slate-800 text-emerald-400 font-semibold text-xs h-9"
+                        className="bg-background border-input text-foreground text-xs h-9"
                       />
                     </div>
 
                     {/* Hours/Day */}
                     <div className="sm:col-span-2 space-y-1">
-                      <Label className="text-xs text-slate-400">Horas/Dia</Label>
+                      <Label className="text-[11px] text-muted-foreground">Horas/Dia</Label>
                       <Input
                         type="number"
-                        min="1"
-                        max="12"
+                        min={1}
+                        max={16}
                         value={item.hours_per_day}
-                        onChange={e => handleItemChange(index, 'hours_per_day', parseInt(e.target.value) || 8)}
-                        className="bg-slate-950 border-slate-800 text-white text-xs h-9"
+                        onChange={e => handleItemChange(index, 'hours_per_day', parseFloat(e.target.value) || 8)}
+                        className="bg-background border-input text-foreground text-xs h-9"
                       />
                     </div>
 
-                    {/* Delete button */}
-                    <div className="sm:col-span-2 flex justify-end">
+                    {/* Sell Rate / Hour */}
+                    <div className="sm:col-span-3 space-y-1">
+                      <Label className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">Taxa Venda (€/h)</Label>
+                      <div className="relative">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">€</span>
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min={15}
+                          value={item.sell_rate_hour}
+                          onChange={e => handleItemChange(index, 'sell_rate_hour', parseFloat(e.target.value) || 28)}
+                          className="bg-background border-input text-foreground text-xs h-9 pl-7 font-bold text-emerald-600 dark:text-emerald-400"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Delete item */}
+                    <div className="sm:col-span-1 flex justify-end">
                       <Button
                         type="button"
                         variant="ghost"
                         size="sm"
                         onClick={() => handleRemoveItem(index)}
-                        className="h-9 w-9 text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                        className="h-9 w-9 p-0 text-muted-foreground hover:text-rose-500 hover:bg-muted"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
 
-                  {/* Included benefits checkboxes */}
-                  <div className="flex flex-wrap items-center gap-6 pt-1 text-xs text-slate-300">
+                  {/* Inclusion checkboxes */}
+                  <div className="flex items-center gap-6 pt-1 text-xs text-foreground">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Checkbox
                         checked={item.includes_accommodation}
                         onCheckedChange={c => handleItemChange(index, 'includes_accommodation', !!c)}
                       />
-                      <span>Inclui Alojamento</span>
+                      <span>Inclui Alojamento MCS</span>
                     </label>
+
                     <label className="flex items-center gap-2 cursor-pointer">
                       <Checkbox
                         checked={item.includes_transport}
                         onCheckedChange={c => handleItemChange(index, 'includes_transport', !!c)}
                       />
-                      <span>Inclui Deslocamento/Transporte</span>
+                      <span>Inclui Transporte / Viatura</span>
                     </label>
-                    <span className="text-slate-500">|</span>
-                    <span className="text-slate-400">
-                      Subtotal mensal: <strong className="text-emerald-400">
-                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(
-                          item.quantity * item.hours_per_day * item.days_per_week * 4 * item.sell_rate_hour
-                        )}
-                      </strong>
-                    </span>
                   </div>
                 </div>
               ))}
             </div>
           </div>
 
-          <DialogFooter className="p-0 pt-4 border-t border-slate-800 flex items-center justify-between sm:justify-between">
+          <DialogFooter className="p-0 pt-4 border-t border-border flex justify-between">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="border-input"
             >
               Cancelar
             </Button>
@@ -375,15 +367,17 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold gap-2 shadow-lg shadow-emerald-950/50"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm px-6 gap-2 shadow-md shadow-emerald-600/20"
             >
               {isSubmitting ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Gerando Orçamento...
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Gerando Orçamento...
                 </>
               ) : (
                 <>
-                  <CheckCircle className="w-4 h-4" /> Confirmar & Gerar Estimativa
+                  <CheckCircle className="w-4 h-4" />
+                  Confirmar & Enviar p/ Funil de Vendas
                 </>
               )}
             </Button>

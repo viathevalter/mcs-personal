@@ -63,17 +63,17 @@ export function CreateCampaignModal({ isOpen, onClose, selectedLeadIds, selected
 
   return (
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
-      <DialogContent className="sm:max-w-xl bg-slate-950 border border-slate-800 text-slate-100 p-0 shadow-2xl">
-        <DialogHeader className="p-6 pb-4 border-b border-slate-800/80 bg-gradient-to-r from-blue-950/40 via-slate-900 to-slate-950">
+      <DialogContent className="sm:max-w-xl bg-card border-border text-foreground p-0 shadow-2xl">
+        <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/30">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-500">
               <Zap className="w-5 h-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
                 Criar Fila de Discagem (Power Dialer)
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-400">
+              <DialogDescription className="text-xs text-muted-foreground">
                 Gere um trabalho sequencial de prospecção para ligar para as empresas selecionadas.
               </DialogDescription>
             </div>
@@ -82,40 +82,40 @@ export function CreateCampaignModal({ isOpen, onClose, selectedLeadIds, selected
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
           {/* Selected Leads Alert */}
-          <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-muted/40 border border-border flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <PhoneCall className="w-4 h-4 text-blue-400" />
-              <span className="text-xs font-medium text-slate-300">Empresas selecionadas no mailing:</span>
+              <PhoneCall className="w-4 h-4 text-blue-500" />
+              <span className="text-xs font-medium text-foreground">Empresas selecionadas no mailing:</span>
             </div>
-            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30">
+            <span className="text-xs font-black px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/30">
               {selectedCount} Empresas
             </span>
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-slate-300 font-medium">Nome do Trabalho / Campanha</Label>
+            <Label className="text-xs text-foreground font-medium">Nome do Trabalho / Campanha</Label>
             <Input
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="Ex: Campanha Calderería & Estruturas - Omar"
               required
-              className="bg-slate-900 border-slate-800 text-white text-sm"
+              className="bg-background border-input text-foreground text-sm"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-medium">Vendedor Responsável (SDR)</Label>
+              <Label className="text-xs text-foreground font-medium">Vendedor Responsável (SDR)</Label>
               <Select value={assignedTo} onValueChange={setAssignedTo}>
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-xs h-9">
+                <SelectTrigger className="bg-background border-input text-foreground text-xs h-9">
                   <SelectValue placeholder="Selecione o operador..." />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800 text-white">
-                  <SelectItem value="unassigned" className="text-xs">
+                <SelectContent className="bg-card text-card-foreground border-border text-xs">
+                  <SelectItem value="unassigned">
                     Qualquer operador disponível
                   </SelectItem>
                   {salespeople.map(sp => (
-                    <SelectItem key={sp.id} value={sp.id} className="text-xs">
+                    <SelectItem key={sp.id} value={sp.id}>
                       {sp.display_name || sp.email}
                     </SelectItem>
                   ))}
@@ -124,17 +124,17 @@ export function CreateCampaignModal({ isOpen, onClose, selectedLeadIds, selected
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-medium">Roteiro de Vendas (Script)</Label>
+              <Label className="text-xs text-foreground font-medium">Roteiro de Vendas (Script)</Label>
               <Select 
                 value={scriptId || (scripts[0]?.id || '')} 
                 onValueChange={setScriptId}
               >
-                <SelectTrigger className="bg-slate-900 border-slate-800 text-white text-xs h-9">
+                <SelectTrigger className="bg-background border-input text-foreground text-xs h-9">
                   <SelectValue placeholder="Selecione o script..." />
                 </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                <SelectContent className="bg-card text-card-foreground border-border text-xs">
                   {scripts.map(s => (
-                    <SelectItem key={s.id} value={s.id} className="text-xs">
+                    <SelectItem key={s.id} value={s.id}>
                       {s.title}
                     </SelectItem>
                   ))}
@@ -144,22 +144,22 @@ export function CreateCampaignModal({ isOpen, onClose, selectedLeadIds, selected
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs text-slate-300 font-medium">Observações / Meta da Campanha (Opcional)</Label>
+            <Label className="text-xs text-foreground font-medium">Observações / Meta da Campanha (Opcional)</Label>
             <Textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
               placeholder="Ex: Focar na identificação de paradas de manutenção previstas para o próximo trimestre..."
               rows={2}
-              className="bg-slate-900 border-slate-800 text-white text-xs resize-none"
+              className="bg-background border-input text-foreground text-xs resize-none"
             />
           </div>
 
-          <DialogFooter className="p-0 pt-4 border-t border-slate-800 flex items-center justify-between sm:justify-between">
+          <DialogFooter className="p-0 pt-4 border-t border-border flex items-center justify-between sm:justify-between">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
-              className="bg-slate-900 border-slate-700 text-slate-300 hover:bg-slate-800"
+              className="border-input text-xs"
             >
               Cancelar
             </Button>
@@ -167,7 +167,7 @@ export function CreateCampaignModal({ isOpen, onClose, selectedLeadIds, selected
             <Button
               type="submit"
               disabled={isCreatingCampaign}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold gap-2 shadow-lg shadow-blue-950/50"
+              className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs gap-2 shadow-md shadow-blue-900/30"
             >
               {isCreatingCampaign ? (
                 <>

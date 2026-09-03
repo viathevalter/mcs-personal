@@ -95,7 +95,7 @@ export function DialerOperatorsPage() {
   return (
     <div className="flex flex-col space-y-6 p-4 lg:p-8 max-w-7xl mx-auto w-full">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800/80 pb-5">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-purple-500/20">
             <Users className="w-5 h-5" />
@@ -103,7 +103,7 @@ export function DialerOperatorsPage() {
           <div>
             <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
               Operadores & Scripts de Abordagem
-              <Badge className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-xs">
+              <Badge className="bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 text-xs">
                 Configurações
               </Badge>
             </h1>
@@ -114,7 +114,7 @@ export function DialerOperatorsPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-auto">
-          <TabsList className="bg-card border p-0.5 rounded-xl h-9">
+          <TabsList className="bg-muted/60 border border-border p-0.5 rounded-xl h-9">
             <TabsTrigger value="operators" className="text-xs data-[state=active]:bg-purple-600 data-[state=active]:text-white gap-1.5">
               <Users className="w-3.5 h-3.5" /> Equipe de Operadores
             </TabsTrigger>
@@ -128,7 +128,7 @@ export function DialerOperatorsPage() {
       {/* Tab 1: Operators Management */}
       {activeTab === 'operators' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-card border flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-card border border-border shadow-sm flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-foreground">Operadores Comerciais Ativos</h3>
               <p className="text-xs text-muted-foreground">
@@ -141,7 +141,7 @@ export function DialerOperatorsPage() {
             {salespeople.map(sp => (
               <div 
                 key={sp.id}
-                className="p-5 rounded-2xl bg-card border shadow-sm hover:border-purple-500/50 transition-all space-y-4"
+                className="p-5 rounded-2xl bg-card border border-border shadow-sm hover:border-purple-500/50 transition-all space-y-4"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -154,14 +154,14 @@ export function DialerOperatorsPage() {
                     </div>
                   </div>
 
-                  <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 text-[10px]">
+                  <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[10px]">
                     Ativo
                   </Badge>
                 </div>
 
                 <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                   <span>Perfil: <strong>{sp.role || 'Vendedor Comercial'}</strong></span>
-                  <span className="text-purple-400 font-semibold">Telemarketing Ativo</span>
+                  <span className="text-purple-600 dark:text-purple-400 font-semibold">Telemarketing Ativo</span>
                 </div>
               </div>
             ))}
@@ -172,7 +172,7 @@ export function DialerOperatorsPage() {
       {/* Tab 2: Scripts Management */}
       {activeTab === 'scripts' && (
         <div className="space-y-4">
-          <div className="p-4 rounded-xl bg-card border flex items-center justify-between">
+          <div className="p-4 rounded-xl bg-card border border-border shadow-sm flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-foreground">Roteiros de Abordagem & Objeções</h3>
               <p className="text-xs text-muted-foreground">
@@ -193,12 +193,12 @@ export function DialerOperatorsPage() {
             {scripts.map(sc => (
               <div 
                 key={sc.id}
-                className="p-5 rounded-2xl bg-card border shadow-sm space-y-4 flex flex-col justify-between"
+                className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-4 flex flex-col justify-between"
               >
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="text-base font-bold text-foreground">{sc.title}</h4>
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
                       {sc.sector || 'Geral'}
                     </span>
                   </div>
@@ -209,7 +209,7 @@ export function DialerOperatorsPage() {
                 </div>
 
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between text-muted-foreground pt-2 border-t">
+                  <div className="flex items-center justify-between text-muted-foreground pt-2 border-t border-border">
                     <span>Perguntas de Qualificação: <strong>{(sc.qualifying_questions || []).length}</strong></span>
                     <span>Guia de Objeções: <strong>{(sc.objections_guide || []).length}</strong></span>
                   </div>
@@ -219,7 +219,7 @@ export function DialerOperatorsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => handleOpenEditScript(sc)}
-                      className="h-8 text-xs gap-1"
+                      className="h-8 text-xs gap-1 border-input"
                     >
                       <Edit3 className="w-3.5 h-3.5" /> Editar Script
                     </Button>
@@ -233,13 +233,13 @@ export function DialerOperatorsPage() {
 
       {/* Modal: Edit / Create Script */}
       <Dialog open={isScriptModalOpen} onOpenChange={setIsScriptModalOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto bg-slate-950 border border-slate-800 text-slate-100 p-0 shadow-2xl">
-          <DialogHeader className="p-6 pb-4 border-b border-slate-800">
-            <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-indigo-400" />
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto bg-card border-border text-foreground p-0 shadow-2xl">
+          <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/30">
+            <DialogTitle className="text-lg font-bold text-foreground flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-indigo-500" />
               {editingScript.id ? 'Editar Roteiro de Vendas' : 'Novo Roteiro de Vendas'}
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-400">
+            <DialogDescription className="text-xs text-muted-foreground">
               Personalize o texto de abertura e os argumentos que o operador lerá durante a ligação.
             </DialogDescription>
           </DialogHeader>
@@ -247,29 +247,29 @@ export function DialerOperatorsPage() {
           <form onSubmit={handleSaveScript} className="p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-300">Título do Script</Label>
+                <Label className="text-xs text-foreground font-medium">Título do Script</Label>
                 <Input
                   value={editingScript.title || ''}
                   onChange={e => setEditingScript(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Ex: Script Calderería Espanha"
                   required
-                  className="bg-slate-900 border-slate-800 text-white text-xs h-9"
+                  className="bg-background border-input text-foreground text-xs h-9"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-slate-300">Setor / Mercado Alvo</Label>
+                <Label className="text-xs text-foreground font-medium">Setor / Mercado Alvo</Label>
                 <Input
                   value={editingScript.sector || ''}
                   onChange={e => setEditingScript(prev => ({ ...prev, sector: e.target.value }))}
                   placeholder="Ex: metalurgico_es / naval / quimico"
-                  className="bg-slate-900 border-slate-800 text-white text-xs h-9"
+                  className="bg-background border-input text-foreground text-xs h-9"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-semibold text-indigo-400">
+              <Label className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
                 Fala de Abertura (Pitch Inicial)
               </Label>
               <Textarea
@@ -278,12 +278,12 @@ export function DialerOperatorsPage() {
                 placeholder="Texto que o operador deve falar nos primeiros 10 segundos da chamada..."
                 rows={4}
                 required
-                className="bg-slate-900 border-slate-800 text-white text-xs"
+                className="bg-background border-input text-foreground text-xs"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-300 font-semibold text-emerald-400">
+              <Label className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
                 Proposta de Fechamento / Próximo Passo
               </Label>
               <Textarea
@@ -291,16 +291,16 @@ export function DialerOperatorsPage() {
                 onChange={e => setEditingScript(prev => ({ ...prev, closing_pitch: e.target.value }))}
                 placeholder="Ex: Podemos preparar uma estimativa sem compromisso para a sua próxima obra?"
                 rows={2}
-                className="bg-slate-900 border-slate-800 text-white text-xs"
+                className="bg-background border-input text-foreground text-xs"
               />
             </div>
 
-            <DialogFooter className="p-0 pt-4 border-t border-slate-800 flex justify-between">
+            <DialogFooter className="p-4 border-t border-border flex justify-between">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsScriptModalOpen(false)}
-                className="bg-slate-900 border-slate-700 text-slate-300 text-xs"
+                className="border-input text-xs"
               >
                 Cancelar
               </Button>
