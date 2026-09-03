@@ -266,7 +266,7 @@ export function PowerDialerPage() {
       {/* Top Header & Navigation Bar */}
       <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
         {/* Left: Brand & Campaign Switcher */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
               <PhoneCall className="w-5 h-5 animate-pulse" />
@@ -288,7 +288,7 @@ export function PowerDialerPage() {
           <div className="flex items-center gap-2">
             <Select value={activeCampaignId || ''} onValueChange={handleSelectCampaign}>
               <SelectTrigger className="bg-slate-950 border-slate-800 text-white text-xs h-9 w-[220px] sm:w-[280px]">
-                <SelectValue placeholder="Selecione o Lote de Discagem..." />
+                <SelectValue placeholder="Selecione o Trabalho / Fila..." />
               </SelectTrigger>
               <SelectContent className="bg-slate-900 border-slate-800 text-white">
                 {campaigns.map(c => (
@@ -302,26 +302,43 @@ export function PowerDialerPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => navigate('/comercial/leads')}
+              onClick={() => navigate('/comercial/discador/trabalhos')}
               className="h-9 text-xs bg-slate-950 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 gap-1.5"
+              title="Gerenciar Trabalhos & Filas"
             >
-              <Plus className="w-3.5 h-3.5 text-blue-400" /> Nova Fila
+              <Layers className="w-3.5 h-3.5 text-blue-400" /> Trabalhos
             </Button>
           </div>
         </div>
 
-        {/* Right: Mode Toggle (Dialer vs Supervisor) */}
-        <div className="flex items-center gap-3">
-          <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="w-auto">
-            <TabsList className="bg-slate-950 border border-slate-800 p-0.5 rounded-xl h-9">
-              <TabsTrigger value="dialer" className="text-xs data-[state=active]:bg-blue-600 data-[state=active]:text-white gap-1.5">
-                <Zap className="w-3.5 h-3.5" /> Discador
-              </TabsTrigger>
-              <TabsTrigger value="supervisor" className="text-xs data-[state=active]:bg-indigo-600 data-[state=active]:text-white gap-1.5">
-                <BarChart3 className="w-3.5 h-3.5" /> Supervisão & KPIs
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+        {/* Right: Quick Links to Sub-Modules */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/comercial/discador/trabalhos')}
+            className="h-8 text-xs bg-slate-900 border-slate-700 text-slate-200 hover:text-white gap-1.5"
+          >
+            <Layers className="w-3.5 h-3.5 text-blue-400" /> Filas
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/comercial/discador/supervisao')}
+            className="h-8 text-xs bg-slate-900 border-slate-700 text-slate-200 hover:text-white gap-1.5"
+          >
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-400" /> Supervisão
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/comercial/discador/operadores')}
+            className="h-8 text-xs bg-slate-900 border-slate-700 text-slate-200 hover:text-white gap-1.5"
+          >
+            <User className="w-3.5 h-3.5 text-purple-400" /> Operadores & Scripts
+          </Button>
         </div>
       </header>
 

@@ -12,7 +12,9 @@ import {
     Zap,
     BarChart3,
     Award,
-    PhoneCall
+    PhoneCall,
+    Layers,
+    Headphones
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
@@ -40,6 +42,16 @@ export function ComercialSidebar() {
 
     const sections: SidebarSection[] = [
         {
+            titleKey: 'comercial.sidebar.powerDialer',
+            titleDefault: 'Power Dialer (SDR)',
+            links: [
+                { to: '/comercial/discador', label: 'Cockpit Discador', icon: PhoneCall, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/discador/trabalhos', label: 'Trabalhos & Filas', icon: Layers, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/discador/supervisao', label: 'Supervisão & KPIs', icon: BarChart3, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/discador/operadores', label: 'Operadores & Scripts', icon: Users, roles: ['admin', 'commercial', 'rh'] },
+            ]
+        },
+        {
             titleKey: 'comercial.sidebar.gestaoComercial',
             titleDefault: 'Gestão Comercial',
             links: [
@@ -50,9 +62,8 @@ export function ComercialSidebar() {
         },
         {
             titleKey: 'comercial.sidebar.marketing',
-            titleDefault: 'Marketing & Prospecção',
+            titleDefault: 'Marketing & Leads',
             links: [
-                { to: '/comercial/discador', label: 'Cockpit Discador (Power Dialer)', icon: PhoneCall, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/leads', label: t('comercial.sidebar.leads'), icon: Users, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/prospector', label: t('comercial.sidebar.prospector') || 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/kanban', label: t('comercial.sidebar.kanban') || 'Funil de Vendas', icon: Kanban, roles: ['admin', 'commercial', 'rh'] },

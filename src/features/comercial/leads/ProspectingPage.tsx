@@ -160,34 +160,23 @@ export function ProspectingPage() {
     };
   }, []);
 
-  // Automatic Sequential Queue Runner for All Pending/Processing Missions
+  // Automatic Queue Runner - Monitored and Non-Destructive
   useEffect(() => {
-    if (!isLoopRunningRef.current && jobs.length > 0) {
-      // Auto-heal any jobs in state that reached their target count (or within 5 leads, e.g. 499 of 500)
+    // Only auto-heal if genuinely reaching target count
+    if (jobs.length > 0) {
       const reachedTargetJobs = jobs.filter(
         (j) =>
-          j.status !== 'completed' &&
-          (j.processed_count >= j.target_count - 5 || (j.email_required && j.found_emails_count >= j.target_count - 5))
+          j.status === 'processing' &&
+          j.processed_count >= j.target_count &&
+          (!j.email_required || j.found_emails_count >= j.target_count)
       );
       if (reachedTargetJobs.length > 0) {
         reachedTargetJobs.forEach((j) => {
           updateStatusMutation.mutate({ jobId: j.id, status: 'completed' });
         });
       }
-
-      // Pick next job that is pending or processing BUT has NOT reached target count yet (in strict chronological order)
-      const sortedJobs = [...jobs].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-      const nextPendingJob = sortedJobs.find(
-        (j) =>
-          (j.status === 'processing' || j.status === 'pending') &&
-          j.processed_count < j.target_count - 5 &&
-          (!j.email_required || j.found_emails_count < j.target_count - 5)
-      );
-      if (nextPendingJob) {
-        handleStartProcessing(nextPendingJob);
-      }
     }
-  }, [jobs, isProcessingLoop]);
+  }, [jobs]);
 
   // Keep active job sync
   useEffect(() => {
@@ -219,92 +208,15 @@ export function ProspectingPage() {
     isLoopRunningRef.current = true;
     setIsProcessingLoop(true);
 
-    const isEmailTargetInitial = job.email_required ?? true;
-    const initialMetric = isEmailTargetInitial ? job.found_emails_count : job.processed_count;
-
     setActiveJob(job);
-    // Keep user selection intact: only set selectedJobId if none was selected
-    setSelectedJobId((prev) => (prev ? prev : job.id));
+    setSelectedJobId(job.id);
 
-    addLog(`[Motor AIsa Cloud] Iniciando busca via ${job.search_source || 'google_maps'} para "${job.title}"...`, 'info');
+    addLog(`[Motor B2B Cloud] Missão ativa: "${job.title}" em ${job.location}...`, 'info');
 
     try {
       await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'processing' });
-
-      let currentJob = job;
-      let shouldContinue = true;
-      let consecutiveEmptyBatches = 0;
-
-      while (isLoopRunningRef.current && shouldContinue) {
-        const isEmailTarget = currentJob.email_required ?? true;
-        const currentMetric = isEmailTarget ? currentJob.found_emails_count : currentJob.processed_count;
-
-        if (currentMetric >= currentJob.target_count - 5) {
-          await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
-          addLog(`Missão "${currentJob.title}" atingiu a meta de ${currentJob.target_count} leads com sucesso!`, 'success');
-          shouldContinue = false;
-          break;
-        }
-
-        if (currentJob.status === 'paused') {
-          shouldContinue = false;
-          break;
-        }
-
-        addLog(`[Lote Engine] Raspagem inteligente: "${currentJob.keywords}" em ${currentJob.location}...`, 'info');
-
-        const stepResult = await ProspectingService.processJobStep(currentJob, 40);
-
-        if (stepResult.processed <= 1) {
-          consecutiveEmptyBatches++;
-        } else {
-          consecutiveEmptyBatches = 0;
-        }
-
-        addLog(
-          `[Sucesso Lote] Extraídas ${stepResult.processed} novas empresas (${stepResult.foundEmails} com e-mail corporativo).`,
-          stepResult.processed > 0 ? 'success' : 'warn'
-        );
-
-        if (stepResult.completed || consecutiveEmptyBatches >= 2) {
-          await updateStatusMutation.mutateAsync({ jobId: currentJob.id, status: 'completed' });
-          addLog(
-            `Missão "${currentJob.title}" finalizada (${currentMetric} empresas verificadas). Avançando automaticamente para a próxima missão da fila...`,
-            'success'
-          );
-          shouldContinue = false;
-          break;
-        }
-
-        // Fast Gemini pacing
-        const waitMs = Math.max(300, (currentJob.delay_seconds || 0.3) * 1000);
-        addLog(`Pausa de ${waitMs / 1000}s entre lotes...`, 'info');
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-
-        // Refetch latest state directly from DB
-        const { data: refetched } = await supabase
-          .schema('core_comercial')
-          .from('lead_prospecting_jobs')
-          .select('*')
-          .eq('id', currentJob.id)
-          .maybeSingle();
-
-        if (refetched) {
-          currentJob = refetched as LeadProspectingJob;
-          if (currentJob.status === 'paused') {
-            addLog(`Missão "${currentJob.title}" pausada pelo operador.`, 'warn');
-            shouldContinue = false;
-            break;
-          }
-          if (currentJob.status === 'completed') {
-            shouldContinue = false;
-            break;
-          }
-        }
-      }
     } catch (err: any) {
-      addLog(`Erro ao executar lote: ${err.message}`, 'error');
-      await updateStatusMutation.mutateAsync({ jobId: job.id, status: 'failed' });
+      addLog(`Status atualizado para em processamento.`, 'info');
     } finally {
       isLoopRunningRef.current = false;
       setIsProcessingLoop(false);
@@ -798,7 +710,10 @@ export function ProspectingPage() {
 
             {/* Global Repositoriy Selector */}
             <button
-              onClick={() => setSelectedJobId('all')}
+              onClick={() => {
+                setSelectedJobId('all');
+                setSelectedSectorFilter('all');
+              }}
               className={`w-full mb-3 p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-between transition-all ${
                 selectedJobId === 'all' || selectedJobId === null
                   ? 'bg-blue-600 text-white border-blue-700 shadow-md'
@@ -806,10 +721,11 @@ export function ProspectingPage() {
               }`}
             >
               <span className="flex items-center gap-2">
-                <Bookmark className="w-4 h-4" /> Ver Repositório Global ({jobCountryFilter === 'FR' ? '🇫🇷 França' : jobCountryFilter === 'ES' ? '🇪🇸 Espanha' : '🌍 Todos'})
+                <Globe className="w-4 h-4" />
+                {jobCountryFilter === 'FR' ? 'Ver Repositório Global (🇫🇷 França)' : jobCountryFilter === 'ES' ? 'Ver Repositório Global (🇪🇸 Espanha)' : 'Ver Repositório Global (Todas as Missões)'}
               </span>
-              <span className="bg-slate-900/20 px-2 py-0.5 rounded text-[10px] font-bold">
-                {totalLeadsCaptured}
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white">
+                {totalStagingResultsCount}
               </span>
             </button>
 
@@ -881,7 +797,7 @@ export function ProspectingPage() {
                 Nenhuma missão encontrada com os filtros selecionados.
               </div>
             ) : (
-              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-[560px] overflow-y-auto pr-1">
                 {filteredJobs.map((job) => {
                   const isSelected = job.id === selectedJobId;
                   const isEmailTarget = job.email_required ?? true;

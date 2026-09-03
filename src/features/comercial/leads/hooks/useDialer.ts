@@ -8,7 +8,8 @@ import type {
   SalesScript, 
   CallOutcome, 
   RejectionReason,
-  QuickPresupuestoPayload
+  QuickPresupuestoPayload,
+  DialerCampaignStatus
 } from '../types/dialerTypes';
 
 export function useSalesScripts() {
@@ -40,20 +41,28 @@ export function useDialerCampaigns() {
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
       
+      // 1. Fetch campaigns
       const { data: campaigns, error } = await supabase
         .schema('core_comercial')
         .from('dialer_campaigns')
         .select(`
           *,
-          script:sales_scripts(*),
-          assigned_user:mcs_users!dialer_campaigns_assigned_to_fkey(id, display_name, email)
+          script:sales_scripts(*)
         `)
         .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      // Fetch queue items stats for each campaign
+      // 2. Fetch users for clean assignment mapping
+      const { data: users } = await supabase
+        .from('mcs_users')
+        .select('id, display_name, email');
+
+      const userMap = new Map<string, { id: string; display_name: string; email: string }>();
+      (users || []).forEach(u => userMap.set(u.id, u));
+
+      // 3. Fetch queue items stats for each campaign
       const campaignIds = (campaigns || []).map(c => c.id);
       let statsMap = new Map<string, any>();
 
@@ -85,17 +94,23 @@ export function useDialerCampaigns() {
         }
       }
 
-      const enriched = (campaigns || []).map(c => ({
-        ...c,
-        items_count: statsMap.get(c.id) || {
+      const enriched = (campaigns || []).map(c => {
+        const assignedUser = c.assigned_to ? userMap.get(c.assigned_to) || null : null;
+        const stats = statsMap.get(c.id) || {
           total: c.total_leads || 0,
           pending: (c.total_leads || 0) - (c.completed_leads || 0),
           converted: 0,
           scheduled: 0,
           rejected: 0,
           no_answer: 0,
-        }
-      }));
+        };
+
+        return {
+          ...c,
+          assigned_user: assignedUser,
+          items_count: stats,
+        };
+      });
 
       return enriched as DialerCampaign[];
     },
@@ -115,14 +130,27 @@ export function useDialerCampaign(campaignId?: string | null) {
         .from('dialer_campaigns')
         .select(`
           *,
-          script:sales_scripts(*),
-          assigned_user:mcs_users!dialer_campaigns_assigned_to_fkey(id, display_name, email)
+          script:sales_scripts(*)
         `)
         .eq('id', campaignId)
         .single();
 
       if (error) throw error;
-      return data as DialerCampaign;
+
+      let assignedUser = null;
+      if (data.assigned_to) {
+        const { data: u } = await supabase
+          .from('mcs_users')
+          .select('id, display_name, email')
+          .eq('id', data.assigned_to)
+          .single();
+        if (u) assignedUser = u;
+      }
+
+      return {
+        ...data,
+        assigned_user: assignedUser,
+      } as DialerCampaign;
     },
     enabled: !!campaignId,
   });
@@ -167,7 +195,6 @@ export function useDialerQueue(campaignId?: string | null, userId?: string | nul
         if (isADueScheduled && !isBDueScheduled) return -1;
         if (!isADueScheduled && isBDueScheduled) return 1;
 
-        // Both pending or regular:
         const statusPriority: Record<string, number> = {
           'scheduled': 1,
           'in_progress': 2,
@@ -187,7 +214,7 @@ export function useDialerQueue(campaignId?: string | null, userId?: string | nul
       });
     },
     enabled: !!campaignId,
-    refetchInterval: 30000, // auto check for due callbacks every 30s
+    refetchInterval: 30000,
   });
 }
 
@@ -199,15 +226,29 @@ export function useLeadCallLogs(leadId?: string | null) {
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('lead_call_logs')
-        .select(`
-          *,
-          user:mcs_users!lead_call_logs_user_id_fkey(id, display_name, email)
-        `)
+        .select('*')
         .eq('lead_id', leadId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return (data || []) as LeadCallLog[];
+
+      // Fetch users for mapping
+      const userIds = Array.from(new Set((data || []).map(l => l.user_id).filter(Boolean)));
+      let userMap = new Map<string, any>();
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('mcs_users')
+          .select('id, display_name, email')
+          .in('id', userIds);
+        (users || []).forEach(u => userMap.set(u.id, u));
+      }
+
+      const enriched = (data || []).map(log => ({
+        ...log,
+        user: log.user_id ? userMap.get(log.user_id) || null : null,
+      }));
+
+      return enriched as LeadCallLog[];
     },
     enabled: !!leadId,
   });
@@ -225,24 +266,23 @@ export function useDialerSupervisorKPIs() {
       const { data: logs, error: logError } = await supabase
         .schema('core_comercial')
         .from('lead_call_logs')
-        .select(`
-          id,
-          outcome,
-          duration_seconds,
-          created_at,
-          user_id,
-          rejection_reason,
-          user:mcs_users!lead_call_logs_user_id_fkey(id, display_name, email)
-        `)
+        .select('*')
         .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
 
       if (logError) throw logError;
 
+      // 2. Fetch users for names
+      const { data: users } = await supabase
+        .from('mcs_users')
+        .select('id, display_name, email');
+
+      const userMap = new Map<string, string>();
+      (users || []).forEach(u => userMap.set(u.id, u.display_name || u.email));
+
       const allLogs = logs || [];
       const totalCalls = allLogs.length;
 
-      // Metrics:
       let answeredCount = 0;
       let convertedCount = 0;
       let scheduledCount = 0;
@@ -285,7 +325,7 @@ export function useDialerSupervisorKPIs() {
         }
 
         const uId = log.user_id || 'unassigned';
-        const uName = (log.user as any)?.display_name || (log.user as any)?.email || 'Operador';
+        const uName = userMap.get(uId) || 'Operador Comercial';
 
         const sdr = sdrMap.get(uId) || {
           userId: uId,
@@ -396,6 +436,40 @@ export function useMutateDialer() {
     },
   });
 
+  const updateCampaignStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: DialerCampaignStatus }) => {
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('dialer_campaigns')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as DialerCampaign;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaign'] });
+    },
+  });
+
+  const deleteCampaign = useMutation({
+    mutationFn: async (campaignId: string) => {
+      const { error } = await supabase
+        .schema('core_comercial')
+        .from('dialer_campaigns')
+        .delete()
+        .eq('id', campaignId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
+    },
+  });
+
   const logCallAndAdvance = useMutation({
     mutationFn: async ({
       queueItemId,
@@ -462,9 +536,8 @@ export function useMutateDialer() {
         nextStatus = 'scheduled';
         nextScheduledFor = scheduledCallbackAt || null;
       } else if (outcome === 'no_answer' || outcome === 'busy' || outcome === 'gatekeeper_blocked') {
-        // Send to bottom of today's queue (rodízio)
         nextStatus = 'no_answer';
-        nextSortOrderModifier = 10000; // puts at end
+        nextSortOrderModifier = 10000;
       } else {
         nextStatus = 'pending';
       }
@@ -480,7 +553,6 @@ export function useMutateDialer() {
       const newAttempts = (currentQueueItem?.attempts_count || 0) + 1;
       const currentSort = currentQueueItem?.sort_order || 0;
 
-      // If exceeded max attempts without contact, mark as completed/skipped
       if (nextStatus === 'no_answer' && newAttempts >= maxAttempts) {
         nextStatus = 'skipped';
       }
@@ -502,7 +574,7 @@ export function useMutateDialer() {
 
       if (updateQueueError) throw updateQueueError;
 
-      // 4. Update Lead Record (last called, call attempts, blacklist if rejected)
+      // 4. Update Lead Record
       const leadUpdatePayload: Record<string, any> = {
         last_called_at: new Date().toISOString(),
         call_attempts_count: newAttempts,
@@ -522,11 +594,19 @@ export function useMutateDialer() {
 
       // 5. Update Campaign Progress Counter
       if (['converted', 'rejected', 'skipped'].includes(nextStatus)) {
+        // Increment completed count
+        const { data: campData } = await supabase
+          .schema('core_comercial')
+          .from('dialer_campaigns')
+          .select('completed_leads')
+          .eq('id', campaignId)
+          .single();
+
         await supabase
           .schema('core_comercial')
           .from('dialer_campaigns')
           .update({
-            completed_leads: supabase.rpc ? undefined : 1, // fallback increment
+            completed_leads: (campData?.completed_leads || 0) + 1,
             updated_at: new Date().toISOString(),
           })
           .eq('id', campaignId);
@@ -547,18 +627,16 @@ export function useMutateDialer() {
     mutationFn: async (payload: QuickPresupuestoPayload) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
 
-      // 1. Generate unique code
       const randNum = Math.floor(1000 + Math.random() * 9000);
       const codigo = `EST-${new Date().getFullYear()}-${randNum}`;
 
-      // Calculate totals
       let totalRevenue = 0;
       let totalCost = 0;
 
       const itemsWithCalculations = payload.items.map(item => {
-        const totalHours = item.quantity * item.hours_per_day * item.days_per_week * 4; // 1 month standard
+        const totalHours = item.quantity * item.hours_per_day * item.days_per_week * 4;
         const itemRevenue = totalHours * (item.sell_rate_hour || 28);
-        const itemCost = totalHours * (item.sell_rate_hour * 0.70); // 30% margin default
+        const itemCost = totalHours * (item.sell_rate_hour * 0.70);
         totalRevenue += itemRevenue;
         totalCost += itemCost;
         return {
@@ -571,7 +649,6 @@ export function useMutateDialer() {
 
       const marginPercent = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue) * 100 : 30;
 
-      // 2. Insert Estimacion in core_comercial.estimaciones
       const { data: estimacion, error: estError } = await supabase
         .schema('core_comercial')
         .from('estimaciones')
@@ -583,7 +660,7 @@ export function useMutateDialer() {
           contact_name: payload.contact_name,
           contact_email: payload.contact_email,
           expected_start_date: payload.expected_start_date || null,
-          general_notes: payload.notes || `Pré-orçamento gerado via Cockpit Discador (Power Dialer). Cidade: ${payload.work_city || 'N/A'}`,
+          general_notes: payload.notes || `Pré-orçamento gerado via Cockpit Discador. Cidade: ${payload.work_city || 'N/A'}`,
           status: 'draft',
         })
         .select()
@@ -591,7 +668,6 @@ export function useMutateDialer() {
 
       if (estError) throw estError;
 
-      // 3. Insert Version
       const { data: version, error: verError } = await supabase
         .schema('core_comercial')
         .from('estimacion_versions')
@@ -610,14 +686,12 @@ export function useMutateDialer() {
 
       if (verError) throw verError;
 
-      // 4. Update Estimacion with current_version_id
       await supabase
         .schema('core_comercial')
         .from('estimaciones')
         .update({ current_version_id: version.id })
         .eq('id', estimacion.id);
 
-      // 5. Insert Estimacion Items
       if (itemsWithCalculations.length > 0) {
         const estItemsToInsert = itemsWithCalculations.map(it => ({
           empresa_id: selectedEmpresaId,
@@ -643,7 +717,6 @@ export function useMutateDialer() {
           .insert(estItemsToInsert);
       }
 
-      // 6. Move Lead stage in Kanban to "Presupuesto Solicitado" / "Negociación" if exists
       const { data: stages } = await supabase
         .schema('core_comercial')
         .from('kanban_stages')
@@ -674,12 +747,67 @@ export function useMutateDialer() {
     },
   });
 
+  const saveSalesScript = useMutation({
+    mutationFn: async (script: Partial<SalesScript> & { title: string; pitch_opening: string }) => {
+      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+
+      if (script.id) {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('sales_scripts')
+          .update({
+            title: script.title,
+            sector: script.sector || 'general',
+            pitch_opening: script.pitch_opening,
+            qualifying_questions: script.qualifying_questions || [],
+            objections_guide: script.objections_guide || [],
+            closing_pitch: script.closing_pitch || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', script.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data as SalesScript;
+      } else {
+        const { data, error } = await supabase
+          .schema('core_comercial')
+          .from('sales_scripts')
+          .insert({
+            empresa_id: selectedEmpresaId,
+            title: script.title,
+            sector: script.sector || 'general',
+            pitch_opening: script.pitch_opening,
+            qualifying_questions: script.qualifying_questions || [],
+            objections_guide: script.objections_guide || [],
+            closing_pitch: script.closing_pitch || null,
+            is_default: false,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        return data as SalesScript;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales_scripts'] });
+    },
+  });
+
   return {
     createCampaign: createCampaign.mutateAsync,
     isCreatingCampaign: createCampaign.isPending,
+    updateCampaignStatus: updateCampaignStatus.mutateAsync,
+    isUpdatingCampaignStatus: updateCampaignStatus.isPending,
+    deleteCampaign: deleteCampaign.mutateAsync,
+    isDeletingCampaign: deleteCampaign.isPending,
     logCallAndAdvance: logCallAndAdvance.mutateAsync,
     isLoggingCall: logCallAndAdvance.isPending,
     createQuickPresupuesto: createQuickPresupuesto.mutateAsync,
     isCreatingPresupuesto: createQuickPresupuesto.isPending,
+    saveSalesScript: saveSalesScript.mutateAsync,
+    isSavingSalesScript: saveSalesScript.isPending,
   };
 }
