@@ -22,22 +22,31 @@ export function normalizeSectorName(raw: string | null | undefined): string {
   if (!raw || typeof raw !== 'string') return 'Industrial Geral';
   const str = raw.toLowerCase().trim();
 
-  if (str.includes('naval') || str.includes('astillero') || str.includes('armador')) {
+  if (str.includes('naval') || str.includes('astillero') || str.includes('armador') || str.includes('maritim') || str.includes('marítim') || str.includes('bateau')) {
     return 'Construção & Reparação Naval';
   }
-  if (str.includes('calderer') || str.includes('tuberia') || str.includes('presión') || str.includes('paradas de planta')) {
+  if (
+    str.includes('calderer') || str.includes('caldera') || str.includes('tuberia') || str.includes('tubería') || 
+    str.includes('tuyauterie') || str.includes('tuyaut') || str.includes('chaudronnerie') || str.includes('chaudron') ||
+    str.includes('piping') || str.includes('presión') || str.includes('pression') || str.includes('paradas de planta')
+  ) {
     return 'Calderería & Tubería Industrial';
   }
-  if (str.includes('estructura') || str.includes('metalúrg') || str.includes('mecaniz') || str.includes('montaje') || str.includes('talleres')) {
+  if (
+    str.includes('estructura') || str.includes('metalúrg') || str.includes('mecaniz') || str.includes('montaje') || 
+    str.includes('talleres') || str.includes('charpente') || str.includes('usinage') || str.includes('soudure') || 
+    str.includes('soldadura') || str.includes('mécano') || str.includes('tornería') || str.includes('serrurerie') ||
+    str.includes('ferronnerie') || str.includes('métallique') || str.includes('métal') || str.includes('metal')
+  ) {
     return 'Estructuras Metálicas & Montajes';
   }
-  if (str.includes('químic') || str.includes('petroquímic')) {
+  if (str.includes('químic') || str.includes('petroquímic') || str.includes('chimie') || str.includes('pétrochimie')) {
     return 'Industria Química & Petroquímica';
   }
-  if (str.includes('ingenier') || str.includes('epc') || str.includes('subcontratac')) {
+  if (str.includes('ingenier') || str.includes('epc') || str.includes('subcontratac') || str.includes('ingénierie')) {
     return 'Ingeniería & Contratistas EPC';
   }
-  if (str.includes('construcc')) {
+  if (str.includes('construcc') || str.includes('bâtiment') || str.includes('travaux')) {
     return 'Construcción & Obras';
   }
 

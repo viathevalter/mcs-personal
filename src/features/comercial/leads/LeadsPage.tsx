@@ -755,6 +755,7 @@ export function LeadsPage() {
   const [selectedCompanySize, setSelectedCompanySize] = useState<string>('all');
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
+  const [selectedWebsiteFilter, setSelectedWebsiteFilter] = useState<'all' | 'with_web' | 'no_web'>('all');
 
   const countryLabels = COUNTRY_LABELS;
 
@@ -879,6 +880,8 @@ export function LeadsPage() {
       if (regStr !== selectedRegion && !inTags) return false;
     }
     if (selectedProvince !== 'all' && lead.province !== selectedProvince) return false;
+    if (selectedWebsiteFilter === 'with_web' && (!lead.website || lead.website === '#' || lead.website.trim() === '')) return false;
+    if (selectedWebsiteFilter === 'no_web' && (lead.website && lead.website !== '#' && lead.website.trim() !== '')) return false;
 
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -1388,6 +1391,21 @@ export function LeadsPage() {
               </Select>
             </div>
           )}
+
+          {/* Website Filter Dropdown */}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <Globe className="w-4 h-4 text-indigo-500 shrink-0" />
+            <Select value={selectedWebsiteFilter} onValueChange={(val: any) => setSelectedWebsiteFilter(val)}>
+              <SelectTrigger className="w-full sm:w-40 h-9 text-xs font-semibold focus-visible:ring-indigo-500">
+                <SelectValue placeholder="Status Website" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">🌐 Todos os Sites</SelectItem>
+                <SelectItem value="with_web">✅ Com Website</SelectItem>
+                <SelectItem value="no_web">⚠️ Sem Website</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
       {error ? (
@@ -1566,17 +1584,22 @@ export function LeadsPage() {
                       )}
 
                       {/* Social & Web Icons */}
-                      <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
-                        {lead.website && (
+                      <div className="flex items-center gap-1.5 pt-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                        {lead.website && lead.website !== '#' && lead.website.trim() !== '' ? (
                           <a
                             href={ensureAbsoluteUrl(lead.website)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1 bg-slate-100 dark:bg-slate-900 text-blue-600 dark:text-blue-400 hover:text-blue-500 rounded border border-slate-200 dark:border-slate-700"
-                            title={`Website: ${lead.website}`}
+                            className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline max-w-[190px] truncate"
+                            title={`Abrir website: ${lead.website}`}
                           >
-                            <Globe className="w-3.5 h-3.5" />
+                            <Globe className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                            <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/.*$/, '')}</span>
                           </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-medium italic">
+                            ⚠️ Sem website
+                          </span>
                         )}
                         {lead.linkedin_url && (
                           <a
