@@ -433,6 +433,8 @@ export function CampaignsPage() {
     cargoKeyword: string;
     provinceKeyword: string;
     tagKeyword: string;
+    excludeTagKeyword?: string;
+    excludeProposals?: boolean;
     limit: string;
     offset: string;
   }>({
@@ -449,6 +451,8 @@ export function CampaignsPage() {
     cargoKeyword: '',
     provinceKeyword: '',
     tagKeyword: '',
+    excludeTagKeyword: '',
+    excludeProposals: false,
     limit: '',
     offset: '',
   });
@@ -638,6 +642,156 @@ export function CampaignsPage() {
         cargoKeyword: '',
         provinceKeyword: '',
         tagKeyword: '',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_triangulo_michelle_es_geral',
+      name: '🎯 Triângulo (Michelle) - Geral Espanha Sem Alex (6.546 leads)',
+      leadCount: 6546,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: '',
+        excludeTagKeyword: 'Alex',
+        excludeProposals: true,
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_triangulo_michelle_caldereria',
+      name: '🎯 Triângulo (Michelle) - Calderería, Tubería & Piping (1.200 leads)',
+      leadCount: 1200,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: ['Calderería & Tubería Industrial', 'Tuyauterie & Chaudronnerie Industrielle'],
+        selectedServices: [],
+        sectorKeyword: 'calderer',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: '',
+        excludeTagKeyword: 'Alex',
+        excludeProposals: true,
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_triangulo_michelle_estructuras',
+      name: '🎯 Triângulo (Michelle) - Estructuras Metálicas & Montajes (1.100 leads)',
+      leadCount: 1100,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: ['Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
+        selectedServices: [],
+        sectorKeyword: 'estructura',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: '',
+        excludeTagKeyword: 'Alex',
+        excludeProposals: true,
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_triangulo_michelle_mecanizado',
+      name: '🎯 Triângulo (Michelle) - Mecanizado CNC & Tornería (850 leads)',
+      leadCount: 850,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: ['Mecanizado & Matricería', 'Talleres & Mecanizado'],
+        selectedServices: [],
+        sectorKeyword: 'mecaniz',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: '',
+        excludeTagKeyword: 'Alex',
+        excludeProposals: true,
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_triangulo_michelle_catalunha',
+      name: '🎯 Triângulo (Michelle) - Catalunha & Barcelona (1.350 leads)',
+      leadCount: 1350,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: ['Catalunha', 'Cataluña', 'Catalunya'],
+        selectedProvinces: ['Barcelona', 'Tarragona', 'Girona', 'Lleida'],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: 'barcelona',
+        tagKeyword: '',
+        excludeTagKeyword: 'Alex',
+        excludeProposals: true,
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'aud_triangulo_michelle_madrid',
+      name: '🎯 Triângulo (Michelle) - Madrid & Zona Centro (1.100 leads)',
+      leadCount: 1100,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: ['Comunidad de Madrid', 'Madrid'],
+        selectedProvinces: ['Madrid', 'Toledo', 'Guadalajara'],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: 'madrid',
+        tagKeyword: '',
+        excludeTagKeyword: 'Alex',
+        excludeProposals: true,
         limit: '',
         offset: '',
       },
@@ -1270,7 +1424,34 @@ export function CampaignsPage() {
         }
       }
 
-      // 12. Filter by intelligence rule
+      // 13. Exclude Tag Keyword (e.g. Exclude 'Alex' for Michelle / Triangulo)
+      if (audienceFilters.excludeTagKeyword) {
+        const excludeKw = audienceFilters.excludeTagKeyword.toLowerCase();
+        const hasTag = Array.isArray(l.tags) && l.tags.some(t => String(t).toLowerCase().includes(excludeKw));
+        const inOrigin = (l.origen_lead || '').toLowerCase().includes(excludeKw);
+        const inAssigned = l.assigned_to === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
+        if (hasTag || inOrigin || inAssigned) {
+          return false;
+        }
+      }
+
+      // 14. Exclude leads with proposal/budget sent or active negotiation
+      if (audienceFilters.excludeProposals) {
+        const stageName = (l.kanban_stages?.name || l.stage_name || '').toLowerCase();
+        if (
+          stageName.includes('orçamento') ||
+          stageName.includes('presupuesto') ||
+          stageName.includes('proposta') ||
+          stageName.includes('negociação') ||
+          stageName.includes('negociacion') ||
+          stageName.includes('convertido') ||
+          stageName.includes('ganho')
+        ) {
+          return false;
+        }
+      }
+
+      // 15. Filter by intelligence rule
       if (audienceFilters.intelligence === 'never_sent') {
         const hasBeenSent = allQueuedLeads.some(q => q.lead_id === l.id);
         if (hasBeenSent) return false;
