@@ -493,7 +493,11 @@ serve(async (req) => {
         alojamento_obs: alojamentoObs,
         transporte_obs: transporteObs,
         epis_obs: episObs,
-        itens: mappedItens
+        itens: mappedItens,
+        observacoes: pedido.notes || '',
+        observacoes_gerais: pedido.notes || '',
+        horario_entrada: (pedido.pergunta_respuesta as any)?._horario_entrada || '08:00',
+        horario_trabalho: (pedido.pergunta_respuesta as any)?._horario_entrada || '08:00'
       };
 
       console.log(`[send-order-notification] Mesclando variáveis no template docx...`);

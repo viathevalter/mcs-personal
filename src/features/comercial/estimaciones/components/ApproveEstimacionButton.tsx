@@ -25,7 +25,9 @@ import {
   MessageSquare,
   Send,
   X,
-  MapPin
+  MapPin,
+  Clock,
+  FileText
 } from 'lucide-react';
 import { useEstimacionMutations } from '../hooks/useEstimacionMutations';
 import { jobFunctionQuestionsApi } from '@/features/master-data/job-functions/api/jobFunctionQuestionsApi';
@@ -89,9 +91,12 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
     return Math.ceil((end.getTime() - start.getTime()) / (1000 * 3600 * 24));
   };
 
-  // Custom date selection states
+  // Custom date and schedule selection states
   const [newStartDate, setNewStartDate] = useState('');
   const [newEndDate, setNewEndDate] = useState('');
+  const [workStartTime, setWorkStartTime] = useState('08:00');
+  const [generalNotesHtml, setGeneralNotesHtml] = useState('');
+  const notesEditorRef = useRef<HTMLDivElement>(null);
   const [selectedLang, setSelectedLang] = useState<'pt' | 'es' | 'en' | 'it' | 'fr'>('pt');
 
   const handleStartDateChange = (val: string) => {
@@ -104,6 +109,16 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
     const duration = getOriginalDuration() || 30;
     const end = new Date(start.getTime() + duration * 24 * 3600 * 1000);
     setNewEndDate(formatDateToLocalString(end));
+  };
+
+  const handleFormatNotes = (command: string, value: string = '') => {
+    if (notesEditorRef.current) {
+      notesEditorRef.current.focus();
+    }
+    document.execCommand(command, false, value);
+    if (notesEditorRef.current) {
+      setGeneralNotesHtml(notesEditorRef.current.innerHTML);
+    }
   };
 
   const isMonday = newStartDate ? parseLocalDate(newStartDate).getDay() === 1 : false;
@@ -197,6 +212,29 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
         const duration = getOriginalDuration() || 30;
         const suggestEnd = new Date(defaultSuggest.getTime() + duration * 24 * 3600 * 1000);
         setNewEndDate(formatDateToLocalString(suggestEnd));
+
+        // Initialize generalNotesHtml from estimacion.general_notes
+        let initialNotes = (estimacion.general_notes || '').trim();
+        if (initialNotes && !initialNotes.includes('<') && !initialNotes.includes('>')) {
+          initialNotes = initialNotes.split('\n').map(line => line.trim()).filter(Boolean).map(line => `<p>${line}</p>`).join('');
+        }
+        setGeneralNotesHtml(initialNotes);
+
+        // Detect work start time if mentioned in notes
+        let detectedTime = '08:00';
+        const rawNotes = estimacion.general_notes || '';
+        const timeMatch = rawNotes.match(/(?:hora(?:rio)?\s*(?:de)?\s*(?:entrada|inicio|trabalho|trabajo)[^:\d]*[:\s]+)(\d{1,2}(?:[h:]\d{2})?)/i)
+          || rawNotes.match(/(?:entrada|inicio)\s*[:\s]+(\d{1,2}(?:[h:]\d{2})?)/i);
+        if (timeMatch && timeMatch[1]) {
+          let t = timeMatch[1].toLowerCase().replace('h', ':');
+          if (!t.includes(':')) t = `${t.padStart(2, '0')}:00`;
+          else {
+            const [h, m] = t.split(':');
+            t = `${h.padStart(2, '0')}:${(m || '00').padEnd(2, '0')}`;
+          }
+          detectedTime = t;
+        }
+        setWorkStartTime(detectedTime);
 
         // 1. Fetch current version items
         const { data: itemsData, error: itemsErr } = await supabase
@@ -330,6 +368,48 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
         ? `${editSiteAddress}${editSiteCity ? `, ${editSiteCity}` : ''}${editSitePostalCode ? `, ${editSitePostalCode}` : ''}`
         : null;
 
+      // Build work start time label
+      const startTimeLabels: Record<string, string> = {
+        pt: 'Horário de Entrada / Início do Trabalho',
+        es: 'Horario de Entrada / Inicio de Jornada',
+        en: 'Work Start Time / Arrival',
+        it: 'Orario di Inizio / Ingresso',
+        fr: "Heure d'Arrivée / Début de Journée"
+      };
+      const startTimeLabel = startTimeLabels[lang] || startTimeLabels.pt;
+
+      // Build technical questions list if any answered
+      const answeredQuestions = questions
+        .filter(q => answers[q.questionId] && answers[q.questionId].trim() !== '' && answers[q.questionId] !== 'No')
+        .map(q => `<li><strong>${q.jobFunctionName} - ${q.questionText}:</strong> ${answers[q.questionId]}</li>`)
+        .join('');
+
+      let techAnswersSection = '';
+      if (answeredQuestions) {
+        const techTitles: Record<string, string> = {
+          pt: 'Requisitos e Detalhes Técnicos:',
+          es: 'Requisitos y Detalles Técnicos:',
+          en: 'Technical Requirements & Details:',
+          it: 'Requisiti e Dettagli Tecnici:',
+          fr: 'Exigences et Détails Techniques :'
+        };
+        techAnswersSection = `<p><strong>${techTitles[lang] || techTitles.pt}</strong></p><ul>${answeredQuestions}</ul>`;
+      }
+
+      // Build general notes section
+      let notesSection = '';
+      const cleanNotes = (generalNotesHtml || '').trim();
+      if (cleanNotes && cleanNotes !== '<p></p>' && cleanNotes !== '<br>') {
+        const notesTitles: Record<string, string> = {
+          pt: 'Observações Gerais / Instruções:',
+          es: 'Observaciones Generales / Instrucciones:',
+          en: 'General Notes / Instructions:',
+          it: 'Osservazioni Generali / Istruzioni:',
+          fr: 'Remarques Générales / Instructions :'
+        };
+        notesSection = `<p><strong>${notesTitles[lang] || notesTitles.pt}</strong></p><div>${cleanNotes}</div>`;
+      }
+
       let bodyHtml = '';
 
       if (lang === 'es') {
@@ -342,13 +422,16 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   <li><strong>Obra/Ubicación:</strong> ${formattedAddress || 'No definido'}</li>
   <li><strong>Fecha de Inicio Prevista:</strong> ${expectedStartStr || 'No definida'}</li>
   <li><strong>Fecha de Fin Prevista:</strong> ${expectedEndStr || 'No definida'}</li>
+  <li><strong>${startTimeLabel}:</strong> ${workStartTime || '08:00'}</li>
 </ul>
 <p><strong>Cargos/Funciones Solicitados:</strong></p>
 <ul>
   ${profilesList}
 </ul>
+${techAnswersSection}
+${notesSection}
 <p>El documento de Pedido Operacional en PDF ha sido adjuntado a esta notificación para su revisión y trámites operacionales.</p>
-<p>Por favor, inicien los trámites de movilización, contratación y logística necessários.</p>
+<p>Por favor, inicien los trámites de movilización, contratación y logística necesarios.</p>
 <p>Atentamente,<br/><strong>Comercial</strong></p>
         `;
       } else if (lang === 'en') {
@@ -361,11 +444,14 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   <li><strong>Site/Location:</strong> ${formattedAddress || 'Not defined'}</li>
   <li><strong>Expected Start Date:</strong> ${expectedStartStr || 'Not defined'}</li>
   <li><strong>Expected End Date:</strong> ${expectedEndStr || 'Not defined'}</li>
+  <li><strong>${startTimeLabel}:</strong> ${workStartTime || '08:00'}</li>
 </ul>
 <p><strong>Requested Job Functions:</strong></p>
 <ul>
   ${profilesList}
 </ul>
+${techAnswersSection}
+${notesSection}
 <p>The Operational Order PDF document has been attached to this notification for your review and operational processing.</p>
 <p>Please initiate the necessary mobilization, hiring, and logistics procedures.</p>
 <p>Best regards,<br/><strong>Comercial</strong></p>
@@ -380,11 +466,14 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   <li><strong>Cantiere/Ubicazione:</strong> ${formattedAddress || 'Non definito'}</li>
   <li><strong>Data di Inizio Prevista:</strong> ${expectedStartStr || 'Non definita'}</li>
   <li><strong>Data di Fine Prevista:</strong> ${expectedEndStr || 'Non definita'}</li>
+  <li><strong>${startTimeLabel}:</strong> ${workStartTime || '08:00'}</li>
 </ul>
 <p><strong>Profili/Mansioni Richiesti:</strong></p>
 <ul>
   ${profilesList}
 </ul>
+${techAnswersSection}
+${notesSection}
 <p>Il documento PDF dell'Ordine Operativo è stato allegato a questa notifica per la vostra revisione e gestione operativa.</p>
 <p>Si prega di avviare le necessarie procedure di mobilitazione, assunzione e logistica.</p>
 <p>Cordiali saluti,<br/><strong>Commerciale</strong></p>
@@ -399,11 +488,14 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   <li><strong>Chantier/Localisation :</strong> ${formattedAddress || 'Non défini'}</li>
   <li><strong>Date de Début Prévue :</strong> ${expectedStartStr || 'Non définie'}</li>
   <li><strong>Date de Fin Prévue :</strong> ${expectedEndStr || 'Non définie'}</li>
+  <li><strong>${startTimeLabel}:</strong> ${workStartTime || '08:00'}</li>
 </ul>
 <p><strong>Postes/Fonctions Demandés :</strong></p>
 <ul>
   ${profilesList}
 </ul>
+${techAnswersSection}
+${notesSection}
 <p>Le document PDF du Bon de Commande Opérationnel a été joint à cette notification pour votre examen et traitement opérationnel.</p>
 <p>Veuillez lancer les procédures de mobilisation, de recrutement et de logistique nécessaires.</p>
 <p>Cordialement,<br/><strong>Commercial</strong></p>
@@ -419,11 +511,14 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
   <li><strong>Obra/Localização:</strong> ${formattedAddress || 'Não definido'}</li>
   <li><strong>Data de Início Prevista:</strong> ${expectedStartStr || 'Não definida'}</li>
   <li><strong>Data de Fim Prevista:</strong> ${expectedEndStr || 'Não definida'}</li>
+  <li><strong>${startTimeLabel}:</strong> ${workStartTime || '08:00'}</li>
 </ul>
 <p><strong>Cargos/Funções Solicitados:</strong></p>
 <ul>
   ${profilesList}
 </ul>
+${techAnswersSection}
+${notesSection}
 <p>O documento de Pedido Operacional em PDF foi anexado a esta notificação para revisão e trâmites operacionais.</p>
 <p>Por favor, iniciem os trâmites de mobilização, contratação e logística necessários.</p>
 <p>Atentamente,<br/><strong>Comercial</strong></p>
@@ -432,7 +527,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
       setEmailBody(bodyHtml.trim());
     }
-  }, [items, estimacion, newStartDate, newEndDate, selectedLang, editSiteAddress, editSiteCity, editSitePostalCode]);
+  }, [items, estimacion, newStartDate, newEndDate, workStartTime, generalNotesHtml, selectedLang, editSiteAddress, editSiteCity, editSitePostalCode, questions, answers]);
 
   // Calculate duration string
   const getDurationString = () => {
@@ -632,14 +727,27 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
         throw new Error('Falha ao obter ID do Pedido gerado.');
       }
 
-      // 3. Save questions and answers on the newly created order
+      // 3. Save questions, notes, and work start time on the newly created order
       const { error: updateErr } = await supabase
         .schema('core_comercial')
         .from('pedidos')
-        .update({ pergunta_respuesta: perguntaRespuesta })
+        .update({ 
+          pergunta_respuesta: {
+            ...perguntaRespuesta,
+            _horario_entrada: workStartTime || '08:00'
+          },
+          notes: generalNotesHtml || null
+        })
         .eq('id', pedidoId);
 
       if (updateErr) throw updateErr;
+
+      // Update estimacion general_notes as well
+      await supabase
+        .schema('core_comercial')
+        .from('estimaciones')
+        .update({ general_notes: generalNotesHtml || null })
+        .eq('id', estimacion.id);
 
       // 4. Send notification email via Edge Function if checked
       if (sendEmailCheckbox) {
@@ -750,7 +858,7 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                       </div>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
                       <div className="space-y-1.5 p-3 rounded-lg bg-amber-50/40 dark:bg-amber-955/10 border border-amber-200 dark:border-amber-900/50 shadow-sm">
                         <Label htmlFor="new-start-date" className="text-xs font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1">
                           📅 Data de Início Prevista (Sugestão: 10 dias)
@@ -801,6 +909,36 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                             )}
                           </div>
                         )}
+                      </div>
+
+                      <div className="space-y-1.5 p-3 rounded-lg bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/50 shadow-sm">
+                        <Label htmlFor="work-start-time" className="text-xs font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1">
+                          ⏰ Horário de Entrada (Início) *
+                        </Label>
+                        <Input 
+                          id="work-start-time"
+                          type="time"
+                          value={workStartTime}
+                          onChange={(e) => setWorkStartTime(e.target.value)}
+                          className="border-blue-300 dark:border-blue-900/60 focus-visible:ring-blue-500 bg-white dark:bg-slate-950 font-semibold text-slate-900 dark:text-slate-100"
+                        />
+                        <div className="flex items-center space-x-1 pt-1 text-[10px] text-muted-foreground flex-wrap gap-y-1">
+                          <span className="font-semibold text-slate-500">Atalhos:</span>
+                          {['07:00', '07:30', '08:00', '08:30', '09:00'].map(t => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => setWorkStartTime(t)}
+                              className={`px-1.5 py-0.5 rounded border text-[10px] transition-colors ${
+                                workStartTime === t 
+                                  ? 'bg-blue-600 text-white font-bold border-blue-600 shadow-xs' 
+                                  : 'bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-900/30 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -1194,7 +1332,14 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                                 {newEndDate ? parseLocalDate(newEndDate).toLocaleDateString('pt-PT') : 'N/A'}
                               </p>
                             </div>
-                            <div className="col-span-2">
+                            <div>
+                              <span className="font-semibold text-slate-500">Horário de Entrada:</span>
+                              <p className="font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                {workStartTime || '08:00'}
+                              </p>
+                            </div>
+                            <div>
                               <span className="font-semibold text-slate-500">Duración:</span>
                               <p className="font-medium text-slate-850 dark:text-slate-100">{getDurationString()}</p>
                             </div>
@@ -1265,12 +1410,73 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
                           )}
                         </div>
 
-                        {/* Observaciones */}
+                        {/* Observaciones Editáveis com Rich Text */}
                         <div className="space-y-1.5">
-                          <h4 className="font-bold text-indigo-600 dark:text-indigo-400 border-b pb-1 text-[11px] uppercase tracking-wider">Observaciones Generales</h4>
-                          <p className="bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border leading-relaxed whitespace-pre-line">
-                            {estimacion.general_notes || 'Sem observações.'}
-                          </p>
+                          <div className="flex items-center justify-between border-b pb-1">
+                            <h4 className="font-bold text-indigo-600 dark:text-indigo-400 text-[11px] uppercase tracking-wider flex items-center gap-1">
+                              <FileText className="h-3.5 w-3.5" />
+                              Observações Gerais (Editável)
+                            </h4>
+                            <span className="text-[10px] text-muted-foreground">
+                              Vai para o pedido e e-mail
+                            </span>
+                          </div>
+
+                          {/* Toolbar */}
+                          <div className="flex items-center space-x-1 border border-b-0 rounded-t-lg bg-slate-50 dark:bg-slate-900 p-1">
+                            <button
+                              type="button"
+                              onClick={() => handleFormatNotes('bold')}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              title="Negrito"
+                            >
+                              <Bold className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleFormatNotes('italic')}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              title="Itálico"
+                            >
+                              <Italic className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleFormatNotes('underline')}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              title="Sublinhado"
+                            >
+                              <Underline className="h-3 w-3" />
+                            </button>
+                            <span className="w-[1px] h-3.5 bg-slate-300 dark:bg-slate-700 mx-0.5"></span>
+                            <button
+                              type="button"
+                              onClick={() => handleFormatNotes('insertUnorderedList')}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              title="Lista Marcadores"
+                            >
+                              <List className="h-3 w-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleFormatNotes('insertOrderedList')}
+                              className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              title="Lista Numerada"
+                            >
+                              <ListOrdered className="h-3 w-3" />
+                            </button>
+                          </div>
+
+                          <div
+                            ref={notesEditorRef}
+                            contentEditable
+                            dangerouslySetInnerHTML={{ __html: generalNotesHtml }}
+                            onInput={(e) => {
+                              setGeneralNotesHtml(e.currentTarget.innerHTML);
+                            }}
+                            className="w-full min-h-[90px] max-h-[160px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 p-2.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                            style={{ outline: 'none' }}
+                          />
                         </div>
                       </div>
                     </div>
