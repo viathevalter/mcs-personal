@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, Type, Palette, RotateCcw } from 'lucide-react';
+import { Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Type, Palette, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -8,9 +8,10 @@ interface RichTextEditorProps {
     onChange: (val: string) => void;
     minHeight?: string;
     maxHeight?: string;
+    placeholder?: string;
 }
 
-export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHeight, maxHeight }) => {
+export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, minHeight, maxHeight, placeholder }) => {
     const editorRef = useRef<HTMLDivElement>(null);
 
     // Keep track of internal content to avoid infinite cursors reset
@@ -20,7 +21,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
         if (editorRef.current) {
             // Only set innerHTML on first load or if the value is completely different
             if (isFirstLoad.current || editorRef.current.innerHTML !== value) {
-                editorRef.current.innerHTML = value || '<p><br></p>';
+                editorRef.current.innerHTML = value || '';
                 isFirstLoad.current = false;
             }
         }
@@ -106,6 +107,37 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>Sublinhado</TooltipContent>
+                    </Tooltip>
+
+                    {/* Lists */}
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="w-8 h-8 hover:bg-slate-200 dark:hover:bg-slate-800"
+                                onClick={() => executeCommand('insertUnorderedList')}
+                            >
+                                <List className="w-4 h-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Lista com Marcadores</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="w-8 h-8 hover:bg-slate-200 dark:hover:bg-slate-800"
+                                onClick={() => executeCommand('insertOrderedList')}
+                            >
+                                <ListOrdered className="w-4 h-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Lista Numerada</TooltipContent>
                     </Tooltip>
 
                     <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-800 mx-1" />
@@ -218,7 +250,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
                 ref={editorRef}
                 contentEditable
                 onInput={handleInput}
-                className="w-full p-4 text-xs focus:outline-none overflow-y-auto bg-background text-slate-800 dark:text-slate-200 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none"
+                data-placeholder={placeholder || ''}
+                className="w-full p-4 text-xs focus:outline-none overflow-y-auto bg-background text-slate-800 dark:text-slate-200 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none"
                 style={{ outline: 'none', minHeight: minHeight || '380px', maxHeight: maxHeight || 'none' }}
             />
         </div>

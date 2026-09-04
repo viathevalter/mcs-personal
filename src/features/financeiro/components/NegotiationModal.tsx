@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake, X, Clock } from 'lucide-react';
+import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake, X, Clock, Maximize2, Minimize2, Edit3, Sparkles } from 'lucide-react';
 import { updateContaReceber, createContaReceber, saveObservacao } from '../data/loader';
 import { formatCurrency, formatDate } from '../lib/utils';
 import type { EnrichedTitulo } from '../types';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 import { BurofaxPreviewModal } from './BurofaxPreviewModal';
+import { RichTextEditor } from './RichTextEditor';
 
 export interface NegotiationModalProps {
     isOpen: boolean;
@@ -24,6 +25,13 @@ export interface NegotiationModalProps {
     onRefresh: () => void;
     onOpenEmail: (titulo: EnrichedTitulo, templateKey: 'friendly' | 'overdue' | 'legal' | 'negotiation', params?: any) => void;
 }
+
+const stripHtml = (html: string) => {
+    if (!html) return '';
+    const tmp = document.createElement('DIV');
+    tmp.innerHTML = html;
+    return (tmp.textContent || tmp.innerText || '').trim();
+};
 
 export const NegotiationModal = ({
     isOpen,
@@ -66,6 +74,11 @@ export const NegotiationModal = ({
     const [discount, setDiscount] = useState<number>(0);
     const [inputPercent, setInputPercent] = useState<string>('0');
     const [inputValue, setInputValue] = useState<string>('0');
+
+    // Observations Rich Text State
+    const [observacoes, setObservacoes] = useState<string>('');
+    const [isNotesExpanded, setIsNotesExpanded] = useState<boolean>(false);
+    const [rightPanelTab, setRightPanelTab] = useState<'proposal' | 'notes'>('proposal');
 
     // Simulations States
     const [simulations, setSimulations] = useState<any[]>([]);
@@ -128,6 +141,12 @@ export const NegotiationModal = ({
             setCheckedIds(sim.original_ids);
         }
 
+        if (sim.observacoes) {
+            setObservacoes(sim.observacoes);
+        } else {
+            setObservacoes('');
+        }
+
         setActiveTab('overdue');
         toast.success(t('financeiro.negotiation.sim_applied', 'Simulação restaurada com sucesso!'));
     };
@@ -166,6 +185,9 @@ export const NegotiationModal = ({
             setDiscount(0);
             setInputPercent('0');
             setInputValue('0');
+            setObservacoes('');
+            setIsNotesExpanded(false);
+            setRightPanelTab('proposal');
 
             loadSimulations();
         }
@@ -324,6 +346,7 @@ export const NegotiationModal = ({
         setIsSavingSimulation(true);
         try {
             const installmentPreview = getInstallmentPreview();
+            const plainObs = stripHtml(observacoes);
             
             const simulationData = {
                 titulo_id: titulo.id?.toString() || '',
@@ -339,6 +362,7 @@ export const NegotiationModal = ({
                 vencimento_parcelas: installmentPreview,
                 classificacao: classification,
                 status: 'Pendente',
+                observacoes: observacoes ? observacoes.trim() : null,
                 creado_por: currentUser
             };
 
@@ -353,7 +377,7 @@ export const NegotiationModal = ({
                 conta_receber_id: titulo.id,
                 usuario: currentUser,
                 tipo: 'Simulação Salva',
-                descricao: `Simulação de acordo salva (${classification === 'friendly' ? 'Amigável' : 'Jurídico'}): Valor acordado de ${formatCurrency(simulationData.valor_acordado)} com ${discount > 0 ? `${discount}% de desconto` : 'sem desconto'}. Pagamento: ${paymentType === 'single' ? 'Parcela Única' : `${installmentsCount}x`}.`,
+                descricao: `Simulação de acordo salva (${classification === 'friendly' ? 'Amigável' : 'Jurídico'}): Valor acordado de ${formatCurrency(simulationData.valor_acordado)} com ${discount > 0 ? `${discount}% de desconto` : 'sem desconto'}. Pagamento: ${paymentType === 'single' ? 'Parcela Única' : `${installmentsCount}x`}.${plainObs ? `\n\nObservações:\n${plainObs}` : ''}`,
                 data: new Date().toISOString()
             };
             await saveObservacao(obsToSave);
@@ -378,6 +402,7 @@ export const NegotiationModal = ({
         setIsSaving(true);
         try {
             const docsList = selectedTitles.map(t => t.Num_doc).join(', ');
+            const plainObs = stripHtml(observacoes);
             
             // 1. Process selected original titles
             for (const tItem of selectedTitles) {
@@ -386,9 +411,11 @@ export const NegotiationModal = ({
                 if (!resUpdate.success) throw resUpdate.error;
 
                 // Log history on each original title
-                const obsDesc = classification === 'legal'
+                const baseDesc = classification === 'legal'
                     ? `Título encaminhado para o departamento Jurídico (Monitorio). Gerado e impresso o requerimento formal de pagamento (Burofax / MASC) em conformidade com a Ley 3/2004 de combate à inadimplência comercial em Espanha.`
                     : `Título quitado/retirado por acordo de negociação amigável. Integrado no parcelamento global de títulos.`;
+
+                const obsDesc = plainObs ? `${baseDesc}\n\nObservações da Negociação:\n${plainObs}` : baseDesc;
 
                 await saveObservacao({
                     conta_receber_id: tItem.id,
@@ -420,7 +447,9 @@ export const NegotiationModal = ({
                         categoria_id: firstDoc.categoria_id || null,
                         departamento_id: firstDoc.departamento_id || null,
                         obra_id: firstDoc.obra_id || null,
-                        obs: `Acordo de negociação. Títulos de origem: ${docsList}`
+                        obs: plainObs 
+                            ? `Acordo de negociação: ${plainObs.slice(0, 300)}. Títulos de origem: ${docsList}`
+                            : `Acordo de negociação. Títulos de origem: ${docsList}`
                     };
 
                     const resCreate = await createContaReceber(newTitle);
@@ -455,451 +484,624 @@ export const NegotiationModal = ({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>
-                <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col p-6 dark:bg-slate-900 dark:border-slate-800">
+                <DialogContent className="sm:max-w-7xl max-h-[94vh] flex flex-col p-6 dark:bg-slate-900 dark:border-slate-800">
                 <DialogHeader className="flex-none">
-                    <div className="flex items-center gap-2 text-indigo-650 dark:text-indigo-400">
-                        <Handshake size={24} />
-                        <DialogTitle className="text-xl font-bold">{t('financeiro.negotiation.modal_title', 'Central de Negociação de Inadimplência')}</DialogTitle>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-indigo-650 dark:text-indigo-400">
+                            <Handshake size={24} />
+                            <DialogTitle className="text-xl font-bold">{t('financeiro.negotiation.modal_title', 'Central de Negociação de Inadimplência')}</DialogTitle>
+                        </div>
+                        {isNotesExpanded && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsNotesExpanded(false)}
+                                className="h-8 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-800 hover:bg-slate-50 gap-1.5 shadow-xs"
+                            >
+                                <Minimize2 size={14} />
+                                <span>{t('financeiro.negotiation.btn_minimize_space', 'Voltar à Visão Dividida')}</span>
+                            </Button>
+                        )}
                     </div>
                     <DialogDescription className="text-xs">
                         {t('financeiro.negotiation.modal_desc', 'Gerencie acordos, conceda descontos, fragmente débitos e envie avisos de cobrança para o cliente.')}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden flex-1 my-3">
-                    {/* Left Column: Títulos & Histórico */}
-                    <div className="lg:col-span-7 flex flex-col min-h-0 border dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/20">
-                        <div className="p-4 border-b dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 flex justify-between items-center flex-none">
-                            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">{t('financeiro.negotiation.history_title', 'Histórico de Faturas do Cliente')}</h3>
-                            <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-650 bg-indigo-50 font-bold dark:bg-indigo-950/30 dark:text-indigo-350 dark:border-indigo-850">
-                                {clientName}
-                            </Badge>
+                {isNotesExpanded ? (
+                    /* Full-Screen Observation Mode (Maximum Space) */
+                    <div className="flex flex-col flex-1 min-h-0 border dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 p-4 space-y-3 my-3">
+                        {/* Top Summary Ribbon */}
+                        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-lg flex-none">
+                            <div className="flex items-center gap-3">
+                                <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-650 bg-indigo-50 font-bold dark:bg-indigo-950/50 dark:text-indigo-350">
+                                    {clientName}
+                                </Badge>
+                                <div className="text-xs text-slate-600 dark:text-slate-300 font-semibold flex items-center gap-2">
+                                    <span>{selectedTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</span>
+                                    <span>•</span>
+                                    <span>{t('financeiro.negotiation.original_debt', 'Dívida:')} <strong>{formatCurrency(originalTotal)}</strong></span>
+                                    <span>•</span>
+                                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">{t('financeiro.negotiation.agreed_value', 'Valor Acordado:')} {formatCurrency(classification === 'friendly' ? discountedTotal : originalTotal)}</span>
+                                    <span>•</span>
+                                    <span className="text-slate-500 font-normal">({classification === 'friendly' ? 'Amigável' : 'Jurídico'} - {paymentType === 'single' ? 'Cota Única' : `${installmentsCount} parcelas`})</span>
+                                </div>
+                            </div>
+
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setIsNotesExpanded(false)}
+                                className="h-8 text-xs font-bold text-indigo-700 dark:text-indigo-300 bg-white dark:bg-slate-800 hover:bg-slate-50 gap-1.5 shadow-xs"
+                            >
+                                <Minimize2 size={14} />
+                                <span>{t('financeiro.negotiation.btn_minimize_space', 'Voltar à Visão Dividida')}</span>
+                            </Button>
                         </div>
 
-                        {/* Contacts Summary */}
-                        <div className="p-3 border-b dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs flex-none">
-                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                                <Phone size={14} className="text-indigo-500" />
-                                <span className="font-bold">{t('financeiro.negotiation.phone', 'Telefone:')}</span>
-                                <span>{titulo.clienteInfo?.TelefonoCobros || 'Não cadastrado'}</span>
+                        {/* Full-width RichTextEditor */}
+                        <div className="flex-1 flex flex-col min-h-0">
+                            <div className="flex justify-between items-center pb-2 flex-none">
+                                <Label className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+                                    <FileText size={15} className="text-indigo-500" />
+                                    <span>{t('financeiro.negotiation.notes_title', 'Observações & Ata da Negociação (Modo Espaço Máximo)')}</span>
+                                </Label>
+                                <span className="text-[11px] text-muted-foreground">Formatação rica em tempo real • Gravação automática na simulação</span>
                             </div>
-                            <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                                <Mail size={14} className="text-indigo-500" />
-                                <span className="font-bold">{t('financeiro.negotiation.email', 'E-mail:')}</span>
-                                <span className="truncate" title={titulo.clienteInfo?.EmailCobros}>{titulo.clienteInfo?.EmailCobros || 'Não cadastrado'}</span>
-                            </div>
-                        </div>
-
-                        {/* Status KPIs Row */}
-                        <div className="grid grid-cols-4 gap-2.5 p-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex-none">
-                            {/* Overdue KPI */}
-                            <div 
-                                onClick={() => setActiveTab('overdue')}
-                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
-                                    activeTab === 'overdue' 
-                                        ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 shadow-sm' 
-                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
-                                }`}
-                            >
-                                <div className="text-[9px] uppercase font-bold tracking-wider text-red-650 dark:text-red-400">{t('financeiro.status.overdue', 'Vencidos')}</div>
-                                <div className="text-sm font-black text-red-700 dark:text-red-450 mt-0.5">{formatCurrency(totalOverdueSum)}</div>
-                                <div className="text-[9px] text-muted-foreground mt-0.5">{overdueTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
-                            </div>
-
-                            {/* Due Soon KPI */}
-                            <div 
-                                onClick={() => setActiveTab('due_soon')}
-                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
-                                    activeTab === 'due_soon' 
-                                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-sm' 
-                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
-                                }`}
-                            >
-                                <div className="text-[9px] uppercase font-bold tracking-wider text-blue-650 dark:text-blue-400">{t('financeiro.status.due_soon', 'A vencer')}</div>
-                                <div className="text-sm font-black text-blue-700 dark:text-blue-450 mt-0.5">{formatCurrency(totalDueSoonSum)}</div>
-                                <div className="text-[9px] text-muted-foreground mt-0.5">{dueSoonTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
-                            </div>
-
-                            {/* Paid KPI */}
-                            <div 
-                                onClick={() => setActiveTab('paid')}
-                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
-                                    activeTab === 'paid' 
-                                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-sm' 
-                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
-                                }`}
-                            >
-                                <div className="text-[9px] uppercase font-bold tracking-wider text-emerald-650 dark:text-emerald-450">{t('financeiro.status.paid', 'Pagos')}</div>
-                                <div className="text-sm font-black text-emerald-700 dark:text-emerald-500 mt-0.5">{formatCurrency(totalPaidSum)}</div>
-                                <div className="text-[9px] text-muted-foreground mt-0.5">{paidTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
-                            </div>
-
-                            {/* Simulations KPI */}
-                            <div 
-                                onClick={() => setActiveTab('simulations')}
-                                className={`p-2 rounded-lg border cursor-pointer transition-all ${
-                                    activeTab === 'simulations' 
-                                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-sm' 
-                                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
-                                }`}
-                            >
-                                <div className="text-[9px] uppercase font-bold tracking-wider text-indigo-650 dark:text-indigo-400">{t('financeiro.negotiation.tab_simulations', 'Simulações')}</div>
-                                <div className="text-sm font-black text-indigo-750 dark:text-indigo-400 mt-0.5">{simulations.length}</div>
-                                <div className="text-[9px] text-muted-foreground mt-0.5">{t('financeiro.negotiation.saved_drafts', 'salvas')}</div>
+                            <div className="flex-1 min-h-0">
+                                <RichTextEditor
+                                    value={observacoes}
+                                    onChange={setObservacoes}
+                                    minHeight="430px"
+                                    placeholder={t('financeiro.negotiation.notes_placeholder', 'Digite aqui as observações, ata da negociação, motivos do desconto, acordos verbais firmados com o cliente...')}
+                                />
                             </div>
                         </div>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 overflow-hidden flex-1 my-3">
+                        {/* Left Column: Títulos & Histórico */}
+                        <div className="lg:col-span-7 flex flex-col min-h-0 border dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-950/20">
+                            <div className="p-4 border-b dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 flex justify-between items-center flex-none">
+                                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">{t('financeiro.negotiation.history_title', 'Histórico de Faturas do Cliente')}</h3>
+                                <Badge variant="outline" className="text-xs border-indigo-300 text-indigo-650 bg-indigo-50 font-bold dark:bg-indigo-950/30 dark:text-indigo-350 dark:border-indigo-850">
+                                    {clientName}
+                                </Badge>
+                            </div>
 
-                        <ScrollArea className="flex-1 p-4">
-                            {activeTab === 'simulations' ? (
-                                <div className="space-y-3">
-                                    {isLoadingSimulations ? (
-                                        <div className="text-center py-6 text-xs text-muted-foreground">
-                                            {t('financeiro.negotiation.loading_sims', 'Carregando simulações...')}
-                                        </div>
-                                    ) : simulations.length === 0 ? (
-                                        <div className="text-center py-10 text-slate-400 dark:text-slate-650 flex flex-col items-center justify-center gap-2">
-                                            <AlertCircle size={24} className="text-slate-350 dark:text-slate-700" />
-                                            <p className="text-xs font-semibold">{t('financeiro.negotiation.no_sims_saved', 'Nenhuma simulação salva para este cliente.')}</p>
-                                        </div>
-                                    ) : (
-                                        simulations.map((sim) => {
-                                            const simDate = sim.creado_em ? new Date(sim.creado_em).toLocaleString('pt-PT') : 'N/A';
-                                            return (
-                                                <div 
-                                                    key={sim.id}
-                                                    className="p-3 border dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                                                >
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
-                                                            <Handshake size={14} className="text-indigo-500" />
-                                                            <span>Acordo de {formatCurrency(Number(sim.valor_acordado))}</span>
-                                                            <Badge variant="secondary" className="text-[10px] scale-90">
-                                                                {sim.classificacao === 'friendly' ? 'Amigável' : 'Jurídico'}
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="text-[10px] text-muted-foreground">
-                                                            <span>Salvo em {simDate} por <strong>{sim.creado_por || 'Sistema'}</strong></span>
-                                                        </div>
-                                                        <div className="text-slate-600 dark:text-slate-300 font-semibold space-x-2">
-                                                            <span>Dívida original: {formatCurrency(Number(sim.original_total))}</span>
-                                                            {Number(sim.desconto_percentual) > 0 && (
-                                                                <span className="text-green-600 font-bold">Desconto: {sim.desconto_percentual}% (-{formatCurrency(Number(sim.desconto_valor))})</span>
+                            {/* Contacts Summary */}
+                            <div className="p-3 border-b dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs flex-none">
+                                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                    <Phone size={14} className="text-indigo-500" />
+                                    <span className="font-bold">{t('financeiro.negotiation.phone', 'Telefone:')}</span>
+                                    <span>{titulo.clienteInfo?.TelefonoCobros || 'Não cadastrado'}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                    <Mail size={14} className="text-indigo-500" />
+                                    <span className="font-bold">{t('financeiro.negotiation.email', 'E-mail:')}</span>
+                                    <span className="truncate" title={titulo.clienteInfo?.EmailCobros}>{titulo.clienteInfo?.EmailCobros || 'Não cadastrado'}</span>
+                                </div>
+                            </div>
+
+                            {/* Status KPIs Row */}
+                            <div className="grid grid-cols-4 gap-2.5 p-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex-none">
+                                {/* Overdue KPI */}
+                                <div 
+                                    onClick={() => setActiveTab('overdue')}
+                                    className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                                        activeTab === 'overdue' 
+                                            ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 shadow-sm' 
+                                            : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div className="text-[9px] uppercase font-bold tracking-wider text-red-650 dark:text-red-400">{t('financeiro.status.overdue', 'Vencidos')}</div>
+                                    <div className="text-sm font-black text-red-700 dark:text-red-450 mt-0.5">{formatCurrency(totalOverdueSum)}</div>
+                                    <div className="text-[9px] text-muted-foreground mt-0.5">{overdueTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
+                                </div>
+
+                                {/* Due Soon KPI */}
+                                <div 
+                                    onClick={() => setActiveTab('due_soon')}
+                                    className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                                        activeTab === 'due_soon' 
+                                            ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20 shadow-sm' 
+                                            : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div className="text-[9px] uppercase font-bold tracking-wider text-blue-650 dark:text-blue-400">{t('financeiro.status.due_soon', 'A vencer')}</div>
+                                    <div className="text-sm font-black text-blue-700 dark:text-blue-450 mt-0.5">{formatCurrency(totalDueSoonSum)}</div>
+                                    <div className="text-[9px] text-muted-foreground mt-0.5">{dueSoonTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
+                                </div>
+
+                                {/* Paid KPI */}
+                                <div 
+                                    onClick={() => setActiveTab('paid')}
+                                    className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                                        activeTab === 'paid' 
+                                            ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20 shadow-sm' 
+                                            : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div className="text-[9px] uppercase font-bold tracking-wider text-emerald-650 dark:text-emerald-450">{t('financeiro.status.paid', 'Pagos')}</div>
+                                    <div className="text-sm font-black text-emerald-700 dark:text-emerald-500 mt-0.5">{formatCurrency(totalPaidSum)}</div>
+                                    <div className="text-[9px] text-muted-foreground mt-0.5">{paidTitles.length} {t('financeiro.negotiation.faturas', 'faturas')}</div>
+                                </div>
+
+                                {/* Simulations KPI */}
+                                <div 
+                                    onClick={() => setActiveTab('simulations')}
+                                    className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                                        activeTab === 'simulations' 
+                                            ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 shadow-sm' 
+                                            : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div className="text-[9px] uppercase font-bold tracking-wider text-indigo-650 dark:text-indigo-400">{t('financeiro.negotiation.tab_simulations', 'Simulações')}</div>
+                                    <div className="text-sm font-black text-indigo-750 dark:text-indigo-400 mt-0.5">{simulations.length}</div>
+                                    <div className="text-[9px] text-muted-foreground mt-0.5">{t('financeiro.negotiation.saved_drafts', 'salvas')}</div>
+                                </div>
+                            </div>
+
+                            <ScrollArea className="flex-1 p-4">
+                                {activeTab === 'simulations' ? (
+                                    <div className="space-y-3">
+                                        {isLoadingSimulations ? (
+                                            <div className="text-center py-6 text-xs text-muted-foreground">
+                                                {t('financeiro.negotiation.loading_sims', 'Carregando simulações...')}
+                                            </div>
+                                        ) : simulations.length === 0 ? (
+                                            <div className="text-center py-10 text-slate-400 dark:text-slate-650 flex flex-col items-center justify-center gap-2">
+                                                <AlertCircle size={24} className="text-slate-350 dark:text-slate-700" />
+                                                <p className="text-xs font-semibold">{t('financeiro.negotiation.no_sims_saved', 'Nenhuma simulação salva para este cliente.')}</p>
+                                            </div>
+                                        ) : (
+                                            simulations.map((sim) => {
+                                                const simDate = sim.creado_em ? new Date(sim.creado_em).toLocaleString('pt-PT') : 'N/A';
+                                                return (
+                                                    <div 
+                                                        key={sim.id}
+                                                        className="p-3 border dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                                                    >
+                                                        <div className="space-y-1 flex-1 min-w-0 pr-2">
+                                                            <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                                                                <Handshake size={14} className="text-indigo-500 shrink-0" />
+                                                                <span>Acordo de {formatCurrency(Number(sim.valor_acordado))}</span>
+                                                                <Badge variant="secondary" className="text-[10px] scale-90">
+                                                                    {sim.classificacao === 'friendly' ? 'Amigável' : 'Jurídico'}
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="text-[10px] text-muted-foreground">
+                                                                <span>Salvo em {simDate} por <strong>{sim.creado_por || 'Sistema'}</strong></span>
+                                                            </div>
+                                                            <div className="text-slate-600 dark:text-slate-300 font-semibold space-x-2">
+                                                                <span>Dívida original: {formatCurrency(Number(sim.original_total))}</span>
+                                                                {Number(sim.desconto_percentual) > 0 && (
+                                                                    <span className="text-green-600 font-bold">Desconto: {sim.desconto_percentual}% (-{formatCurrency(Number(sim.desconto_valor))})</span>
+                                                                )}
+                                                                <span>• {sim.tipo_pagamento === 'single' ? 'Parcela única' : `${sim.parcelas_qtd} parcelas`}</span>
+                                                            </div>
+                                                            {sim.observacoes && (
+                                                                <div className="mt-2 p-2 rounded bg-slate-50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 text-xs">
+                                                                    <div className="flex items-center gap-1 font-bold text-[10px] text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
+                                                                        <FileText size={12} />
+                                                                        <span>{t('financeiro.negotiation.notes_label', 'Observações da Negociação:')}</span>
+                                                                    </div>
+                                                                    <div 
+                                                                        className="prose prose-xs dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 line-clamp-3 hover:line-clamp-none transition-all cursor-pointer leading-relaxed text-[11px]"
+                                                                        dangerouslySetInnerHTML={{ __html: sim.observacoes }}
+                                                                        title="Clique para expandir/recolher"
+                                                                    />
+                                                                </div>
                                                             )}
-                                                            <span>• {sim.tipo_pagamento === 'single' ? 'Parcela única' : `${sim.parcelas_qtd} parcelas`}</span>
+                                                        </div>
+                                                        <div className="flex gap-2 shrink-0">
+                                                            <Button 
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleApplySimulation(sim)}
+                                                                className="text-xs h-8 text-indigo-650 hover:text-indigo-700 font-bold border-indigo-200"
+                                                            >
+                                                                Restaurar
+                                                            </Button>
+                                                            <Button 
+                                                                type="button"
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={(e) => handleDeleteSimulation(sim.id, e)}
+                                                                className="text-xs h-8 w-8 text-red-650 hover:text-red-700 hover:bg-red-50"
+                                                            >
+                                                                <X size={14} />
+                                                            </Button>
                                                         </div>
                                                     </div>
-                                                    <div className="flex gap-2 shrink-0">
-                                                        <Button 
-                                                            type="button"
-                                                            size="sm"
-                                                            variant="outline"
-                                                            onClick={() => handleApplySimulation(sim)}
-                                                            className="text-xs h-8 text-indigo-650 hover:text-indigo-700 font-bold border-indigo-200"
-                                                        >
-                                                            Restaurar
-                                                        </Button>
-                                                        <Button 
-                                                            type="button"
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            onClick={(e) => handleDeleteSimulation(sim.id, e)}
-                                                            className="text-xs h-8 w-8 text-red-650 hover:text-red-700 hover:bg-red-50"
-                                                        >
-                                                            <X size={14} />
-                                                        </Button>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                ) : displayedTitles.length === 0 ? (
+                                    <div className="text-center py-10 text-slate-400 dark:text-slate-650 flex flex-col items-center justify-center gap-2">
+                                        <AlertCircle size={24} className="text-slate-350 dark:text-slate-700" />
+                                        <p className="text-xs font-semibold">{t('financeiro.negotiation.no_titles_in_category', 'Nenhuma fatura encontrada nesta categoria.')}</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {(activeTab === 'overdue' || activeTab === 'due_soon') && (
+                                            <div className="flex justify-between items-center pb-2 mb-2 border-b dark:border-slate-800 text-[11px] text-slate-500 font-semibold">
+                                                <span>
+                                                    {displayedTitles.filter(t => checkedIds.includes(t.id)).length} de {displayedTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Negociado').length} faturas selecionadas
+                                                </span>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSelectAll}
+                                                        className="text-indigo-650 dark:text-indigo-400 hover:underline font-bold transition-all"
+                                                    >
+                                                        {t('financeiro.negotiation.select_all', 'Selecionar Todos')}
+                                                    </button>
+                                                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleDeselectAll}
+                                                        className="text-slate-550 dark:text-slate-400 hover:underline font-bold transition-all"
+                                                    >
+                                                        {t('financeiro.negotiation.deselect_all', 'Desmarcar Todos')}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {displayedTitles.map((cTitle) => {
+                                            const delay = cTitle.Dt_venc ? Math.floor((new Date().getTime() - new Date(cTitle.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
+                                            const isPaid = cTitle.Status === 'Pago';
+                                            const isNeg = cTitle.Status === 'Negociado';
+                                            const isJud = cTitle.Status === 'Judicial';
+                                            const selectDisabled = isPaid || isNeg;
+
+                                            return (
+                                                <div 
+                                                    key={cTitle.id} 
+                                                    className={`p-3 rounded-lg border flex items-center justify-between text-xs transition-all ${
+                                                        checkedIds.includes(cTitle.id)
+                                                            ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-900 dark:bg-indigo-950/20'
+                                                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
+                                                        {!selectDisabled && (
+                                                            <Checkbox 
+                                                                checked={checkedIds.includes(cTitle.id)} 
+                                                                onCheckedChange={(checked) => {
+                                                                    if (checked) {
+                                                                        setCheckedIds([...checkedIds, cTitle.id]);
+                                                                    } else {
+                                                                        setCheckedIds(checkedIds.filter(id => id !== cTitle.id));
+                                                                    }
+                                                                }}
+                                                            />
+                                                        )}
+                                                        <div className="min-w-0">
+                                                            <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                                                <span className="truncate max-w-[140px]">{cTitle.Num_doc}</span>
+                                                                <span className="text-[10px] text-muted-foreground font-mono">({cTitle.Empresa})</span>
+                                                            </div>
+                                                            <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                                                                <Calendar size={10} />
+                                                                <span>Venc: {cTitle.Dt_venc ? new Date(cTitle.Dt_venc).toLocaleDateString('pt-PT') : 'N/A'}</span>
+                                                                {delay > 0 && !isPaid && !isNeg && (
+                                                                    <span className="text-destructive font-semibold">({delay}d atraso)</span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="text-right">
+                                                            <div className="font-bold text-slate-900 dark:text-slate-100">
+                                                                {formatCurrency(isPaid ? cTitle.Valot_total : cTitle.Saldo_a_pagar)}
+                                                            </div>
+                                                            {!isPaid && cTitle.Valot_total !== cTitle.Saldo_a_pagar && (
+                                                                <div className="text-[9px] text-muted-foreground line-through">{formatCurrency(cTitle.Valot_total)}</div>
+                                                            )}
+                                                        </div>
+                                                        <div className="w-20 text-center">
+                                                            {isPaid ? (
+                                                                <Badge variant="default" className="text-[9px] py-0">{t('financeiro.status.paid', 'Pago')}</Badge>
+                                                            ) : isJud ? (
+                                                                <Badge variant="outline" className="border-red-650 text-red-650 bg-red-50 text-[9px] py-0">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
+                                                            ) : isNeg ? (
+                                                                <Badge variant="outline" className="border-indigo-650 text-indigo-650 bg-indigo-50 text-[9px] py-0">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
+                                                            ) : isOverdue(cTitle) ? (
+                                                                <Badge variant="destructive" className="text-[9px] py-0">{t('financeiro.status.overdue', 'Vencido')}</Badge>
+                                                            ) : (
+                                                                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[9px] py-0">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             );
-                                        })
-                                    )}
-                                </div>
-                            ) : displayedTitles.length === 0 ? (
-                                <div className="text-center py-10 text-slate-400 dark:text-slate-650 flex flex-col items-center justify-center gap-2">
-                                    <AlertCircle size={24} className="text-slate-350 dark:text-slate-700" />
-                                    <p className="text-xs font-semibold">{t('financeiro.negotiation.no_titles_in_category', 'Nenhuma fatura encontrada nesta categoria.')}</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {(activeTab === 'overdue' || activeTab === 'due_soon') && (
-                                        <div className="flex justify-between items-center pb-2 mb-2 border-b dark:border-slate-800 text-[11px] text-slate-500 font-semibold">
-                                            <span>
-                                                {displayedTitles.filter(t => checkedIds.includes(t.id)).length} de {displayedTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Negociado').length} faturas selecionadas
-                                            </span>
-                                            <div className="flex gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={handleSelectAll}
-                                                    className="text-indigo-650 dark:text-indigo-400 hover:underline font-bold transition-all"
-                                                >
-                                                    {t('financeiro.negotiation.select_all', 'Selecionar Todos')}
-                                                </button>
-                                                <span className="text-slate-300 dark:text-slate-700">|</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleDeselectAll}
-                                                    className="text-slate-550 dark:text-slate-400 hover:underline font-bold transition-all"
-                                                >
-                                                    {t('financeiro.negotiation.deselect_all', 'Desmarcar Todos')}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                    {displayedTitles.map((cTitle) => {
-                                        const delay = cTitle.Dt_venc ? Math.floor((new Date().getTime() - new Date(cTitle.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
-                                        const isPaid = cTitle.Status === 'Pago';
-                                        const isNeg = cTitle.Status === 'Negociado';
-                                        const isJud = cTitle.Status === 'Judicial';
-                                        const selectDisabled = isPaid || isNeg;
-
-                                        return (
-                                            <div 
-                                                key={cTitle.id} 
-                                                className={`p-3 rounded-lg border flex items-center justify-between text-xs transition-all ${
-                                                    checkedIds.includes(cTitle.id)
-                                                        ? 'border-indigo-300 bg-indigo-50/40 dark:border-indigo-900 dark:bg-indigo-950/20'
-                                                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'
-                                                }`}
-                                            >
-                                                <div className="flex items-center gap-3 flex-1 min-w-0 pr-4">
-                                                    {!selectDisabled && (
-                                                        <Checkbox 
-                                                            checked={checkedIds.includes(cTitle.id)} 
-                                                            onCheckedChange={(checked) => {
-                                                                if (checked) {
-                                                                    setCheckedIds([...checkedIds, cTitle.id]);
-                                                                } else {
-                                                                    setCheckedIds(checkedIds.filter(id => id !== cTitle.id));
-                                                                }
-                                                            }}
-                                                        />
-                                                    )}
-                                                    <div className="min-w-0">
-                                                        <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                                                            <span className="truncate max-w-[140px]">{cTitle.Num_doc}</span>
-                                                            <span className="text-[10px] text-muted-foreground font-mono">({cTitle.Empresa})</span>
-                                                        </div>
-                                                        <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
-                                                            <Calendar size={10} />
-                                                            <span>Venc: {cTitle.Dt_venc ? new Date(cTitle.Dt_venc).toLocaleDateString('pt-PT') : 'N/A'}</span>
-                                                            {delay > 0 && !isPaid && !isNeg && (
-                                                                <span className="text-destructive font-semibold">({delay}d atraso)</span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-4">
-                                                    <div className="text-right">
-                                                        <div className="font-bold text-slate-900 dark:text-slate-100">
-                                                            {formatCurrency(isPaid ? cTitle.Valot_total : cTitle.Saldo_a_pagar)}
-                                                        </div>
-                                                        {!isPaid && cTitle.Valot_total !== cTitle.Saldo_a_pagar && (
-                                                            <div className="text-[9px] text-muted-foreground line-through">{formatCurrency(cTitle.Valot_total)}</div>
-                                                        )}
-                                                    </div>
-                                                    <div className="w-20 text-center">
-                                                        {isPaid ? (
-                                                            <Badge variant="default" className="text-[9px] py-0">{t('financeiro.status.paid', 'Pago')}</Badge>
-                                                        ) : isJud ? (
-                                                            <Badge variant="outline" className="border-red-650 text-red-650 bg-red-50 text-[9px] py-0">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
-                                                        ) : isNeg ? (
-                                                            <Badge variant="outline" className="border-indigo-650 text-indigo-650 bg-indigo-50 text-[9px] py-0">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
-                                                        ) : isOverdue(cTitle) ? (
-                                                            <Badge variant="destructive" className="text-[9px] py-0">{t('financeiro.status.overdue', 'Vencido')}</Badge>
-                                                        ) : (
-                                                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[9px] py-0">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </ScrollArea>
-                    </div>
-
-                    {/* Right Column: Acordo / Parametrização */}
-                    <div className="lg:col-span-5 flex flex-col border dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 p-4 space-y-4 overflow-y-auto">
-                        <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200 border-b pb-2 dark:border-slate-800">{t('financeiro.negotiation.proposal_title', 'Configurar Proposta de Acordo')}</h3>
-
-                        {/* Classification Selector */}
-                        <div className="space-y-1.5">
-                            <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.classification', 'Classificação do Acordo')}</Label>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button 
-                                    type="button"
-                                    variant={classification === 'friendly' ? 'default' : 'outline'}
-                                    onClick={() => setClassification('friendly')}
-                                    className="text-xs h-9 gap-1 font-bold"
-                                >
-                                    <CheckCircle2 size={14} /> {t('financeiro.negotiation.friendly', 'Amigável')}
-                                </Button>
-                                <Button 
-                                    type="button"
-                                    variant={classification === 'legal' ? 'default' : 'outline'}
-                                    onClick={() => setClassification('legal')}
-                                    className={`text-xs h-9 gap-1 font-bold ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : ''}`}
-                                >
-                                    <Scale size={14} /> {t('financeiro.negotiation.legal', 'Enviar ao Jurídico')}
-                                </Button>
-                            </div>
-                        </div>
-
-                        {classification === 'friendly' ? (
-                            <>
-                                {/* Discount Inputs Grid */}
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                            {t('financeiro.negotiation.discount_percent', 'Desconto (%)')}
-                                        </Label>
-                                        <div className="relative">
-                                            <Percent size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
-                                            <Input 
-                                                type="number"
-                                                min="0"
-                                                max="100"
-                                                step="0.01"
-                                                value={inputPercent === '0' ? '' : inputPercent}
-                                                onChange={(e) => handlePercentInputChange(e.target.value)}
-                                                placeholder="Ex: 10%"
-                                                className="pl-8 text-xs font-semibold"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                            {t('financeiro.negotiation.discount_value', 'Desconto (Valor €)')}
-                                        </Label>
-                                        <div className="relative">
-                                            <span className="absolute left-2.5 top-2 text-xs font-bold text-muted-foreground">€</span>
-                                            <Input 
-                                                type="number"
-                                                min="0"
-                                                max={originalTotal}
-                                                step="0.01"
-                                                value={inputValue === '0' ? '' : inputValue}
-                                                onChange={(e) => handleValueInputChange(e.target.value)}
-                                                placeholder="Ex: 500"
-                                                className="pl-6 text-xs font-semibold"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Plan Type selector */}
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.payment_plan', 'Plano de Pagamento')}</Label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <Button 
-                                            type="button"
-                                            variant={paymentType === 'single' ? 'secondary' : 'outline'}
-                                            onClick={() => setPaymentType('single')}
-                                            className="text-xs h-8 font-semibold"
-                                        >
-                                            {t('financeiro.negotiation.single_payment', 'Cota Única')}
-                                        </Button>
-                                        <Button 
-                                            type="button"
-                                            variant={paymentType === 'installments' ? 'secondary' : 'outline'}
-                                            onClick={() => setPaymentType('installments')}
-                                            className="text-xs h-8 font-semibold"
-                                        >
-                                            {t('financeiro.negotiation.installments', 'Parcelar')}
-                                        </Button>
-                                    </div>
-                                </div>
-
-                                {/* Dynamic Plan Settings */}
-                                {paymentType === 'single' ? (
-                                    <div className="space-y-1">
-                                        <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.due_date', 'Data de Vencimento')}</Label>
-                                        <Input 
-                                            type="date"
-                                            value={dueDate}
-                                            onChange={(e) => setDueDate(e.target.value)}
-                                            className="text-xs font-semibold"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.installments_count', 'Nº de Parcelas')}</Label>
-                                            <Input 
-                                                type="number"
-                                                min="2"
-                                                max="60"
-                                                value={installmentsCount}
-                                                onChange={(e) => setInstallmentsCount(Math.max(2, Number(e.target.value)))}
-                                                className="text-xs font-semibold"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.first_installment', '1º Vencimento')}</Label>
-                                            <Input 
-                                                type="date"
-                                                value={firstInstallmentDate}
-                                                onChange={(e) => setFirstInstallmentDate(e.target.value)}
-                                                className="text-xs font-semibold"
-                                            />
-                                        </div>
+                                        })}
                                     </div>
                                 )}
+                            </ScrollArea>
+                        </div>
 
-                                {/* Installments Live Preview */}
-                                <div className="border dark:border-slate-800 rounded-lg p-3 bg-slate-50 dark:bg-slate-950/30 space-y-2">
-                                    <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between">
-                                        <span>{t('financeiro.negotiation.preview_title', 'Simulação das Parcelas')}</span>
-                                        <span>{installmentPreview.length} {installmentPreview.length === 1 ? 'título' : 'títulos'}</span>
-                                    </h4>
-                                    <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
-                                        {installmentPreview.map((item) => (
-                                            <div key={item.index} className="flex justify-between items-center text-[11px] font-semibold py-1 border-b dark:border-slate-850 last:border-0">
-                                                <span className="text-slate-600 dark:text-slate-350">Parcela {item.index}/{installmentPreview.length}</span>
-                                                <span className="text-muted-foreground">Venc: {new Date(item.dueDate).toLocaleDateString('pt-PT')}</span>
-                                                <span className="text-slate-900 dark:text-slate-100 font-bold">{formatCurrency(item.value)}</span>
+                        {/* Right Column: Acordo / Parametrização */}
+                        <div className="lg:col-span-5 flex flex-col border dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 p-4 space-y-4 overflow-y-auto">
+                            <div className="flex justify-between items-center border-b pb-2 dark:border-slate-800 flex-none">
+                                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">{t('financeiro.negotiation.proposal_title', 'Configurar Proposta de Acordo')}</h3>
+                                
+                                {/* Panel Tab Pill */}
+                                <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg text-xs">
+                                    <button
+                                        type="button"
+                                        onClick={() => setRightPanelTab('proposal')}
+                                        className={`px-2.5 py-1 rounded-md font-semibold text-[11px] transition-all flex items-center gap-1.5 ${
+                                            rightPanelTab === 'proposal'
+                                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        <Handshake size={13} />
+                                        <span>{t('financeiro.negotiation.tab_proposal', 'Proposta')}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setRightPanelTab('notes')}
+                                        className={`px-2.5 py-1 rounded-md font-semibold text-[11px] transition-all flex items-center gap-1.5 ${
+                                            rightPanelTab === 'notes'
+                                                ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        <FileText size={13} />
+                                        <span>{t('financeiro.negotiation.tab_notes', 'Observações')}</span>
+                                        {observacoes && (
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {rightPanelTab === 'proposal' ? (
+                                <>
+                                    {/* Classification Selector */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.classification', 'Classificação do Acordo')}</Label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <Button 
+                                                type="button"
+                                                variant={classification === 'friendly' ? 'default' : 'outline'}
+                                                onClick={() => setClassification('friendly')}
+                                                className="text-xs h-9 gap-1 font-bold"
+                                            >
+                                                <CheckCircle2 size={14} /> {t('financeiro.negotiation.friendly', 'Amigável')}
+                                            </Button>
+                                            <Button 
+                                                type="button"
+                                                variant={classification === 'legal' ? 'default' : 'outline'}
+                                                onClick={() => setClassification('legal')}
+                                                className={`text-xs h-9 gap-1 font-bold ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : ''}`}
+                                            >
+                                                <Scale size={14} /> {t('financeiro.negotiation.legal', 'Enviar ao Jurídico')}
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {classification === 'friendly' ? (
+                                        <>
+                                            {/* Discount Inputs Grid */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1">
+                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                                        {t('financeiro.negotiation.discount_percent', 'Desconto (%)')}
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <Percent size={14} className="absolute left-2.5 top-2.5 text-muted-foreground" />
+                                                        <Input 
+                                                            type="number"
+                                                            min="0"
+                                                            max="100"
+                                                            step="0.01"
+                                                            value={inputPercent === '0' ? '' : inputPercent}
+                                                            onChange={(e) => handlePercentInputChange(e.target.value)}
+                                                            placeholder="Ex: 10%"
+                                                            className="pl-8 text-xs font-semibold"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                                        {t('financeiro.negotiation.discount_value', 'Desconto (Valor €)')}
+                                                    </Label>
+                                                    <div className="relative">
+                                                        <span className="absolute left-2.5 top-2 text-xs font-bold text-muted-foreground">€</span>
+                                                        <Input 
+                                                            type="number"
+                                                            min="0"
+                                                            max={originalTotal}
+                                                            step="0.01"
+                                                            value={inputValue === '0' ? '' : inputValue}
+                                                            onChange={(e) => handleValueInputChange(e.target.value)}
+                                                            placeholder="Ex: 500"
+                                                            className="pl-6 text-xs font-semibold"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
-                                        ))}
+
+                                            {/* Plan Type selector */}
+                                            <div className="space-y-1.5">
+                                                <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.payment_plan', 'Plano de Pagamento')}</Label>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <Button 
+                                                        type="button"
+                                                        variant={paymentType === 'single' ? 'secondary' : 'outline'}
+                                                        onClick={() => setPaymentType('single')}
+                                                        className="text-xs h-8 font-semibold"
+                                                    >
+                                                        {t('financeiro.negotiation.single_payment', 'Cota Única')}
+                                                    </Button>
+                                                    <Button 
+                                                        type="button"
+                                                        variant={paymentType === 'installments' ? 'secondary' : 'outline'}
+                                                        onClick={() => setPaymentType('installments')}
+                                                        className="text-xs h-8 font-semibold"
+                                                    >
+                                                        {t('financeiro.negotiation.installments', 'Parcelar')}
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            {/* Dynamic Plan Settings */}
+                                            {paymentType === 'single' ? (
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.due_date', 'Data de Vencimento')}</Label>
+                                                    <Input 
+                                                        type="date"
+                                                        value={dueDate}
+                                                        onChange={(e) => setDueDate(e.target.value)}
+                                                        className="text-xs font-semibold"
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.installments_count', 'Nº de Parcelas')}</Label>
+                                                        <Input 
+                                                            type="number"
+                                                            min="2"
+                                                            max="60"
+                                                            value={installmentsCount}
+                                                            onChange={(e) => setInstallmentsCount(Math.max(2, Number(e.target.value)))}
+                                                            className="text-xs font-semibold"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.first_installment', '1º Vencimento')}</Label>
+                                                        <Input 
+                                                            type="date"
+                                                            value={firstInstallmentDate}
+                                                            onChange={(e) => setFirstInstallmentDate(e.target.value)}
+                                                            className="text-xs font-semibold"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Installments Live Preview */}
+                                            <div className="border dark:border-slate-800 rounded-lg p-3 bg-slate-50 dark:bg-slate-950/30 space-y-2">
+                                                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between">
+                                                    <span>{t('financeiro.negotiation.preview_title', 'Simulação das Parcelas')}</span>
+                                                    <span>{installmentPreview.length} {installmentPreview.length === 1 ? 'título' : 'títulos'}</span>
+                                                </h4>
+                                                <div className="max-h-32 overflow-y-auto space-y-1 pr-1">
+                                                    {installmentPreview.map((item) => (
+                                                        <div key={item.index} className="flex justify-between items-center text-[11px] font-semibold py-1 border-b dark:border-slate-850 last:border-0">
+                                                            <span className="text-slate-600 dark:text-slate-350">Parcela {item.index}/{installmentPreview.length}</span>
+                                                            <span className="text-muted-foreground">Venc: {new Date(item.dueDate).toLocaleDateString('pt-PT')}</span>
+                                                            <span className="text-slate-900 dark:text-slate-100 font-bold">{formatCurrency(item.value)}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="border border-red-200 bg-red-50/50 dark:border-red-950/20 dark:bg-red-950/10 p-3.5 rounded-lg flex gap-3 text-xs text-red-800 dark:text-red-300">
+                                            <AlertCircle className="shrink-0 mt-0.5 text-red-650" size={16} />
+                                            <div>
+                                                <p className="font-bold">{t('financeiro.negotiation.legal_warning_title', 'Aviso de Encaminhamento Judicial')}</p>
+                                                <p className="mt-1 leading-relaxed text-muted-foreground text-[11px]">
+                                                    {t('financeiro.negotiation.legal_warning_desc', 'Ao confirmar, todos os títulos vencidos selecionados serão catalogados com o status "Judicial". Isso suspende ações amigáveis e move a cobrança para a tab do departamento Jurídico.')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Embedded Observações in proposal view */}
+                                    <div className="border dark:border-slate-800 rounded-lg p-3 bg-slate-50/70 dark:bg-slate-950/30 space-y-2">
+                                        <div className="flex justify-between items-center">
+                                            <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                                <FileText size={14} className="text-indigo-500" />
+                                                <span>{t('financeiro.negotiation.notes_title', 'Observações da Negociação')}</span>
+                                            </Label>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setIsNotesExpanded(true)}
+                                                className="h-6 px-2 text-[10px] text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 gap-1 font-semibold"
+                                                title="Expandir campo para espaço máximo"
+                                            >
+                                                <Maximize2 size={11} />
+                                                <span>{t('financeiro.negotiation.btn_expand_space', 'Espaço Máximo')}</span>
+                                            </Button>
+                                        </div>
+                                        <RichTextEditor
+                                            value={observacoes}
+                                            onChange={setObservacoes}
+                                            minHeight="160px"
+                                            placeholder={t('financeiro.negotiation.notes_placeholder', 'Digite aqui as observações, ata da negociação, motivos do desconto, acordos verbais firmados com o cliente...')}
+                                        />
+                                    </div>
+                                </>
+                            ) : (
+                                /* Full-height Observações Tab in Right Panel */
+                                <div className="flex-1 flex flex-col min-h-0 space-y-2">
+                                    <div className="flex justify-between items-center pb-1">
+                                        <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                            <FileText size={14} className="text-indigo-500" />
+                                            <span>{t('financeiro.negotiation.notes_title', 'Observações & Ata')}</span>
+                                        </Label>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setIsNotesExpanded(true)}
+                                            className="h-7 px-2 text-[11px] text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 gap-1 font-semibold"
+                                            title="Expandir campo para espaço máximo"
+                                        >
+                                            <Maximize2 size={12} />
+                                            <span>{t('financeiro.negotiation.btn_expand_space', 'Espaço Máximo')}</span>
+                                        </Button>
+                                    </div>
+                                    <div className="flex-1 min-h-0">
+                                        <RichTextEditor
+                                            value={observacoes}
+                                            onChange={setObservacoes}
+                                            minHeight="360px"
+                                            placeholder={t('financeiro.negotiation.notes_placeholder', 'Digite aqui as observações, ata da negociação, motivos do desconto, acordos verbais firmados com o cliente...')}
+                                        />
                                     </div>
                                 </div>
-                            </>
-                        ) : (
-                            <div className="border border-red-200 bg-red-50/50 dark:border-red-950/20 dark:bg-red-950/10 p-3.5 rounded-lg flex gap-3 text-xs text-red-800 dark:text-red-300">
-                                <AlertCircle className="shrink-0 mt-0.5 text-red-650" size={16} />
-                                <div>
-                                    <p className="font-bold">{t('financeiro.negotiation.legal_warning_title', 'Aviso de Encaminhamento Judicial')}</p>
-                                    <p className="mt-1 leading-relaxed text-muted-foreground text-[11px]">
-                                        {t('financeiro.negotiation.legal_warning_desc', 'Ao confirmar, todos os títulos vencidos selecionados serão catalogados com o status "Judicial". Isso suspende ações amigáveis e move a cobrança para a tab do departamento Jurídico.')}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Summary Deck */}
-                        <div className="bg-indigo-50/30 border border-indigo-100 dark:border-indigo-950/30 dark:bg-indigo-950/10 p-3 rounded-lg flex flex-col gap-1 text-xs mt-auto">
-                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                                <span>{t('financeiro.negotiation.selected_count', 'Títulos Selecionados:')}</span>
-                                <span className="font-bold">{selectedTitles.length} faturas</span>
-                            </div>
-                            <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                                <span>{t('financeiro.negotiation.original_debt', 'Dívida Original:')}</span>
-                                <span className="font-semibold">{formatCurrency(originalTotal)}</span>
-                            </div>
-                            {discount > 0 && classification === 'friendly' && (
-                                <div className="flex justify-between text-green-600">
-                                    <span>{t('financeiro.negotiation.discount_applied', 'Desconto Concedido:')}</span>
-                                    <span className="font-bold">-{formatCurrency(discountAmount)} ({discount}%)</span>
-                                </div>
                             )}
-                            <div className="flex justify-between text-slate-800 dark:text-slate-200 border-t dark:border-indigo-950/40 pt-1.5 mt-1 font-bold text-sm">
-                                <span>{classification === 'friendly' ? t('financeiro.negotiation.negotiated_debt', 'Dívida Acordada:') : t('financeiro.negotiation.legal_total', 'Total em Atraso:')}</span>
-                                <span className="text-indigo-650 dark:text-indigo-400">{formatCurrency(classification === 'friendly' ? discountedTotal : originalTotal)}</span>
+
+                            {/* Summary Deck */}
+                            <div className="bg-indigo-50/30 border border-indigo-100 dark:border-indigo-950/30 dark:bg-indigo-950/10 p-3 rounded-lg flex flex-col gap-1 text-xs mt-auto flex-none">
+                                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                                    <span>{t('financeiro.negotiation.selected_count', 'Títulos Selecionados:')}</span>
+                                    <span className="font-bold">{selectedTitles.length} faturas</span>
+                                </div>
+                                <div className="flex justify-between text-slate-600 dark:text-slate-400">
+                                    <span>{t('financeiro.negotiation.original_debt', 'Dívida Original:')}</span>
+                                    <span className="font-semibold">{formatCurrency(originalTotal)}</span>
+                                </div>
+                                {discount > 0 && classification === 'friendly' && (
+                                    <div className="flex justify-between text-green-600">
+                                        <span>{t('financeiro.negotiation.discount_applied', 'Desconto Concedido:')}</span>
+                                        <span className="font-bold">-{formatCurrency(discountAmount)} ({discount}%)</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between text-slate-800 dark:text-slate-200 border-t dark:border-indigo-950/40 pt-1.5 mt-1 font-bold text-sm">
+                                    <span>{classification === 'friendly' ? t('financeiro.negotiation.negotiated_debt', 'Dívida Acordada:') : t('financeiro.negotiation.legal_total', 'Total em Atraso:')}</span>
+                                    <span className="text-indigo-650 dark:text-indigo-400">{formatCurrency(classification === 'friendly' ? discountedTotal : originalTotal)}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 <DialogFooter className="flex-none gap-2 sm:gap-0 mt-3 pt-3 border-t dark:border-slate-800">
                     <Button 
