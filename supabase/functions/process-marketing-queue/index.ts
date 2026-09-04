@@ -430,22 +430,50 @@ serve(async (req) => {
   }
 });
 
-// Helper para mover o lead para a coluna 'E-mail Enviado'
+// Helper para mover o lead para a coluna 'E-mail Enviado' da empresa da campanha
 async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId: string) {
   try {
-    const { data: stageData } = await supabase
-      .from("kanban_stages")
-      .select("id")
-      .or(`name.eq.E-mail Enviado,order_index.eq.2`)
-      .limit(1)
-      .maybeSingle();
+    let stageId: string | null = null;
+    
+    if (empresaId) {
+      const { data: stageData } = await supabase
+        .from("kanban_stages")
+        .select("id")
+        .eq("empresa_id", empresaId)
+        .or(`name.ilike.%enviado%,order_index.eq.2`)
+        .limit(1)
+        .maybeSingle();
 
-    if (stageData) {
-      await supabase
-        .from("leads")
-        .update({ stage_id: stageData.id, updated_at: new Date().toISOString() })
-        .eq("email", leadEmail);
+      if (stageData) {
+        stageId = stageData.id;
+      }
     }
+
+    // Fallback caso não ache por empresaId
+    if (!stageId) {
+      const { data: fallbackStage } = await supabase
+        .from("kanban_stages")
+        .select("id")
+        .or(`name.eq.E-mail Enviado,order_index.eq.2`)
+        .limit(1)
+        .maybeSingle();
+      if (fallbackStage) stageId = fallbackStage.id;
+    }
+
+    const updatePayload: any = {
+      updated_at: new Date().toISOString(),
+    };
+    if (empresaId) {
+      updatePayload.empresa_id = empresaId;
+    }
+    if (stageId) {
+      updatePayload.stage_id = stageId;
+    }
+
+    await supabase
+      .from("leads")
+      .update(updatePayload)
+      .eq("email", leadEmail);
   } catch (e: any) {
     console.error("Erro ao atualizar estágio do lead:", e);
   }
