@@ -762,6 +762,8 @@ export function useMutateDialer() {
             qualifying_questions: script.qualifying_questions || [],
             objections_guide: script.objections_guide || [],
             closing_pitch: script.closing_pitch || null,
+            image_url: script.image_url || null,
+            rich_content_html: script.rich_content_html || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', script.id)
@@ -782,6 +784,8 @@ export function useMutateDialer() {
             qualifying_questions: script.qualifying_questions || [],
             objections_guide: script.objections_guide || [],
             closing_pitch: script.closing_pitch || null,
+            image_url: script.image_url || null,
+            rich_content_html: script.rich_content_html || null,
             is_default: false,
           })
           .select()
@@ -790,6 +794,23 @@ export function useMutateDialer() {
         if (error) throw error;
         return data as SalesScript;
       }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sales_scripts'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaign'] });
+    },
+  });
+
+  const deleteSalesScript = useMutation({
+    mutationFn: async (scriptId: string) => {
+      const { error } = await supabase
+        .schema('core_comercial')
+        .from('sales_scripts')
+        .delete()
+        .eq('id', scriptId);
+
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sales_scripts'] });
@@ -809,5 +830,7 @@ export function useMutateDialer() {
     isCreatingPresupuesto: createQuickPresupuesto.isPending,
     saveSalesScript: saveSalesScript.mutateAsync,
     isSavingSalesScript: saveSalesScript.isPending,
+    deleteSalesScript: deleteSalesScript.mutateAsync,
+    isDeletingSalesScript: deleteSalesScript.isPending,
   };
 }

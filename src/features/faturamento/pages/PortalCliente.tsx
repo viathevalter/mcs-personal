@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { getFaturaByToken, aprovarHorasCliente, contestarHorasCliente, publicSupabase } from '../api/faturamentoApi';
 import type { Fatura, HoraTrabalhada } from '../api/faturamentoApi';
-import { CheckCircle, XCircle, Clock, FileText, AlertTriangle, MessageSquare, Loader2, Calendar, FileSpreadsheet, Check, Paperclip, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, FileText, AlertTriangle, MessageSquare, Loader2, Calendar, FileSpreadsheet, Check, Paperclip, Trash2, Building2, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { QRCodeSVG } from 'qrcode.react';
 import { getBillingCycleDays } from './FaturasPendentes';
@@ -56,6 +56,7 @@ export function PortalCliente() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedMessage, setSubmittedMessage] = useState<{ title: string; desc: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
+  const [selectedObraId, setSelectedObraId] = useState<string>('all');
 
   const [editingCell, setEditingCell] = useState<{ workerId: string; dateKey: string } | null>(null);
   const [disputedHours, setDisputedHours] = useState<Record<string, Record<string, number>>>({});
@@ -102,13 +103,14 @@ export function PortalCliente() {
       const data = await getFaturaByToken(token!);
       setFatura(data.fatura);
 
-      // Group and sum duplicate registry records per worker and date to avoid display and total discrepancies
+      // Group and sum duplicate registry records per worker, date, and obra to preserve separate obras
       const groupedMap = new Map<string, any>();
       (data.horas || []).forEach((h: any) => {
         const wId = h.worker_id;
         if (!wId) return;
         const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-        const key = `${wId}_${dateKey}`;
+        const obraKey = h.obra_id || 'no_obra';
+        const key = `${wId}_${dateKey}_${obraKey}`;
         
         if (!groupedMap.has(key)) {
           groupedMap.set(key, {
@@ -256,133 +258,141 @@ export function PortalCliente() {
     const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
     const periodStr = `${getMonthName(month)} / ${year}`;
     
-    const workersMap = new Map();
-    horas.forEach(h => {
-      const wId = h.worker_id;
-      if (!wId) return;
+    const tablesToRender = selectedObraId === 'all' ? groupedObras : groupedObras.filter(o => o.obraId === selectedObraId);
 
-      if (!workersMap.has(wId)) {
-        workersMap.set(wId, {
-          workerId: wId,
-          workerName: h.worker?.nombrecompleto || 'Colaborador',
-          horasDiarias: {}
-        });
-      }
-
-      const wObj = workersMap.get(wId);
-      const dateKey = h.data_trabalho;
-      wObj.horasDiarias[dateKey] = h.horas_totais;
-    });
-
-    const groupedWorkersLocal = Array.from(workersMap.values());
-    const cycleStartDay = fatura.client?.billingCycleStartDay || 1;
-    const daysArrayLocal = getBillingCycleDays(cycleStartDay, year, month);
-    
-    const totalHorasLocal = horas.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-    const totalValorLocal = horas.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 27.00)), 0);
-
-    container.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 20px;">
-        <div>
-          <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Registro de Horas</h2>
-          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Cliente: <strong>${clientName}</strong> | Periodo: <strong>${periodStr}</strong></p>
-        </div>
-        <div style="text-align: right;">
-          <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${totalHorasLocal.toFixed(2)}h</strong></p>
-          <p style="font-size: 13px; color: #64748b; margin: 5px 0 0 0;">Importe Base: <strong style="color: #1e293b; font-size: 16px;">€ ${totalValorLocal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
-        </div>
-      </div>
-    `;
-
-    let tableHtml = `
-      <div style="margin-bottom: 40px; page-break-inside: avoid;">
-        <div style="text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 10px; color: #334155; border-radius: 6px; margin-bottom: 15px; border: 1px solid #e2e8f0;">
-          OBRA: TODAS LAS OBRAS
-        </div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
-          <thead>
-            <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-              <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">Trabajador</th>
-    `;
-
-    daysArrayLocal.forEach(dInfo => {
-      const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
-      const dayOfWeek = cellDate.getDay();
-      const isSunday = dayOfWeek === 0;
-      const isSaturday = dayOfWeek === 6;
-      const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-      const label = weekdays[dayOfWeek];
-      
-      let headerColor = '#64748b';
-      let headerBg = '';
-      if (isSunday) {
-        headerColor = '#e11d48';
-        headerBg = 'background-color: #ffe4e6;';
-      } else if (isSaturday) {
-        headerColor = '#d97706';
-        headerBg = 'background-color: #fef3c7;';
-      }
-
-      tableHtml += `
-        <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
-          <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
-          <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
-        </th>
-      `;
-    });
-
-    tableHtml += `
-              <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    groupedWorkersLocal.forEach(w => {
-      const workerTotal = daysArrayLocal.reduce((sum, dInfo) => sum + (w.horasDiarias[dInfo.dateStr] || 0), 0);
-      tableHtml += `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+    tablesToRender.forEach(obra => {
+      let tableHtml = `
+        <div style="margin-bottom: 35px; page-break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: center; background-color: #f1f5f9; padding: 8px 14px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+            <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.05em; color: #1e293b; text-transform: uppercase;">
+              OBRA: ${obra.obraName.toUpperCase()}
+            </span>
+            <span style="font-size: 11px; font-weight: 700; color: #475569;">
+              Total: <strong>${obra.totalHoras.toFixed(2)}h</strong> • <strong>€ ${obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong>
+            </span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">Trabajador</th>
       `;
 
       daysArrayLocal.forEach(dInfo => {
-        const hoursVal = w.horasDiarias[dInfo.dateStr] || 0;
-        
         const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
         const dayOfWeek = cellDate.getDay();
         const isSunday = dayOfWeek === 0;
         const isSaturday = dayOfWeek === 6;
-
-        let cellStyle = 'color: #94a3b8;';
-        let cellBg = '';
-        if (hoursVal > 0) {
-          cellStyle = 'color: #2563eb; font-weight: 700;';
-        }
+        const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+        const label = weekdays[dayOfWeek];
+        
+        let headerColor = '#64748b';
+        let headerBg = '';
         if (isSunday) {
-          cellBg = 'background-color: #fff1f2;';
+          headerColor = '#e11d48';
+          headerBg = 'background-color: #ffe4e6;';
         } else if (isSaturday) {
-          cellBg = 'background-color: #fffbeb;';
+          headerColor = '#d97706';
+          headerBg = 'background-color: #fef3c7;';
         }
 
         tableHtml += `
-          <td style="text-align: center; padding: 8px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
-            ${hoursVal > 0 ? hoursVal : '-'}
+          <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
+            <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
+            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
+          </th>
+        `;
+      });
+
+      tableHtml += `
+                <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+      `;
+
+      obra.workers.forEach(w => {
+        const workerTotal = daysArrayLocal.reduce((sum, dInfo) => {
+          const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+          return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
+        }, 0);
+
+        tableHtml += `
+          <tr style="border-bottom: 1px solid #e2e8f0;">
+            <td style="padding: 9px 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+        `;
+
+        daysArrayLocal.forEach(dInfo => {
+          const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+          const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+          
+          const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+          const dayOfWeek = cellDate.getDay();
+          const isSunday = dayOfWeek === 0;
+          const isSaturday = dayOfWeek === 6;
+
+          let cellStyle = 'color: #94a3b8;';
+          let cellBg = '';
+          if (hoursVal > 0) {
+            cellStyle = 'color: #2563eb; font-weight: 700;';
+          }
+          if (isSunday) {
+            cellBg = 'background-color: #fff1f2;';
+          } else if (isSaturday) {
+            cellBg = 'background-color: #fffbeb;';
+          }
+
+          tableHtml += `
+            <td style="text-align: center; padding: 7px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
+              ${hoursVal > 0 ? hoursVal : '-'}
+            </td>
+          `;
+        });
+
+        tableHtml += `
+            <td style="padding: 9px 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
+          </tr>
+        `;
+      });
+
+      // Obra footer with day sums
+      tableHtml += `
+            </tbody>
+            <tfoot>
+              <tr style="background-color: #f8fafc; font-weight: 750; border-top: 2px solid #e2e8f0;">
+                <td style="padding: 8px 10px; font-weight: 700; color: #1e293b; border-right: 1px solid #e2e8f0;">Total ${obra.obraName}</td>
+      `;
+
+      daysArrayLocal.forEach(dInfo => {
+        const daySum = obra.workers.reduce((sum, w) => {
+          const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+          return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
+        }, 0);
+        tableHtml += `
+          <td style="text-align: center; padding: 6px 2px; font-weight: 700; color: #1e293b; border-right: 1px solid #e2e8f0; font-size: 10px;">
+            ${daySum > 0 ? daySum.toFixed(1) : '-'}
           </td>
         `;
       });
 
       tableHtml += `
-          <td style="padding: 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
-        </tr>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">${obra.totalHoras.toFixed(1)}h</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
       `;
+
+      container.innerHTML += tableHtml;
     });
 
-    tableHtml += `
-          </tbody>
-        </table>
-      </div>
-    `;
-    container.innerHTML += tableHtml;
+    if (tablesToRender.length > 1) {
+      container.innerHTML += `
+        <div style="background-color: #0f172a; color: #ffffff; padding: 12px 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+          <span style="font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Total General (Todas las Obras)</span>
+          <span style="font-weight: 800; font-size: 14px; font-family: monospace;">${totalHorasLocal.toFixed(2)}h • € ${totalValorLocal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
+        </div>
+      `;
+    }
 
     document.body.appendChild(container);
 
@@ -468,7 +478,93 @@ export function PortalCliente() {
     }
   };
 
-  // Group flat hours by worker
+  // Group flat hours by Obra and worker
+  const groupedObras = React.useMemo(() => {
+    if (!horas || horas.length === 0) return [];
+
+    const obraMap = new Map<string, {
+      obraId: string;
+      obraName: string;
+      totalHoras: number;
+      totalValor: number;
+      workers: Array<{
+        workerId: string;
+        workerName: string;
+        codColab: string;
+        perfil: string;
+        tarifa: number;
+        totalHoras: number;
+        totalValor: number;
+        horasDiarias: Record<string, { id?: string; horas_totais: number; data_trabalho: string }>;
+      }>;
+    }>();
+
+    horas.forEach(h => {
+      const oId = h.obra_id || 'sem_obra';
+      let oName = h.obra_name;
+      if (!oName || oName === 'Sin Obra') {
+        oName = fatura?.ajustes_json?.obra || 'Sin Obra';
+      }
+
+      if (!obraMap.has(oId)) {
+        obraMap.set(oId, {
+          obraId: oId,
+          obraName: oName,
+          totalHoras: 0,
+          totalValor: 0,
+          workers: []
+        });
+      }
+
+      const obraGroup = obraMap.get(oId)!;
+      if (obraGroup.obraName === 'Sin Obra' && oName && oName !== 'Sin Obra') {
+        obraGroup.obraName = oName;
+      }
+
+      const wId = h.worker_id;
+      if (!wId) return;
+
+      let worker = obraGroup.workers.find(w => w.workerId === wId);
+      if (!worker) {
+        worker = {
+          workerId: wId,
+          workerName: h.worker?.nombrecompleto || 'Colaborador',
+          codColab: h.worker?.codColab || 'N/A',
+          perfil: h.worker?.perfil || 'Não Definido',
+          tarifa: h.tarifa_faturada || 27.00,
+          totalHoras: 0,
+          totalValor: 0,
+          horasDiarias: {}
+        };
+        obraGroup.workers.push(worker);
+      }
+
+      const proposed = disputedHours[wId]?.[h.data_trabalho];
+      const hoursVal = proposed !== undefined ? proposed : Number(h.horas_totais || 0);
+
+      worker.totalHoras += hoursVal;
+      worker.totalValor += hoursVal * (h.tarifa_faturada || 27.00);
+
+      obraGroup.totalHoras += hoursVal;
+      obraGroup.totalValor += hoursVal * (h.tarifa_faturada || 27.00);
+
+      const dateKey = h.data_trabalho;
+      worker.horasDiarias[dateKey] = {
+        id: h.id,
+        horas_totais: h.horas_totais,
+        data_trabalho: h.data_trabalho
+      };
+    });
+
+    return Array.from(obraMap.values()).sort((a, b) => a.obraName.localeCompare(b.obraName));
+  }, [horas, disputedHours, fatura]);
+
+  const visibleObras = React.useMemo(() => {
+    if (selectedObraId === 'all') return groupedObras;
+    return groupedObras.filter(o => o.obraId === selectedObraId);
+  }, [groupedObras, selectedObraId]);
+
+  // Group flat hours by worker across all obras
   const groupedWorkers = React.useMemo(() => {
     if (!horas || horas.length === 0) return [];
     
@@ -483,41 +579,21 @@ export function PortalCliente() {
       horasDiarias: Record<string, { id?: string; horas_totais: number; data_trabalho: string }>;
     }>();
 
-    horas.forEach(h => {
-      const wId = h.worker_id;
-      if (!wId) return;
-
-      if (!workersMap.has(wId)) {
-        workersMap.set(wId, {
-          workerId: wId,
-          workerName: h.worker?.nombrecompleto || 'Colaborador',
-          codColab: h.worker?.codColab || 'N/A',
-          perfil: h.worker?.perfil || 'Não Definido',
-          tarifa: h.tarifa_faturada || 27.00,
-          totalHoras: 0,
-          totalValor: 0,
-          horasDiarias: {}
-        });
-      }
-
-      const wObj = workersMap.get(wId)!;
-      
-      const proposed = disputedHours[wId]?.[h.data_trabalho];
-      const hoursVal = proposed !== undefined ? proposed : h.horas_totais;
-
-      wObj.totalHoras += hoursVal;
-      wObj.totalValor += hoursVal * (h.tarifa_faturada || 27.00);
-      
-      const dateKey = h.data_trabalho;
-      wObj.horasDiarias[dateKey] = {
-        id: h.id,
-        horas_totais: h.horas_totais,
-        data_trabalho: h.data_trabalho
-      };
+    groupedObras.forEach(o => {
+      o.workers.forEach(w => {
+        if (!workersMap.has(w.workerId)) {
+          workersMap.set(w.workerId, { ...w, horasDiarias: { ...w.horasDiarias } });
+        } else {
+          const existing = workersMap.get(w.workerId)!;
+          existing.totalHoras += w.totalHoras;
+          existing.totalValor += w.totalValor;
+          Object.assign(existing.horasDiarias, w.horasDiarias);
+        }
+      });
     });
 
     return Array.from(workersMap.values());
-  }, [horas, disputedHours]);
+  }, [groupedObras]);
 
   const { year, month } = React.useMemo(() => {
     if (horas && horas.length > 0) {
@@ -559,6 +635,8 @@ export function PortalCliente() {
       ibanVal = fatura?.empresa?.bankDetails || defaultIban;
     }
 
+    const defaultObraTitle = fatura?.ajustes_json?.obra || (groupedObras.length === 1 ? groupedObras[0].obraName : (groupedObras.length > 1 ? 'Múltiplas Obras' : 'Sin Obra'));
+
     return {
       totalBaseVal,
       finalTotalVal,
@@ -572,10 +650,10 @@ export function PortalCliente() {
         ivaPct,
         iban: ibanVal,
         condicoesPagamento: adj.condicoes_pagamento || termName,
-        descricaoServico: adj.descricao_servico || `Prestação de Serviços - Obra: Sin Obra`,
+        descricaoServico: adj.descricao_servico || `Prestação de Serviços - Obra: ${defaultObraTitle}`,
       }
     };
-  }, [fatura, groupedWorkers]);
+  }, [fatura, groupedWorkers, groupedObras]);
 
   if (loading) {
     return (
@@ -828,126 +906,231 @@ export function PortalCliente() {
                   </div>
                 </div>
 
-                <div className="text-center font-bold text-xs tracking-wider bg-slate-100 py-1 text-slate-700 rounded mb-4">
-                  OBRA: SIN OBRA
-                </div>
+                {/* Filtro de Obras (se houver mais de uma obra) */}
+                {groupedObras.length > 1 && (
+                  <div className="mb-6 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-center gap-1.5 mb-2.5">
+                      <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        Filtrar por Obra / Centro de Coste:
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        variant={selectedObraId === 'all' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSelectedObraId('all')}
+                        className={`h-9 px-3 text-xs font-bold rounded-lg transition-all ${
+                          selectedObraId === 'all'
+                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-200'
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5 mr-1.5" />
+                        Todas las Obras ({totalHorasCalculadas.toFixed(2)}h • € {totalBaseVal.toLocaleString('es-ES', { minimumFractionDigits: 2 })})
+                      </Button>
+                      {groupedObras.map((obra) => (
+                        <Button
+                          key={obra.obraId}
+                          type="button"
+                          variant={selectedObraId === obra.obraId ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setSelectedObraId(obra.obraId)}
+                          className={`h-9 px-3 text-xs font-bold rounded-lg transition-all ${
+                            selectedObraId === obra.obraId
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                              : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-200'
+                          }`}
+                        >
+                          <Building2 className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                          {obra.obraName} ({obra.totalHoras.toFixed(2)}h • € {obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })})
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-                <Table className="border border-slate-200 rounded-lg">
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="font-bold pl-4">Trabajador</TableHead>
-                      {daysArray.map(dInfo => {
-                        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
-                        const dayOfWeek = cellDate.getDay();
-                        const isWk = dayOfWeek === 0 || dayOfWeek === 6;
-                        const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-                        const wDay = weekdays[dayOfWeek];
-                        return (
-                          <TableHead key={dInfo.dateStr} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span>{String(dInfo.day).padStart(2, '0')}</span>
-                              <span className="text-[6.5px] md:text-[7.5px] text-slate-400 font-normal uppercase tracking-tight">{wDay}</span>
-                            </div>
-                          </TableHead>
-                        );
-                      })}
-                      <TableHead className="text-right font-extrabold pr-4 text-xs">TOTAL</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {groupedWorkers.map(worker => {
-                      const workerTotal = daysArray.reduce((sum, dInfo) => {
-                        const dateKey = dInfo.dateStr;
-                        const proposedVal = disputedHours[worker.workerId]?.[dateKey];
-                        if (proposedVal !== undefined) return sum + proposedVal;
-                        const hourObj = worker.horasDiarias[dateKey] as any;
-                        return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
-                      }, 0);
+                {/* Tabelas por Obra */}
+                {visibleObras.map((obra) => (
+                  <div key={obra.obraId} className="mb-8 last:mb-0">
+                    <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-800/90 px-4 py-2.5 rounded-lg mb-3 border border-slate-200 dark:border-slate-700">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100 tracking-wider uppercase">
+                          OBRA: {obra.obraName}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-medium ml-1">
+                          ({obra.workers.length} {obra.workers.length === 1 ? 'colaborador' : 'colaboradores'})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="text-slate-600 dark:text-slate-300 font-semibold">
+                          Horas Obra: <strong className="text-slate-900 dark:text-white font-bold">{obra.totalHoras.toFixed(2)}h</strong>
+                        </span>
+                        <span className="text-slate-600 dark:text-slate-300 font-semibold">
+                          Subtotal: <strong className="text-blue-600 dark:text-blue-400 font-bold font-mono">€ {obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong>
+                        </span>
+                      </div>
+                    </div>
 
-                      return (
-                        <TableRow key={worker.workerId} className="hover:bg-slate-50 transition-colors">
-                          <TableCell className="font-semibold text-slate-800 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
+                    <Table className="border border-slate-200 rounded-lg">
+                      <TableHeader className="bg-slate-50">
+                        <TableRow>
+                          <TableHead className="font-bold pl-4">Trabajador</TableHead>
                           {daysArray.map(dInfo => {
-                            const dateKey = dInfo.dateStr;
-                            const hourObj = worker.horasDiarias[dateKey] as any;
-                            const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
-
-                            const isEditing = editingCell?.workerId === worker.workerId && editingCell?.dateKey === dateKey;
-                            const proposedVal = disputedHours[worker.workerId]?.[dateKey];
-                            const hasDispute = proposedVal !== undefined;
-                            const displayVal = hasDispute ? proposedVal : hoursVal;
-                            
                             const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
                             const dayOfWeek = cellDate.getDay();
                             const isWk = dayOfWeek === 0 || dayOfWeek === 6;
-
-                            if (isEditing) {
-                              return (
-                                <TableCell key={dInfo.dateStr} className="p-0 text-center min-w-[30px] border-x border-slate-100 dark:border-slate-800">
-                                  <input 
-                                    type="number" 
-                                    step="0.5"
-                                    min="0"
-                                    max="24"
-                                    defaultValue={displayVal || 0}
-                                    className="w-9 h-7 text-center text-xs p-0 border border-blue-500 rounded bg-blue-50 text-blue-900 font-extrabold focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm"
-                                    onBlur={(e) => handleCellEdit(worker.workerId, dateKey, Number(e.target.value), hoursVal)}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter') {
-                                        handleCellEdit(worker.workerId, dateKey, Number((e.target as HTMLInputElement).value), hoursVal);
-                                      } else if (e.key === 'Escape') {
-                                        setEditingCell(null);
-                                      }
-                                    }}
-                                    autoFocus
-                                  />
-                                </TableCell>
-                              );
-                            }
-
+                            const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+                            const wDay = weekdays[dayOfWeek];
                             return (
-                              <TableCell 
-                                key={dInfo.dateStr} 
-                                onClick={() => !isResolved && setEditingCell({ workerId: worker.workerId, dateKey })}
-                                className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none cursor-pointer transition-all border-x border-slate-100 dark:border-slate-850 ${
-                                  isResolved 
-                                    ? 'cursor-default' 
-                                    : 'hover:bg-amber-100 hover:text-amber-850 dark:hover:bg-slate-800'
-                                } ${
-                                  isWk
-                                    ? hasDispute
-                                      ? 'bg-amber-100/80 dark:bg-amber-950/30 font-extrabold text-blue-650'
-                                      : hoursVal > 0
-                                        ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
-                                        : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
-                                    : hasDispute
-                                      ? 'bg-amber-50 dark:bg-amber-950/20 font-extrabold text-blue-650'
-                                      : hoursVal > 0
-                                        ? 'bg-blue-50/20 dark:bg-slate-800/10 font-bold text-slate-800 dark:text-slate-200'
-                                        : 'text-slate-300'
-                                }`}
-                              >
-                                {hasDispute ? (
-                                  <div className="flex flex-col items-center leading-none py-0.5">
-                                    <span className="line-through text-red-500 text-[8px]">{hoursVal}</span>
-                                    <span className="font-extrabold text-blue-650 text-[10px]">{proposedVal}</span>
-                                  </div>
-                                ) : (
-                                  <span>
-                                    {hoursVal > 0 ? hoursVal : '-'}
-                                  </span>
-                                )}
+                              <TableHead key={dInfo.dateStr} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span>{String(dInfo.day).padStart(2, '0')}</span>
+                                  <span className="text-[6.5px] md:text-[7.5px] text-slate-400 font-normal uppercase tracking-tight">{wDay}</span>
+                                </div>
+                              </TableHead>
+                            );
+                          })}
+                          <TableHead className="text-right font-extrabold pr-4 text-xs">TOTAL</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {obra.workers.map(worker => {
+                          const workerTotal = daysArray.reduce((sum, dInfo) => {
+                            const dateKey = dInfo.dateStr;
+                            const proposedVal = disputedHours[worker.workerId]?.[dateKey];
+                            if (proposedVal !== undefined) return sum + proposedVal;
+                            const hourObj = worker.horasDiarias[dateKey] as any;
+                            return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
+                          }, 0);
+
+                          return (
+                            <TableRow key={worker.workerId} className="hover:bg-slate-50 transition-colors">
+                              <TableCell className="font-semibold text-slate-800 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
+                              {daysArray.map(dInfo => {
+                                const dateKey = dInfo.dateStr;
+                                const hourObj = worker.horasDiarias[dateKey] as any;
+                                const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+
+                                const isEditing = editingCell?.workerId === worker.workerId && editingCell?.dateKey === dateKey;
+                                const proposedVal = disputedHours[worker.workerId]?.[dateKey];
+                                const hasDispute = proposedVal !== undefined;
+                                const displayVal = hasDispute ? proposedVal : hoursVal;
+                                
+                                const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+                                const dayOfWeek = cellDate.getDay();
+                                const isWk = dayOfWeek === 0 || dayOfWeek === 6;
+
+                                if (isEditing) {
+                                  return (
+                                    <TableCell key={dInfo.dateStr} className="p-0 text-center min-w-[30px] border-x border-slate-100 dark:border-slate-800">
+                                      <input 
+                                        type="number" 
+                                        step="0.5" 
+                                        min="0" 
+                                        max="24" 
+                                        defaultValue={displayVal || 0} 
+                                        className="w-9 h-7 text-center text-xs p-0 border border-blue-500 rounded bg-blue-50 text-blue-900 font-extrabold focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm" 
+                                        onBlur={(e) => handleCellEdit(worker.workerId, dateKey, Number(e.target.value), hoursVal)} 
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') {
+                                            handleCellEdit(worker.workerId, dateKey, Number((e.target as HTMLInputElement).value), hoursVal);
+                                          } else if (e.key === 'Escape') {
+                                            setEditingCell(null);
+                                          }
+                                        }} 
+                                        autoFocus 
+                                      />
+                                    </TableCell>
+                                  );
+                                }
+
+                                return (
+                                  <TableCell 
+                                    key={dInfo.dateStr} 
+                                    onClick={() => !isResolved && setEditingCell({ workerId: worker.workerId, dateKey })} 
+                                    className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none cursor-pointer transition-all border-x border-slate-100 dark:border-slate-850 ${
+                                      isResolved 
+                                        ? 'cursor-default' 
+                                        : 'hover:bg-amber-100 hover:text-amber-850 dark:hover:bg-slate-800'
+                                    } ${
+                                      isWk
+                                        ? hasDispute
+                                          ? 'bg-amber-100/80 dark:bg-amber-950/30 font-extrabold text-blue-650'
+                                          : hoursVal > 0
+                                            ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
+                                            : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
+                                        : hasDispute
+                                          ? 'bg-amber-50 dark:bg-amber-950/20 font-extrabold text-blue-650'
+                                          : hoursVal > 0
+                                            ? 'bg-blue-50/20 dark:bg-slate-800/10 font-bold text-slate-800 dark:text-slate-200'
+                                            : 'text-slate-300'
+                                    }`}
+                                  >
+                                    {hasDispute ? (
+                                      <div className="flex flex-col items-center leading-none py-0.5">
+                                        <span className="line-through text-red-500 text-[8px]">{hoursVal}</span>
+                                        <span className="font-extrabold text-blue-650 text-[10px]">{proposedVal}</span>
+                                      </div>
+                                    ) : (
+                                      <span>
+                                        {hoursVal > 0 ? hoursVal : '-'}
+                                      </span>
+                                    )}
+                                  </TableCell>
+                                );
+                              })}
+                              <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
+                                {workerTotal.toFixed(1)}h
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                      <TableFooter className="bg-slate-50/80 dark:bg-slate-850/80 font-bold border-t border-slate-200">
+                        <TableRow>
+                          <TableCell className="font-bold pl-4 py-2.5 text-xs text-slate-800 dark:text-slate-200">
+                            Total {obra.obraName}
+                          </TableCell>
+                          {daysArray.map(dInfo => {
+                            const daySum = obra.workers.reduce((sum, w) => {
+                              const proposedVal = disputedHours[w.workerId]?.[dInfo.dateStr];
+                              if (proposedVal !== undefined) return sum + proposedVal;
+                              const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+                              return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
+                            }, 0);
+                            return (
+                              <TableCell key={dInfo.dateStr} className="text-center p-1 text-[10px] font-bold text-slate-700 dark:text-slate-300 border-x border-slate-100 dark:border-slate-800">
+                                {daySum > 0 ? daySum.toFixed(1) : '-'}
                               </TableCell>
                             );
                           })}
-                          <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
-                            {workerTotal.toFixed(1)}h
+                          <TableCell className="text-right font-black pr-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-mono">
+                            {obra.totalHoras.toFixed(1)}h
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                      </TableFooter>
+                    </Table>
+                  </div>
+                ))}
+
+                {/* Resumo Global quando há mais de 1 obra e visualizando todas */}
+                {visibleObras.length > 1 && (
+                  <div className="mt-6 p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-center gap-3 shadow-md">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-blue-400" />
+                      <span className="font-extrabold text-sm uppercase tracking-wide">
+                        Resumen Global ({visibleObras.length} Obras)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-6 text-sm">
+                      <span>Total Horas: <strong className="font-mono text-base font-black text-white">{totalHorasCalculadas.toFixed(2)}h</strong></span>
+                      <span>Importe Base: <strong className="font-mono text-base font-black text-blue-400">€ {totalBaseVal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong></span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1045,38 +1228,55 @@ export function PortalCliente() {
                     </TableBody>
                   </Table>
 
-                  <div className="text-center font-bold bg-slate-100 py-1 rounded text-slate-700 mb-6">
-                    OBRA: SIN OBRA
-                  </div>
+                  {/* Relação de Trabalhadores por Obra */}
+                  {visibleObras.map((obra) => (
+                    <div key={obra.obraId} className="mb-6">
+                      <div className="flex justify-between items-center bg-slate-100 py-1.5 px-3 rounded text-slate-700 mb-2 border border-slate-200">
+                        <span className="font-bold text-xs uppercase tracking-wider">
+                          OBRA: {obra.obraName.toUpperCase()}
+                        </span>
+                        <span className="text-[11px] font-bold text-slate-600">
+                          {obra.totalHoras.toFixed(2)}h • € {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
 
-                  {/* Relação de Trabalhadores */}
-                  <h5 className="font-bold uppercase text-slate-400 tracking-wider mb-2 text-[10px]">Relación de Trabajadores</h5>
-                  <Table className="border border-slate-100 rounded mb-8">
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="font-bold pl-4">Trabajador</TableHead>
-                        <TableHead className="text-right font-bold w-40">Cantidad de horas</TableHead>
-                        <TableHead className="text-right font-bold w-40">Precio hora (€)</TableHead>
-                        <TableHead className="text-right font-bold w-40 pr-4">Total (€)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {groupedWorkers.map(w => (
-                        <TableRow key={w.workerId}>
-                          <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
-                          <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
-                          <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
-                          <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                        </TableRow>
-                      ))}
-                      <TableRow className="bg-slate-50">
-                        <TableCell className="font-bold pl-4">Totales</TableCell>
-                        <TableCell className="text-right font-bold">{totalHorasCalculadas.toFixed(2)}h</TableCell>
-                        <TableCell className="text-right">-</TableCell>
-                        <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
+                      <Table className="border border-slate-100 rounded mb-4">
+                        <TableHeader className="bg-slate-50">
+                          <TableRow>
+                            <TableHead className="font-bold pl-4">Trabajador</TableHead>
+                            <TableHead className="text-right font-bold w-40">Cantidad de horas</TableHead>
+                            <TableHead className="text-right font-bold w-40">Precio hora (€)</TableHead>
+                            <TableHead className="text-right font-bold w-40 pr-4">Total (€)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {obra.workers.map(w => (
+                            <TableRow key={w.workerId}>
+                              <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
+                              <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
+                              <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                          ))}
+                          <TableRow className="bg-slate-50 font-bold border-t border-slate-200">
+                            <TableCell className="font-bold pl-4">Subtotal {obra.obraName}</TableCell>
+                            <TableCell className="text-right font-bold">{obra.totalHoras.toFixed(2)}h</TableCell>
+                            <TableCell className="text-right">-</TableCell>
+                            <TableCell className="text-right font-extrabold pr-4 font-mono">€ {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ))}
+
+                  {visibleObras.length > 1 && (
+                    <div className="bg-slate-100 p-3 rounded-lg flex justify-between items-center font-bold text-slate-900 border border-slate-200 mb-6">
+                      <span>Total General ({visibleObras.length} Obras)</span>
+                      <span className="font-mono">
+                        {visibleObras.reduce((sum, o) => sum + o.totalHoras, 0).toFixed(2)}h • € {visibleObras.reduce((sum, o) => sum + o.totalValor, 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Informações Bancárias */}
                   <div className="border-t border-slate-100 pt-6 text-muted-foreground space-y-1 whitespace-pre-line font-medium leading-relaxed">
@@ -1095,11 +1295,19 @@ export function PortalCliente() {
                   
                   {/* Wrapper do conteúdo flex-1 */}
                   <div className="flex-1">
-                    {fatura?.ajustes_json?.obra && (
-                      <div className="text-center font-bold text-xs bg-slate-100 py-1 rounded text-slate-700 mb-6">
+                    {fatura?.ajustes_json?.obra ? (
+                      <div className="text-center font-bold text-xs bg-slate-100 py-1.5 rounded text-slate-700 mb-6 border border-slate-200">
                         OBRA: {fatura.ajustes_json.obra.toUpperCase()}
                       </div>
-                    )}
+                    ) : groupedObras.length === 1 ? (
+                      <div className="text-center font-bold text-xs bg-slate-100 py-1.5 rounded text-slate-700 mb-6 border border-slate-200">
+                        OBRA: {groupedObras[0].obraName.toUpperCase()}
+                      </div>
+                    ) : groupedObras.length > 1 ? (
+                      <div className="text-center font-bold text-xs bg-slate-100 py-1.5 rounded text-slate-700 mb-6 border border-slate-200">
+                        OBRAS: {groupedObras.map(o => o.obraName.toUpperCase()).join(' • ')}
+                      </div>
+                    ) : null}
 
                     {/* Top row */}
                     <div className="flex justify-between items-start mb-8">

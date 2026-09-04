@@ -48,6 +48,8 @@ export interface SalesScript {
   qualifying_questions: QualifyingQuestion[];
   objections_guide: ObjectionItem[];
   closing_pitch?: string | null;
+  image_url?: string | null;
+  rich_content_html?: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;

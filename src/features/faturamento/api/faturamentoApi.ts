@@ -64,8 +64,14 @@ export interface HoraTrabalhada {
   horas_totais: number;
   status: string;
   extraction_confidence: number | null;
+  obra_id?: string | null;
+  obra_name?: string | null;
+  funcao_id?: string | null;
+  tarifa_faturada?: number | null;
   worker?: {
     nombrecompleto: string;
+    codColab?: string;
+    perfil?: string;
   };
   client?: {
     nombre_comercial: string;
@@ -1034,7 +1040,7 @@ export async function cancelarFatura(faturaId: string): Promise<void> {
   if (faturaError) throw mapSupabaseError(faturaError);
 }
 
-export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura, horas: HoraTrabalhada[] }> {
+export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura, horas: HoraTrabalhada[], obras?: Array<{ id: string; name: string }> }> {
   const { data, error } = await publicSupabase.rpc('get_fatura_portal_data', { p_token: token });
   
   if (error) throw mapSupabaseError(error);
@@ -1044,6 +1050,7 @@ export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura,
   const horas = data.horas || [];
   const workers = data.workers || [];
   const jobFunctions = data.job_functions || [];
+  const obras = data.obras || [];
 
   const jobFunctionsMap = new Map((jobFunctions as any[]).map(j => [j.id, j.name]));
   const workersMap = new Map((workers as any[]).map(w => [w.id, w]));
@@ -1053,6 +1060,8 @@ export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura,
     const hourlyPerfil = jobFunctionsMap.get(h.funcao_id || '');
     return {
       ...h,
+      obra_id: h.obra_id || null,
+      obra_name: h.obra_name || 'Sin Obra',
       worker: worker ? { 
         nombrecompleto: worker.nome,
         codColab: worker.cod_colab,
@@ -1063,7 +1072,8 @@ export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura,
 
   return {
     fatura: fatura as Fatura,
-    horas: horasMapeadas as HoraTrabalhada[]
+    horas: horasMapeadas as HoraTrabalhada[],
+    obras: (obras || []) as Array<{ id: string; name: string }>
   };
 }
 
