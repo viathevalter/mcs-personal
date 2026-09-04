@@ -330,15 +330,16 @@ const updateHtmlContent = (html: string, oldConfig: any, newConfig: any) => {
 export function CampaignsPage() {
   const { t, i18n } = useTranslation();
   const { selectedEmpresaId, empresas } = useEmpresa();
-  const currentEmpresa = empresas.find(e => e.id === selectedEmpresaId);
-  const empresaCanonical = normalizeEmpresaName(currentEmpresa?.trade_name || currentEmpresa?.nome);
-  const isTriangulo = empresaCanonical === 'TRIANGULO';
-  const isLuminous = empresaCanonical === 'LUMINOUS';
-  const isWiseowe = empresaCanonical === 'WISEOWE';
-  const isStocco = empresaCanonical === 'STOCCO';
-  const isKotrik = empresaCanonical === 'KOTRIK & ROSAS';
+  const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
+  const rawEmpresaName = currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || (currentEmpresa as any)?.razon_social || '';
+  const empresaCanonical = normalizeEmpresaName(rawEmpresaName);
+  const isTriangulo = empresaCanonical === 'TRIANGULO' || rawEmpresaName.toUpperCase().includes('TRIANGULO') || rawEmpresaName.toUpperCase().includes('TRIÂNGULO');
+  const isLuminous = empresaCanonical === 'LUMINOUS' || rawEmpresaName.toUpperCase().includes('LUMINOUS');
+  const isWiseowe = empresaCanonical === 'WISEOWE' || rawEmpresaName.toUpperCase().includes('WISE');
+  const isStocco = empresaCanonical === 'STOCCO' || rawEmpresaName.toUpperCase().includes('STOCCO');
+  const isKotrik = empresaCanonical === 'KOTRIK & ROSAS' || rawEmpresaName.toUpperCase().includes('KOTRIK');
   const activeSenderEmail = currentEmpresa?.marketing_sender_email || (isTriangulo ? 'comercial2@es.triangulolda.com' : isWiseowe ? 'comercial3@fr.wiseowe.com' : 'comercial1@mail.luminousalley.com');
-  const activeSenderName = currentEmpresa?.trade_name || currentEmpresa?.nome || 'Equipe Comercial';
+  const activeSenderName = currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || 'Equipe Comercial';
   const { data: templates = [], isLoading: loadingTemplates } = useMarketingTemplates();
   const { data: campaigns = [], isLoading: loadingCampaigns } = useMarketingCampaigns();
   
@@ -1194,190 +1195,6 @@ export function CampaignsPage() {
           offset: '',
         },
         created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_tuyauterie_piping_gen',
-        name: '🎯 🇫🇷 1. França: Tuyauterie Industrielle, Piping & Montage (2.556 leads)',
-        leadCount: 2556,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: ['Tuyauterie & Chaudronnerie Industrielle', 'Calderería & Tubería Industrial'],
-          selectedServices: [],
-          sectorKeyword: 'tuyauterie',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_charpente_structures_gen',
-        name: '🎯 🇫🇷 2. França: Charpente Métallique, Structures & Serrurerie (597 leads)',
-        leadCount: 597,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: ['Estructuras Metálicas & Montajes'],
-          selectedServices: [],
-          sectorKeyword: 'charpente',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_grands_parcs_gen',
-        name: '🎯 🇫🇷 3. França: Grands Parcs Industriels & Sous-Traitance (547 leads)',
-        leadCount: 547,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: ['Polígonos Industriais & Subcontratistas'],
-          selectedServices: [],
-          sectorKeyword: '',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_usinage_mecanique_gen',
-        name: '🎯 🇫🇷 4. França: Usinage CNC & Mécanique de Précision (479 leads)',
-        leadCount: 479,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: ['Mecanizado CNC & Tornería'],
-          selectedServices: [],
-          sectorKeyword: 'usinage',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_chantiers_navals_gen',
-        name: '🎯 🇫🇷 5. França: Chantiers Navals & Réparation Navale (233 leads)',
-        leadCount: 233,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: ['Construção & Reparação Naval'],
-          selectedServices: [],
-          sectorKeyword: 'naval',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_chaudieres_maintenance_gen',
-        name: '🎯 🇫🇷 6. França: Échangeurs Thermiques, Chaudières & Maintenance (141 leads)',
-        leadCount: 141,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: ['Mantenimiento Industrial & Calderas'],
-          selectedServices: [],
-          sectorKeyword: 'chaudiere',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_tuyauterie_inox_gen',
-        name: '🎯 🇫🇷 7. França: Tuyauterie Inox & Cuverie Agroalimentaire (43 leads)',
-        leadCount: 43,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: ['Tubería Inox & Agroalimentaria'],
-          selectedServices: [],
-          sectorKeyword: 'inox',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
-      },
-      {
-        id: 'aud_fr_base_geral_auditada_gen',
-        name: '👑 🇫🇷 8. França: Base Global Auditada & Qualificada (4.613 leads)',
-        leadCount: 4613,
-        filters: {
-          stageId: '',
-          origin: '',
-          intelligence: 'all',
-          selectedCountries: ['FR'],
-          selectedCompanySizes: [],
-          selectedRegions: [],
-          selectedProvinces: [],
-          selectedSectors: [],
-          selectedServices: [],
-          sectorKeyword: '',
-          cargoKeyword: '',
-          provinceKeyword: '',
-          tagKeyword: '',
-          limit: '',
-          offset: '',
-        },
-        created_at: new Date().toISOString()
       }
     ];
   }, [isTriangulo, isWiseowe, isLuminous, isStocco, isKotrik]);
@@ -1401,7 +1218,25 @@ export function CampaignsPage() {
             });
           }
 
-          const merged = [...defaultStrategicAudiences, ...customOnly];
+          // Strict isolation: Wiseowe must ONLY have French audiences, NEVER Alex, Luminous, Triangulo, or Spanish presets
+          if (isWiseowe) {
+            customOnly = customOnly.filter((p: any) => {
+              const nameLower = (p.name || '').toLowerCase();
+              const tagLower = (p.filters?.tagKeyword || '').toLowerCase();
+              const isFrench = nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('FR'));
+              const isAlexOrSpain = nameLower.includes('alex') || nameLower.includes('espanha') || tagLower.includes('alex') || nameLower.includes('asturias') || nameLower.includes('álava') || nameLower.includes('lote') || nameLower.includes('comercial 3') || nameLower.includes('stocco') || nameLower.includes('captación') || nameLower.includes('rosa') || nameLower.includes('vip') || nameLower.includes('médias');
+              return isFrench && !isAlexOrSpain;
+            });
+          }
+
+          let merged = [...defaultStrategicAudiences, ...customOnly];
+          if (isWiseowe) {
+            merged = merged.filter((p: any) => {
+              const nameLower = (p.name || '').toLowerCase();
+              return (nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('FR'))) && !nameLower.includes('alex') && !nameLower.includes('espanha') && !nameLower.includes('lote');
+            });
+          }
+
           setSavedAudiences(merged);
           localStorage.setItem(`mcs_marketing_audiences_${selectedEmpresaId}`, JSON.stringify(merged));
         } catch (e) {
@@ -1413,7 +1248,7 @@ export function CampaignsPage() {
         localStorage.setItem(`mcs_marketing_audiences_${selectedEmpresaId}`, JSON.stringify(defaultStrategicAudiences));
       }
     }
-  }, [selectedEmpresaId, defaultStrategicAudiences, isTriangulo]);
+  }, [selectedEmpresaId, defaultStrategicAudiences, isTriangulo, isWiseowe]);
 
   const saveAudiencesToLocalStorage = (newAudiences: any[]) => {
     setSavedAudiences(newAudiences);
