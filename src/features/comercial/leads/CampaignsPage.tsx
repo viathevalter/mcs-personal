@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { cn } from '@/lib/utils';
@@ -479,6 +479,7 @@ export function CampaignsPage() {
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
   const [leadGridSearch, setLeadGridSearch] = useState('');
   const [gridPage, setGridPage] = useState(1);
+  const userModifiedSelection = useRef<boolean>(false);
 
   // Dynamic Options derived from database leads
   const dynamicCountryOptions = useMemo(() => {
@@ -1418,6 +1419,7 @@ export function CampaignsPage() {
 
   const handleOpenAudienceModal = async (campaignId: string) => {
     setSelectedCampaignIdForAudience(campaignId);
+    userModifiedSelection.current = false;
     setAudienceFilters({
       stageId: '',
       origin: '',
@@ -1627,6 +1629,7 @@ export function CampaignsPage() {
   };
 
   const handleToggleSelectAll = (checked: boolean) => {
+    userModifiedSelection.current = true;
     const visibleFiltered = getFilteredAndSearchedLeads();
     const newSelected = new Set(selectedLeadIds);
     visibleFiltered.forEach(l => {
@@ -1639,7 +1642,19 @@ export function CampaignsPage() {
     setSelectedLeadIds(newSelected);
   };
 
+  const handleClearSelection = () => {
+    userModifiedSelection.current = true;
+    setSelectedLeadIds(new Set());
+  };
+
+  const handleSelectAllFiltered = () => {
+    userModifiedSelection.current = false;
+    const visibleFiltered = getFilteredAndSearchedLeads();
+    setSelectedLeadIds(new Set(visibleFiltered.map(l => l.id)));
+  };
+
   const handleToggleSelectLead = (leadId: string, checked: boolean) => {
+    userModifiedSelection.current = true;
     const newSelected = new Set(selectedLeadIds);
     if (checked) {
       newSelected.add(leadId);
@@ -1651,25 +1666,35 @@ export function CampaignsPage() {
 
   useEffect(() => {
     if ((isAudienceModalOpen || isNewAudienceDialogOpen) && allLeads.length > 0) {
-      const filtered = getFilteredLeads();
-      setSelectedLeadIds(new Set(filtered.map(l => l.id)));
+      // If user has already made a manual selection (e.g. unchecked leads or selected specific leads),
+      // DO NOT overwrite their manual selection with all database leads!
+      if (!userModifiedSelection.current) {
+        const filtered = getFilteredLeads();
+        setSelectedLeadIds(new Set(filtered.map(l => l.id)));
+      }
       setGridPage(1);
-      setLeadGridSearch('');
     }
   }, [
     isAudienceModalOpen,
     isNewAudienceDialogOpen,
     audienceFilters.stageId,
     audienceFilters.origin,
+    audienceFilters.selectedCountries,
+    audienceFilters.selectedCompanySizes,
+    audienceFilters.selectedRegions,
+    audienceFilters.selectedProvinces,
     audienceFilters.selectedSectors,
     audienceFilters.selectedServices,
     audienceFilters.sectorKeyword,
     audienceFilters.cargoKeyword,
     audienceFilters.provinceKeyword,
+    audienceFilters.tagKeyword,
+    audienceFilters.excludeTagKeyword,
+    audienceFilters.excludeProposals,
     audienceFilters.limit,
     audienceFilters.offset,
     audienceFilters.intelligence,
-    allLeads
+    allLeads.length
   ]);
 
   const handleSaveAudience = async () => {
@@ -1680,16 +1705,18 @@ export function CampaignsPage() {
       const filteredLeads = allLeads.filter(l => selectedLeadIds.has(l.id));
 
       // If saving as a reusable audience preset
-      if (shouldSaveAsPreset && audienceSaveName) {
+      if (shouldSaveAsPreset && audienceSaveName.trim()) {
         const newPreset = {
           id: crypto.randomUUID(),
-          name: audienceSaveName,
+          name: audienceSaveName.trim(),
           filters: { ...audienceFilters },
+          leadCount: filteredLeads.length,
+          leadIds: filteredLeads.map(l => l.id),
           created_at: new Date().toISOString()
         };
         const updated = [newPreset, ...savedAudiences];
         saveAudiencesToLocalStorage(updated);
-        toast.success(`Público Salvo "${audienceSaveName}" criado com sucesso!`);
+        toast.success(`Público Salvo "${audienceSaveName}" criado com sucesso (${filteredLeads.length} leads)!`);
       }
 
       // Delete existing queue for this campaign
@@ -1730,7 +1757,14 @@ export function CampaignsPage() {
   };
 
   const handleLoadAudiencePreset = (preset: any) => {
+    userModifiedSelection.current = true;
     setAudienceFilters({ ...preset.filters });
+    if (preset.leadIds && Array.isArray(preset.leadIds) && preset.leadIds.length > 0) {
+      setSelectedLeadIds(new Set(preset.leadIds));
+    } else {
+      const filtered = allLeads.filter(l => selectedLeadIds.has(l.id));
+      setSelectedLeadIds(new Set(filtered.map(l => l.id)));
+    }
     toast.success(`Filtros do público "${preset.name}" carregados.`);
   };
 
@@ -1744,19 +1778,20 @@ export function CampaignsPage() {
   };
 
   const handleCreateNewAudiencePreset = () => {
-    if (!audienceSaveName) {
+    if (!audienceSaveName.trim()) {
       toast.error('Preencha o nome do público.');
       return;
     }
-    const filtered = getFilteredLeads();
-    const count = selectedLeadIds.size > 0 ? selectedLeadIds.size : filtered.length;
-    const leadIdsArray = selectedLeadIds.size > 0 
-      ? Array.from(selectedLeadIds) 
-      : filtered.map(l => l.id);
+    const leadIdsArray = Array.from(selectedLeadIds);
+    if (leadIdsArray.length === 0) {
+      toast.error('Nenhum lead selecionado. Selecione ao menos 1 lead para salvar o público.');
+      return;
+    }
 
+    const count = leadIdsArray.length;
     const newPreset = {
       id: crypto.randomUUID(),
-      name: audienceSaveName,
+      name: audienceSaveName.trim(),
       filters: { ...audienceFilters },
       leadCount: count,
       leadIds: leadIdsArray,
@@ -2087,6 +2122,7 @@ export function CampaignsPage() {
             <Button 
               onClick={async () => {
                 // Fetch leads to preview
+                userModifiedSelection.current = false;
                 setLoadingAudienceLeads(true);
                 setIsNewAudienceDialogOpen(true);
                 setAudienceFilters({
@@ -2849,19 +2885,49 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 border rounded-lg p-2.5 mb-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="selAllLeads"
-                      checked={visibleLeadsForGrid.length > 0 && visibleLeadsForGrid.every(l => selectedLeadIds.has(l.id))}
-                      onChange={(e) => handleToggleSelectAll(e.target.checked)}
-                      className="rounded border-slate-300 text-yellow-500 focus:ring-yellow-500/20 h-4 w-4 cursor-pointer"
-                    />
-                    <Label htmlFor="selAllLeads" className="font-semibold cursor-pointer text-slate-700 dark:text-slate-300">Selecionar Todos do Filtro</Label>
+                <div className="flex flex-wrap justify-between items-center gap-2 bg-slate-50 dark:bg-slate-900 border rounded-xl p-2.5 mb-2 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="selAllLeads"
+                        checked={visibleLeadsForGrid.length > 0 && visibleLeadsForGrid.every(l => selectedLeadIds.has(l.id))}
+                        onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                        className="rounded border-slate-300 text-yellow-500 focus:ring-yellow-500/20 h-4 w-4 cursor-pointer"
+                      />
+                      <Label htmlFor="selAllLeads" className="font-semibold cursor-pointer text-slate-700 dark:text-slate-300 select-none">
+                        Selecionar Todos do Filtro
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 border-l pl-3 border-slate-200 dark:border-slate-800">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClearSelection}
+                        className="h-7 text-[11px] px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 font-semibold"
+                      >
+                        Desmarcar Todos (0)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSelectAllFiltered}
+                        className="h-7 text-[11px] px-2 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20 font-semibold"
+                      >
+                        Marcar Todos ({visibleLeadsForGrid.length})
+                      </Button>
+                    </div>
                   </div>
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-500 font-bold px-2.5 py-0.5 rounded-full text-xs">
-                    {selectedLeadIds.size} selecionados
+
+                  <span className={`font-bold px-3 py-1 rounded-full text-xs transition-all border ${
+                    selectedLeadIds.size > 0 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300' 
+                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                  }`}>
+                    {selectedLeadIds.size} selecionado{selectedLeadIds.size === 1 ? '' : 's'}
                   </span>
                 </div>
 
@@ -3191,19 +3257,49 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 border rounded-lg p-2.5 mb-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="newSelAllLeads"
-                      checked={visibleLeadsForGrid.length > 0 && visibleLeadsForGrid.every(l => selectedLeadIds.has(l.id))}
-                      onChange={(e) => handleToggleSelectAll(e.target.checked)}
-                      className="rounded border-slate-300 text-yellow-500 focus:ring-yellow-500/20 h-4 w-4 cursor-pointer"
-                    />
-                    <Label htmlFor="newSelAllLeads" className="font-semibold cursor-pointer text-slate-700 dark:text-slate-300">Selecionar Todos do Filtro</Label>
+                <div className="flex flex-wrap justify-between items-center gap-2 bg-slate-50 dark:bg-slate-900 border rounded-xl p-2.5 mb-2 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="newSelAllLeads"
+                        checked={visibleLeadsForGrid.length > 0 && visibleLeadsForGrid.every(l => selectedLeadIds.has(l.id))}
+                        onChange={(e) => handleToggleSelectAll(e.target.checked)}
+                        className="rounded border-slate-300 text-yellow-500 focus:ring-yellow-500/20 h-4 w-4 cursor-pointer"
+                      />
+                      <Label htmlFor="newSelAllLeads" className="font-semibold cursor-pointer text-slate-700 dark:text-slate-300 select-none">
+                        Selecionar Todos do Filtro
+                      </Label>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 border-l pl-3 border-slate-200 dark:border-slate-800">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleClearSelection}
+                        className="h-7 text-[11px] px-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 font-semibold"
+                      >
+                        Desmarcar Todos (0)
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSelectAllFiltered}
+                        className="h-7 text-[11px] px-2 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/20 font-semibold"
+                      >
+                        Marcar Todos ({visibleLeadsForGrid.length})
+                      </Button>
+                    </div>
                   </div>
-                  <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-500 font-bold px-2.5 py-0.5 rounded-full text-xs">
-                    {selectedLeadIds.size} selecionados
+
+                  <span className={`font-bold px-3 py-1 rounded-full text-xs transition-all border ${
+                    selectedLeadIds.size > 0 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300' 
+                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500'
+                  }`}>
+                    {selectedLeadIds.size} selecionado{selectedLeadIds.size === 1 ? '' : 's'}
                   </span>
                 </div>
 
