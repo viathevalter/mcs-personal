@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
 import { Badge } from '@/components/ui/badge';
 
 const countryLabels: Record<string, { name: string; flag: string }> = {
@@ -329,7 +330,13 @@ export function CampaignsPage() {
   const { t, i18n } = useTranslation();
   const { selectedEmpresaId, empresas } = useEmpresa();
   const currentEmpresa = empresas.find(e => e.id === selectedEmpresaId);
-  const activeSenderEmail = currentEmpresa?.marketing_sender_email || 'comercial1@luminousalley.com';
+  const empresaCanonical = normalizeEmpresaName(currentEmpresa?.trade_name || currentEmpresa?.nome);
+  const isTriangulo = empresaCanonical === 'TRIANGULO';
+  const isLuminous = empresaCanonical === 'LUMINOUS';
+  const isWiseowe = empresaCanonical === 'WISEOWE';
+  const isStocco = empresaCanonical === 'STOCCO';
+  const isKotrik = empresaCanonical === 'KOTRIK & ROSAS';
+  const activeSenderEmail = currentEmpresa?.marketing_sender_email || (isTriangulo ? 'comercial2@es.triangulolda.com' : isWiseowe ? 'comercial3@fr.wiseowe.com' : 'comercial1@mail.luminousalley.com');
   const activeSenderName = currentEmpresa?.trade_name || currentEmpresa?.nome || 'Equipe Comercial';
   const { data: templates = [], isLoading: loadingTemplates } = useMarketingTemplates();
   const { data: campaigns = [], isLoading: loadingCampaigns } = useMarketingCampaigns();
@@ -554,388 +561,500 @@ export function CampaignsPage() {
     }));
   }, [allLeads]);
 
-  const defaultStrategicAudiences = useMemo(() => [
-    {
-      id: 'aud_tier1_vip',
-      name: '👑 Público VIP - Grandes Empresas (Tier 1 & EPC)',
-      leadCount: 437,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: ['Gran Empresa (Tier 1)', 'Tier 1 (Gran Empresa / EPC)'],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Público VIP',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_lote_manha',
-      name: '☀️ Lote Manhã - Indústria & Montagens',
-      leadCount: 1525,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Lote Manhã',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_lote_tarde',
-      name: '🌅 Lote Tarde - Tubería & Calderería',
-      leadCount: 2446,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Lote Tarde',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_tier2_medias',
-      name: '🏭 Médias Empresas Industriais (Tier 2)',
-      leadCount: 785,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: ['Mediana Empresa (Tier 2)', 'Tier 2 (Mediana Empresa Industrial)'],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: '',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_triangulo_michelle_es_geral',
-      name: '🎯 Triângulo (Michelle) - Geral Espanha Sem Alex (6.546 leads)',
-      leadCount: 6546,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: '',
-        excludeTagKeyword: 'Alex',
-        excludeProposals: true,
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_triangulo_michelle_caldereria',
-      name: '🎯 Triângulo (Michelle) - Calderería, Tubería & Piping (1.200 leads)',
-      leadCount: 1200,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: ['Calderería & Tubería Industrial', 'Tuyauterie & Chaudronnerie Industrielle'],
-        selectedServices: [],
-        sectorKeyword: 'calderer',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: '',
-        excludeTagKeyword: 'Alex',
-        excludeProposals: true,
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_triangulo_michelle_estructuras',
-      name: '🎯 Triângulo (Michelle) - Estructuras Metálicas & Montajes (1.100 leads)',
-      leadCount: 1100,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: ['Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
-        selectedServices: [],
-        sectorKeyword: 'estructura',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: '',
-        excludeTagKeyword: 'Alex',
-        excludeProposals: true,
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_triangulo_michelle_mecanizado',
-      name: '🎯 Triângulo (Michelle) - Mecanizado CNC & Tornería (850 leads)',
-      leadCount: 850,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: ['Mecanizado & Matricería', 'Talleres & Mecanizado'],
-        selectedServices: [],
-        sectorKeyword: 'mecaniz',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: '',
-        excludeTagKeyword: 'Alex',
-        excludeProposals: true,
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_triangulo_michelle_catalunha',
-      name: '🎯 Triângulo (Michelle) - Catalunha & Barcelona (1.350 leads)',
-      leadCount: 1350,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: ['Catalunha', 'Cataluña', 'Catalunya'],
-        selectedProvinces: ['Barcelona', 'Tarragona', 'Girona', 'Lleida'],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: 'barcelona',
-        tagKeyword: '',
-        excludeTagKeyword: 'Alex',
-        excludeProposals: true,
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_triangulo_michelle_madrid',
-      name: '🎯 Triângulo (Michelle) - Madrid & Zona Centro (1.100 leads)',
-      leadCount: 1100,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: ['Comunidad de Madrid', 'Madrid'],
-        selectedProvinces: ['Madrid', 'Toledo', 'Guadalajara'],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: 'madrid',
-        tagKeyword: '',
-        excludeTagKeyword: 'Alex',
-        excludeProposals: true,
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_mailing_alex_asturias_alicante',
-      name: '🎯 Mailing Alex - Asturias & Alicante (621 leads)',
-      leadCount: 621,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Mailing Alex Asturias-Alicante',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_mailing_alex_0209',
-      name: '🎯 Mailing Alex - Base Álava & Euskadi (613 leads)',
-      leadCount: 613,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Mailing Alex 02-09',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_mailing_alex',
-      name: '🎯 Mailing Alex - Geral Espanha (3.890 leads)',
-      leadCount: 3890,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Mailing Alex',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_mailing_comercial_3',
-      name: '💼 Mailing Comercial 3 - Prospecção Equipe',
-      leadCount: 1987,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Comercial 3',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_mailing_alex_stocco',
-      name: '💼 Mailing Alex Stocco (2.197 leads)',
-      leadCount: 2197,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Alex Stocco',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
-    },
-    {
-      id: 'aud_mailing_kr_captacion',
-      name: '🎯 Mailing Kr-Captación / Rosa (2.937 leads)',
-      leadCount: 2937,
-      filters: {
-        stageId: '',
-        origin: '',
-        intelligence: 'all',
-        selectedCountries: ['ES'],
-        selectedCompanySizes: [],
-        selectedRegions: [],
-        selectedProvinces: [],
-        selectedSectors: [],
-        selectedServices: [],
-        sectorKeyword: '',
-        cargoKeyword: '',
-        provinceKeyword: '',
-        tagKeyword: 'Kr-Captacion',
-        limit: '',
-        offset: '',
-      },
-      created_at: new Date().toISOString()
+  const defaultStrategicAudiences = useMemo(() => {
+    // 1. EMPRESA: TRIÂNGULO (Michelle / Espanha & Itália)
+    // Mostra estritamente públicos de Triângulo e gerais sem contato / sem Alex
+    if (isTriangulo) {
+      return [
+        {
+          id: 'aud_triangulo_michelle_es_geral',
+          name: '🎯 Triângulo (Michelle) - Geral Espanha Sem Alex (6.546 leads)',
+          leadCount: 6546,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_triangulo_michelle_caldereria',
+          name: '🎯 Triângulo (Michelle) - Calderería, Tubería & Piping (1.200 leads)',
+          leadCount: 1200,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Calderería & Tubería Industrial', 'Tuyauterie & Chaudronnerie Industrielle'],
+            selectedServices: [],
+            sectorKeyword: 'calderer',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_triangulo_michelle_estructuras',
+          name: '🎯 Triângulo (Michelle) - Estructuras Metálicas & Montajes (1.100 leads)',
+          leadCount: 1100,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
+            selectedServices: [],
+            sectorKeyword: 'estructura',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_triangulo_michelle_mecanizado',
+          name: '🎯 Triângulo (Michelle) - Mecanizado CNC & Tornería (850 leads)',
+          leadCount: 850,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Mecanizado & Matricería', 'Talleres & Mecanizado'],
+            selectedServices: [],
+            sectorKeyword: 'mecaniz',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_triangulo_michelle_catalunha',
+          name: '🎯 Triângulo (Michelle) - Catalunha & Barcelona (1.350 leads)',
+          leadCount: 1350,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: ['Catalunha', 'Cataluña', 'Catalunya'],
+            selectedProvinces: ['Barcelona', 'Tarragona', 'Girona', 'Lleida'],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: 'barcelona',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_triangulo_michelle_madrid',
+          name: '🎯 Triângulo (Michelle) - Madrid & Zona Centro (1.100 leads)',
+          leadCount: 1100,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: ['Comunidad de Madrid', 'Madrid'],
+            selectedProvinces: ['Madrid', 'Toledo', 'Guadalajara'],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: 'madrid',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_tier1_vip_triangulo',
+          name: '👑 Público VIP - Grandes Empresas (Tier 1 & EPC)',
+          leadCount: 380,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: ['Gran Empresa (Tier 1)', 'Tier 1 (Gran Empresa / EPC)'],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_tier2_medias_triangulo',
+          name: '🏭 Médias Empresas Industriais (Tier 2)',
+          leadCount: 710,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: ['Mediana Empresa (Tier 2)', 'Tier 2 (Mediana Empresa Industrial)'],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            excludeTagKeyword: 'Alex',
+            excludeProposals: true,
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        }
+      ];
     }
-  ], []);
+
+    // 2. EMPRESA: WISEOWE (França)
+    if (isWiseowe) {
+      return [
+        {
+          id: 'aud_wiseowe_fr_geral',
+          name: '🇫🇷 Wiseowe França - Geral Indústria & Construção',
+          leadCount: 520,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_tier1_vip_wiseowe',
+          name: '👑 Público VIP - Grandes Empresas França & Europa',
+          leadCount: 150,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: ['Gran Empresa (Tier 1)', 'Tier 1 (Gran Empresa / EPC)'],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        }
+      ];
+    }
+
+    // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
+    return [
+      {
+        id: 'aud_mailing_alex_asturias_alicante',
+        name: '🎯 Mailing Alex - Asturias & Alicante (621 leads)',
+        leadCount: 621,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Asturias-Alicante',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_alex_0209',
+        name: '🎯 Mailing Alex - Base Álava & Euskadi (613 leads)',
+        leadCount: 613,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex 02-09',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_alex',
+        name: '🎯 Mailing Alex - Geral Espanha (3.890 leads)',
+        leadCount: 3890,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_comercial_3',
+        name: '💼 Mailing Comercial 3 - Prospecção Equipe',
+        leadCount: 1987,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Comercial 3',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_alex_stocco',
+        name: '💼 Mailing Alex Stocco (2.197 leads)',
+        leadCount: 2197,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Alex Stocco',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_kr_captacion',
+        name: '🎯 Mailing Kr-Captación / Rosa (2.937 leads)',
+        leadCount: 2937,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Kr-Captacion',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_tier1_vip',
+        name: '👑 Público VIP - Grandes Empresas (Tier 1 & EPC)',
+        leadCount: 437,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: ['Gran Empresa (Tier 1)', 'Tier 1 (Gran Empresa / EPC)'],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Público VIP',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_lote_manha',
+        name: '☀️ Lote Manhã - Indústria & Montagens',
+        leadCount: 1525,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Lote Manhã',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_lote_tarde',
+        name: '🌅 Lote Tarde - Tubería & Calderería',
+        leadCount: 2446,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Lote Tarde',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_tier2_medias',
+        name: '🏭 Médias Empresas Industriais (Tier 2)',
+        leadCount: 785,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: ['Mediana Empresa (Tier 2)', 'Tier 2 (Mediana Empresa Industrial)'],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      }
+    ];
+  }, [isTriangulo, isWiseowe, isLuminous, isStocco, isKotrik]);
 
   useEffect(() => {
     if (selectedEmpresaId) {
@@ -944,7 +1063,17 @@ export function CampaignsPage() {
         try {
           const userPresets = JSON.parse(stored);
           const defaultIds = new Set(defaultStrategicAudiences.map(d => d.id));
-          const customOnly = userPresets.filter((up: any) => !defaultIds.has(up.id));
+          let customOnly = userPresets.filter((up: any) => !defaultIds.has(up.id));
+
+          // Strict isolation: Triangulo / Michelle must NEVER see any Alex presets
+          if (isTriangulo) {
+            customOnly = customOnly.filter((p: any) => {
+              const nameLower = (p.name || '').toLowerCase();
+              const tagLower = (p.filters?.tagKeyword || '').toLowerCase();
+              return !nameLower.includes('alex') && !tagLower.includes('alex') && !tagLower.includes('comercial 3');
+            });
+          }
+
           setSavedAudiences([...defaultStrategicAudiences, ...customOnly]);
         } catch (e) {
           console.error("Failed to parse saved audiences:", e);
@@ -954,7 +1083,7 @@ export function CampaignsPage() {
         setSavedAudiences(defaultStrategicAudiences);
       }
     }
-  }, [selectedEmpresaId, defaultStrategicAudiences]);
+  }, [selectedEmpresaId, defaultStrategicAudiences, isTriangulo]);
 
   const saveAudiencesToLocalStorage = (newAudiences: any[]) => {
     setSavedAudiences(newAudiences);
@@ -1287,14 +1416,13 @@ export function CampaignsPage() {
     }
   };
 
-  // Handle Audience / Target Selector
   const handleOpenAudienceModal = async (campaignId: string) => {
     setSelectedCampaignIdForAudience(campaignId);
     setAudienceFilters({
       stageId: '',
       origin: '',
       intelligence: 'all',
-      selectedCountries: [],
+      selectedCountries: isTriangulo ? ['ES'] : isWiseowe ? ['FR'] : [],
       selectedCompanySizes: [],
       selectedRegions: [],
       selectedProvinces: [],
@@ -1304,6 +1432,8 @@ export function CampaignsPage() {
       cargoKeyword: '',
       provinceKeyword: '',
       tagKeyword: '',
+      excludeTagKeyword: isTriangulo ? 'Alex' : '',
+      excludeProposals: isTriangulo ? true : false,
       limit: '',
       offset: '',
     });
@@ -1963,9 +2093,18 @@ export function CampaignsPage() {
                   stageId: '',
                   origin: '',
                   intelligence: 'all',
+                  selectedCountries: isTriangulo ? ['ES'] : isWiseowe ? ['FR'] : [],
+                  selectedCompanySizes: [],
+                  selectedRegions: [],
+                  selectedProvinces: [],
+                  selectedSectors: [],
+                  selectedServices: [],
                   sectorKeyword: '',
                   cargoKeyword: '',
                   provinceKeyword: '',
+                  tagKeyword: '',
+                  excludeTagKeyword: isTriangulo ? 'Alex' : '',
+                  excludeProposals: isTriangulo ? true : false,
                   limit: '',
                   offset: '',
                 });
