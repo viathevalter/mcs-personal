@@ -644,8 +644,31 @@ export function CampaignsPage() {
       created_at: new Date().toISOString()
     },
     {
+      id: 'aud_mailing_alex_asturias_alicante',
+      name: '🎯 Mailing Alex - Asturias & Alicante (621 leads)',
+      leadCount: 621,
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: ['ES'],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: 'Mailing Alex Asturias-Alicante',
+        limit: '',
+        offset: '',
+      },
+      created_at: new Date().toISOString()
+    },
+    {
       id: 'aud_mailing_alex_0209',
-      name: '🎯 Mailing Alex - Base Nova 02/09 (Álava & Euskadi)',
+      name: '🎯 Mailing Alex - Base Álava & Euskadi (613 leads)',
       leadCount: 613,
       filters: {
         stageId: '',
@@ -668,8 +691,8 @@ export function CampaignsPage() {
     },
     {
       id: 'aud_mailing_alex',
-      name: '🎯 Mailing Alex - Geral & Oficinas Espanha',
-      leadCount: 3289,
+      name: '🎯 Mailing Alex - Geral Espanha (3.890 leads)',
+      leadCount: 3890,
       filters: {
         stageId: '',
         origin: '',
