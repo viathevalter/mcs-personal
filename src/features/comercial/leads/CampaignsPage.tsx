@@ -49,6 +49,7 @@ import {
   Layers,
   Globe,
   Filter,
+  Search,
 } from 'lucide-react';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -474,6 +475,8 @@ export function CampaignsPage() {
   const [shouldSaveAsPreset, setShouldSaveAsPreset] = useState(false);
   const [isNewAudienceDialogOpen, setIsNewAudienceDialogOpen] = useState(false); // To build and save an audience directly in the audiences tab
   const [viewLeadsAudience, setViewLeadsAudience] = useState<any | null>(null); // For viewing leads inside a saved audience
+  const [viewLeadsSearch, setViewLeadsSearch] = useState('');
+  const [pendingAudienceForCampaign, setPendingAudienceForCampaign] = useState<any | null>(null);
 
   // Grid Selection & Search & Pagination
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
@@ -1228,6 +1231,7 @@ export function CampaignsPage() {
   // Handle Campaigns
   const handleOpenCreateCampaign = () => {
     setCampaignForm({ title: '', template_id: '' });
+    setPendingAudienceForCampaign(null);
     setIsCampaignModalOpen(true);
   };
 
@@ -1239,9 +1243,43 @@ export function CampaignsPage() {
     }
 
     try {
-      await createCampaign(campaignForm);
-      toast.success('Campanha em rascunho criada com sucesso!');
+      const newCamp = await createCampaign(campaignForm);
+
+      if (newCamp?.id && pendingAudienceForCampaign) {
+        let targetLeadIds: string[] = [];
+        if (pendingAudienceForCampaign.leadIds && Array.isArray(pendingAudienceForCampaign.leadIds) && pendingAudienceForCampaign.leadIds.length > 0) {
+          targetLeadIds = pendingAudienceForCampaign.leadIds;
+        } else {
+          targetLeadIds = getFilteredLeads(pendingAudienceForCampaign.filters).map(l => l.id);
+        }
+
+        if (targetLeadIds.length > 0) {
+          const queueItems = targetLeadIds.map(leadId => ({
+            campaign_id: newCamp.id,
+            lead_id: leadId,
+            status: 'pending',
+          }));
+          const { error: qErr } = await supabase
+            .schema('core_comercial')
+            .from('marketing_campaign_queue')
+            .insert(queueItems);
+
+          if (qErr) {
+            console.error('Erro ao popular fila da campanha:', qErr);
+            toast.error('Campanha criada, mas houve erro ao popular fila: ' + qErr.message);
+          } else {
+            refetchCampaignStats();
+            toast.success(`Campanha criada com ${queueItems.length} leads na fila do público "${pendingAudienceForCampaign.name}"!`);
+          }
+        } else {
+          toast.success('Campanha em rascunho criada com sucesso!');
+        }
+      } else {
+        toast.success('Campanha em rascunho criada com sucesso!');
+      }
+
       setIsCampaignModalOpen(false);
+      setPendingAudienceForCampaign(null);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar campanha');
     }
@@ -1443,53 +1481,54 @@ export function CampaignsPage() {
     await fetchAudienceLeads();
   };
 
-  const getFilteredLeads = () => {
+  const getFilteredLeads = (customFilters?: any) => {
+    const filters = customFilters || audienceFilters;
     let filtered = allLeads.filter(l => {
       // 1. Filter by stage
-      if (audienceFilters.stageId && l.stage_id !== audienceFilters.stageId) {
+      if (filters.stageId && l.stage_id !== filters.stageId) {
         return false;
       }
 
       // 2. Filter by origin
-      if (audienceFilters.origin && l.origen_lead !== audienceFilters.origin) {
+      if (filters.origin && l.origen_lead !== filters.origin) {
         return false;
       }
 
       // 3. Filter by Country (Multi-select)
-      if (audienceFilters.selectedCountries && audienceFilters.selectedCountries.length > 0) {
+      if (filters.selectedCountries && filters.selectedCountries.length > 0) {
         const leadCountry = detectLeadCountry(l);
-        if (!audienceFilters.selectedCountries.includes(leadCountry)) {
+        if (!filters.selectedCountries.includes(leadCountry)) {
           return false;
         }
       }
 
       // 4. Filter by Company Size Tier (Multi-select)
-      if (audienceFilters.selectedCompanySizes && audienceFilters.selectedCompanySizes.length > 0) {
+      if (filters.selectedCompanySizes && filters.selectedCompanySizes.length > 0) {
         const size = l.company_size || '';
-        const inTags = Array.isArray(l.tags) && audienceFilters.selectedCompanySizes.some(s => l.tags.includes(s));
-        const matchesSize = audienceFilters.selectedCompanySizes.includes(size) || inTags;
+        const inTags = Array.isArray(l.tags) && filters.selectedCompanySizes.some(s => l.tags.includes(s));
+        const matchesSize = filters.selectedCompanySizes.includes(size) || inTags;
         if (!matchesSize) return false;
       }
 
       // 5. Filter by Region / Autonomous Community (Multi-select)
-      if (audienceFilters.selectedRegions && audienceFilters.selectedRegions.length > 0) {
+      if (filters.selectedRegions && filters.selectedRegions.length > 0) {
         const reg = l.region || '';
-        const inTags = Array.isArray(l.tags) && audienceFilters.selectedRegions.some(r => l.tags.includes(r));
-        const matchesReg = audienceFilters.selectedRegions.includes(reg) || inTags;
+        const inTags = Array.isArray(l.tags) && filters.selectedRegions.some(r => l.tags.includes(r));
+        const matchesReg = filters.selectedRegions.includes(reg) || inTags;
         if (!matchesReg) return false;
       }
 
       // 6. Filter by Province (Multi-select)
-      if (audienceFilters.selectedProvinces && audienceFilters.selectedProvinces.length > 0) {
+      if (filters.selectedProvinces && filters.selectedProvinces.length > 0) {
         const prov = l.province || '';
-        if (!audienceFilters.selectedProvinces.includes(prov)) {
+        if (!filters.selectedProvinces.includes(prov)) {
           return false;
         }
       }
 
       // 7. Filter by Selected Sectors (Multi-select)
-      if (audienceFilters.selectedSectors && audienceFilters.selectedSectors.length > 0) {
-        const hasSectorMatch = audienceFilters.selectedSectors.some(sec => {
+      if (filters.selectedSectors && filters.selectedSectors.length > 0) {
+        const hasSectorMatch = filters.selectedSectors.some(sec => {
           const sLower = sec.toLowerCase();
           const lSector = (l.sector || '').toLowerCase();
           const lCompany = (l.company_name || '').toLowerCase();
@@ -1500,8 +1539,8 @@ export function CampaignsPage() {
       }
 
       // 8. Filter by Selected Services (Multi-select)
-      if (audienceFilters.selectedServices && audienceFilters.selectedServices.length > 0) {
-        const hasServiceMatch = audienceFilters.selectedServices.some(srv => {
+      if (filters.selectedServices && filters.selectedServices.length > 0) {
+        const hasServiceMatch = filters.selectedServices.some(srv => {
           const sLower = srv.toLowerCase();
           const lService = (l.servicio_producto || '').toLowerCase();
           const lNotes = (l.notes || '').toLowerCase();
@@ -1512,8 +1551,8 @@ export function CampaignsPage() {
       }
 
       // 9. Filter by Sector Keyword
-      if (audienceFilters.sectorKeyword) {
-        const keyword = audienceFilters.sectorKeyword.toLowerCase();
+      if (filters.sectorKeyword) {
+        const keyword = filters.sectorKeyword.toLowerCase();
         const sectorText = (l.sector || '').toLowerCase();
         const serviceText = (l.servicio_producto || '').toLowerCase();
         const companyText = (l.company_name || '').toLowerCase();
@@ -1524,8 +1563,8 @@ export function CampaignsPage() {
       }
 
       // 10. Filter by Cargo Keyword
-      if (audienceFilters.cargoKeyword) {
-        const keyword = audienceFilters.cargoKeyword.toLowerCase();
+      if (filters.cargoKeyword) {
+        const keyword = filters.cargoKeyword.toLowerCase();
         const cargoText = (l.cargo || '').toLowerCase();
         const nameText = (l.name || '').toLowerCase();
         if (!cargoText.includes(keyword) && !nameText.includes(keyword)) {
@@ -1534,8 +1573,8 @@ export function CampaignsPage() {
       }
 
       // 11. Filter by Province/Location Keyword
-      if (audienceFilters.provinceKeyword) {
-        const keyword = audienceFilters.provinceKeyword.toLowerCase();
+      if (filters.provinceKeyword) {
+        const keyword = filters.provinceKeyword.toLowerCase();
         const provinceText = (l.province || '').toLowerCase();
         const regionText = (l.region_id || '').toLowerCase();
         const cityText = (l.city || '').toLowerCase();
@@ -1545,8 +1584,8 @@ export function CampaignsPage() {
       }
 
       // 12. Filter by Tag Keyword / Strategic Audience Tag
-      if (audienceFilters.tagKeyword) {
-        const keyword = audienceFilters.tagKeyword.toLowerCase();
+      if (filters.tagKeyword) {
+        const keyword = filters.tagKeyword.toLowerCase();
         const hasTag = Array.isArray(l.tags) && l.tags.some(t => String(t).toLowerCase().includes(keyword));
         const inSector = (l.sector || '').toLowerCase().includes(keyword);
         const inNotes = (l.notes || '').toLowerCase().includes(keyword);
@@ -1557,8 +1596,8 @@ export function CampaignsPage() {
       }
 
       // 13. Exclude Tag Keyword (e.g. Exclude 'Alex' for Michelle / Triangulo)
-      if (audienceFilters.excludeTagKeyword) {
-        const excludeKw = audienceFilters.excludeTagKeyword.toLowerCase();
+      if (filters.excludeTagKeyword) {
+        const excludeKw = filters.excludeTagKeyword.toLowerCase();
         const hasTag = Array.isArray(l.tags) && l.tags.some(t => String(t).toLowerCase().includes(excludeKw));
         const inOrigin = (l.origen_lead || '').toLowerCase().includes(excludeKw);
         const inAssigned = l.assigned_to === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
@@ -1568,7 +1607,7 @@ export function CampaignsPage() {
       }
 
       // 14. Exclude leads with proposal/budget sent or active negotiation
-      if (audienceFilters.excludeProposals) {
+      if (filters.excludeProposals) {
         const stageName = (l.kanban_stages?.name || l.stage_name || '').toLowerCase();
         if (
           stageName.includes('orçamento') ||
@@ -1584,12 +1623,12 @@ export function CampaignsPage() {
       }
 
       // 15. Filter by intelligence rule
-      if (audienceFilters.intelligence === 'never_sent') {
+      if (filters.intelligence === 'never_sent') {
         const hasBeenSent = allQueuedLeads.some(q => q.lead_id === l.id);
         if (hasBeenSent) return false;
       }
 
-      if (audienceFilters.intelligence === 'no_active') {
+      if (filters.intelligence === 'no_active') {
         const hasActiveCampaign = allQueuedLeads.some(q => 
           q.lead_id === l.id && (q.status === 'pending' || q.status === 'sending')
         );
@@ -1602,9 +1641,9 @@ export function CampaignsPage() {
       return !isOptedOut;
     });
 
-    // 13. Apply limit and offset (Division of audience for batching)
-    const offsetVal = parseInt(audienceFilters.offset) || 0;
-    const limitVal = parseInt(audienceFilters.limit);
+    // 16. Apply limit and offset (Division of audience for batching)
+    const offsetVal = parseInt(filters.offset) || 0;
+    const limitVal = parseInt(filters.limit);
     
     if (offsetVal > 0) {
       filtered = filtered.slice(offsetVal);
@@ -1616,6 +1655,26 @@ export function CampaignsPage() {
 
     return filtered;
   };
+
+  const audienceDisplayLeads = useMemo(() => {
+    if (!viewLeadsAudience) return [];
+    let list: any[] = [];
+    if (viewLeadsAudience.leadIds && Array.isArray(viewLeadsAudience.leadIds) && viewLeadsAudience.leadIds.length > 0) {
+      const idSet = new Set(viewLeadsAudience.leadIds);
+      list = allLeads.filter(l => idSet.has(l.id));
+    } else {
+      list = getFilteredLeads(viewLeadsAudience.filters || audienceFilters);
+    }
+    if (!viewLeadsSearch.trim()) return list;
+    const term = viewLeadsSearch.toLowerCase();
+    return list.filter(l => 
+      (l.name || '').toLowerCase().includes(term) ||
+      (l.email || '').toLowerCase().includes(term) ||
+      (l.company_name || '').toLowerCase().includes(term) ||
+      (l.city || '').toLowerCase().includes(term) ||
+      (l.province || '').toLowerCase().includes(term)
+    );
+  }, [viewLeadsAudience, allLeads, audienceFilters, viewLeadsSearch]);
 
   const getFilteredAndSearchedLeads = () => {
     const filtered = getFilteredLeads();
@@ -1757,15 +1816,15 @@ export function CampaignsPage() {
   };
 
   const handleLoadAudiencePreset = (preset: any) => {
-    userModifiedSelection.current = true;
     setAudienceFilters({ ...preset.filters });
     if (preset.leadIds && Array.isArray(preset.leadIds) && preset.leadIds.length > 0) {
+      userModifiedSelection.current = true;
       setSelectedLeadIds(new Set(preset.leadIds));
+      toast.success(`Público "${preset.name}" carregado com ${preset.leadIds.length} leads.`);
     } else {
-      const filtered = allLeads.filter(l => selectedLeadIds.has(l.id));
-      setSelectedLeadIds(new Set(filtered.map(l => l.id)));
+      userModifiedSelection.current = false;
+      toast.success(`Filtros do público "${preset.name}" carregados.`);
     }
-    toast.success(`Filtros do público "${preset.name}" carregados.`);
   };
 
   const handleDeleteAudiencePreset = (id: string, e: React.MouseEvent) => {
@@ -2257,11 +2316,14 @@ export function CampaignsPage() {
                         size="sm" 
                         variant="ghost"
                         onClick={async () => {
+                          setViewLeadsSearch('');
                           if (aud.filters) {
                             setAudienceFilters({ ...aud.filters });
                           }
                           setViewLeadsAudience(aud);
-                          await fetchAudienceLeads();
+                          if (allLeads.length === 0) {
+                            await fetchAudienceLeads();
+                          }
                         }}
                         className="text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100 text-xs font-bold flex items-center gap-1.5"
                       >
@@ -2275,6 +2337,7 @@ export function CampaignsPage() {
                           if (aud.filters) {
                             setAudienceFilters({ ...aud.filters });
                           }
+                          setPendingAudienceForCampaign(aud);
                           setIsCampaignModalOpen(true);
                           toast.success(`Defina o template. O público "${aud.name}" foi pré-carregado!`);
                         }}
@@ -3410,12 +3473,22 @@ export function CampaignsPage() {
       </Dialog>
 
       {/* Dialog: Visualizar Leads do Público */}
-      <Dialog open={!!viewLeadsAudience} onOpenChange={(open) => !open && setViewLeadsAudience(null)}>
+      <Dialog open={!!viewLeadsAudience} onOpenChange={(open) => {
+        if (!open) {
+          setViewLeadsAudience(null);
+          setViewLeadsSearch('');
+        }
+      }}>
         <DialogContent className="sm:max-w-[650px] max-h-[85vh] flex flex-col justify-between p-6">
           <DialogHeader className="border-b pb-3">
-            <DialogTitle>Membros do Público: {viewLeadsAudience?.name}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-yellow-500" />
+              <span>Membros do Público: {viewLeadsAudience?.name}</span>
+            </DialogTitle>
             <DialogDescription>
-              Lista de todos os leads cadastrados no CRM que correspondem a este segmento.
+              {viewLeadsAudience?.leadIds && viewLeadsAudience.leadIds.length > 0 
+                ? 'Lista de leads específicos selecionados para este público.' 
+                : 'Lista de todos os leads cadastrados no CRM que correspondem a este segmento.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -3428,14 +3501,28 @@ export function CampaignsPage() {
             <div className="flex-1 py-4 overflow-y-auto space-y-2 max-h-[55vh] pr-1">
               <div className="flex justify-between items-center mb-3 bg-slate-50 dark:bg-slate-900 border rounded-lg p-2.5 text-xs">
                 <span>Total de membros:</span>
-                <span className="font-bold text-yellow-600 dark:text-yellow-500">{viewLeadsAudience ? getFilteredLeads().length : 0} leads</span>
+                <span className="font-bold text-yellow-600 dark:text-yellow-500">{audienceDisplayLeads.length} leads</span>
+              </div>
+
+              {/* Busca rápida dentro do modal de membros */}
+              <div className="relative mb-2">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                <Input
+                  type="text"
+                  placeholder="Buscar lead por nome, empresa ou e-mail..."
+                  value={viewLeadsSearch}
+                  onChange={(e) => setViewLeadsSearch(e.target.value)}
+                  className="pl-8 h-8 text-xs bg-white dark:bg-slate-900"
+                />
               </div>
               
-              {viewLeadsAudience && getFilteredLeads().length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground text-xs">Nenhum lead correspondente no banco.</div>
+              {audienceDisplayLeads.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground text-xs">
+                  {viewLeadsSearch ? 'Nenhum lead encontrado com o termo pesquisado.' : 'Nenhum lead correspondente no banco.'}
+                </div>
               ) : (
                 <div className="space-y-2">
-                  {viewLeadsAudience && getFilteredLeads().map((l: any) => {
+                  {audienceDisplayLeads.map((l: any) => {
                     const stageName = kanbanStages.find((s: any) => s.id === l.stage_id)?.name || 'Sem estágio';
                     const cCode = detectLeadCountry(l);
                     const cInfo = countryLabels[cCode] || countryLabels.ES;
@@ -3487,7 +3574,7 @@ export function CampaignsPage() {
           )}
 
           <DialogFooter className="pt-3 border-t">
-            <Button type="button" onClick={() => setViewLeadsAudience(null)} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
+            <Button type="button" onClick={() => { setViewLeadsAudience(null); setViewLeadsSearch(''); }} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
               Fechar
             </Button>
           </DialogFooter>
