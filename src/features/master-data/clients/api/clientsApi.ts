@@ -19,7 +19,8 @@ export const clientsApi = {
           payment_term:payment_term_id ( id, name, days )
         )
       `)
-      .order('trade_name', { ascending: true });
+      .order('trade_name', { ascending: true })
+      .is('deleted_at', null);
 
     if (error) throw error;
 
