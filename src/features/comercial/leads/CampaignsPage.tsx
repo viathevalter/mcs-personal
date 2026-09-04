@@ -777,9 +777,9 @@ export function CampaignsPage() {
     if (isWiseowe) {
       return [
         {
-          id: 'aud_wiseowe_fr_geral',
-          name: '🇫🇷 Wiseowe França - Geral Indústria & Construção',
-          leadCount: 520,
+          id: 'aud_fr_tuyauterie_piping',
+          name: '🎯 🇫🇷 1. Tuyauterie Industrielle, Piping & Montage (2.556 leads)',
+          leadCount: 2556,
           filters: {
             stageId: '',
             origin: '',
@@ -788,7 +788,53 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: [],
+            selectedSectors: ['Tuyauterie & Chaudronnerie Industrielle', 'Calderería & Tubería Industrial'],
+            selectedServices: [],
+            sectorKeyword: 'tuyauterie',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_charpente_structures',
+          name: '🎯 🇫🇷 2. Charpente Métallique, Structures & Serrurerie (597 leads)',
+          leadCount: 597,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Estructuras Metálicas & Montajes'],
+            selectedServices: [],
+            sectorKeyword: 'charpente',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_grands_parcs',
+          name: '🎯 🇫🇷 3. Grands Parcs Industriels & Sous-Traitance (547 leads)',
+          leadCount: 547,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Polígonos Industriais & Subcontratistas'],
             selectedServices: [],
             sectorKeyword: '',
             cargoKeyword: '',
@@ -800,15 +846,107 @@ export function CampaignsPage() {
           created_at: new Date().toISOString()
         },
         {
-          id: 'aud_tier1_vip_wiseowe',
-          name: '👑 Público VIP - Grandes Empresas França & Europa',
-          leadCount: 150,
+          id: 'aud_fr_usinage_mecanique',
+          name: '🎯 🇫🇷 4. Usinage CNC & Mécanique de Précision (479 leads)',
+          leadCount: 479,
           filters: {
             stageId: '',
             origin: '',
             intelligence: 'all',
             selectedCountries: ['FR'],
-            selectedCompanySizes: ['Gran Empresa (Tier 1)', 'Tier 1 (Gran Empresa / EPC)'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Mecanizado CNC & Tornería'],
+            selectedServices: [],
+            sectorKeyword: 'usinage',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_chantiers_navals',
+          name: '🎯 🇫🇷 5. Chantiers Navals & Réparation Navale (233 leads)',
+          leadCount: 233,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Construção & Reparação Naval'],
+            selectedServices: [],
+            sectorKeyword: 'naval',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_chaudieres_maintenance',
+          name: '🎯 🇫🇷 6. Échangeurs Thermiques, Chaudières & Maintenance (141 leads)',
+          leadCount: 141,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Mantenimiento Industrial & Calderas'],
+            selectedServices: [],
+            sectorKeyword: 'chaudiere',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_tuyauterie_inox',
+          name: '🎯 🇫🇷 7. Tuyauterie Inox & Cuverie Agroalimentaire (43 leads)',
+          leadCount: 43,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Tubería Inox & Agroalimentaria'],
+            selectedServices: [],
+            sectorKeyword: 'inox',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: '',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_base_geral_auditada',
+          name: '👑 🇫🇷 8. Base Geral França - Auditada & Qualificada (4.613 leads)',
+          leadCount: 4613,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
             selectedSectors: [],
@@ -1056,6 +1194,190 @@ export function CampaignsPage() {
           offset: '',
         },
         created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_tuyauterie_piping_gen',
+        name: '🎯 🇫🇷 1. França: Tuyauterie Industrielle, Piping & Montage (2.556 leads)',
+        leadCount: 2556,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: ['Tuyauterie & Chaudronnerie Industrielle', 'Calderería & Tubería Industrial'],
+          selectedServices: [],
+          sectorKeyword: 'tuyauterie',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_charpente_structures_gen',
+        name: '🎯 🇫🇷 2. França: Charpente Métallique, Structures & Serrurerie (597 leads)',
+        leadCount: 597,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: ['Estructuras Metálicas & Montajes'],
+          selectedServices: [],
+          sectorKeyword: 'charpente',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_grands_parcs_gen',
+        name: '🎯 🇫🇷 3. França: Grands Parcs Industriels & Sous-Traitance (547 leads)',
+        leadCount: 547,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: ['Polígonos Industriais & Subcontratistas'],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_usinage_mecanique_gen',
+        name: '🎯 🇫🇷 4. França: Usinage CNC & Mécanique de Précision (479 leads)',
+        leadCount: 479,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: ['Mecanizado CNC & Tornería'],
+          selectedServices: [],
+          sectorKeyword: 'usinage',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_chantiers_navals_gen',
+        name: '🎯 🇫🇷 5. França: Chantiers Navals & Réparation Navale (233 leads)',
+        leadCount: 233,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: ['Construção & Reparação Naval'],
+          selectedServices: [],
+          sectorKeyword: 'naval',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_chaudieres_maintenance_gen',
+        name: '🎯 🇫🇷 6. França: Échangeurs Thermiques, Chaudières & Maintenance (141 leads)',
+        leadCount: 141,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: ['Mantenimiento Industrial & Calderas'],
+          selectedServices: [],
+          sectorKeyword: 'chaudiere',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_tuyauterie_inox_gen',
+        name: '🎯 🇫🇷 7. França: Tuyauterie Inox & Cuverie Agroalimentaire (43 leads)',
+        leadCount: 43,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: ['Tubería Inox & Agroalimentaria'],
+          selectedServices: [],
+          sectorKeyword: 'inox',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_fr_base_geral_auditada_gen',
+        name: '👑 🇫🇷 8. França: Base Global Auditada & Qualificada (4.613 leads)',
+        leadCount: 4613,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['FR'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: '',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
       }
     ];
   }, [isTriangulo, isWiseowe, isLuminous, isStocco, isKotrik]);
@@ -1063,11 +1385,12 @@ export function CampaignsPage() {
   useEffect(() => {
     if (selectedEmpresaId) {
       const stored = localStorage.getItem(`mcs_marketing_audiences_${selectedEmpresaId}`);
+      const legacyIds = new Set(['aud_wiseowe_fr_geral', 'aud_tier1_vip_wiseowe']);
       if (stored) {
         try {
           const userPresets = JSON.parse(stored);
           const defaultIds = new Set(defaultStrategicAudiences.map(d => d.id));
-          let customOnly = userPresets.filter((up: any) => !defaultIds.has(up.id));
+          let customOnly = userPresets.filter((up: any) => !defaultIds.has(up.id) && !legacyIds.has(up.id));
 
           // Strict isolation: Triangulo / Michelle must NEVER see any Alex presets
           if (isTriangulo) {
@@ -1078,13 +1401,16 @@ export function CampaignsPage() {
             });
           }
 
-          setSavedAudiences([...defaultStrategicAudiences, ...customOnly]);
+          const merged = [...defaultStrategicAudiences, ...customOnly];
+          setSavedAudiences(merged);
+          localStorage.setItem(`mcs_marketing_audiences_${selectedEmpresaId}`, JSON.stringify(merged));
         } catch (e) {
           console.error("Failed to parse saved audiences:", e);
           setSavedAudiences(defaultStrategicAudiences);
         }
       } else {
         setSavedAudiences(defaultStrategicAudiences);
+        localStorage.setItem(`mcs_marketing_audiences_${selectedEmpresaId}`, JSON.stringify(defaultStrategicAudiences));
       }
     }
   }, [selectedEmpresaId, defaultStrategicAudiences, isTriangulo]);
