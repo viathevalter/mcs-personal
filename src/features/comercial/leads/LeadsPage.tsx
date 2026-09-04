@@ -1779,206 +1779,244 @@ export function LeadsPage() {
 
       {/* Form Modal (Create / Edit) */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-yellow-500" />
-              {selectedLead ? t('comercial.leads.form.titleEdit') : t('comercial.leads.form.titleCreate')}
-            </DialogTitle>
-            <DialogDescription>
-              {t('comercial.leads.form.desc')}
-            </DialogDescription>
+        <DialogContent className="sm:max-w-[880px] max-w-4xl w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl">
+          <DialogHeader className="p-5 px-6 pb-4 border-b bg-slate-50/80 dark:bg-slate-900/80 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                <UserPlus className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                  {selectedLead ? t('comercial.leads.form.titleEdit') : t('comercial.leads.form.titleCreate')}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {t('comercial.leads.form.desc')}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <form onSubmit={handleSave} className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <Label htmlFor="company_name">{t('comercial.leads.form.companyName')}</Label>
-              <Input
-                id="company_name"
-                required
-                placeholder={t('comercial.leads.form.companyNamePlaceholder')}
-                value={formData.company_name}
-                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                className="focus-visible:ring-yellow-500"
-              />
-            </div>
+          <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                {/* Coluna 1: Dados da Empresa & Contato Principal */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                    <Building className="w-4 h-4 text-amber-500" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Identificação & Contato
+                    </h4>
+                  </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="empresa_id">{t('comercial.leads.form.groupCompany')}</Label>
-              <Select
-                value={formData.empresa_id}
-                onValueChange={(val) => setFormData({ ...formData, empresa_id: val })}
-              >
-                <SelectTrigger id="empresa_id" className="focus-visible:ring-yellow-500">
-                  <SelectValue placeholder={t('comercial.leads.form.groupCompanyPlaceholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {empresas.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.trade_name || emp.legal_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="company_name" className="text-xs font-semibold">
+                      {t('comercial.leads.form.companyName')} <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="company_name"
+                      required
+                      placeholder={t('comercial.leads.form.companyNamePlaceholder')}
+                      value={formData.company_name}
+                      onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-yellow-500"
+                    />
+                  </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="name">{t('comercial.leads.form.contactName')}</Label>
-              <Input
-                id="name"
-                required
-                placeholder={t('comercial.leads.form.contactNamePlaceholder')}
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="focus-visible:ring-yellow-500"
-              />
-            </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="empresa_id" className="text-xs font-semibold">
+                      {t('comercial.leads.form.groupCompany')} <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={formData.empresa_id}
+                      onValueChange={(val) => setFormData({ ...formData, empresa_id: val })}
+                    >
+                      <SelectTrigger id="empresa_id" className="h-9 text-xs focus-visible:ring-yellow-500">
+                        <SelectValue placeholder={t('comercial.leads.form.groupCompanyPlaceholder')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {empresas.map((emp) => (
+                          <SelectItem key={emp.id} value={emp.id} className="text-xs">
+                            {emp.trade_name || emp.legal_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">{t('comercial.leads.form.email')}</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder={t('comercial.leads.form.emailPlaceholder')}
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  className="focus-visible:ring-yellow-500"
-                />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="name" className="text-xs font-semibold">
+                      {t('comercial.leads.form.contactName')} <span className="text-red-500">*</span>
+                    </Label>
+                    <Input
+                      id="name"
+                      required
+                      placeholder={t('comercial.leads.form.contactNamePlaceholder')}
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-yellow-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email" className="text-xs font-semibold flex items-center gap-1">
+                        <Mail className="w-3.5 h-3.5 text-slate-400" />
+                        {t('comercial.leads.form.email')} <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        required
+                        placeholder={t('comercial.leads.form.emailPlaceholder')}
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="phone" className="text-xs font-semibold flex items-center gap-1">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" />
+                        {t('comercial.leads.form.phone')} <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="phone"
+                        required
+                        placeholder={t('comercial.leads.form.phonePlaceholder')}
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="cargo" className="text-xs font-semibold">Cargo / Puesto</Label>
+                      <Input
+                        id="cargo"
+                        placeholder="Ex: Gerente de Compras"
+                        value={formData.cargo}
+                        onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sector" className="text-xs font-semibold">Setor da Empresa</Label>
+                      <Input
+                        id="sector"
+                        placeholder="Ex: Indústria"
+                        value={formData.sector}
+                        onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Coluna 2: Segmento, Presença Digital & Observações */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+                    <Globe className="w-4 h-4 text-blue-500" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Segmento, Presença Digital & Notas
+                    </h4>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="servicio_producto" className="text-xs font-semibold">Serviço de Interesse</Label>
+                      <Input
+                        id="servicio_producto"
+                        placeholder="Ex: Mão de Obra de Solda"
+                        value={formData.servicio_producto}
+                        onChange={(e) => setFormData({ ...formData, servicio_producto: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="origen_lead" className="text-xs font-semibold">Origem do Lead</Label>
+                      <Input
+                        id="origen_lead"
+                        placeholder="Ex: Campanha de E-mail"
+                        value={formData.origen_lead}
+                        onChange={(e) => setFormData({ ...formData, origen_lead: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="website" className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Globe className="w-3.5 h-3.5 text-blue-500" /> Website Oficial
+                    </Label>
+                    <Input
+                      id="website"
+                      placeholder="https://www.empresa.es"
+                      value={formData.website}
+                      onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-yellow-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="linkedin_url" className="flex items-center gap-1.5 text-xs font-semibold">
+                        <Linkedin className="w-3.5 h-3.5 text-blue-600" /> LinkedIn B2B
+                      </Label>
+                      <Input
+                        id="linkedin_url"
+                        placeholder="https://www.linkedin.com/company/empresa"
+                        value={formData.linkedin_url}
+                        onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="instagram_url" className="flex items-center gap-1.5 text-xs font-semibold">
+                        <Instagram className="w-3.5 h-3.5 text-pink-500" /> Instagram
+                      </Label>
+                      <Input
+                        id="instagram_url"
+                        placeholder="https://www.instagram.com/empresa"
+                        value={formData.instagram_url}
+                        onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
+                        className="h-9 text-xs focus-visible:ring-yellow-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tags" className="flex items-center gap-1.5 text-xs font-semibold">
+                      <Tag className="w-3.5 h-3.5 text-amber-500" /> Tags de Público Alvo (separadas por vírgula)
+                    </Label>
+                    <Input
+                      id="tags"
+                      placeholder="ex: Caldererías Zaragoza, Indústria Q3"
+                      value={formData.tags}
+                      onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-yellow-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="notes" className="text-xs font-semibold">{t('comercial.leads.form.notes')}</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder={t('comercial.leads.form.notesPlaceholder')}
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      className="min-h-[85px] text-xs focus-visible:ring-yellow-500 resize-none"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">{t('comercial.leads.form.phone')}</Label>
-                <Input
-                  id="phone"
-                  required
-                  placeholder={t('comercial.leads.form.phonePlaceholder')}
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  className="focus-visible:ring-yellow-500"
-                />
-              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="sector">Setor da Empresa</Label>
-                <Input
-                  id="sector"
-                  placeholder="Ex: Indústria"
-                  value={formData.sector}
-                  onChange={(e) => setFormData({ ...formData, sector: e.target.value })}
-                  className="focus-visible:ring-yellow-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="cargo">Cargo / Puesto</Label>
-                <Input
-                  id="cargo"
-                  placeholder="Ex: Gerente de Compras"
-                  value={formData.cargo}
-                  onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
-                  className="focus-visible:ring-yellow-500"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="servicio_producto">Serviço / Produto de Interesse</Label>
-                <Input
-                  id="servicio_producto"
-                  placeholder="Ex: Mão de Obra de Solda"
-                  value={formData.servicio_producto}
-                  onChange={(e) => setFormData({ ...formData, servicio_producto: e.target.value })}
-                  className="focus-visible:ring-yellow-500"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="origen_lead">Origem do Lead</Label>
-                <Input
-                  id="origen_lead"
-                  placeholder="Ex: Campanha de E-mail"
-                  value={formData.origen_lead}
-                  onChange={(e) => setFormData({ ...formData, origen_lead: e.target.value })}
-                  className="focus-visible:ring-yellow-500"
-                />
-              </div>
-            </div>
-
-            {/* Presença Web & Redes Sociais */}
-            <div className="space-y-2">
-              <Label htmlFor="website" className="flex items-center gap-1.5 text-xs font-semibold">
-                <Globe className="w-3.5 h-3.5 text-blue-500" /> Website Oficial
-              </Label>
-              <Input
-                id="website"
-                placeholder="https://www.empresa.es"
-                value={formData.website}
-                onChange={(e) => setFormData({ ...formData, website: e.target.value })}
-                className="focus-visible:ring-yellow-500 text-xs"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="linkedin_url" className="flex items-center gap-1.5 text-xs font-semibold">
-                  <Linkedin className="w-3.5 h-3.5 text-blue-600" /> LinkedIn B2B
-                </Label>
-                <Input
-                  id="linkedin_url"
-                  placeholder="https://www.linkedin.com/company/empresa"
-                  value={formData.linkedin_url}
-                  onChange={(e) => setFormData({ ...formData, linkedin_url: e.target.value })}
-                  className="focus-visible:ring-yellow-500 text-xs"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="instagram_url" className="flex items-center gap-1.5 text-xs font-semibold">
-                  <Instagram className="w-3.5 h-3.5 text-pink-500" /> Instagram
-                </Label>
-                <Input
-                  id="instagram_url"
-                  placeholder="https://www.instagram.com/empresa"
-                  value={formData.instagram_url}
-                  onChange={(e) => setFormData({ ...formData, instagram_url: e.target.value })}
-                  className="focus-visible:ring-yellow-500 text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tags" className="flex items-center gap-1.5 text-xs font-semibold">
-                <Tag className="w-3.5 h-3.5 text-blue-500" /> Tags de Público Alvo (separadas por vírgula)
-              </Label>
-              <Input
-                id="tags"
-                placeholder="ex: Caldererías Zaragoza, Indústria Q3"
-                value={formData.tags}
-                onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                className="focus-visible:ring-yellow-500 text-xs"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">{t('comercial.leads.form.notes')}</Label>
-              <Textarea
-                id="notes"
-                placeholder={t('comercial.leads.form.notesPlaceholder')}
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                className="min-h-[100px] focus-visible:ring-yellow-500 text-xs"
-              />
-            </div>
-
-            <DialogFooter className="pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => setIsFormOpen(false)}>
+            <DialogFooter className="p-4 px-6 border-t bg-slate-50/80 dark:bg-slate-900/80 flex items-center justify-end gap-3 shrink-0">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsFormOpen(false)} className="h-9 px-4 text-xs font-medium">
                 {t('comercial.leads.form.btnCancel')}
               </Button>
-              <Button type="submit" disabled={isCreating || isUpdating} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
+              <Button type="submit" disabled={isCreating || isUpdating} size="sm" className="h-9 px-5 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold shadow-md shadow-yellow-500/10 text-xs">
                 {isCreating || isUpdating ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
