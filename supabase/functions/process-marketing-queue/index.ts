@@ -9,6 +9,26 @@ function corsHeaders() {
   };
 }
 
+function stripHtmlToText(html: string): string {
+  if (!html) return "";
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*[\/]?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<\/tr>/gi, "\n")
+    .replace(/<\/td>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\n\s*\n\s*\n/g, "\n\n")
+    .trim();
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders() });
@@ -167,8 +187,8 @@ serve(async (req) => {
       const rawSubject = template.subject;
 
       const appUrl = Deno.env.get("PUBLIC_APP_URL") || "https://mcs.gestaologinpro.com";
+      const unsubscribeLink = `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`;
       const formatVars = (text: string) => {
-        const unsubscribeLink = `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`;
         return text
           .replace(/\{\{\s*name\s*\}\}/g, lead.name || "")
           .replace(/\{\{\s*company_name\s*\}\}/g, lead.company_name || "")
@@ -192,6 +212,7 @@ serve(async (req) => {
 
       const htmlBody = formatVars(rawHtml);
       const emailSubject = formatVars(rawSubject);
+      const plainTextBody = stripHtmlToText(htmlBody);
       
       // 1. Resolução inteligente do Remetente por Empresa e País do Lead
       const companyTrade = (company?.trade_name || '').toUpperCase();
@@ -308,6 +329,22 @@ serve(async (req) => {
             continue;
           }
 
+          const emailPayload = {
+            from: fromHeader,
+            to: [cleanLeadEmail],
+            subject: emailSubject,
+            html: htmlBody,
+            text: plainTextBody,
+            headers: {
+              "List-Unsubscribe": `<${unsubscribeLink}>`,
+              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+            },
+            tags: [
+              { name: "campaign_id", value: campaign.id },
+              { name: "lead_id", value: lead.id },
+            ],
+          };
+
           // Envio real via API do Resend com retry e delay
           let res = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -315,16 +352,7 @@ serve(async (req) => {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${resendApiKey}`,
             },
-            body: JSON.stringify({
-              from: fromHeader,
-              to: [cleanLeadEmail],
-              subject: emailSubject,
-              html: htmlBody,
-              tags: [
-                { name: "campaign_id", value: campaign.id },
-                { name: "lead_id", value: lead.id },
-              ],
-            }),
+            body: JSON.stringify(emailPayload),
           });
 
           // Se bater rate limit (429), pausa 1.5s e tenta novamente
@@ -337,16 +365,7 @@ serve(async (req) => {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${resendApiKey}`,
               },
-              body: JSON.stringify({
-                from: fromHeader,
-                to: [cleanLeadEmail],
-                subject: emailSubject,
-                html: htmlBody,
-                tags: [
-                  { name: "campaign_id", value: campaign.id },
-                  { name: "lead_id", value: lead.id },
-                ],
-              }),
+              body: JSON.stringify(emailPayload),
             });
           }
 
