@@ -255,181 +255,230 @@ export function PortalCliente() {
     container.style.color = '#000000';
     container.style.fontFamily = 'Inter, system-ui, sans-serif';
     
-    const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
+const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
     const periodStr = `${getMonthName(month)} / ${year}`;
     
     const tablesToRender = selectedObraId === 'all' ? groupedObras : groupedObras.filter(o => o.obraId === selectedObraId);
 
-    tablesToRender.forEach(obra => {
-      let tableHtml = `
-        <div style="margin-bottom: 35px; page-break-inside: avoid;">
-          <div style="display: flex; justify-content: space-between; align-items: center; background-color: #f1f5f9; padding: 8px 14px; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
-            <span style="font-weight: 800; font-size: 13px; letter-spacing: 0.05em; color: #1e293b; text-transform: uppercase;">
-              OBRA: ${obra.obraName.toUpperCase()}
-            </span>
-            <span style="font-size: 11px; font-weight: 700; color: #475569;">
-              Total: <strong>${obra.totalHoras.toFixed(2)}h</strong> • <strong>€ ${obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong>
-            </span>
-          </div>
-          <table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
-            <thead>
-              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-                <th style="padding: 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0;">Trabajador</th>
-      `;
+    let overallPageNum = 1;
 
-      daysArrayLocal.forEach(dInfo => {
-        const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
-        const dayOfWeek = cellDate.getDay();
-        const isSunday = dayOfWeek === 0;
-        const isSaturday = dayOfWeek === 6;
-        const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-        const label = weekdays[dayOfWeek];
-        
-        let headerColor = '#64748b';
-        let headerBg = '';
-        if (isSunday) {
-          headerColor = '#e11d48';
-          headerBg = 'background-color: #ffe4e6;';
-        } else if (isSaturday) {
-          headerColor = '#d97706';
-          headerBg = 'background-color: #fef3c7;';
+    tablesToRender.forEach(obra => {
+      const workers = obra.workers;
+      const firstPageLimit = 13;
+      const subsequentPageLimit = 16;
+
+      let currentIndex = 0;
+      let tablePageNum = 1;
+
+      while (currentIndex < workers.length) {
+        const isFirstPage = tablePageNum === 1;
+        const limit = isFirstPage ? firstPageLimit : subsequentPageLimit;
+        const chunk = workers.slice(currentIndex, currentIndex + limit);
+        const isLastChunk = (currentIndex + limit) >= workers.length;
+        currentIndex += limit;
+
+        const pageDiv = document.createElement('div');
+        pageDiv.className = 'pdf-page-hours-portal';
+        pageDiv.style.width = '1120px';
+        pageDiv.style.height = '792px';
+        pageDiv.style.padding = '35px 40px';
+        pageDiv.style.boxSizing = 'border-box';
+        pageDiv.style.background = '#ffffff';
+        pageDiv.style.position = 'relative';
+        pageDiv.style.display = 'flex';
+        pageDiv.style.flexDirection = 'column';
+
+        let headerHtml = '';
+        if (isFirstPage) {
+          headerHtml = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 12px;">
+              <div>
+                <h2 style="font-size: 24px; font-weight: 800; margin: 0; color: #1e293b;">Registro de Horas</h2>
+                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Cliente: <strong>${clientName}</strong> | Periodo: <strong>${periodStr}</strong></p>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${obra.totalHoras.toFixed(2)}h</strong></p>
+                <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Importe Base: <strong style="color: #1e293b; font-size: 16px;">€ ${obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong></p>
+              </div>
+            </div>
+            <div style="text-align: center; font-weight: 800; font-size: 13px; letter-spacing: 0.05em; background-color: #f1f5f9; padding: 8px; color: #334155; border-radius: 6px; margin-bottom: 12px; border: 1px solid #e2e8f0;">
+              OBRA: ${obra.obraName.toUpperCase()}
+            </div>
+          `;
+        } else {
+          headerHtml = `
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px;">
+              <span style="font-size: 12px; font-weight: 700; color: #475569;">Registro de Horas — ${clientName} (OBRA: ${obra.obraName.toUpperCase()})</span>
+              <span style="font-size: 11px; color: #64748b;">Periodo: ${periodStr}</span>
+            </div>
+          `;
         }
 
-        tableHtml += `
-          <th style="text-align: center; padding: 6px 2px; min-width: 25px; ${headerBg} border-right: 1px solid #e2e8f0;">
-            <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700;">${label}</div>
-            <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px;">${String(dInfo.day).padStart(2, '0')}</div>
-          </th>
-        `;
-      });
-
-      tableHtml += `
-                <th style="padding: 10px; text-align: right; font-weight: 700; color: #475569;">TOTAL</th>
-              </tr>
-            </thead>
-            <tbody>
-      `;
-
-      obra.workers.forEach(w => {
-        const workerTotal = daysArrayLocal.reduce((sum, dInfo) => {
-          const hourObj = w.horasDiarias[dInfo.dateStr] as any;
-          return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
-        }, 0);
-
-        tableHtml += `
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 9px 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap;">${w.workerName}</td>
+        let tableHtml = `
+          <table style="width: 100%; border-collapse: collapse; font-size: 10px; border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden; margin-bottom: auto;">
+            <thead>
+              <tr style="background-color: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                <th style="padding: 8px 10px; text-align: left; font-weight: 700; color: #475569; border-right: 1px solid #e2e8f0; width: 180px;">Trabajador</th>
         `;
 
         daysArrayLocal.forEach(dInfo => {
-          const hourObj = w.horasDiarias[dInfo.dateStr] as any;
-          const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
-          
           const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
           const dayOfWeek = cellDate.getDay();
           const isSunday = dayOfWeek === 0;
           const isSaturday = dayOfWeek === 6;
-
-          let cellStyle = 'color: #94a3b8;';
-          let cellBg = '';
-          if (hoursVal > 0) {
-            cellStyle = 'color: #2563eb; font-weight: 700;';
-          }
+          const weekdays = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+          const label = weekdays[dayOfWeek];
+          
+          let headerColor = '#64748b';
+          let headerBg = '';
           if (isSunday) {
-            cellBg = 'background-color: #fff1f2;';
+            headerColor = '#e11d48';
+            headerBg = 'background-color: #ffe4e6;';
           } else if (isSaturday) {
-            cellBg = 'background-color: #fffbeb;';
+            headerColor = '#d97706';
+            headerBg = 'background-color: #fef3c7;';
           }
 
           tableHtml += `
-            <td style="text-align: center; padding: 7px 2px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0;">
-              ${hoursVal > 0 ? hoursVal : '-'}
-            </td>
+            <th style="text-align: center; padding: 6px 1px; min-width: 22px; ${headerBg} border-right: 1px solid #e2e8f0;">
+              <div style="font-size: 7px; text-transform: uppercase; color: ${headerColor}; font-weight: 700; line-height: 1;">${label}</div>
+              <div style="font-size: 10px; font-weight: 700; color: #1e293b; margin-top: 2px; line-height: 1;">${String(dInfo.day).padStart(2, '0')}</div>
+            </th>
           `;
         });
 
         tableHtml += `
-            <td style="padding: 9px 10px; text-align: right; font-weight: 700; color: #1e293b;">${workerTotal.toFixed(1)}h</td>
+            <th style="padding: 8px 10px; text-align: right; font-weight: 700; color: #475569; width: 60px;">TOTAL</th>
           </tr>
+        </thead>
+        <tbody>
         `;
-      });
 
-      // Obra footer with day sums
-      tableHtml += `
+        chunk.forEach(w => {
+          const workerTotal = daysArrayLocal.reduce((sum, dInfo) => {
+            const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+            return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
+          }, 0);
+
+          tableHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 6px 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;">${w.workerName}</td>
+          `;
+
+          daysArrayLocal.forEach(dInfo => {
+            const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+            const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+            
+            const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
+            const dayOfWeek = cellDate.getDay();
+            const isSunday = dayOfWeek === 0;
+            const isSaturday = dayOfWeek === 6;
+
+            let cellStyle = 'color: #94a3b8;';
+            let cellBg = '';
+            if (hoursVal > 0) {
+              cellStyle = 'color: #2563eb; font-weight: 700;';
+            }
+            if (isSunday) {
+              cellBg = 'background-color: #fff1f2;';
+            } else if (isSaturday) {
+              cellBg = 'background-color: #fffbeb;';
+            }
+
+            tableHtml += `
+              <td style="text-align: center; padding: 6px 1px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0; font-size: 10px;">
+                ${hoursVal > 0 ? hoursVal : '-'}
+              </td>
+            `;
+          });
+
+          tableHtml += `
+              <td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #1e293b; font-size: 10px;">${workerTotal.toFixed(1)}h</td>
+            </tr>
+          `;
+        });
+
+        tableHtml += `
             </tbody>
+        `;
+
+        if (isLastChunk) {
+          tableHtml += `
             <tfoot>
               <tr style="background-color: #f8fafc; font-weight: 750; border-top: 2px solid #e2e8f0;">
-                <td style="padding: 8px 10px; font-weight: 700; color: #1e293b; border-right: 1px solid #e2e8f0;">Total ${obra.obraName}</td>
-      `;
+                <td style="padding: 6px 10px; font-weight: 700; color: #1e293b; border-right: 1px solid #e2e8f0;">Total ${obra.obraName}</td>
+          `;
 
-      daysArrayLocal.forEach(dInfo => {
-        const daySum = obra.workers.reduce((sum, w) => {
-          const hourObj = w.horasDiarias[dInfo.dateStr] as any;
-          return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
-        }, 0);
-        tableHtml += `
-          <td style="text-align: center; padding: 6px 2px; font-weight: 700; color: #1e293b; border-right: 1px solid #e2e8f0; font-size: 10px;">
-            ${daySum > 0 ? daySum.toFixed(1) : '-'}
-          </td>
-        `;
-      });
+          daysArrayLocal.forEach(dInfo => {
+            const daySum = obra.workers.reduce((sum, w) => {
+              const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+              return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
+            }, 0);
+            tableHtml += `
+              <td style="text-align: center; padding: 5px 1px; font-weight: 700; color: #1e293b; border-right: 1px solid #e2e8f0; font-size: 9.5px;">
+                ${daySum > 0 ? daySum.toFixed(1) : '-'}
+              </td>
+            `;
+          });
 
-      tableHtml += `
-                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">${obra.totalHoras.toFixed(1)}h</td>
+          tableHtml += `
+                <td style="padding: 6px 10px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">${obra.totalHoras.toFixed(1)}h</td>
               </tr>
             </tfoot>
+          `;
+        }
+
+        tableHtml += `
           </table>
-        </div>
-      `;
+        `;
 
-      container.innerHTML += tableHtml;
+        const footerHtml = `
+          <div style="margin-top: auto; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 5px;">
+            <span>MCS - Gestão Comercial</span>
+            <span>Página ${overallPageNum}</span>
+          </div>
+        `;
+
+        pageDiv.innerHTML = headerHtml + tableHtml + footerHtml;
+        container.appendChild(pageDiv);
+
+        tablePageNum++;
+        overallPageNum++;
+      }
     });
-
-    if (tablesToRender.length > 1) {
-      container.innerHTML += `
-        <div style="background-color: #0f172a; color: #ffffff; padding: 12px 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
-          <span style="font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;">Total General (Todas las Obras)</span>
-          <span style="font-weight: 800; font-size: 14px; font-family: monospace;">${totalHorasLocal.toFixed(2)}h • € ${totalValorLocal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</span>
-        </div>
-      `;
-    }
 
     document.body.appendChild(container);
 
     try {
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.85);
-      
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true
       });
       
-      const imgWidth = 297;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageElements = container.querySelectorAll('.pdf-page-hours-portal');
       
-      let heightLeft = imgHeight;
-      let position = 0;
-      
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-      heightLeft -= 210;
-      
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-        heightLeft -= 210;
+      for (let i = 0; i < pageElements.length; i++) {
+        const pageEl = pageElements[i] as HTMLElement;
+        const canvas = await html2canvas(pageEl, {
+          scale: 1.5,
+          useCORS: true
+        });
+        
+        const imgData = canvas.toDataURL('image/jpeg', 0.9);
+        
+        if (i > 0) {
+          pdf.addPage();
+        }
+        
+        pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
       }
-      
+
       pdf.save(`registro-horas-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
-      toast.success("¡PDF de Registro de Horas generado con éxito!");
+      toast.success("PDF del Registro de Horas generado correctamente!");
     } catch (error: any) {
-      console.error("Erro ao gerar PDF:", error);
+      console.error("Error al generar PDF:", error);
       toast.error("Error al generar el archivo PDF: " + error.message);
     } finally {
       document.body.removeChild(container);

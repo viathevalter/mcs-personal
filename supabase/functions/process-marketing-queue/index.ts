@@ -193,22 +193,44 @@ serve(async (req) => {
       const htmlBody = formatVars(rawHtml);
       const emailSubject = formatVars(rawSubject);
       
-      let rawSender = company?.marketing_sender_email || company?.proposal_sender_email || "comercial1@mail.luminousalley.com";
-      let validSenderEmail = rawSender;
-      const lowerSender = rawSender.toLowerCase();
-      if (
-        !lowerSender.includes("triangulolda.com") &&
-        !lowerSender.includes("wiseowe.com") &&
-        !lowerSender.includes("luminousalley.com") &&
-        !lowerSender.includes("gestaologinpro.com") &&
-        !lowerSender.includes("universatv.com") &&
-        !lowerSender.includes("mastercorp")
-      ) {
-        validSenderEmail = "alex@mail.gestaologinpro.com";
+      // 1. Resolução inteligente do Remetente por Empresa e País do Lead
+      const companyTrade = (company?.trade_name || '').toUpperCase();
+      const leadTags = Array.isArray(lead.tags) ? lead.tags.join(' ').toLowerCase() : '';
+      const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy');
+      const isFranceLead = leadTags.includes('frança') || leadTags.includes('francia') || leadTags.includes('france');
+
+      let validSenderEmail = company?.marketing_sender_email || company?.proposal_sender_email || "comercial1@mail.luminousalley.com";
+      let senderName = company?.trade_name || "Comercial";
+
+      if (companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO")) {
+        if (isItalyLead) {
+          validSenderEmail = "commerciale@it.triangulolda.com";
+          senderName = "Triangolo Servizi Industriali";
+        } else {
+          validSenderEmail = "comercial2@es.triangulolda.com";
+          senderName = "Triángulo Servicios Industriales";
+        }
+      } else if (companyTrade.includes("WISEOWE")) {
+        validSenderEmail = "comercial3@fr.wiseowe.com";
+        senderName = "Wiseowe Industrie";
+      } else if (companyTrade.includes("LUMINOUS")) {
+        validSenderEmail = "comercial1@mail.luminousalley.com";
+        senderName = "Luminous Alley";
+      } else {
+        const lowerSender = validSenderEmail.toLowerCase();
+        if (
+          !lowerSender.includes("triangulolda.com") &&
+          !lowerSender.includes("wiseowe.com") &&
+          !lowerSender.includes("luminousalley.com") &&
+          !lowerSender.includes("gestaologinpro.com") &&
+          !lowerSender.includes("universatv.com") &&
+          !lowerSender.includes("mastercorp")
+        ) {
+          validSenderEmail = "alex@mail.gestaologinpro.com";
+        }
       }
 
-      const senderName = company?.trade_name || "Comercial";
-      const fromHeader = rawSender.includes("<") ? rawSender : `${senderName} <${validSenderEmail}>`;
+      const fromHeader = `${senderName} <${validSenderEmail}>`;
 
       try {
         if (!resendApiKey) {
