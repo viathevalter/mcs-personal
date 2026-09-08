@@ -21,18 +21,14 @@ import { toast } from 'sonner';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useJobFunctions } from '@/features/master-data/job-functions/hooks/useJobFunctions';
 import { jobFunctionQuestionsApi } from '@/features/master-data/job-functions/api/jobFunctionQuestionsApi';
+import { formatDateClean } from '@/shared/utils/dateUtils';
 
 const DRAFT_STORAGE_KEY = 'mcs:new_solicitud_draft';
 
 export function formatLocalDate(dateStr?: string | null): string {
     if (!dateStr) return '';
-    const cleanStr = dateStr.split('T')[0].split(' ')[0];
-    const parts = cleanStr.split('-');
-    if (parts.length === 3 && parts[0].length === 4) {
-        const [year, month, day] = parts;
-        return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-    }
-    return dateStr;
+    const formatted = formatDateClean(dateStr);
+    return formatted === 'N/A' ? dateStr : formatted;
 }
 
 export function NewSolicitudPage() {
@@ -1314,15 +1310,40 @@ export function NewSolicitudPage() {
                                                             {selectedReemplazo.source_worker_nome || 'N/A'}
                                                         </span>
                                                     </div>
-                                                    <div className="col-span-2 p-2.5 rounded-lg border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 shadow-xs">
-                                                        <span className="block text-[10px] uppercase tracking-wider font-bold text-amber-800 dark:text-amber-400">
-                                                            Data de Início Original do Reemplazo:
-                                                        </span>
-                                                        <span className="font-extrabold text-sm text-amber-900 dark:text-amber-300">
-                                                            {selectedReemplazo.target_planned_start || selectedReemplazo.target_start_date || selectedReemplazo.due_date
-                                                                ? formatLocalDate(selectedReemplazo.target_planned_start || selectedReemplazo.target_start_date || selectedReemplazo.due_date)
-                                                                : 'Não informada'}
-                                                        </span>
+                                                    <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-lg border bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 shadow-xs">
+                                                        <div>
+                                                            <span className="block text-[10px] uppercase tracking-wider font-bold text-amber-800 dark:text-amber-400">
+                                                                Data de Início Original do Reemplazo:
+                                                            </span>
+                                                            <span className="font-extrabold text-sm text-amber-900 dark:text-amber-300">
+                                                                {selectedReemplazo.due_date
+                                                                    ? formatLocalDate(selectedReemplazo.due_date)
+                                                                    : selectedReemplazo.target_start_date || selectedReemplazo.target_planned_start
+                                                                    ? formatLocalDate(selectedReemplazo.target_start_date || selectedReemplazo.target_planned_start)
+                                                                    : 'Não informada'}
+                                                            </span>
+                                                        </div>
+                                                        {selectedReemplazo.target_planned_start && (
+                                                            <div>
+                                                                <span className="block text-[10px] uppercase tracking-wider font-semibold text-slate-600 dark:text-slate-400">
+                                                                    Previsão na Alocação ({selectedReemplazo.target_worker_nome ? selectedReemplazo.target_worker_nome.split(' ')[0] : 'Candidato'}):
+                                                                </span>
+                                                                <div className="flex items-center gap-2 mt-0.5">
+                                                                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                                                        {formatLocalDate(selectedReemplazo.target_planned_start)}
+                                                                    </span>
+                                                                    {dueDate !== selectedReemplazo.target_planned_start.split('T')[0] && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setDueDate(selectedReemplazo.target_planned_start!.split('T')[0])}
+                                                                            className="text-[10px] text-amber-700 dark:text-amber-400 underline hover:text-amber-800 font-medium cursor-pointer"
+                                                                        >
+                                                                            (Usar como nova data)
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1605,7 +1626,7 @@ export function NewSolicitudPage() {
 
                                         if (actionType === 'order_postponement') {
                                             if (postponeOriginType === 'reemplazo') {
-                                                originalDateStr = selectedReemplazo?.target_planned_start || selectedReemplazo?.target_start_date || selectedReemplazo?.due_date;
+                                                originalDateStr = selectedReemplazo?.due_date || selectedReemplazo?.target_start_date || selectedReemplazo?.target_planned_start;
                                                 entityLabel = `do Reemplazo (${selectedReemplazo?.codigo || ''})`;
                                             } else {
                                                 const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
