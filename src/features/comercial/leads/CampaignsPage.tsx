@@ -967,6 +967,29 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_burgos_almeria',
+        name: '🎯 Mailing Alex - Burgos, Ávila, Almería & Cáceres (630 leads)',
+        leadCount: 630,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Burgos-Ávila-Almería-Cáceres',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
         id: 'aud_mailing_alex_badajoz',
         name: '🎯 Mailing Alex - Badajoz & Extremadura (237 leads)',
         leadCount: 237,
@@ -1083,8 +1106,8 @@ export function CampaignsPage() {
       },
       {
         id: 'aud_mailing_alex',
-        name: '🎯 Mailing Alex - Geral Espanha (4.476 leads)',
-        leadCount: 4476,
+        name: '🎯 Mailing Alex - Geral Espanha (5.028 leads)',
+        leadCount: 5028,
         filters: {
           stageId: '',
           origin: '',
