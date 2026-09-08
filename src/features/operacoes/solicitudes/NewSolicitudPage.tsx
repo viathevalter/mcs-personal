@@ -79,11 +79,61 @@ export function NewSolicitudPage() {
         queryKey: ['reemplazos_para_adiamento', selectedEmpresaId],
         queryFn: async () => {
             if (!selectedEmpresaId) return [];
-            const { data, error } = await supabase.rpc('listar_reemplazos_para_adiamento', {
+            // Try public RPC first, with fallback to core_operacoes schema
+            let { data, error } = await supabase.rpc('listar_reemplazos_para_adiamento', {
                 p_empresa_id: selectedEmpresaId
             });
             if (error) {
-                console.error("Error fetching reemplazos for postponement:", error);
+                console.warn("Retrying with core_operacoes schema...", error);
+                const res = await supabase.schema('core_operacoes').rpc('listar_reemplazos_para_adiamento', {
+                    p_empresa_id: selectedEmpresaId
+                });
+                data = res.data;
+                error = res.error;
+            }
+            if (error) {
+                console.warn("Error fetching via RPC, falling back to direct table query:", error);
+                const { data: fallbackData, error: fbError } = await supabase
+                    .schema('core_operacoes')
+                    .from('solicitudes_operativas')
+                    .select(`
+                        id, codigo, title, due_date, status, client_id, created_at,
+                        client:client_id(trade_name, legal_name),
+                        targets:solicitud_targets(
+                            target_job_function_name,
+                            target_worker:target_worker_id(id, cod_colab, nome),
+                            source_worker:source_worker_id(id, cod_colab, nome),
+                            target_assignment:target_assignment_id(planned_start_date, start_date)
+                        )
+                    `)
+                    .in('tipo', ['replacement', 'reemplazo'])
+                    .eq('empresa_id', selectedEmpresaId)
+                    .order('created_at', { ascending: false });
+
+                if (!fbError && fallbackData) {
+                    return fallbackData.map((s: any) => {
+                        const target = s.targets?.[0] || {};
+                        return {
+                            id: s.id,
+                            codigo: s.codigo,
+                            title: s.title,
+                            due_date: s.due_date,
+                            status: s.status,
+                            client_id: s.client_id,
+                            client_name: s.client?.trade_name || s.client?.legal_name || 'Cliente',
+                            target_job_function_name: target.target_job_function_name,
+                            target_worker_id: target.target_worker?.id,
+                            target_worker_cod: target.target_worker?.cod_colab,
+                            target_worker_nome: target.target_worker?.nome,
+                            source_worker_id: target.source_worker?.id,
+                            source_worker_cod: target.source_worker?.cod_colab,
+                            source_worker_nome: target.source_worker?.nome,
+                            target_planned_start: target.target_assignment?.planned_start_date,
+                            target_start_date: target.target_assignment?.start_date,
+                            created_at: s.created_at
+                        };
+                    });
+                }
                 return [];
             }
             return (data || []) as any[];
@@ -927,7 +977,7 @@ export function NewSolicitudPage() {
             
             if (actionType === 'order_postponement') {
                 const origemId = postponeOriginType === 'pedido' ? selectedPedidoId : selectedReemplazoId;
-                const { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_adiamento_inicio', {
+                let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_adiamento_inicio', {
                     payload: {
                         empresa_id: selectedEmpresaId,
                         origem_tipo: postponeOriginType,
@@ -937,6 +987,21 @@ export function NewSolicitudPage() {
                         observacoes: notes
                     }
                 });
+                if (rpcErr) {
+                    console.warn("Retrying processar_adiamento_inicio with core_operacoes schema...", rpcErr);
+                    const retryRes = await supabase.schema('core_operacoes').rpc('processar_adiamento_inicio', {
+                        payload: {
+                            empresa_id: selectedEmpresaId,
+                            origem_tipo: postponeOriginType,
+                            origem_id: origemId,
+                            nova_data_inicio: dueDate,
+                            motivo: reason,
+                            observacoes: notes
+                        }
+                    });
+                    rpcRes = retryRes.data;
+                    rpcErr = retryRes.error;
+                }
                 if (rpcErr) throw rpcErr;
 
                 targetSolicitudId = (rpcRes as any)?.solicitud_id || (postponeOriginType === 'reemplazo' ? selectedReemplazoId : (parentSolicitud?.id || ''));

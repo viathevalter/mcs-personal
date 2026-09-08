@@ -4,9 +4,10 @@
 -- e notificando os departamentos envolvidos.
 
 -- 1. RPC para listar Reemplazos com dados de cliente e trabalhadores para a tela de adiamento
+DROP FUNCTION IF EXISTS public.listar_reemplazos_para_adiamento(UUID);
 DROP FUNCTION IF EXISTS core_operacoes.listar_reemplazos_para_adiamento(UUID);
 
-CREATE OR REPLACE FUNCTION core_operacoes.listar_reemplazos_para_adiamento(p_empresa_id UUID)
+CREATE OR REPLACE FUNCTION public.listar_reemplazos_para_adiamento(p_empresa_id UUID DEFAULT NULL)
 RETURNS TABLE (
     id UUID,
     codigo VARCHAR,
@@ -15,6 +16,10 @@ RETURNS TABLE (
     status VARCHAR,
     client_id UUID,
     client_name TEXT,
+    client_site_id UUID,
+    client_site_name TEXT,
+    pedido_id UUID,
+    pedido_codigo VARCHAR,
     target_job_function_name VARCHAR,
     target_worker_id UUID,
     target_worker_cod VARCHAR,
@@ -31,27 +36,67 @@ SECURITY DEFINER
 AS $$
 BEGIN
     RETURN QUERY
-    SELECT s.id, s.codigo, s.title, s.due_date, s.status, s.client_id,
+    SELECT s.id, s.codigo, s.title, s.due_date, s.status,
+           COALESCE(s.client_id, t.source_client_id, p.client_id) AS client_id,
            COALESCE(c.trade_name, c.legal_name, 'Cliente')::TEXT AS client_name,
+           COALESCE(s.client_site_id, t.source_client_site_id, p.client_site_id) AS client_site_id,
+           COALESCE(cs.name, 'Local não informado')::TEXT AS client_site_name,
+           s.pedido_id,
+           p.codigo::VARCHAR AS pedido_codigo,
            t.target_job_function_name,
            tw.id AS target_worker_id, tw.cod_colab::VARCHAR AS target_worker_cod, tw.nome::VARCHAR AS target_worker_nome,
            sw.id AS source_worker_id, sw.cod_colab::VARCHAR AS source_worker_cod, sw.nome::VARCHAR AS source_worker_nome,
            wa.planned_start_date AS target_planned_start, wa.start_date AS target_start_date,
            s.created_at
     FROM core_operacoes.solicitudes_operativas s
-    LEFT JOIN core_common.clients c ON c.id = s.client_id
     LEFT JOIN core_operacoes.solicitud_targets t ON t.solicitud_id = s.id
+    LEFT JOIN core_common.clients c ON c.id = COALESCE(s.client_id, t.source_client_id)
+    LEFT JOIN core_common.client_sites cs ON cs.id = COALESCE(s.client_site_id, t.source_client_site_id)
+    LEFT JOIN core_comercial.pedidos p ON p.id = s.pedido_id
     LEFT JOIN core_personal.workers tw ON tw.id = t.target_worker_id
     LEFT JOIN core_personal.workers sw ON sw.id = t.source_worker_id
     LEFT JOIN core_personal.worker_assignments wa ON wa.id = t.target_assignment_id
-    WHERE s.tipo = 'replacement'
+    WHERE (s.tipo IN ('replacement', 'reemplazo') OR s.codigo LIKE 'R-%')
       AND (p_empresa_id IS NULL OR s.empresa_id = p_empresa_id)
     ORDER BY s.created_at DESC;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION core_operacoes.listar_reemplazos_para_adiamento(UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION core_operacoes.listar_reemplazos_para_adiamento(UUID) TO service_role;
+-- Alias in core_operacoes as well
+CREATE OR REPLACE FUNCTION core_operacoes.listar_reemplazos_para_adiamento(p_empresa_id UUID DEFAULT NULL)
+RETURNS TABLE (
+    id UUID,
+    codigo VARCHAR,
+    title VARCHAR,
+    due_date DATE,
+    status VARCHAR,
+    client_id UUID,
+    client_name TEXT,
+    client_site_id UUID,
+    client_site_name TEXT,
+    pedido_id UUID,
+    pedido_codigo VARCHAR,
+    target_job_function_name VARCHAR,
+    target_worker_id UUID,
+    target_worker_cod VARCHAR,
+    target_worker_nome VARCHAR,
+    source_worker_id UUID,
+    source_worker_cod VARCHAR,
+    source_worker_nome VARCHAR,
+    target_planned_start DATE,
+    target_start_date DATE,
+    created_at TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY SELECT * FROM public.listar_reemplazos_para_adiamento(p_empresa_id);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.listar_reemplazos_para_adiamento(UUID) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION core_operacoes.listar_reemplazos_para_adiamento(UUID) TO authenticated, anon, service_role;
 
 -- 2. RPC para processar o adiamento de Pedido ou Reemplazo atomicamente
 DROP FUNCTION IF EXISTS core_operacoes.processar_adiamento_inicio(JSONB);
@@ -273,3 +318,17 @@ $$;
 
 GRANT EXECUTE ON FUNCTION core_operacoes.processar_adiamento_inicio(jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION core_operacoes.processar_adiamento_inicio(jsonb) TO service_role;
+
+-- Expose processar_adiamento_inicio in public schema as well
+DROP FUNCTION IF EXISTS public.processar_adiamento_inicio(JSONB);
+CREATE OR REPLACE FUNCTION public.processar_adiamento_inicio(payload JSONB)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN core_operacoes.processar_adiamento_inicio(payload);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.processar_adiamento_inicio(JSONB) TO authenticated, anon, service_role;
