@@ -61,6 +61,15 @@ export function NewSolicitudPage() {
     const pedidos = pedidosData?.pedidos || [];
     const [parentSolicitud, setParentSolicitud] = useState<{ id: string; codigo: string; title: string } | null>(null);
     
+    // Solicitud Form State
+    const [actionType, setActionType] = useState<string>(initialType);
+    const [title, setTitle] = useState('');
+    const [priority, setPriority] = useState('normal');
+    const [dueDate, setDueDate] = useState('');
+    const [reason, setReason] = useState('');
+    const [notes, setNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     // Postponement (Adiamento de Início) State: Pedido vs Reemplazo
     const [postponeOriginType, setPostponeOriginType] = useState<'pedido' | 'reemplazo'>('pedido');
     const [selectedReemplazoId, setSelectedReemplazoId] = useState<string>('all');
@@ -81,15 +90,6 @@ export function NewSolicitudPage() {
         },
         enabled: Boolean(selectedEmpresaId) && actionType === 'order_postponement'
     });
-
-    // Solicitud Form State
-    const [actionType, setActionType] = useState<string>(initialType);
-    const [title, setTitle] = useState('');
-    const [priority, setPriority] = useState('normal');
-    const [dueDate, setDueDate] = useState('');
-    const [reason, setReason] = useState('');
-    const [notes, setNotes] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Job Function and Question States
     const { data: jobFunctions = [] } = useJobFunctions(selectedEmpresaId);
