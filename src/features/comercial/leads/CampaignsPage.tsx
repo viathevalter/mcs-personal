@@ -2888,8 +2888,8 @@ export function CampaignsPage() {
                       .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, testOptOutUrl)
                       .replace(/\*\|UNSUB\|\*/gi, testOptOutUrl)
                       .replace(/\*\|UNSUBSCRIBE\|\*/gi, testOptOutUrl)
-                      .replace(/%UNSUBSCRIBE_URL%/gi, testOptOutUrl)
-                      .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${window.location.origin}/public/whatsapp`);
+                      .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${window.location.origin}/public/whatsapp`)
+                      .replace(/https:\/\/mcs\.gestaologinpro\.com/g, window.location.origin);
                     return html;
                   })()} 
                   title="Preview" 
