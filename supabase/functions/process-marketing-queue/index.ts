@@ -433,13 +433,58 @@ serve(async (req) => {
 // Helper para mover o lead para a coluna 'E-mail Enviado' da empresa da campanha
 async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId: string) {
   try {
+    // 1. Buscar o lead pelo e-mail
+    const { data: currentLead } = await supabase
+      .from("leads")
+      .select("id, empresa_id, stage_id")
+      .eq("email", leadEmail)
+      .maybeSingle();
+
+    if (!currentLead) return;
+
+    // 2. Verificar estágio atual
+    let currentOrderIndex = 0;
+    if (currentLead.stage_id) {
+      const { data: curStage } = await supabase
+        .from("kanban_stages")
+        .select("order_index")
+        .eq("id", currentLead.stage_id)
+        .maybeSingle();
+      if (curStage) currentOrderIndex = curStage.order_index;
+    }
+
+    const TRIANGULO_ID = "a798620a-358a-4c6c-9db2-3a507c583cac";
+    const WISEOWE_ID = "dae64d51-2181-4510-b14f-e63d2f111a8e";
+
+    // Regra de proteção de titularidade:
+    // Se a campanha for da Triângulo ou Wiseowe, o lead pertence a ela.
+    // Se o lead já pertence à Triângulo ou Wiseowe, uma campanha de terceiros (ex: Luminous) NUNCA pode roubar a posse!
+    let targetEmpresaId = currentLead.empresa_id;
+    if (!targetEmpresaId) {
+      targetEmpresaId = empresaId;
+    } else if (empresaId === TRIANGULO_ID || empresaId === WISEOWE_ID) {
+      targetEmpresaId = empresaId;
+    }
+
+    // Regra de avanço seguro: NUNCA regredir lead que já avançou (order_index >= 2)
+    // Se já está em 'E-mail Enviado' (2), 'E-mail Lido/Clicado' (3), 'Orçamento Solicitado' (4), etc., mantém o estágio!
+    if (currentOrderIndex >= 2) {
+      if (targetEmpresaId && targetEmpresaId !== currentLead.empresa_id) {
+        await supabase
+          .from("leads")
+          .update({ empresa_id: targetEmpresaId, updated_at: new Date().toISOString() })
+          .eq("id", currentLead.id);
+      }
+      return;
+    }
+
+    // Buscar estágio 2 ('E-mail Enviado') para targetEmpresaId
     let stageId: string | null = null;
-    
-    if (empresaId) {
+    if (targetEmpresaId) {
       const { data: stageData } = await supabase
         .from("kanban_stages")
         .select("id")
-        .eq("empresa_id", empresaId)
+        .eq("empresa_id", targetEmpresaId)
         .or(`name.ilike.%enviado%,order_index.eq.2`)
         .limit(1)
         .maybeSingle();
@@ -449,7 +494,7 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
       }
     }
 
-    // Fallback caso não ache por empresaId
+    // Fallback caso não ache por targetEmpresaId
     if (!stageId) {
       const { data: fallbackStage } = await supabase
         .from("kanban_stages")
@@ -463,8 +508,8 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
     const updatePayload: any = {
       updated_at: new Date().toISOString(),
     };
-    if (empresaId) {
-      updatePayload.empresa_id = empresaId;
+    if (targetEmpresaId) {
+      updatePayload.empresa_id = targetEmpresaId;
     }
     if (stageId) {
       updatePayload.stage_id = stageId;
@@ -473,7 +518,7 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
     await supabase
       .from("leads")
       .update(updatePayload)
-      .eq("email", leadEmail);
+      .eq("id", currentLead.id);
   } catch (e: any) {
     console.error("Erro ao atualizar estágio do lead:", e);
   }

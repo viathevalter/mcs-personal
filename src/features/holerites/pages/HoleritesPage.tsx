@@ -58,7 +58,7 @@ import { Badge } from "@/components/ui/badge";
 import { Combobox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 
 import { useWorkersForHolerites } from '../hooks/useWorkersForHolerites';
@@ -128,6 +128,25 @@ function formatHoursClean(val: number | string): string {
     const num = Number(val || 0);
     const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
     return rounded.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function formatToLocalDateKey(val: any): string {
+    if (!val) return '';
+    if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return String(val).split('T')[0];
+    try {
+        const formatter = new Intl.DateTimeFormat('en-CA', { 
+            timeZone: 'Europe/Madrid',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return formatter.format(d);
+    } catch {
+        const copy = new Date(d.getTime() + 3 * 3600 * 1000);
+        return copy.toISOString().split('T')[0];
+    }
 }
 
 function getWorkerStatusBadge(worker: any, mesReferencia: string) {
@@ -222,6 +241,7 @@ function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
 }
 
 export function HoleritesPage() {
+    const queryClient = useQueryClient();
     const { i18n } = useTranslation();
     const currentLocale = i18n.language.startsWith('pt') ? pt : es;
     const { selectedEmpresaId, setSelectedEmpresaId, empresas } = useEmpresa();
@@ -418,12 +438,33 @@ export function HoleritesPage() {
                 console.error("Error fetching faturas for holerites adjustments:", faturasErr);
             }
 
-            const faturaInfoMap = new Map<string, { cliente_nombre: string; contratante: string }>();
+            const faturaInfoMap = new Map<string, { cliente_nombre: string; contratante: string; client_id?: string; empresa_id?: string }>();
+            const faturaDisputedMap = new Map<string, Record<string, Record<string, number>>>();
+            const clientDisputedMap = new Map<string, Record<string, Record<string, number>>>();
+            const globalDisputedHours = new Map<string, number>();
+
             if (faturas) {
                 faturas.forEach((f: any) => {
                     const cName = clientNameMap.get(f.client_id) || '';
                     const empName = empresaNameMap.get(f.empresa_id) || '';
-                    faturaInfoMap.set(f.id, { cliente_nombre: cName, contratante: empName });
+                    faturaInfoMap.set(f.id, { cliente_nombre: cName, contratante: empName, client_id: f.client_id, empresa_id: f.empresa_id });
+
+                    const disp = f.ajustes_json?.disputed_hours;
+                    if (disp && typeof disp === 'object' && Object.keys(disp).length > 0) {
+                        faturaDisputedMap.set(f.id, disp);
+                        if (f.client_id) {
+                            clientDisputedMap.set(f.client_id, disp);
+                        }
+                        Object.keys(disp).forEach(wId => {
+                            const datesObj = disp[wId];
+                            if (datesObj && typeof datesObj === 'object') {
+                                Object.keys(datesObj).forEach(dateStr => {
+                                    const val = Number(datesObj[dateStr]);
+                                    globalDisputedHours.set(`${wId}_${dateStr}`, val);
+                                });
+                            }
+                        });
+                    }
                 });
             }
 
@@ -452,35 +493,6 @@ export function HoleritesPage() {
                 }
             });
 
-            // Global map of disputed/adjusted hours: key = `${worker_id}_${dateStr}` -> adjusted hours value
-            const globalDisputedHours = new Map<string, number>();
-            if (faturas) {
-                faturas.forEach((f: any) => {
-                    const disp = f.ajustes_json?.disputed_hours;
-                    if (disp && typeof disp === 'object') {
-                        Object.keys(disp).forEach(wId => {
-                            const datesObj = disp[wId];
-                            if (datesObj && typeof datesObj === 'object') {
-                                Object.keys(datesObj).forEach(dateStr => {
-                                    const val = Number(datesObj[dateStr]);
-                                    globalDisputedHours.set(`${wId}_${dateStr}`, val);
-                                });
-                            }
-                        });
-                    }
-                });
-            }
-
-            const dailyRawMap = new Map<string, number>();
-            const dailyEffectiveMap = new Map<string, number>();
-            const adjustedWorkerIds = new Set<string>();
-            const workerClientsMap = new Map<string, Set<string>>();
-            const workerCompanyHoursMap = new Map<string, Map<string, number>>();
-            const workerClientHoursMap = new Map<string, Map<string, number>>();
-            const workerCompanyClientsMap = new Map<string, Map<string, Map<string, number>>>();
-            const workerAllContratantes = new Map<string, Set<string>>();
-            const workerAllClients = new Map<string, Set<string>>();
-
             const workerCodMap = new Map<string, string>();
             const workerContratanteMap = new Map<string, string>();
             (workers || []).forEach(w => {
@@ -490,98 +502,127 @@ export function HoleritesPage() {
                 }
             });
 
+            // Group raw records by worker_id, client_id, fatura_id, and local dateKey
+            const groupedHours = new Map<string, {
+                worker_id: string;
+                client_id?: string;
+                fatura_id?: string;
+                dateKey: string;
+                rawHours: number;
+            }>();
+
             allRows.forEach((row: any) => {
                 if (row.worker_id && row.data_trabalho) {
-                    const dateKey = row.data_trabalho.includes('T') ? row.data_trabalho.split('T')[0] : row.data_trabalho;
+                    const dateKey = formatToLocalDateKey(row.data_trabalho);
                     if (!dateKey.startsWith(mesReferencia)) return;
 
-                    const key = `${row.worker_id}_${dateKey}`;
-                    const rawH = Number(row.horas_totais || 0);
-
-                    const prevRaw = dailyRawMap.get(key) || 0;
-                    dailyRawMap.set(key, prevRaw + rawH);
-
-                    // Track company and client for worker
-                    const fInfo = faturaInfoMap.get(row.fatura_id);
-                    const clientName = (fInfo?.cliente_nombre || clientNameMap.get(row.client_id) || '').trim();
-
-                    const cod = workerCodMap.get(row.worker_id) || '';
-                    const allocEmp = (cod && clientName) ? allocsByCodAndClient.get(`${cod.toUpperCase()}_${clientName.toUpperCase()}`) : null;
-                    const defWorkerEmp = workerContratanteMap.get(row.worker_id) || '';
-
-                    const rawContratante = fInfo?.contratante || allocEmp || clientEmpresaMap.get(row.client_id) || defWorkerEmp;
-                    const normContratante = normalizeEmpresaName(rawContratante);
-
-                    if (clientName) {
-                        if (!workerAllClients.has(row.worker_id)) workerAllClients.set(row.worker_id, new Set());
-                        workerAllClients.get(row.worker_id)!.add(clientName);
-
-                        if (!workerClientsMap.has(row.worker_id)) workerClientsMap.set(row.worker_id, new Set());
-                        workerClientsMap.get(row.worker_id)!.add(clientName);
-
-                        if (!workerClientHoursMap.has(row.worker_id)) workerClientHoursMap.set(row.worker_id, new Map());
-                        const clMap = workerClientHoursMap.get(row.worker_id)!;
-                        clMap.set(clientName, (clMap.get(clientName) || 0) + rawH);
+                    const groupKey = `${row.worker_id}__${row.client_id || 'none'}__${row.fatura_id || 'none'}__${dateKey}`;
+                    if (!groupedHours.has(groupKey)) {
+                        groupedHours.set(groupKey, {
+                            worker_id: row.worker_id,
+                            client_id: row.client_id,
+                            fatura_id: row.fatura_id,
+                            dateKey,
+                            rawHours: 0
+                        });
                     }
-
-                    if (normContratante) {
-                        if (!workerAllContratantes.has(row.worker_id)) workerAllContratantes.set(row.worker_id, new Set());
-                        workerAllContratantes.get(row.worker_id)!.add(normContratante);
-
-                        if (!workerCompanyHoursMap.has(row.worker_id)) workerCompanyHoursMap.set(row.worker_id, new Map());
-                        const compMap = workerCompanyHoursMap.get(row.worker_id)!;
-                        compMap.set(normContratante, (compMap.get(normContratante) || 0) + rawH);
-                    }
-
-                    if (normContratante && clientName) {
-                        if (!workerCompanyClientsMap.has(row.worker_id)) workerCompanyClientsMap.set(row.worker_id, new Map());
-                        const compMap = workerCompanyClientsMap.get(row.worker_id)!;
-                        if (!compMap.has(normContratante)) compMap.set(normContratante, new Map());
-                        const clMap = compMap.get(normContratante)!;
-                        clMap.set(clientName, (clMap.get(clientName) || 0) + rawH);
-                    }
+                    groupedHours.get(groupKey)!.rawHours += Number(row.horas_totais || 0);
                 }
             });
 
-            // 1. Map raw hours and overlay tracking disputed hours where raw hours existed
-            dailyRawMap.forEach((rawDayVal, key) => {
-                const [wId] = key.split('_');
-                let effectiveDayVal = rawDayVal;
-
-                if (globalDisputedHours.has(key)) {
-                    effectiveDayVal = globalDisputedHours.get(key)!;
-                    if (effectiveDayVal !== rawDayVal) {
-                        adjustedWorkerIds.add(wId);
+            // Also include newly added tracking hours where raw rows did not exist in horas_trabalhadas
+            faturaDisputedMap.forEach((disp, fId) => {
+                const fInfo = faturaInfoMap.get(fId);
+                Object.keys(disp).forEach(wId => {
+                    const datesObj = disp[wId];
+                    if (datesObj && typeof datesObj === 'object') {
+                        Object.keys(datesObj).forEach(dateKey => {
+                            if (!dateKey.startsWith(mesReferencia)) return;
+                            const groupKey = `${wId}__${fInfo?.client_id || 'none'}__${fId}__${dateKey}`;
+                            if (!groupedHours.has(groupKey)) {
+                                groupedHours.set(groupKey, {
+                                    worker_id: wId,
+                                    client_id: fInfo?.client_id,
+                                    fatura_id: fId,
+                                    dateKey,
+                                    rawHours: 0
+                                });
+                            }
+                        });
                     }
-                }
-
-                dailyEffectiveMap.set(key, effectiveDayVal);
-            });
-
-            // 2. ALSO include newly added tracking hours where raw rows did not exist in horas_trabalhadas
-            globalDisputedHours.forEach((dispVal, key) => {
-                const [wId, dateKey] = key.split('_');
-                if (dateKey && dateKey.startsWith(mesReferencia)) {
-                    if (!dailyEffectiveMap.has(key)) {
-                        dailyEffectiveMap.set(key, dispVal);
-                        if (dispVal > 0) {
-                            adjustedWorkerIds.add(wId);
-                        }
-                    }
-                }
+                });
             });
 
             const sumMap = new Map<string, number>();
             const rawSumMap = new Map<string, number>();
+            const adjustedWorkerIds = new Set<string>();
+            const workerClientsMap = new Map<string, Set<string>>();
+            const workerCompanyHoursMap = new Map<string, Map<string, number>>();
+            const workerClientHoursMap = new Map<string, Map<string, number>>();
+            const workerCompanyClientsMap = new Map<string, Map<string, Map<string, number>>>();
+            const workerAllContratantes = new Map<string, Set<string>>();
+            const workerAllClients = new Map<string, Set<string>>();
 
-            dailyRawMap.forEach((rawVal, key) => {
-                const [wId] = key.split('_');
-                rawSumMap.set(wId, (rawSumMap.get(wId) || 0) + rawVal);
-            });
+            groupedHours.forEach(g => {
+                const { worker_id, client_id, fatura_id, dateKey, rawHours } = g;
 
-            dailyEffectiveMap.forEach((effVal, key) => {
-                const [wId] = key.split('_');
-                sumMap.set(wId, (sumMap.get(wId) || 0) + effVal);
+                let effectiveHours = rawHours;
+                const faturaDisp = fatura_id ? faturaDisputedMap.get(fatura_id) : null;
+                const clientDisp = client_id ? clientDisputedMap.get(client_id) : null;
+
+                const proposedVal = faturaDisp?.[worker_id]?.[dateKey] !== undefined
+                    ? Number(faturaDisp[worker_id][dateKey])
+                    : (clientDisp?.[worker_id]?.[dateKey] !== undefined 
+                        ? Number(clientDisp[worker_id][dateKey]) 
+                        : (globalDisputedHours.has(`${worker_id}_${dateKey}`) ? globalDisputedHours.get(`${worker_id}_${dateKey}`) : undefined));
+
+                if (proposedVal !== undefined) {
+                    effectiveHours = proposedVal;
+                    if (effectiveHours !== rawHours) {
+                        adjustedWorkerIds.add(worker_id);
+                    }
+                }
+
+                rawSumMap.set(worker_id, (rawSumMap.get(worker_id) || 0) + rawHours);
+                sumMap.set(worker_id, (sumMap.get(worker_id) || 0) + effectiveHours);
+
+                const fInfo = fatura_id ? faturaInfoMap.get(fatura_id) : null;
+                const clientName = (fInfo?.cliente_nombre || clientNameMap.get(client_id || '') || '').trim();
+                
+                const cod = workerCodMap.get(worker_id) || '';
+                const allocEmp = (cod && clientName) ? allocsByCodAndClient.get(`${cod.toUpperCase()}_${clientName.toUpperCase()}`) : null;
+                const defWorkerEmp = workerContratanteMap.get(worker_id) || '';
+                const rawContratante = fInfo?.contratante || allocEmp || clientEmpresaMap.get(client_id || '') || defWorkerEmp;
+                const normContratante = normalizeEmpresaName(rawContratante);
+
+                if (clientName) {
+                    if (!workerAllClients.has(worker_id)) workerAllClients.set(worker_id, new Set());
+                    workerAllClients.get(worker_id)!.add(clientName);
+
+                    if (!workerClientsMap.has(worker_id)) workerClientsMap.set(worker_id, new Set());
+                    workerClientsMap.get(worker_id)!.add(clientName);
+
+                    if (!workerClientHoursMap.has(worker_id)) workerClientHoursMap.set(worker_id, new Map());
+                    const clMap = workerClientHoursMap.get(worker_id)!;
+                    clMap.set(clientName, (clMap.get(clientName) || 0) + effectiveHours);
+                }
+
+                if (normContratante) {
+                    if (!workerAllContratantes.has(worker_id)) workerAllContratantes.set(worker_id, new Set());
+                    workerAllContratantes.get(worker_id)!.add(normContratante);
+
+                    if (!workerCompanyHoursMap.has(worker_id)) workerCompanyHoursMap.set(worker_id, new Map());
+                    const compMap = workerCompanyHoursMap.get(worker_id)!;
+                    compMap.set(normContratante, (compMap.get(normContratante) || 0) + effectiveHours);
+                }
+
+                if (normContratante && clientName) {
+                    if (!workerCompanyClientsMap.has(worker_id)) workerCompanyClientsMap.set(worker_id, new Map());
+                    const compMap = workerCompanyClientsMap.get(worker_id)!;
+                    if (!compMap.has(normContratante)) compMap.set(normContratante, new Map());
+                    const clMap = compMap.get(normContratante)!;
+                    clMap.set(clientName, (clMap.get(clientName) || 0) + effectiveHours);
+                }
             });
 
             // Calculate dominant month activity and multi-client / multi-company breakdowns
@@ -595,7 +636,7 @@ export function HoleritesPage() {
             }>();
 
             const allActiveWorkerIds = new Set<string>([
-                ...Array.from(dailyRawMap.keys()).map(k => k.split('_')[0]),
+                ...Array.from(groupedHours.values()).map(g => g.worker_id),
                 ...Array.from(globalDisputedHours.keys()).map(k => k.split('_')[0]),
                 ...(workers || []).map(w => w.id)
             ]);
@@ -1534,6 +1575,8 @@ export function HoleritesPage() {
                                 variant="outline" 
                                 className="h-9 px-3.5 border-amber-300 text-amber-900 bg-amber-50/80 hover:bg-amber-100 hover:text-amber-950 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 text-xs font-bold shadow-2xs transition-all"
                                 onClick={async () => {
+                                    await queryClient.invalidateQueries({ queryKey: ['db-hours-summary'] });
+                                    await queryClient.invalidateQueries({ queryKey: ['holerites-eventos'] });
                                     await refetchDbHours();
                                     toast.success('Horas e ajustes de faturamento sincronizados com sucesso!');
                                 }}

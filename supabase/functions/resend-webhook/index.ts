@@ -86,13 +86,30 @@ serve(async (req) => {
     }
 
     // 3. Processar abertura ou clique
-    if (isOpenOrClick && lead && lead.empresa_id) {
-      // Fetch 'E-mail Lido / Clicado' stage (order_index = 3) for this specific company
+    if (isOpenOrClick && lead) {
+      let targetEmpresaId = lead.empresa_id;
+
+      // Se soubermos qual campanha enviou o e-mail, a campanha determina a empresa dona
+      if (queueItem?.campaign_id) {
+        const { data: campaignData } = await supabase
+          .schema("core_comercial")
+          .from("marketing_campaigns")
+          .select("empresa_id")
+          .eq("id", queueItem.campaign_id)
+          .maybeSingle();
+        if (campaignData?.empresa_id) {
+          targetEmpresaId = campaignData.empresa_id;
+        }
+      }
+
+      if (!targetEmpresaId) targetEmpresaId = lead.empresa_id;
+
+      // Fetch 'E-mail Lido / Clicado' stage (order_index = 3) for the target company
       const { data: stages3 } = await supabase
         .schema("core_comercial")
         .from("kanban_stages")
         .select("id, order_index")
-        .eq("empresa_id", lead.empresa_id)
+        .eq("empresa_id", targetEmpresaId)
         .eq("order_index", 3)
         .limit(1);
 
@@ -102,7 +119,7 @@ serve(async (req) => {
           .schema("core_comercial")
           .from("kanban_stages")
           .select("id, order_index")
-          .eq("empresa_id", lead.empresa_id)
+          .eq("empresa_id", targetEmpresaId)
           .or("name.ilike.%Lido%,name.ilike.%Clicado%")
           .limit(1);
         stage3 = altStages3 && altStages3.length > 0 ? altStages3[0] : null;
@@ -122,18 +139,27 @@ serve(async (req) => {
           }
         }
 
+        const updatePayload: any = {
+          updated_at: new Date().toISOString(),
+        };
+
+        if (targetEmpresaId && targetEmpresaId !== lead.empresa_id) {
+          updatePayload.empresa_id = targetEmpresaId;
+        }
+
         // Move to Stage 3 if lead is currently in Stage 1 or 2
         if (stage3.order_index > currentOrderIndex) {
+          updatePayload.stage_id = stage3.id;
+        }
+
+        if (Object.keys(updatePayload).length > 1) {
           await supabase
             .schema("core_comercial")
             .from("leads")
-            .update({
-              stage_id: stage3.id,
-              updated_at: new Date().toISOString(),
-            })
+            .update(updatePayload)
             .eq("id", lead.id);
 
-          console.log(`Lead ${lead.id} (${cleanEmail}) promovido para Estágio 3 (E-mail Lido/Clicado) via Webhook (${eventType}) da Empresa ${lead.empresa_id}.`);
+          console.log(`Lead ${lead.id} (${cleanEmail}) atualizado via Webhook (${eventType}) para Empresa ${targetEmpresaId}, Stage ${updatePayload.stage_id || lead.stage_id}.`);
         }
       }
     }
