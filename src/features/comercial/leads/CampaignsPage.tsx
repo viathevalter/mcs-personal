@@ -967,6 +967,29 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_burgos_almeria',
+        name: '🚀 Mailing Alex - Inéditos Burgos, Ávila, Almería & Cáceres (469 leads)',
+        leadCount: 469,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Burgos Ávila Almería Cáceres',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
         id: 'aud_mailing_alex_burgos_almeria',
         name: '🎯 Mailing Alex - Burgos, Ávila, Almería & Cáceres (630 leads)',
         leadCount: 630,
