@@ -61,6 +61,27 @@ export function NewSolicitudPage() {
     const pedidos = pedidosData?.pedidos || [];
     const [parentSolicitud, setParentSolicitud] = useState<{ id: string; codigo: string; title: string } | null>(null);
     
+    // Postponement (Adiamento de Início) State: Pedido vs Reemplazo
+    const [postponeOriginType, setPostponeOriginType] = useState<'pedido' | 'reemplazo'>('pedido');
+    const [selectedReemplazoId, setSelectedReemplazoId] = useState<string>('all');
+
+    // Query Reemplazos for Postponement
+    const { data: reemplazos = [], isLoading: isLoadingReemplazos } = useQuery({
+        queryKey: ['reemplazos_para_adiamento', selectedEmpresaId],
+        queryFn: async () => {
+            if (!selectedEmpresaId) return [];
+            const { data, error } = await supabase.rpc('listar_reemplazos_para_adiamento', {
+                p_empresa_id: selectedEmpresaId
+            });
+            if (error) {
+                console.error("Error fetching reemplazos for postponement:", error);
+                return [];
+            }
+            return (data || []) as any[];
+        },
+        enabled: Boolean(selectedEmpresaId) && actionType === 'order_postponement'
+    });
+
     // Solicitud Form State
     const [actionType, setActionType] = useState<string>(initialType);
     const [title, setTitle] = useState('');
@@ -68,6 +89,7 @@ export function NewSolicitudPage() {
     const [dueDate, setDueDate] = useState('');
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Job Function and Question States
     const { data: jobFunctions = [] } = useJobFunctions(selectedEmpresaId);
@@ -165,6 +187,30 @@ export function NewSolicitudPage() {
         ];
     }, [filteredDropdownPedidos]);
 
+    const filteredReemplazos = React.useMemo(() => {
+        if (selectedClientId !== 'all') {
+            return (reemplazos as any[]).filter(r => r.client_id === selectedClientId);
+        }
+        return (reemplazos as any[]);
+    }, [reemplazos, selectedClientId]);
+
+    const reemplazoOptions = React.useMemo(() => {
+        const list = filteredReemplazos.map((r: any) => ({
+            value: r.id || '',
+            label: `${r.codigo} - ${r.client_name || 'Cliente'}${r.target_worker_nome ? ` (Substituto: ${r.target_worker_nome})` : r.target_job_function_name ? ` (${r.target_job_function_name})` : ''}`
+        })).filter((r: any) => r.value);
+
+        return [
+            { value: 'all', label: 'Selecione um Reemplazo...' },
+            ...list
+        ];
+    }, [filteredReemplazos]);
+
+    const selectedReemplazo = React.useMemo(() => {
+        if (selectedReemplazoId === 'all') return null;
+        return (reemplazos as any[]).find(r => r.id === selectedReemplazoId) || null;
+    }, [reemplazos, selectedReemplazoId]);
+
     const filteredAssignments = assignments.filter(a => {
         // Filter by Client
         if (selectedClientId !== 'all') {
@@ -175,13 +221,22 @@ export function NewSolicitudPage() {
         }
 
         // Filter by Pedido (Obra)
-        if ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') && selectedPedidoId !== 'all') {
+        if ((actionType === 'order_extension' || actionType === 'order_termination' || (actionType === 'order_postponement' && postponeOriginType === 'pedido')) && selectedPedidoId !== 'all') {
             const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
             const selectedPedidoCode = selectedPedido?.codigo || '';
             const assignmentPedidoCode = a.pedido?.codigo || '';
             if (assignmentPedidoCode.toLowerCase() !== selectedPedidoCode.toLowerCase()) {
                 return false;
             }
+        }
+
+        // Filter by Reemplazo
+        if (actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazoId !== 'all') {
+            const isMatch = (a as any).solicitud_id === selectedReemplazoId ||
+                            a.worker_id === selectedReemplazo?.target_worker_id ||
+                            a.id === selectedReemplazo?.target_assignment_id ||
+                            a.worker_id === selectedReemplazo?.source_worker_id;
+            if (!isMatch) return false;
         }
 
         // Filter by Client Site (for other types)
@@ -214,7 +269,7 @@ export function NewSolicitudPage() {
         return true;
     });
 
-    // Reset site and pedido when client changes (but skip the first initialization if from URL or when restoring draft)
+    // Reset site, pedido and reemplazo when client changes (but skip the first initialization if from URL or when restoring draft)
     const isFirstRender = React.useRef(true);
     useEffect(() => {
         if (isFirstRender.current || isRestoringDraftRef.current) {
@@ -223,6 +278,7 @@ export function NewSolicitudPage() {
         }
         setSelectedClientSiteId('all');
         setSelectedPedidoId('all');
+        setSelectedReemplazoId('all');
     }, [selectedClientId]);
 
     // Reset target site when target client changes
@@ -231,11 +287,11 @@ export function NewSolicitudPage() {
         setTargetClientSiteId('all');
     }, [targetClientId]);
 
-    // Auto-select workers from selected Pedido for order-level operations
+    // Auto-select workers from selected Pedido or Reemplazo for order-level operations
     useEffect(() => {
         if (isRestoringDraftRef.current) return;
 
-        if ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') && selectedPedidoId !== 'all') {
+        if ((actionType === 'order_extension' || actionType === 'order_termination' || (actionType === 'order_postponement' && postponeOriginType === 'pedido')) && selectedPedidoId !== 'all') {
             const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
             if (selectedPedido) {
                 const selectedPedidoCode = selectedPedido.codigo || '';
@@ -251,8 +307,38 @@ export function NewSolicitudPage() {
                     return nextIds;
                 });
             }
+        } else if (actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazoId !== 'all' && selectedReemplazo) {
+            const matchingAssignments = assignments.filter(a =>
+                (a as any).solicitud_id === selectedReemplazoId ||
+                a.worker_id === selectedReemplazo.target_worker_id ||
+                a.worker_id === selectedReemplazo.source_worker_id
+            );
+            const nextIds = matchingAssignments.map(a => a.id);
+            setSelectedAssignments(prev => {
+                if (prev.length === nextIds.length && prev.every(id => nextIds.includes(id))) {
+                    return prev;
+                }
+                return nextIds;
+            });
         }
-    }, [selectedPedidoId, actionType, assignments, pedidos]);
+    }, [selectedPedidoId, selectedReemplazoId, postponeOriginType, actionType, assignments, pedidos, selectedReemplazo]);
+
+    // Pre-populate dueDate when selecting Pedido or Reemplazo in order_postponement
+    useEffect(() => {
+        if (actionType === 'order_postponement') {
+            if (postponeOriginType === 'reemplazo' && selectedReemplazo) {
+                const origDate = selectedReemplazo.target_planned_start || selectedReemplazo.target_start_date || selectedReemplazo.due_date;
+                if (origDate) {
+                    setDueDate(origDate.split('T')[0]);
+                }
+            } else if (postponeOriginType === 'pedido' && selectedPedidoId !== 'all') {
+                const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                if (p?.expected_start_date) {
+                    setDueDate(p.expected_start_date.split('T')[0]);
+                }
+            }
+        }
+    }, [actionType, postponeOriginType, selectedReemplazoId, selectedPedidoId, selectedReemplazo, pedidos]);
 
     // Pre-select functions for each selected worker
     useEffect(() => {
@@ -325,6 +411,19 @@ export function NewSolicitudPage() {
                          actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 
                          actionType === 'order_termination' ? 'Finalização de Obra' : 'Operação';
         
+        if (actionType === 'order_postponement') {
+            if (postponeOriginType === 'reemplazo' && selectedReemplazo) {
+                setTitle(`${selectedReemplazo.codigo} - ${selectedReemplazo.client_name || 'Cliente'} - Adiamento de Início`);
+                return;
+            } else if (postponeOriginType === 'pedido' && selectedPedidoId !== 'all') {
+                const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                if (p) {
+                    setTitle(`${p.codigo} - ${p.client?.trade_name || p.client?.legal_name || 'Cliente'} - Adiamento de Início`);
+                    return;
+                }
+            }
+        }
+
         if (selectedAssignments.length === 1) {
             const single = assignments.find(a => selectedAssignments.includes(a.id));
             const workerName = single?.worker?.nome || single?.worker_nome;
@@ -334,7 +433,7 @@ export function NewSolicitudPage() {
         } else {
             setTitle(`Nova Solicitação de ${typeName}`);
         }
-    }, [actionType, selectedAssignments, assignments]);
+    }, [actionType, selectedAssignments, assignments, postponeOriginType, selectedReemplazo, selectedPedidoId, pedidos]);
 
     // Load draft from localStorage on mount
     useEffect(() => {
@@ -488,18 +587,32 @@ export function NewSolicitudPage() {
                     relocation: 'reubicacion',
                     technical_test: 'prueba',
                     offboarding: 'baja',
-                    order_extension: 'pedido',
-                    order_postponement: 'pedido',
-                    order_termination: 'pedido'
+                    order_extension: 'prorrogacao',
+                    order_postponement: 'adiamento',
+                    order_termination: 'finalizacao'
                 };
-                const eventType = eventTypeMap[actionType] || 'reemplazo';
+                let eventType = eventTypeMap[actionType] || 'reemplazo';
 
-                const { data, error } = await supabase
+                let { data, error } = await supabase
                     .schema('core_comercial')
                     .from('notification_emails')
                     .select('*')
                     .eq('empresa_id', selectedEmpresaId)
                     .eq('event_type', eventType);
+
+                // Fallback for adiamento if none specifically defined yet
+                if ((!data || data.length === 0) && actionType === 'order_postponement') {
+                    const fallbackType = postponeOriginType === 'reemplazo' ? 'reemplazo' : 'pedido';
+                    const { data: fbData } = await supabase
+                        .schema('core_comercial')
+                        .from('notification_emails')
+                        .select('*')
+                        .eq('empresa_id', selectedEmpresaId)
+                        .eq('event_type', fallbackType);
+                    if (fbData && fbData.length > 0) {
+                        data = fbData;
+                    }
+                }
 
                 if (error) throw error;
                 const list = data || [];
@@ -513,7 +626,7 @@ export function NewSolicitudPage() {
         };
 
         fetchEmails();
-    }, [selectedEmpresaId, actionType]);
+    }, [selectedEmpresaId, actionType, postponeOriginType]);
 
     // Automatically update the subject and body if they haven't been manually edited
     useEffect(() => {
@@ -522,19 +635,26 @@ export function NewSolicitudPage() {
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
         
-        const clientName = selectedPedido?.client?.trade_name 
-            || selectedPedido?.client?.legal_name 
-            || firstAssignment?.client?.trade_name 
-            || firstAssignment?.client?.legal_name 
-            || selectedClientName 
-            || 'Cliente';
+        const clientName = (actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazo)
+            ? (selectedReemplazo.client_name || 'Cliente')
+            : (selectedPedido?.client?.trade_name 
+                || selectedPedido?.client?.legal_name 
+                || firstAssignment?.client?.trade_name 
+                || firstAssignment?.client?.legal_name 
+                || selectedClientName 
+                || 'Cliente');
 
-        const pedidoCodigo = selectedPedido?.codigo 
-            || firstAssignment?.pedido?.codigo 
-            || firstAssignment?.pedido_codigo 
-            || 'N/A';
+        const pedidoCodigo = (actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazo)
+            ? selectedReemplazo.codigo
+            : (selectedPedido?.codigo 
+                || firstAssignment?.pedido?.codigo 
+                || firstAssignment?.pedido_codigo 
+                || 'N/A');
 
-        const workerNames = selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
+        let workerNames = selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
+        if (!workerNames && actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazo?.target_worker_nome) {
+            workerNames = selectedReemplazo.target_worker_nome;
+        }
 
         const expectedStartStr = dueDate 
             ? formatLocalDate(dueDate)
@@ -688,9 +808,38 @@ export function NewSolicitudPage() {
     };
 
     const handleSubmit = async () => {
-        if (selectedAssignments.length === 0) return;
-        if (!reason.trim()) {
-            return;
+        if (actionType === 'order_postponement') {
+            const origemId = postponeOriginType === 'pedido' ? selectedPedidoId : selectedReemplazoId;
+            if (!origemId || origemId === 'all') {
+                toast.error(`Selecione o ${postponeOriginType === 'pedido' ? 'Pedido (Obra)' : 'Reemplazo (Substituição)'} a ser adiado.`);
+                return;
+            }
+            if (!dueDate) {
+                toast.error('Informe a nova data de início.');
+                return;
+            }
+            if (!reason.trim()) {
+                toast.error('Informe o motivo do adiamento.');
+                return;
+            }
+        } else if (actionType === 'order_extension' || actionType === 'order_termination') {
+            if ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0) {
+                toast.error('Selecione uma obra ou trabalhadores para continuar.');
+                return;
+            }
+            if (!reason.trim()) {
+                toast.error('Informe o motivo para continuar.');
+                return;
+            }
+        } else {
+            if (selectedAssignments.length === 0) {
+                toast.error('Selecione pelo menos um trabalhador na tabela.');
+                return;
+            }
+            if (!reason.trim()) {
+                toast.error('Informe o motivo para continuar.');
+                return;
+            }
         }
 
         const selectedList = assignments.filter(a => selectedAssignments.includes(a.id));
@@ -772,10 +921,27 @@ export function NewSolicitudPage() {
             targets: targets
         };
 
+        setIsSubmitting(true);
         try {
             let targetSolicitudId = '';
             
-            if ((actionType === 'order_postponement' || actionType === 'order_extension' || actionType === 'order_termination') && parentSolicitud) {
+            if (actionType === 'order_postponement') {
+                const origemId = postponeOriginType === 'pedido' ? selectedPedidoId : selectedReemplazoId;
+                const { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_adiamento_inicio', {
+                    payload: {
+                        empresa_id: selectedEmpresaId,
+                        origem_tipo: postponeOriginType,
+                        origem_id: origemId,
+                        nova_data_inicio: dueDate,
+                        motivo: reason,
+                        observacoes: notes
+                    }
+                });
+                if (rpcErr) throw rpcErr;
+
+                targetSolicitudId = (rpcRes as any)?.solicitud_id || (postponeOriginType === 'reemplazo' ? selectedReemplazoId : (parentSolicitud?.id || ''));
+                toast.success('Início adiado com sucesso! Históricos e alocações atualizados.');
+            } else if ((actionType === 'order_extension' || actionType === 'order_termination') && parentSolicitud) {
                 targetSolicitudId = parentSolicitud.id;
                 
                 // 1. Update the existing mother solicitude due_date and make sure it has the correct properties
@@ -790,17 +956,7 @@ export function NewSolicitudPage() {
                 if (updErr) throw updErr;
 
                 // 2. Update the Pedido dates and status
-                if (actionType === 'order_postponement') {
-                    const { error: pedErr } = await supabase
-                        .schema('core_comercial')
-                        .from('pedidos')
-                        .update({
-                            expected_start_date: dueDate,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', selectedPedidoId);
-                    if (pedErr) throw pedErr;
-                } else if (actionType === 'order_extension') {
+                if (actionType === 'order_extension') {
                     const { error: pedErr } = await supabase
                         .schema('core_comercial')
                         .from('pedidos')
@@ -923,9 +1079,18 @@ export function NewSolicitudPage() {
 
             await queryClient.invalidateQueries({ queryKey: ['solicitudes'] });
             await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
-            navigate(`/operacoes/solicitudes/${targetSolicitudId}`);
-        } catch (error) {
+            await queryClient.invalidateQueries({ queryKey: ['worker_assignments'] });
+            await queryClient.invalidateQueries({ queryKey: ['reemplazos_para_adiamento'] });
+            if (targetSolicitudId) {
+                navigate(`/operacoes/solicitudes/${targetSolicitudId}`);
+            } else {
+                navigate('/operacoes/solicitudes');
+            }
+        } catch (error: any) {
             console.error("Failed to process request", error);
+            toast.error(error?.message || "Falha ao processar solicitação.");
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -974,113 +1139,231 @@ export function NewSolicitudPage() {
                         <div className="flex items-center gap-2 pb-2 border-b shrink-0">
                             <Users className="w-5 h-5 text-blue-500" />
                             <h2 className="text-lg font-semibold">
-                                {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') 
-                                    ? '1. Selecionar Pedido (Obra)' 
+                                {actionType === 'order_postponement'
+                                    ? '1. Selecionar Origem do Adiamento'
+                                    : (actionType === 'order_extension' || actionType === 'order_termination')
+                                    ? '1. Selecionar Pedido (Obra)'
                                     : '1. Buscar Alocações (Trabalhadores)'}
                             </h2>
                         </div>
                         
                         {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') ? (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
-                                        <Combobox
-                                            options={clientOptions}
-                                            value={selectedClientId === 'all' ? null : selectedClientId}
-                                            onChange={(val) => setSelectedClientId(val || 'all')}
-                                            placeholder="Todos os Clientes"
-                                            emptyText="Nenhum cliente encontrado."
-                                            className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-                                        />
+                                {actionType === 'order_postponement' && (
+                                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPostponeOriginType('pedido');
+                                                setSelectedAssignments([]);
+                                            }}
+                                            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-md transition-all ${
+                                                postponeOriginType === 'pedido'
+                                                    ? 'bg-amber-500 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Pedido (Obra Completa)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPostponeOriginType('reemplazo');
+                                                setSelectedAssignments([]);
+                                            }}
+                                            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-md transition-all ${
+                                                postponeOriginType === 'reemplazo'
+                                                    ? 'bg-amber-500 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Reemplazo (Substituição)
+                                        </button>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Pedido (Obra)</label>
-                                        <Combobox
-                                            options={pedidoOptions}
-                                            value={selectedPedidoId === 'all' ? null : selectedPedidoId}
-                                            onChange={(val) => setSelectedPedidoId(val || 'all')}
-                                            placeholder="Todos os Pedidos"
-                                            emptyText="Nenhum pedido encontrado."
-                                            className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
-                                        />
-                                    </div>
-                                    {selectedPedidoId !== 'all' && (() => {
-                                        const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
-                                        if (!p) return null;
-                                        return (
-                                            <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-800 p-3 rounded-lg space-y-2">
-                                                <div className="flex justify-between items-center border-b pb-1.5 border-slate-200 dark:border-slate-800">
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Informações da Obra Selecionada</span>
-                                                    <span className="text-xs font-mono font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900/50">
-                                                        {p.codigo}
-                                                    </span>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                    <div className="col-span-1">
-                                                        <span className="text-slate-450 dark:text-slate-500 block">Cliente:</span>
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                                            {p.client?.trade_name || p.client?.legal_name || 'N/A'}
+                                )}
+
+                                {actionType === 'order_postponement' && postponeOriginType === 'reemplazo' ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Filtrar por Cliente</label>
+                                            <Combobox
+                                                options={clientOptions}
+                                                value={selectedClientId === 'all' ? null : selectedClientId}
+                                                onChange={(val) => setSelectedClientId(val || 'all')}
+                                                placeholder="Todos os Clientes"
+                                                emptyText="Nenhum cliente encontrado."
+                                                className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                                Reemplazo (Substituição) <span className="text-amber-500 font-bold">*</span>
+                                            </label>
+                                            <Combobox
+                                                options={reemplazoOptions}
+                                                value={selectedReemplazoId === 'all' ? null : selectedReemplazoId}
+                                                onChange={(val) => setSelectedReemplazoId(val || 'all')}
+                                                placeholder="Selecione o Reemplazo..."
+                                                emptyText={isLoadingReemplazos ? "Carregando reemplazos..." : "Nenhum reemplazo encontrado."}
+                                                className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                            />
+                                        </div>
+
+                                        {selectedReemplazo && (
+                                            <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-lg space-y-2.5">
+                                                <div className="flex justify-between items-center border-b pb-2 border-slate-200 dark:border-slate-800">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reemplazo Selecionado</span>
+                                                        <span className="text-xs font-mono font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50">
+                                                            {selectedReemplazo.codigo}
                                                         </span>
                                                     </div>
-                                                    <div className="col-span-1">
-                                                        <span className="text-slate-450 dark:text-slate-500 block">Obra / Local:</span>
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
-                                                            {p.client_site?.name || 'N/A'}
+                                                    {selectedReemplazo.pedido_codigo && (
+                                                        <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                                                            Pedido: {selectedReemplazo.pedido_codigo}
                                                         </span>
-                                                    </div>
-                                                    
-                                                    <div className={`p-2 rounded-lg border col-span-1 transition-all ${
-                                                        actionType === 'order_postponement'
-                                                            ? 'bg-amber-50 dark:bg-amber-955/30 border-amber-200 dark:border-amber-900/40 shadow-sm scale-[1.01]'
-                                                            : 'border-slate-100 dark:border-slate-800'
-                                                    }`}>
-                                                        <span className={`block text-[10px] uppercase tracking-wider font-bold ${
-                                                            actionType === 'order_postponement' ? 'text-amber-800 dark:text-amber-400' : 'text-slate-450 dark:text-slate-500'
-                                                        }`}>
-                                                            Data de Início Original:
-                                                        </span>
-                                                        <span className={`font-extrabold text-sm ${
-                                                            actionType === 'order_postponement' ? 'text-amber-900 dark:text-amber-300' : 'text-slate-750 dark:text-slate-300'
-                                                        }`}>
-                                                            {p.expected_start_date ? formatLocalDate(p.expected_start_date) : 'Não informada'}
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    <div className={`p-2 rounded-lg border col-span-1 transition-all ${
-                                                        actionType === 'order_extension'
-                                                            ? 'bg-emerald-50 dark:bg-emerald-955/30 border-emerald-250 dark:border-emerald-900/40 shadow-sm scale-[1.01]'
-                                                            : 'border-slate-100 dark:border-slate-800'
-                                                    }`}>
-                                                        <span className={`block text-[10px] uppercase tracking-wider font-bold ${
-                                                            actionType === 'order_extension' ? 'text-emerald-800 dark:text-emerald-400' : 'text-slate-450 dark:text-slate-500'
-                                                        }`}>
-                                                            Data de Fim Prevista:
-                                                        </span>
-                                                        <span className={`font-extrabold text-sm ${
-                                                            actionType === 'order_extension' ? 'text-emerald-900 dark:text-emerald-300' : 'text-slate-750 dark:text-slate-300'
-                                                        }`}>
-                                                            {p.expected_end_date ? formatLocalDate(p.expected_end_date) : 'Não informada'}
-                                                        </span>
-                                                    </div>
-                                                    {parentSolicitud && (
-                                                        <div className="col-span-2 pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800">
-                                                            <span className="text-slate-450 dark:text-slate-500 block">Solicitação de Origem (Novo Pedido):</span>
-                                                            <div className="flex items-center gap-1.5 mt-0.5 font-sans">
-                                                                <span className="font-mono font-semibold text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded text-[11px] border border-indigo-200 dark:border-indigo-900/30">
-                                                                    {parentSolicitud.codigo}
-                                                                </span>
-                                                                <span className="text-slate-600 dark:text-slate-400 text-[11px] font-medium">
-                                                                    {parentSolicitud.title}
-                                                                </span>
-                                                            </div>
-                                                        </div>
                                                     )}
                                                 </div>
+                                                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                                                    <div className="col-span-1">
+                                                        <span className="text-slate-400 dark:text-slate-500 block">Cliente:</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                            {selectedReemplazo.client_name || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-1">
+                                                        <span className="text-slate-400 dark:text-slate-500 block">Função / Cargo:</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                            {selectedReemplazo.target_job_function_name || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-1">
+                                                        <span className="text-slate-400 dark:text-slate-500 block">Trabalhador Substituto:</span>
+                                                        <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                            {selectedReemplazo.target_worker_nome ? `${selectedReemplazo.target_worker_nome} (${selectedReemplazo.target_worker_codigo || ''})` : 'Aguardando contratação'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-1">
+                                                        <span className="text-slate-400 dark:text-slate-500 block">Trabalhador Substituído:</span>
+                                                        <span className="font-medium text-slate-600 dark:text-slate-400">
+                                                            {selectedReemplazo.source_worker_nome || 'N/A'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="col-span-2 p-2.5 rounded-lg border bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 shadow-xs">
+                                                        <span className="block text-[10px] uppercase tracking-wider font-bold text-amber-800 dark:text-amber-400">
+                                                            Data de Início Original do Reemplazo:
+                                                        </span>
+                                                        <span className="font-extrabold text-sm text-amber-900 dark:text-amber-300">
+                                                            {selectedReemplazo.target_planned_start || selectedReemplazo.target_start_date || selectedReemplazo.due_date
+                                                                ? formatLocalDate(selectedReemplazo.target_planned_start || selectedReemplazo.target_start_date || selectedReemplazo.due_date)
+                                                                : 'Não informada'}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                        );
-                                    })()}
-                                </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
+                                            <Combobox
+                                                options={clientOptions}
+                                                value={selectedClientId === 'all' ? null : selectedClientId}
+                                                onChange={(val) => setSelectedClientId(val || 'all')}
+                                                placeholder="Todos os Clientes"
+                                                emptyText="Nenhum cliente encontrado."
+                                                className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Pedido (Obra)</label>
+                                            <Combobox
+                                                options={pedidoOptions}
+                                                value={selectedPedidoId === 'all' ? null : selectedPedidoId}
+                                                onChange={(val) => setSelectedPedidoId(val || 'all')}
+                                                placeholder="Todos os Pedidos"
+                                                emptyText="Nenhum pedido encontrado."
+                                                className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                            />
+                                        </div>
+                                        {selectedPedidoId !== 'all' && (() => {
+                                            const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                                            if (!p) return null;
+                                            return (
+                                                <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-800 p-3 rounded-lg space-y-2">
+                                                    <div className="flex justify-between items-center border-b pb-1.5 border-slate-200 dark:border-slate-800">
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Informações da Obra Selecionada</span>
+                                                        <span className="text-xs font-mono font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900/50">
+                                                            {p.codigo}
+                                                        </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                                        <div className="col-span-1">
+                                                            <span className="text-slate-450 dark:text-slate-500 block">Cliente:</span>
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                                {p.client?.trade_name || p.client?.legal_name || 'N/A'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="col-span-1">
+                                                            <span className="text-slate-450 dark:text-slate-500 block">Obra / Local:</span>
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                                                {p.client_site?.name || 'N/A'}
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        <div className={`p-2 rounded-lg border col-span-1 transition-all ${
+                                                            actionType === 'order_postponement'
+                                                                ? 'bg-amber-50 dark:bg-amber-955/30 border-amber-200 dark:border-amber-900/40 shadow-sm scale-[1.01]'
+                                                                : 'border-slate-100 dark:border-slate-800'
+                                                        }`}>
+                                                            <span className={`block text-[10px] uppercase tracking-wider font-bold ${
+                                                                actionType === 'order_postponement' ? 'text-amber-800 dark:text-amber-400' : 'text-slate-450 dark:text-slate-500'
+                                                            }`}>
+                                                                Data de Início Original:
+                                                            </span>
+                                                            <span className={`font-extrabold text-sm ${
+                                                                actionType === 'order_postponement' ? 'text-amber-900 dark:text-amber-300' : 'text-slate-750 dark:text-slate-300'
+                                                            }`}>
+                                                                {p.expected_start_date ? formatLocalDate(p.expected_start_date) : 'Não informada'}
+                                                            </span>
+                                                        </div>
+                                                        
+                                                        <div className={`p-2 rounded-lg border col-span-1 transition-all ${
+                                                            actionType === 'order_extension'
+                                                                ? 'bg-emerald-50 dark:bg-emerald-955/30 border-emerald-250 dark:border-emerald-900/40 shadow-sm scale-[1.01]'
+                                                                : 'border-slate-100 dark:border-slate-800'
+                                                        }`}>
+                                                            <span className={`block text-[10px] uppercase tracking-wider font-bold ${
+                                                                actionType === 'order_extension' ? 'text-emerald-800 dark:text-emerald-400' : 'text-slate-450 dark:text-slate-500'
+                                                            }`}>
+                                                                Data de Fim Prevista:
+                                                            </span>
+                                                            <span className={`font-extrabold text-sm ${
+                                                                actionType === 'order_extension' ? 'text-emerald-900 dark:text-emerald-300' : 'text-slate-750 dark:text-slate-300'
+                                                            }`}>
+                                                                {p.expected_end_date ? formatLocalDate(p.expected_end_date) : 'Não informada'}
+                                                            </span>
+                                                        </div>
+                                                        {parentSolicitud && (
+                                                            <div className="col-span-2 pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800">
+                                                                <span className="text-slate-450 dark:text-slate-500 block">Solicitação de Origem (Novo Pedido):</span>
+                                                                <div className="flex items-center gap-1.5 mt-0.5 font-sans">
+                                                                    <span className="font-mono font-semibold text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded text-[11px] border border-indigo-200 dark:border-indigo-900/30">
+                                                                        {parentSolicitud.codigo}
+                                                                    </span>
+                                                                    <span className="text-slate-600 dark:text-slate-400 text-[11px] font-medium">
+                                                                        {parentSolicitud.title}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-4">
@@ -1236,7 +1519,7 @@ export function NewSolicitudPage() {
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     {actionType === 'offboarding' ? 'Data Efetiva da Baixa (Data de Saída)' : 
                                      actionType === 'relocation' ? 'Data de Início da Realocação' : 
-                                     actionType === 'order_postponement' ? 'Nova Data de Início da Obra' : 
+                                     actionType === 'order_postponement' ? (postponeOriginType === 'reemplazo' ? 'Nova Data de Início do Reemplazo' : 'Nova Data de Início da Obra') : 
                                      actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
                                      actionType === 'order_termination' ? 'Data de Encerramento (Término da Obra)' : 
                                      'Data de Início da Nova Contratação'}
@@ -1252,12 +1535,24 @@ export function NewSolicitudPage() {
                                     }`}
                                 />
                                     {dueDate && (() => {
-                                        const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
-                                        if (!p) return null;
+                                        let originalDateStr: string | null | undefined = null;
+                                        let entityLabel = 'da obra';
+
+                                        if (actionType === 'order_postponement') {
+                                            if (postponeOriginType === 'reemplazo') {
+                                                originalDateStr = selectedReemplazo?.target_planned_start || selectedReemplazo?.target_start_date || selectedReemplazo?.due_date;
+                                                entityLabel = `do Reemplazo (${selectedReemplazo?.codigo || ''})`;
+                                            } else {
+                                                const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                                                originalDateStr = p?.expected_start_date;
+                                                entityLabel = `da obra (${p?.codigo || ''})`;
+                                            }
+                                        } else if (actionType === 'order_extension') {
+                                            const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                                            originalDateStr = p?.expected_end_date;
+                                            entityLabel = `da obra (${p?.codigo || ''})`;
+                                        }
                                         
-                                        const originalDateStr = actionType === 'order_postponement' ? p.expected_start_date : 
-                                                               actionType === 'order_extension' ? p.expected_end_date : null;
-                                                               
                                         if (!originalDateStr) return null;
                                         
                                         const [y1, m1, d1] = originalDateStr.split('T')[0].split('-').map(Number);
@@ -1276,7 +1571,7 @@ export function NewSolicitudPage() {
                                                     <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-955/20 border border-amber-250 dark:border-amber-900/40 rounded-lg text-xs text-amber-800 dark:text-amber-400 font-semibold flex items-center gap-2 animate-fade-in shadow-sm">
                                                         <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
                                                         <span>
-                                                            O início da obra será adiado em <strong className="underline decoration-2 decoration-amber-500">{diffDays} dia(s)</strong> (de {formatLocalDate(originalDateStr)} para {formatLocalDate(dueDate)}).
+                                                            O início {entityLabel} será adiado em <strong className="underline decoration-2 decoration-amber-500">{diffDays} dia(s)</strong> (de {formatLocalDate(originalDateStr)} para {formatLocalDate(dueDate)}).
                                                         </span>
                                                     </div>
                                                 );
@@ -1512,22 +1807,34 @@ export function NewSolicitudPage() {
                                 className="w-full" 
                                 size="lg"
                                 disabled={
-                                    ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-                                        ? (selectedPedidoId === 'all' && selectedAssignments.length === 0)
+                                    (actionType === 'order_postponement'
+                                        ? (postponeOriginType === 'reemplazo' 
+                                            ? (!selectedReemplazoId || selectedReemplazoId === 'all')
+                                            : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
+                                        : (actionType === 'order_extension' || actionType === 'order_termination')
+                                        ? ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0)
                                         : (selectedAssignments.length === 0)) ||
                                     !reason.trim() ||
-                                    createSolicitudWithTargets.isPending
+                                    (actionType === 'order_postponement' && !dueDate) ||
+                                    createSolicitudWithTargets.isPending ||
+                                    isSubmitting
                                 }
                                 onClick={handleSubmit}
                             >
                                 <CheckCircle2 className="w-5 h-5 mr-2" />
-                                {createSolicitudWithTargets.isPending ? 'Criando...' : 'Iniciar Operação'}
+                                {createSolicitudWithTargets.isPending || isSubmitting ? 'Processando...' : 'Iniciar Operação'}
                             </Button>
-                            {((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
-                                ? (selectedPedidoId === 'all' && selectedAssignments.length === 0)
+                            {(actionType === 'order_postponement'
+                                ? (postponeOriginType === 'reemplazo' 
+                                    ? (!selectedReemplazoId || selectedReemplazoId === 'all')
+                                    : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
+                                : (actionType === 'order_extension' || actionType === 'order_termination')
+                                ? ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0)
                                 : (selectedAssignments.length === 0)) && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
-                                    {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+                                    {actionType === 'order_postponement' && postponeOriginType === 'reemplazo'
+                                        ? 'Selecione um Reemplazo (Substituição) para continuar.'
+                                        : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
                                         ? 'Selecione um Pedido (Obra) ou pelo menos um trabalhador para continuar.'
                                         : 'Selecione pelo menos um trabalhador na tabela.'}
                                 </p>
@@ -1535,6 +1842,11 @@ export function NewSolicitudPage() {
                             {!reason.trim() && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
                                     Informe um motivo para continuar.
+                                </p>
+                            )}
+                            {actionType === 'order_postponement' && !dueDate && (
+                                <p className="text-xs text-center text-amber-600 mt-2">
+                                    Informe a nova data de início.
                                 </p>
                             )}
                         </div>
