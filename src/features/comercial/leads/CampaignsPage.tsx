@@ -1013,6 +1013,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_cordoba_granada_girona',
+        name: '🚀 Mailing Alex - Inéditos Córdoba, Granada & Girona (410 leads)',
+        leadCount: 410,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Córdoba Granada Girona',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_alex_cordoba_granada_girona',
+        name: '🎯 Mailing Alex - Córdoba, Granada & Girona (477 leads)',
+        leadCount: 477,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Córdoba Granada Girona',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
         id: 'aud_mailing_alex_ineditos_ciudadreal_toledo_cadiz',
         name: '🚀 Mailing Alex - Inéditos Ciudad Real, Toledo, Cádiz, Cantabria & Castellón (413 leads)',
         leadCount: 413,
@@ -1221,8 +1267,8 @@ export function CampaignsPage() {
       },
       {
         id: 'aud_mailing_alex',
-        name: '🎯 Mailing Alex - Geral Espanha (5.466 leads)',
-        leadCount: 5466,
+        name: '🎯 Mailing Alex - Geral Espanha (5.905 leads)',
+        leadCount: 5905,
         filters: {
           stageId: '',
           origin: '',
