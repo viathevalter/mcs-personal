@@ -572,6 +572,52 @@ export function CampaignsPage() {
     if (isTriangulo) {
       return [
         {
+          id: 'aud_triangulo_mitchelle_ineditos',
+          name: '🚀 Triângulo (Mitchelle) - Inéditos Espanha (74 leads)',
+          leadCount: 74,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Triangulo Mitchelle Inéditos',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_triangulo_mitchelle_geral',
+          name: '🎯 Triângulo (Mitchelle) - Mailing Geral Empresas Espanha (181 leads)',
+          leadCount: 181,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Triangulo Mitchelle',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
           id: 'aud_triangulo_michelle_es_geral',
           name: '🎯 Triângulo (Michelle) - Geral Espanha Sem Alex (6.546 leads)',
           leadCount: 6546,
