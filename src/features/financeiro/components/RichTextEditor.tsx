@@ -33,6 +33,30 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
         }
     };
 
+    const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+        const items = e.clipboardData?.items;
+        if (items) {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const blob = items[i].getAsFile();
+                    if (blob) {
+                        e.preventDefault();
+                        const reader = new FileReader();
+                        reader.onload = (uploadEvent) => {
+                            const base64 = uploadEvent.target?.result as string;
+                            if (base64) {
+                                document.execCommand('insertHTML', false, `<div><img src="${base64}" style="max-width: 100%; max-height: 380px; border-radius: 8px; margin: 8px 0;" alt="Screenshot" /></div><br/>`);
+                                handleInput();
+                            }
+                        };
+                        reader.readAsDataURL(blob);
+                        return;
+                    }
+                }
+            }
+        }
+    };
+
     const executeCommand = (command: string, value: string = '') => {
         document.execCommand(command, false, value);
         handleInput();
@@ -250,8 +274,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
                 ref={editorRef}
                 contentEditable
                 onInput={handleInput}
+                onPaste={handlePaste}
                 data-placeholder={placeholder || ''}
-                className="w-full p-4 text-xs focus:outline-none overflow-y-auto bg-background text-slate-800 dark:text-slate-200 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none"
+                className="w-full p-4 text-xs focus:outline-none overflow-y-auto bg-background text-slate-800 dark:text-slate-200 font-sans leading-relaxed prose prose-sm dark:prose-invert max-w-none empty:before:content-[attr(data-placeholder)] empty:before:text-slate-400 empty:before:pointer-events-none [&_img]:max-w-full [&_img]:max-h-[350px] [&_img]:rounded-lg [&_img]:border [&_img]:border-slate-200 dark:[&_img]:border-slate-700 [&_img]:shadow-xs"
                 style={{ outline: 'none', minHeight: minHeight || '380px', maxHeight: maxHeight || 'none' }}
             />
         </div>

@@ -84,9 +84,16 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
         }
     };
 
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    const isHtmlContent = (str: string) => {
+        if (!str) return false;
+        return /<[a-z][\s\S]*>/i.test(str) || str.includes('<img') || str.includes('<div') || str.includes('<p') || str.includes('<br') || str.includes('<span');
+    };
+
     const handleAddObs = async () => {
-        const textContent = novaObs.replace(/<[^>]*>/g, '').trim();
-        if (!textContent) return;
+        const hasTextOrImage = novaObs.includes('<img') || novaObs.replace(/<[^>]*>/g, '').trim().length > 0;
+        if (!hasTextOrImage) return;
 
         setIsSaving(true);
         try {
@@ -185,10 +192,16 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
                                             <h4 className={`font-semibold text-sm ${isRecebimento ? 'text-green-700' : 'text-brand-primary'}`}>
                                                 {obs.tipo}
                                             </h4>
-                                            {obs.descricao.trim().startsWith('<') ? (
+                                            {isHtmlContent(obs.descricao) ? (
                                                 <div 
-                                                    className="text-gray-850 dark:text-slate-200 text-sm mt-1 leading-relaxed prose prose-sm dark:prose-invert max-w-none break-words" 
+                                                    className="text-gray-850 dark:text-slate-200 text-sm mt-1 leading-relaxed prose prose-sm dark:prose-invert max-w-none break-words [&_img]:max-w-full [&_img]:max-h-[420px] [&_img]:rounded-lg [&_img]:border [&_img]:border-slate-200 dark:[&_img]:border-slate-700 [&_img]:shadow-xs [&_img]:my-2 [&_img]:object-contain [&_img]:cursor-zoom-in" 
                                                     dangerouslySetInnerHTML={{ __html: obs.descricao }} 
+                                                    onClick={(e) => {
+                                                        const target = e.target as HTMLElement;
+                                                        if (target.tagName === 'IMG') {
+                                                            setSelectedImage((target as HTMLImageElement).src);
+                                                        }
+                                                    }}
                                                 />
                                             ) : (
                                                 <p className="text-gray-800 dark:text-slate-300 text-sm mt-1 whitespace-pre-wrap break-words">{obs.descricao}</p>
@@ -219,7 +232,7 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
                     <div className="flex justify-end">
                         <Button 
                             onClick={handleAddObs} 
-                            disabled={isSaving || !novaObs.replace(/<[^>]*>/g, '').trim()}
+                            disabled={isSaving || !(novaObs.includes('<img') || novaObs.replace(/<[^>]*>/g, '').trim().length > 0)}
                             className="bg-brand-primary hover:bg-brand-primary/90 font-bold"
                         >
                             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
@@ -228,6 +241,30 @@ export const ObservacoesModal: React.FC<ObservacoesModalProps> = ({ titulo, isOp
                     </div>
                 </div>
             </div>
+
+            {/* Lightbox / Image Viewer */}
+            {selectedImage && (
+                <div 
+                    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out"
+                    onClick={() => setSelectedImage(null)}
+                >
+                    <div className="relative max-w-5xl max-h-[90vh] bg-slate-900 rounded-xl overflow-hidden shadow-2xl p-2" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setSelectedImage(null)}
+                            className="absolute top-3 right-3 text-white hover:bg-white/20 z-10 rounded-full"
+                        >
+                            <X size={20} />
+                        </Button>
+                        <img 
+                            src={selectedImage} 
+                            alt="Visualização da imagem" 
+                            className="max-w-full max-h-[85vh] object-contain rounded-lg mx-auto" 
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

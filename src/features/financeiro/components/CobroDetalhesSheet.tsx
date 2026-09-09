@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -64,6 +65,12 @@ export function CobroDetalhesSheet({
     const [novaObs, setNovaObs] = useState('');
     const [isSavingObs, setIsSavingObs] = useState(false);
     const [currentUser, setCurrentUser] = useState('Sistema');
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    const isHtmlContent = (str: string) => {
+        if (!str) return false;
+        return /<[a-z][\s\S]*>/i.test(str) || str.includes('<img') || str.includes('<div') || str.includes('<p') || str.includes('<br') || str.includes('<span');
+    };
 
     const partialPaymentsList = React.useMemo(() => {
         if (!titulo) return [];
@@ -256,6 +263,7 @@ export function CobroDetalhesSheet({
     const isOverdue = titulo.Status !== 'Pago' && titulo.Status !== 'Judicial' && titulo.Status !== 'Negociado' && titulo.Dt_venc && new Date(titulo.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
 
     return (
+        <>
         <Sheet open={isOpen} onOpenChange={(val) => !val && onClose()}>
             <SheetContent className="sm:max-w-xl flex flex-col h-full p-0 dark:bg-slate-900 dark:border-slate-800">
                 {/* Header Summary */}
@@ -473,7 +481,20 @@ export function CobroDetalhesSheet({
                                                     <h4 className={`font-bold text-xs ${isRecebimento ? 'text-green-700' : isJuridico ? 'text-red-700' : 'text-brand-primary'}`}>
                                                         {obs.tipo}
                                                     </h4>
-                                                    <p className="text-slate-800 dark:text-slate-300 text-xs mt-1 leading-relaxed">{obs.descricao}</p>
+                                                    {isHtmlContent(obs.descricao) ? (
+                                                        <div 
+                                                            className="text-slate-800 dark:text-slate-300 text-xs mt-1 leading-relaxed prose dark:prose-invert max-w-none break-words [&_img]:max-h-48 [&_img]:rounded-md [&_img]:border [&_img]:border-slate-200 [&_img]:my-2 [&_img]:cursor-zoom-in hover:[&_img]:opacity-95 transition-opacity"
+                                                            dangerouslySetInnerHTML={{ __html: obs.descricao }}
+                                                            onClick={(e) => {
+                                                                const target = e.target as HTMLElement;
+                                                                if (target.tagName.toLowerCase() === 'img') {
+                                                                    setSelectedImage((target as HTMLImageElement).src);
+                                                                }
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <p className="text-slate-800 dark:text-slate-300 text-xs mt-1 leading-relaxed whitespace-pre-wrap break-words">{obs.descricao}</p>
+                                                    )}
                                                     <div className="flex items-center gap-2 mt-2 text-[10px] text-muted-foreground font-semibold">
                                                         <span>{dateObj.toLocaleDateString('pt-BR')} {dateObj.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
                                                         <span>•</span>
@@ -540,5 +561,19 @@ export function CobroDetalhesSheet({
                 </SheetFooter>
             </SheetContent>
         </Sheet>
+
+        {/* Modal de Zoom da Imagem */}
+        <Dialog open={!!selectedImage} onOpenChange={(open) => !open && setSelectedImage(null)}>
+            <DialogContent className="max-w-4xl max-h-[90vh] p-2 flex flex-col items-center justify-center bg-black/90 border-none shadow-2xl">
+                {selectedImage && (
+                    <img 
+                        src={selectedImage} 
+                        alt="Imagem ampliada" 
+                        className="max-h-[85vh] max-w-full object-contain rounded-md"
+                    />
+                )}
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }
