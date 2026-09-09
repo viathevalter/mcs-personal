@@ -14,7 +14,8 @@ import {
     Award,
     PhoneCall,
     Layers,
-    Headphones
+    Headphones,
+    CalendarDays
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
@@ -65,6 +66,7 @@ export function ComercialSidebar() {
             titleDefault: 'Power Dialer (SDR)',
             links: [
                 { to: '/comercial/discador', label: 'Cockpit Discador', icon: PhoneCall, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/discador/agenda', label: 'Agenda & Retornos', icon: CalendarDays, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/discador/trabalhos', label: 'Trabalhos & Filas', icon: Layers, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/discador/supervisao', label: 'Supervisão & KPIs', icon: BarChart3, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/discador/operadores', label: 'Operadores & Scripts', icon: Users, roles: ['admin', 'commercial', 'rh'] },

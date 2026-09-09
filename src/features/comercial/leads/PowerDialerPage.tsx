@@ -7,6 +7,7 @@ import {
   PhoneForwarded, 
   CheckCircle2, 
   Calendar, 
+  CalendarDays,
   Clock, 
   Ban, 
   User, 
@@ -67,6 +68,8 @@ import { QuickPresupuestoModal } from './components/QuickPresupuestoModal';
 import { SalesScriptCard } from './components/SalesScriptCard';
 import { LeadCallHistoryTimeline } from './components/LeadCallHistoryTimeline';
 import { ScheduleCallbackModal } from './components/ScheduleCallbackModal';
+import { SendMaterialModal } from './components/SendMaterialModal';
+import { GatekeeperModal } from './components/GatekeeperModal';
 import type { CallOutcome, RejectionReason, DialerQueueItem } from './types/dialerTypes';
 
 const countryFlags: Record<string, string> = {
@@ -107,9 +110,23 @@ export function PowerDialerPage() {
   const [callNotes, setCallNotes] = useState('');
   const [rejectionReason, setRejectionReason] = useState<RejectionReason>('has_own_team');
   const [isCallbackModalOpen, setIsCallbackModalOpen] = useState(false);
+  const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
+  const [isGatekeeperModalOpen, setIsGatekeeperModalOpen] = useState(false);
   const [callbackDate, setCallbackDate] = useState('');
   const [callbackTime, setCallbackTime] = useState('10:00');
   const [isPresupuestoModalOpen, setIsPresupuestoModalOpen] = useState(false);
+
+  // Check if a specific queueItemId was requested from Agenda
+  const queueItemIdParam = searchParams.get('queueItemId');
+
+  useEffect(() => {
+    if (queueItemIdParam && queue.length > 0) {
+      const idx = queue.findIndex(q => q.id === queueItemIdParam);
+      if (idx !== -1) {
+        setCurrentQueueIndex(idx);
+      }
+    }
+  }, [queueItemIdParam, queue]);
 
   // Selected Lead Data from Queue
   const currentQueueItem: DialerQueueItem | undefined = queue[currentQueueIndex] || queue[0];
@@ -176,7 +193,12 @@ export function PowerDialerPage() {
     window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
   };
 
-  const handleOutcomeSubmit = async (outcome: CallOutcome, customCallback?: string) => {
+  const handleOutcomeSubmit = async (
+    outcome: CallOutcome, 
+    customCallback?: string,
+    customPriority: 'high' | 'normal' | 'low' = 'normal',
+    customNotes?: string
+  ) => {
     if (!currentQueueItem || !currentLead) return;
 
     try {
@@ -187,10 +209,11 @@ export function PowerDialerPage() {
         leadId: currentLead.id,
         outcome,
         durationSeconds: callDuration,
-        notes: callNotes,
+        notes: customNotes || callNotes,
         phoneCalled: currentLead.phone,
         contactPerson: currentLead.name,
         scheduledCallbackAt: customCallback || null,
+        priority: customPriority,
         rejectionReason: outcome === 'answered_rejected' ? rejectionReason : null,
       });
 
@@ -202,7 +225,11 @@ export function PowerDialerPage() {
         outcome === 'answered_converted' 
           ? '🎉 Lead convertido com sucesso!' 
           : outcome === 'answered_callback'
-          ? '📅 Retorno agendado com sucesso!'
+          ? '📅 Retorno agendado com sucesso na Agenda!'
+          : outcome === 'answered_interested'
+          ? 'E-mail com material comercial registrado!'
+          : outcome === 'gatekeeper_blocked'
+          ? 'Contato com a recepção registrado!'
           : outcome === 'no_answer'
           ? 'Lead movido para o rodízio no fim da fila.'
           : 'Atendimento registrado!'
@@ -221,8 +248,19 @@ export function PowerDialerPage() {
   };
 
   const handleSavePresupuesto = async (payload: any) => {
-    await createQuickPresupuesto(payload);
-    await handleOutcomeSubmit('answered_converted');
+    try {
+      const createdEst = await createQuickPresupuesto(payload);
+      await handleOutcomeSubmit('answered_converted');
+      toast.success('🎉 Pré-orçamento gerado com sucesso!', {
+        action: {
+          label: 'Ver Orçamento',
+          onClick: () => navigate(`/comercial/estimaciones/${createdEst.id}`),
+        },
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || 'Erro ao gerar pré-orçamento');
+    }
   };
 
   const handleConfirmScheduleCallback = async (
@@ -232,7 +270,21 @@ export function PowerDialerPage() {
   ) => {
     setIsCallbackModalOpen(false);
     setCallNotes(richNotes);
-    await handleOutcomeSubmit('answered_callback', scheduledIso);
+    await handleOutcomeSubmit('answered_callback', scheduledIso, priority, richNotes);
+  };
+
+  const handleConfirmSendMaterial = async (materialTitle: string, emailUsed: string, notes: string) => {
+    setIsMaterialModalOpen(false);
+    await handleOutcomeSubmit('answered_interested', undefined, 'normal', notes);
+  };
+
+  const handleConfirmGatekeeper = async (notes: string, actionType: 'requeue_end' | 'schedule_tomorrow', scheduledIso?: string) => {
+    setIsGatekeeperModalOpen(false);
+    if (actionType === 'schedule_tomorrow' && scheduledIso) {
+      await handleOutcomeSubmit('answered_callback', scheduledIso, 'normal', notes);
+    } else {
+      await handleOutcomeSubmit('gatekeeper_blocked', undefined, 'normal', notes);
+    }
   };
 
   const handleNextLead = () => {
@@ -308,6 +360,15 @@ export function PowerDialerPage() {
 
         {/* Right: Quick Links to Sub-Modules */}
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/comercial/discador/agenda')}
+            className="h-8 text-xs bg-background hover:bg-muted text-foreground gap-1.5"
+          >
+            <CalendarDays className="w-3.5 h-3.5 text-amber-500" /> Agenda
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -506,6 +567,42 @@ export function PowerDialerPage() {
                   )}
                 </div>
 
+                {/* Scheduled Callback Alert Box if lead was scheduled */}
+                {currentQueueItem.scheduled_for && (
+                  <div className="p-3.5 rounded-xl bg-amber-500/10 border-2 border-amber-500/40 text-xs space-y-2.5 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="font-black text-amber-700 dark:text-amber-300 flex items-center gap-1.5 uppercase text-[11px] tracking-wide">
+                        <Calendar className="w-4 h-4 text-amber-500" />
+                        Retorno Agendado
+                      </span>
+                      <Badge className={
+                        currentQueueItem.priority === 'high' 
+                          ? 'bg-rose-500 text-white text-[10px]' 
+                          : 'bg-amber-500 text-white text-[10px]'
+                      }>
+                        {currentQueueItem.priority === 'high' ? '🔥 Alta Prioridade' : '⚡ Agendado'}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-foreground font-mono">
+                      <Clock className="w-3.5 h-3.5 text-amber-500" />
+                      {format(new Date(currentQueueItem.scheduled_for), "dd/MM/yyyy 'às' HH:mm")}
+                    </div>
+
+                    {currentQueueItem.scheduled_notes && (
+                      <div className="pt-2 border-t border-amber-500/20 space-y-1">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                          Anotações / Instruções Salvas no Agendamento:
+                        </span>
+                        <div 
+                          className="p-2.5 rounded-lg bg-background/90 border border-border text-foreground text-[11px] leading-relaxed max-h-32 overflow-y-auto"
+                          dangerouslySetInnerHTML={{ __html: currentQueueItem.scheduled_notes }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Contact Person */}
                 <div className="p-3.5 rounded-xl bg-muted/50 border border-border flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -666,7 +763,7 @@ export function PowerDialerPage() {
                   {/* Pediu Envio de Apresentação / Email */}
                   <Button
                     variant="outline"
-                    onClick={() => handleOutcomeSubmit('answered_interested')}
+                    onClick={() => setIsMaterialModalOpen(true)}
                     disabled={isLoggingCall}
                     className="h-11 bg-background hover:bg-muted text-blue-600 dark:text-blue-300 text-xs font-semibold flex items-center justify-start gap-2 px-3 border-input"
                   >
@@ -680,7 +777,7 @@ export function PowerDialerPage() {
                   {/* Barrado na Recepção */}
                   <Button
                     variant="outline"
-                    onClick={() => handleOutcomeSubmit('gatekeeper_blocked')}
+                    onClick={() => setIsGatekeeperModalOpen(true)}
                     disabled={isLoggingCall}
                     className="h-11 bg-background hover:bg-muted text-orange-600 dark:text-orange-300 text-xs font-semibold flex items-center justify-start gap-2 px-3 border-input"
                   >
@@ -757,6 +854,24 @@ export function PowerDialerPage() {
         onClose={() => setIsCallbackModalOpen(false)}
         lead={currentLead}
         onConfirm={handleConfirmScheduleCallback}
+        isSubmitting={isLoggingCall}
+      />
+
+      {/* Send Commercial Material Modal */}
+      <SendMaterialModal
+        isOpen={isMaterialModalOpen}
+        onClose={() => setIsMaterialModalOpen(false)}
+        lead={currentLead}
+        onConfirm={handleConfirmSendMaterial}
+        isSubmitting={isLoggingCall}
+      />
+
+      {/* Gatekeeper / Reception Modal */}
+      <GatekeeperModal
+        isOpen={isGatekeeperModalOpen}
+        onClose={() => setIsGatekeeperModalOpen(false)}
+        lead={currentLead}
+        onConfirm={handleConfirmGatekeeper}
         isSubmitting={isLoggingCall}
       />
     </div>

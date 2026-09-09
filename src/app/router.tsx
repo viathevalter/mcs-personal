@@ -95,6 +95,7 @@ import { NewEstimacionPage } from '../features/comercial/estimaciones/NewEstimac
 import { ComercialLayout } from '../features/comercial/layout/ComercialLayout';
 import { LeadsPage } from '../features/comercial/leads/LeadsPage';
 import { PowerDialerPage } from '../features/comercial/leads/PowerDialerPage';
+import { DialerAgendaPage } from '../features/comercial/leads/DialerAgendaPage';
 import { DialerCampaignsListPage } from '../features/comercial/leads/DialerCampaignsListPage';
 import { DialerSupervisorPage } from '../features/comercial/leads/DialerSupervisorPage';
 import { DialerOperatorsPage } from '../features/comercial/leads/DialerOperatorsPage';
@@ -274,6 +275,7 @@ export const router = createBrowserRouter([
                 children: [
                     { index: true, element: <Navigate to="/comercial/estimaciones" replace /> },
                     { path: 'discador', element: <PowerDialerPage /> },
+                    { path: 'discador/agenda', element: <DialerAgendaPage /> },
                     { path: 'discador/trabalhos', element: <DialerCampaignsListPage /> },
                     { path: 'discador/supervisao', element: <DialerSupervisorPage /> },
                     { path: 'discador/operadores', element: <DialerOperatorsPage /> },

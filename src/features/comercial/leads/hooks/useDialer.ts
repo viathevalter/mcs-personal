@@ -12,6 +12,97 @@ import type {
   DialerCampaignStatus
 } from '../types/dialerTypes';
 
+export interface ScheduledAppointmentItem {
+  id: string; // queue_item_id
+  campaign_id: string;
+  lead_id: string;
+  assigned_to?: string | null;
+  status: string;
+  priority: 'high' | 'normal' | 'low';
+  scheduled_for: string; // ISO
+  scheduled_notes?: string | null;
+  attempts_count: number;
+  last_attempt_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  campaign?: {
+    id: string;
+    title: string;
+    empresa_id: string;
+  };
+  lead?: {
+    id: string;
+    name: string;
+    company_name: string;
+    phone?: string;
+    email?: string;
+    city?: string;
+    sector?: string;
+    cargo?: string;
+    notes?: string;
+  };
+  assigned_user?: {
+    id: string;
+    display_name: string;
+    email: string;
+  } | null;
+}
+
+export function useDialerAgenda() {
+  const { selectedEmpresaId } = useEmpresa();
+
+  return useQuery({
+    queryKey: ['dialer_agenda', selectedEmpresaId],
+    queryFn: async () => {
+      if (!selectedEmpresaId) return [];
+
+      const { data: queueItems, error } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .select(`
+          id,
+          campaign_id,
+          lead_id,
+          assigned_to,
+          status,
+          priority,
+          scheduled_for,
+          scheduled_notes,
+          attempts_count,
+          last_attempt_at,
+          created_at,
+          updated_at,
+          campaign:dialer_campaigns!campaign_id ( id, title, empresa_id ),
+          lead:leads!lead_id ( id, name, company_name, phone, email, city, sector, cargo, notes )
+        `)
+        .not('scheduled_for', 'is', null)
+        .order('scheduled_for', { ascending: true });
+
+      if (error) throw error;
+
+      // Filter by current empresa_id
+      const filtered = (queueItems || []).filter(
+        (it: any) => it.campaign?.empresa_id === selectedEmpresaId || !it.campaign?.empresa_id
+      );
+
+      // Fetch users for assignment mapping
+      const { data: users } = await supabase
+        .from('mcs_users')
+        .select('id, display_name, email');
+
+      const userMap = new Map<string, any>();
+      (users || []).forEach(u => userMap.set(u.id, u));
+
+      return filtered.map((it: any) => ({
+        ...it,
+        priority: it.priority || 'normal',
+        assigned_user: it.assigned_to ? userMap.get(it.assigned_to) || null : null,
+      })) as ScheduledAppointmentItem[];
+    },
+    enabled: !!selectedEmpresaId,
+  });
+}
+
 export function useSalesScripts() {
   const { selectedEmpresaId } = useEmpresa();
 
@@ -476,12 +567,9 @@ export function useMutateDialer() {
       campaignId,
       leadId,
       outcome,
-      durationSeconds,
-      notes,
-      phoneCalled,
-      contactPerson,
       scheduledCallbackAt,
       rejectionReason,
+      priority = 'normal',
       userId,
       maxAttempts = 3,
     }: {
@@ -495,6 +583,7 @@ export function useMutateDialer() {
       contactPerson?: string;
       scheduledCallbackAt?: string | null;
       rejectionReason?: RejectionReason | null;
+      priority?: 'high' | 'normal' | 'low';
       userId?: string | null;
       maxAttempts?: number;
     }) => {
@@ -566,6 +655,7 @@ export function useMutateDialer() {
           attempts_count: newAttempts,
           scheduled_for: nextScheduledFor,
           scheduled_notes: notes || null,
+          priority: priority || 'normal',
           sort_order: currentSort + nextSortOrderModifier,
           last_attempt_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -619,6 +709,7 @@ export function useMutateDialer() {
       queryClient.invalidateQueries({ queryKey: ['lead_call_logs', vars.leadId] });
       queryClient.invalidateQueries({ queryKey: ['dialer_supervisor_kpis'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
   });
@@ -817,6 +908,71 @@ export function useMutateDialer() {
     },
   });
 
+  const updateAppointment = useMutation({
+    mutationFn: async ({
+      queueItemId,
+      scheduled_for,
+      scheduled_notes,
+      priority,
+      status,
+      assigned_to,
+    }: {
+      queueItemId: string;
+      scheduled_for?: string | null;
+      scheduled_notes?: string | null;
+      priority?: 'high' | 'normal' | 'low';
+      status?: string;
+      assigned_to?: string | null;
+    }) => {
+      const updateData: Record<string, any> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (scheduled_for !== undefined) updateData.scheduled_for = scheduled_for;
+      if (scheduled_notes !== undefined) updateData.scheduled_notes = scheduled_notes;
+      if (priority !== undefined) updateData.priority = priority;
+      if (status !== undefined) updateData.status = status;
+      if (assigned_to !== undefined) updateData.assigned_to = assigned_to;
+
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .update(updateData)
+        .eq('id', queueItemId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaign'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
+    },
+  });
+
+  const deleteAppointment = useMutation({
+    mutationFn: async (queueItemId: string) => {
+      const { error } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .update({
+          scheduled_for: null,
+          status: 'pending',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', queueItemId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaign'] });
+    },
+  });
+
   return {
     createCampaign: createCampaign.mutateAsync,
     isCreatingCampaign: createCampaign.isPending,
@@ -832,5 +988,9 @@ export function useMutateDialer() {
     isSavingSalesScript: saveSalesScript.isPending,
     deleteSalesScript: deleteSalesScript.mutateAsync,
     isDeletingSalesScript: deleteSalesScript.isPending,
+    updateAppointment: updateAppointment.mutateAsync,
+    isUpdatingAppointment: updateAppointment.isPending,
+    deleteAppointment: deleteAppointment.mutateAsync,
+    isDeletingAppointment: deleteAppointment.isPending,
   };
 }
