@@ -12,6 +12,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { ConvertLeadToClientModal } from '@/features/comercial/leads/components/ConvertLeadToClientModal';
+import { 
+  Dialog, DialogContent, DialogHeader, DialogTitle, 
+  DialogDescription, DialogFooter 
+} from '@/components/ui/dialog';
+
 interface Props {
   estimacion: any;
 }
@@ -22,6 +28,8 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const [downloading, setDownloading] = useState(false);
   const [downloadingContract, setDownloadingContract] = useState(false);
   const [downloadingSignedContract, setDownloadingSignedContract] = useState(false);
+  const [isMissingFiscalModalOpen, setIsMissingFiscalModalOpen] = useState(false);
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
 
   const initialEmail = estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email || '';
   const [emailInput, setEmailInput] = useState(initialEmail);
@@ -32,6 +40,10 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
 
   const [includeProposal, setIncludeProposal] = useState(true);
   const [includeContract, setIncludeContract] = useState(true);
+
+  const clientTaxId = estimacion.client?.tax_id || estimacion.lead?.tax_id;
+  const clientLegalName = estimacion.client?.legal_name || estimacion.lead?.legal_name;
+  const hasFiscalData = Boolean(clientTaxId && clientLegalName);
 
   const sig = estimacion.proposal_signature;
   let status = sig?.status || 'draft';
@@ -52,6 +64,11 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   };
 
   const handleSendOrRecreate = () => {
+    if (includeContract && !hasFiscalData) {
+      setIsMissingFiscalModalOpen(true);
+      return;
+    }
+
     enviarProposta.mutate({ 
       estimacionId: estimacion.id, 
       email: emailInput,
@@ -206,12 +223,109 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     });
   };
 
+  const renderFiscalWarningModals = () => (
+    <>
+      <Dialog open={isMissingFiscalModalOpen} onOpenChange={setIsMissingFiscalModalOpen}>
+        <DialogContent className="sm:max-w-[500px] border border-slate-200 dark:border-slate-800 shadow-xl rounded-xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <DialogTitle className="text-base font-bold">
+                Dados Fiscais Incompletos para Contrato
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground pt-1.5 leading-relaxed">
+              O Contrato Comercial exige obrigatoriamente a <strong>Razão Social</strong> e o <strong>CIF / NIF</strong> da empresa para possuir plena validade jurídica.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-2 text-xs text-slate-700 dark:text-slate-300 space-y-2 bg-amber-50/50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-900/40">
+            {!clientTaxId && (
+              <p className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1.5">
+                • CIF / NIF não preenchido
+              </p>
+            )}
+            {!clientLegalName && (
+              <p className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1.5">
+                • Razão Social completa não preenchida
+              </p>
+            )}
+            <p className="text-muted-foreground pt-1">
+              Recomendamos formalizar o cadastro fiscal agora para que os documentos contratuais sejam gerados com todos os campos jurídicos corretos.
+            </p>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => {
+                setIsMissingFiscalModalOpen(false);
+                setIncludeContract(false);
+                enviarProposta.mutate({
+                  estimacionId: estimacion.id,
+                  email: emailInput,
+                  includeProposal: true,
+                  includeContract: false
+                });
+              }}
+            >
+              Gerar Apenas Proposta (Sem Contrato)
+            </Button>
+            {estimacion.lead ? (
+              <Button
+                type="button"
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                onClick={() => {
+                  setIsMissingFiscalModalOpen(false);
+                  setIsConvertModalOpen(true);
+                }}
+              >
+                Completar Dados Fiscais Agora
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
+                onClick={() => {
+                  setIsMissingFiscalModalOpen(false);
+                  enviarProposta.mutate({
+                    estimacionId: estimacion.id,
+                    email: emailInput,
+                    includeProposal,
+                    includeContract
+                  });
+                }}
+              >
+                Gerar Mesmo Assim
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {estimacion.lead && (
+        <ConvertLeadToClientModal
+          isOpen={isConvertModalOpen}
+          onClose={() => setIsConvertModalOpen(false)}
+          lead={estimacion.lead}
+          estimacionId={estimacion.id}
+        />
+      )}
+    </>
+  );
+
   // Render para Rascunho / Não Enviada
   if (status === 'draft') {
     const hasUnapprovedContract = !!estimacion.custom_contract_url && !estimacion.is_custom_contract_approved;
     const isUnderReview = estimacion.status === 'review';
 
     return (
+      <>
       <Card className="border-dashed bg-slate-50/50 dark:bg-slate-900/10">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -328,12 +442,15 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           )}
         </CardContent>
       </Card>
+      {renderFiscalWarningModals()}
+      </>
     );
   }
 
   // Render para Aguardando Assinatura
   if (status === 'pending_signature') {
     return (
+      <>
       <Card className="border-amber-200 bg-amber-50/10 dark:border-amber-950/20 dark:bg-amber-950/5">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -482,12 +599,15 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           </div>
         </CardContent>
       </Card>
+      {renderFiscalWarningModals()}
+      </>
     );
   }
 
   // Render para Assinada
   if (status === 'signed') {
     return (
+      <>
       <Card className="border-emerald-200 bg-emerald-50/10 dark:border-emerald-950/20 dark:bg-emerald-950/5">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -632,6 +752,8 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           </div>
         </CardContent>
       </Card>
+      {renderFiscalWarningModals()}
+      </>
     );
   }
 

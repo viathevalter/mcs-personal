@@ -34,6 +34,8 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
   const [contactName, setContactName] = useState(lead.name || lead.company_name || '');
   const [contactEmail, setContactEmail] = useState(lead.email || '');
   const [workCity, setWorkCity] = useState(lead.city || lead.province || '');
+  const [legalName, setLegalName] = useState(lead.legal_name || lead.company_name || lead.name || '');
+  const [taxId, setTaxId] = useState(lead.tax_id || '');
   const [expectedStartDate, setExpectedStartDate] = useState(
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
   );
@@ -115,6 +117,8 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
         contact_email: contactEmail,
         work_city: workCity,
         expected_start_date: expectedStartDate,
+        legal_name: legalName,
+        tax_id: taxId,
         items,
         notes,
       });
@@ -228,6 +232,39 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                 placeholder="Ex: Cliente tem parada técnica de 45 dias no estaleiro..."
                 className="bg-background border-input text-foreground text-sm"
               />
+            </div>
+          </div>
+
+          {/* Dados Fiscais da Empresa */}
+          <div className="p-4 rounded-xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/50 dark:border-indigo-800/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                <Building2 className="w-4 h-4" />
+                Dados Fiscais da Empresa (CIF / Razão Social)
+              </Label>
+              <span className="text-[11px] text-muted-foreground">
+                Se coletado na ligação, já qualifica para contrato
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-foreground font-medium">Razão Social (Nome Registrado)</Label>
+                <Input
+                  value={legalName}
+                  onChange={e => setLegalName(e.target.value)}
+                  placeholder="Ex: Garcia & Hijos Construcciones SL"
+                  className="bg-background border-input text-foreground text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-foreground font-medium">CIF / NIF / Tax ID</Label>
+                <Input
+                  value={taxId}
+                  onChange={e => setTaxId(e.target.value)}
+                  placeholder="Ex: B12345678"
+                  className="bg-background border-input text-foreground text-sm uppercase"
+                />
+              </div>
             </div>
           </div>
 

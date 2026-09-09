@@ -746,6 +746,20 @@ export function useMutateDialer() {
       let postalCode: string | null = payload.work_city || null;
 
       if (payload.lead_id) {
+        // Update lead fiscal data if provided
+        const leadFiscalUpdates: Record<string, any> = {};
+        if (payload.legal_name?.trim()) leadFiscalUpdates.legal_name = payload.legal_name.trim();
+        if (payload.tax_id?.trim()) leadFiscalUpdates.tax_id = payload.tax_id.trim();
+
+        if (Object.keys(leadFiscalUpdates).length > 0) {
+          leadFiscalUpdates.updated_at = new Date().toISOString();
+          await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .update(leadFiscalUpdates)
+            .eq('id', payload.lead_id);
+        }
+
         const { data: leadData } = await supabase
           .schema('core_comercial')
           .from('leads')

@@ -209,6 +209,15 @@ export function LeadsPage() {
     email: '',
     phone: '',
     company_name: '',
+    legal_name: '',
+    tax_id: '',
+    country_id: '',
+    province: '',
+    city: '',
+    postal_code: '',
+    address_line: '',
+    billing_email: '',
+    payment_term_id: '',
     notes: '',
     empresa_id: '',
     sector: '',
@@ -228,6 +237,15 @@ export function LeadsPage() {
       email: '',
       phone: '',
       company_name: '',
+      legal_name: '',
+      tax_id: '',
+      country_id: '2f487ab4-c7f5-4b70-9c37-995dc4cda125', // Default Spain
+      province: '',
+      city: '',
+      postal_code: '',
+      address_line: '',
+      billing_email: '',
+      payment_term_id: '',
       notes: '',
       empresa_id: selectedEmpresaId || '',
       sector: '',
@@ -249,6 +267,15 @@ export function LeadsPage() {
       email: lead.email,
       phone: lead.phone || '',
       company_name: lead.company_name || '',
+      legal_name: lead.legal_name || '',
+      tax_id: lead.tax_id || '',
+      country_id: lead.country_id || '2f487ab4-c7f5-4b70-9c37-995dc4cda125',
+      province: lead.province || '',
+      city: lead.city || '',
+      postal_code: lead.postal_code || '',
+      address_line: lead.address_line || '',
+      billing_email: lead.billing_email || '',
+      payment_term_id: lead.payment_term_id || '',
       notes: lead.notes || '',
       empresa_id: lead.empresa_id || selectedEmpresaId || '',
       sector: lead.sector || '',
@@ -281,6 +308,15 @@ export function LeadsPage() {
 
     const payload = {
       ...formData,
+      legal_name: formData.legal_name || null,
+      tax_id: formData.tax_id || null,
+      country_id: formData.country_id || null,
+      province: formData.province || null,
+      city: formData.city || null,
+      postal_code: formData.postal_code || null,
+      address_line: formData.address_line || null,
+      billing_email: formData.billing_email || null,
+      payment_term_id: formData.payment_term_id === 'none' || !formData.payment_term_id ? null : formData.payment_term_id,
       tags: tagsArray,
       website: formData.website || null,
       linkedin_url: formData.linkedin_url || null,
@@ -382,6 +418,20 @@ export function LeadsPage() {
           payment_term_id: conversionData.payment_term_id === 'none' || conversionData.payment_term_id === '' ? null : conversionData.payment_term_id,
         } as any,
       });
+
+      // 3. Atualizar automaticamente orçamentos deste lead para vincular ao novo cliente
+      await supabase
+        .schema('core_comercial')
+        .from('estimaciones')
+        .update({ 
+          client_id: newClient.id,
+          country_id: conversionData.country_id || null,
+        })
+        .eq('lead_id', selectedLead.id)
+        .is('client_id', null);
+
+      queryClient.invalidateQueries({ queryKey: ['estimaciones'] });
+      queryClient.invalidateQueries({ queryKey: ['estimacion-detail'] });
 
       toast.success('Lead convertido em cliente com sucesso!');
       setIsConvertOpen(false);
@@ -2007,6 +2057,139 @@ export function LeadsPage() {
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       className="min-h-[85px] text-xs focus-visible:ring-yellow-500 resize-none"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção 3: Dados Fiscais & Sede Jurídica (Essencial para Contratos & Propostas) */}
+              <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800 gap-1">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-emerald-500" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Dados Fiscais & Sede (Contratos e Faturamento)
+                    </h4>
+                  </div>
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                    * Necessário para emissão de contratos e propostas com validade jurídica
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="legal_name" className="text-xs font-semibold">
+                      Razão Social
+                    </Label>
+                    <Input
+                      id="legal_name"
+                      placeholder="Ex: Tamarco Metalúrgica S.L."
+                      value={formData.legal_name}
+                      onChange={(e) => setFormData({ ...formData, legal_name: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="tax_id" className="text-xs font-semibold">
+                      CIF / NIF / Tax ID
+                    </Label>
+                    <Input
+                      id="tax_id"
+                      placeholder="Ex: B12345678"
+                      value={formData.tax_id}
+                      onChange={(e) => setFormData({ ...formData, tax_id: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="billing_email" className="text-xs font-semibold">
+                      E-mail Financeiro / Faturamento
+                    </Label>
+                    <Input
+                      id="billing_email"
+                      type="email"
+                      placeholder="Ex: faturamento@empresa.com"
+                      value={formData.billing_email}
+                      onChange={(e) => setFormData({ ...formData, billing_email: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold">País da Sede</Label>
+                    <CountrySelector
+                      value={formData.country_id || null}
+                      onChange={(val) => setFormData({ ...formData, country_id: val || '' })}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="province" className="text-xs font-semibold">Província / Estado</Label>
+                    <Input
+                      id="province"
+                      placeholder="Ex: Cádiz / Madrid"
+                      value={formData.province}
+                      onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="city" className="text-xs font-semibold">Cidade</Label>
+                    <Input
+                      id="city"
+                      placeholder="Ex: Barcelona"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="postal_code" className="text-xs font-semibold">Código Postal</Label>
+                    <Input
+                      id="postal_code"
+                      placeholder="Ex: 08001"
+                      value={formData.postal_code}
+                      onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <Label htmlFor="address_line" className="text-xs font-semibold">Endereço Completo / Sede</Label>
+                    <Input
+                      id="address_line"
+                      placeholder="Ex: Polígono Industrial Las Salinas, Calle A, Nave 12"
+                      value={formData.address_line}
+                      onChange={(e) => setFormData({ ...formData, address_line: e.target.value })}
+                      className="h-9 text-xs focus-visible:ring-emerald-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="lead_payment_term" className="text-xs font-semibold">Prazo de Pagamento</Label>
+                    <Select
+                      value={formData.payment_term_id}
+                      onValueChange={(val) => setFormData({ ...formData, payment_term_id: val })}
+                    >
+                      <SelectTrigger id="lead_payment_term" className="h-9 text-xs focus-visible:ring-emerald-500">
+                        <SelectValue placeholder="Selecione o prazo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum / A combinar</SelectItem>
+                        {paymentTerms.map((term) => (
+                          <SelectItem key={term.id} value={term.id} className="text-xs">
+                            {term.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

@@ -11,8 +11,10 @@ import { format } from 'date-fns';
 import { 
   ArrowLeft, FileText, CheckCircle2, AlertCircle, 
   MapPin, Clock, Calendar, Users, DollarSign, ExternalLink,
-  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Briefcase, Link2
+  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Building2, Briefcase, Link2, UserCheck
 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ConvertLeadToClientModal } from '@/features/comercial/leads/components/ConvertLeadToClientModal';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
   DialogDescription, DialogFooter 
@@ -41,6 +43,7 @@ export function EstimacionDetailPage() {
   const [versionNotes, setVersionNotes] = useState('');
   const [selectedHistoricalVersion, setSelectedHistoricalVersion] = useState<any>(null);
   const [isHistoricalDialogOpen, setIsHistoricalDialogOpen] = useState(false);
+  const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchSettings() {
@@ -278,35 +281,105 @@ export function EstimacionDetailPage() {
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-6">
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between pb-3">
                     <CardTitle>{t('comercial.detail.clientCard.title')}</CardTitle>
+                    {estimacion.client ? (
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400">
+                        <Building2 className="w-3 h-3 mr-1" /> Cliente Formal
+                      </Badge>
+                    ) : estimacion.lead ? (
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400">
+                        <AlertCircle className="w-3 h-3 mr-1" /> Lead de Marketing
+                      </Badge>
+                    ) : null}
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="flex items-start">
-                      <Users className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">{t('comercial.detail.clientCard.company')}</p>
-                        <p className="text-base">{estimacion.client?.legal_name}</p>
-                        {estimacion.client?.trade_name && (
-                          <p className="text-sm text-muted-foreground">{estimacion.client.trade_name}</p>
-                        )}
+                    {/* Exibição se for Cliente formal */}
+                    {estimacion.client ? (
+                      <>
+                        <div className="flex items-start">
+                          <Building className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <p className="text-sm font-medium">{t('comercial.detail.clientCard.company')}</p>
+                            <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                              {estimacion.client.legal_name || estimacion.client.trade_name}
+                            </p>
+                            {estimacion.client.trade_name && estimacion.client.trade_name !== estimacion.client.legal_name && (
+                              <p className="text-xs text-muted-foreground">{estimacion.client.trade_name}</p>
+                            )}
+                            <div className="flex items-center gap-2 pt-1 text-xs">
+                              <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-semibold text-slate-700 dark:text-slate-300">
+                                CIF / NIF: {estimacion.client.tax_id || 'Não informado'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-start">
+                          <MapPin className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium">{t('comercial.detail.clientCard.site')}</p>
+                            <p className="text-base">{estimacion.client_site?.name || t('comercial.detail.clientCard.notSpecified')}</p>
+                            {estimacion.client_site?.address ? (
+                              <p className="text-xs text-muted-foreground">{estimacion.client_site.address}</p>
+                            ) : estimacion.client.address_line ? (
+                              <p className="text-xs text-muted-foreground">{estimacion.client.address_line}</p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      /* Exibição se for Lead */
+                      <div className="space-y-3.5">
+                        <div className="flex items-start">
+                          <Building className="h-5 w-5 text-amber-500 mr-3 mt-0.5" />
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Empresa (Lead)</p>
+                            <p className="text-base font-bold text-slate-900 dark:text-slate-100">
+                              {estimacion.lead?.legal_name || estimacion.lead?.company_name || estimacion.contact_name || 'Empresa não informada'}
+                            </p>
+                            {estimacion.lead?.company_name && estimacion.lead?.legal_name && estimacion.lead.company_name !== estimacion.lead.legal_name && (
+                              <p className="text-xs text-muted-foreground">Nome Comercial: {estimacion.lead.company_name}</p>
+                            )}
+                            <div className="flex items-center gap-2 pt-1">
+                              <span className={`font-mono text-xs px-2 py-0.5 rounded font-semibold ${
+                                estimacion.lead?.tax_id 
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                                  : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400'
+                              }`}>
+                                CIF / NIF: {estimacion.lead?.tax_id || '⚠️ Não informado'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Banner de Aviso e Conversão */}
+                        <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-xl space-y-2.5">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                              Este orçamento está vinculado a um <strong>Lead de Prospecção</strong>. Para gerar o <strong>Contrato Comercial com validade jurídica</strong>, formalize este lead como Cliente preenchendo a Razão Social e o CIF.
+                            </p>
+                          </div>
+                          {estimacion.lead && (
+                            <Button 
+                              size="sm" 
+                              onClick={() => setIsConvertModalOpen(true)}
+                              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-8 shadow-sm"
+                            >
+                              <UserCheck className="w-3.5 h-3.5 mr-1.5" />
+                              Converter em Cliente & Preencher Dados Fiscais
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-start">
-                      <MapPin className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">{t('comercial.detail.clientCard.site')}</p>
-                        <p className="text-base">{estimacion.client_site?.name || t('comercial.detail.clientCard.notSpecified')}</p>
-                        {estimacion.client_site?.address && (
-                          <p className="text-sm text-muted-foreground">{estimacion.client_site.address}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-start border-t pt-4">
+                    )}
+
+                    <div className="flex items-start border-t pt-3">
                       <FileText className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{t('comercial.detail.clientCard.proposalContact')}</p>
-                        <p className="text-base">{estimacion.contact_name || t('comercial.detail.clientCard.notSpecified')}</p>
+                        <p className="text-base font-semibold">{estimacion.contact_name || t('comercial.detail.clientCard.notSpecified')}</p>
                         {estimacion.contact_email && (
                           <p className="text-sm text-muted-foreground">{estimacion.contact_email}</p>
                         )}
@@ -314,6 +387,16 @@ export function EstimacionDetailPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Modal de Conversão Lead para Cliente Direto da Estimativa */}
+                {estimacion.lead && (
+                  <ConvertLeadToClientModal
+                    isOpen={isConvertModalOpen}
+                    onClose={() => setIsConvertModalOpen(false)}
+                    lead={estimacion.lead}
+                    estimacionId={estimacion.id}
+                  />
+                )}
 
                 <ProposalSignatureStatusCard estimacion={estimacion} />
                 <CustomContractCard estimacion={estimacion} />

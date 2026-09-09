@@ -148,6 +148,8 @@ export interface QuickPresupuestoPayload {
   contact_email: string;
   expected_start_date: string;
   work_city: string;
+  legal_name?: string;
+  tax_id?: string;
   items: QuickPresupuestoItem[];
   notes?: string;
 }
