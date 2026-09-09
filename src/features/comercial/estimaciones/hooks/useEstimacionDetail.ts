@@ -82,7 +82,7 @@ export function useEstimacionDetail(id: string | undefined) {
       }
 
       // Find the current version and map it to current_version
-      const currentVersion = estimacion.versions?.find((v: any) => v.id === estimacion.current_version_id);
+      const currentVersion = estimacion.versions?.find((v: any) => v.id === estimacion.current_version_id) || estimacion.versions?.[0] || null;
       
       return {
         ...estimacion,

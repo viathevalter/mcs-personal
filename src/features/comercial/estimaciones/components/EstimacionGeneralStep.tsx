@@ -15,10 +15,16 @@ import { Button } from '@/components/ui/button';
 import { detectLeadCountry, COUNTRY_UUIDS, COUNTRY_LABELS } from '@/features/comercial/leads/utils/leadCountryUtils';
 
 const countryLanguageMap: Record<string, string> = {
-  '8caaddaf-88cd-4a50-aff6-127b8979b1c3': 'es', // Espanha
-  'd918a3b2-292e-474e-96ce-147f4ba756db': 'pt', // Portugal
-  '86a91f2d-6e94-4085-8cce-4e17197979e2': 'it', // Itália
-  '690649b9-6bab-4605-8b3e-cbe4c4af73a3': 'fr', // França
+  '2f487ab4-c7f5-4b70-9c37-995dc4cda125': 'es', // Espanha
+  'ed088451-cfb1-4fec-84ef-1115ce2af4c7': 'pt', // Portugal
+  '3623ec00-42ae-4673-a842-c20b47da0e5e': 'it', // Itália
+  'a6a47427-89f2-4e6b-b4ee-e645381a9cfd': 'fr', // França
+  'a61e8503-bbf4-4e1e-a0b3-14de34639317': 'fr', // Bélgica
+  // Legacy aliases
+  '8caaddaf-88cd-4a50-aff6-127b8979b1c3': 'es',
+  'd918a3b2-292e-474e-96ce-147f4ba756db': 'pt',
+  '86a91f2d-6e94-4085-8cce-4e17197979e2': 'it',
+  '690649b9-6bab-4605-8b3e-cbe4c4af73a3': 'fr',
 };
 
 // Utility functions for date calculations
@@ -91,7 +97,15 @@ interface Props {
 
 export function EstimacionGeneralStep({ data, onChange }: Props) {
   const { t } = useTranslation();
-  const [targetType, setTargetType] = useState<'client' | 'lead'>(data.lead_id ? 'lead' : 'client');
+  const [targetType, setTargetType] = useState<'client' | 'lead'>(data.lead_id && !data.client_id ? 'lead' : 'client');
+
+  useEffect(() => {
+    if (data.lead_id && !data.client_id) {
+      setTargetType('lead');
+    } else if (data.client_id) {
+      setTargetType('client');
+    }
+  }, [data.lead_id, data.client_id]);
   const [isCustomWeekdays, setIsCustomWeekdays] = useState(() => {
     const wl = data.hours_lunes ?? data.hours_weekday ?? 8.0;
     const wt = data.hours_martes ?? data.hours_weekday ?? 8.0;

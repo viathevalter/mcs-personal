@@ -740,6 +740,28 @@ export function useMutateDialer() {
 
       const marginPercent = totalRevenue > 0 ? ((totalRevenue - totalCost) / totalRevenue) * 100 : 30;
 
+      // Fetch lead context for country, client and address
+      let leadCountryId: string | null = '2f487ab4-c7f5-4b70-9c37-995dc4cda125'; // Default Spain
+      let leadClientId: string | null = null;
+      let postalCode: string | null = payload.work_city || null;
+
+      if (payload.lead_id) {
+        const { data: leadData } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('id, client_id, country_id, address_line, postal_code, city')
+          .eq('id', payload.lead_id)
+          .maybeSingle();
+
+        if (leadData) {
+          if (leadData.country_id) leadCountryId = leadData.country_id;
+          if (leadData.client_id) leadClientId = leadData.client_id;
+          if (leadData.postal_code || leadData.city) {
+            postalCode = leadData.postal_code || leadData.city || payload.work_city;
+          }
+        }
+      }
+
       const { data: estimacion, error: estError } = await supabase
         .schema('core_comercial')
         .from('estimaciones')
@@ -747,6 +769,10 @@ export function useMutateDialer() {
           empresa_id: selectedEmpresaId,
           codigo,
           lead_id: payload.lead_id,
+          client_id: leadClientId,
+          country_id: leadCountryId,
+          postal_code: postalCode,
+          document_language: 'es',
           estimation_type: 'new_allocation',
           contact_name: payload.contact_name,
           contact_email: payload.contact_email,
@@ -766,10 +792,10 @@ export function useMutateDialer() {
           empresa_id: selectedEmpresaId,
           estimacion_id: estimacion.id,
           version_number: 1,
-          status: 'draft',
-          total_estimated_cost: totalCost,
-          total_estimated_revenue: totalRevenue,
-          estimated_margin_percent: marginPercent,
+          status: 'active',
+          total_cost: totalCost,
+          total_revenue: totalRevenue,
+          margin_percent: marginPercent,
           notes: 'Versão inicial pré-preenchida no Cockpit de Prospecção',
         })
         .select()
@@ -786,26 +812,31 @@ export function useMutateDialer() {
       if (itemsWithCalculations.length > 0) {
         const estItemsToInsert = itemsWithCalculations.map(it => ({
           empresa_id: selectedEmpresaId,
+          estimacion_id: estimacion.id,
           estimacion_version_id: version.id,
           job_function_id: it.job_function_id,
+          job_function_name_snapshot: it.job_title || null,
+          description: it.job_title || null,
           quantity: it.quantity,
           planned_hours_per_day: it.hours_per_day,
           planned_days_per_week: it.days_per_week,
-          total_hours: it.totalHours,
-          includes_accommodation: it.includes_accommodation,
-          includes_transport: it.includes_transport,
-          includes_ppe: true,
+          planned_total_hours: it.totalHours,
+          includes_housing: Boolean(it.includes_accommodation),
+          includes_transport: Boolean(it.includes_transport),
+          includes_epi: true,
           base_cost_hour: Number((it.sell_rate_hour * 0.70).toFixed(2)),
-          recommended_sell_rate: it.sell_rate_hour,
-          minimum_sell_rate: Number((it.sell_rate_hour * 0.90).toFixed(2)),
+          recommended_sell_rate_hour: it.sell_rate_hour,
+          minimum_sell_rate_hour: Number((it.sell_rate_hour * 0.90).toFixed(2)),
           sell_rate_hour: it.sell_rate_hour,
           margin_percent: marginPercent,
         }));
 
-        await supabase
+        const { error: itemsError } = await supabase
           .schema('core_comercial')
           .from('estimacion_items')
           .insert(estItemsToInsert);
+
+        if (itemsError) throw itemsError;
       }
 
       const { data: stages } = await supabase
