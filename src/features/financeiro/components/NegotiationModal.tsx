@@ -33,6 +33,11 @@ const stripHtml = (html: string) => {
     return (tmp.textContent || tmp.innerText || '').trim();
 };
 
+const isHtml = (str: string) => {
+    if (!str) return false;
+    return /<[a-z][\s\S]*>/i.test(str) || str.includes('<img') || str.includes('<div') || str.includes('<p') || str.includes('<br') || str.includes('<span');
+};
+
 const getTypeBadge = (tipo: string) => {
     const lower = (tipo || '').toLowerCase();
     if (lower.includes('liga') || lower.includes('tel')) {
@@ -346,11 +351,6 @@ export const NegotiationModal = ({
     const [quickObsText, setQuickObsText] = useState('');
     const [quickObsTitleId, setQuickObsTitleId] = useState<string>('');
     const [isSavingQuickObs, setIsSavingQuickObs] = useState(false);
-
-    const isHtmlContent = (str: string) => {
-        if (!str) return false;
-        return /<[a-z][\s\S]*>/i.test(str) || str.includes('<img') || str.includes('<div') || str.includes('<p') || str.includes('<br') || str.includes('<span');
-    };
 
     // Calculations
     const selectedTitles = clientTitles.filter(t => checkedIds.includes(t.id));

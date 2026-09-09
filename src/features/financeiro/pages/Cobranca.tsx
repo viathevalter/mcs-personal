@@ -961,7 +961,7 @@ export const Cobranca = () => {
                                     <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('em_negociacao')} title={t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')}>
                                         <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.in_negotiation', 'Em Negociação')}</span>
                                         <span className="font-mono font-bold text-purple-300">{formatCurrency(kpis.emNegociacaoVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.emNegociacaoCount} {t('financeiro.ticker.docs', 'docs')})</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.emNegociacaoClients} {kpis.emNegociacaoClients === 1 ? t('financeiro.ticker.client', 'cliente') : t('financeiro.ticker.clients', 'clientes')} • {kpis.emNegociacaoCount} {t('financeiro.ticker.docs', 'docs')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
@@ -1030,7 +1030,7 @@ export const Cobranca = () => {
                                     <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('em_negociacao')} title={t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')}>
                                         <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.in_negotiation', 'Em Negociação')}</span>
                                         <span className="font-mono font-bold text-purple-300">{formatCurrency(kpis.emNegociacaoVal)}</span>
-                                        <span className="text-[11px] text-slate-400">({kpis.emNegociacaoCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.emNegociacaoClients} {t('financeiro.ticker.clients', 'clientes')})</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.emNegociacaoClients} {kpis.emNegociacaoClients === 1 ? t('financeiro.ticker.client', 'cliente') : t('financeiro.ticker.clients', 'clientes')} • {kpis.emNegociacaoCount} {t('financeiro.ticker.docs', 'docs')})</span>
                                     </div>
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
@@ -1172,11 +1172,11 @@ export const Cobranca = () => {
                                     {formatCurrency(kpis.emNegociacaoVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
-                                    <span className="text-slate-500 dark:text-slate-400">
-                                        {kpis.emNegociacaoCount} {kpis.emNegociacaoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
-                                    </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
                                         {kpis.emNegociacaoClients} {kpis.emNegociacaoClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
+                                    </span>
+                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                        {kpis.emNegociacaoCount} {kpis.emNegociacaoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                 </div>
                             </div>
@@ -1677,7 +1677,9 @@ export const Cobranca = () => {
                                 {activeTab === 'atraso' ? t('financeiro.table.list_debtors', 'Lista de Devedores em Atraso') : activeTab === 'alerta' ? t('financeiro.table.alerts_soon', 'Alertas de Vencimentos Próximos') : activeTab === 'em_negociacao' ? t('financeiro.table.in_negotiation_portfolio', 'Carteira de Clientes em Negociação') : activeTab === 'judicial' ? t('financeiro.table.judicial_portfolio', 'Carteira Jurídico / Processos') : t('financeiro.table.negotiated_portfolio', 'Carteira de Acordos / Negociados')}
                             </CardTitle>
                             <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
-                                {filteredData.length}
+                                {activeTab === 'em_negociacao'
+                                    ? `${kpis.emNegociacaoClients} ${kpis.emNegociacaoClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')} (${filteredData.length} ${filteredData.length === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')})`
+                                    : filteredData.length}
                             </span>
                         </div>
 
@@ -1699,7 +1701,7 @@ export const Cobranca = () => {
                                 onClick={() => setActiveTab('em_negociacao')}
                                 className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'em_negociacao' ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                {t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')} ({kpis.emNegociacaoCount})
+                                {t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')} ({kpis.emNegociacaoClients})
                             </button>
                             <button
                                 onClick={() => setActiveTab('negociado')}
