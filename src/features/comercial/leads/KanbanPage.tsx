@@ -511,7 +511,7 @@ export function KanbanPage() {
 
     setIsSubmittingDialer(true);
     try {
-      const campaign = await createCampaign.mutateAsync({
+      const campaign = await createCampaign({
         title: dialerTitle.trim(),
         description: dialerDesc.trim() || undefined,
         assigned_to: dialerAssignedTo === 'unassigned' ? null : dialerAssignedTo,
@@ -522,12 +522,13 @@ export function KanbanPage() {
       toast.success(`Fila de ligação "${campaign.title}" criada com sucesso no Discador!`, {
         action: {
           label: 'Ir para Discador',
-          onClick: () => navigate('/comercial/discador'),
+          onClick: () => navigate(`/comercial/discador?campaignId=${campaign.id}`),
         },
       });
 
       setIsCreateDialerOpen(false);
       setSelectedLeadIds([]);
+      navigate(`/comercial/discador?campaignId=${campaign.id}`);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao gerar fila de discagem.');
     } finally {
