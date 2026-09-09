@@ -587,12 +587,19 @@ export function HoleritesPage() {
                 sumMap.set(worker_id, (sumMap.get(worker_id) || 0) + effectiveHours);
 
                 const fInfo = fatura_id ? faturaInfoMap.get(fatura_id) : null;
-                const clientName = (fInfo?.cliente_nombre || clientNameMap.get(client_id || '') || '').trim();
+                let clientName = (fInfo?.cliente_nombre || clientNameMap.get(client_id || '') || '').trim();
                 
                 const cod = workerCodMap.get(worker_id) || '';
+                const alloc = cod ? allocsActiveInMonthByCod.get(cod) : null;
+                const allocClient = alloc?.cliente_nombre ? String(alloc?.cliente_nombre).trim() : '';
+
+                if ((!clientName || clientName === 'NÃO DEFINIDO') && allocClient) {
+                    clientName = allocClient;
+                }
+                
                 const allocEmp = (cod && clientName) ? allocsByCodAndClient.get(`${cod.toUpperCase()}_${clientName.toUpperCase()}`) : null;
                 const defWorkerEmp = workerContratanteMap.get(worker_id) || '';
-                const rawContratante = fInfo?.contratante || allocEmp || clientEmpresaMap.get(client_id || '') || defWorkerEmp;
+                const rawContratante = fInfo?.contratante || allocEmp || alloc?.contratante || clientEmpresaMap.get(client_id || '') || defWorkerEmp;
                 const normContratante = normalizeEmpresaName(rawContratante);
 
                 if (clientName) {
