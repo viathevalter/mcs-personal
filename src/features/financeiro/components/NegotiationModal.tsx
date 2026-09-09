@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake, X, Clock, Maximize2, Minimize2, Edit3, Sparkles } from 'lucide-react';
-import { updateContaReceber, createContaReceber, saveObservacao } from '../data/loader';
+import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake, X, Clock, Maximize2, Minimize2, Edit3, Sparkles, Send, MessageSquare, RefreshCw, ChevronDown, MessageCircle, PhoneCall } from 'lucide-react';
+import { updateContaReceber, createContaReceber, saveObservacao, fetchObservacoesForTitles } from '../data/loader';
 import { formatCurrency, formatDate } from '../lib/utils';
 import type { EnrichedTitulo } from '../types';
 import { toast } from 'sonner';
@@ -31,6 +31,257 @@ const stripHtml = (html: string) => {
     const tmp = document.createElement('DIV');
     tmp.innerHTML = html;
     return (tmp.textContent || tmp.innerText || '').trim();
+};
+
+const getTypeBadge = (tipo: string) => {
+    const lower = (tipo || '').toLowerCase();
+    if (lower.includes('liga') || lower.includes('tel')) {
+        return {
+            label: 'Ligação Telefônica',
+            icon: <PhoneCall size={12} className="shrink-0" />,
+            badgeColor: 'bg-blue-100 text-blue-850 border-blue-300 dark:bg-blue-950/60 dark:text-blue-300',
+            dotColor: 'bg-blue-500 ring-blue-100 dark:ring-blue-900/50'
+        };
+    }
+    if (lower.includes('enviado') || lower.includes('envio')) {
+        return {
+            label: 'E-mail Enviado',
+            icon: <Send size={12} className="shrink-0" />,
+            badgeColor: 'bg-indigo-100 text-indigo-850 border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300',
+            dotColor: 'bg-indigo-500 ring-indigo-100 dark:ring-indigo-900/50'
+        };
+    }
+    if (lower.includes('recebido') || lower.includes('recebeu')) {
+        return {
+            label: 'E-mail Recebido',
+            icon: <Mail size={12} className="shrink-0" />,
+            badgeColor: 'bg-cyan-100 text-cyan-850 border-cyan-300 dark:bg-cyan-950/60 dark:text-cyan-300',
+            dotColor: 'bg-cyan-500 ring-cyan-100 dark:ring-cyan-900/50'
+        };
+    }
+    if (lower.includes('whats') || lower.includes('zap')) {
+        return {
+            label: 'WhatsApp',
+            icon: <MessageCircle size={12} className="shrink-0" />,
+            badgeColor: 'bg-emerald-100 text-emerald-850 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300',
+            dotColor: 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-900/50'
+        };
+    }
+    if (lower.includes('simula')) {
+        return {
+            label: 'Simulação de Acordo',
+            icon: <Clock size={12} className="shrink-0" />,
+            badgeColor: 'bg-amber-100 text-amber-850 border-amber-300 dark:bg-amber-950/60 dark:text-amber-300',
+            dotColor: 'bg-amber-500 ring-amber-100 dark:ring-amber-900/50'
+        };
+    }
+    if (lower.includes('amig') || lower.includes('acordo')) {
+        return {
+            label: 'Acordo Amigável',
+            icon: <Handshake size={12} className="shrink-0" />,
+            badgeColor: 'bg-purple-100 text-purple-850 border-purple-300 dark:bg-purple-950/60 dark:text-purple-300',
+            dotColor: 'bg-purple-500 ring-purple-100 dark:ring-purple-900/50'
+        };
+    }
+    if (lower.includes('jurídico') || lower.includes('juridico') || lower.includes('masc') || lower.includes('burofax')) {
+        return {
+            label: 'Acordo Judicial / Burofax',
+            icon: <Scale size={12} className="shrink-0" />,
+            badgeColor: 'bg-red-100 text-red-850 border-red-300 dark:bg-red-950/60 dark:text-red-300',
+            dotColor: 'bg-red-500 ring-red-100 dark:ring-red-900/50'
+        };
+    }
+    return {
+        label: tipo || 'Interação',
+        icon: <MessageSquare size={12} className="shrink-0" />,
+        badgeColor: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-300',
+        dotColor: 'bg-slate-400 ring-slate-100 dark:ring-slate-800'
+    };
+};
+
+interface ClientTimelineViewProps {
+    clientHistory: any[];
+    isLoadingHistory: boolean;
+    quickObsType: string;
+    setQuickObsType: (val: string) => void;
+    quickObsText: string;
+    setQuickObsText: (val: string) => void;
+    quickObsTitleId: string;
+    setQuickObsTitleId: (val: string) => void;
+    isSavingQuickObs: boolean;
+    handleSaveQuickObs: () => Promise<void>;
+    loadClientHistory: () => Promise<void>;
+    clientTitles: EnrichedTitulo[];
+    setSelectedHistoryImage: (val: string | null) => void;
+    isHtml: (str: string) => boolean;
+}
+
+const ClientTimelineView = ({
+    clientHistory,
+    isLoadingHistory,
+    quickObsType,
+    setQuickObsType,
+    quickObsText,
+    setQuickObsText,
+    quickObsTitleId,
+    setQuickObsTitleId,
+    isSavingQuickObs,
+    handleSaveQuickObs,
+    loadClientHistory,
+    clientTitles,
+    setSelectedHistoryImage,
+    isHtml
+}: ClientTimelineViewProps) => {
+    return (
+        <div className="space-y-4">
+            {/* Quick Contact Form */}
+            <div className="bg-slate-50 dark:bg-slate-950/50 border dark:border-slate-800 rounded-xl p-3 space-y-2.5 shadow-xs">
+                <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 uppercase tracking-wide">
+                        <Edit3 size={13} className="text-purple-600 dark:text-purple-400" />
+                        <span>Registrar Novo Contato / Ocorrência</span>
+                    </span>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={loadClientHistory}
+                        className="h-6 px-2 text-[10px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 gap-1"
+                        title="Atualizar linha do tempo"
+                    >
+                        <RefreshCw size={11} className={isLoadingHistory ? 'animate-spin' : ''} />
+                        <span>Atualizar</span>
+                    </Button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5 block">Tipo de Interação</label>
+                        <select
+                            value={quickObsType}
+                            onChange={(e) => setQuickObsType(e.target.value)}
+                            className="w-full text-xs h-8 px-2 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium"
+                        >
+                            <option value="Ligação Telefônica">📞 Ligação Telefônica</option>
+                            <option value="E-mail Enviado">✉️ E-mail Enviado</option>
+                            <option value="E-mail Recebido">📥 E-mail Recebido</option>
+                            <option value="WhatsApp">💬 Mensagem WhatsApp</option>
+                            <option value="Anotação de Cobrança">📝 Anotação / Reunião</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5 block">Fatura Relacionada</label>
+                        <select
+                            value={quickObsTitleId}
+                            onChange={(e) => setQuickObsTitleId(e.target.value)}
+                            className="w-full text-xs h-8 px-2 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 font-medium"
+                        >
+                            {clientTitles.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                    Fatura {t.Num_doc} - {formatCurrency(t.Saldo_a_pagar || t.Valot_total)} ({t.Status})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="space-y-1.5 pt-0.5">
+                    <textarea
+                        value={quickObsText}
+                        onChange={(e) => setQuickObsText(e.target.value)}
+                        placeholder="Descreva o contato (ex: Ligamos cobrando a fatura, responderam que o pagamento será feito no dia 15)..."
+                        rows={2}
+                        className="w-full text-xs p-2 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none leading-relaxed"
+                    />
+                    <div className="flex justify-end">
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleSaveQuickObs}
+                            disabled={isSavingQuickObs || !quickObsText.trim()}
+                            className="h-7 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-xs"
+                        >
+                            {isSavingQuickObs ? (
+                                <RefreshCw size={12} className="animate-spin" />
+                            ) : (
+                                <Send size={12} />
+                            )}
+                            <span>Salvar no Histórico</span>
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Timeline Stream */}
+            {isLoadingHistory ? (
+                <div className="text-center py-8 text-xs text-muted-foreground flex items-center justify-center gap-2">
+                    <RefreshCw size={14} className="animate-spin text-purple-500" />
+                    <span>Carregando histórico do cliente...</span>
+                </div>
+            ) : clientHistory.length === 0 ? (
+                <div className="text-center py-10 text-slate-400 dark:text-slate-600 flex flex-col items-center justify-center gap-2 border border-dashed rounded-xl p-6 bg-slate-50/50 dark:bg-slate-950/20">
+                    <Clock size={28} className="text-slate-300 dark:text-slate-700" />
+                    <p className="text-xs font-semibold">Nenhuma ocorrência registrada para este cliente ainda.</p>
+                    <p className="text-[11px] text-muted-foreground max-w-sm">Use o formulário acima para registrar a primeira ligação, e-mail enviado ou conversa mantida com o cliente.</p>
+                </div>
+            ) : (
+                <div className="relative pl-4 ml-2 border-l-2 border-slate-200 dark:border-slate-800 space-y-4 py-1">
+                    {clientHistory.map((item, idx) => {
+                        const badgeInfo = getTypeBadge(item.tipo);
+                        const dateObj = new Date(item.data);
+                        const formattedDate = dateObj.toLocaleDateString('pt-PT') + ' às ' + dateObj.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+                        return (
+                            <div key={item.id || idx} className="relative group">
+                                <div className={`absolute -left-[23px] top-1.5 w-3.5 h-3.5 rounded-full ring-4 ${badgeInfo.dotColor} transition-transform group-hover:scale-125`} />
+                                
+                                <div className="bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg p-3 hover:shadow-xs transition-all space-y-1.5">
+                                    <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <Badge variant="outline" className={`text-[10px] font-bold px-1.5 py-0 flex items-center gap-1 ${badgeInfo.badgeColor}`}>
+                                                {badgeInfo.icon}
+                                                <span>{badgeInfo.label}</span>
+                                            </Badge>
+                                            {item.docRef && (
+                                                <Badge variant="secondary" className="text-[10px] py-0 font-mono text-slate-600 dark:text-slate-300">
+                                                    Doc: {item.docRef}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground font-medium">
+                                            <span>{formattedDate}</span>
+                                            {item.usuario && (
+                                                <>
+                                                    <span className="mx-1">•</span>
+                                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{item.usuario}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {isHtml(item.descricao) ? (
+                                        <div 
+                                            className="text-slate-700 dark:text-slate-200 text-xs leading-relaxed prose prose-xs dark:prose-invert max-w-none break-words [&_img]:max-w-full [&_img]:max-h-[220px] [&_img]:rounded-md [&_img]:border [&_img]:border-slate-200 dark:[&_img]:border-slate-800 [&_img]:shadow-xs [&_img]:my-1.5 [&_img]:object-contain [&_img]:cursor-zoom-in" 
+                                            dangerouslySetInnerHTML={{ __html: item.descricao }} 
+                                            onClick={(e) => {
+                                                const target = e.target as HTMLElement;
+                                                if (target.tagName === 'IMG') {
+                                                    setSelectedHistoryImage((target as HTMLImageElement).src);
+                                                }
+                                            }}
+                                        />
+                                    ) : (
+                                        <p className="text-slate-800 dark:text-slate-200 text-xs whitespace-pre-wrap break-words leading-relaxed font-normal">
+                                            {item.descricao}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
 };
 
 export const NegotiationModal = ({
@@ -64,7 +315,7 @@ export const NegotiationModal = ({
     const totalDueSoonSum = dueSoonTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
 
     const [isBurofaxOpen, setIsBurofaxOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'overdue' | 'due_soon' | 'paid' | 'simulations'>('overdue');
+    const [activeTab, setActiveTab] = useState<'overdue' | 'due_soon' | 'paid' | 'simulations' | 'history'>('overdue');
 
     // Checked titles for negotiation (default to the clicked title if not paid)
     const [checkedIds, setCheckedIds] = useState<string[]>([]);
@@ -78,12 +329,28 @@ export const NegotiationModal = ({
     // Observations Rich Text State
     const [observacoes, setObservacoes] = useState<string>('');
     const [isNotesExpanded, setIsNotesExpanded] = useState<boolean>(false);
-    const [rightPanelTab, setRightPanelTab] = useState<'proposal' | 'notes'>('proposal');
+    const [rightPanelTab, setRightPanelTab] = useState<'proposal' | 'notes' | 'history'>('proposal');
 
     // Simulations States
     const [simulations, setSimulations] = useState<any[]>([]);
     const [isLoadingSimulations, setIsLoadingSimulations] = useState(false);
     const [isSavingSimulation, setIsSavingSimulation] = useState(false);
+
+    // Client History / Timeline States
+    const [clientHistory, setClientHistory] = useState<any[]>([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [selectedHistoryImage, setSelectedHistoryImage] = useState<string | null>(null);
+
+    // Quick History Log States
+    const [quickObsType, setQuickObsType] = useState('Ligação Telefônica');
+    const [quickObsText, setQuickObsText] = useState('');
+    const [quickObsTitleId, setQuickObsTitleId] = useState<string>('');
+    const [isSavingQuickObs, setIsSavingQuickObs] = useState(false);
+
+    const isHtmlContent = (str: string) => {
+        if (!str) return false;
+        return /<[a-z][\s\S]*>/i.test(str) || str.includes('<img') || str.includes('<div') || str.includes('<p') || str.includes('<br') || str.includes('<span');
+    };
 
     // Calculations
     const selectedTitles = clientTitles.filter(t => checkedIds.includes(t.id));
@@ -113,6 +380,54 @@ export const NegotiationModal = ({
             console.error('Failed to load simulations:', err);
         } finally {
             setIsLoadingSimulations(false);
+        }
+    };
+
+    const loadClientHistory = async () => {
+        if (!clientTitles || clientTitles.length === 0) return;
+        setIsLoadingHistory(true);
+        try {
+            const ids = clientTitles.map(t => t.id).filter(Boolean);
+            const data = await fetchObservacoesForTitles(ids);
+            const docMap = new Map<string, string>();
+            clientTitles.forEach(t => docMap.set(t.id, t.Num_doc));
+            const enriched = (data || []).map((o: any) => ({
+                ...o,
+                docRef: docMap.get(o.conta_receber_id) || ''
+            }));
+            setClientHistory(enriched);
+        } catch (err) {
+            console.error('Failed to load client history:', err);
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    };
+
+    const handleSaveQuickObs = async () => {
+        if (!quickObsText.trim()) {
+            toast.error(t('financeiro.negotiation.err_empty_obs', 'Digite o detalhe da ocorrência / contato.'));
+            return;
+        }
+        setIsSavingQuickObs(true);
+        try {
+            const targetId = quickObsTitleId || titulo.id;
+            const obsToSave = {
+                conta_receber_id: targetId,
+                usuario: currentUser,
+                tipo: quickObsType,
+                descricao: quickObsText.trim(),
+                data: new Date().toISOString()
+            };
+            const res = await saveObservacao(obsToSave);
+            if (!res.success) throw res.error;
+            toast.success(t('financeiro.negotiation.quick_obs_success', 'Registro adicionado ao histórico com sucesso!'));
+            setQuickObsText('');
+            await loadClientHistory();
+            onRefresh();
+        } catch (err: any) {
+            toast.error(t('financeiro.negotiation.err_quick_obs', 'Erro ao salvar histórico: ') + err.message);
+        } finally {
+            setIsSavingQuickObs(false);
         }
     };
 
@@ -162,6 +477,8 @@ export const NegotiationModal = ({
             if (error) throw error;
             toast.success(t('financeiro.negotiation.sim_deleted', 'Simulação excluída com sucesso.'));
             loadSimulations();
+            loadClientHistory();
+            onRefresh();
         } catch (err: any) {
             toast.error(t('financeiro.negotiation.err_delete_sim', 'Erro ao excluir simulação: ') + err.message);
         }
@@ -188,8 +505,10 @@ export const NegotiationModal = ({
             setObservacoes('');
             setIsNotesExpanded(false);
             setRightPanelTab('proposal');
+            setQuickObsTitleId(titulo.id?.toString() || '');
 
             loadSimulations();
+            loadClientHistory();
         }
     }, [isOpen, titulo]);
 
@@ -384,6 +703,8 @@ export const NegotiationModal = ({
 
             toast.success(t('financeiro.negotiation.sim_saved_success', 'Simulação de acordo salva com sucesso!'));
             loadSimulations();
+            loadClientHistory();
+            onRefresh();
         } catch (err: any) {
             console.error('Error saving simulation:', err);
             toast.error(t('financeiro.negotiation.err_saving_sim', 'Erro ao salvar simulação: ') + (err.message || String(err)));
@@ -571,22 +892,39 @@ export const NegotiationModal = ({
                                 </Badge>
                             </div>
 
-                            {/* Contacts Summary */}
-                            <div className="p-3 border-b dark:border-slate-800 bg-white dark:bg-slate-900 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs flex-none">
-                                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                                    <Phone size={14} className="text-indigo-500" />
-                                    <span className="font-bold">{t('financeiro.negotiation.phone', 'Telefone:')}</span>
-                                    <span>{titulo.clienteInfo?.TelefonoCobros || 'Não cadastrado'}</span>
+                            {/* Contacts Summary & History Action */}
+                            <div className="p-3 border-b dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-wrap items-center justify-between gap-2.5 text-xs flex-none">
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                        <Phone size={14} className="text-indigo-500" />
+                                        <span className="font-bold">{t('financeiro.negotiation.phone', 'Telefone:')}</span>
+                                        <span>{titulo.clienteInfo?.TelefonoCobros || 'Não cadastrado'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                                        <Mail size={14} className="text-indigo-500" />
+                                        <span className="font-bold">{t('financeiro.negotiation.email', 'E-mail:')}</span>
+                                        <span className="truncate max-w-[200px]" title={titulo.clienteInfo?.EmailCobros}>{titulo.clienteInfo?.EmailCobros || 'Não cadastrado'}</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
-                                    <Mail size={14} className="text-indigo-500" />
-                                    <span className="font-bold">{t('financeiro.negotiation.email', 'E-mail:')}</span>
-                                    <span className="truncate" title={titulo.clienteInfo?.EmailCobros}>{titulo.clienteInfo?.EmailCobros || 'Não cadastrado'}</span>
-                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setActiveTab(activeTab === 'history' ? 'overdue' : 'history')}
+                                    className={`h-7 px-2.5 text-xs font-bold gap-1.5 transition-all shadow-xs ${
+                                        activeTab === 'history'
+                                            ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-600'
+                                            : 'border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
+                                    }`}
+                                >
+                                    <Clock size={13} />
+                                    <span>{t('financeiro.negotiation.btn_timeline', 'Histórico / Linha do Tempo')} ({clientHistory.length})</span>
+                                </Button>
                             </div>
 
                             {/* Status KPIs Row */}
-                            <div className="grid grid-cols-4 gap-2.5 p-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex-none">
+                            <div className="grid grid-cols-5 gap-2 p-3 bg-white dark:bg-slate-900 border-b dark:border-slate-800 flex-none">
                                 {/* Overdue KPI */}
                                 <div 
                                     onClick={() => setActiveTab('overdue')}
@@ -642,10 +980,44 @@ export const NegotiationModal = ({
                                     <div className="text-sm font-black text-indigo-750 dark:text-indigo-400 mt-0.5">{simulations.length}</div>
                                     <div className="text-[9px] text-muted-foreground mt-0.5">{t('financeiro.negotiation.saved_drafts', 'salvas')}</div>
                                 </div>
+
+                                {/* History KPI */}
+                                <div 
+                                    onClick={() => setActiveTab('history')}
+                                    className={`p-2 rounded-lg border cursor-pointer transition-all ${
+                                        activeTab === 'history' 
+                                            ? 'border-purple-500 bg-purple-50/50 dark:bg-purple-950/20 shadow-sm' 
+                                            : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div className="text-[9px] uppercase font-bold tracking-wider text-purple-650 dark:text-purple-400 flex items-center justify-between">
+                                        <span>{t('financeiro.negotiation.tab_history', 'Histórico')}</span>
+                                        <Clock size={11} />
+                                    </div>
+                                    <div className="text-sm font-black text-purple-750 dark:text-purple-400 mt-0.5">{clientHistory.length}</div>
+                                    <div className="text-[9px] text-muted-foreground mt-0.5 truncate">{t('financeiro.negotiation.history_sub', 'interações')}</div>
+                                </div>
                             </div>
 
                             <ScrollArea className="flex-1 p-4">
-                                {activeTab === 'simulations' ? (
+                                {activeTab === 'history' ? (
+                                    <ClientTimelineView
+                                        clientHistory={clientHistory}
+                                        isLoadingHistory={isLoadingHistory}
+                                        quickObsType={quickObsType}
+                                        setQuickObsType={setQuickObsType}
+                                        quickObsText={quickObsText}
+                                        setQuickObsText={setQuickObsText}
+                                        quickObsTitleId={quickObsTitleId}
+                                        setQuickObsTitleId={setQuickObsTitleId}
+                                        isSavingQuickObs={isSavingQuickObs}
+                                        handleSaveQuickObs={handleSaveQuickObs}
+                                        loadClientHistory={loadClientHistory}
+                                        clientTitles={clientTitles}
+                                        setSelectedHistoryImage={setSelectedHistoryImage}
+                                        isHtml={isHtml}
+                                    />
+                                ) : activeTab === 'simulations' ? (
                                     <div className="space-y-3">
                                         {isLoadingSimulations ? (
                                             <div className="text-center py-6 text-xs text-muted-foreground">
@@ -861,6 +1233,23 @@ export const NegotiationModal = ({
                                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                         )}
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setRightPanelTab('history')}
+                                        className={`px-2.5 py-1 rounded-md font-semibold text-[11px] transition-all flex items-center gap-1.5 ${
+                                            rightPanelTab === 'history'
+                                                ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 shadow-xs'
+                                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        <Clock size={13} />
+                                        <span>{t('financeiro.negotiation.tab_timeline', 'Histórico')}</span>
+                                        {clientHistory.length > 0 && (
+                                            <span className="text-[10px] font-bold px-1.5 py-0 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
+                                                {clientHistory.length}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
                             </div>
 
@@ -1047,7 +1436,7 @@ export const NegotiationModal = ({
                                         />
                                     </div>
                                 </>
-                            ) : (
+                            ) : rightPanelTab === 'notes' ? (
                                 /* Full-height Observações Tab in Right Panel */
                                 <div className="flex-1 flex flex-col min-h-0 space-y-2">
                                     <div className="flex justify-between items-center pb-1">
@@ -1075,6 +1464,26 @@ export const NegotiationModal = ({
                                             placeholder={t('financeiro.negotiation.notes_placeholder', 'Digite aqui as observações, ata da negociação, motivos do desconto, acordos verbais firmados com o cliente...')}
                                         />
                                     </div>
+                                </div>
+                            ) : (
+                                /* Full-height Timeline in Right Panel */
+                                <div className="flex-1 flex flex-col min-h-0 space-y-2 overflow-y-auto pr-1">
+                                    <ClientTimelineView
+                                        clientHistory={clientHistory}
+                                        isLoadingHistory={isLoadingHistory}
+                                        quickObsType={quickObsType}
+                                        setQuickObsType={setQuickObsType}
+                                        quickObsText={quickObsText}
+                                        setQuickObsText={setQuickObsText}
+                                        quickObsTitleId={quickObsTitleId}
+                                        setQuickObsTitleId={setQuickObsTitleId}
+                                        isSavingQuickObs={isSavingQuickObs}
+                                        handleSaveQuickObs={handleSaveQuickObs}
+                                        loadClientHistory={loadClientHistory}
+                                        clientTitles={clientTitles}
+                                        setSelectedHistoryImage={setSelectedHistoryImage}
+                                        isHtml={isHtml}
+                                    />
                                 </div>
                             )}
 
@@ -1157,6 +1566,30 @@ export const NegotiationModal = ({
                 onConfirmLegal={handleSaveAgreement}
                 isConfirming={isSaving}
             />
+        )}
+
+        {/* History Image Lightbox */}
+        {selectedHistoryImage && (
+            <div 
+                className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 cursor-zoom-out animate-in fade-in duration-200"
+                onClick={() => setSelectedHistoryImage(null)}
+            >
+                <div className="relative max-w-5xl max-h-[90vh] bg-slate-900 rounded-xl overflow-hidden shadow-2xl p-2 border border-slate-700" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setSelectedHistoryImage(null)}
+                        className="absolute top-3 right-3 text-white hover:bg-white/20 z-10 rounded-full"
+                    >
+                        <X size={20} />
+                    </Button>
+                    <img 
+                        src={selectedHistoryImage} 
+                        alt="Visualização da ocorrência" 
+                        className="max-w-full max-h-[85vh] object-contain rounded-lg mx-auto" 
+                    />
+                </div>
+            </div>
         )}
         </>
     );

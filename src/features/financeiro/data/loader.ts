@@ -259,6 +259,20 @@ export async function fetchObservacoes(contaReceberId: string): Promise<Cobranca
   return data || [];
 }
 
+export async function fetchObservacoesForTitles(contaReceberIds: string[]): Promise<CobrancaObservacao[]> {
+  if (!contaReceberIds || contaReceberIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('cobranca_observacoes')
+    .select('*')
+    .in('conta_receber_id', contaReceberIds)
+    .order('data', { ascending: false });
+  if (error) {
+    console.error('Error fetching observacoes for titles:', error);
+    return [];
+  }
+  return data || [];
+}
+
 export async function saveObservacao(obs: Partial<CobrancaObservacao>): Promise<{ success: boolean; error?: any }> {
   try {
     const { error } = await supabase.from('cobranca_observacoes').insert([obs]);

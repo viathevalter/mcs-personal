@@ -78,7 +78,8 @@ export const Cobranca = () => {
     const [tempEndDateAlteracao, setTempEndDateAlteracao] = useState(endDateAlteracao);
 
     const [showFilters, setShowFilters] = useState(false);
-    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'judicial' | 'negociado'>(() => (sessionStorage.getItem('cobranca_activeTab') as any) || 'atraso');
+    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'em_negociacao' | 'judicial' | 'negociado'>(() => (sessionStorage.getItem('cobranca_activeTab') as any) || 'atraso');
+    const [simulations, setSimulations] = useState<any[]>([]);
 
     // Modals
     const [isReceberOpen, setIsReceberOpen] = useState(false);
@@ -229,9 +230,10 @@ export const Cobranca = () => {
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [result, obsResult] = await Promise.all([
+            const [result, obsResult, simsResult] = await Promise.all([
                 fetchEnrichedData(),
-                supabase.from('cobranca_observacoes').select('conta_receber_id, data')
+                supabase.from('cobranca_observacoes').select('conta_receber_id, data'),
+                supabase.from('cobranca_simulacoes').select('*').order('creado_em', { ascending: false })
             ]);
             
             // Map last observation date to each title
@@ -243,6 +245,10 @@ export const Cobranca = () => {
                         obsMap.set(o.conta_receber_id, o.data);
                     }
                 });
+            }
+
+            if (simsResult.data) {
+                setSimulations(simsResult.data);
             }
 
             const enrichedWithObs = result.map(item => ({
@@ -582,6 +588,41 @@ export const Cobranca = () => {
         return itemDate >= new Date(now.setHours(0,0,0,0)) && itemDate <= next7Days;
     };
 
+    const simClientCodes = useMemo(() => {
+        const set = new Set<string>();
+        simulations.forEach(s => {
+            if (s.cod_cliente) set.add(s.cod_cliente.trim());
+        });
+        return set;
+    }, [simulations]);
+
+    const simClientNames = useMemo(() => {
+        const set = new Set<string>();
+        simulations.forEach(s => {
+            if (s.cliente_nome) set.add(s.cliente_nome.trim().toLowerCase());
+        });
+        return set;
+    }, [simulations]);
+
+    const simTitleIds = useMemo(() => {
+        const set = new Set<string>();
+        simulations.forEach(s => {
+            if (s.titulo_id) set.add(s.titulo_id.toString());
+            if (Array.isArray(s.original_ids)) {
+                s.original_ids.forEach((id: any) => set.add(id.toString()));
+            }
+        });
+        return set;
+    }, [simulations]);
+
+    const isClientInNegotiation = (item: EnrichedTitulo) => {
+        if (item.Status === 'Pago' || item.Status === 'Negociado' || item.Status === 'Judicial') return false;
+        if (item.CodCliente && simClientCodes.has(item.CodCliente.trim())) return true;
+        if (item.Cliente && simClientNames.has(item.Cliente.trim().toLowerCase())) return true;
+        if (item.id && simTitleIds.has(item.id.toString())) return true;
+        return false;
+    };
+
     const formatDateInput = (dateStr: string) => {
         if (!dateStr) return '';
         const [year, month, day] = dateStr.split('-');
@@ -716,6 +757,10 @@ export const Cobranca = () => {
         negociadoCount: kpiData.filter(i => i.Status === 'Negociado').length,
         negociadoClientsCount: new Set(kpiData.filter(i => i.Status === 'Negociado').map(i => i.CodCliente || i.Cliente)).size,
 
+        emNegociacaoVal: kpiData.filter(i => isClientInNegotiation(i)).reduce((acc, item) => acc + (item.Saldo_a_pagar || item.Valot_total || 0), 0),
+        emNegociacaoCount: kpiData.filter(i => isClientInNegotiation(i)).length,
+        emNegociacaoClients: getUniqueClientsCount(kpiData.filter(i => isClientInNegotiation(i))),
+
         totalVal: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         totalCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').length,
         totalClients: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado')),
@@ -741,6 +786,7 @@ export const Cobranca = () => {
         // Tab filter
         if (activeTab === 'atraso' && !isOverdue(item)) return false;
         if (activeTab === 'alerta' && !isDueSoon(item)) return false;
+        if (activeTab === 'em_negociacao' && !isClientInNegotiation(item)) return false;
         if (activeTab === 'judicial' && item.Status !== 'Judicial') return false;
         if (activeTab === 'negociado' && item.Status !== 'Negociado') return false;
         return true;
@@ -912,6 +958,14 @@ export const Cobranca = () => {
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('em_negociacao')} title={t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.in_negotiation', 'Em Negociação')}</span>
+                                        <span className="font-mono font-bold text-purple-300">{formatCurrency(kpis.emNegociacaoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.emNegociacaoCount} {t('financeiro.ticker.docs', 'docs')})</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
                                     <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title={t('financeiro.status.negotiated', 'Negociados')}>
                                         <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.negotiated', 'Negociados')}</span>
                                         <span className="font-mono font-bold text-indigo-300">{formatCurrency(kpis.negociadoVal)}</span>
@@ -973,6 +1027,12 @@ export const Cobranca = () => {
                                         <span className="text-[11px] text-slate-400">({kpis.judicialCount} {t('financeiro.kpis.active_processes_plural', 'processos')})</span>
                                     </div>
 
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('em_negociacao')} title={t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')}>
+                                        <span className="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.in_negotiation', 'Em Negociação')}</span>
+                                        <span className="font-mono font-bold text-purple-300">{formatCurrency(kpis.emNegociacaoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.emNegociacaoCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.emNegociacaoClients} {t('financeiro.ticker.clients', 'clientes')})</span>
+                                    </div>
+
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
                                     <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title={t('financeiro.status.negotiated', 'Negociados')}>
@@ -1017,7 +1077,7 @@ export const Cobranca = () => {
                 </div>
 
                 {/* KPI Premium Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                     {/* Em Atraso Card */}
                     <Card 
                         className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
@@ -1088,35 +1148,35 @@ export const Cobranca = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Setor Judicial Card */}
+                    {/* Em Negociação Card */}
                     <Card 
                         className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
-                            activeTab === 'judicial' 
-                                ? 'bg-red-950/40 border-red-700/50 ring-2 ring-red-700/50 shadow-md' 
-                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-red-400'
+                            activeTab === 'em_negociacao' 
+                                ? 'bg-purple-950/40 border-purple-500/50 ring-2 ring-purple-500/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-purple-300'
                         }`}
-                        onClick={() => setActiveTab('judicial')}
+                        onClick={() => setActiveTab('em_negociacao')}
                     >
-                        <div className="h-1.5 w-full bg-red-700" />
+                        <div className="h-1.5 w-full bg-purple-500" />
                         <CardContent className="p-4 pt-3.5 space-y-3">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
-                                    {t('financeiro.kpis.title_judicial', 'Setor Judicial')}
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                                    {t('financeiro.kpis.title_in_negotiation', 'Em Negociação')}
                                 </span>
-                                <div className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
-                                    <Scale size={16} />
+                                <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
+                                    <Handshake size={16} />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-red-700 dark:text-red-400">
-                                    {formatCurrency(kpis.judicialVal)}
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-purple-600 dark:text-purple-400">
+                                    {formatCurrency(kpis.emNegociacaoVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
                                     <span className="text-slate-500 dark:text-slate-400">
-                                        {kpis.judicialCount} {kpis.judicialCount === 1 ? t('financeiro.kpis.active_processes_singular', 'processo') : t('financeiro.kpis.active_processes_plural', 'processos')}
+                                        {kpis.emNegociacaoCount} {kpis.emNegociacaoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
-                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
-                                        {kpis.judicialClients} {kpis.judicialClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300">
+                                        {kpis.emNegociacaoClients} {kpis.emNegociacaoClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
                                     </span>
                                 </div>
                             </div>
@@ -1152,6 +1212,41 @@ export const Cobranca = () => {
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
                                         {kpis.negociadoClientsCount} {kpis.negociadoClientsCount === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Setor Judicial Card */}
+                    <Card 
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeTab === 'judicial' 
+                                ? 'bg-red-950/40 border-red-700/50 ring-2 ring-red-700/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-red-400'
+                        }`}
+                        onClick={() => setActiveTab('judicial')}
+                    >
+                        <div className="h-1.5 w-full bg-red-700" />
+                        <CardContent className="p-4 pt-3.5 space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+                                    {t('financeiro.kpis.title_judicial', 'Setor Judicial')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
+                                    <Scale size={16} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-red-700 dark:text-red-400">
+                                    {formatCurrency(kpis.judicialVal)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400">
+                                        {kpis.judicialCount} {kpis.judicialCount === 1 ? t('financeiro.kpis.active_processes_singular', 'processo') : t('financeiro.kpis.active_processes_plural', 'processos')}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
+                                        {kpis.judicialClients} {kpis.judicialClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
                                     </span>
                                 </div>
                             </div>
@@ -1579,7 +1674,7 @@ export const Cobranca = () => {
                         <div className="flex items-center gap-2">
                             <Users className="w-4 h-4 text-brand-primary" />
                             <CardTitle className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                                {activeTab === 'atraso' ? t('financeiro.table.list_debtors', 'Lista de Devedores em Atraso') : activeTab === 'alerta' ? t('financeiro.table.alerts_soon', 'Alertas de Vencimentos Próximos') : activeTab === 'judicial' ? t('financeiro.table.judicial_portfolio', 'Carteira Jurídico / Processos') : t('financeiro.table.negotiated_portfolio', 'Carteira de Acordos / Negociados')}
+                                {activeTab === 'atraso' ? t('financeiro.table.list_debtors', 'Lista de Devedores em Atraso') : activeTab === 'alerta' ? t('financeiro.table.alerts_soon', 'Alertas de Vencimentos Próximos') : activeTab === 'em_negociacao' ? t('financeiro.table.in_negotiation_portfolio', 'Carteira de Clientes em Negociação') : activeTab === 'judicial' ? t('financeiro.table.judicial_portfolio', 'Carteira Jurídico / Processos') : t('financeiro.table.negotiated_portfolio', 'Carteira de Acordos / Negociados')}
                             </CardTitle>
                             <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
                                 {filteredData.length}
@@ -1601,16 +1696,22 @@ export const Cobranca = () => {
                                 {t('financeiro.kpis.tab_due_soon', 'A Vencer')} ({kpis.alertaCount})
                             </button>
                             <button
-                                onClick={() => setActiveTab('judicial')}
-                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'judicial' ? 'bg-white dark:bg-slate-800 text-red-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                                onClick={() => setActiveTab('em_negociacao')}
+                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'em_negociacao' ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                {t('financeiro.kpis.tab_judicial', 'Jurídico')} ({kpis.judicialCount})
+                                {t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')} ({kpis.emNegociacaoCount})
                             </button>
                             <button
                                 onClick={() => setActiveTab('negociado')}
                                 className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'negociado' ? 'bg-white dark:bg-slate-800 text-indigo-650 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {t('financeiro.kpis.tab_negotiated', 'Negociados')} ({kpis.negociadoCount})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('judicial')}
+                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'judicial' ? 'bg-white dark:bg-slate-800 text-red-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {t('financeiro.kpis.tab_judicial', 'Jurídico')} ({kpis.judicialCount})
                             </button>
                         </div>
                     </div>
@@ -1712,6 +1813,11 @@ export const Cobranca = () => {
                                                      </TooltipProvider>
                                                  ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado') ? (
                                                      <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
+                                                 ) : isClientInNegotiation(item) ? (
+                                                     <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50 hover:bg-purple-100 font-bold dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-500 flex items-center gap-1">
+                                                         <Handshake size={11} />
+                                                         <span>{t('financeiro.status.in_negotiation', 'Em Negociação')}</span>
+                                                     </Badge>
                                                  ) : (
                                                      <span className="text-muted-foreground">-</span>
                                                  )}
