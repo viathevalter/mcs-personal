@@ -1535,6 +1535,15 @@ export async function processarContestacaoFatura(
 
           if (insErr) console.error(`Erro ao inserir nova hora para o trabalhador ${workerId} no dia ${cleanDate}:`, insErr);
         }
+
+        // Also clean up any duplicate unlinked row (fatura_id is null) on the same date to avoid double counting
+        await supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .delete()
+          .eq('worker_id', workerId)
+          .eq('data_trabalho', cleanDate)
+          .is('fatura_id', null);
       }
     }
   }

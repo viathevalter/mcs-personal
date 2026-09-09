@@ -502,6 +502,15 @@ export function HoleritesPage() {
                 }
             });
 
+            // Collect worker-date pairs that are linked to a fatura to avoid double counting unlinked duplicates
+            const faturaLinkedDates = new Set<string>();
+            allRows.forEach((row: any) => {
+                if (row.worker_id && row.data_trabalho && row.fatura_id) {
+                    const dk = formatToLocalDateKey(row.data_trabalho);
+                    faturaLinkedDates.add(`${row.worker_id}_${dk}`);
+                }
+            });
+
             // Group raw records by worker_id, client_id, fatura_id, and local dateKey
             const groupedHours = new Map<string, {
                 worker_id: string;
@@ -515,6 +524,11 @@ export function HoleritesPage() {
                 if (row.worker_id && row.data_trabalho) {
                     const dateKey = formatToLocalDateKey(row.data_trabalho);
                     if (!dateKey.startsWith(mesReferencia)) return;
+
+                    // If a record with fatura_id exists for this worker on this date, skip orphan unlinked rows
+                    if (!row.fatura_id && faturaLinkedDates.has(`${row.worker_id}_${dateKey}`)) {
+                        return;
+                    }
 
                     const groupKey = `${row.worker_id}__${row.client_id || 'none'}__${row.fatura_id || 'none'}__${dateKey}`;
                     if (!groupedHours.has(groupKey)) {
