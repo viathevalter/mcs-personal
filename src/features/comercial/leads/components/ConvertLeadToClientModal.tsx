@@ -136,19 +136,25 @@ export function ConvertLeadToClientModal({
       });
 
       // 3. Vincular todas as estimativas deste lead ao novo cliente formal
-      const updateFilter = supabase
+      if (estimacionId) {
+        await supabase
+          .schema('core_comercial')
+          .from('estimaciones')
+          .update({ 
+            client_id: newClient.id,
+            country_id: formData.country_id || null,
+          })
+          .eq('id', estimacionId);
+      }
+
+      await supabase
         .schema('core_comercial')
         .from('estimaciones')
         .update({ 
           client_id: newClient.id,
           country_id: formData.country_id || null,
-        });
-
-      if (estimacionId) {
-        await updateFilter.or(`id.eq.${estimacionId},lead_id.eq.${lead.id}`);
-      } else {
-        await updateFilter.eq('lead_id', lead.id);
-      }
+        })
+        .eq('lead_id', lead.id);
 
       queryClient.invalidateQueries({ queryKey: ['estimaciones'] });
       queryClient.invalidateQueries({ queryKey: ['estimacion-detail'] });

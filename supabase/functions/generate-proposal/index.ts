@@ -225,12 +225,27 @@ serve(async (req) => {
     let clientAddress = "";
     let clientTaxId = "";
 
-    if (est.client_id) {
+    let effectiveClientId = est.client_id;
+
+    // Se a estimativa não tiver client_id direto, verificar se o lead já possui client_id
+    if (!effectiveClientId && est.lead_id) {
+      const { data: leadCheck } = await supabase
+        .schema("core_comercial")
+        .from("leads")
+        .select("client_id")
+        .eq("id", est.lead_id)
+        .maybeSingle();
+      if (leadCheck?.client_id) {
+        effectiveClientId = leadCheck.client_id;
+      }
+    }
+
+    if (effectiveClientId) {
       const { data: client, error: clientErr } = await supabase
         .schema("core_common")
         .from("clients")
         .select("*")
-        .eq("id", est.client_id)
+        .eq("id", effectiveClientId)
         .single();
       
       if (!clientErr && client) {
@@ -239,7 +254,9 @@ serve(async (req) => {
         targetPhone = client.phone || "";
         targetCompany = client.legal_name || client.trade_name || "";
         clientTaxId = client.tax_id || client.vat_id || "";
-        clientAddress = `${client.address_line || ""}, ${client.city || ""}, ${client.postal_code || ""} (${client.province || ""})`;
+        clientAddress = [client.address_line, client.postal_code, client.city, client.province]
+          .filter(Boolean)
+          .join(", ");
       }
     } else if (est.lead_id) {
       const { data: lead, error: leadErr } = await supabase
@@ -253,8 +270,11 @@ serve(async (req) => {
         targetName = est.contact_name || lead.name || "";
         targetEmail = est.contact_email || lead.email || "";
         targetPhone = lead.phone || "";
-        targetCompany = lead.company_name || "";
-        clientAddress = lead.notes || ""; // Fallback
+        targetCompany = lead.legal_name || lead.company_name || "";
+        clientTaxId = lead.tax_id || "";
+        clientAddress = [lead.address_line, lead.postal_code, lead.city, lead.province]
+          .filter(Boolean)
+          .join(", ") || lead.notes || "";
       }
     }
 

@@ -404,6 +404,56 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               </div>
             </div>
           </div>
+
+          {includeContract && (
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <ShieldCheck className={`w-4 h-4 ${hasFiscalData ? 'text-emerald-500' : 'text-amber-500'}`} />
+                  Conferência dos Dados do Contrato (.DOCX)
+                </span>
+                {hasFiscalData ? (
+                  <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold">
+                    ✓ Validade Jurídica Garantida
+                  </Badge>
+                ) : (
+                  <Badge variant="destructive" className="text-[10px]">
+                    ⚠️ Dados Incompletos
+                  </Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="p-2 rounded bg-background border border-border/60">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Razão Social Contratante</span>
+                  <span className="font-bold text-foreground truncate block" title={clientLegalName || ''}>
+                    {clientLegalName || 'Não informada'}
+                  </span>
+                </div>
+                <div className="p-2 rounded bg-background border border-border/60">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">CIF / NIF Oficial</span>
+                  <span className="font-mono font-bold text-foreground">
+                    {clientTaxId || 'Não informado'}
+                  </span>
+                </div>
+                <div className="sm:col-span-2 p-2 rounded bg-background border border-border/60">
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Sede Social Registrada</span>
+                  <span className="text-foreground">
+                    {estimacion.client?.address_line || estimacion.lead?.address_line || 'Endereço da sede não informado'}
+                    {([estimacion.client?.postal_code || estimacion.lead?.postal_code, estimacion.client?.city || estimacion.lead?.city].filter(Boolean).length > 0) && (
+                      ` • ${[estimacion.client?.postal_code || estimacion.lead?.postal_code, estimacion.client?.city || estimacion.lead?.city, estimacion.client?.province || estimacion.lead?.province].filter(Boolean).join(', ')}`
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              {!hasFiscalData && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  * A Razão Social ou CIF estão ausentes. Você pode formalizar ou editar os dados fiscais acima antes de gerar.
+                </p>
+              )}
+            </div>
+          )}
           
           {isUnderReview ? (
             <Button 

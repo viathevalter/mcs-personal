@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ConvertLeadToClientModal } from '@/features/comercial/leads/components/ConvertLeadToClientModal';
+import { EditClientModal } from './components/EditClientModal';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
   DialogDescription, DialogFooter 
@@ -44,6 +45,7 @@ export function EstimacionDetailPage() {
   const [selectedHistoricalVersion, setSelectedHistoricalVersion] = useState<any>(null);
   const [isHistoricalDialogOpen, setIsHistoricalDialogOpen] = useState(false);
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchSettings() {
@@ -280,81 +282,164 @@ export function EstimacionDetailPage() {
           <TabsContent value="overview" className="mt-6">
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-6">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between pb-3">
-                    <CardTitle>{t('comercial.detail.clientCard.title')}</CardTitle>
+                <Card className="overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3 bg-slate-50/50 dark:bg-slate-900/40 border-b border-slate-200/80 dark:border-slate-800/80">
+                    <CardTitle className="text-base font-bold">{t('comercial.detail.clientCard.title')}</CardTitle>
                     {estimacion.client ? (
-                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400">
-                        <Building2 className="w-3 h-3 mr-1" /> Cliente Formal
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Cliente Formal Cadastrado
                       </Badge>
                     ) : estimacion.lead ? (
-                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400">
-                        <AlertCircle className="w-3 h-3 mr-1" /> Lead de Marketing
+                      <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 font-semibold gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> Lead de Prospecção
                       </Badge>
                     ) : null}
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="p-5 space-y-4">
                     {/* Exibição se for Cliente formal */}
                     {estimacion.client ? (
-                      <>
-                        <div className="flex items-start">
-                          <Building className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
-                          <div className="space-y-0.5">
-                            <p className="text-sm font-medium">{t('comercial.detail.clientCard.company')}</p>
-                            <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                              {estimacion.client.legal_name || estimacion.client.trade_name}
-                            </p>
-                            {estimacion.client.trade_name && estimacion.client.trade_name !== estimacion.client.legal_name && (
-                              <p className="text-xs text-muted-foreground">{estimacion.client.trade_name}</p>
-                            )}
-                            <div className="flex items-center gap-2 pt-1 text-xs">
-                              <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-semibold text-slate-700 dark:text-slate-300">
-                                CIF / NIF: {estimacion.client.tax_id || 'Não informado'}
-                              </span>
+                      <div className="space-y-4">
+                        {/* Identificação Empresarial e Ação de Edição */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
+                              <Building2 className="h-5 w-5" />
                             </div>
+                            <div className="space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Razão Social (Contratante Oficial)</p>
+                              <p className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                                {estimacion.client.legal_name || estimacion.client.trade_name}
+                              </p>
+                              {estimacion.client.trade_name && estimacion.client.trade_name !== estimacion.client.legal_name && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <span className="font-medium">Nome Comercial:</span> {estimacion.client.trade_name}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsEditClientModalOpen(true)}
+                            className="h-8 text-xs font-semibold gap-1.5 shrink-0 hover:bg-muted"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            Editar Dados Fiscais
+                          </Button>
+                        </div>
+
+                        {/* CIF / NIF em destaque com verificação */}
+                        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                          <div className="space-y-1">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              Identificação Fiscal (CIF / NIF)
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-sm font-bold text-foreground">
+                                {estimacion.client.tax_id || 'Não informado'}
+                              </span>
+                              {estimacion.client.tax_id ? (
+                                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold">
+                                  ✓ CIF Válido para Contrato
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive" className="text-[10px]">
+                                  ⚠️ CIF Ausente
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+
+                          {estimacion.client.billing_email && (
+                            <div className="text-left sm:text-right space-y-0.5">
+                              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">E-mail Financeiro</span>
+                              <p className="text-xs font-medium text-foreground">{estimacion.client.billing_email}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Sede Social da Empresa */}
+                        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
+                          <MapPin className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                          <div className="space-y-1 flex-1">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              Sede Social da Empresa (Endereço para Contrato)
+                            </span>
+                            <p className="text-xs font-medium text-foreground">
+                              {estimacion.client.address_line || 'Endereço da sede não cadastrado'}
+                            </p>
+                            {(estimacion.client.city || estimacion.client.postal_code || estimacion.client.province) && (
+                              <p className="text-xs text-muted-foreground font-medium">
+                                {[estimacion.client.postal_code, estimacion.client.city, estimacion.client.province, estimacion.country?.name || 'Espanha'].filter(Boolean).join(' - ')}
+                              </p>
+                            )}
                           </div>
                         </div>
 
-                        <div className="flex items-start">
-                          <MapPin className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium">{t('comercial.detail.clientCard.site')}</p>
-                            <p className="text-base">{estimacion.client_site?.name || t('comercial.detail.clientCard.notSpecified')}</p>
-                            {estimacion.client_site?.address ? (
-                              <p className="text-xs text-muted-foreground">{estimacion.client_site.address}</p>
-                            ) : estimacion.client.address_line ? (
-                              <p className="text-xs text-muted-foreground">{estimacion.client.address_line}</p>
-                            ) : null}
+                        {/* Posto / Local de Trabalho (se houver obra vinculada) */}
+                        {estimacion.client_site && (
+                          <div className="p-3.5 rounded-xl bg-blue-50/40 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/30 flex items-start gap-3">
+                            <Building className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5 flex-1">
+                              <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider">
+                                Local da Prestação de Serviços (Obra)
+                              </span>
+                              <p className="text-xs font-bold text-foreground">{estimacion.client_site.name}</p>
+                              {estimacion.client_site.address && (
+                                <p className="text-xs text-muted-foreground">{estimacion.client_site.address}</p>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </>
+                        )}
+                      </div>
                     ) : (
                       /* Exibição se for Lead */
-                      <div className="space-y-3.5">
-                        <div className="flex items-start">
-                          <Building className="h-5 w-5 text-amber-500 mr-3 mt-0.5" />
-                          <div className="space-y-1">
-                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Empresa (Lead)</p>
-                            <p className="text-base font-bold text-slate-900 dark:text-slate-100">
+                      <div className="space-y-4">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
+                            <Building2 className="h-5 w-5" />
+                          </div>
+                          <div className="space-y-1 flex-1">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Empresa (Lead Comercial)</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight">
                               {estimacion.lead?.legal_name || estimacion.lead?.company_name || estimacion.contact_name || 'Empresa não informada'}
                             </p>
                             {estimacion.lead?.company_name && estimacion.lead?.legal_name && estimacion.lead.company_name !== estimacion.lead.legal_name && (
                               <p className="text-xs text-muted-foreground">Nome Comercial: {estimacion.lead.company_name}</p>
                             )}
-                            <div className="flex items-center gap-2 pt-1">
-                              <span className={`font-mono text-xs px-2 py-0.5 rounded font-semibold ${
-                                estimacion.lead?.tax_id 
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400' 
-                                  : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400'
-                              }`}>
-                                CIF / NIF: {estimacion.lead?.tax_id || '⚠️ Não informado'}
-                              </span>
-                            </div>
                           </div>
                         </div>
 
+                        {/* Dados Fiscais do Lead */}
+                        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              Identificação Fiscal
+                            </span>
+                            <span className={`font-mono text-xs px-2 py-0.5 rounded font-semibold ${
+                              estimacion.lead?.tax_id 
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400' 
+                                : 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/40 dark:text-red-400'
+                            }`}>
+                              CIF / NIF: {estimacion.lead?.tax_id || '⚠️ Não informado'}
+                            </span>
+                          </div>
+                          {estimacion.lead?.address_line && (
+                            <div className="text-xs text-foreground pt-1 flex items-start gap-1.5">
+                              <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                              <span>
+                                {estimacion.lead.address_line}
+                                {(estimacion.lead.postal_code || estimacion.lead.city) && (
+                                  ` - ${[estimacion.lead.postal_code, estimacion.lead.city, estimacion.lead.province].filter(Boolean).join(' ')}`
+                                )}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
                         {/* Banner de Aviso e Conversão */}
-                        <div className="p-3.5 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-xl space-y-2.5">
+                        <div className="p-4 bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-900/40 rounded-xl space-y-2.5">
                           <div className="flex items-start gap-2">
                             <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                             <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
@@ -365,9 +450,9 @@ export function EstimacionDetailPage() {
                             <Button 
                               size="sm" 
                               onClick={() => setIsConvertModalOpen(true)}
-                              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-8 shadow-sm"
+                              className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-9 shadow-sm"
                             >
-                              <UserCheck className="w-3.5 h-3.5 mr-1.5" />
+                              <UserCheck className="w-4 h-4 mr-1.5" />
                               Converter em Cliente & Preencher Dados Fiscais
                             </Button>
                           )}
@@ -375,7 +460,7 @@ export function EstimacionDetailPage() {
                       </div>
                     )}
 
-                    <div className="flex items-start border-t pt-3">
+                    <div className="flex items-start border-t pt-3.5">
                       <FileText className="h-5 w-5 text-muted-foreground mr-3 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{t('comercial.detail.clientCard.proposalContact')}</p>
@@ -394,6 +479,16 @@ export function EstimacionDetailPage() {
                     isOpen={isConvertModalOpen}
                     onClose={() => setIsConvertModalOpen(false)}
                     lead={estimacion.lead}
+                    estimacionId={estimacion.id}
+                  />
+                )}
+
+                {/* Modal de Edição Rápida do Cliente Direto da Estimativa */}
+                {estimacion.client && (
+                  <EditClientModal
+                    isOpen={isEditClientModalOpen}
+                    onClose={() => setIsEditClientModalOpen(false)}
+                    client={estimacion.client}
                     estimacionId={estimacion.id}
                   />
                 )}
