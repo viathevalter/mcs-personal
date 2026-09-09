@@ -44,10 +44,22 @@ import {
   MapPin,
   Send,
   Globe,
-  User
+  User,
+  LayoutGrid,
+  List,
+  PhoneCall,
+  CheckSquare,
+  Square,
+  Flame,
+  Filter,
+  Copy,
+  Headphones,
+  CheckCircle2
 } from 'lucide-react';
 import { useKanbanStages, useAllKanbanStages, useMutateKanban, type KanbanStage } from './hooks/useKanban';
 import { useLeads, useMutateLead, useSalespeople } from './hooks/useLeads';
+import { useSalesScripts, useMutateDialer } from './hooks/useDialer';
+import { Checkbox } from '@/components/ui/checkbox';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useTranslation } from 'react-i18next';
@@ -100,6 +112,8 @@ export function KanbanPage() {
   });
   const { createStage, updateStage, deleteStage, reorderStages, moveLead } = useMutateKanban();
   const { createLead, updateLead } = useMutateLead();
+  const { data: salesScripts = [] } = useSalesScripts();
+  const { createCampaign } = useMutateDialer();
 
   const salespersonMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -118,6 +132,20 @@ export function KanbanPage() {
   }, [allStages]);
 
   // Local UI State
+  const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [selectedStageFilter, setSelectedStageFilter] = useState<string>('all');
+  const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(50);
+
+  // Dialer Queue Modal State
+  const [isCreateDialerOpen, setIsCreateDialerOpen] = useState(false);
+  const [dialerTitle, setDialerTitle] = useState('');
+  const [dialerDesc, setDialerDesc] = useState('');
+  const [dialerAssignedTo, setDialerAssignedTo] = useState<string>('unassigned');
+  const [dialerScriptId, setDialerScriptId] = useState<string>('none');
+  const [isSubmittingDialer, setIsSubmittingDialer] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
@@ -373,6 +401,140 @@ export function KanbanPage() {
     });
   };
 
+  // Lido / Clicado Stage detection & lead count
+  const lidoStage = useMemo(() => {
+    return stages.find(s => s.order_index === 3 || s.name.toLowerCase().includes('lido') || s.name.toLowerCase().includes('clicad'));
+  }, [stages]);
+
+  const countLidoLeads = useMemo(() => {
+    if (!lidoStage) return 0;
+    return filteredLeads.filter(lead => {
+      if (lead.stage_id === lidoStage.id) return true;
+      const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
+      return leadOrderIndex === lidoStage.order_index;
+    }).length;
+  }, [filteredLeads, lidoStage, stageIdToOrderMap]);
+
+  // List Mode Filtered Leads
+  const listFilteredLeads = useMemo(() => {
+    return filteredLeads.filter(lead => {
+      if (selectedStageFilter === 'all') return true;
+      const stage = stages.find(s => s.id === selectedStageFilter);
+      if (!stage) return true;
+      if (lead.stage_id === stage.id) return true;
+      const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
+      if (leadOrderIndex !== undefined) {
+        return leadOrderIndex === stage.order_index;
+      }
+      return stage.order_index === 1;
+    });
+  }, [filteredLeads, selectedStageFilter, stages, stageIdToOrderMap]);
+
+  // Pagination for List Mode
+  const totalPages = Math.max(1, Math.ceil(listFilteredLeads.length / pageSize));
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return listFilteredLeads.slice(start, start + pageSize);
+  }, [listFilteredLeads, currentPage, pageSize]);
+
+  // Lead helper for Stage Object
+  const getStageForLead = (lead: Lead): KanbanStage | undefined => {
+    if (lead.stage_id) {
+      const directMatch = stages.find(s => s.id === lead.stage_id);
+      if (directMatch) return directMatch;
+      const order = stageIdToOrderMap.get(lead.stage_id);
+      if (order !== undefined) {
+        const orderMatch = stages.find(s => s.order_index === order);
+        if (orderMatch) return orderMatch;
+      }
+    }
+    return stages.find(s => s.order_index === 1) || stages[0];
+  };
+
+  // Selection handlers
+  const isAllCurrentPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(l => selectedLeadIds.includes(l.id));
+  const isAllFilteredSelected = listFilteredLeads.length > 0 && listFilteredLeads.every(l => selectedLeadIds.includes(l.id));
+
+  const handleSelectCurrentPage = (checked: boolean) => {
+    if (checked) {
+      const pageIds = paginatedLeads.map(l => l.id);
+      setSelectedLeadIds(prev => Array.from(new Set([...prev, ...pageIds])));
+    } else {
+      const pageIdSet = new Set(paginatedLeads.map(l => l.id));
+      setSelectedLeadIds(prev => prev.filter(id => !pageIdSet.has(id)));
+    }
+  };
+
+  const handleSelectAllFiltered = () => {
+    const allIds = listFilteredLeads.map(l => l.id);
+    setSelectedLeadIds(allIds);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedLeadIds([]);
+  };
+
+  const handleToggleLead = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedLeadIds(prev => [...prev, id]);
+    } else {
+      setSelectedLeadIds(prev => prev.filter(item => item !== id));
+    }
+  };
+
+  // Open Dialer Modal
+  const handleOpenCreateDialer = () => {
+    if (selectedLeadIds.length === 0) {
+      toast.error('Selecione ao menos um lead para gerar a fila de ligação.');
+      return;
+    }
+    const currentFilterStage = stages.find(s => s.id === selectedStageFilter);
+    const stageLabel = currentFilterStage ? currentFilterStage.name : (lidoStage && selectedStageFilter === lidoStage.id ? 'Leads Clicados' : 'Prospectos');
+    const defaultTitle = `Fila Telemarketing - ${stageLabel} (${currentEmpresa?.name || 'Comercial'} - ${new Date().toLocaleDateString('pt-BR')})`;
+    setDialerTitle(defaultTitle);
+    setDialerDesc(`${selectedLeadIds.length} prospectos selecionados a partir do Funil de Vendas.`);
+    setDialerAssignedTo(selectedSalesperson !== 'all' ? selectedSalesperson : 'unassigned');
+    setIsCreateDialerOpen(true);
+  };
+
+  // Submit Dialer Queue
+  const handleCreateDialerQueue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dialerTitle.trim()) {
+      toast.error('Por favor, informe o título da campanha de discagem.');
+      return;
+    }
+    if (selectedLeadIds.length === 0) {
+      toast.error('Nenhum lead selecionado.');
+      return;
+    }
+
+    setIsSubmittingDialer(true);
+    try {
+      const campaign = await createCampaign.mutateAsync({
+        title: dialerTitle.trim(),
+        description: dialerDesc.trim() || undefined,
+        assigned_to: dialerAssignedTo === 'unassigned' ? null : dialerAssignedTo,
+        script_id: dialerScriptId === 'none' ? null : dialerScriptId,
+        lead_ids: selectedLeadIds,
+      });
+
+      toast.success(`Fila de ligação "${campaign.title}" criada com sucesso no Discador!`, {
+        action: {
+          label: 'Ir para Discador',
+          onClick: () => navigate('/comercial/discador'),
+        },
+      });
+
+      setIsCreateDialerOpen(false);
+      setSelectedLeadIds([]);
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao gerar fila de discagem.');
+    } finally {
+      setIsSubmittingDialer(false);
+    }
+  };
+
   return (
     <div className="flex flex-col space-y-6 p-4 sm:p-6 max-w-[1700px] mx-auto">
       {/* Top Header */}
@@ -436,29 +598,448 @@ export function KanbanPage() {
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="flex items-center gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-sm">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder={t('comercialKanban.searchPlaceholder', 'Buscar lead por nome, empresa, e-mail...')}
-            className="pl-10 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 focus-visible:ring-amber-500 focus-visible:border-amber-500 h-10 rounded-xl"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {/* Filter Toolbar & View Switcher */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-xl shadow-sm">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder={t('comercialKanban.searchPlaceholder', 'Buscar lead por nome, empresa, e-mail...')}
+              className="pl-10 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 focus-visible:ring-amber-500 focus-visible:border-amber-500 h-10 rounded-xl text-xs sm:text-sm"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+            />
+          </div>
+          {searchTerm && (
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                setSearchTerm('');
+                setCurrentPage(1);
+              }}
+              className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            >
+              Limpar busca
+            </Button>
+          )}
         </div>
-        {searchTerm && (
-          <Button 
-            variant="ghost" 
-            onClick={() => setSearchTerm('')}
-            className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
-          >
-            Limpar busca
-          </Button>
-        )}
+
+        {/* View Switcher & Quick Filters */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Quick Filter: Clicados / Lidos */}
+          {lidoStage && (
+            <Button
+              type="button"
+              variant={selectedStageFilter === lidoStage.id ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                if (selectedStageFilter === lidoStage.id) {
+                  setSelectedStageFilter('all');
+                } else {
+                  setSelectedStageFilter(lidoStage.id);
+                  setViewMode('list');
+                }
+                setCurrentPage(1);
+              }}
+              className={
+                selectedStageFilter === lidoStage.id
+                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border-none shadow-sm gap-2 h-10 px-3.5'
+                  : 'border-amber-400/60 hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold gap-2 h-10 px-3.5'
+              }
+              title="Filtrar prospectos que abriram ou clicaram nos e-mails"
+            >
+              <Flame className="h-4 w-4 fill-amber-500 text-amber-500" />
+              <span>E-mail Clicado / Lido</span>
+              <Badge className="ml-1 bg-amber-600 text-white dark:bg-amber-500 dark:text-slate-950 text-xs px-2 py-0.5 font-bold">
+                {countLidoLeads}
+              </Badge>
+            </Button>
+          )}
+
+          {/* View Mode Toggle: Kanban vs Lista */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => setViewMode('kanban')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'kanban'
+                  ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              <span>Kanban</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-slate-800 text-amber-600 dark:text-amber-400 shadow-sm border border-slate-200 dark:border-slate-700'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <List className="h-4 w-4" />
+              <span>Lista & Telemarketing</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Kanban Board Horizontal Scrolling Area */}
+      {viewMode === 'list' ? (
+        <div className="flex flex-col space-y-4">
+          {/* List Toolbar: Stage Filter, Bulk Selection & Actions */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Filter by Stage Dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  <Filter className="h-3.5 w-3.5" />
+                  Filtrar Etapa:
+                </span>
+                <Select
+                  value={selectedStageFilter}
+                  onValueChange={(val) => {
+                    setSelectedStageFilter(val);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[230px] h-9 text-xs bg-slate-50 dark:bg-slate-950 font-medium">
+                    <SelectValue placeholder="Todas as etapas" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all" className="text-xs font-semibold">
+                      Todas as Etapas ({filteredLeads.length})
+                    </SelectItem>
+                    {stages.map(st => {
+                      const count = getLeadsInStage(st).length;
+                      return (
+                        <SelectItem key={st.id} value={st.id} className="text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: st.color }} />
+                            <span className="truncate">{getStageTitle(st)}</span>
+                            <span className="text-slate-400 text-[11px] font-mono">({count})</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Quick Select Buttons */}
+              <div className="flex items-center gap-2 border-l border-slate-200 dark:border-slate-800 pl-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSelectCurrentPage(!isAllCurrentPageSelected)}
+                  className="h-8 text-xs gap-1.5 font-medium"
+                >
+                  {isAllCurrentPageSelected ? (
+                    <CheckSquare className="h-3.5 w-3.5 text-amber-500" />
+                  ) : (
+                    <Square className="h-3.5 w-3.5 text-slate-400" />
+                  )}
+                  <span>{isAllCurrentPageSelected ? 'Desmarcar Página' : 'Selecionar Página'}</span>
+                </Button>
+
+                {listFilteredLeads.length > paginatedLeads.length && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={isAllFilteredSelected ? handleClearSelection : handleSelectAllFiltered}
+                    className="h-8 text-xs gap-1.5 font-medium"
+                  >
+                    <span>{isAllFilteredSelected ? 'Desmarcar Todos' : `Selecionar Todos (${listFilteredLeads.length})`}</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Bulk Action: Gerar Fila no Discador */}
+            <div className="flex items-center gap-2.5">
+              {selectedLeadIds.length > 0 && (
+                <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800/80 px-3 py-1.5 rounded-xl text-xs">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <span className="font-bold text-amber-900 dark:text-amber-200">
+                    {selectedLeadIds.length} selecionados
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleClearSelection}
+                    className="text-amber-600 hover:text-amber-800 dark:hover:text-amber-200 text-[11px] underline ml-1 font-medium"
+                  >
+                    Limpar
+                  </button>
+                </div>
+              )}
+
+              <Button
+                type="button"
+                onClick={handleOpenCreateDialer}
+                disabled={selectedLeadIds.length === 0}
+                className={`gap-2 h-9 font-bold text-xs shadow-sm transition-all rounded-xl ${
+                  selectedLeadIds.length > 0
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 ring-2 ring-amber-500/20'
+                    : 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <PhoneCall className="h-3.5 w-3.5" />
+                <span>Gerar Fila no Discador ({selectedLeadIds.length})</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Leads Table */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  <tr>
+                    <th className="p-3.5 w-12 text-center">
+                      <Checkbox
+                        checked={isAllCurrentPageSelected}
+                        onCheckedChange={handleSelectCurrentPage}
+                        aria-label="Selecionar todos da página"
+                      />
+                    </th>
+                    <th className="p-3.5">Empresa / Lead</th>
+                    <th className="p-3.5">Contato</th>
+                    <th className="p-3.5">Telefone</th>
+                    <th className="p-3.5">E-mail</th>
+                    <th className="p-3.5">Etapa Funil</th>
+                    <th className="p-3.5">Responsável</th>
+                    <th className="p-3.5 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                  {loadingLeads ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-12 text-slate-400">
+                        Carregando prospectos...
+                      </td>
+                    </tr>
+                  ) : paginatedLeads.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="text-center py-12 text-slate-400">
+                        Nenhum prospecto encontrado para os filtros selecionados.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedLeads.map((lead) => {
+                      const isSelected = selectedLeadIds.includes(lead.id);
+                      const stage = getStageForLead(lead);
+                      const isBudget = parseBudgetNotes(lead.notes)?.isBudgetForm;
+
+                      return (
+                        <tr
+                          key={lead.id}
+                          onClick={() => {
+                            setSelectedLead(lead);
+                            setIsDetailsOpen(true);
+                          }}
+                          className={`cursor-pointer transition-colors hover:bg-amber-50/40 dark:hover:bg-amber-950/20 ${
+                            isSelected ? 'bg-amber-50/60 dark:bg-amber-950/30' : ''
+                          }`}
+                        >
+                          <td className="p-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => handleToggleLead(lead.id, !!checked)}
+                              aria-label={`Selecionar ${lead.company_name || lead.name}`}
+                            />
+                          </td>
+                          <td className="p-3.5 font-medium">
+                            <div className="flex flex-col">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-slate-900 dark:text-slate-100 text-xs sm:text-sm">
+                                  {lead.company_name || lead.name}
+                                </span>
+                                {isBudget && (
+                                  <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0">
+                                    Orçamento
+                                  </Badge>
+                                )}
+                              </div>
+                              {lead.website && (
+                                <a
+                                  href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 mt-0.5"
+                                >
+                                  <Globe className="h-3 w-3" />
+                                  <span>{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-xs text-slate-600 dark:text-slate-300">
+                            <div className="flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                              <span>{lead.name}</span>
+                            </div>
+                          </td>
+                          <td className="p-3.5 text-xs" onClick={(e) => e.stopPropagation()}>
+                            {lead.phone ? (
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={`tel:${lead.phone}`}
+                                  className="flex items-center gap-1 text-amber-600 dark:text-amber-400 hover:underline font-semibold"
+                                  title="Ligar para o lead"
+                                >
+                                  <PhoneCall className="h-3.5 w-3.5" />
+                                  <span>{lead.phone}</span>
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(lead.phone || '');
+                                    toast.success('Telefone copiado!');
+                                  }}
+                                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                  title="Copiar telefone"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">Sem telefone</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-xs text-slate-600 dark:text-slate-400">
+                            {lead.email ? (
+                              <div className="flex items-center gap-1.5 max-w-[220px] truncate">
+                                <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate" title={lead.email}>{lead.email}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 italic text-[11px]">Sem e-mail</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-xs">
+                            {stage ? (
+                              <Badge
+                                variant="outline"
+                                className="font-semibold text-[11px] gap-1.5 border"
+                                style={{
+                                  borderColor: stage.color,
+                                  color: stage.color,
+                                  backgroundColor: `${stage.color}15`,
+                                }}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage.color }} />
+                                {getStageTitle(stage)}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-slate-400">Não definido</Badge>
+                            )}
+                          </td>
+                          <td className="p-3.5 text-xs text-slate-600 dark:text-slate-400" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={lead.assigned_to || 'unassigned'}
+                              onValueChange={(val) => handleLeadAssignedChange(lead.id, val)}
+                            >
+                              <SelectTrigger className="h-7 w-[160px] text-xs bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
+                                <SelectValue placeholder="Atribuir" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="unassigned" className="text-xs">
+                                  Sem Atribuição
+                                </SelectItem>
+                                {salespeople.map(u => (
+                                  <SelectItem key={u.id} value={u.id} className="text-xs">
+                                    {u.display_name || u.email}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                          <td className="p-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setIsDetailsOpen(true);
+                                }}
+                                className="h-7 px-2 text-xs text-slate-500 hover:text-amber-600"
+                              >
+                                Detalhes
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination footer */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <span>Exibindo <strong>{paginatedLeads.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> a <strong>{Math.min(currentPage * pageSize, listFilteredLeads.length)}</strong> de <strong>{listFilteredLeads.length}</strong> prospectos</span>
+                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <span>Itens por página:</span>
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(val) => {
+                    setPageSize(Number(val));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="h-7 w-16 text-xs bg-white dark:bg-slate-900">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="25" className="text-xs">25</SelectItem>
+                    <SelectItem value="50" className="text-xs">50</SelectItem>
+                    <SelectItem value="100" className="text-xs">100</SelectItem>
+                    <SelectItem value="250" className="text-xs">250</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="px-2 font-medium">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+      /* Kanban Board Horizontal Scrolling Area */
       <div className="flex gap-4 overflow-x-auto pb-6 items-start min-h-[650px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
         {loadingStages || loadingLeads ? (
           <div className="flex justify-center items-center w-full py-24 text-slate-500 dark:text-slate-400">
@@ -617,6 +1198,129 @@ export function KanbanPage() {
           })
         )}
       </div>
+      )}
+
+      {/* Create Dialer Queue Dialog */}
+      <Dialog open={isCreateDialerOpen} onOpenChange={setIsCreateDialerOpen}>
+        <DialogContent className="sm:max-w-[540px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Headphones className="h-5 w-5 text-amber-500" />
+              <span>Gerar Fila no Discador de Telemarketing</span>
+            </DialogTitle>
+            <DialogDescription className="text-slate-500 dark:text-slate-400 text-xs">
+              Configure a nova campanha/fila de ligação para disparar o telemarketing dos leads selecionados no Cockpit de Prospecção.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreateDialerQueue} className="space-y-4 py-2">
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <PhoneCall className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <span className="font-semibold text-amber-900 dark:text-amber-300">
+                  Total de contatos na fila:
+                </span>
+              </div>
+              <Badge className="bg-amber-500 text-slate-950 font-extrabold text-sm px-2.5 py-0.5">
+                {selectedLeadIds.length} Leads
+              </Badge>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="dialer_title" className="text-xs font-semibold">
+                Nome da Fila / Campanha <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="dialer_title"
+                value={dialerTitle}
+                onChange={(e) => setDialerTitle(e.target.value)}
+                placeholder="Ex: Prospecção Telefônica - Leads Clicados"
+                required
+                className="bg-slate-50 dark:bg-slate-950 text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="dialer_desc" className="text-xs font-semibold">
+                Descrição ou Instruções
+              </Label>
+              <Input
+                id="dialer_desc"
+                value={dialerDesc}
+                onChange={(e) => setDialerDesc(e.target.value)}
+                placeholder="Ex: Ligar e confirmar interesse no serviço de terceirização..."
+                className="bg-slate-50 dark:bg-slate-950 text-xs h-9"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Script de Vendas</Label>
+                <Select value={dialerScriptId} onValueChange={setDialerScriptId}>
+                  <SelectTrigger className="bg-slate-50 dark:bg-slate-950 text-xs h-9">
+                    <SelectValue placeholder="Selecione um roteiro" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none" className="text-xs">
+                      Sem Script Pré-definido
+                    </SelectItem>
+                    {salesScripts.map(sc => (
+                      <SelectItem key={sc.id} value={sc.id} className="text-xs">
+                        📜 {sc.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Operador / Vendedor</Label>
+                <Select value={dialerAssignedTo} onValueChange={setDialerAssignedTo}>
+                  <SelectTrigger className="bg-slate-50 dark:bg-slate-950 text-xs h-9">
+                    <SelectValue placeholder="Atribuir operador" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned" className="text-xs">
+                      Distribuir / Qualquer Operador
+                    </SelectItem>
+                    {salespeople.map(u => (
+                      <SelectItem key={u.id} value={u.id} className="text-xs">
+                        👤 {u.display_name || u.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateDialerOpen(false)}
+                disabled={isSubmittingDialer}
+                className="text-xs"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmittingDialer}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-2 text-xs"
+              >
+                {isSubmittingDialer ? (
+                  <>Carregando...</>
+                ) : (
+                  <>
+                    <PhoneCall className="h-4 w-4" />
+                    Criar Fila e Iniciar
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* New Lead Modal */}
       <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
