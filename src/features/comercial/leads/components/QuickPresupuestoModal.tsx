@@ -139,12 +139,12 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
             <div>
               <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
                 Gerar Pré-Orçamento Rápido
-                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  Inside Sales
+                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                  Rascunho Interno (Draft)
                 </span>
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Preencha os perfis técnicos solicitados pelo cliente durante a ligação para gerar a estimativa comercial.
+                Preencha a demanda levantada na ligação para gerar o orçamento em modo rascunho. Nada é enviado ao cliente agora — você poderá revisar tarifas e margens com calma.
               </DialogDescription>
             </div>
           </div>
@@ -355,32 +355,40 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
           </div>
 
           <DialogFooter className="p-0 pt-4 border-t border-border flex justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              className="border-input"
-            >
-              Cancelar
-            </Button>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                🛡️ <strong>Rascunho Interno:</strong> Nada é enviado ao cliente agora. Você poderá revisar tarifas antes de enviar.
+              </span>
+            </div>
 
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm px-6 gap-2 shadow-md shadow-emerald-600/20"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Gerando Orçamento...
-                </>
-              ) : (
-                <>
-                  <CheckCircle className="w-4 h-4" />
-                  Confirmar & Enviar p/ Funil de Vendas
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onClose}
+                className="border-input text-xs"
+              >
+                Cancelar
+              </Button>
+
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-5 gap-2 shadow-md shadow-emerald-600/20"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Criando Rascunho...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    Salvar Rascunho & Criar Orçamento
+                  </>
+                )}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
