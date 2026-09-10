@@ -44,13 +44,13 @@ export function useEstimacionDetail(id: string | undefined) {
         { data: pedido }
       ] = await Promise.all([
         estimacion.client_id
-          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id, payment_term_id').eq('id', estimacion.client_id).maybeSingle()
+          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id').eq('id', estimacion.client_id).maybeSingle()
           : Promise.resolve({ data: null }),
         estimacion.lead_id
           ? supabase.schema('core_comercial').from('leads').select('id, name, email, phone, company_name, legal_name, tax_id, client_id, address_line, postal_code, city, province, country_id, billing_email, payment_term_id').eq('id', estimacion.lead_id).maybeSingle()
           : Promise.resolve({ data: null }),
         estimacion.client_site_id 
-          ? supabase.schema('core_common').from('client_sites').select('id, name, address').eq('id', estimacion.client_site_id).maybeSingle()
+          ? supabase.schema('core_common').from('client_sites').select('id, name, address:address_line, address_line, city, postal_code, province').eq('id', estimacion.client_site_id).maybeSingle()
           : Promise.resolve({ data: null }),
         estimacion.country_id
           ? supabase.schema('core_common').from('countries').select('id, name').eq('id', estimacion.country_id).maybeSingle()
@@ -86,7 +86,7 @@ export function useEstimacionDetail(id: string | undefined) {
         const { data: clientFromLead } = await supabase
           .schema('core_common')
           .from('clients')
-          .select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id, payment_term_id')
+          .select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id')
           .eq('id', lead.client_id)
           .maybeSingle();
 

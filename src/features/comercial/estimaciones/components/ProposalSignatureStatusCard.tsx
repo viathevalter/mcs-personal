@@ -51,6 +51,19 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     status = 'draft';
   }
 
+  React.useEffect(() => {
+    if (sig) {
+      if (sig.contract_document_url !== undefined && sig.contract_document_url !== null) {
+        setIncludeContract(Boolean(sig.contract_document_url));
+      } else if (sig.document_url && !sig.contract_document_url) {
+        setIncludeContract(false);
+      }
+      if (sig.document_url !== undefined && sig.document_url !== null) {
+        setIncludeProposal(Boolean(sig.document_url));
+      }
+    }
+  }, [sig?.id, sig?.contract_document_url, sig?.document_url]);
+
   // Gerar o link de assinatura
   const origin = window.location.origin;
   const signingLink = sig?.signature_token ? `${origin}/assinar-proposta/${sig.signature_token}` : '';
