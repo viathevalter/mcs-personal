@@ -153,22 +153,29 @@ export function ExportJobFunctionRatesDialog({
 
         row['Tarifa Global Vigente (€/h)'] = globalSellRate !== null ? globalSellRate : '';
 
-        // Add dynamic country columns
+        // Add dynamic country columns (Custo Base e Tarifa por país)
         if (includeCountries) {
           targetCountries.forEach(country => {
             const countryRate = allRates.find(
               r => r.job_function_id === jf.id && r.country_id === country.id
             );
 
-            let val: number | string = '';
-            if (countryRate?.recommended_sell_rate_hour != null) {
-              val = Number(countryRate.recommended_sell_rate_hour);
-            } else if (prefillWithGlobal && globalSellRate !== null) {
-              val = globalSellRate;
+            let costVal: number | string = '';
+            if (countryRate?.base_cost_hour != null) {
+              costVal = Number(countryRate.base_cost_hour);
+            } else if (prefillWithGlobal && globalBaseCost !== null) {
+              costVal = globalBaseCost;
             }
 
-            const colName = `Tarifa ${country.name} (€/h)`;
-            row[colName] = val;
+            let sellVal: number | string = '';
+            if (countryRate?.recommended_sell_rate_hour != null) {
+              sellVal = Number(countryRate.recommended_sell_rate_hour);
+            } else if (prefillWithGlobal && globalSellRate !== null) {
+              sellVal = globalSellRate;
+            }
+
+            row[`Custo Base ${country.name} (€/h)`] = costVal;
+            row[`Tarifa ${country.name} (€/h)`] = sellVal;
           });
         }
 
@@ -312,7 +319,7 @@ export function ExportJobFunctionRatesDialog({
                     Adicionar colunas separadas por país
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Cria colunas para cada país (Espanha, Portugal, França, Itália, etc.)
+                    Cria colunas de Custo Base e Tarifa para cada país (Espanha, Portugal, França, Itália, etc.)
                   </p>
                 </div>
                 <Switch
@@ -330,7 +337,7 @@ export function ExportJobFunctionRatesDialog({
                       <div className="flex-1">
                         <div className="flex items-center justify-between">
                           <Label htmlFor="prefill-global" className="text-xs font-semibold text-blue-900 dark:text-blue-300 cursor-pointer">
-                            Pré-preencher países com a Tarifa Global
+                            Pré-preencher países com os valores Globais
                           </Label>
                           <Switch
                             id="prefill-global"
@@ -339,7 +346,7 @@ export function ExportJobFunctionRatesDialog({
                           />
                         </div>
                         <p className="text-[11px] text-blue-700 dark:text-blue-400 mt-1 leading-relaxed">
-                          Recomendado: Inicia cada país com o valor global atual como referência. Assim você só altera na planilha os países com tarifas diferenciadas.
+                          Recomendado: Inicia cada país com o custo base e a tarifa global atuais como referência para você só alterar as diferenças diretamente no Excel.
                         </p>
                       </div>
                     </div>
