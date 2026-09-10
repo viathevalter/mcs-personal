@@ -485,7 +485,7 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
         .from("kanban_stages")
         .select("id")
         .eq("empresa_id", targetEmpresaId)
-        .or(`name.ilike.%enviado%,order_index.eq.2`)
+        .eq("order_index", 2)
         .limit(1)
         .maybeSingle();
 
@@ -494,12 +494,13 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
       }
     }
 
-    // Fallback caso não ache por targetEmpresaId
-    if (!stageId) {
+    // Fallback caso não ache por order_index, buscar por nome dentro da MESMA empresa
+    if (!stageId && targetEmpresaId) {
       const { data: fallbackStage } = await supabase
         .from("kanban_stages")
         .select("id")
-        .or(`name.eq.E-mail Enviado,order_index.eq.2`)
+        .eq("empresa_id", targetEmpresaId)
+        .ilike("name", "%enviado%")
         .limit(1)
         .maybeSingle();
       if (fallbackStage) stageId = fallbackStage.id;
