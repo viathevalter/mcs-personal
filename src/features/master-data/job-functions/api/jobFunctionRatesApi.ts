@@ -19,6 +19,23 @@ export const jobFunctionRatesApi = {
     return data as JobFunctionRateRef[];
   },
 
+  async getAllRates(empresaId?: string): Promise<JobFunctionRateRef[]> {
+    let query = supabase
+      .schema('core_comercial')
+      .from('job_function_rate_refs')
+      .select('*')
+      .neq('status', 'archived')
+      .order('created_at', { ascending: true });
+
+    if (empresaId) {
+      query = query.eq('empresa_id', empresaId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data as JobFunctionRateRef[];
+  },
+
   async createRate(empresaId: string, payload: CreateJobFunctionRateRefDTO): Promise<JobFunctionRateRef> {
     if (!empresaId) throw new Error('Empresa não selecionada');
 

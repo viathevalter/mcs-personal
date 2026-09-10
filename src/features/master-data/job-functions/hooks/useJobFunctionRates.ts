@@ -16,6 +16,16 @@ export function useJobFunctionRates(jobFunctionId: string) {
   });
 }
 
+export function useAllJobFunctionRates(empresaId?: string | null) {
+  const { selectedEmpresaId } = useEmpresa();
+  const activeId = empresaId !== undefined ? empresaId : selectedEmpresaId;
+
+  return useQuery({
+    queryKey: ['jobFunctionRates', 'all', activeId],
+    queryFn: () => jobFunctionRatesApi.getAllRates(activeId || undefined),
+  });
+}
+
 export function useMutateJobFunctionRate(jobFunctionId: string) {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();

@@ -5,6 +5,7 @@ import { useMutateJobFunction } from '../hooks/useMutateJobFunction';
 import { JobFunctionsDataTable } from '../components/JobFunctionsDataTable';
 import { JobFunctionsKPIs } from '../components/JobFunctionsKPIs';
 import { CreateJobFunctionSheet } from '../components/CreateJobFunctionSheet';
+import { ExportJobFunctionRatesDialog } from '../components/ExportJobFunctionRatesDialog';
 import { Input } from '@/components/ui/input';
 import { Search } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,6 +43,7 @@ export function JobFunctionsPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          <ExportJobFunctionRatesDialog jobFunctions={jobFunctions} />
           <CreateJobFunctionSheet />
         </div>
       </div>
