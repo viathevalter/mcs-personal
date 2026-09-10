@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { format, parseISO } from 'date-fns';
 
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
@@ -586,7 +587,16 @@ export function PowerDialerPage() {
 
                     <div className="flex items-center gap-1.5 text-xs font-bold text-foreground font-mono">
                       <Clock className="w-3.5 h-3.5 text-amber-500" />
-                      {format(new Date(currentQueueItem.scheduled_for), "dd/MM/yyyy 'às' HH:mm")}
+                      {(() => {
+                        try {
+                          const d = typeof currentQueueItem.scheduled_for === 'string'
+                            ? parseISO(currentQueueItem.scheduled_for)
+                            : new Date(currentQueueItem.scheduled_for);
+                          return format(d, "dd/MM/yyyy 'às' HH:mm");
+                        } catch {
+                          return String(currentQueueItem.scheduled_for);
+                        }
+                      })()}
                     </div>
 
                     {currentQueueItem.scheduled_notes && (
