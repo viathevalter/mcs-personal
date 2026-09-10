@@ -73,7 +73,7 @@ export function useDialerAgenda() {
           created_at,
           updated_at,
           campaign:dialer_campaigns!campaign_id ( id, title, empresa_id ),
-          lead:leads!lead_id ( id, name, company_name, phone, email, city, sector, cargo, notes )
+          lead:leads!lead_id ( id, name, company_name, phone, email, city, sector, cargo, notes, empresa_id )
         `)
         .not('scheduled_for', 'is', null)
         .order('scheduled_for', { ascending: true });
@@ -82,7 +82,10 @@ export function useDialerAgenda() {
 
       // Filter by current empresa_id
       const filtered = (queueItems || []).filter(
-        (it: any) => it.campaign?.empresa_id === selectedEmpresaId || !it.campaign?.empresa_id
+        (it: any) => 
+          it.campaign?.empresa_id === selectedEmpresaId || 
+          it.lead?.empresa_id === selectedEmpresaId ||
+          (!it.campaign?.empresa_id && !it.lead?.empresa_id)
       );
 
       // Fetch users for assignment mapping
@@ -567,6 +570,10 @@ export function useMutateDialer() {
       campaignId,
       leadId,
       outcome,
+      durationSeconds = 0,
+      notes,
+      phoneCalled,
+      contactPerson,
       scheduledCallbackAt,
       rejectionReason,
       priority = 'normal',
@@ -577,7 +584,7 @@ export function useMutateDialer() {
       campaignId: string;
       leadId: string;
       outcome: CallOutcome;
-      durationSeconds: number;
+      durationSeconds?: number;
       notes?: string;
       phoneCalled?: string;
       contactPerson?: string;
@@ -589,6 +596,10 @@ export function useMutateDialer() {
     }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
 
+      // Obter usuário autenticado
+      const { data: authData } = await supabase.auth.getUser();
+      const effectiveUserId = userId || authData?.user?.id || null;
+
       // 1. Insert Call Log
       const { data: log, error: logError } = await supabase
         .schema('core_comercial')
@@ -598,9 +609,9 @@ export function useMutateDialer() {
           lead_id: leadId,
           campaign_id: campaignId,
           queue_item_id: queueItemId,
-          user_id: userId || null,
+          user_id: effectiveUserId,
           outcome,
-          duration_seconds: durationSeconds,
+          duration_seconds: durationSeconds || 0,
           notes: notes || null,
           phone_called: phoneCalled || null,
           contact_person: contactPerson || null,
@@ -635,7 +646,7 @@ export function useMutateDialer() {
       const { data: currentQueueItem } = await supabase
         .schema('core_comercial')
         .from('dialer_queue_items')
-        .select('attempts_count, sort_order')
+        .select('attempts_count, sort_order, assigned_to')
         .eq('id', queueItemId)
         .single();
 
@@ -647,19 +658,25 @@ export function useMutateDialer() {
       }
 
       // Update Queue Item
+      const queueUpdateData: Record<string, any> = {
+        status: nextStatus,
+        attempts_count: newAttempts,
+        scheduled_for: nextScheduledFor,
+        scheduled_notes: notes || null,
+        priority: priority || 'normal',
+        sort_order: currentSort + nextSortOrderModifier,
+        last_attempt_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (effectiveUserId && (outcome === 'answered_callback' || !currentQueueItem?.assigned_to)) {
+        queueUpdateData.assigned_to = effectiveUserId;
+      }
+
       const { error: updateQueueError } = await supabase
         .schema('core_comercial')
         .from('dialer_queue_items')
-        .update({
-          status: nextStatus,
-          attempts_count: newAttempts,
-          scheduled_for: nextScheduledFor,
-          scheduled_notes: notes || null,
-          priority: priority || 'normal',
-          sort_order: currentSort + nextSortOrderModifier,
-          last_attempt_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .update(queueUpdateData)
         .eq('id', queueItemId);
 
       if (updateQueueError) throw updateQueueError;

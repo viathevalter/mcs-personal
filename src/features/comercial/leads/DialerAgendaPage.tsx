@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   CalendarDays, 
@@ -20,11 +20,17 @@ import {
   Check, 
   Play, 
   Users, 
+  User,
   Sparkles,
   Building,
   MapPin,
   ExternalLink,
-  Plus
+  Plus,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  Tag
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,16 +63,29 @@ import {
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { useAuth } from '@/app/providers/AuthProvider';
 import { useDialerAgenda, useMutateDialer, type ScheduledAppointmentItem } from './hooks/useDialer';
 import { useSalespeople } from './hooks/useLeads';
 
+const QUICK_TAGS = [
+  'Decisor em reunião',
+  'Pediu ligar após o almoço',
+  'Parada técnica prevista',
+  'Aguardando aprovação de compras',
+  'Ligar direto no celular do engenheiro',
+  'Enviar portfólio de caldeiraria e tubulação'
+];
+
 export function DialerAgendaPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: agenda = [], isLoading } = useDialerAgenda();
   const { data: salespeople = [] } = useSalespeople();
   const { updateAppointment, deleteAppointment, isUpdatingAppointment } = useMutateDialer();
 
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [operatorScope, setOperatorScope] = useState<'mine' | 'all'>('mine');
+  const [selectedOperatorId, setSelectedOperatorId] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'today' | 'overdue' | 'upcoming' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -84,6 +103,28 @@ export function DialerAgendaPage() {
   const [editNotes, setEditNotes] = useState('');
   const [editAssignedTo, setEditAssignedTo] = useState('');
   const [editStatus, setEditStatus] = useState('scheduled');
+  const editEditorRef = useRef<HTMLDivElement>(null);
+
+  // Operator Scoping
+  const myAppointmentsCount = useMemo(() => {
+    if (!user?.id) return agenda.length;
+    return agenda.filter(it => it.assigned_to === user.id || !it.assigned_to).length;
+  }, [agenda, user?.id]);
+
+  const scopedAgenda = useMemo(() => {
+    return agenda.filter(item => {
+      if (operatorScope === 'mine') {
+        if (user?.id && item.assigned_to && item.assigned_to !== user.id) {
+          return false;
+        }
+      } else if (selectedOperatorId !== 'all') {
+        if (item.assigned_to !== selectedOperatorId) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [agenda, operatorScope, selectedOperatorId, user?.id]);
 
   // KPI Calculations
   const todayStart = startOfToday();
@@ -94,7 +135,7 @@ export function DialerAgendaPage() {
     let upcomingCount = 0;
     let completedCount = 0;
 
-    agenda.forEach(item => {
+    scopedAgenda.forEach(item => {
       if (!item.scheduled_for) return;
       const date = parseISO(item.scheduled_for);
 
@@ -109,12 +150,12 @@ export function DialerAgendaPage() {
       }
     });
 
-    return { todayCount, overdueCount, upcomingCount, completedCount, total: agenda.length };
-  }, [agenda, todayStart]);
+    return { todayCount, overdueCount, upcomingCount, completedCount, total: scopedAgenda.length };
+  }, [scopedAgenda, todayStart]);
 
   // Filtered List
   const filteredAgenda = useMemo(() => {
-    return agenda.filter(item => {
+    return scopedAgenda.filter(item => {
       if (!item.scheduled_for) return false;
       const date = parseISO(item.scheduled_for);
 
@@ -141,7 +182,7 @@ export function DialerAgendaPage() {
 
       return true;
     });
-  }, [agenda, statusFilter, priorityFilter, searchQuery, todayStart]);
+  }, [scopedAgenda, statusFilter, priorityFilter, searchQuery, todayStart]);
 
   // Calendar calculations
   const monthStart = startOfMonth(currentMonth);
@@ -149,6 +190,41 @@ export function DialerAgendaPage() {
   const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
   const startDayOfWeek = getDay(monthStart);
   const startOffset = (startDayOfWeek + 6) % 7; // Monday start
+
+  // Sync Rich Text in Edit Modal
+  useEffect(() => {
+    if (isEditModalOpen && editEditorRef.current) {
+      editEditorRef.current.innerHTML = editNotes || '';
+    }
+  }, [isEditModalOpen]);
+
+  const handleFormatEditCommand = (command: string, value: string | undefined = undefined) => {
+    document.execCommand(command, false, value);
+    if (editEditorRef.current) {
+      setEditNotes(editEditorRef.current.innerHTML);
+    }
+  };
+
+  const handleHighlightEditColor = (bgColor: string, textColor: string) => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+      toast.info('Selecione o texto que deseja destacar com cor.');
+      return;
+    }
+    document.execCommand('backColor', false, bgColor);
+    document.execCommand('foreColor', false, textColor);
+    if (editEditorRef.current) {
+      setEditNotes(editEditorRef.current.innerHTML);
+    }
+  };
+
+  const handleInsertEditTag = (tagText: string) => {
+    if (editEditorRef.current) {
+      const tagHtml = `<span style="background-color: #3b82f620; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #3b82f640; margin-right: 4px;">#${tagText}</span> `;
+      document.execCommand('insertHTML', false, tagHtml);
+      setEditNotes(editEditorRef.current.innerHTML);
+    }
+  };
 
   // Open Edit Modal
   const handleOpenEdit = (item: ScheduledAppointmentItem) => {
@@ -162,8 +238,12 @@ export function DialerAgendaPage() {
       setEditTime('10:00');
     }
     setEditPriority(item.priority || 'normal');
-    setEditNotes(item.scheduled_notes || '');
-    setEditAssignedTo(item.assigned_to || '');
+    const noteText = item.scheduled_notes || '';
+    setEditNotes(noteText);
+    if (editEditorRef.current) {
+      editEditorRef.current.innerHTML = noteText;
+    }
+    setEditAssignedTo(item.assigned_to || user?.id || '');
     setEditStatus(item.status || 'scheduled');
     setIsEditModalOpen(true);
   };
@@ -174,10 +254,11 @@ export function DialerAgendaPage() {
 
     try {
       const combinedIso = new Date(`${editDate}T${editTime}:00`).toISOString();
+      const finalNotes = editEditorRef.current?.innerHTML || editNotes;
       await updateAppointment({
         queueItemId: editingItem.id,
         scheduled_for: combinedIso,
-        scheduled_notes: editNotes,
+        scheduled_notes: finalNotes,
         priority: editPriority,
         status: editStatus,
         assigned_to: editAssignedTo || null,
@@ -237,7 +318,46 @@ export function DialerAgendaPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Operator Scope Switcher */}
+          <div className="flex items-center gap-2">
+            <div className="bg-muted/60 border border-border p-0.5 rounded-xl flex items-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setOperatorScope('mine')}
+                className={`h-8 text-xs font-bold gap-1.5 rounded-lg transition-all ${
+                  operatorScope === 'mine' ? 'bg-amber-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <User className="w-3.5 h-3.5" /> Minha Agenda ({myAppointmentsCount})
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setOperatorScope('all')}
+                className={`h-8 text-xs font-bold gap-1.5 rounded-lg transition-all ${
+                  operatorScope === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> Toda a Equipe ({agenda.length})
+              </Button>
+            </div>
+
+            {operatorScope === 'all' && (
+              <select
+                value={selectedOperatorId}
+                onChange={e => setSelectedOperatorId(e.target.value)}
+                className="h-8 rounded-xl bg-card border border-input text-foreground text-xs px-2.5 shadow-sm font-medium"
+              >
+                <option value="all">Todos os Operadores ({agenda.length})</option>
+                {salespeople.map(sp => (
+                  <option key={sp.id} value={sp.id}>{sp.display_name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
           {/* View switcher */}
           <div className="bg-muted/60 border border-border p-0.5 rounded-xl flex items-center">
             <Button
@@ -258,7 +378,7 @@ export function DialerAgendaPage() {
                 viewMode === 'list' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
               }`}
             >
-              <ListFilter className="w-3.5 h-3.5 text-indigo-500" /> Modo Lista ({agenda.length})
+              <ListFilter className="w-3.5 h-3.5 text-indigo-500" /> Modo Lista ({scopedAgenda.length})
             </Button>
           </div>
 
@@ -414,7 +534,7 @@ export function DialerAgendaPage() {
                 const isDayToday = isToday(day);
 
                 // Find appointments on this day
-                const dayAppointments = agenda.filter(item => {
+                const dayAppointments = scopedAgenda.filter(item => {
                   if (!item.scheduled_for) return false;
                   return isSameDay(parseISO(item.scheduled_for), day);
                 });
@@ -490,13 +610,13 @@ export function DialerAgendaPage() {
 
               {selectedDay && (
                 <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs">
-                  {agenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length} Agendados
+                  {scopedAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length} Agendados
                 </Badge>
               )}
             </div>
 
             <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-              {agenda
+              {scopedAgenda
                 .filter(it => it.scheduled_for && selectedDay && isSameDay(parseISO(it.scheduled_for), selectedDay))
                 .map(item => (
                   <div
@@ -505,13 +625,23 @@ export function DialerAgendaPage() {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">
                             {format(parseISO(item.scheduled_for), 'HH:mm')}
                           </span>
                           {item.priority === 'high' && (
                             <Badge className="bg-rose-500 text-white text-[9px] px-1 py-0">🔥 Urgente</Badge>
                           )}
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            item.assigned_to === user?.id 
+                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30' 
+                              : 'bg-muted text-muted-foreground'
+                          }`}>
+                            <User className="w-2.5 h-2.5" />
+                            {item.assigned_to === user?.id 
+                              ? 'Você' 
+                              : (item.assigned_user?.display_name || 'Equipe Geral')}
+                          </span>
                         </div>
                         <h5 className="text-sm font-bold text-foreground mt-0.5">
                           {item.lead?.company_name || item.lead?.name}
@@ -576,7 +706,7 @@ export function DialerAgendaPage() {
                   </div>
                 ))}
 
-              {selectedDay && agenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length === 0 && (
+              {selectedDay && scopedAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length === 0 && (
                 <div className="p-8 text-center rounded-xl border border-dashed border-border space-y-2">
                   <CalendarDays className="w-8 h-8 text-muted-foreground/40 mx-auto" />
                   <p className="text-xs text-muted-foreground">Nenhum compromisso agendado para este dia.</p>
@@ -610,7 +740,7 @@ export function DialerAgendaPage() {
                   onClick={() => setStatusFilter('all')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusFilter === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
                 >
-                  Todos ({agenda.length})
+                  Todos ({scopedAgenda.length})
                 </button>
                 <button
                   type="button"
@@ -738,8 +868,15 @@ export function DialerAgendaPage() {
                         </td>
 
                         <td className="py-3.5 px-4 text-xs">
-                          <span className="text-foreground font-medium">
-                            {item.assigned_user?.display_name || 'Equipe Geral'}
+                          <span className={`inline-flex items-center gap-1 font-medium px-2 py-0.5 rounded-md text-[11px] ${
+                            item.assigned_to === user?.id
+                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30'
+                              : 'text-foreground bg-muted/60'
+                          }`}>
+                            <User className="w-3 h-3" />
+                            {item.assigned_to === user?.id
+                              ? 'Você'
+                              : (item.assigned_user?.display_name || 'Equipe Geral')}
                           </span>
                         </td>
 
@@ -876,10 +1013,15 @@ export function DialerAgendaPage() {
                   onChange={e => setEditAssignedTo(e.target.value)}
                   className="w-full h-9 rounded-lg bg-background border border-input text-foreground text-xs px-2"
                 >
-                  <option value="">Equipe Geral (Qualquer operador)</option>
-                  {salespeople.map(sp => (
-                    <option key={sp.id} value={sp.id}>{sp.display_name}</option>
-                  ))}
+                  <option value="">Equipe Geral (Disponível a qualquer operador)</option>
+                  {user && (
+                    <option value={user.id}>👤 Atribuir a Mim (Você)</option>
+                  )}
+                  {salespeople
+                    .filter(sp => sp.id !== user?.id)
+                    .map(sp => (
+                      <option key={sp.id} value={sp.id}>{sp.display_name}</option>
+                    ))}
                 </select>
               </div>
             </div>
@@ -900,15 +1042,113 @@ export function DialerAgendaPage() {
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-foreground">
-                Instruções / Anotações do Agendamento (Rich Text / Observações)
+                Instruções & Observações do Agendamento (Rich Text)
               </Label>
-              <textarea
-                value={editNotes}
-                onChange={e => setEditNotes(e.target.value)}
-                placeholder="Ex: Decisor pediu para ligar após às 15h. Tem parada técnica de caldeiraria no próximo mês..."
-                rows={4}
-                className="w-full p-3 rounded-xl bg-background border border-input text-foreground text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-amber-500"
-              />
+              <div className="rounded-2xl border border-border bg-background shadow-sm overflow-hidden flex flex-col">
+                {/* Formatting Toolbar */}
+                <div className="p-2 border-b border-border bg-muted/40 flex flex-wrap items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleFormatEditCommand('bold')}
+                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
+                    title="Negrito (Ctrl+B)"
+                  >
+                    <Bold className="w-3.5 h-3.5 font-bold" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleFormatEditCommand('italic')}
+                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
+                    title="Itálico (Ctrl+I)"
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleFormatEditCommand('underline')}
+                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
+                    title="Sublinhado"
+                  >
+                    <Underline className="w-3.5 h-3.5" />
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleFormatEditCommand('insertUnorderedList')}
+                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
+                    title="Lista com Marcadores"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                  </Button>
+
+                  <div className="h-4 w-px bg-border mx-1" />
+
+                  {/* Color Highlighters */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleHighlightEditColor('#fef08a', '#854d0e')}
+                      className="w-5 h-5 rounded-full bg-yellow-300 border border-yellow-500 hover:scale-110 transition-transform"
+                      title="Destacar Amarelo"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleHighlightEditColor('#bbf7d0', '#166534')}
+                      className="w-5 h-5 rounded-full bg-emerald-300 border border-emerald-500 hover:scale-110 transition-transform"
+                      title="Destacar Verde"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleHighlightEditColor('#fecdd3', '#9f1239')}
+                      className="w-5 h-5 rounded-full bg-rose-300 border border-rose-500 hover:scale-110 transition-transform"
+                      title="Destacar Vermelho / Urgente"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleHighlightEditColor('#bfdbfe', '#1e40af')}
+                      className="w-5 h-5 rounded-full bg-blue-300 border border-blue-500 hover:scale-110 transition-transform"
+                      title="Destacar Azul"
+                    />
+                  </div>
+                </div>
+
+                {/* Editable Area */}
+                <div
+                  ref={editEditorRef}
+                  contentEditable
+                  onInput={() => {
+                    if (editEditorRef.current) setEditNotes(editEditorRef.current.innerHTML);
+                  }}
+                  className="p-3.5 min-h-[120px] max-h-[200px] overflow-y-auto text-xs text-foreground leading-relaxed focus:outline-none"
+                />
+              </div>
+
+              {/* Quick Tags */}
+              <div className="pt-1 flex flex-wrap gap-1.5 items-center">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1 mr-1">
+                  <Tag className="w-3 h-3" /> Tags:
+                </span>
+                {QUICK_TAGS.map(tagText => (
+                  <button
+                    key={tagText}
+                    type="button"
+                    onClick={() => handleInsertEditTag(tagText)}
+                    className="px-2 py-0.5 rounded-md bg-muted/60 hover:bg-muted text-[10px] text-foreground border border-border hover:border-amber-500/50 transition-colors"
+                  >
+                    + {tagText}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <DialogFooter className="p-4 border-t border-border bg-muted/20 flex justify-between items-center">
