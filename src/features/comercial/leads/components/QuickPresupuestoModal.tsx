@@ -14,7 +14,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Trash2, Calculator, CheckCircle, FileText, Loader2, Sparkles, Building2, MapPin } from 'lucide-react';
-import { useJobFunctions } from '@/features/comercial/estimaciones/hooks/useJobFunctions';
+import { useJobFunctions, useAllJobFunctionRates } from '@/features/comercial/estimaciones/hooks/useJobFunctions';
+import { useCountries } from '@/features/master-data/locations/hooks/useLocations';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { toast } from 'sonner';
 import type { Lead } from '@/features/comercial/estimaciones/types';
@@ -30,6 +31,23 @@ interface QuickPresupuestoModalProps {
 export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPresupuestoModalProps) {
   const { selectedEmpresaId } = useEmpresa();
   const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions();
+  const { data: rateRefs = [] } = useAllJobFunctionRates();
+  const { data: countries = [] } = useCountries();
+
+  const leadCountryId = (() => {
+    if ((lead as any)?.country_id) return (lead as any).country_id;
+    const countryName = ((lead as any)?.country || '').trim().toLowerCase();
+    if (countryName) {
+      const match = countries.find(c => 
+        c.name.toLowerCase() === countryName || 
+        c.iso2.toLowerCase() === countryName || 
+        c.iso3.toLowerCase() === countryName
+      );
+      if (match) return match.id;
+    }
+    // Default to Spain if lead mentions Spain or Spanish city
+    return null;
+  })();
 
   const [contactName, setContactName] = useState(lead.name || lead.company_name || '');
   const [contactEmail, setContactEmail] = useState(lead.email || '');
@@ -88,6 +106,17 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
         const found = jobFunctions.find(jf => jf.id === value);
         if (found) {
           updated[index].job_title = found.name;
+
+          // Lookup country or global tariff
+          const jfRates = rateRefs.filter((r: any) => r.job_function_id === value);
+          const rateToUse = (leadCountryId && jfRates.find((r: any) => r.country_id === leadCountryId && r.empresa_id === selectedEmpresaId))
+            || (leadCountryId && jfRates.find((r: any) => r.country_id === leadCountryId))
+            || jfRates.find((r: any) => (!r.country_id || r.country_id === null) && r.empresa_id === selectedEmpresaId)
+            || jfRates.find((r: any) => !r.country_id || r.country_id === null);
+
+          if (rateToUse?.recommended_sell_rate_hour) {
+            updated[index].sell_rate_hour = Number(rateToUse.recommended_sell_rate_hour);
+          }
         }
       }
 

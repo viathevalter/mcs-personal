@@ -5,8 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, HelpCircle, Building, Shield, Truck, DollarSign, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, HelpCircle, Building, Shield, Truck, DollarSign, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { useJobFunctions, useAllJobFunctionRates, useAllJobFunctionEpis } from '../hooks/useJobFunctions';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useSpainProvinces } from '../hooks/useSpainProvinces';
@@ -484,6 +485,35 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
     }
   };
 
+  const handleReapplyCountryRates = () => {
+    let count = 0;
+    const updatedItems = (data.items || []).map((item: any) => {
+      const jfRates = rateRefs.filter((r: any) => r.job_function_id === item.job_function_id);
+      const rateToUse = jfRates.find((r: any) => r.country_id === data.country_id && r.empresa_id === selectedEmpresaId)
+        || jfRates.find((r: any) => r.country_id === data.country_id)
+        || jfRates.find((r: any) => (r.country_id === null || !r.country_id) && r.empresa_id === selectedEmpresaId)
+        || jfRates.find((r: any) => r.country_id === null || !r.country_id);
+
+      if (rateToUse) {
+        count++;
+        return {
+          ...item,
+          base_cost_hour: Number(rateToUse.base_cost_hour),
+          sell_rate_hour: Number(rateToUse.recommended_sell_rate_hour),
+          recommended_sell_rate: Number(rateToUse.recommended_sell_rate_hour)
+        };
+      }
+      return item;
+    });
+
+    const result = recalculateTotals(updatedItems, globalBroker, province);
+    onChange({
+      items: updatedItems,
+      ...result
+    });
+    toast.success(`Tarifas padrão atualizadas em ${count} itens!`);
+  };
+
   const recalculateTotals = (currentItems: any[], includesZentralcom: boolean, prov: any) => {
     const totalDays = countTotalDays(data.expected_start_date, data.expected_end_date);
     const hoursPerEmployee = calculateWorkerHoursPerPeriod({
@@ -923,7 +953,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-2">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             {t('comercial.stepItems.title', { defaultValue: 'Perfis Profissionais e Serviços' })}
@@ -932,6 +962,19 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
             {t('comercial.stepItems.subtitle', { defaultValue: 'Adicione os perfis, configure taxas locais e controle a margem comercial.' })}
           </p>
         </div>
+        {data.items?.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleReapplyCountryRates}
+            className="text-xs gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 shadow-sm"
+            title="Atualiza todos os perfis inseridos com as tarifas oficiais deste país"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>{t('comercial.stepItems.reapplyRates', { defaultValue: 'Reaplicar Tarifas do País' })}</span>
+          </Button>
+        )}
       </div>
 
       {/* Resumo da Localidade e Datas */}
@@ -1363,7 +1406,21 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
                               {Number(item.base_cost_hour) === Number(rateToUse.base_cost_hour) && Number(item.sell_rate_hour) === Number(rateToUse.recommended_sell_rate_hour) ? (
                                 <span className="text-blue-500 font-medium">{t('comercial.stepItems.sellRateDefault', { defaultValue: '✓ Padrão' })}</span>
                               ) : (
-                                <span>{t('comercial.stepItems.sellRateStandard', { rate: Number(rateToUse.recommended_sell_rate_hour).toFixed(1), defaultValue: 'Padrão Venda: €{{rate}}/h' })}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updateItem(idx, {
+                                      base_cost_hour: Number(rateToUse.base_cost_hour),
+                                      sell_rate_hour: Number(rateToUse.recommended_sell_rate_hour),
+                                      recommended_sell_rate: Number(rateToUse.recommended_sell_rate_hour)
+                                    });
+                                    toast.success(`Tarifa padrão (€${Number(rateToUse.recommended_sell_rate_hour).toFixed(2)}/h) aplicada!`);
+                                  }}
+                                  className="text-left text-blue-600 dark:text-blue-400 hover:underline cursor-pointer block font-medium"
+                                  title="Clique para aplicar a tarifa e custo padrão deste país"
+                                >
+                                  {t('comercial.stepItems.sellRateStandard', { rate: Number(rateToUse.recommended_sell_rate_hour).toFixed(1), defaultValue: 'Padrão Venda: €{{rate}}/h' })}
+                                </button>
                               )}
                             </div>
                           )
