@@ -38,7 +38,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
 
     const handleFormaPagamentoChange = (value: string) => {
         setFormaPagamento(value);
-        if (value === 'Confirme') {
+        if (value.toLowerCase().includes('confirm')) {
             setTipoRecebimento('Parcial');
             setLancarComoTaxa(true);
         }
@@ -317,7 +317,7 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="Transferencia">Transferencia</SelectItem>
-                                    <SelectItem value="Confirme">Confirme</SelectItem>
+                                    <SelectItem value="Confirme">Confirming / Confirme</SelectItem>
                                     <SelectItem value="Efetivo">Efetivo</SelectItem>
                                 </SelectContent>
                             </Select>
@@ -405,6 +405,19 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                         </div>
                     </div>
 
+                    {/* Guia explicativa automática quando Confirme está selecionado */}
+                    {formaPagamento === 'Confirme' && !temDiferenca && (
+                        <div className="mt-4 p-3.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 text-indigo-950 dark:text-indigo-200 text-xs flex items-start gap-2.5">
+                            <span className="text-base leading-none">💡</span>
+                            <div className="space-y-1">
+                                <p className="font-bold text-indigo-900 dark:text-indigo-300">Modo Confirming / Confirme Selecionado:</p>
+                                <p className="text-[11px] leading-relaxed text-slate-700 dark:text-slate-300">
+                                    Altere o campo <strong>Valor do Recebimento</strong> acima para informar o valor líquido que creditou na conta bancária (ex: se era 8.500 € e o banco creditou 8.000 €, digite 8.000 €). A diferença será automaticamente abatida como <strong>comissão bancária</strong> e o título será encerrado como <strong>100% Pago (Saldo 0,00)</strong>.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Opção de Comissão / Taxa Bancária quando há diferença */}
                     {temDiferenca && (
                         <div className="mt-6 p-4 rounded-xl border border-amber-300 bg-amber-50/80 dark:bg-amber-950/20 space-y-3 shadow-sm">
@@ -437,18 +450,27 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                             </div>
 
                             {lancarComoTaxa && (
-                                <div className="pt-2 border-t border-amber-200/80 flex items-center gap-2">
-                                    <Label htmlFor="comentario_taxa" className="text-xs font-semibold text-amber-900 shrink-0">
-                                        Descrição da Taxa:
-                                    </Label>
-                                    <Input 
-                                        id="comentario_taxa"
-                                        type="text"
-                                        placeholder={`Taxa de antecipação / comissão bancária (${formaPagamento})`}
-                                        value={comentarioTaxa}
-                                        onChange={(e) => setComentarioTaxa(e.target.value)}
-                                        className="text-xs h-8 bg-white border-amber-300 text-slate-800"
-                                    />
+                                <div className="pt-2 border-t border-amber-200/80 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                        <Label htmlFor="comentario_taxa" className="text-xs font-semibold text-amber-900 shrink-0">
+                                            Descrição da Taxa:
+                                        </Label>
+                                        <Input 
+                                            id="comentario_taxa"
+                                            type="text"
+                                            placeholder={`Taxa de antecipação / comissão bancária (${formaPagamento})`}
+                                            value={comentarioTaxa}
+                                            onChange={(e) => setComentarioTaxa(e.target.value)}
+                                            className="text-xs h-8 bg-white border-amber-300 text-slate-800"
+                                        />
+                                    </div>
+                                    <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex flex-wrap items-center justify-between gap-2 font-semibold">
+                                        <span className="flex items-center gap-1.5">
+                                            <span>✓ Resultado:</span>
+                                            <span>Título será marcado como <strong>PAGO</strong> (Saldo a Receber = <strong>€ 0,00</strong>).</span>
+                                        </span>
+                                        <span>Comissão Bancária: <strong>€ {diferencaCalculada.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+                                    </div>
                                 </div>
                             )}
                         </div>
