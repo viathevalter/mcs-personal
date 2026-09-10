@@ -740,7 +740,9 @@ ${notesSection}
         })
         .eq('id', pedidoId);
 
-      if (updateErr) throw updateErr;
+      if (updateErr) {
+        console.warn('Aviso ao atualizar detalhes complementares do pedido:', updateErr.message);
+      }
 
       // Update estimacion general_notes as well
       await supabase

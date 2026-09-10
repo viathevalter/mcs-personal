@@ -13,9 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus, Pencil, Loader2 } from 'lucide-react';
+import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus, Pencil, Loader2, Mail } from 'lucide-react';
 import { PedidoStatusBadge } from './components/PedidoStatusBadge';
+import { ResendPedidoNotificationModal } from './components/ResendPedidoNotificationModal';
 
 import { PedidoOverviewTab } from './components/tabs/PedidoOverviewTab';
 import { PedidoItemsTab } from './components/tabs/PedidoItemsTab';
@@ -42,6 +42,7 @@ export function PedidoDetailPage() {
   const [editEndDate, setEditEndDate] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isResendModalOpen, setIsResendModalOpen] = useState(false);
 
   const handleOpenEdit = () => {
     setEditStartDate(pedido?.expected_start_date || '');
@@ -139,6 +140,13 @@ export function PedidoDetailPage() {
             className="border-blue-300 dark:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-semibold"
           >
             <Pencil className="mr-2 h-4 w-4" /> Editar Pedido
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setIsResendModalOpen(true)}
+            className="border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 font-semibold"
+          >
+            <Mail className="mr-2 h-4 w-4" /> Reenviar Notificação
           </Button>
           <Button 
             variant="outline" 
@@ -322,6 +330,14 @@ export function PedidoDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {pedido && (
+        <ResendPedidoNotificationModal
+          isOpen={isResendModalOpen}
+          onClose={() => setIsResendModalOpen(false)}
+          pedido={pedido}
+        />
+      )}
     </div>
   );
 }
