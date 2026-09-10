@@ -73,39 +73,47 @@ const detectLeadCountry = (lead: any): string => {
     const c = String(lead.country_id).toUpperCase();
     if (['ES', 'PT', 'FR', 'DE', 'IT', 'NL', 'BE', 'GB'].includes(c)) return c;
   }
-  if (lead.phone) {
-    const p = String(lead.phone).trim();
-    if (p.startsWith('+34') || p.startsWith('34')) return 'ES';
-    if (p.startsWith('+351') || p.startsWith('351')) return 'PT';
-    if (p.startsWith('+33') || p.startsWith('33')) return 'FR';
-    if (p.startsWith('+49') || p.startsWith('49')) return 'DE';
-    if (p.startsWith('+39') || p.startsWith('39')) return 'IT';
-    if (p.startsWith('+31') || p.startsWith('31')) return 'NL';
-    if (p.startsWith('+32') || p.startsWith('32')) return 'BE';
-    if (p.startsWith('+44') || p.startsWith('44')) return 'GB';
+  if (lead.region) {
+    const r = String(lead.region).toLowerCase();
+    if (r.includes('frança') || r.includes('france') || r.includes('francia')) return 'FR';
+    if (r.includes('espanha') || r.includes('españa') || r.includes('spain')) return 'ES';
+    if (r.includes('portugal')) return 'PT';
+    if (r.includes('itália') || r.includes('italia')) return 'IT';
+    if (r.includes('alemanha') || r.includes('alemania')) return 'DE';
+  }
+  if (Array.isArray(lead.tags)) {
+    for (const t of lead.tags) {
+      if (typeof t === 'string') {
+        const lower = t.toLowerCase();
+        if (lower.includes('frança') || lower.includes('francia') || lower.includes('omar planilha') || lower.includes('base clientes frança')) return 'FR';
+        if (lower.includes('espanha') || lower.includes('españa')) return 'ES';
+        if (lower.includes('portugal')) return 'PT';
+        if (lower.includes('itália') || lower.includes('italia')) return 'IT';
+        if (lower.includes('alemanha') || lower.includes('alemania')) return 'DE';
+      }
+    }
   }
   if (lead.email) {
     const em = String(lead.email).toLowerCase().trim();
+    if (em.endsWith('.fr')) return 'FR';
     if (em.endsWith('.es')) return 'ES';
     if (em.endsWith('.pt')) return 'PT';
-    if (em.endsWith('.fr')) return 'FR';
     if (em.endsWith('.de')) return 'DE';
     if (em.endsWith('.it')) return 'IT';
     if (em.endsWith('.nl')) return 'NL';
     if (em.endsWith('.be')) return 'BE';
     if (em.endsWith('.uk') || em.endsWith('.co.uk')) return 'GB';
   }
-  if (Array.isArray(lead.tags)) {
-    for (const t of lead.tags) {
-      if (typeof t === 'string') {
-        const lower = t.toLowerCase();
-        if (lower.includes('espanha') || lower.includes('españa')) return 'ES';
-        if (lower.includes('portugal')) return 'PT';
-        if (lower.includes('frança') || lower.includes('francia')) return 'FR';
-        if (lower.includes('itália') || lower.includes('italia')) return 'IT';
-        if (lower.includes('alemanha') || lower.includes('alemania')) return 'DE';
-      }
-    }
+  if (lead.phone) {
+    const p = String(lead.phone).trim();
+    if (p.startsWith('+33')) return 'FR';
+    if (p.startsWith('+34')) return 'ES';
+    if (p.startsWith('+351')) return 'PT';
+    if (p.startsWith('+49')) return 'DE';
+    if (p.startsWith('+39')) return 'IT';
+    if (p.startsWith('+31')) return 'NL';
+    if (p.startsWith('+32')) return 'BE';
+    if (p.startsWith('+44')) return 'GB';
   }
   return 'ES';
 };
@@ -824,9 +832,9 @@ export function CampaignsPage() {
     if (isWiseowe) {
       return [
         {
-          id: 'aud_fr_tuyauterie_piping',
-          name: '🎯 🇫🇷 1. Tuyauterie Industrielle, Piping & Montage (2.556 leads)',
-          leadCount: 2556,
+          id: 'aud_fr_omar_planilha_total',
+          name: '🚀 🇫🇷 Omar Planilha (1.147 leads)',
+          leadCount: 1147,
           filters: {
             stageId: '',
             origin: '',
@@ -835,67 +843,21 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Tuyauterie & Chaudronnerie Industrielle', 'Calderería & Tubería Industrial'],
-            selectedServices: [],
-            sectorKeyword: 'tuyauterie',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: '',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_fr_charpente_structures',
-          name: '🎯 🇫🇷 2. Charpente Métallique, Structures & Serrurerie (597 leads)',
-          leadCount: 597,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['FR'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: ['Estructuras Metálicas & Montajes'],
-            selectedServices: [],
-            sectorKeyword: 'charpente',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: '',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_fr_grands_parcs',
-          name: '🎯 🇫🇷 3. Grands Parcs Industriels & Sous-Traitance (547 leads)',
-          leadCount: 547,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['FR'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: ['Polígonos Industriais & Subcontratistas'],
+            selectedSectors: [],
             selectedServices: [],
             sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
-            tagKeyword: '',
+            tagKeyword: 'Omar Planilha',
             limit: '',
             offset: '',
           },
           created_at: new Date().toISOString()
         },
         {
-          id: 'aud_fr_usinage_mecanique',
-          name: '🎯 🇫🇷 4. Usinage CNC & Mécanique de Précision (479 leads)',
-          leadCount: 479,
+          id: 'aud_fr_omar_tuyauterie',
+          name: '🎯 🇫🇷 Omar Planilha - Tuyauterie & Chaudronnerie (735 leads)',
+          leadCount: 735,
           filters: {
             stageId: '',
             origin: '',
@@ -904,21 +866,21 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Mecanizado CNC & Tornería'],
+            selectedSectors: ['Tuyauterie & Chaudronnerie Industrielle'],
             selectedServices: [],
-            sectorKeyword: 'usinage',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
-            tagKeyword: '',
+            tagKeyword: 'Omar Planilha',
             limit: '',
             offset: '',
           },
           created_at: new Date().toISOString()
         },
         {
-          id: 'aud_fr_chantiers_navals',
-          name: '🎯 🇫🇷 5. Chantiers Navals & Réparation Navale (233 leads)',
-          leadCount: 233,
+          id: 'aud_fr_omar_naval',
+          name: '🎯 🇫🇷 Omar Planilha - Chantiers Navals & Marine (239 leads)',
+          leadCount: 239,
           filters: {
             stageId: '',
             origin: '',
@@ -929,42 +891,19 @@ export function CampaignsPage() {
             selectedProvinces: [],
             selectedSectors: ['Construção & Reparação Naval'],
             selectedServices: [],
-            sectorKeyword: 'naval',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
-            tagKeyword: '',
+            tagKeyword: 'Omar Planilha',
             limit: '',
             offset: '',
           },
           created_at: new Date().toISOString()
         },
         {
-          id: 'aud_fr_chaudieres_maintenance',
-          name: '🎯 🇫🇷 6. Échangeurs Thermiques, Chaudières & Maintenance (141 leads)',
-          leadCount: 141,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['FR'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: ['Mantenimiento Industrial & Calderas'],
-            selectedServices: [],
-            sectorKeyword: 'chaudiere',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: '',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_fr_tuyauterie_inox',
-          name: '🎯 🇫🇷 7. Tuyauterie Inox & Cuverie Agroalimentaire (43 leads)',
-          leadCount: 43,
+          id: 'aud_fr_omar_inox',
+          name: '🎯 🇫🇷 Omar Planilha - Tubería Inox & Agroalimentaire (69 leads)',
+          leadCount: 69,
           filters: {
             stageId: '',
             origin: '',
@@ -975,10 +914,79 @@ export function CampaignsPage() {
             selectedProvinces: [],
             selectedSectors: ['Tubería Inox & Agroalimentaria'],
             selectedServices: [],
-            sectorKeyword: 'inox',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
-            tagKeyword: '',
+            tagKeyword: 'Omar Planilha',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_omar_estructuras',
+          name: '🎯 🇫🇷 Omar Planilha - Charpente Métallique & Serrurerie (42 leads)',
+          leadCount: 42,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Estructuras Metálicas & Montajes'],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Omar Planilha',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_omar_piping',
+          name: '🎯 🇫🇷 Omar Planilha - Tuyauterie Industrielle & Piping (26 leads)',
+          leadCount: 26,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Tuyauterie Industrielle & Piping'],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Omar Planilha',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_omar_usinage',
+          name: '🎯 🇫🇷 Omar Planilha - Usinage CNC & Mécanique (12 leads)',
+          leadCount: 12,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: ['Mecanizado CNC & Tornería'],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Omar Planilha',
             limit: '',
             offset: '',
           },
@@ -986,7 +994,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_base_geral_auditada',
-          name: '👑 🇫🇷 8. Base Geral França - Auditada & Qualificada (4.613 leads)',
+          name: '👑 🇫🇷 Base Global França - Toda a Base (4.613 leads)',
           leadCount: 4613,
           filters: {
             stageId: '',
@@ -1455,7 +1463,17 @@ export function CampaignsPage() {
   useEffect(() => {
     if (selectedEmpresaId) {
       const stored = localStorage.getItem(`mcs_marketing_audiences_${selectedEmpresaId}`);
-      const legacyIds = new Set(['aud_wiseowe_fr_geral', 'aud_tier1_vip_wiseowe']);
+      const legacyIds = new Set([
+        'aud_wiseowe_fr_geral', 
+        'aud_tier1_vip_wiseowe',
+        'aud_fr_tuyauterie_piping',
+        'aud_fr_charpente_structures',
+        'aud_fr_grands_parcs',
+        'aud_fr_usinage_mecanique',
+        'aud_fr_chantiers_navals',
+        'aud_fr_chaudieres_maintenance',
+        'aud_fr_tuyauterie_inox'
+      ]);
       if (stored) {
         try {
           const userPresets = JSON.parse(stored);
