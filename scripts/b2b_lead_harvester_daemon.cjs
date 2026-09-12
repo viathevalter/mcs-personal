@@ -348,6 +348,10 @@ async function harvestItalyOfficial(client, job, existingNames, existingEmails) 
     console.log(`  ✓ [IT ATECO REAL] ${r.ragione_sociale} | ${normEmail}`);
   }
 
+  if (insertedCount === 0 && GOOGLE_PLACES_API_KEY) {
+    return await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
+  }
+
   return insertedCount;
 }
 
@@ -487,18 +491,14 @@ async function harvestGoogleMapsReal(client, job, existingNames, existingEmails)
 }
 
 /**
- * Loop Principal do Daemon 24/7
+ * Processador Independente por País (Worker Dedicado)
  */
-async function runDaemonStep() {
-  const client = new Client({ connectionString: PROD_PG_URL });
-
+async function processCountryWorker(countryCode, countryLabel, sqlWhere, client, existingNames, existingEmails) {
   try {
-    await client.connect();
-
-    // 1. Obter a próxima missão em processamento ou pendente
+    // 1. Obter a próxima missão em processamento ou pendente para este país
     let jobRes = await client.query(`
       SELECT * FROM core_comercial.lead_prospecting_jobs
-      WHERE status = 'processing'
+      WHERE (${sqlWhere}) AND status = 'processing'
       ORDER BY created_at ASC
       LIMIT 1;
     `);
@@ -506,7 +506,7 @@ async function runDaemonStep() {
     if (jobRes.rows.length === 0) {
       jobRes = await client.query(`
         SELECT * FROM core_comercial.lead_prospecting_jobs
-        WHERE status = 'pending'
+        WHERE (${sqlWhere}) AND status = 'pending'
         ORDER BY created_at ASC
         LIMIT 1;
       `);
@@ -522,13 +522,60 @@ async function runDaemonStep() {
     }
 
     if (jobRes.rows.length === 0) {
-      await client.end();
-      return { active: false, message: 'Nenhuma missão pendente na fila.' };
+      console.log(`💤 [WORKER ${countryLabel}] Nenhuma missão pendente na fila.`);
+      return { country: countryCode, active: false };
     }
 
     const job = jobRes.rows[0];
+    console.log(`\n🚀 [WORKER ${countryLabel}] Processando: "${job.title}" | Meta: ${job.found_emails_count}/${job.target_count}`);
 
-    // 2. Carregar nomes e e-mails existentes para deduplicação global
+    let inserted = 0;
+    const source = job.search_source || 'google_maps';
+
+    if (countryCode === 'FR') {
+      // França: API oficial do governo francês (gratuita e ilimitada)
+      inserted = await harvestFranceOfficial(client, job, existingNames, existingEmails);
+    } else if (countryCode === 'IT') {
+      // Itália: Google Places oficial / Polígonos industriais
+      inserted = await harvestGoogleMapsReal(client, job, existingNames, existingEmails);
+    } else {
+      // Espanha: Google Places oficial ou base CNAE
+      if (source === 'google_maps') {
+        inserted = await harvestGoogleMapsReal(client, job, existingNames, existingEmails);
+      } else {
+        inserted = await harvestSpainOfficial(client, job, existingNames, existingEmails);
+      }
+    }
+
+    // Atualizar métricas do job
+    const countRes = await client.query('SELECT count(*) FROM core_comercial.lead_prospecting_results WHERE job_id = $1;', [job.id]);
+    const currentCount = parseInt(countRes.rows[0].count, 10);
+    const isDone = currentCount >= job.target_count;
+
+    await client.query(`
+      UPDATE core_comercial.lead_prospecting_jobs
+      SET processed_count = $1, found_emails_count = $1, status = $2, updated_at = NOW()
+      WHERE id = $3;
+    `, [currentCount, isDone ? 'completed' : 'processing', job.id]);
+
+    console.log(`📊 [${countryLabel}] "${job.title}": ${currentCount}/${job.target_count} leads reais. [${isDone ? 'COMPLETED ✅' : 'PROCESSING 🔄'}]`);
+    return { country: countryCode, active: true, inserted, currentCount, isDone };
+  } catch (err) {
+    console.error(`❌ [WORKER ${countryLabel}] Erro:`, err.message);
+    return { country: countryCode, active: false, error: err.message };
+  }
+}
+
+/**
+ * Loop Principal do Daemon 24/7 com Paralelismo Tri-País
+ */
+async function runDaemonStep() {
+  const client = new Client({ connectionString: PROD_PG_URL });
+
+  try {
+    await client.connect();
+
+    // 1. Carregar nomes e e-mails existentes para deduplicação global
     const existingStagingRes = await client.query('SELECT company_name, email FROM core_comercial.lead_prospecting_results;');
     const existingCrmRes = await client.query('SELECT company_name, email FROM core_comercial.leads;');
 
@@ -541,43 +588,21 @@ async function runDaemonStep() {
     }
 
     console.log(`\n================================================================================`);
-    console.log(`🚀 [MCS PROSPECTOR] Missão: "${job.title}" | Meta: ${job.found_emails_count}/${job.target_count}`);
+    console.log(`⚡ [PARALELO TRI-PAÍS] Rodando Varredura Simultânea (🇪🇸 Espanha | 🇫🇷 França | 🇮🇹 Itália)`);
     console.log(`🔒 Deduplicação ativa: ${existingNames.size} empresas / ${existingEmails.size} e-mails protegidos.`);
     console.log(`================================================================================`);
 
-    // 3. Executar o motor apropriado
-    let inserted = 0;
-    const source = job.search_source || 'google_maps';
+    // 2. Executar os 3 países simultaneamente em paralelo!
+    const countryResults = await Promise.allSettled([
+      processCountryWorker('ES', '🇪🇸 Espanha', "location LIKE '%Espan%' OR title LIKE '%🇪🇸%'", client, existingNames, existingEmails),
+      processCountryWorker('FR', '🇫🇷 França', "location LIKE '%Fran%' OR title LIKE '%🇫🇷%'", client, existingNames, existingEmails),
+      processCountryWorker('IT', '🇮🇹 Itália', "location LIKE '%Ital%' OR title LIKE '%🇮🇹%'", client, existingNames, existingEmails)
+    ]);
 
-    if (source === 'google_maps') {
-      inserted = await harvestGoogleMapsReal(client, job, existingNames, existingEmails);
-    } else {
-      // official_registry (CNAE/NAF/ATECO)
-      const loc = (job.location || '').toLowerCase();
-      if (loc.includes('fran') || job.title.includes('🇫🇷')) {
-        inserted = await harvestFranceOfficial(client, job, existingNames, existingEmails);
-      } else if (loc.includes('ital') || job.title.includes('🇮🇹')) {
-        inserted = await harvestItalyOfficial(client, job, existingNames, existingEmails);
-      } else {
-        inserted = await harvestSpainOfficial(client, job, existingNames, existingEmails);
-      }
-    }
-
-    // 4. Atualizar métricas do job
-    const countRes = await client.query('SELECT count(*) FROM core_comercial.lead_prospecting_results WHERE job_id = $1;', [job.id]);
-    const currentCount = parseInt(countRes.rows[0].count, 10);
-    const isDone = currentCount >= job.target_count;
-
-    await client.query(`
-      UPDATE core_comercial.lead_prospecting_jobs
-      SET processed_count = $1, found_emails_count = $1, status = $2, updated_at = NOW()
-      WHERE id = $3;
-    `, [currentCount, isDone ? 'completed' : 'processing', job.id]);
-
-    console.log(`📊 Atualização: ${currentCount}/${job.target_count} leads reais na missão "${job.title}". Status: ${isDone ? 'COMPLETED ✅' : 'PROCESSING 🔄'}`);
+    const activeWorkers = countryResults.filter(r => r.status === 'fulfilled' && r.value?.active).length;
 
     await client.end();
-    return { active: true, inserted, currentCount };
+    return { active: activeWorkers > 0, results: countryResults };
   } catch (err) {
     console.error('❌ Erro no ciclo do Daemon:', err.message);
     try { await client.end(); } catch {}
@@ -587,7 +612,7 @@ async function runDaemonStep() {
 
 async function startDaemonLoop() {
   console.log('\n================================================================================');
-  console.log('⚡ MCS B2B LEAD HARVESTER DAEMON INICIADO (ESPANHA 🇪🇸, FRANÇA 🇫🇷, ITÁLIA 🇮🇹)');
+  console.log('⚡ MCS B2B LEAD HARVESTER PARALELO INICIADO (ESPANHA 🇪🇸, FRANÇA 🇫🇷, ITÁLIA 🇮🇹)');
   console.log('================================================================================\n');
 
   while (true) {
@@ -607,3 +632,4 @@ if (require.main === module) {
 }
 
 module.exports = { runDaemonStep, startDaemonLoop };
+
