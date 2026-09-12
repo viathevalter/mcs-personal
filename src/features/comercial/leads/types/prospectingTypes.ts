@@ -1,6 +1,6 @@
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'paused' | 'failed';
 export type ResultStatus = 'raw' | 'enriched' | 'imported' | 'discarded';
-export type SearchSourceEngine = 'google_maps' | 'linkedin' | 'web_broad';
+export type SearchSourceEngine = 'google_maps' | 'official_registry' | 'linkedin' | 'web_broad';
 
 export interface LeadProspectingJob {
   id: string;

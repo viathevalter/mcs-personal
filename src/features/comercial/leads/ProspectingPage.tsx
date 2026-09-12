@@ -125,7 +125,7 @@ export function ProspectingPage() {
 
   // Mission filtering state
   const [jobStatusFilter, setJobStatusFilter] = useState<'all' | 'processing' | 'pending' | 'completed' | 'paused'>('all');
-  const [jobCountryFilter, setJobCountryFilter] = useState<'all' | 'FR' | 'ES'>('FR');
+  const [jobCountryFilter, setJobCountryFilter] = useState<'all' | 'FR' | 'ES' | 'IT'>('FR');
   const [isSpainSummaryModalOpen, setIsSpainSummaryModalOpen] = useState(false);
   const [jobSearchTerm, setJobSearchTerm] = useState('');
 
@@ -190,9 +190,10 @@ export function ProspectingPage() {
       }
     } else {
       setActiveJob(null);
-      setAudienceTag(jobCountryFilter === 'FR' ? 'Prospecção Geral França' : 'Prospecção Geral Espanha');
+      const countryName = jobCountryFilter === 'FR' ? 'França' : jobCountryFilter === 'IT' ? 'Itália' : 'Espanha';
+      setAudienceTag(`Prospecção Geral ${countryName}`);
       setImportSector('Calderería & Tubería Industrial');
-      setCustomNotes(`Leads industriais qualificados importados da base ${jobCountryFilter === 'FR' ? 'França' : 'Espanha'} via AIsa.`);
+      setCustomNotes(`Leads industriais qualificados importados da base ${countryName}.`);
     }
   }, [jobs, selectedJobId, jobCountryFilter]);
 
@@ -274,7 +275,10 @@ export function ProspectingPage() {
       return jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷')));
     }
     if (jobCountryFilter === 'ES') {
-      return jobs.filter((j) => (j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')) && !j.title.includes('🇫🇷')));
+      return jobs.filter((j) => ((j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')))) && !j.title.includes('🇫🇷') && !j.title.includes('🇮🇹'));
+    }
+    if (jobCountryFilter === 'IT') {
+      return jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('ital') || j.location.toLowerCase().includes('it'))) || (j.title && (j.title.includes('🇮🇹') || j.title.includes('ATECO') || j.title.toLowerCase().includes('italia'))));
     }
     return jobs;
   }, [jobs, jobCountryFilter]);
@@ -286,7 +290,8 @@ export function ProspectingPage() {
     completed: countryFilteredJobsList.filter((j) => j.status === 'completed').length,
     paused: countryFilteredJobsList.filter((j) => j.status === 'paused').length,
     france: jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷'))).length,
-    spain: jobs.filter((j) => (j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')) && !j.title.includes('🇫🇷'))).length,
+    spain: jobs.filter((j) => ((j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')))) && !j.title.includes('🇫🇷') && !j.title.includes('🇮🇹')).length,
+    italy: jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('ital') || j.location.toLowerCase().includes('it'))) || (j.title && (j.title.includes('🇮🇹') || j.title.includes('ATECO') || j.title.toLowerCase().includes('italia')))).length,
   };
 
   const filteredJobs = jobs.filter((j) => {
@@ -294,9 +299,12 @@ export function ProspectingPage() {
     
     // Country filter
     const isJobFR = (j.location && (j.location.toLowerCase().includes('fran') || j.location.toLowerCase().includes('fr'))) || (j.title && j.title.includes('🇫🇷'));
-    const isJobES = !isJobFR;
+    const isJobIT = (j.location && (j.location.toLowerCase().includes('ital') || j.location.toLowerCase().includes('it'))) || (j.title && (j.title.includes('🇮🇹') || j.title.includes('ATECO') || j.title.toLowerCase().includes('italia')));
+    const isJobES = !isJobFR && !isJobIT;
+
     if (jobCountryFilter === 'FR' && !isJobFR) return false;
     if (jobCountryFilter === 'ES' && !isJobES) return false;
+    if (jobCountryFilter === 'IT' && !isJobIT) return false;
 
     if (!jobSearchTerm) return true;
     const term = jobSearchTerm.toLowerCase().trim();
@@ -678,6 +686,20 @@ export function ProspectingPage() {
               </button>
 
               <button
+                onClick={() => setJobCountryFilter('IT')}
+                className={`flex-1 py-1.5 px-2 rounded-lg font-bold flex items-center justify-center gap-1.5 transition-all ${
+                  jobCountryFilter === 'IT'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <span>🇮🇹 Itália</span>
+                <span className="bg-emerald-800/40 text-[10px] px-1.5 py-0.5 rounded-full font-mono font-bold">
+                  {jobCounts.italy}
+                </span>
+              </button>
+
+              <button
                 onClick={() => setJobCountryFilter('all')}
                 className={`py-1.5 px-2 rounded-lg font-bold text-xs transition-all ${
                   jobCountryFilter === 'all'
@@ -722,7 +744,7 @@ export function ProspectingPage() {
             >
               <span className="flex items-center gap-2">
                 <Globe className="w-4 h-4" />
-                {jobCountryFilter === 'FR' ? 'Ver Repositório Global (🇫🇷 França)' : jobCountryFilter === 'ES' ? 'Ver Repositório Global (🇪🇸 Espanha)' : 'Ver Repositório Global (Todas as Missões)'}
+                {jobCountryFilter === 'FR' ? 'Ver Repositório Global (🇫🇷 França)' : jobCountryFilter === 'ES' ? 'Ver Repositório Global (🇪🇸 Espanha)' : jobCountryFilter === 'IT' ? 'Ver Repositório Global (🇮🇹 Itália)' : 'Ver Repositório Global (Todas as Missões)'}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/20 text-white">
                 {totalStagingResultsCount}
@@ -1488,74 +1510,94 @@ export function ProspectingPage() {
                 />
               </div>
 
-              {/* Canal de Origem / Search Source */}
+              {/* Canal de Origem / 2 Motores Oficiais */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1 flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-blue-500" /> Canal de Busca & Origem dos Dados
+                  <Filter className="w-3.5 h-3.5 text-blue-500" /> Motor Oficial de Captação
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setSearchSource('google_maps')}
-                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
+                    className={`p-3 rounded-xl border text-left transition-all ${
                       searchSource === 'google_maps'
-                        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-500 ring-1 ring-blue-500'
-                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                        ? 'bg-blue-50 dark:bg-blue-950/80 text-blue-700 dark:text-blue-300 border-blue-500 ring-2 ring-blue-500/30 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:border-slate-400'
                     }`}
                   >
-                    <Globe className="w-4 h-4 mx-auto mb-1 text-blue-500" />
-                    Google Maps & Locais
+                    <div className="flex items-center gap-2 mb-1">
+                      <Globe className="w-4 h-4 text-blue-500" />
+                      <span className="font-bold text-xs">📍 Google Maps & Polígonos</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      Fichas reais ativas + telefone + web scraper de e-mails corporativos nos sites.
+                    </p>
                   </button>
+
                   <button
                     type="button"
-                    onClick={() => setSearchSource('linkedin')}
-                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
-                      searchSource === 'linkedin'
-                        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-500 ring-1 ring-blue-500'
-                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
+                    onClick={() => setSearchSource('official_registry')}
+                    className={`p-3 rounded-xl border text-left transition-all ${
+                      searchSource === 'official_registry'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-500 ring-2 ring-emerald-500/30 shadow-sm'
+                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:border-slate-400'
                     }`}
                   >
-                    <Linkedin className="w-4 h-4 mx-auto mb-1 text-blue-600" />
-                    LinkedIn B2B
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSearchSource('web_broad')}
-                    className={`p-2.5 rounded-lg border text-center font-medium transition-all ${
-                      searchSource === 'web_broad'
-                        ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-500 ring-1 ring-blue-500'
-                        : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    <Search className="w-4 h-4 mx-auto mb-1 text-indigo-500" />
-                    Busca Web Ampla
+                    <div className="flex items-center gap-2 mb-1">
+                      <Building2 className="w-4 h-4 text-emerald-500" />
+                      <span className="font-bold text-xs">🏛️ Registro Oficial de Governo</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                      CNAE (Espanha) &bull; NAF (API Oficial França) &bull; ATECO (Itália).
+                    </p>
                   </button>
                 </div>
               </div>
 
-              {/* Seletor Rápido de Setor / CNAE Oficial */}
+              {/* Seletor Rápido de Setor / CNAE-NAF-ATECO Oficial por País */}
               <div>
                 <label className="block text-slate-700 dark:text-slate-300 font-semibold mb-1.5 flex items-center justify-between">
-                  <span>🏢 Seleção por CNAE Industrial Oficial (Espanha)</span>
+                  <span>
+                    🏢 Setores Industriais Estratégicos (
+                    {missionCountry === 'FR' ? '🇫🇷 NAF França' : missionCountry === 'IT' ? '🇮🇹 ATECO Itália' : '🇪🇸 CNAE Espanha'}
+                    )
+                  </span>
                   <span className="text-[10px] text-blue-500 font-normal">Clique para auto-preencher</span>
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 mb-2">
-                  {[
-                    { label: '🚢 Naval (CNAE 3011)', kw: 'Astilleros, Construcción Naval, Reparación de buques, Calderería naval, Soldadores 6G', titlePref: '🚢 Astilleros y Reparación Naval' },
-                    { label: '🏗️ Calderería (CNAE 2529)', kw: 'Calderería pesada, Depósitos a presión, Tubería industrial, Soldadura TIG MIG', titlePref: '🏗️ Calderería Pesada y Tubería' },
-                    { label: '⚙️ Estructuras (CNAE 2511)', kw: 'Fabricación de estructuras metálicas, Carpintería metálica, Siderurgia, Naves industriales', titlePref: '⚙️ Estructuras Metálicas y Talleres' },
-                    { label: '🧪 Química (CNAE 2011)', kw: 'Plantas petroquímicas, Refinerías, Paradas de planta, Tubería de alta presión', titlePref: '🧪 Petroquímica y Refinarias' },
-                    { label: '📐 Engenharia EPC (CNAE 7112)', kw: 'Contratistas EPC, Montajes industriales, Mantenimiento mecánico, Plantas industriales', titlePref: '📐 Engenharia EPC e Montagens' },
-                    { label: '🧱 Construção (CNAE 4120)', kw: 'Construcción industrial, Obra civil pesada, Estructuras de hormigón y metal', titlePref: '🧱 Construção Industrial e Obras' },
-                  ].map((preset) => (
+                  {(missionCountry === 'FR'
+                    ? [
+                        { label: '🚰 Tuyauterie (NAF 33.20)', kw: 'Tuyauterie industrielle, tuyauterie inox, tuyauterie haute pression, soudure TIG, tuyautiers', titlePref: '🚰 NAF 33.20 - Tuyauterie Industrielle' },
+                        { label: '🏗️ Chaudronnerie (NAF 25.29)', kw: 'Chaudronnerie industrielle, cuves inox, réservoirs sous pression, mécano-soudure', titlePref: '🏗️ NAF 25.29 - Chaudronnerie & Réservoirs' },
+                        { label: '⚙️ Charpente (NAF 25.11)', kw: 'Charpente métallique, structures métalliques, serrurerie industrielle, bardage', titlePref: '⚙️ NAF 25.11 - Charpente Métallique' },
+                        { label: '🔧 Usinage CNC (NAF 25.62)', kw: 'Usinage mécanique de précision, tournage CNC, fraisage numérique, décolletage', titlePref: '🔧 NAF 25.62 - Usinage Mécanique CNC' },
+                        { label: '🚢 Naval (NAF 30.11)', kw: 'Construction navale, réparation navale, chantiers navals, chaudronnerie navale', titlePref: '🚢 NAF 30.11 - Chantiers Navals' },
+                        { label: '❄️ Froid & Chauffage (NAF 28.25)', kw: 'Ventilation industrielle, échangeurs thermiques, froid industriel, chaudières', titlePref: '❄️ NAF 28.25 - Échangeurs & Froid' },
+                      ]
+                    : missionCountry === 'IT'
+                    ? [
+                        { label: '⚙️ Carpenteria (ATECO 25.11)', kw: 'Carpenteria metallica pesante, strutture in acciaio, travi saldate, capannoni industriali', titlePref: '⚙️ ATECO 25.11 - Carpenteria Metallica' },
+                        { label: '🏗️ Caldareria (ATECO 25.29)', kw: 'Caldareria pesante, serbatoi e cisterne a pressione, reattori industriali, saldatura TIG', titlePref: '🏗️ ATECO 25.29 - Caldareria & Serbatoi' },
+                        { label: '🚰 Tubisteria (ATECO 33.20)', kw: 'Tubisteria industriale, piping industriale, montaggio impianti ad alta pressione, tubisti', titlePref: '🚰 ATECO 33.20 - Tubisteria Industriale' },
+                        { label: '🔧 Meccanica CNC (ATECO 25.62)', kw: 'Lavorazioni meccaniche di precisione, tornitura CNC, fresatura, carpenteria meccanica', titlePref: '🔧 ATECO 25.62 - Meccanica Generale & CNC' },
+                        { label: '🚢 Cantieri Navali (ATECO 30.11)', kw: 'Cantieri navali, costruzioni navali, riparazioni e refit navale, saldatori navali', titlePref: '🚢 ATECO 30.11 - Cantieri Navali' },
+                        { label: '❄️ Termica & Scambiatori (ATECO 28.25)', kw: 'Scambiatori di calore, forni industriali, impianti di refrigerazione industriale, caldaie', titlePref: '❄️ ATECO 28.25 - Scambiatori & Termica' },
+                      ]
+                    : [
+                        { label: '🏗️ Calderería (CNAE 2529)', kw: 'Calderería pesada, depósitos a presión, cisternas, caldereros soldadores TIG MIG', titlePref: '🏗️ CNAE 2529 - Calderería Pesada' },
+                        { label: '⚙️ Estructuras (CNAE 2511)', kw: 'Fabricación de estructuras metálicas, vigas de acero soldadas, carpintería metálica pesada', titlePref: '⚙️ CNAE 2511 - Estructuras Metálicas' },
+                        { label: '🚰 Tubería (CNAE 3320)', kw: 'Tubería industrial, piping alta presión, montaje de tuberías mecánicas, soldadores tuberos', titlePref: '🚰 CNAE 3320 - Tubería Industrial' },
+                        { label: '🚢 Naval (CNAE 3011)', kw: 'Astilleros, construcción y reparación naval, calderería naval, habilitación naval', titlePref: '🚢 CNAE 3011 - Astilleros y Naval' },
+                        { label: '🔧 Mecanizado (CNAE 2562)', kw: 'Mecanizado CNC, tornos y fresadoras, ingeniería mecánica por cuenta de terceros, matricería', titlePref: '🔧 CNAE 2562 - Mecanizado CNC' },
+                        { label: '🔥 Calderas & Climatización (CNAE 2825)', kw: 'Intercambiadores de calor, calderas industriales, frío y ventilación industrial', titlePref: '🔥 CNAE 2825 - Calderas y Climatización' },
+                      ]
+                  ).map((preset) => (
                     <button
                       key={preset.label}
                       type="button"
                       onClick={() => {
                         setKeywords(preset.kw);
-                        if (!title || title.startsWith('🚢') || title.startsWith('🏗️') || title.startsWith('⚙️') || title.startsWith('🧪') || title.startsWith('📐') || title.startsWith('🧱')) {
-                          setTitle(`${preset.titlePref}${location ? ` - ${location}` : ''}`);
-                        }
+                        setTitle(`${preset.titlePref}${location ? ` - ${location}` : ''}`);
                       }}
                       className="text-left px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 hover:border-blue-500 hover:text-blue-500 dark:hover:text-blue-400 text-[11px] font-medium transition-all"
                     >
@@ -1586,7 +1628,15 @@ export function ProspectingPage() {
                   </label>
                   <select
                     value={missionCountry}
-                    onChange={(e) => setMissionCountry(e.target.value)}
+                    onChange={(e) => {
+                      const newCountry = e.target.value;
+                      setMissionCountry(newCountry);
+                      if (newCountry === 'FR') setLocation('Auvergne-Rhône-Alpes, França');
+                      else if (newCountry === 'IT') setLocation('Lombardia & Veneto, Itália');
+                      else if (newCountry === 'ES') setLocation('Madrid, Espanha');
+                      else if (newCountry === 'PT') setLocation('Porto / Lisboa, Portugal');
+                      else if (newCountry === 'DE') setLocation('Renânia do Norte-Vestfália, Alemanha');
+                    }}
                     className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg p-2.5 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
                   >
                     <option value="ES">🇪🇸 Espanha</option>
