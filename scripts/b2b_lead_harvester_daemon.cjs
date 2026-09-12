@@ -17,13 +17,39 @@
  */
 
 require('dotenv').config({ path: '.env' });
-const { Client } = require('pg');
+const { Pool } = require('pg');
 
 const PROD_PG_URL = process.env.VITE_PROD_SUPABASE_DB_URL || 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
 
+const pool = new Pool({
+  connectionString: PROD_PG_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000
+});
+
+const ITALIAN_CITIES = [
+  'Brescia', 'Bergamo', 'Milano', 'Torino', 'Vicenza',
+  'Verona', 'Bologna', 'Modena', 'Reggio Emilia', 'Padova',
+  'Genova', 'Ravenna', 'Monfalcone', 'Livorno'
+];
+
+const SPANISH_CITIES = [
+  'Madrid', 'Barcelona', 'Bilbao', 'Valencia', 'Sevilla',
+  'Zaragoza', 'Vigo', 'Gijon', 'Valladolid', 'Tarragona', 'Cartagena'
+];
+
+const FRENCH_CITIES = [
+  'Lyon', 'Marseille', 'Lille', 'Toulouse', 'Bordeaux',
+  'Nantes', 'Rouen', 'Dunkerque', 'Le Havre', 'Strasbourg'
+];
+
+const francePageCursor = {};
+
 const JUNK_EMAIL_PREFIXES = [
   'firstname@', 'lastname@', 'user@', 'username@', 'name@', 'yourname@',
-  'email@', 'exemple@', 'example@', 'sentry@', 'test@', 'admin@example.com'
+  'email@', 'exemple@', 'example@', 'sentry@', 'test@', 'admin@example.com',
+  'ericjonesmyemail@'
 ];
 
 const JUNK_DOMAINS = [
@@ -144,9 +170,17 @@ async function scrapeSiteForEmail(baseUrl) {
       const html = await res.text();
       const emailMatches = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi) || [];
 
-      const clean = emailMatches.filter(isValidEmail);
+      const clean = emailMatches
+        .map(e => {
+          try {
+            return decodeURIComponent(e).replace(/^[%20\s]+/, '').trim();
+          } catch {
+            return e.replace(/^[%20\s]+/, '').trim();
+          }
+        })
+        .filter(isValidEmail);
+
       if (clean.length > 0) {
-        // Obter domínio do e-mail e validar MX
         const firstEmail = clean[0].toLowerCase().trim();
         const domain = firstEmail.split('@')[1];
         const hasMx = await checkMx(domain);
@@ -160,10 +194,27 @@ async function scrapeSiteForEmail(baseUrl) {
 }
 
 /**
+ * Atualiza o contador de progresso da missão em tempo real no banco
+ */
+async function incrementJobProgress(client, jobId) {
+  try {
+    await client.query(`
+      UPDATE core_comercial.lead_prospecting_jobs
+      SET processed_count = processed_count + 1,
+          found_emails_count = found_emails_count + 1,
+          updated_at = NOW()
+      WHERE id = $1;
+    `, [jobId]);
+  } catch (err) {
+    console.warn(`[Aviso Contador] Erro ao atualizar progresso do job ${jobId}:`, err.message);
+  }
+}
+
+/**
  * Processador da França via API Oficial do Governo (recherche-entreprises.api.gouv.fr)
  */
 async function harvestFranceOfficial(client, job, existingNames, existingEmails) {
-  console.log(`🇫🇷 [MOTOR OFICIAL FRANÇA] Processando Missão: "${job.title}"`);
+  console.log(`🇫🇷 [MOTOR OFICIAL FRANÇA] Executando lote para: "${job.title}"`);
 
   // Identificar os códigos NAF correspondentes às keywords
   let nafCodes = ['33.20A', '33.20B', '33.20C', '33.20D'];
@@ -176,13 +227,20 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
     }
   }
 
+  const primaryNaf = nafCodes[0];
+  const currentCursor = francePageCursor[primaryNaf] || 1;
+  const targetPages = [currentCursor, currentCursor + 1];
+  francePageCursor[primaryNaf] = (currentCursor + 2 > 30) ? 1 : currentCursor + 2;
+
   let totalInsertedInCycle = 0;
 
   for (const naf of nafCodes) {
     if (job.found_emails_count + totalInsertedInCycle >= job.target_count) break;
+    if (totalInsertedInCycle >= 10) break; // Limite de 10 por ciclo para manter agilidade e rotação rápida
 
-    for (let page = 1; page <= 20; page++) {
+    for (const page of targetPages) {
       if (job.found_emails_count + totalInsertedInCycle >= job.target_count) break;
+      if (totalInsertedInCycle >= 10) break;
 
       try {
         const url = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${naf}&per_page=25&page=${page}`;
@@ -193,6 +251,8 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
         if (companies.length === 0) break;
 
         for (const c of companies) {
+          if (totalInsertedInCycle >= 10) break;
+
           const compName = (c.nom_complet || c.nom_raison_sociale || '').trim();
           if (!compName || compName.length < 3) continue;
 
@@ -245,6 +305,7 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
             ]);
 
             totalInsertedInCycle++;
+            await incrementJobProgress(client, job.id);
             console.log(`  ✓ [FR 100% REAL] ${compName} | ${foundEmail} | ${foundWeb}`);
           }
         }
@@ -264,21 +325,47 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
 async function harvestSpainOfficial(client, job, existingNames, existingEmails) {
   console.log(`🇪🇸 [MOTOR OFICIAL ESPANHA] Processando Missão: "${job.title}"`);
 
-  const kw = job.keywords || job.title;
-  const needed = Math.max(1, job.target_count - job.found_emails_count);
+  // Extrair código CNAE (ex: 3320, 2529, 2511, 2562, 3011, 2825)
+  const cnaeMatch = (job.keywords || job.title).match(/\b(3320|2529|2511|2562|3011|3315|2825|3311)\b/);
+  const cnaeCode = cnaeMatch ? cnaeMatch[1] : '';
 
-  const res = await client.query(`
-    SELECT * FROM core_comercial.empresas_espanha_cnae
-    WHERE email IS NOT NULL AND email != '' AND email_status = 'verificado_mx'
-    ORDER BY id ASC
-    LIMIT 200;
-  `);
+  const needed = Math.min(15, Math.max(1, job.target_count - job.found_emails_count));
+
+  let res;
+  if (cnaeCode) {
+    res = await client.query(`
+      SELECT * FROM core_comercial.empresas_espanha_cnae c
+      WHERE c.email IS NOT NULL AND c.email != '' 
+        AND c.email_status = 'verificado_mx'
+        AND (c.cnae_codigo = $1 OR c.cnae_codigo LIKE $2)
+        AND NOT EXISTS (
+          SELECT 1 FROM core_comercial.lead_prospecting_results r WHERE LOWER(r.email) = LOWER(c.email)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM core_comercial.leads l WHERE LOWER(l.email) = LOWER(c.email)
+        )
+      ORDER BY c.id ASC
+      LIMIT $3;
+    `, [cnaeCode, `${cnaeCode}%`, needed]);
+  } else {
+    res = await client.query(`
+      SELECT * FROM core_comercial.empresas_espanha_cnae c
+      WHERE c.email IS NOT NULL AND c.email != '' 
+        AND c.email_status = 'verificado_mx'
+        AND NOT EXISTS (
+          SELECT 1 FROM core_comercial.lead_prospecting_results r WHERE LOWER(r.email) = LOWER(c.email)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM core_comercial.leads l WHERE LOWER(l.email) = LOWER(c.email)
+        )
+      ORDER BY c.id ASC
+      LIMIT $1;
+    `, [needed]);
+  }
 
   let insertedCount = 0;
 
   for (const r of res.rows) {
-    if (insertedCount >= needed) break;
-
     const normName = (r.razao_social || '').trim().toLowerCase();
     const normEmail = (r.email || '').trim().toLowerCase();
 
@@ -300,7 +387,12 @@ async function harvestSpainOfficial(client, job, existingNames, existingEmails) 
     ]);
 
     insertedCount++;
-    console.log(`  ✓ [ES CNAE REAL] ${r.razao_social} | ${normEmail}`);
+    await incrementJobProgress(client, job.id);
+    console.log(`  ✓ [ES CNAE 100% REAL] ${r.razao_social} | ${normEmail}`);
+  }
+
+  if (insertedCount === 0 && GOOGLE_PLACES_API_KEY) {
+    return await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
   }
 
   return insertedCount;
@@ -362,13 +454,19 @@ const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || 'AIzaSyDCnuyl
  */
 async function harvestViaGooglePlacesApi(client, job, existingNames, existingEmails) {
   if (!GOOGLE_PLACES_API_KEY) return 0;
-  console.log(`📍 [GOOGLE PLACES API OFICIAL] Buscando locais para: "${job.keywords || job.title}" em "${job.location}"`);
 
-  // Extrair termo chave conciso (Google Maps funciona melhor com 2 a 4 palavras: ex: "Tuberia industrial Madrid")
+  const isFR = (job.location && job.location.toLowerCase().includes('fran')) || (job.title && job.title.includes('🇫🇷'));
+  const isIT = (job.location && job.location.toLowerCase().includes('ital')) || (job.title && job.title.includes('🇮🇹'));
+  const country = isFR ? 'França' : isIT ? 'Itália' : 'Espanha';
+
+  const cityPool = isFR ? FRENCH_CITIES : isIT ? ITALIAN_CITIES : SPANISH_CITIES;
+  const targetCity = cityPool[Math.floor(Math.random() * cityPool.length)];
+
   let cleanKw = (job.keywords || job.title)
     .replace(/CNAE \d+/gi, '')
     .replace(/NAF \d+(\.\d+)?[A-Z]?/gi, '')
     .replace(/ATECO \d+(\.\d+)?/gi, '')
+    .replace(/[\d\.]+/g, '')
     .replace(/[^\w\s\u00C0-\u00FF]/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -376,17 +474,11 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
     .slice(0, 3)
     .join(' ');
 
-  const locRaw = (job.location || 'Madrid')
-    .replace(/\(.*?\)/g, '')
-    .replace(/espanha|frança|itália/gi, '')
-    .trim();
-  const cities = locRaw.split(/[,/]/).map(c => c.trim()).filter(c => c.length > 2);
-  const targetCity = cities.length > 0 ? cities[Math.floor(Math.random() * cities.length)] : 'Madrid';
-
   const query = `${cleanKw} ${targetCity}`;
+  console.log(`📍 [GOOGLE PLACES API] Buscando: "${query}" (${country})`);
 
   let insertedCount = 0;
-  const needed = Math.max(1, job.target_count - job.found_emails_count);
+  const needed = Math.min(10, Math.max(1, job.target_count - job.found_emails_count));
 
   try {
     const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
@@ -394,7 +486,7 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
     const searchData = await searchRes.json();
 
     if (searchData.status !== 'OK' || !Array.isArray(searchData.results)) {
-      console.log(`  [Google Places] Status: ${searchData.status} - Nenhum resultado retornado para "${query}".`);
+      console.log(`  [Google Places] Status: ${searchData.status} - Sem resultados para "${query}".`);
       return 0;
     }
 
@@ -408,7 +500,6 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
       const normName = compName.toLowerCase();
       if (existingNames.has(normName)) continue;
 
-      // Buscar detalhes do local (website e telefone oficial)
       let website = null;
       let phone = null;
       let address = place.formatted_address || 'Google Maps Location';
@@ -431,15 +522,10 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
         email = await scrapeSiteForEmail(website);
       }
 
-      // Se achou e-mail e ele não existe no CRM:
       if (email && !existingEmails.has(email.toLowerCase().trim())) {
         const normEmail = email.toLowerCase().trim();
         existingNames.add(normName);
         existingEmails.add(normEmail);
-
-        const isFR = (job.location && job.location.toLowerCase().includes('fran')) || (job.title && job.title.includes('🇫🇷'));
-        const isIT = (job.location && job.location.toLowerCase().includes('ital')) || (job.title && job.title.includes('🇮🇹'));
-        const country = isFR ? 'França' : isIT ? 'Itália' : 'Espanha';
 
         await client.query(`
           INSERT INTO core_comercial.lead_prospecting_results (
@@ -449,11 +535,12 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
           ON CONFLICT DO NOTHING;
         `, [
           job.id, job.empresa_id, compName, normEmail, phone, website,
-          address, job.location, job.location, country
+          address, targetCity, targetCity, country
         ]);
 
         insertedCount++;
-        console.log(`  ✓ [GOOGLE MAPS + WEB 100% REAL] ${compName} | ${normEmail} | Tel: ${phone || 'N/A'} | Site: ${website}`);
+        await incrementJobProgress(client, job.id);
+        console.log(`  ✓ [GOOGLE MAPS + WEB 100% REAL] ${compName} | ${normEmail} | Tel: ${phone || 'N/A'}`);
       }
     }
   } catch (err) {
@@ -469,7 +556,6 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
 async function harvestGoogleMapsReal(client, job, existingNames, existingEmails) {
   console.log(`📍 [GOOGLE MAPS & POLÍGONOS] Processando Missão: "${job.title}" em ${job.location}`);
 
-  // 1. Tentar primeiro via Google Places API oficial
   if (GOOGLE_PLACES_API_KEY) {
     const placesInserted = await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
     if (placesInserted > 0) {
@@ -477,7 +563,6 @@ async function harvestGoogleMapsReal(client, job, existingNames, existingEmails)
     }
   }
 
-  // 2. Fallback para bases oficiais por país
   const isFR = (job.location && job.location.toLowerCase().includes('fran')) || (job.title && job.title.includes('🇫🇷'));
   const isIT = (job.location && job.location.toLowerCase().includes('ital')) || (job.title && job.title.includes('🇮🇹'));
 
@@ -491,11 +576,12 @@ async function harvestGoogleMapsReal(client, job, existingNames, existingEmails)
 }
 
 /**
- * Processador Independente por País (Worker Dedicado)
+ * Processador Independente por País (Worker Dedicado com conexão própria do Pool)
  */
-async function processCountryWorker(countryCode, countryLabel, sqlWhere, client, existingNames, existingEmails) {
+async function processCountryWorker(countryCode, countryLabel, sqlWhere, existingNames, existingEmails) {
+  const client = await pool.connect();
+
   try {
-    // 1. Obter a próxima missão em processamento ou pendente para este país
     let jobRes = await client.query(`
       SELECT * FROM core_comercial.lead_prospecting_jobs
       WHERE (${sqlWhere}) AND status = 'processing'
@@ -522,32 +608,41 @@ async function processCountryWorker(countryCode, countryLabel, sqlWhere, client,
     }
 
     if (jobRes.rows.length === 0) {
-      console.log(`💤 [WORKER ${countryLabel}] Nenhuma missão pendente na fila.`);
       return { country: countryCode, active: false };
     }
 
     const job = jobRes.rows[0];
-    console.log(`\n🚀 [WORKER ${countryLabel}] Processando: "${job.title}" | Meta: ${job.found_emails_count}/${job.target_count}`);
+
+    if (job.found_emails_count >= job.target_count) {
+      await client.query(`
+        UPDATE core_comercial.lead_prospecting_jobs
+        SET status = 'completed', updated_at = NOW()
+        WHERE id = $1;
+      `, [job.id]);
+      console.log(`✅ [${countryLabel}] Missão "${job.title}" concluída com ${job.found_emails_count}/${job.target_count}!`);
+      return { country: countryCode, active: true, completed: true };
+    }
+
+    console.log(`\n🚀 [WORKER ${countryLabel}] Missão: "${job.title}" (${job.found_emails_count}/${job.target_count})`);
 
     let inserted = 0;
     const source = job.search_source || 'google_maps';
 
     if (countryCode === 'FR') {
-      // França: API oficial do governo francês (gratuita e ilimitada)
       inserted = await harvestFranceOfficial(client, job, existingNames, existingEmails);
     } else if (countryCode === 'IT') {
-      // Itália: Google Places oficial / Polígonos industriais
-      inserted = await harvestGoogleMapsReal(client, job, existingNames, existingEmails);
+      inserted = await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
     } else {
-      // Espanha: Google Places oficial ou base CNAE
       if (source === 'google_maps') {
-        inserted = await harvestGoogleMapsReal(client, job, existingNames, existingEmails);
+        inserted = await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
+        if (inserted === 0) {
+          inserted = await harvestSpainOfficial(client, job, existingNames, existingEmails);
+        }
       } else {
         inserted = await harvestSpainOfficial(client, job, existingNames, existingEmails);
       }
     }
 
-    // Atualizar métricas do job
     const countRes = await client.query('SELECT count(*) FROM core_comercial.lead_prospecting_results WHERE job_id = $1;', [job.id]);
     const currentCount = parseInt(countRes.rows[0].count, 10);
     const isDone = currentCount >= job.target_count;
@@ -558,26 +653,25 @@ async function processCountryWorker(countryCode, countryLabel, sqlWhere, client,
       WHERE id = $3;
     `, [currentCount, isDone ? 'completed' : 'processing', job.id]);
 
-    console.log(`📊 [${countryLabel}] "${job.title}": ${currentCount}/${job.target_count} leads reais. [${isDone ? 'COMPLETED ✅' : 'PROCESSING 🔄'}]`);
+    console.log(`📊 [${countryLabel}] "${job.title}": ${currentCount}/${job.target_count} leads reais verificados.`);
     return { country: countryCode, active: true, inserted, currentCount, isDone };
   } catch (err) {
     console.error(`❌ [WORKER ${countryLabel}] Erro:`, err.message);
     return { country: countryCode, active: false, error: err.message };
+  } finally {
+    client.release();
   }
 }
 
 /**
- * Loop Principal do Daemon 24/7 com Paralelismo Tri-País
+ * Ciclo do Daemon 24/7 com Paralelismo Tri-País
  */
 async function runDaemonStep() {
-  const client = new Client({ connectionString: PROD_PG_URL });
+  const metaClient = await pool.connect();
 
   try {
-    await client.connect();
-
-    // 1. Carregar nomes e e-mails existentes para deduplicação global
-    const existingStagingRes = await client.query('SELECT company_name, email FROM core_comercial.lead_prospecting_results;');
-    const existingCrmRes = await client.query('SELECT company_name, email FROM core_comercial.leads;');
+    const existingStagingRes = await metaClient.query('SELECT company_name, email FROM core_comercial.lead_prospecting_results;');
+    const existingCrmRes = await metaClient.query('SELECT company_name, email FROM core_comercial.leads;');
 
     const existingNames = new Set();
     const existingEmails = new Set();
@@ -587,25 +681,24 @@ async function runDaemonStep() {
       if (r.email) existingEmails.add(r.email.trim().toLowerCase());
     }
 
+    metaClient.release();
+
     console.log(`\n================================================================================`);
-    console.log(`⚡ [PARALELO TRI-PAÍS] Rodando Varredura Simultânea (🇪🇸 Espanha | 🇫🇷 França | 🇮🇹 Itália)`);
+    console.log(`⚡ [PARALELO TRI-PAÍS] Varredura Concorrente (🇪🇸 Espanha | 🇫🇷 França | 🇮🇹 Itália)`);
     console.log(`🔒 Deduplicação ativa: ${existingNames.size} empresas / ${existingEmails.size} e-mails protegidos.`);
     console.log(`================================================================================`);
 
-    // 2. Executar os 3 países simultaneamente em paralelo!
     const countryResults = await Promise.allSettled([
-      processCountryWorker('ES', '🇪🇸 Espanha', "location LIKE '%Espan%' OR title LIKE '%🇪🇸%'", client, existingNames, existingEmails),
-      processCountryWorker('FR', '🇫🇷 França', "location LIKE '%Fran%' OR title LIKE '%🇫🇷%'", client, existingNames, existingEmails),
-      processCountryWorker('IT', '🇮🇹 Itália', "location LIKE '%Ital%' OR title LIKE '%🇮🇹%'", client, existingNames, existingEmails)
+      processCountryWorker('ES', '🇪🇸 Espanha', "location LIKE '%Espan%' OR title LIKE '%🇪🇸%'", existingNames, existingEmails),
+      processCountryWorker('FR', '🇫🇷 França', "location LIKE '%Fran%' OR title LIKE '%🇫🇷%'", existingNames, existingEmails),
+      processCountryWorker('IT', '🇮🇹 Itália', "location LIKE '%Ital%' OR title LIKE '%🇮🇹%'", existingNames, existingEmails)
     ]);
 
     const activeWorkers = countryResults.filter(r => r.status === 'fulfilled' && r.value?.active).length;
-
-    await client.end();
     return { active: activeWorkers > 0, results: countryResults };
   } catch (err) {
     console.error('❌ Erro no ciclo do Daemon:', err.message);
-    try { await client.end(); } catch {}
+    try { metaClient.release(); } catch {}
     return { active: false, error: err.message };
   }
 }
@@ -618,11 +711,10 @@ async function startDaemonLoop() {
   while (true) {
     const result = await runDaemonStep();
     if (!result.active) {
-      // Fila vazia, aguardar 10 segundos
+      console.log('💤 Nenhuma missão ativa no momento. Aguardando 10s...');
       await new Promise((r) => setTimeout(r, 10000));
     } else {
-      // Pausa rápida entre lotes
-      await new Promise((r) => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 2000));
     }
   }
 }
@@ -631,5 +723,5 @@ if (require.main === module) {
   startDaemonLoop().catch(console.error);
 }
 
-module.exports = { runDaemonStep, startDaemonLoop };
+module.exports = { runDaemonStep, startDaemonLoop, pool };
 
