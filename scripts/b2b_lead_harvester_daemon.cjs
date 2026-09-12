@@ -227,20 +227,16 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
     }
   }
 
-  const primaryNaf = nafCodes[0];
-  const currentCursor = francePageCursor[primaryNaf] || 1;
+  const naf = nafCodes[Math.floor(Math.random() * nafCodes.length)];
+  const currentCursor = francePageCursor[naf] || 1;
   const targetPages = [currentCursor, currentCursor + 1];
-  francePageCursor[primaryNaf] = (currentCursor + 2 > 30) ? 1 : currentCursor + 2;
+  francePageCursor[naf] = (currentCursor + 2 > 50) ? 1 : currentCursor + 2;
 
   let totalInsertedInCycle = 0;
 
-  for (const naf of nafCodes) {
+  for (const page of targetPages) {
     if (job.found_emails_count + totalInsertedInCycle >= job.target_count) break;
-    if (totalInsertedInCycle >= 10) break; // Limite de 10 por ciclo para manter agilidade e rotação rápida
-
-    for (const page of targetPages) {
-      if (job.found_emails_count + totalInsertedInCycle >= job.target_count) break;
-      if (totalInsertedInCycle >= 10) break;
+    if (totalInsertedInCycle >= 10) break;
 
       try {
         const url = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${naf}&per_page=25&page=${page}`;
@@ -312,12 +308,14 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
       } catch (err) {
         console.warn(`  [FR] Aviso página ${page}:`, err.message);
       }
-      await new Promise((r) => setTimeout(r, 200));
     }
-  }
 
-  return totalInsertedInCycle;
-}
+    if (totalInsertedInCycle === 0 && GOOGLE_PLACES_API_KEY) {
+      return await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
+    }
+
+    return totalInsertedInCycle;
+  }
 
 /**
  * Processador da Espanha via Banco Oficial CNAE (core_comercial.empresas_espanha_cnae)
@@ -462,17 +460,22 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
   const cityPool = isFR ? FRENCH_CITIES : isIT ? ITALIAN_CITIES : SPANISH_CITIES;
   const targetCity = cityPool[Math.floor(Math.random() * cityPool.length)];
 
-  let cleanKw = (job.keywords || job.title)
+  const rawKw = (job.keywords || job.title)
     .replace(/CNAE \d+/gi, '')
     .replace(/NAF \d+(\.\d+)?[A-Z]?/gi, '')
     .replace(/ATECO \d+(\.\d+)?/gi, '')
     .replace(/[\d\.]+/g, '')
-    .replace(/[^\w\s\u00C0-\u00FF]/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .split(' ')
-    .slice(0, 3)
-    .join(' ');
+    .replace(/[🇪🇸🇫🇷🇮🇹\(\)\-]/g, ' ')
+    .trim();
+
+  // Dividir o título em múltiplos termos candidatos (ex: "Tubería Industrial", "Piping", "Montajes Mecánicos")
+  const kwParts = rawKw
+    .split(/[,/&]/)
+    .map(k => k.trim().replace(/[^\w\s\u00C0-\u00FF]/gi, ' ').replace(/\s+/g, ' '))
+    .filter(k => k.length >= 3);
+
+  const chosenKw = kwParts.length > 0 ? kwParts[Math.floor(Math.random() * kwParts.length)] : rawKw;
+  const cleanKw = chosenKw.split(' ').slice(0, 4).join(' ').trim();
 
   const query = `${cleanKw} ${targetCity}`;
   console.log(`📍 [GOOGLE PLACES API] Buscando: "${query}" (${country})`);
@@ -582,36 +585,31 @@ async function processCountryWorker(countryCode, countryLabel, sqlWhere, existin
   const client = await pool.connect();
 
   try {
+    // Seleção em round-robin: pega a missão menos recentemente atualizada
     let jobRes = await client.query(`
       SELECT * FROM core_comercial.lead_prospecting_jobs
-      WHERE (${sqlWhere}) AND status = 'processing'
-      ORDER BY created_at ASC
+      WHERE (${sqlWhere}) AND status IN ('processing', 'pending')
+      ORDER BY 
+        CASE WHEN status = 'processing' THEN 0 ELSE 1 END,
+        updated_at ASC NULLS FIRST,
+        created_at ASC
       LIMIT 1;
     `);
-
-    if (jobRes.rows.length === 0) {
-      jobRes = await client.query(`
-        SELECT * FROM core_comercial.lead_prospecting_jobs
-        WHERE (${sqlWhere}) AND status = 'pending'
-        ORDER BY created_at ASC
-        LIMIT 1;
-      `);
-
-      if (jobRes.rows.length > 0) {
-        await client.query(`
-          UPDATE core_comercial.lead_prospecting_jobs
-          SET status = 'processing', updated_at = NOW()
-          WHERE id = $1;
-        `, [jobRes.rows[0].id]);
-        jobRes.rows[0].status = 'processing';
-      }
-    }
 
     if (jobRes.rows.length === 0) {
       return { country: countryCode, active: false };
     }
 
     const job = jobRes.rows[0];
+
+    if (job.status === 'pending') {
+      await client.query(`
+        UPDATE core_comercial.lead_prospecting_jobs
+        SET status = 'processing', updated_at = NOW()
+        WHERE id = $1;
+      `, [job.id]);
+      job.status = 'processing';
+    }
 
     if (job.found_emails_count >= job.target_count) {
       await client.query(`
