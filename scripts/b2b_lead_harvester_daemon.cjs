@@ -351,12 +351,129 @@ async function harvestItalyOfficial(client, job, existingNames, existingEmails) 
   return insertedCount;
 }
 
+const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || 'AIzaSyDCnuylEKT18xlS9Tk53fnA9XMnw1q9Y5s';
+
 /**
- * Motor Google Maps & Polígonos Industriais (Web Scraper Direto)
+ * Motor Google Places API Oficial + Web Scraper de E-mails
+ */
+async function harvestViaGooglePlacesApi(client, job, existingNames, existingEmails) {
+  if (!GOOGLE_PLACES_API_KEY) return 0;
+  console.log(`📍 [GOOGLE PLACES API OFICIAL] Buscando locais para: "${job.keywords || job.title}" em "${job.location}"`);
+
+  // Extrair termo chave conciso (Google Maps funciona melhor com 2 a 4 palavras: ex: "Tuberia industrial Madrid")
+  let cleanKw = (job.keywords || job.title)
+    .replace(/CNAE \d+/gi, '')
+    .replace(/NAF \d+(\.\d+)?[A-Z]?/gi, '')
+    .replace(/ATECO \d+(\.\d+)?/gi, '')
+    .replace(/[^\w\s\u00C0-\u00FF]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .slice(0, 3)
+    .join(' ');
+
+  const locRaw = (job.location || 'Madrid')
+    .replace(/\(.*?\)/g, '')
+    .replace(/espanha|frança|itália/gi, '')
+    .trim();
+  const cities = locRaw.split(/[,/]/).map(c => c.trim()).filter(c => c.length > 2);
+  const targetCity = cities.length > 0 ? cities[Math.floor(Math.random() * cities.length)] : 'Madrid';
+
+  const query = `${cleanKw} ${targetCity}`;
+
+  let insertedCount = 0;
+  const needed = Math.max(1, job.target_count - job.found_emails_count);
+
+  try {
+    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+
+    if (searchData.status !== 'OK' || !Array.isArray(searchData.results)) {
+      console.log(`  [Google Places] Status: ${searchData.status} - Nenhum resultado retornado para "${query}".`);
+      return 0;
+    }
+
+    console.log(`  [Google Places] ${searchData.results.length} locais encontrados no Google Maps.`);
+
+    for (const place of searchData.results) {
+      if (insertedCount >= needed) break;
+      const compName = (place.name || '').trim();
+      if (!compName || compName.length < 3) continue;
+
+      const normName = compName.toLowerCase();
+      if (existingNames.has(normName)) continue;
+
+      // Buscar detalhes do local (website e telefone oficial)
+      let website = null;
+      let phone = null;
+      let address = place.formatted_address || 'Google Maps Location';
+
+      if (place.place_id) {
+        try {
+          const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website&key=${GOOGLE_PLACES_API_KEY}`;
+          const detailRes = await fetch(detailUrl);
+          const detailData = await detailRes.json();
+          if (detailData.status === 'OK' && detailData.result) {
+            website = detailData.result.website || null;
+            phone = detailData.result.international_phone_number || detailData.result.formatted_phone_number || null;
+            address = detailData.result.formatted_address || address;
+          }
+        } catch {}
+      }
+
+      let email = null;
+      if (website) {
+        email = await scrapeSiteForEmail(website);
+      }
+
+      // Se achou e-mail e ele não existe no CRM:
+      if (email && !existingEmails.has(email.toLowerCase().trim())) {
+        const normEmail = email.toLowerCase().trim();
+        existingNames.add(normName);
+        existingEmails.add(normEmail);
+
+        const isFR = (job.location && job.location.toLowerCase().includes('fran')) || (job.title && job.title.includes('🇫🇷'));
+        const isIT = (job.location && job.location.toLowerCase().includes('ital')) || (job.title && job.title.includes('🇮🇹'));
+        const country = isFR ? 'França' : isIT ? 'Itália' : 'Espanha';
+
+        await client.query(`
+          INSERT INTO core_comercial.lead_prospecting_results (
+            job_id, empresa_id, company_name, email, phone, website,
+            address, city, province, country, confidence_score, status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 100, 'raw', NOW(), NOW())
+          ON CONFLICT DO NOTHING;
+        `, [
+          job.id, job.empresa_id, compName, normEmail, phone, website,
+          address, job.location, job.location, country
+        ]);
+
+        insertedCount++;
+        console.log(`  ✓ [GOOGLE MAPS + WEB 100% REAL] ${compName} | ${normEmail} | Tel: ${phone || 'N/A'} | Site: ${website}`);
+      }
+    }
+  } catch (err) {
+    console.error(`  [Google Places] Erro na busca:`, err.message);
+  }
+
+  return insertedCount;
+}
+
+/**
+ * Motor Google Maps & Polígonos Industriais (Google Places API + Fallback)
  */
 async function harvestGoogleMapsReal(client, job, existingNames, existingEmails) {
   console.log(`📍 [GOOGLE MAPS & POLÍGONOS] Processando Missão: "${job.title}" em ${job.location}`);
 
+  // 1. Tentar primeiro via Google Places API oficial
+  if (GOOGLE_PLACES_API_KEY) {
+    const placesInserted = await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
+    if (placesInserted > 0) {
+      return placesInserted;
+    }
+  }
+
+  // 2. Fallback para bases oficiais por país
   const isFR = (job.location && job.location.toLowerCase().includes('fran')) || (job.title && job.title.includes('🇫🇷'));
   const isIT = (job.location && job.location.toLowerCase().includes('ital')) || (job.title && job.title.includes('🇮🇹'));
 
