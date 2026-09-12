@@ -475,7 +475,7 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
     .filter(k => k.length >= 3);
 
   const chosenKw = kwParts.length > 0 ? kwParts[Math.floor(Math.random() * kwParts.length)] : rawKw;
-  const cleanKw = chosenKw.split(' ').slice(0, 4).join(' ').trim();
+  const cleanKw = chosenKw.split(' ').filter(w => w.length > 2).slice(0, 2).join(' ').trim();
 
   const query = `${cleanKw} ${targetCity}`;
   console.log(`📍 [GOOGLE PLACES API] Buscando: "${query}" (${country})`);
@@ -590,7 +590,6 @@ async function processCountryWorker(countryCode, countryLabel, sqlWhere, existin
       SELECT * FROM core_comercial.lead_prospecting_jobs
       WHERE (${sqlWhere}) AND status IN ('processing', 'pending')
       ORDER BY 
-        CASE WHEN status = 'processing' THEN 0 ELSE 1 END,
         updated_at ASC NULLS FIRST,
         created_at ASC
       LIMIT 1;
