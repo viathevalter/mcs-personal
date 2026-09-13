@@ -343,14 +343,14 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
   }
 
   let totalInsertedInCycle = 0;
-  const maxPagesToTry = 4;
+  const maxPagesToTry = 6;
 
-  for (let step = 0; step < maxPagesToTry && totalInsertedInCycle < 15; step++) {
+  for (let step = 0; step < maxPagesToTry && totalInsertedInCycle < 25; step++) {
     const page = francePageCursor[cursorKey];
     francePageCursor[cursorKey]++;
 
     const nafQuery = nafCodes.join(',');
-    const url = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${nafQuery}&per_page=20&page=${page}`;
+    const url = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${nafQuery}&per_page=25&page=${page}`;
 
     try {
       const controller = new AbortController();
@@ -372,10 +372,10 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
         break;
       }
 
-      // Processar em lotes concorrentes de 5 empresas simultaneamente
-      const chunkSize = 5;
+      // Processar em lotes concorrentes de 10 empresas simultaneamente
+      const chunkSize = 10;
       for (let i = 0; i < companies.length; i += chunkSize) {
-        if (totalInsertedInCycle >= 15) break;
+        if (totalInsertedInCycle >= 25) break;
         const chunk = companies.slice(i, i + chunkSize);
 
         const chunkPromises = chunk.map(async c => {
@@ -655,7 +655,9 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
   const country = isFR ? 'França' : isIT ? 'Itália' : 'Espanha';
 
   const cityPool = isFR ? FRENCH_CITIES : isIT ? ITALIAN_CITIES : SPANISH_CITIES;
-  const targetCity = cityPool[Math.floor(Math.random() * cityPool.length)];
+  // Embaralhar e selecionar 2 cidades distintas para dobrar o volume de locais
+  const shuffledCities = [...cityPool].sort(() => 0.5 - Math.random());
+  const targetCities = shuffledCities.slice(0, 2);
 
   const rawKw = (job.keywords || job.title)
     .replace(/CNAE \d+/gi, '')
@@ -674,26 +676,29 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
   const chosenKw = kwParts.length > 0 ? kwParts[Math.floor(Math.random() * kwParts.length)] : rawKw;
   const cleanKw = chosenKw.split(' ').filter(w => w.length > 2).slice(0, 2).join(' ').trim();
 
-  const query = `${cleanKw} ${targetCity}`;
-  console.log(`📍 [GOOGLE PLACES API] Buscando: "${query}" (${country})`);
-
   let insertedCount = 0;
-  const needed = Math.min(10, Math.max(1, job.target_count - job.found_emails_count));
+  const needed = Math.min(25, Math.max(1, job.target_count - job.found_emails_count));
 
   try {
-    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
-    const searchRes = await fetch(searchUrl);
-    const searchData = await searchRes.json();
+    const searchPromises = targetCities.map(async targetCity => {
+      const query = `${cleanKw} ${targetCity}`;
+      console.log(`📍 [GOOGLE PLACES API] Buscando: "${query}" (${country})`);
+      try {
+        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
+        const searchRes = await fetch(searchUrl);
+        const searchData = await searchRes.json();
+        if (searchData.status === 'OK' && Array.isArray(searchData.results)) {
+          return searchData.results.map(r => ({ ...r, _city: targetCity }));
+        }
+      } catch {}
+      return [];
+    });
 
-    if (searchData.status !== 'OK' || !Array.isArray(searchData.results)) {
-      console.log(`  [Google Places] Status: ${searchData.status} - Sem resultados para "${query}".`);
-      return 0;
-    }
+    const searchResults = await Promise.all(searchPromises);
+    const places = searchResults.flat();
+    console.log(`  [Google Places] Total de ${places.length} locais encontrados em ${targetCities.join(', ')}.`);
 
-    console.log(`  [Google Places] ${searchData.results.length} locais encontrados no Google Maps.`);
-
-    const places = searchData.results;
-    const chunkSize = 5;
+    const chunkSize = 10;
 
     for (let i = 0; i < places.length; i += chunkSize) {
       if (insertedCount >= needed) break;
@@ -729,7 +734,7 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
         }
 
         if (email && !existingEmails.has(email.toLowerCase().trim())) {
-          return { compName, normName, email: email.toLowerCase().trim(), phone, website, address };
+          return { compName, normName, email: email.toLowerCase().trim(), phone, website, address, city: place._city || targetCities[0] };
         }
         return null;
       });
@@ -749,8 +754,8 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
           phone: item.phone,
           website: item.website,
           address: item.address,
-          city: targetCity,
-          province: targetCity,
+          city: item.city,
+          province: item.city,
           country: country,
           confidenceScore: 100
         });
@@ -925,7 +930,7 @@ async function startDaemonLoop() {
       console.log('💤 Nenhuma missão ativa no momento. Aguardando 10s...');
       await new Promise((r) => setTimeout(r, 10000));
     } else {
-      await new Promise((r) => setTimeout(r, 2000));
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
 }
