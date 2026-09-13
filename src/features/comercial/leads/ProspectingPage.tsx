@@ -543,6 +543,9 @@ export function ProspectingPage() {
     if (jobCountryFilter === 'ES') {
       return jobs.filter((j) => (j.location && j.location.toLowerCase().includes('espan')) || (j.title && (j.title.includes('Espanha') || j.title.includes('CNAE')) && !j.title.includes('🇫🇷')));
     }
+    if (jobCountryFilter === 'IT') {
+      return jobs.filter((j) => (j.location && (j.location.toLowerCase().includes('ital') || j.location.toLowerCase().includes('it'))) || (j.title && (j.title.includes('Itália') || j.title.includes('ATECO'))));
+    }
     return jobs;
   }, [jobs, jobCountryFilter]);
 

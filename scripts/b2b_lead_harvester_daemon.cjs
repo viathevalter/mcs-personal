@@ -29,19 +29,38 @@ const pool = new Pool({
 });
 
 const ITALIAN_CITIES = [
-  'Brescia', 'Bergamo', 'Milano', 'Torino', 'Vicenza',
-  'Verona', 'Bologna', 'Modena', 'Reggio Emilia', 'Padova',
-  'Genova', 'Ravenna', 'Monfalcone', 'Livorno'
+  'Brescia', 'Bergamo', 'Milano', 'Torino', 'Vicenza', 'Verona', 'Bologna', 'Modena',
+  'Reggio Emilia', 'Padova', 'Genova', 'Ravenna', 'Monfalcone', 'Livorno', 'Taranto',
+  'La Spezia', 'Sesto San Giovanni', 'Cinisello Balsamo', 'Legnano', 'Lumezzane',
+  'Dalmine', 'Treviglio', 'Orbassano', 'Rivoli', 'Schio', 'Thiene', 'Arzignano',
+  'Montecchio Maggiore', 'Bassano del Grappa', 'Treviso', 'Conegliano', 'Marghera',
+  'Imola', 'Sassuolo', 'Carpi', 'Parma', 'Piacenza', 'Savona', 'Faenza', 'Forli',
+  'Cesena', 'Ferrara', 'Piombino', 'Pisa', 'Scandicci', 'Arezzo', 'Udine', 'Pordenone',
+  'Trieste', 'Ancona', 'Jesi', 'Pesaro', 'Bari', 'Brindisi'
 ];
 
 const SPANISH_CITIES = [
-  'Madrid', 'Barcelona', 'Bilbao', 'Valencia', 'Sevilla',
-  'Zaragoza', 'Vigo', 'Gijon', 'Valladolid', 'Tarragona', 'Cartagena'
+  'Madrid', 'Barcelona', 'Bilbao', 'Valencia', 'Sevilla', 'Zaragoza', 'Vigo', 'Gijon',
+  'Valladolid', 'Tarragona', 'Cartagena', 'Fuenlabrada', 'Getafe', 'Leganes', 'Alcala de Henares',
+  'Pinto', 'Valdemoro', 'Arganda del Rey', 'Sabadell', 'Terrassa', 'Martorell', 'Granollers',
+  'Badalona', 'Mataro', 'Rubi', 'Sant Boi de Llobregat', 'Cornella de Llobregat', 'Barakaldo',
+  'Basauri', 'Durango', 'Eibar', 'Mondragon', 'Irun', 'Amurrio', 'Paterna', 'Torrent',
+  'Sagunto', 'Alzira', 'Gandia', 'Ontinyent', 'Dos Hermanas', 'Alcala de Guadaira',
+  'Algeciras', 'San Fernando', 'Jerez de la Frontera', 'Ferrol', 'Naron', 'Arteixo',
+  'Pontevedra', 'Aviles', 'Oviedo', 'Siero', 'Burgos', 'Miranda de Ebro', 'Palencia',
+  'Leon', 'Huesca', 'Calatayud', 'Pamplona', 'Tudela', 'Santander', 'Torrelavega',
+  'Lorca', 'Molina de Segura', 'Puertollano', 'Albacete', 'Guadalajara', 'Toledo'
 ];
 
 const FRENCH_CITIES = [
-  'Lyon', 'Marseille', 'Lille', 'Toulouse', 'Bordeaux',
-  'Nantes', 'Rouen', 'Dunkerque', 'Le Havre', 'Strasbourg'
+  'Lyon', 'Marseille', 'Lille', 'Toulouse', 'Bordeaux', 'Nantes', 'Rouen', 'Dunkerque',
+  'Le Havre', 'Strasbourg', 'Villeurbanne', 'Venissieux', 'Saint-Priest', 'Saint-Etienne',
+  'Grenoble', 'Chambery', 'Annecy', 'Aix-en-Provence', 'Aubagne', 'Fos-sur-Mer', 'Martigues',
+  'Toulon', 'La Seyne-sur-Mer', 'Colomiers', 'Merignac', 'Pessac', 'Pau', 'Bayonne',
+  'Saint-Nazaire', 'Rennes', 'Brest', 'Lorient', 'Tourcoing', 'Roubaix', 'Calais',
+  'Valenciennes', 'Douai', 'Dieppe', 'Caen', 'Cherbourg', 'Mulhouse', 'Metz', 'Nancy',
+  'Thionville', 'Reims', 'Saint-Denis', 'Argenteuil', 'Boulogne-Billancourt', 'Nanterre',
+  'Dijon', 'Chalon-sur-Saone', 'Besancon', 'Belfort', 'Clermont-Ferrand'
 ];
 
 const francePageCursor = {};
@@ -289,7 +308,7 @@ async function saveLeadDirectlyToCrmAndStaging(client, job, lead) {
       INSERT INTO core_comercial.lead_prospecting_results (
         job_id, empresa_id, company_name, email, phone, website,
         address, city, province, country, confidence_score, status, imported_lead_id, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'imported', $12, NOW(), NOW())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'raw', $12, NOW(), NOW())
       ON CONFLICT DO NOTHING;
     `, [
       job.id, empresaId, compName, normEmail, lead.phone || null, lead.website || null,
@@ -360,8 +379,15 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
         const chunk = companies.slice(i, i + chunkSize);
 
         const chunkPromises = chunk.map(async c => {
-          const compName = (c.nom_complet || c.nom_raison_sociale || '').trim();
-          if (!compName || compName.length < 3) return null;
+          const rawName = (c.nom_raison_sociale || c.nom_complet || '').trim();
+          if (!rawName || rawName.length < 3) return null;
+
+          // Limpar parênteses, siglas repetidas e formas jurídicas
+          const cleanComp = rawName
+            .replace(/\(.*?\)/g, '')
+            .replace(/\b(sas|sarl|sa|eurl|sasu|sci|ste|cie|ets)\b/gi, '')
+            .trim();
+          const compName = cleanComp || rawName;
 
           const normName = compName.toLowerCase();
           if (existingNames.has(normName)) return null;
@@ -371,17 +397,27 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
           const address = `${c.siege?.adresse || c.siege?.libelle_voie || 'Zone Industrielle'} ${postalCode}`.trim();
           const department = c.siege?.departement || 'France';
 
-          const cleanName = compName.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const domainCandidates = [
-            `${cleanName}.fr`,
-            `${cleanName}.com`,
-            `${cleanName}-industrie.fr`,
-            `${cleanName}-france.fr`
-          ];
+          const words = cleanComp.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+          if (words.length === 0) return null;
+
+          const slug1 = words[0];
+          const slug2 = words.slice(0, 2).join('');
+          const slugFull = words.join('');
+
+          const domainCandidates = new Set([
+            `${slug1}.fr`,
+            `${slug1}.com`,
+            `${slug2}.fr`,
+            `${slug2}.com`,
+            `${slugFull}.fr`,
+            `${slugFull}.com`,
+            `${slug1}-industrie.fr`,
+            `${slug1}-france.fr`
+          ]);
 
           // Testar os domínios candidatos em paralelo
           const mxChecks = await Promise.all(
-            domainCandidates.map(async dom => ({ dom, hasMx: await checkMx(dom) }))
+            Array.from(domainCandidates).map(async dom => ({ dom, hasMx: await checkMx(dom) }))
           );
           const validDom = mxChecks.find(r => r.hasMx);
           if (!validDom) return null;
