@@ -210,6 +210,97 @@ async function incrementJobProgress(client, jobId) {
   }
 }
 
+function getSectorFromTitle(title) {
+  const t = (title || '').toLowerCase();
+  if (t.includes('33.20') || t.includes('3320') || t.includes('tuyauterie') || t.includes('tuberia') || t.includes('tubisteria') || t.includes('piping')) {
+    return 'Calderería & Tubería Industrial';
+  }
+  if (t.includes('25.29') || t.includes('2529') || t.includes('chaudronnerie') || t.includes('caldereria') || t.includes('caldareria') || t.includes('cuves') || t.includes('tanques')) {
+    return 'Calderería & Tubería Industrial';
+  }
+  if (t.includes('25.11') || t.includes('2511') || t.includes('charpente') || t.includes('estructuras') || t.includes('carpenteria')) {
+    return 'Estructuras Metálicas & Montajes';
+  }
+  if (t.includes('25.62') || t.includes('2562') || t.includes('usinage') || t.includes('mecanizado') || t.includes('meccanica') || t.includes('torner') || t.includes('tornitura')) {
+    return 'Mecanizado CNC & Tornería';
+  }
+  if (t.includes('30.11') || t.includes('3011') || t.includes('33.15') || t.includes('3315') || t.includes('naval') || t.includes('astilleros') || t.includes('chantiers') || t.includes('cantieri')) {
+    return 'Construção & Reparação Naval';
+  }
+  if (t.includes('28.25') || t.includes('2825') || t.includes('33.11') || t.includes('3311') || t.includes('echangeur') || t.includes('scambiatori') || t.includes('calderas') || t.includes('froid')) {
+    return 'Mantenimiento Industrial & Calderas';
+  }
+  return 'Indústria & Montagens Industriais';
+}
+
+function getCountryFlag(country) {
+  const c = (country || '').toLowerCase();
+  if (c.includes('fran') || c === 'fr') return '🇫🇷 França';
+  if (c.includes('ital') || c === 'it') return '🇮🇹 Itália';
+  return '🇪🇸 Espanha';
+}
+
+/**
+ * Salva o lead diretamente no CRM (core_comercial.leads) e na Staging (lead_prospecting_results)
+ * em tempo real, garantindo persistência imediata e segmentação automática.
+ */
+async function saveLeadDirectlyToCrmAndStaging(client, job, lead) {
+  const empresaId = job.empresa_id || '847796c4-b253-4e53-9e6b-34a127ec7d85';
+  const sector = getSectorFromTitle(job.title);
+  const countryFlag = getCountryFlag(lead.country || job.location);
+  const compName = lead.compName || 'Empresa Industrial';
+  const normEmail = (lead.email || '').trim().toLowerCase();
+
+  const tags = [
+    'Prospecção 24/7',
+    'E-mail Verificado MX',
+    countryFlag,
+    sector
+  ];
+  if (lead.city) tags.push(lead.city.trim());
+
+  const notes = `Lead capturado e verificado 100% real via Motor 24/7.\nPaís: ${countryFlag} | Setor: ${sector} | Cidade: ${lead.city || 'N/A'}\nConfiança: ${lead.confidenceScore || 100}% MX Verificado`;
+
+  let newLeadId = null;
+  try {
+    const leadRes = await client.query(`
+      INSERT INTO core_comercial.leads (
+        empresa_id, name, company_name, email, phone, website,
+        address_line, city, province, sector, origen_lead, tags, notes, prospecting_job_id
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Prospecção Automática 24/7', $11, $12, $13
+      )
+      ON CONFLICT DO NOTHING
+      RETURNING id;
+    `, [
+      empresaId, compName, compName, normEmail, lead.phone || null, lead.website || null,
+      lead.address || null, lead.city || null, lead.province || null, sector, tags, notes, job.id
+    ]);
+
+    if (leadRes.rows.length > 0) {
+      newLeadId = leadRes.rows[0].id;
+    }
+  } catch (err) {
+    console.warn(`[CRM Direct Save] Erro ao inserir no CRM:`, err.message);
+  }
+
+  try {
+    await client.query(`
+      INSERT INTO core_comercial.lead_prospecting_results (
+        job_id, empresa_id, company_name, email, phone, website,
+        address, city, province, country, confidence_score, status, imported_lead_id, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'imported', $12, NOW(), NOW())
+      ON CONFLICT DO NOTHING;
+    `, [
+      job.id, empresaId, compName, normEmail, lead.phone || null, lead.website || null,
+      lead.address || null, lead.city || null, lead.province || null, lead.country || countryFlag,
+      lead.confidenceScore || 100, newLeadId
+    ]);
+  } catch (err) {
+    console.warn(`[Staging Save] Erro ao inserir na Staging:`, err.message);
+  }
+}
+
 /**
  * Processador da França via API Oficial do Governo (recherche-entreprises.api.gouv.fr)
  */
@@ -218,33 +309,49 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
 
   // Identificar os códigos NAF correspondentes às keywords
   let nafCodes = ['33.20A', '33.20B', '33.20C', '33.20D'];
-  const kwLower = (job.keywords || job.title).toLowerCase();
+  const titleLower = (job.title + ' ' + (job.keywords || '')).toLowerCase();
 
-  for (const cat of FRENCH_NAF_CATALOG) {
-    if (cat.keywords.some((k) => kwLower.includes(k))) {
-      nafCodes = cat.nafCodes;
+  for (const item of FRENCH_NAF_CATALOG) {
+    if (item.keywords.some((k) => titleLower.includes(k))) {
+      nafCodes = item.nafCodes;
       break;
     }
   }
 
-  const naf = nafCodes[Math.floor(Math.random() * nafCodes.length)];
-  const currentCursor = francePageCursor[naf] || 1;
-  const targetPages = [currentCursor, currentCursor + 1];
-  francePageCursor[naf] = (currentCursor + 2 > 50) ? 1 : currentCursor + 2;
+  const cursorKey = job.id;
+  if (!francePageCursor[cursorKey]) {
+    francePageCursor[cursorKey] = 1;
+  }
 
   let totalInsertedInCycle = 0;
+  const maxPagesToTry = 4;
 
-  for (const page of targetPages) {
-    if (job.found_emails_count + totalInsertedInCycle >= job.target_count) break;
-    if (totalInsertedInCycle >= 10) break;
+  for (let step = 0; step < maxPagesToTry && totalInsertedInCycle < 15; step++) {
+    const page = francePageCursor[cursorKey];
+    francePageCursor[cursorKey]++;
 
-      try {
-        const url = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${naf}&per_page=25&page=${page}`;
-        const apiRes = await fetch(url, { signal: AbortSignal.timeout(4000) });
-        if (!apiRes.ok) continue;
-        const data = await apiRes.json();
-        const companies = data.results || [];
-        if (companies.length === 0) break;
+    const nafQuery = nafCodes.join(',');
+    const url = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${nafQuery}&per_page=20&page=${page}`;
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        if (res.status === 400 || res.status === 404) {
+          francePageCursor[cursorKey] = 1;
+        }
+        break;
+      }
+
+      const data = await res.json();
+      const companies = data.results || [];
+      if (companies.length === 0) {
+        francePageCursor[cursorKey] = 1;
+        break;
+      }
 
       // Processar em lotes concorrentes de 5 empresas simultaneamente
       const chunkSize = 5;
@@ -296,20 +403,21 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
           existingNames.add(item.normName);
           existingEmails.add(item.email);
 
-          await client.query(`
-            INSERT INTO core_comercial.lead_prospecting_results (
-              job_id, empresa_id, company_name, email, phone, website,
-              address, city, province, country, confidence_score, status, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'França', 99, 'raw', NOW(), NOW())
-            ON CONFLICT DO NOTHING;
-          `, [
-            job.id, job.empresa_id, item.compName, item.email, null, item.webUrl,
-            item.address, item.city, `${item.department} - France`
-          ]);
+          await saveLeadDirectlyToCrmAndStaging(client, job, {
+            compName: item.compName,
+            email: item.email,
+            phone: null,
+            website: item.webUrl,
+            address: item.address,
+            city: item.city,
+            province: `${item.department} - France`,
+            country: 'França',
+            confidenceScore: 99
+          });
 
           totalInsertedInCycle++;
           await incrementJobProgress(client, job.id);
-          console.log(`  ✓ [FR 100% REAL] ${item.compName} | ${item.email} | ${item.webUrl}`);
+          console.log(`  ✓ [FR 100% REAL & CRM] ${item.compName} | ${item.email} | ${item.webUrl}`);
         }
       }
     } catch (err) {
@@ -380,20 +488,21 @@ async function harvestSpainOfficial(client, job, existingNames, existingEmails) 
     existingNames.add(normName);
     existingEmails.add(normEmail);
 
-    await client.query(`
-      INSERT INTO core_comercial.lead_prospecting_results (
-        job_id, empresa_id, company_name, email, phone, website,
-        address, city, province, country, confidence_score, status, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 100, 'raw', NOW(), NOW())
-      ON CONFLICT DO NOTHING;
-    `, [
-      job.id, job.empresa_id, r.razao_social, normEmail, r.telefone || null, r.website || null,
-      r.endereco || 'Polígono Industrial', r.municipio || r.provincia || 'Espanha', r.provincia || 'Espanha'
-    ]);
+    await saveLeadDirectlyToCrmAndStaging(client, job, {
+      compName: r.razao_social,
+      email: normEmail,
+      phone: r.telefone || null,
+      website: r.website || null,
+      address: r.endereco || 'Polígono Industrial',
+      city: r.municipio || r.provincia || 'Espanha',
+      province: r.provincia || 'Espanha',
+      country: 'Espanha',
+      confidenceScore: 100
+    });
 
     insertedCount++;
     await incrementJobProgress(client, job.id);
-    console.log(`  ✓ [ES CNAE 100% REAL] ${r.razao_social} | ${normEmail}`);
+    console.log(`  ✓ [ES CNAE 100% REAL & CRM] ${r.razao_social} | ${normEmail}`);
   }
 
   if (insertedCount === 0) {
@@ -423,20 +532,21 @@ async function harvestSpainOfficial(client, job, existingNames, existingEmails) 
       existingNames.add(normName);
       existingEmails.add(normEmail);
 
-      await client.query(`
-        INSERT INTO core_comercial.lead_prospecting_results (
-          job_id, empresa_id, company_name, email, phone, website,
-          address, city, province, country, confidence_score, status, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 100, 'raw', NOW(), NOW())
-        ON CONFLICT DO NOTHING;
-      `, [
-        job.id, job.empresa_id, r.razao_social, normEmail, r.telefone || null, r.website || null,
-        r.endereco || 'Polígono Industrial', r.municipio || r.provincia || 'Espanha', r.provincia || 'Espanha'
-      ]);
+      await saveLeadDirectlyToCrmAndStaging(client, job, {
+        compName: r.razao_social,
+        email: normEmail,
+        phone: r.telefone || null,
+        website: r.website || null,
+        address: r.endereco || 'Polígono Industrial',
+        city: r.municipio || r.provincia || 'Espanha',
+        province: r.provincia || 'Espanha',
+        country: 'Espanha',
+        confidenceScore: 100
+      });
 
       insertedCount++;
       await incrementJobProgress(client, job.id);
-      console.log(`  ✓ [ES CNAE BASE REAL] ${r.razao_social} | ${normEmail}`);
+      console.log(`  ✓ [ES CNAE BASE REAL & CRM] ${r.razao_social} | ${normEmail}`);
     }
   }
 
@@ -597,20 +707,21 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
         existingNames.add(item.normName);
         existingEmails.add(item.email);
 
-        await client.query(`
-          INSERT INTO core_comercial.lead_prospecting_results (
-            job_id, empresa_id, company_name, email, phone, website,
-            address, city, province, country, confidence_score, status, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 100, 'raw', NOW(), NOW())
-          ON CONFLICT DO NOTHING;
-        `, [
-          job.id, job.empresa_id, item.compName, item.email, item.phone, item.website,
-          item.address, targetCity, targetCity, country
-        ]);
+        await saveLeadDirectlyToCrmAndStaging(client, job, {
+          compName: item.compName,
+          email: item.email,
+          phone: item.phone,
+          website: item.website,
+          address: item.address,
+          city: targetCity,
+          province: targetCity,
+          country: country,
+          confidenceScore: 100
+        });
 
         insertedCount++;
         await incrementJobProgress(client, job.id);
-        console.log(`  ✓ [GOOGLE MAPS + WEB 100% REAL] ${item.compName} | ${item.email} | Tel: ${item.phone || 'N/A'}`);
+        console.log(`  ✓ [GOOGLE MAPS + WEB 100% REAL & CRM] ${item.compName} | ${item.email} | Tel: ${item.phone || 'N/A'}`);
       }
     }
   } catch (err) {
