@@ -135,61 +135,61 @@ function isValidEmail(email) {
 }
 
 /**
- * Web Scraper de e-mails corporativos reais diretamente do HTML do site oficial
+ * Web Scraper de e-mails corporativos reais com requisições em paralelo
  */
-async function scrapeSiteForEmail(baseUrl) {
+async function scrapeSiteForEmail(baseUrl, country = 'ES') {
   if (!baseUrl || !baseUrl.startsWith('http')) return null;
 
   const cleanBase = baseUrl.replace(/\/$/, '');
-  const pagesToTest = [
-    cleanBase,
-    `${cleanBase}/contacto`,
-    `${cleanBase}/contacto.html`,
-    `${cleanBase}/aviso-legal`,
-    `${cleanBase}/contact`,
-    `${cleanBase}/contact.html`,
-    `${cleanBase}/mentions-legales`,
-    `${cleanBase}/contatti`,
-    `${cleanBase}/chi-siamo`
-  ];
+  const suffixes = (country === 'FR' || country === 'França')
+    ? ['', '/contact', '/mentions-legales', '/nous-contacter']
+    : (country === 'IT' || country === 'Itália')
+    ? ['', '/contatti', '/chi-siamo', '/privacy-policy']
+    : ['', '/contacto', '/aviso-legal', '/contact'];
 
-  for (const pageUrl of pagesToTest) {
+  const pagesToTest = suffixes.map(s => `${cleanBase}${s}`);
+
+  const fetchPromises = pagesToTest.map(async pageUrl => {
     try {
       const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 3500);
+      const t = setTimeout(() => controller.abort(), 2200);
       const res = await fetch(pageUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
         },
         redirect: 'follow',
         signal: controller.signal
       });
       clearTimeout(t);
 
-      if (!res.ok) continue;
+      if (!res.ok) return [];
       const html = await res.text();
       const emailMatches = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/gi) || [];
-
-      const clean = emailMatches
+      return emailMatches
         .map(e => {
-          try {
-            return decodeURIComponent(e).replace(/^[%20\s]+/, '').trim();
-          } catch {
-            return e.replace(/^[%20\s]+/, '').trim();
-          }
+          try { return decodeURIComponent(e).replace(/^[%20\s]+/, '').trim(); } catch { return e.replace(/^[%20\s]+/, '').trim(); }
         })
         .filter(isValidEmail);
+    } catch {
+      return [];
+    }
+  });
 
-      if (clean.length > 0) {
-        const firstEmail = clean[0].toLowerCase().trim();
-        const domain = firstEmail.split('@')[1];
-        const hasMx = await checkMx(domain);
-        if (hasMx) {
-          return firstEmail;
-        }
-      }
-    } catch {}
+  const pageResults = await Promise.allSettled(fetchPromises);
+  const candidateEmails = [];
+  for (const r of pageResults) {
+    if (r.status === 'fulfilled' && Array.isArray(r.value)) {
+      candidateEmails.push(...r.value);
+    }
   }
+
+  for (const email of candidateEmails) {
+    const domain = email.split('@')[1];
+    if (await checkMx(domain)) {
+      return email;
+    }
+  }
+
   return null;
 }
 
@@ -246,21 +246,24 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
         const companies = data.results || [];
         if (companies.length === 0) break;
 
-        for (const c of companies) {
-          if (totalInsertedInCycle >= 10) break;
+      // Processar em lotes concorrentes de 5 empresas simultaneamente
+      const chunkSize = 5;
+      for (let i = 0; i < companies.length; i += chunkSize) {
+        if (totalInsertedInCycle >= 15) break;
+        const chunk = companies.slice(i, i + chunkSize);
 
+        const chunkPromises = chunk.map(async c => {
           const compName = (c.nom_complet || c.nom_raison_sociale || '').trim();
-          if (!compName || compName.length < 3) continue;
+          if (!compName || compName.length < 3) return null;
 
           const normName = compName.toLowerCase();
-          if (existingNames.has(normName)) continue;
+          if (existingNames.has(normName)) return null;
 
           const city = c.siege?.libelle_commune || 'France';
           const postalCode = c.siege?.code_postal || '';
           const address = `${c.siege?.adresse || c.siege?.libelle_voie || 'Zone Industrielle'} ${postalCode}`.trim();
           const department = c.siege?.departement || 'France';
 
-          // Gerar candidatos de domínio e checar se há site ativo
           const cleanName = compName.toLowerCase().replace(/[^a-z0-9]/g, '');
           const domainCandidates = [
             `${cleanName}.fr`,
@@ -269,53 +272,57 @@ async function harvestFranceOfficial(client, job, existingNames, existingEmails)
             `${cleanName}-france.fr`
           ];
 
-          let foundEmail = null;
-          let foundWeb = null;
+          // Testar os domínios candidatos em paralelo
+          const mxChecks = await Promise.all(
+            domainCandidates.map(async dom => ({ dom, hasMx: await checkMx(dom) }))
+          );
+          const validDom = mxChecks.find(r => r.hasMx);
+          if (!validDom) return null;
 
-          for (const dom of domainCandidates) {
-            const hasMx = await checkMx(dom);
-            if (!hasMx) continue;
-
-            const webUrl = `https://www.${dom}`;
-            const scraped = await scrapeSiteForEmail(webUrl);
-            if (scraped && !existingEmails.has(scraped)) {
-              foundEmail = scraped;
-              foundWeb = webUrl;
-              break;
-            }
+          const webUrl = `https://www.${validDom.dom}`;
+          const scraped = await scrapeSiteForEmail(webUrl, 'FR');
+          if (scraped && !existingEmails.has(scraped)) {
+            return { compName, normName, email: scraped, webUrl, address, city, department };
           }
+          return null;
+        });
 
-          if (foundEmail && foundWeb) {
-            existingNames.add(normName);
-            existingEmails.add(foundEmail);
+        const foundResults = await Promise.all(chunkPromises);
 
-            await client.query(`
-              INSERT INTO core_comercial.lead_prospecting_results (
-                job_id, empresa_id, company_name, email, phone, website,
-                address, city, province, country, confidence_score, status, created_at, updated_at
-              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'França', 99, 'raw', NOW(), NOW())
-              ON CONFLICT DO NOTHING;
-            `, [
-              job.id, job.empresa_id, compName, foundEmail, null, foundWeb,
-              address, city, `${department} - France`
-            ]);
+        for (const item of foundResults) {
+          if (!item || totalInsertedInCycle >= 15) continue;
+          if (existingNames.has(item.normName) || existingEmails.has(item.email)) continue;
 
-            totalInsertedInCycle++;
-            await incrementJobProgress(client, job.id);
-            console.log(`  ✓ [FR 100% REAL] ${compName} | ${foundEmail} | ${foundWeb}`);
-          }
+          existingNames.add(item.normName);
+          existingEmails.add(item.email);
+
+          await client.query(`
+            INSERT INTO core_comercial.lead_prospecting_results (
+              job_id, empresa_id, company_name, email, phone, website,
+              address, city, province, country, confidence_score, status, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'França', 99, 'raw', NOW(), NOW())
+            ON CONFLICT DO NOTHING;
+          `, [
+            job.id, job.empresa_id, item.compName, item.email, null, item.webUrl,
+            item.address, item.city, `${item.department} - France`
+          ]);
+
+          totalInsertedInCycle++;
+          await incrementJobProgress(client, job.id);
+          console.log(`  ✓ [FR 100% REAL] ${item.compName} | ${item.email} | ${item.webUrl}`);
         }
-      } catch (err) {
-        console.warn(`  [FR] Aviso página ${page}:`, err.message);
       }
+    } catch (err) {
+      console.warn(`  [FR] Aviso página ${page}:`, err.message);
     }
-
-    if (totalInsertedInCycle === 0 && GOOGLE_PLACES_API_KEY) {
-      return await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
-    }
-
-    return totalInsertedInCycle;
   }
+
+  if (totalInsertedInCycle === 0 && GOOGLE_PLACES_API_KEY) {
+    return await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
+  }
+
+  return totalInsertedInCycle;
+}
 
 /**
  * Processador da Espanha via Banco Oficial CNAE (core_comercial.empresas_espanha_cnae)
@@ -387,6 +394,50 @@ async function harvestSpainOfficial(client, job, existingNames, existingEmails) 
     insertedCount++;
     await incrementJobProgress(client, job.id);
     console.log(`  ✓ [ES CNAE 100% REAL] ${r.razao_social} | ${normEmail}`);
+  }
+
+  if (insertedCount === 0) {
+    // Buscar empresas industriais não alocadas a um código específico mas com e-mail verificado
+    const kw = (job.keywords || job.title).split(' ')[0];
+    const fallbackCnae = await client.query(`
+      SELECT * FROM core_comercial.empresas_espanha_cnae c
+      WHERE c.email IS NOT NULL AND c.email != ''
+        AND (c.cnae_codigo IS NULL OR c.setor ILIKE $1)
+        AND NOT EXISTS (
+          SELECT 1 FROM core_comercial.lead_prospecting_results r WHERE LOWER(r.email) = LOWER(c.email)
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM core_comercial.leads l WHERE LOWER(l.email) = LOWER(c.email)
+        )
+      ORDER BY c.id ASC
+      LIMIT $2;
+    `, [`%${kw}%`, needed]);
+
+    for (const r of fallbackCnae.rows) {
+      const normName = (r.razao_social || '').trim().toLowerCase();
+      const normEmail = (r.email || '').trim().toLowerCase();
+
+      if (!normName || !normEmail) continue;
+      if (existingNames.has(normName) || existingEmails.has(normEmail)) continue;
+
+      existingNames.add(normName);
+      existingEmails.add(normEmail);
+
+      await client.query(`
+        INSERT INTO core_comercial.lead_prospecting_results (
+          job_id, empresa_id, company_name, email, phone, website,
+          address, city, province, country, confidence_score, status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Espanha', 100, 'raw', NOW(), NOW())
+        ON CONFLICT DO NOTHING;
+      `, [
+        job.id, job.empresa_id, r.razao_social, normEmail, r.telefone || null, r.website || null,
+        r.endereco || 'Polígono Industrial', r.municipio || r.provincia || 'Espanha', r.provincia || 'Espanha'
+      ]);
+
+      insertedCount++;
+      await incrementJobProgress(client, job.id);
+      console.log(`  ✓ [ES CNAE BASE REAL] ${r.razao_social} | ${normEmail}`);
+    }
   }
 
   if (insertedCount === 0 && GOOGLE_PLACES_API_KEY) {
@@ -495,40 +546,56 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
 
     console.log(`  [Google Places] ${searchData.results.length} locais encontrados no Google Maps.`);
 
-    for (const place of searchData.results) {
+    const places = searchData.results;
+    const chunkSize = 5;
+
+    for (let i = 0; i < places.length; i += chunkSize) {
       if (insertedCount >= needed) break;
-      const compName = (place.name || '').trim();
-      if (!compName || compName.length < 3) continue;
+      const chunk = places.slice(i, i + chunkSize);
 
-      const normName = compName.toLowerCase();
-      if (existingNames.has(normName)) continue;
+      const chunkPromises = chunk.map(async place => {
+        const compName = (place.name || '').trim();
+        if (!compName || compName.length < 3) return null;
 
-      let website = null;
-      let phone = null;
-      let address = place.formatted_address || 'Google Maps Location';
+        const normName = compName.toLowerCase();
+        if (existingNames.has(normName)) return null;
 
-      if (place.place_id) {
-        try {
-          const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website&key=${GOOGLE_PLACES_API_KEY}`;
-          const detailRes = await fetch(detailUrl);
-          const detailData = await detailRes.json();
-          if (detailData.status === 'OK' && detailData.result) {
-            website = detailData.result.website || null;
-            phone = detailData.result.international_phone_number || detailData.result.formatted_phone_number || null;
-            address = detailData.result.formatted_address || address;
-          }
-        } catch {}
-      }
+        let website = null;
+        let phone = null;
+        let address = place.formatted_address || 'Google Maps Location';
 
-      let email = null;
-      if (website) {
-        email = await scrapeSiteForEmail(website);
-      }
+        if (place.place_id) {
+          try {
+            const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website&key=${GOOGLE_PLACES_API_KEY}`;
+            const detailRes = await fetch(detailUrl);
+            const detailData = await detailRes.json();
+            if (detailData.status === 'OK' && detailData.result) {
+              website = detailData.result.website || null;
+              phone = detailData.result.international_phone_number || detailData.result.formatted_phone_number || null;
+              address = detailData.result.formatted_address || address;
+            }
+          } catch {}
+        }
 
-      if (email && !existingEmails.has(email.toLowerCase().trim())) {
-        const normEmail = email.toLowerCase().trim();
-        existingNames.add(normName);
-        existingEmails.add(normEmail);
+        let email = null;
+        if (website) {
+          email = await scrapeSiteForEmail(website, country);
+        }
+
+        if (email && !existingEmails.has(email.toLowerCase().trim())) {
+          return { compName, normName, email: email.toLowerCase().trim(), phone, website, address };
+        }
+        return null;
+      });
+
+      const chunkResults = await Promise.all(chunkPromises);
+
+      for (const item of chunkResults) {
+        if (!item || insertedCount >= needed) continue;
+        if (existingNames.has(item.normName) || existingEmails.has(item.email)) continue;
+
+        existingNames.add(item.normName);
+        existingEmails.add(item.email);
 
         await client.query(`
           INSERT INTO core_comercial.lead_prospecting_results (
@@ -537,13 +604,13 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 100, 'raw', NOW(), NOW())
           ON CONFLICT DO NOTHING;
         `, [
-          job.id, job.empresa_id, compName, normEmail, phone, website,
-          address, targetCity, targetCity, country
+          job.id, job.empresa_id, item.compName, item.email, item.phone, item.website,
+          item.address, targetCity, targetCity, country
         ]);
 
         insertedCount++;
         await incrementJobProgress(client, job.id);
-        console.log(`  ✓ [GOOGLE MAPS + WEB 100% REAL] ${compName} | ${normEmail} | Tel: ${phone || 'N/A'}`);
+        console.log(`  ✓ [GOOGLE MAPS + WEB 100% REAL] ${item.compName} | ${item.email} | Tel: ${item.phone || 'N/A'}`);
       }
     }
   } catch (err) {
