@@ -50,7 +50,7 @@ async function syncAllStagingToCrm() {
           r.confidence_score,
           CASE
             WHEN r.country ILIKE '%fran%' OR j.location ILIKE '%fran%' OR j.title ILIKE '%🇫🇷%' THEN '🇫🇷 França'
-            WHEN r.country ILIKE '%ital%' OR j.location ILIKE '%ital%' OR j.title ILIKE '%🇮🇹%' THEN '🇮🇹 Itália'
+            WHEN r.country ILIKE '%it%l%' OR r.country ILIKE '%Itália%' OR j.location ILIKE '%it%l%' OR j.title ILIKE '%🇮🇹%' THEN '🇮🇹 Itália'
             ELSE '🇪🇸 Espanha'
           END AS country_label,
           CASE

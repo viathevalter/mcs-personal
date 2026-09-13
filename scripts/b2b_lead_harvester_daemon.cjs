@@ -253,7 +253,7 @@ function getSectorFromTitle(title) {
 }
 
 function getCountryFlag(country) {
-  const c = (country || '').toLowerCase();
+  const c = (country || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   if (c.includes('fran') || c === 'fr') return '🇫🇷 França';
   if (c.includes('ital') || c === 'it') return '🇮🇹 Itália';
   return '🇪🇸 Espanha';
