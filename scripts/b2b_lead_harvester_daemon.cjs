@@ -804,18 +804,42 @@ async function processCountryWorker(countryCode, countryLabel, sqlWhere, existin
   const client = await pool.connect();
 
   try {
-    // Seleção em round-robin: pega a missão menos recentemente atualizada
+    // Seleção em round-robin: pega a missão ativa que ainda precisa de leads
     let jobRes = await client.query(`
       SELECT * FROM core_comercial.lead_prospecting_jobs
-      WHERE (${sqlWhere}) AND status IN ('processing', 'pending')
+      WHERE (${sqlWhere}) 
+        AND status IN ('processing', 'pending')
+        AND (found_emails_count < target_count OR target_count IS NULL)
       ORDER BY 
         updated_at ASC NULLS FIRST,
         created_at ASC
       LIMIT 1;
     `);
 
+    // Se todas as missões deste país já atingiram a meta atual, auto-expandir a meta em +500 para continuar colhendo 24/7 sem travar!
     if (jobRes.rows.length === 0) {
-      return { country: countryCode, active: false };
+      const anyJobRes = await client.query(`
+        SELECT * FROM core_comercial.lead_prospecting_jobs
+        WHERE (${sqlWhere})
+        ORDER BY updated_at ASC NULLS FIRST
+        LIMIT 1;
+      `);
+
+      if (anyJobRes.rows.length > 0) {
+        const topJob = anyJobRes.rows[0];
+        const newTarget = (topJob.target_count || 500) + 500;
+        await client.query(`
+          UPDATE core_comercial.lead_prospecting_jobs
+          SET target_count = $1, status = 'processing', updated_at = NOW()
+          WHERE id = $2;
+        `, [newTarget, topJob.id]);
+        console.log(`🔄 [${countryLabel}] Auto-expandindo meta da missão "${topJob.title}" para ${newTarget} leads (Colheita Contínua 24/7)!`);
+        topJob.target_count = newTarget;
+        topJob.status = 'processing';
+        jobRes = { rows: [topJob] };
+      } else {
+        return { country: countryCode, active: false };
+      }
     }
 
     const job = jobRes.rows[0];
@@ -829,14 +853,15 @@ async function processCountryWorker(countryCode, countryLabel, sqlWhere, existin
       job.status = 'processing';
     }
 
-    if (job.found_emails_count >= job.target_count) {
+    if (job.target_count && job.found_emails_count >= job.target_count) {
+      const expandedTarget = job.target_count + 500;
       await client.query(`
         UPDATE core_comercial.lead_prospecting_jobs
-        SET status = 'completed', updated_at = NOW()
-        WHERE id = $1;
-      `, [job.id]);
-      console.log(`✅ [${countryLabel}] Missão "${job.title}" concluída com ${job.found_emails_count}/${job.target_count}!`);
-      return { country: countryCode, active: true, completed: true };
+        SET target_count = $1, status = 'processing', updated_at = NOW()
+        WHERE id = $2;
+      `, [expandedTarget, job.id]);
+      job.target_count = expandedTarget;
+      console.log(`🔄 [${countryLabel}] Meta da missão "${job.title}" expandida automaticamente para ${expandedTarget}!`);
     }
 
     console.log(`\n🚀 [WORKER ${countryLabel}] Missão: "${job.title}" (${job.found_emails_count}/${job.target_count})`);
