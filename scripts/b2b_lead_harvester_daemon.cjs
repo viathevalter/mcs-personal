@@ -36,7 +36,13 @@ const ITALIAN_CITIES = [
   'Montecchio Maggiore', 'Bassano del Grappa', 'Treviso', 'Conegliano', 'Marghera',
   'Imola', 'Sassuolo', 'Carpi', 'Parma', 'Piacenza', 'Savona', 'Faenza', 'Forli',
   'Cesena', 'Ferrara', 'Piombino', 'Pisa', 'Scandicci', 'Arezzo', 'Udine', 'Pordenone',
-  'Trieste', 'Ancona', 'Jesi', 'Pesaro', 'Bari', 'Brindisi'
+  'Trieste', 'Ancona', 'Jesi', 'Pesaro', 'Bari', 'Brindisi', 'Lecco', 'Como',
+  'Varese', 'Monza', 'Vimercate', 'Busto Arsizio', 'Gallarate', 'Saronno', 'Cremona',
+  'Mantova', 'Pavia', 'Vercelli', 'Novara', 'Alessandria', 'Biella', 'Asti', 'Cuneo',
+  'Rovigo', 'Belluno', 'Castelfranco Veneto', 'Cittadella', 'Rimini', 'Fidenza',
+  'Guastalla', 'Correggio', 'Massa', 'Carrara', 'Lucca', 'Pistoia', 'Prato',
+  'Empoli', 'Foligno', 'Terni', 'Perugia', 'Civitanova Marche', 'Fermo',
+  'San Benedetto del Tronto', 'Chieti', 'Pescara', 'Teramo', 'Salerno'
 ];
 
 const SPANISH_CITIES = [
@@ -655,9 +661,9 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
   const country = isFR ? 'França' : isIT ? 'Itália' : 'Espanha';
 
   const cityPool = isFR ? FRENCH_CITIES : isIT ? ITALIAN_CITIES : SPANISH_CITIES;
-  // Embaralhar e selecionar 2 cidades distintas para dobrar o volume de locais
+  // Embaralhar e selecionar 3 cidades para a Itália (ou 2 para os outros) para maximizar o volume
   const shuffledCities = [...cityPool].sort(() => 0.5 - Math.random());
-  const targetCities = shuffledCities.slice(0, 2);
+  const targetCities = shuffledCities.slice(0, isIT ? 3 : 2);
 
   const rawKw = (job.keywords || job.title)
     .replace(/CNAE \d+/gi, '')
@@ -871,7 +877,7 @@ async function processCountryWorker(countryCode, countryLabel, sqlWhere, existin
 
     if (countryCode === 'FR') {
       inserted = await harvestFranceOfficial(client, job, existingNames, existingEmails);
-    } else if (countryCode === 'IT') {
+    } else if (countryCode.startsWith('IT')) {
       inserted = await harvestViaGooglePlacesApi(client, job, existingNames, existingEmails);
     } else {
       if (source === 'google_maps') {
@@ -932,7 +938,8 @@ async function runDaemonStep() {
     const countryResults = await Promise.allSettled([
       processCountryWorker('ES', '🇪🇸 Espanha', "location LIKE '%Espan%' OR title LIKE '%🇪🇸%'", existingNames, existingEmails),
       processCountryWorker('FR', '🇫🇷 França', "location LIKE '%Fran%' OR title LIKE '%🇫🇷%'", existingNames, existingEmails),
-      processCountryWorker('IT', '🇮🇹 Itália', "location LIKE '%Ital%' OR title LIKE '%🇮🇹%'", existingNames, existingEmails)
+      processCountryWorker('IT-1', '🇮🇹 Itália (Worker A)', "location LIKE '%Ital%' OR title LIKE '%🇮🇹%'", existingNames, existingEmails),
+      processCountryWorker('IT-2', '🇮🇹 Itália (Worker B)', "location LIKE '%Ital%' OR title LIKE '%🇮🇹%'", existingNames, existingEmails)
     ]);
 
     const activeWorkers = countryResults.filter(r => r.status === 'fulfilled' && r.value?.active).length;

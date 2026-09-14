@@ -125,7 +125,7 @@ export function ProspectingPage() {
 
   // Mission filtering state
   const [jobStatusFilter, setJobStatusFilter] = useState<'all' | 'processing' | 'pending' | 'completed' | 'paused'>('all');
-  const [jobCountryFilter, setJobCountryFilter] = useState<'all' | 'FR' | 'ES' | 'IT'>('FR');
+  const [jobCountryFilter, setJobCountryFilter] = useState<'all' | 'FR' | 'ES' | 'IT'>('all');
   const [isSpainSummaryModalOpen, setIsSpainSummaryModalOpen] = useState(false);
   const [jobSearchTerm, setJobSearchTerm] = useState('');
 
