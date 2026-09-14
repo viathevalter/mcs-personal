@@ -35,7 +35,10 @@ import {
   Search,
   ExternalLink,
   SlidersHorizontal,
-  Info
+  Info,
+  Wrench,
+  FileText,
+  CreditCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,6 +74,8 @@ import { LeadCallHistoryTimeline } from './components/LeadCallHistoryTimeline';
 import { ScheduleCallbackModal } from './components/ScheduleCallbackModal';
 import { SendMaterialModal } from './components/SendMaterialModal';
 import { GatekeeperModal } from './components/GatekeeperModal';
+import { CollectProjectDemandModal } from './components/CollectProjectDemandModal';
+import { CollectFiscalDataModal } from './components/CollectFiscalDataModal';
 import type { CallOutcome, RejectionReason, DialerQueueItem } from './types/dialerTypes';
 
 const countryFlags: Record<string, string> = {
@@ -116,6 +121,8 @@ export function PowerDialerPage() {
   const [callbackDate, setCallbackDate] = useState('');
   const [callbackTime, setCallbackTime] = useState('10:00');
   const [isPresupuestoModalOpen, setIsPresupuestoModalOpen] = useState(false);
+  const [isDemandModalOpen, setIsDemandModalOpen] = useState(false);
+  const [isFiscalModalOpen, setIsFiscalModalOpen] = useState(false);
 
   // Check if a specific queueItemId was requested from Agenda
   const queueItemIdParam = searchParams.get('queueItemId');
@@ -190,6 +197,45 @@ export function PowerDialerPage() {
     const cleanNumber = currentLead.phone.replace(/\D/g, '');
     const message = encodeURIComponent(
       `Hola, me pongo en contacto de MCS Servicios Industriales respecto al refuerzo de personal técnico (soldadores y montadores) para ${currentLead.company_name || 'su empresa'}.`
+    );
+    window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
+  };
+
+  const budgetFormUrl = currentLead ? `${window.location.origin}/public/solicitar-presupuesto?lead_id=${currentLead.id}` : '';
+  const fiscalFormUrl = currentLead ? `${window.location.origin}/public/coleta-dados/${currentLead.id}` : '';
+
+  const handleCopyBudgetLink = () => {
+    if (!budgetFormUrl) return;
+    navigator.clipboard.writeText(budgetFormUrl);
+    toast.success('Link de solicitação de orçamento copiado!');
+  };
+
+  const handleCopyFiscalLink = () => {
+    if (!fiscalFormUrl) return;
+    navigator.clipboard.writeText(fiscalFormUrl);
+    toast.success('Link da ficha cadastral (CIF) copiado!');
+  };
+
+  const handleSendBudgetWhatsApp = () => {
+    if (!currentLead?.phone) {
+      toast.error('Lead não possui telefone cadastrado.');
+      return;
+    }
+    const cleanNumber = currentLead.phone.replace(/\D/g, '');
+    const message = encodeURIComponent(
+      `Hola, le comparto el enlace directo para detallar los perfiles de operarios (soldadores, tuberos, etc.) y necesidades de su obra para preparar el presupuesto:\n\n${budgetFormUrl}`
+    );
+    window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
+  };
+
+  const handleSendFiscalWhatsApp = () => {
+    if (!currentLead?.phone) {
+      toast.error('Lead não possui telefone cadastrado.');
+      return;
+    }
+    const cleanNumber = currentLead.phone.replace(/\D/g, '');
+    const message = encodeURIComponent(
+      `Hola, le comparto el enlace de la ficha de registro para confirmar los datos fiscales (CIF/NIF, Razón Social y facturación) de ${currentLead.company_name || 'su empresa'}:\n\n${fiscalFormUrl}`
     );
     window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
   };
@@ -690,6 +736,139 @@ export function PowerDialerPage() {
                   </div>
                 </div>
 
+                {/* Links & Formulários Comerciais do Lead */}
+                <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                      <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                      Links & Formulários do Lead
+                    </span>
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                      Cliente / Obra
+                    </Badge>
+                  </div>
+
+                  {/* 1. Demanda de Obra & Perfis (Solicitação de Orçamento) */}
+                  <div className="p-3 rounded-xl bg-card border border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-foreground">📋 Demanda & Perfis (Orçamento)</span>
+                      </div>
+                      <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]">
+                        Orçamento
+                      </Badge>
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      Envie o link para o cliente ou anote os operários (soldadores, tubistas, etc.) na chamada.
+                    </p>
+
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() => setIsDemandModalOpen(true)}
+                        className="h-7 text-xs bg-amber-600 hover:bg-amber-500 text-white font-bold gap-1 shadow-sm px-2.5"
+                        title="Abrir modal para preencher a demanda com o cliente na chamada"
+                      >
+                        <Wrench className="w-3 h-3" /> Preencher na Chamada
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyBudgetLink}
+                        className="h-7 text-xs border-input gap-1 px-2"
+                        title="Copiar link do formulário de orçamento deste lead"
+                      >
+                        <Copy className="w-3 h-3" /> Copiar Link
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        onClick={handleSendBudgetWhatsApp}
+                        disabled={!currentLead.phone}
+                        className="h-7 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 gap-1 font-semibold px-2"
+                        title="Enviar link de solicitação de orçamento via WhatsApp"
+                      >
+                        <MessageSquare className="w-3 h-3" /> WhatsApp
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(budgetFormUrl, '_blank')}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        title="Abrir formulário de orçamento em nova aba"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 2. Ficha de Cadastro & Dados Fiscais (CIF / Faturamento) */}
+                  <div className="p-3 rounded-xl bg-card border border-border space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-foreground">🏢 Ficha Cadastral (CIF / NIF)</span>
+                      </div>
+                      {currentLead.tax_id ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-mono">
+                          ✓ CIF: {currentLead.tax_id}
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]">
+                          ⚠️ Sem CIF Fiscal
+                        </Badge>
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      Razão Social, CIF e endereço fiscal para emissão do contrato e faturamento.
+                    </p>
+
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() => setIsFiscalModalOpen(true)}
+                        className="h-7 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1 shadow-sm px-2.5"
+                        title="Abrir modal para digitar o CIF e Razão Social do cliente"
+                      >
+                        <Building2 className="w-3 h-3" /> Preencher na Chamada
+                      </Button>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleCopyFiscalLink}
+                        className="h-7 text-xs border-input gap-1 px-2"
+                        title="Copiar link da ficha cadastral deste lead"
+                      >
+                        <Copy className="w-3 h-3" /> Copiar Link
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        onClick={handleSendFiscalWhatsApp}
+                        disabled={!currentLead.phone}
+                        className="h-7 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 gap-1 font-semibold px-2"
+                        title="Enviar link da ficha cadastral via WhatsApp"
+                      >
+                        <MessageSquare className="w-3 h-3" /> WhatsApp
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(fiscalFormUrl, '_blank')}
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                        title="Abrir ficha cadastral em nova aba"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Previous Notes / Tags */}
                 {currentLead.notes && (
                   <div className="p-3 rounded-xl bg-muted/30 border border-border text-xs space-y-1">
@@ -730,15 +909,34 @@ export function PowerDialerPage() {
                   <span className="text-[11px] text-muted-foreground font-mono">1-Clique</span>
                 </div>
 
-                {/* Primary Outcome: SOLICITAR ORÇAMENTO (Success) */}
-                <Button
-                  onClick={() => setIsPresupuestoModalOpen(true)}
-                  disabled={isLoggingCall}
-                  className="w-full h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-sm rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.01]"
-                >
-                  <CheckCircle2 className="w-5 h-5" />
-                  Atendeu: Gerar Pré-Orçamento
-                </Button>
+                {/* Primary Outcomes: Gerar Orçamento ou Coletar Demanda */}
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    onClick={() => setIsPresupuestoModalOpen(true)}
+                    disabled={isLoggingCall}
+                    className="h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01]"
+                    title="Calcular proposta comercial completa com tarifas e margem"
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span className="text-left leading-tight truncate">
+                      <span className="block font-black truncate">Gerar Orçamento</span>
+                      <span className="text-[10px] opacity-85 font-normal block truncate">Tarifas & Valores</span>
+                    </span>
+                  </Button>
+
+                  <Button
+                    onClick={() => setIsDemandModalOpen(true)}
+                    disabled={isLoggingCall}
+                    className="h-12 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-500 hover:from-amber-500 hover:to-orange-400 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-600/20 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01]"
+                    title="Anotar os perfis de operários solicitados e prazos da obra"
+                  >
+                    <Wrench className="w-4 h-4 shrink-0" />
+                    <span className="text-left leading-tight truncate">
+                      <span className="block font-black truncate">Coletar Demanda</span>
+                      <span className="text-[10px] opacity-85 font-normal block truncate">Perfis & Obra</span>
+                    </span>
+                  </Button>
+                </div>
 
                 {/* Secondary Outcomes Grid */}
                 <div className="grid grid-cols-2 gap-2.5">
@@ -884,6 +1082,25 @@ export function PowerDialerPage() {
         onConfirm={handleConfirmGatekeeper}
         isSubmitting={isLoggingCall}
       />
+
+      {/* Collect Project Demand Modal (Demanda de Obra & Perfis) */}
+      {currentLead && (
+        <CollectProjectDemandModal
+          isOpen={isDemandModalOpen}
+          onClose={() => setIsDemandModalOpen(false)}
+          lead={currentLead}
+          onOpenQuickPresupuesto={() => setIsPresupuestoModalOpen(true)}
+        />
+      )}
+
+      {/* Collect Fiscal Data Modal (Ficha Cadastral & CIF / Faturamento) */}
+      {currentLead && (
+        <CollectFiscalDataModal
+          isOpen={isFiscalModalOpen}
+          onClose={() => setIsFiscalModalOpen(false)}
+          lead={currentLead}
+        />
+      )}
     </div>
   );
 }
