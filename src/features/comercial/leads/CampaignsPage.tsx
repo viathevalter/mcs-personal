@@ -77,9 +77,9 @@ const detectLeadCountry = (lead: any): string => {
   if (lead.region) {
     const r = String(lead.region).toLowerCase();
     if (r.includes('frança') || r.includes('france') || r.includes('francia')) return 'FR';
+    if (r.includes('itália') || r.includes('italia')) return 'IT';
     if (r.includes('espanha') || r.includes('españa') || r.includes('spain')) return 'ES';
     if (r.includes('portugal')) return 'PT';
-    if (r.includes('itália') || r.includes('italia')) return 'IT';
     if (r.includes('alemanha') || r.includes('alemania')) return 'DE';
   }
   if (Array.isArray(lead.tags)) {
@@ -87,9 +87,9 @@ const detectLeadCountry = (lead: any): string => {
       if (typeof t === 'string') {
         const lower = t.toLowerCase();
         if (lower.includes('frança') || lower.includes('francia') || lower.includes('omar planilha') || lower.includes('base clientes frança')) return 'FR';
+        if (lower.includes('itália') || lower.includes('italia') || lower.includes('giada')) return 'IT';
         if (lower.includes('espanha') || lower.includes('españa')) return 'ES';
         if (lower.includes('portugal')) return 'PT';
-        if (lower.includes('itália') || lower.includes('italia')) return 'IT';
         if (lower.includes('alemanha') || lower.includes('alemania')) return 'DE';
       }
     }
@@ -97,10 +97,10 @@ const detectLeadCountry = (lead: any): string => {
   if (lead.email) {
     const em = String(lead.email).toLowerCase().trim();
     if (em.endsWith('.fr')) return 'FR';
+    if (em.endsWith('.it')) return 'IT';
     if (em.endsWith('.es')) return 'ES';
     if (em.endsWith('.pt')) return 'PT';
     if (em.endsWith('.de')) return 'DE';
-    if (em.endsWith('.it')) return 'IT';
     if (em.endsWith('.nl')) return 'NL';
     if (em.endsWith('.be')) return 'BE';
     if (em.endsWith('.uk') || em.endsWith('.co.uk')) return 'GB';
@@ -108,10 +108,10 @@ const detectLeadCountry = (lead: any): string => {
   if (lead.phone) {
     const p = String(lead.phone).trim();
     if (p.startsWith('+33')) return 'FR';
+    if (p.startsWith('+39')) return 'IT';
     if (p.startsWith('+34')) return 'ES';
     if (p.startsWith('+351')) return 'PT';
     if (p.startsWith('+49')) return 'DE';
-    if (p.startsWith('+39')) return 'IT';
     if (p.startsWith('+31')) return 'NL';
     if (p.startsWith('+32')) return 'BE';
     if (p.startsWith('+44')) return 'GB';
@@ -633,8 +633,8 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_giada_carpenteria',
-          name: '🎯 🇮🇹 Giada - Carpenteria Metallica & Tubazioni (850 leads)',
-          leadCount: 850,
+          name: '🎯 🇮🇹 Giada - Carpenteria Metallica & Tubazioni (490 leads)',
+          leadCount: 494,
           filters: {
             stageId: '',
             origin: '',
@@ -643,9 +643,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Calderería & Tubería Industrial', 'Tuyauterie & Chaudronnerie Industrielle'],
+            selectedSectors: ['Calderería & Tubería Industrial', 'Tuyauterie & Chaudronnerie Industrielle', 'Caldareria Pesante & Serbatoi a Pressione (Italia)'],
             selectedServices: [],
-            sectorKeyword: 'carpenter',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: 'Giada',
@@ -656,8 +656,8 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_giada_strutture',
-          name: '🎯 🇮🇹 Giada - Strutture Metalliche & Montaggi (450 leads)',
-          leadCount: 450,
+          name: '🎯 🇮🇹 Giada - Strutture Metalliche & Montaggi (410 leads)',
+          leadCount: 417,
           filters: {
             stageId: '',
             origin: '',
@@ -666,9 +666,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
+            selectedSectors: ['Estructuras Metálicas & Montajes', 'Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
             selectedServices: [],
-            sectorKeyword: 'struttur',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: 'Giada',
@@ -679,8 +679,8 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_giada_meccanica',
-          name: '🎯 🇮🇹 Giada - Lavorazioni Meccaniche & CNC (390 leads)',
-          leadCount: 390,
+          name: '🎯 🇮🇹 Giada - Lavorazioni Meccaniche & CNC (500 leads)',
+          leadCount: 501,
           filters: {
             stageId: '',
             origin: '',
@@ -689,9 +689,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Mecanizado & Matricería', 'Talleres & Mecanizado'],
+            selectedSectors: ['Mecanizado CNC & Tornería', 'Mecanizado & Matricería', 'Talleres & Mecanizado'],
             selectedServices: [],
-            sectorKeyword: 'meccanic',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: 'Giada',
@@ -703,7 +703,7 @@ export function CampaignsPage() {
         {
           id: 'aud_triangulo_giada_cantieri_navali',
           name: '🎯 🇮🇹 Giada - Cantieri Navali & Piping Navale (120 leads)',
-          leadCount: 120,
+          leadCount: 122,
           filters: {
             stageId: '',
             origin: '',
@@ -714,7 +714,7 @@ export function CampaignsPage() {
             selectedProvinces: [],
             selectedSectors: ['Construção & Reparação Naval', 'Chantiers Navals & Marine'],
             selectedServices: [],
-            sectorKeyword: 'naval',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: 'Giada',
@@ -854,7 +854,7 @@ export function CampaignsPage() {
             selectedProvinces: [],
             selectedSectors: ['Calderería & Tubería Industrial', 'Tuyauterie & Chaudronnerie Industrielle'],
             selectedServices: [],
-            sectorKeyword: 'calderer',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: '',
@@ -877,9 +877,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
+            selectedSectors: ['Estructuras Metálicas & Montajes', 'Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
             selectedServices: [],
-            sectorKeyword: 'estructura',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: '',
@@ -902,9 +902,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Mecanizado & Matricería', 'Talleres & Mecanizado'],
+            selectedSectors: ['Mecanizado CNC & Tornería', 'Mecanizado & Matricería', 'Talleres & Mecanizado'],
             selectedServices: [],
-            sectorKeyword: 'mecaniz',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: '',
@@ -1069,8 +1069,8 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_secteur_tuyauterie_chaudronnerie',
-          name: '🎯 🇫🇷 França - Tuyauterie & Chaudronnerie Industrielle (4.500+ leads)',
-          leadCount: 4500,
+          name: '🎯 🇫🇷 França - Tuyauterie & Chaudronnerie Industrielle (5.600+ leads)',
+          leadCount: 5676,
           filters: {
             stageId: '',
             origin: '',
@@ -1079,9 +1079,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Tuyauterie & Chaudronnerie Industrielle', 'Calderería & Tubería Industrial'],
+            selectedSectors: ['Tuyauterie & Chaudronnerie Industrielle', 'Calderería & Tubería Industrial', 'Tuyauterie Industrielle & Piping'],
             selectedServices: [],
-            sectorKeyword: 'tuyauterie',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: '',
@@ -1092,8 +1092,8 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_secteur_charpente_metallique',
-          name: '🎯 🇫🇷 França - Charpente Métallique & Serrurerie (2.800+ leads)',
-          leadCount: 2800,
+          name: '🎯 🇫🇷 França - Charpente Métallique, Structures & Usinage (2.780+ leads)',
+          leadCount: 2781,
           filters: {
             stageId: '',
             origin: '',
@@ -1102,9 +1102,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Estructuras Metálicas & Cerrajería', 'Estructuras Metálicas & Montajes'],
+            selectedSectors: ['Estructuras Metálicas & Montajes', 'Mecanizado CNC & Tornería', 'Estructuras Metálicas & Cerrajería'],
             selectedServices: [],
-            sectorKeyword: 'charpente',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: '',
@@ -1115,8 +1115,8 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_secteur_chantiers_navals',
-          name: '🎯 🇫🇷 França - Chantiers Navals & Off-shore (1.100+ leads)',
-          leadCount: 1100,
+          name: '🎯 🇫🇷 França - Chantiers Navals & Off-shore (350+ leads)',
+          leadCount: 352,
           filters: {
             stageId: '',
             origin: '',
@@ -1125,9 +1125,9 @@ export function CampaignsPage() {
             selectedCompanySizes: [],
             selectedRegions: [],
             selectedProvinces: [],
-            selectedSectors: ['Construção & Reparação Naval'],
+            selectedSectors: ['Construção & Reparação Naval', 'Chantiers Navals & Marine'],
             selectedServices: [],
-            sectorKeyword: 'naval',
+            sectorKeyword: '',
             cargoKeyword: '',
             provinceKeyword: '',
             tagKeyword: '',
@@ -2144,11 +2144,16 @@ export function CampaignsPage() {
       const newCamp = await createCampaign(campaignForm);
 
       if (newCamp?.id && pendingAudienceForCampaign) {
+        let currentLeads = allLeads;
+        if (currentLeads.length === 0) {
+          currentLeads = await fetchAudienceLeads();
+        }
+
         let targetLeadIds: string[] = [];
         if (pendingAudienceForCampaign.leadIds && Array.isArray(pendingAudienceForCampaign.leadIds) && pendingAudienceForCampaign.leadIds.length > 0) {
           targetLeadIds = pendingAudienceForCampaign.leadIds;
         } else {
-          targetLeadIds = getFilteredLeads(pendingAudienceForCampaign.filters).map(l => l.id);
+          targetLeadIds = getFilteredLeads(pendingAudienceForCampaign.filters, currentLeads).map(l => l.id);
         }
 
         if (targetLeadIds.length > 0) {
@@ -2157,18 +2162,24 @@ export function CampaignsPage() {
             lead_id: leadId,
             status: 'pending',
           }));
-          const { error: qErr } = await supabase
-            .schema('core_comercial')
-            .from('marketing_campaign_queue')
-            .insert(queueItems);
 
-          if (qErr) {
-            console.error('Erro ao popular fila da campanha:', qErr);
-            toast.error('Campanha criada, mas houve erro ao popular fila: ' + qErr.message);
-          } else {
-            refetchCampaignStats();
-            toast.success(`Campanha criada com ${queueItems.length} leads na fila do público "${pendingAudienceForCampaign.name}"!`);
+          const chunkSize = 500;
+          for (let i = 0; i < queueItems.length; i += chunkSize) {
+            const chunk = queueItems.slice(i, i + chunkSize);
+            const { error: qErr } = await supabase
+              .schema('core_comercial')
+              .from('marketing_campaign_queue')
+              .insert(chunk);
+
+            if (qErr) {
+              console.error('Erro ao popular fila da campanha:', qErr);
+              toast.error('Campanha criada, mas houve erro ao popular fila: ' + qErr.message);
+              break;
+            }
           }
+
+          refetchCampaignStats();
+          toast.success(`Campanha criada com ${queueItems.length} leads na fila do público "${pendingAudienceForCampaign.name}"!`);
         } else {
           toast.success('Campanha em rascunho criada com sucesso!');
         }
@@ -2310,7 +2321,7 @@ export function CampaignsPage() {
     }
   };
 
-  const fetchAudienceLeads = async () => {
+  const fetchAudienceLeads = async (): Promise<any[]> => {
     setLoadingAudienceLeads(true);
     try {
       let allFetchedLeads: any[] = [];
@@ -2351,8 +2362,10 @@ export function CampaignsPage() {
 
       if (queueErr) throw queueErr;
       setAllQueuedLeads(queue || []);
+      return allFetchedLeads;
     } catch (err: any) {
       toast.error('Erro ao carregar leads da empresa: ' + err.message);
+      return [];
     } finally {
       setLoadingAudienceLeads(false);
     }
@@ -2384,9 +2397,10 @@ export function CampaignsPage() {
     await fetchAudienceLeads();
   };
 
-  const getFilteredLeads = (customFilters?: any) => {
+  const getFilteredLeads = (customFilters?: any, baseLeads?: any[]) => {
     const filters = customFilters || audienceFilters;
-    let filtered = allLeads.filter(l => {
+    const source = baseLeads || allLeads;
+    let filtered = source.filter(l => {
       // 1. Filter by stage
       if (filters.stageId && l.stage_id !== filters.stageId) {
         return false;
@@ -2436,7 +2450,8 @@ export function CampaignsPage() {
           const lSector = (l.sector || '').toLowerCase();
           const lCompany = (l.company_name || '').toLowerCase();
           const lNotes = (l.notes || '').toLowerCase();
-          return lSector.includes(sLower) || lCompany.includes(sLower) || lNotes.includes(sLower);
+          const inTags = Array.isArray(l.tags) && l.tags.some(t => String(t).toLowerCase().includes(sLower));
+          return lSector.includes(sLower) || lCompany.includes(sLower) || lNotes.includes(sLower) || inTags;
         });
         if (!hasSectorMatch) return false;
       }
@@ -2460,7 +2475,8 @@ export function CampaignsPage() {
         const serviceText = (l.servicio_producto || '').toLowerCase();
         const companyText = (l.company_name || '').toLowerCase();
         const notesText = (l.notes || '').toLowerCase();
-        if (!sectorText.includes(keyword) && !serviceText.includes(keyword) && !companyText.includes(keyword) && !notesText.includes(keyword)) {
+        const inTags = Array.isArray(l.tags) && l.tags.some(t => String(t).toLowerCase().includes(keyword));
+        if (!sectorText.includes(keyword) && !serviceText.includes(keyword) && !companyText.includes(keyword) && !notesText.includes(keyword) && !inTags) {
           return false;
         }
       }
@@ -2690,7 +2706,7 @@ export function CampaignsPage() {
 
       if (deleteErr) throw deleteErr;
 
-      // Insert new queue items
+      // Insert new queue items in chunks of 500
       if (filteredLeads.length > 0) {
         const queueItems = filteredLeads.map(l => ({
           campaign_id: selectedCampaignIdForAudience,
@@ -2698,12 +2714,16 @@ export function CampaignsPage() {
           status: 'pending',
         }));
 
-        const { error: insertErr } = await supabase
-          .schema('core_comercial')
-          .from('marketing_campaign_queue')
-          .insert(queueItems);
+        const chunkSize = 500;
+        for (let i = 0; i < queueItems.length; i += chunkSize) {
+          const chunk = queueItems.slice(i, i + chunkSize);
+          const { error: insertErr } = await supabase
+            .schema('core_comercial')
+            .from('marketing_campaign_queue')
+            .insert(chunk);
 
-        if (insertErr) throw insertErr;
+          if (insertErr) throw insertErr;
+        }
       }
 
       toast.success(`Público-alvo definido! ${filteredLeads.length} leads inseridos na fila.`);
@@ -2726,7 +2746,9 @@ export function CampaignsPage() {
       toast.success(`Público "${preset.name}" carregado com ${preset.leadIds.length} leads.`);
     } else {
       userModifiedSelection.current = false;
-      toast.success(`Filtros do público "${preset.name}" carregados.`);
+      const matchingLeads = getFilteredLeads(preset.filters);
+      setSelectedLeadIds(new Set(matchingLeads.map(l => l.id)));
+      toast.success(`Público "${preset.name}" carregado (${matchingLeads.length} leads selecionados).`);
     }
   };
 
@@ -3208,13 +3230,16 @@ export function CampaignsPage() {
                       <Button 
                         size="sm" 
                         variant="ghost"
-                        onClick={() => {
+                        onClick={async () => {
                           setCampaignForm({ title: `Campanha - ${aud.name}`, template_id: '' });
                           if (aud.filters) {
                             setAudienceFilters({ ...aud.filters });
                           }
                           setPendingAudienceForCampaign(aud);
                           setIsCampaignModalOpen(true);
+                          if (allLeads.length === 0) {
+                            await fetchAudienceLeads();
+                          }
                           toast.success(`Defina o template. O público "${aud.name}" foi pré-carregado!`);
                         }}
                         className="text-amber-600 hover:text-amber-700 dark:text-amber-400 text-xs font-bold"
