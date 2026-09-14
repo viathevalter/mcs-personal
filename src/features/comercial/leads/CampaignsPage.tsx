@@ -416,14 +416,33 @@ export function CampaignsPage() {
     queryKey: ['leads_last_sent', selectedEmpresaId],
     queryFn: async () => {
       const validEmpresaId = (selectedEmpresaId && selectedEmpresaId !== 'all' && selectedEmpresaId.length === 36) ? selectedEmpresaId : null;
-      const { data, error } = await supabase.rpc('fn_get_leads_last_sent', {
-        p_empresa_id: validEmpresaId,
-      });
-      if (error) {
-        console.error('Error fetching leads last sent history:', error);
-        return [];
+      let allRows: any[] = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .rpc('fn_get_leads_last_sent', {
+            p_empresa_id: validEmpresaId,
+          })
+          .range(from, from + step - 1);
+
+        if (error) {
+          console.error('Error fetching leads last sent history:', error);
+          break;
+        }
+
+        if (data && data.length > 0) {
+          allRows = allRows.concat(data);
+          from += step;
+          if (data.length < step) hasMore = false;
+        } else {
+          hasMore = false;
+        }
       }
-      return (data as any[]) || [];
+
+      return allRows;
     },
     enabled: !!selectedEmpresaId,
   });
@@ -541,6 +560,7 @@ export function CampaignsPage() {
   const [viewLeadsAudience, setViewLeadsAudience] = useState<any | null>(null); // For viewing leads inside a saved audience
   const [viewLeadsSearch, setViewLeadsSearch] = useState('');
   const [pendingAudienceForCampaign, setPendingAudienceForCampaign] = useState<any | null>(null);
+  const [selectedAudienceIdsForCampaign, setSelectedAudienceIdsForCampaign] = useState<string[]>([]);
 
   // Grid Selection & Search & Pagination
   const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
@@ -2173,6 +2193,10 @@ export function CampaignsPage() {
   const handleOpenCreateCampaign = () => {
     setCampaignForm({ title: '', template_id: '' });
     setPendingAudienceForCampaign(null);
+    setSelectedAudienceIdsForCampaign([]);
+    if (allLeads.length === 0) {
+      fetchAudienceLeads();
+    }
     setIsCampaignModalOpen(true);
   };
 
@@ -2186,36 +2210,39 @@ export function CampaignsPage() {
     try {
       const newCamp = await createCampaign(campaignForm);
 
-      if (newCamp?.id && pendingAudienceForCampaign) {
+      if (newCamp?.id && selectedAudienceIdsForCampaign.length > 0) {
         let currentLeads = allLeads;
         if (currentLeads.length === 0) {
           currentLeads = await fetchAudienceLeads();
         }
 
-        let targetLeadIds: string[] = [];
-        const recency = audienceFilters.recencyDays || 'all';
+        const selectedAudiences = savedAudiences.filter(a => selectedAudienceIdsForCampaign.includes(a.id));
+        const combinedLeadIdsSet = new Set<string>();
 
-        if (pendingAudienceForCampaign.leadIds && Array.isArray(pendingAudienceForCampaign.leadIds) && pendingAudienceForCampaign.leadIds.length > 0) {
-          targetLeadIds = pendingAudienceForCampaign.leadIds.filter((leadId: string) => {
-            const info = leadsLastSentMap.get(leadId);
-            if (recency === 'never') {
-              return !(info && (info.totalSent > 0 || info.lastSentAt));
-            }
-            if (recency !== 'all') {
-              const days = parseInt(recency, 10);
-              if (!isNaN(days) && days > 0 && info && info.lastSentAt) {
-                const diffDays = (Date.now() - info.lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
-                return diffDays >= days;
-              }
-            }
-            return true;
-          });
-        } else {
-          targetLeadIds = getFilteredLeads({
-            ...pendingAudienceForCampaign.filters,
-            recencyDays: recency,
-          }, currentLeads).map(l => l.id);
+        for (const aud of selectedAudiences) {
+          if (aud.leadIds && Array.isArray(aud.leadIds) && aud.leadIds.length > 0) {
+            aud.leadIds.forEach((id: string) => combinedLeadIdsSet.add(id));
+          } else if (aud.filters) {
+            const resolved = getFilteredLeads({ ...aud.filters, recencyDays: 'all' }, currentLeads);
+            resolved.forEach(l => combinedLeadIdsSet.add(l.id));
+          }
         }
+
+        const recency = audienceFilters.recencyDays || 'all';
+        const targetLeadIds = Array.from(combinedLeadIdsSet).filter((leadId: string) => {
+          const info = leadsLastSentMap.get(leadId);
+          if (recency === 'never') {
+            return !(info && (info.totalSent > 0 || info.lastSentAt));
+          }
+          if (recency !== 'all') {
+            const days = parseInt(recency, 10);
+            if (!isNaN(days) && days > 0 && info && info.lastSentAt) {
+              const diffDays = (Date.now() - info.lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
+              return diffDays >= days;
+            }
+          }
+          return true;
+        });
 
         if (targetLeadIds.length > 0) {
           const queueItems = targetLeadIds.map(leadId => ({
@@ -2240,9 +2267,10 @@ export function CampaignsPage() {
           }
 
           refetchCampaignStats();
-          toast.success(`Campanha criada com ${queueItems.length} leads na fila do público "${pendingAudienceForCampaign.name}"!`);
+          refetchLeadsLastSent();
+          toast.success(`Campanha criada com ${queueItems.length} leads na fila (combinando ${selectedAudiences.length} público(s))!`);
         } else {
-          toast.success('Campanha em rascunho criada com sucesso!');
+          toast.warning(`Campanha criada em rascunho. Nenhum lead foi enfileirado pois todos foram filtrados pelo controle de fadiga (${recency === 'never' ? 'já receberam campanhas' : `receberam nos últimos ${recency} dias`}).`);
         }
       } else {
         toast.success('Campanha em rascunho criada com sucesso!');
@@ -2250,6 +2278,7 @@ export function CampaignsPage() {
 
       setIsCampaignModalOpen(false);
       setPendingAudienceForCampaign(null);
+      setSelectedAudienceIdsForCampaign([]);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar campanha');
     }
@@ -2783,6 +2812,64 @@ export function CampaignsPage() {
     if (diffDays < 30) return `Enviado há ${diffDays} dias`;
     return `Enviado em ${date.toLocaleDateString()}`;
   };
+
+  const selectedAudiencesForCampaign = useMemo(() => {
+    return savedAudiences.filter(a => selectedAudienceIdsForCampaign.includes(a.id));
+  }, [savedAudiences, selectedAudienceIdsForCampaign]);
+
+  const handleToggleAudienceForCampaign = (audId: string) => {
+    setSelectedAudienceIdsForCampaign(prev => {
+      const next = prev.includes(audId) ? prev.filter(id => id !== audId) : [...prev, audId];
+      return next;
+    });
+    if (allLeads.length === 0) {
+      fetchAudienceLeads();
+    }
+  };
+
+  const campaignAudiencePreview = useMemo(() => {
+    if (selectedAudiencesForCampaign.length === 0) {
+      return { totalUnique: 0, excluded: 0, effective: 0, leadsLoading: false };
+    }
+
+    if (allLeads.length === 0) {
+      const sum = selectedAudiencesForCampaign.reduce((acc, aud) => acc + (aud.leadCount || aud.leadIds?.length || 0), 0);
+      return { totalUnique: sum, excluded: 0, effective: sum, leadsLoading: true };
+    }
+
+    const uniqueLeadIds = new Set<string>();
+
+    for (const aud of selectedAudiencesForCampaign) {
+      if (aud.leadIds && Array.isArray(aud.leadIds) && aud.leadIds.length > 0) {
+        aud.leadIds.forEach((id: string) => uniqueLeadIds.add(id));
+      } else if (aud.filters) {
+        const resolved = getFilteredLeads({ ...aud.filters, recencyDays: 'all' }, allLeads);
+        resolved.forEach(l => uniqueLeadIds.add(l.id));
+      }
+    }
+
+    const totalUnique = uniqueLeadIds.size;
+    const recency = audienceFilters.recencyDays || 'all';
+
+    let excluded = 0;
+    if (recency !== 'all') {
+      const days = recency === 'never' ? 0 : parseInt(recency, 10);
+      uniqueLeadIds.forEach(id => {
+        const info = leadsLastSentMap.get(id);
+        if (recency === 'never') {
+          if (info && (info.totalSent > 0 || info.lastSentAt)) excluded++;
+        } else if (!isNaN(days) && days > 0 && info && info.lastSentAt) {
+          const diffDays = (Date.now() - info.lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
+          if (diffDays < days) {
+            excluded++;
+          }
+        }
+      });
+    }
+
+    const effective = Math.max(0, totalUnique - excluded);
+    return { totalUnique, excluded, effective, leadsLoading: false };
+  }, [selectedAudiencesForCampaign, allLeads, audienceFilters.recencyDays, leadsLastSentMap]);
 
   const handleSaveAudience = async () => {
     if (!selectedCampaignIdForAudience) return;
@@ -3679,6 +3766,7 @@ export function CampaignsPage() {
                             setAudienceFilters({ ...aud.filters });
                           }
                           setPendingAudienceForCampaign(aud);
+                          setSelectedAudienceIdsForCampaign([aud.id]);
                           setIsCampaignModalOpen(true);
                           if (allLeads.length === 0) {
                             await fetchAudienceLeads();
@@ -3895,52 +3983,87 @@ export function CampaignsPage() {
               </select>
             </div>
 
-            {/* Seleção de Público Reutilizável */}
-            <div className="space-y-1.5 border-t pt-3">
+            {/* Seleção de Públicos (Multi-seleção) */}
+            <div className="space-y-2 border-t pt-3">
               <div className="flex items-center justify-between">
-                <Label htmlFor="campAudience" className="text-xs font-semibold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                <Label className="text-xs font-semibold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
                   <Users className="h-3.5 w-3.5 text-yellow-500" />
-                  Público-Alvo / Segmento
+                  Públicos-Alvo / Segmentos (Selecione um ou mais)
                 </Label>
-                {pendingAudienceForCampaign && (
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
-                    ✓ Público Selecionado
+                {selectedAudienceIdsForCampaign.length > 0 && (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
+                    ✓ {selectedAudienceIdsForCampaign.length} selecionado(s)
                   </span>
                 )}
               </div>
-              <select
-                id="campAudience"
-                className="w-full border rounded-md p-2 text-xs bg-card"
-                value={pendingAudienceForCampaign?.id || ''}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (!val) {
-                    setPendingAudienceForCampaign(null);
-                  } else {
-                    const found = savedAudiences.find(a => a.id === val);
-                    if (found) {
-                      setPendingAudienceForCampaign(found);
-                      if (found.filters) {
-                        setAudienceFilters(prev => ({ ...prev, ...found.filters }));
-                      }
-                      if (allLeads.length === 0) {
-                        fetchAudienceLeads();
-                      }
-                    }
-                  }
-                }}
-              >
-                <option value="">Configurar público depois manualmente (Criar Rascunho)</option>
-                {savedAudiences.map(aud => (
-                  <option key={aud.id} value={aud.id}>
-                    {aud.name} ({aud.leadCount || aud.leadIds?.length || 'Base'} leads)
-                  </option>
-                ))}
-              </select>
+
+              {/* Lista de Públicos com Checkboxes */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-lg max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 bg-card">
+                {savedAudiences.length === 0 ? (
+                  <p className="p-3 text-xs text-muted-foreground text-center">Nenhum público salvo disponível.</p>
+                ) : (
+                  savedAudiences.map(aud => {
+                    const isChecked = selectedAudienceIdsForCampaign.includes(aud.id);
+                    return (
+                      <label
+                        key={aud.id}
+                        className={cn(
+                          "flex items-center justify-between px-3 py-2 text-xs cursor-pointer select-none transition-colors",
+                          isChecked 
+                            ? "bg-amber-500/10 text-amber-900 dark:text-amber-200 font-medium" 
+                            : "hover:bg-muted text-foreground"
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleAudienceForCampaign(aud.id)}
+                            className="rounded border-slate-300 text-amber-600 focus:ring-amber-500/20 h-4 w-4"
+                          />
+                          <span className="truncate">{aud.name}</span>
+                        </div>
+                        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                          {aud.leadCount || aud.leadIds?.length || 'Base'} leads
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Badges dos públicos selecionados */}
+              {selectedAudiencesForCampaign.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[10px] text-muted-foreground">Selecionados:</span>
+                  {selectedAudiencesForCampaign.map(aud => (
+                    <span
+                      key={aud.id}
+                      className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-md border border-amber-500/30"
+                    >
+                      <span className="truncate max-w-[140px]">{aud.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleAudienceForCampaign(aud.id)}
+                        className="hover:text-red-500 font-bold ml-0.5"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAudienceIdsForCampaign([])}
+                    className="text-[10px] text-muted-foreground hover:text-red-500 underline ml-auto"
+                  >
+                    Limpar todos
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Controle de Frequência & Anti-Fadiga */}
-            {pendingAudienceForCampaign && (
+            {selectedAudienceIdsForCampaign.length > 0 && (
               <div className="space-y-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="campRecency" className="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
@@ -3965,58 +4088,34 @@ export function CampaignsPage() {
                   <option value="never">✨ Apenas quem NUNCA recebeu nenhuma campanha</option>
                 </select>
 
-                {/* Previsão do lote */}
-                {(() => {
-                  const baseCount = pendingAudienceForCampaign.leadCount || pendingAudienceForCampaign.leadIds?.length || 0;
-                  let effectiveCount = baseCount;
-                  let excludedCount = 0;
+                {/* Previsão do lote combinado */}
+                <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-slate-200 dark:border-slate-800">
+                  <div className="bg-background border rounded-lg p-1.5">
+                    <span className="text-[10px] text-muted-foreground block">Público Bruto</span>
+                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                      {campaignAudiencePreview.totalUnique} leads
+                    </span>
+                  </div>
+                  <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-lg p-1.5">
+                    <span className="text-[10px] text-red-600 dark:text-red-400 block">Excluídos Recentes</span>
+                    <span className="font-bold text-xs text-red-700 dark:text-red-300">
+                      -{campaignAudiencePreview.excluded}
+                    </span>
+                  </div>
+                  <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 rounded-lg p-1.5">
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">Total a Enviar</span>
+                    <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">
+                      {campaignAudiencePreview.effective} leads
+                    </span>
+                  </div>
+                </div>
 
-                  if (allLeads.length > 0) {
-                    let targetIds: string[] = [];
-                    if (pendingAudienceForCampaign.leadIds && Array.isArray(pendingAudienceForCampaign.leadIds) && pendingAudienceForCampaign.leadIds.length > 0) {
-                      targetIds = pendingAudienceForCampaign.leadIds;
-                    } else {
-                      targetIds = getFilteredLeads({ ...pendingAudienceForCampaign.filters, recencyDays: 'all' }, allLeads).map(l => l.id);
-                    }
-
-                    const recency = audienceFilters.recencyDays || 'all';
-                    if (recency !== 'all') {
-                      const filteredIds = targetIds.filter((id: string) => {
-                        const info = leadsLastSentMap.get(id);
-                        if (recency === 'never') {
-                          return !(info && (info.totalSent > 0 || info.lastSentAt));
-                        }
-                        const days = parseInt(recency, 10);
-                        if (!isNaN(days) && days > 0 && info && info.lastSentAt) {
-                          const diffDays = (Date.now() - info.lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
-                          return diffDays >= days;
-                        }
-                        return true;
-                      });
-                      effectiveCount = filteredIds.length;
-                      excludedCount = targetIds.length - filteredIds.length;
-                    } else {
-                      effectiveCount = targetIds.length;
-                    }
-                  }
-
-                  return (
-                    <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-slate-200 dark:border-slate-800">
-                      <div className="bg-background border rounded-lg p-1.5">
-                        <span className="text-[10px] text-muted-foreground block">Público Bruto</span>
-                        <span className="font-bold text-xs text-slate-800 dark:text-slate-200">{baseCount} leads</span>
-                      </div>
-                      <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-lg p-1.5">
-                        <span className="text-[10px] text-red-600 dark:text-red-400 block">Excluídos Recentes</span>
-                        <span className="font-bold text-xs text-red-700 dark:text-red-300">-{excludedCount}</span>
-                      </div>
-                      <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 rounded-lg p-1.5">
-                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">Total a Enviar</span>
-                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">{effectiveCount} leads</span>
-                      </div>
-                    </div>
-                  );
-                })()}
+                {campaignAudiencePreview.effective === 0 && campaignAudiencePreview.totalUnique > 0 && (
+                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[11px] flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span>Todos os {campaignAudiencePreview.totalUnique} leads dos públicos selecionados já receberam e-mails recentemente e foram protegidos pelo filtro anti-fadiga.</span>
+                  </div>
+                )}
               </div>
             )}
 
