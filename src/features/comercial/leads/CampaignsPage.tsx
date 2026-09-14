@@ -3949,30 +3949,31 @@ export function CampaignsPage() {
 
       {/* Campaign Modal */}
       <Dialog open={isCampaignModalOpen} onOpenChange={setIsCampaignModalOpen}>
-        <DialogContent className="sm:max-w-[540px]">
+        <DialogContent className="sm:max-w-[760px] md:max-w-[840px] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Criar Nova Campanha de E-mail</DialogTitle>
+            <DialogTitle className="text-xl">Criar Nova Campanha de E-mail</DialogTitle>
             <DialogDescription>
-              Defina o nome, template e selecione o público-alvo com controle anti-fadiga de envios.
+              Defina o nome, template e selecione um ou mais públicos-alvo com controle anti-fadiga de envios.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleSaveCampaign} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="campTitle">Título da Campanha</Label>
+              <Label htmlFor="campTitle" className="font-semibold text-xs">Título da Campanha</Label>
               <Input
                 id="campTitle"
                 placeholder="Ex: Campanha Junho / Lojas de Varejo"
                 value={campaignForm.title}
                 onChange={(e) => setCampaignForm({ ...campaignForm, title: e.target.value })}
+                className="h-10"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="campTemplate">Template HTML Associado</Label>
+              <Label htmlFor="campTemplate" className="font-semibold text-xs">Template HTML Associado</Label>
               <select
                 id="campTemplate"
-                className="w-full border rounded-md p-2 text-sm bg-card"
+                className="w-full border rounded-md p-2.5 text-xs sm:text-sm bg-card"
                 value={campaignForm.template_id}
                 onChange={(e) => setCampaignForm({ ...campaignForm, template_id: e.target.value })}
               >
@@ -3987,18 +3988,18 @@ export function CampaignsPage() {
             <div className="space-y-2 border-t pt-3">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
-                  <Users className="h-3.5 w-3.5 text-yellow-500" />
+                  <Users className="h-4 w-4 text-yellow-500" />
                   Públicos-Alvo / Segmentos (Selecione um ou mais)
                 </Label>
                 {selectedAudienceIdsForCampaign.length > 0 && (
-                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full">
-                    ✓ {selectedAudienceIdsForCampaign.length} selecionado(s)
+                  <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-full">
+                    ✓ {selectedAudienceIdsForCampaign.length} público(s) selecionado(s)
                   </span>
                 )}
               </div>
 
               {/* Lista de Públicos com Checkboxes */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-lg max-h-48 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 bg-card">
+              <div className="border border-slate-200 dark:border-slate-800 rounded-lg max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 bg-card">
                 {savedAudiences.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground text-center">Nenhum público salvo disponível.</p>
                 ) : (
@@ -4008,22 +4009,22 @@ export function CampaignsPage() {
                       <label
                         key={aud.id}
                         className={cn(
-                          "flex items-center justify-between px-3 py-2 text-xs cursor-pointer select-none transition-colors",
+                          "flex items-center justify-between px-3.5 py-2.5 text-xs sm:text-sm cursor-pointer select-none transition-colors",
                           isChecked 
                             ? "bg-amber-500/10 text-amber-900 dark:text-amber-200 font-medium" 
                             : "hover:bg-muted text-foreground"
                         )}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                        <div className="flex items-center gap-3 min-w-0 pr-3">
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleToggleAudienceForCampaign(aud.id)}
-                            className="rounded border-slate-300 text-amber-600 focus:ring-amber-500/20 h-4 w-4"
+                            className="rounded border-slate-300 text-amber-600 focus:ring-amber-500/20 h-4 w-4 shrink-0"
                           />
-                          <span className="truncate">{aud.name}</span>
+                          <span className="break-words leading-relaxed">{aud.name}</span>
                         </div>
-                        <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                        <span className="shrink-0 text-[11px] font-bold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 ml-2">
                           {aud.leadCount || aud.leadIds?.length || 'Base'} leads
                         </span>
                       </label>
@@ -4035,17 +4036,17 @@ export function CampaignsPage() {
               {/* Badges dos públicos selecionados */}
               {selectedAudiencesForCampaign.length > 0 && (
                 <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[10px] text-muted-foreground">Selecionados:</span>
+                  <span className="text-[11px] text-muted-foreground font-medium">Selecionados:</span>
                   {selectedAudiencesForCampaign.map(aud => (
                     <span
                       key={aud.id}
-                      className="inline-flex items-center gap-1 text-[10px] bg-amber-500/15 text-amber-900 dark:text-amber-200 px-2 py-0.5 rounded-md border border-amber-500/30"
+                      className="inline-flex items-center gap-1 text-[11px] bg-amber-500/15 text-amber-900 dark:text-amber-200 px-2.5 py-1 rounded-md border border-amber-500/30"
                     >
-                      <span className="truncate max-w-[140px]">{aud.name}</span>
+                      <span>{aud.name}</span>
                       <button
                         type="button"
                         onClick={() => handleToggleAudienceForCampaign(aud.id)}
-                        className="hover:text-red-500 font-bold ml-0.5"
+                        className="hover:text-red-500 font-bold ml-1 text-xs"
                       >
                         ✕
                       </button>
@@ -4054,7 +4055,7 @@ export function CampaignsPage() {
                   <button
                     type="button"
                     onClick={() => setSelectedAudienceIdsForCampaign([])}
-                    className="text-[10px] text-muted-foreground hover:text-red-500 underline ml-auto"
+                    className="text-[11px] text-muted-foreground hover:text-red-500 underline ml-auto pl-2"
                   >
                     Limpar todos
                   </button>
