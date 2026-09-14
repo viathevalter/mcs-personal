@@ -2683,6 +2683,11 @@ export function CampaignsPage() {
     );
   };
 
+  const visibleLeadsForGrid = getFilteredAndSearchedLeads();
+  const leadsPerPage = 50;
+  const totalPages = Math.ceil(visibleLeadsForGrid.length / leadsPerPage);
+  const paginatedLeads = visibleLeadsForGrid.slice((gridPage - 1) * leadsPerPage, gridPage * leadsPerPage);
+
   const handleToggleSelectAll = (checked: boolean) => {
     userModifiedSelection.current = true;
     const visibleFiltered = getFilteredAndSearchedLeads();
@@ -2978,11 +2983,6 @@ export function CampaignsPage() {
       return true;
     });
   }, [campaigns, campaignSearchTerm, campaignStatusFilter, campaignDateFilter, campaignStats]);
-
-  const visibleLeadsForGrid = getFilteredAndSearchedLeads();
-  const leadsPerPage = 50;
-  const totalPages = Math.ceil(visibleLeadsForGrid.length / leadsPerPage);
-  const paginatedLeads = visibleLeadsForGrid.slice((gridPage - 1) * leadsPerPage, gridPage * leadsPerPage);
 
   return (
     <div className="flex flex-col space-y-6 p-4">
