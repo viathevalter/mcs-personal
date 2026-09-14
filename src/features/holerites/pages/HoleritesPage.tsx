@@ -223,6 +223,70 @@ export function isDateInCompetence(dateVal: any, mesCompetencia: string): boolea
     return false;
 }
 
+function parseDateToIsoClean(dateStr?: string | null): string | null {
+    if (!dateStr) return null;
+    const str = String(dateStr).trim();
+    if (!str) return null;
+
+    // ISO format: 2026-09-08 or 2026-09-08T...
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+        return str.substring(0, 10);
+    }
+
+    // Slash format: DD/MM/YYYY or D/M/YYYY
+    const slashParts = str.split('/');
+    if (slashParts.length === 3) {
+        const dDay = slashParts[0].padStart(2, '0');
+        const dMonth = slashParts[1].padStart(2, '0');
+        const dYear = slashParts[2].substring(0, 4);
+        return `${dYear}-${dMonth}-${dDay}`;
+    }
+
+    // Dash format: DD-MM-YYYY
+    const dashParts = str.split('-');
+    if (dashParts.length === 3 && dashParts[0].length <= 2) {
+        const dDay = dashParts[0].padStart(2, '0');
+        const dMonth = dashParts[1].padStart(2, '0');
+        const dYear = dashParts[2].substring(0, 4);
+        return `${dYear}-${dMonth}-${dDay}`;
+    }
+
+    return null;
+}
+
+function isWorkerAdmittedAfterCompetence(worker: any, mesCompetencia: string): boolean {
+    if (!mesCompetencia || !worker) return false;
+    const parts = mesCompetencia.split('-').map(Number);
+    if (parts.length < 2) return false;
+    const year = parts[0];
+    const month = parts[1];
+    const lastDay = new Date(year, month, 0).getDate();
+    const lastDayOfMonthIso = `${mesCompetencia}-${String(lastDay).padStart(2, '0')}`;
+
+    const rawStartDate = worker.data_ingresso || worker.data_inicio || worker.start_date || worker.data_alta_seguridad;
+    const startIso = parseDateToIsoClean(rawStartDate);
+
+    if (startIso && startIso > lastDayOfMonthIso) {
+        return true;
+    }
+
+    return false;
+}
+
+function isWorkerTerminatedBeforeCompetence(worker: any, mesCompetencia: string): boolean {
+    if (!mesCompetencia || !worker) return false;
+    const firstDayOfMonthIso = `${mesCompetencia}-01`;
+
+    const rawExitDate = worker.data_baixa_seguridad || worker.data_saida || worker.end_date || worker.fechasalidatrabajador;
+    const exitIso = parseDateToIsoClean(rawExitDate);
+
+    if (exitIso && exitIso < firstDayOfMonthIso) {
+        return true;
+    }
+
+    return false;
+}
+
 function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
     if (!mesCompetencia || !worker) return false;
     
@@ -238,6 +302,11 @@ function isNewWorkerInMonth(worker: any, mesCompetencia: string) {
     }
 
     return false;
+}
+
+function cleanClientName(name?: string | null): string {
+    if (!name || name === '-') return '-';
+    return name.replace(/\s*\(\d+(?:\.\d+)?\s*h(?:oras?)?\)/gi, '').trim();
 }
 
 export function HoleritesPage() {
@@ -1012,7 +1081,11 @@ export function HoleritesPage() {
         let beneficiosFixosArray: { desc: string; val: number }[] = [];
         let totalBeneficios = 0;
 
-        if (workerHousingBenefits.length > 0) {
+        if (isWorkerAdmittedAfterCompetence(worker, mesReferencia)) {
+            // Worker is admitted in a future month: no fixed benefits apply for this previous month
+            totalBeneficios = 0;
+            beneficiosFixosArray = [];
+        } else if (workerHousingBenefits.length > 0) {
             workerHousingBenefits.forEach((hb: any) => {
                 const proratedVal = calculateProratedBenefitAmount(hb, mesReferencia);
                 totalBeneficios += proratedVal;
@@ -1054,7 +1127,7 @@ export function HoleritesPage() {
         // Extra Discounts for this month, filtered by company if targetEmpresa is specified
         const workerExtraDiscounts = allDiscounts.filter((d: any) => {
             if (d.worker_id !== worker.id) return false;
-            if (!d.reference_date?.startsWith(mesReferencia)) return false;
+            if (!isDateInCompetence(d.reference_date, mesReferencia)) return false;
             const isHoldingDiscount = !d.empresa_id || isHoldingId(d.empresa_id);
             if (!isHoldingDiscount && targetEmpresaId) {
                 return String(d.empresa_id) === String(targetEmpresaId);
@@ -1105,6 +1178,18 @@ export function HoleritesPage() {
 
         if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
 
+        const tally = calculateWorkerTally(worker);
+
+        // 1. If worker starts in a future month and has 0 hours worked in this competence, DO NOT show them!
+        if (isWorkerAdmittedAfterCompetence(worker, mesReferencia) && tally.totalHoras <= 0) {
+            return false;
+        }
+
+        // 2. If worker was terminated before this competence started and has 0 hours and 0 balance, DO NOT show them!
+        if (isWorkerTerminatedBeforeCompetence(worker, mesReferencia) && tally.totalHoras <= 0 && tally.proventos <= 0 && tally.descontos <= 0) {
+            return false;
+        }
+
         if (paymentStatusFilter !== 'all') {
             const isPago = holeritesStatusMap?.get(worker.id)?.status === 'pago';
             if (paymentStatusFilter === 'pago' && !isPago) return false;
@@ -1112,8 +1197,7 @@ export function HoleritesPage() {
         }
 
         if (workerTypeFilter === 'only_hours') {
-            const { totalHoras, proventos, descontos } = calculateWorkerTally(worker);
-            return totalHoras > 0 || proventos > 0 || descontos > 0;
+            return tally.totalHoras > 0 || tally.proventos > 0 || tally.descontos > 0;
         }
 
         if (workerTypeFilter === 'new_workers') {
@@ -1826,14 +1910,14 @@ export function HoleritesPage() {
                                                                 {clientHoursBreakdown.map((cb: any, idx: number) => (
                                                                     <span key={idx} className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${getClientStyle(cb.clientName).badge}`}>
                                                                         <Building2 className="h-2.5 w-2.5 mr-1 shrink-0 opacity-70" />
-                                                                        {cb.clientName} ({formatHoursClean(cb.hours)}h)
+                                                                        {cleanClientName(cb.clientName)} ({formatHoursClean(cb.hours)}h)
                                                                     </span>
                                                                 ))}
                                                             </div>
                                                         ) : cliente_nombre && cliente_nombre !== '-' ? (
                                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${clientStyle.badge}`}>
                                                                 <Building2 className="h-3 w-3 mr-1.5 shrink-0 opacity-70" />
-                                                                {cliente_nombre}
+                                                                {cleanClientName(cliente_nombre)}
                                                             </span>
                                                         ) : (
                                                             <span className="text-muted-foreground text-xs">-</span>
