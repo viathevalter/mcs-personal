@@ -129,6 +129,7 @@ serve(async (req) => {
           )
         ),
         leads:lead_id (
+          id,
           name,
           email,
           company_name,
@@ -186,33 +187,41 @@ serve(async (req) => {
       const rawHtml = template.html_content;
       const rawSubject = template.subject;
 
+      const targetLeadId = item.lead_id || lead.id;
       const appUrl = Deno.env.get("PUBLIC_APP_URL") || "https://mcs.gestaologinpro.com";
-      const unsubscribeLink = `${appUrl}/public/coleta-dados/${lead.id}?opt_out=1`;
+      const unsubscribeLink = `${appUrl}/public/coleta-dados/${targetLeadId}?opt_out=1`;
       const formatVars = (text: string) => {
         return text
           .replace(/\{\{\s*name\s*\}\}/g, lead.name || "")
           .replace(/\{\{\s*company_name\s*\}\}/g, lead.company_name || "")
           .replace(/\{\{\s*email\s*\}\}/g, lead.email || "")
           .replace(/\{\{\s*phone\s*\}\}/g, lead.phone || "")
-          .replace(/\{\{\s*lead_id\s*\}\}/g, lead.id || "")
-          .replace(/\{\{\s*lead\.id\s*\}\}/g, lead.id || "")
-          .replace(/\{\{\s*id\s*\}\}/g, lead.id || "")
+          .replace(/\{\{\s*lead_id\s*\}\}/g, targetLeadId || "")
+          .replace(/\{\{\s*lead\.id\s*\}\}/g, targetLeadId || "")
+          .replace(/\{\{\s*id\s*\}\}/g, targetLeadId || "")
           .replace(/\{\{\s*empresa_id\s*\}\}/g, campaign.empresa_id || "")
           .replace(/\{\{\s*empresa\.id\s*\}\}/g, campaign.empresa_id || "")
-          .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${lead.id}?empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*presupuesto_url\s*\}\}/g, `${appUrl}/public/solicitar-presupuesto?lead_id=${lead.id}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*form_url\s*\}\}/g, `${appUrl}/public/coleta-dados/${targetLeadId}?empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*presupuesto_url\s*\}\}/g, `${appUrl}/public/solicitar-presupuesto?lead_id=${targetLeadId}&empresa_id=${campaign.empresa_id}`)
           .replace(/\{\{\s*opt_out_url\s*\}\}/g, unsubscribeLink)
           .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, unsubscribeLink)
           .replace(/\*\|UNSUB\|\*/gi, unsubscribeLink)
           .replace(/\*\|UNSUBSCRIBE\|\*/gi, unsubscribeLink)
           .replace(/%UNSUBSCRIBE_URL%/gi, unsubscribeLink)
-          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${lead.id}`)
-          .replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, `${appUrl}/public/whatsapp?lead_id=${lead.id}`);
+          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}`)
+          .replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}`);
       };
 
-      const htmlBody = formatVars(rawHtml);
+      const rawFormattedHtml = formatVars(rawHtml);
       const emailSubject = formatVars(rawSubject);
-      const plainTextBody = stripHtmlToText(htmlBody);
+      const plainTextBody = stripHtmlToText(rawFormattedHtml);
+
+      // Injeção de pixel de rastreamento transparente 1x1 universal
+      const trackingPixelUrl = `${supabaseUrl}/functions/v1/resend-webhook?event=pixel_open&lead_id=${targetLeadId}&campaign_id=${campaign.id}`;
+      const trackingPixelHtml = `<img src="${trackingPixelUrl}" width="1" height="1" alt="" style="display:none !important; visibility:hidden !important; opacity:0 !important; width:1px !important; height:1px !important; border:0 !important;" />`;
+      const htmlBody = rawFormattedHtml.includes('</body>')
+        ? rawFormattedHtml.replace('</body>', `${trackingPixelHtml}</body>`)
+        : `${rawFormattedHtml}${trackingPixelHtml}`;
       
       // 1. Resolução inteligente do Remetente por Empresa e País do Lead
       const companyTrade = (company?.trade_name || '').toUpperCase();

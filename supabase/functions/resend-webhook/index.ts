@@ -6,9 +6,133 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, svix-id, svix-timestamp, svix-signature",
 };
 
+// 1x1 Transparent GIF Base64
+const TRANSPARENT_GIF = Uint8Array.from(
+  atob("R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"),
+  (c) => c.charCodeAt(0)
+);
+
+async function markLeadAsRead(supabase: any, leadId: string, campaignId?: string | null, hintEmpresaId?: string | null) {
+  try {
+    const { data: lead } = await supabase
+      .schema("core_comercial")
+      .from("leads")
+      .select("id, stage_id, empresa_id, email, name, tags")
+      .eq("id", leadId)
+      .maybeSingle();
+
+    if (!lead) return;
+
+    let targetEmpresaId = hintEmpresaId || lead.empresa_id;
+
+    if (campaignId) {
+      const { data: campaign } = await supabase
+        .schema("core_comercial")
+        .from("marketing_campaigns")
+        .select("empresa_id")
+        .eq("id", campaignId)
+        .maybeSingle();
+
+      if (campaign?.empresa_id) {
+        targetEmpresaId = campaign.empresa_id;
+      }
+    }
+
+    if (!targetEmpresaId) targetEmpresaId = lead.empresa_id;
+    if (!targetEmpresaId) return;
+
+    const { data: stages3 } = await supabase
+      .schema("core_comercial")
+      .from("kanban_stages")
+      .select("id, order_index")
+      .eq("empresa_id", targetEmpresaId)
+      .eq("order_index", 3)
+      .limit(1);
+
+    let stage3 = stages3 && stages3.length > 0 ? stages3[0] : null;
+    if (!stage3) {
+      const { data: altStages3 } = await supabase
+        .schema("core_comercial")
+        .from("kanban_stages")
+        .select("id, order_index")
+        .eq("empresa_id", targetEmpresaId)
+        .or("name.ilike.%Lido%,name.ilike.%Clicado%")
+        .limit(1);
+      stage3 = altStages3 && altStages3.length > 0 ? altStages3[0] : null;
+    }
+
+    if (!stage3) return;
+
+    let currentOrderIndex = 0;
+    if (lead.stage_id) {
+      const { data: curStages } = await supabase
+        .schema("core_comercial")
+        .from("kanban_stages")
+        .select("order_index")
+        .eq("id", lead.stage_id)
+        .limit(1);
+      if (curStages && curStages.length > 0) {
+        currentOrderIndex = curStages[0].order_index;
+      }
+    }
+
+    const updatePayload: any = {
+      updated_at: new Date().toISOString(),
+    };
+
+    if (targetEmpresaId && targetEmpresaId !== lead.empresa_id) {
+      updatePayload.empresa_id = targetEmpresaId;
+    }
+
+    if (stage3.order_index > currentOrderIndex) {
+      updatePayload.stage_id = stage3.id;
+    }
+
+    await supabase
+      .schema("core_comercial")
+      .from("leads")
+      .update(updatePayload)
+      .eq("id", lead.id);
+
+    console.log(`[SUCESSO] Lead ${lead.id} (${lead.email}) atualizado para Etapa 3 da Empresa ${targetEmpresaId}.`);
+  } catch (err: any) {
+    console.error("Erro em markLeadAsRead:", err.message);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // --- TRATAMENTO DE PIXEL DE ABERTURA (GET) ---
+  if (req.method === "GET") {
+    try {
+      const url = new URL(req.url);
+      const leadId = url.searchParams.get("lead_id");
+      const campaignId = url.searchParams.get("campaign_id");
+
+      if (leadId && leadId !== "undefined" && leadId !== "null") {
+        await markLeadAsRead(supabase, leadId, campaignId);
+      }
+    } catch (e: any) {
+      console.error("Erro no pixel_open GET:", e.message);
+    }
+
+    return new Response(TRANSPARENT_GIF, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/gif",
+        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+        ...corsHeaders,
+      },
+    });
   }
 
   try {
@@ -146,82 +270,8 @@ serve(async (req) => {
 
     // 4. Processar abertura ou clique
     if (isOpenOrClick && lead) {
-      let targetEmpresaId = hintEmpresaId || lead.empresa_id;
-
-      // Se soubermos qual campanha enviou o e-mail, a campanha determina a empresa dona
       const effectiveCampaignId = queueItem?.campaign_id || tagCampaignId;
-      if (effectiveCampaignId) {
-        const { data: campaignData } = await supabase
-          .schema("core_comercial")
-          .from("marketing_campaigns")
-          .select("empresa_id")
-          .eq("id", effectiveCampaignId)
-          .maybeSingle();
-        if (campaignData?.empresa_id) {
-          targetEmpresaId = campaignData.empresa_id;
-        }
-      }
-
-      if (!targetEmpresaId) targetEmpresaId = lead.empresa_id;
-
-      // Fetch 'E-mail Lido / Clicado' stage (order_index = 3) for the target company
-      const { data: stages3 } = await supabase
-        .schema("core_comercial")
-        .from("kanban_stages")
-        .select("id, order_index")
-        .eq("empresa_id", targetEmpresaId)
-        .eq("order_index", 3)
-        .limit(1);
-
-      let stage3 = stages3 && stages3.length > 0 ? stages3[0] : null;
-      if (!stage3) {
-        const { data: altStages3 } = await supabase
-          .schema("core_comercial")
-          .from("kanban_stages")
-          .select("id, order_index")
-          .eq("empresa_id", targetEmpresaId)
-          .or("name.ilike.%Lido%,name.ilike.%Clicado%")
-          .limit(1);
-        stage3 = altStages3 && altStages3.length > 0 ? altStages3[0] : null;
-      }
-
-      if (stage3) {
-        let currentOrderIndex = 0;
-        if (lead.stage_id) {
-          const { data: curStages } = await supabase
-            .schema("core_comercial")
-            .from("kanban_stages")
-            .select("order_index")
-            .eq("id", lead.stage_id)
-            .limit(1);
-          if (curStages && curStages.length > 0) {
-            currentOrderIndex = curStages[0].order_index;
-          }
-        }
-
-        const updatePayload: any = {
-          updated_at: new Date().toISOString(),
-        };
-
-        if (targetEmpresaId && targetEmpresaId !== lead.empresa_id) {
-          updatePayload.empresa_id = targetEmpresaId;
-        }
-
-        // Move to Stage 3 if lead is currently in Stage 1 or 2
-        if (stage3.order_index > currentOrderIndex) {
-          updatePayload.stage_id = stage3.id;
-        }
-
-        if (Object.keys(updatePayload).length > 1) {
-          await supabase
-            .schema("core_comercial")
-            .from("leads")
-            .update(updatePayload)
-            .eq("id", lead.id);
-
-          console.log(`Lead ${lead.id} (${cleanEmail}) atualizado via Webhook (${eventType}) para Empresa ${targetEmpresaId}, Stage ${updatePayload.stage_id || lead.stage_id}.`);
-        }
-      }
+      await markLeadAsRead(supabase, lead.id, effectiveCampaignId, hintEmpresaId);
     }
 
     // 4. Processar Bounces ou Falhas
