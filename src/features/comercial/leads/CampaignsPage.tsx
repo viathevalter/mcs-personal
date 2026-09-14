@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { cn } from '@/lib/utils';
 import { useMarketingTemplates, useMarketingCampaigns, useMutateMarketing } from './hooks/useMarketing';
+import { useAuth } from '@/app/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -337,6 +338,7 @@ const updateHtmlContent = (html: string, oldConfig: any, newConfig: any) => {
 
 export function CampaignsPage() {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const { selectedEmpresaId, empresas } = useEmpresa();
   const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
   const rawEmpresaName = currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || (currentEmpresa as any)?.razon_social || '';
@@ -346,6 +348,16 @@ export function CampaignsPage() {
   const isWiseowe = empresaCanonical === 'WISEOWE' || rawEmpresaName.toUpperCase().includes('WISE');
   const isStocco = empresaCanonical === 'STOCCO' || rawEmpresaName.toUpperCase().includes('STOCCO');
   const isKotrik = empresaCanonical === 'KOTRIK & ROSAS' || rawEmpresaName.toUpperCase().includes('KOTRIK');
+
+  const isGiada = useMemo(() => {
+    const email = user?.email?.toLowerCase() || '';
+    return email.includes('giada') || user?.id === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
+  }, [user]);
+
+  const isMichelle = useMemo(() => {
+    const email = user?.email?.toLowerCase() || '';
+    return email.includes('mitch') || email.includes('michel') || user?.id === 'dbc361a1-e4af-446a-8079-39c0caab00d2';
+  }, [user]);
   const activeSenderEmail = currentEmpresa?.marketing_sender_email || (isTriangulo ? 'comercial2@es.triangulolda.com' : isWiseowe ? 'comercial3@fr.wiseowe.com' : 'comercial1@mail.luminousalley.com');
   const activeSenderName = currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || 'Equipe Comercial';
   const { data: templates = [], isLoading: loadingTemplates } = useMarketingTemplates();
@@ -494,7 +506,7 @@ export function CampaignsPage() {
   const userModifiedSelection = useRef<boolean>(false);
 
   // Dynamic Options derived from database leads
-  const dynamicCountryOptions = useMemo(() => {
+  const countryOptionsInEmpresa = useMemo(() => {
     const counts: Record<string, number> = {};
     allLeads.forEach(l => {
       const c = detectLeadCountry(l);
@@ -503,10 +515,27 @@ export function CampaignsPage() {
     return Object.entries(countryLabels)
       .filter(([code]) => (counts[code] || 0) > 0)
       .map(([code, info]) => ({
-        label: `${info.flag} ${info.name} (${counts[code] || 0})`,
-        value: code,
+        code,
+        name: info.name,
+        flag: info.flag,
+        count: counts[code] || 0,
       }));
   }, [allLeads]);
+
+  const dynamicCountryOptions = useMemo(() => {
+    return countryOptionsInEmpresa.map(c => ({
+      label: `${c.flag} ${c.name} (${c.count})`,
+      value: c.code,
+    }));
+  }, [countryOptionsInEmpresa]);
+
+  // Scoped leads based on primary country filter
+  const leadsInCountryScope = useMemo(() => {
+    if (!audienceFilters.selectedCountries || audienceFilters.selectedCountries.length === 0) {
+      return allLeads;
+    }
+    return allLeads.filter(l => audienceFilters.selectedCountries.includes(detectLeadCountry(l)));
+  }, [allLeads, audienceFilters.selectedCountries]);
 
   const dynamicCompanySizeOptions = useMemo(() => {
     const sizes = [
@@ -515,39 +544,39 @@ export function CampaignsPage() {
       { label: '⚙️ Taller / Pequeña (Tier 3)', value: 'Pequeña Empresa / Taller (Tier 3)' },
     ];
     return sizes.map(s => {
-      const count = allLeads.filter(l => l.company_size === s.value || (Array.isArray(l.tags) && l.tags.includes(s.value))).length;
+      const count = leadsInCountryScope.filter(l => l.company_size === s.value || (Array.isArray(l.tags) && l.tags.includes(s.value))).length;
       return {
         label: `${s.label} (${count})`,
         value: s.value,
       };
     });
-  }, [allLeads]);
+  }, [leadsInCountryScope]);
 
   const dynamicRegionOptions = useMemo(() => {
     const counts: Record<string, number> = {};
-    allLeads.forEach(l => {
+    leadsInCountryScope.forEach(l => {
       if (l.region) counts[l.region] = (counts[l.region] || 0) + 1;
     });
     return Object.keys(counts).sort().map(reg => ({
       label: `🗺️ ${reg} (${counts[reg]})`,
       value: reg,
     }));
-  }, [allLeads]);
+  }, [leadsInCountryScope]);
 
   const dynamicProvinceOptions = useMemo(() => {
     const counts: Record<string, number> = {};
-    allLeads.forEach(l => {
+    leadsInCountryScope.forEach(l => {
       if (l.province) counts[l.province] = (counts[l.province] || 0) + 1;
     });
     return Object.keys(counts).sort().map(prov => ({
       label: `📍 ${prov} (${counts[prov]})`,
       value: prov,
     }));
-  }, [allLeads]);
+  }, [leadsInCountryScope]);
 
   const dynamicSectorOptions = useMemo(() => {
     const counts: Record<string, number> = {};
-    allLeads.forEach(l => {
+    leadsInCountryScope.forEach(l => {
       if (l.sector) {
         const sec = l.sector.trim();
         counts[sec] = (counts[sec] || 0) + 1;
@@ -557,11 +586,11 @@ export function CampaignsPage() {
       label: `${sec} (${counts[sec]})`,
       value: sec,
     }));
-  }, [allLeads]);
+  }, [leadsInCountryScope]);
 
   const dynamicServiceOptions = useMemo(() => {
     const set = new Set<string>();
-    allLeads.forEach(l => {
+    leadsInCountryScope.forEach(l => {
       if (l.servicio_producto && !l.servicio_producto.includes('@') && !l.servicio_producto.includes(',,,')) {
         set.add(l.servicio_producto.trim());
       }
@@ -572,7 +601,7 @@ export function CampaignsPage() {
       label: srv,
       value: srv
     }));
-  }, [allLeads]);
+  }, [leadsInCountryScope]);
 
   const defaultStrategicAudiences = useMemo(() => {
     // 1. EMPRESA: TRIÂNGULO (Michelle / Espanha & Itália)
@@ -2290,12 +2319,17 @@ export function CampaignsPage() {
       let hasMore = true;
 
       while (hasMore) {
-        const { data, error } = await supabase
+        let query = supabase
           .schema('core_comercial')
           .from('leads')
           .select('*')
-          .range(from, from + step - 1)
           .order('name', { ascending: true });
+
+        if (selectedEmpresaId) {
+          query = query.eq('empresa_id', selectedEmpresaId);
+        }
+
+        const { data, error } = await query.range(from, from + step - 1);
 
         if (error) throw error;
 
@@ -2331,7 +2365,7 @@ export function CampaignsPage() {
       stageId: '',
       origin: '',
       intelligence: 'all',
-      selectedCountries: isTriangulo ? ['ES'] : isWiseowe ? ['FR'] : [],
+      selectedCountries: isWiseowe ? ['FR'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : [],
       selectedCompanySizes: [],
       selectedRegions: [],
       selectedProvinces: [],
@@ -3057,7 +3091,7 @@ export function CampaignsPage() {
                   stageId: '',
                   origin: '',
                   intelligence: 'all',
-                  selectedCountries: isTriangulo ? ['ES'] : isWiseowe ? ['FR'] : [],
+                  selectedCountries: isWiseowe ? ['FR'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : [],
                   selectedCompanySizes: [],
                   selectedRegions: [],
                   selectedProvinces: [],
@@ -3072,34 +3106,7 @@ export function CampaignsPage() {
                   limit: '',
                   offset: '',
                 });
-                try {
-                  let allFetchedLeads: any[] = [];
-                  let from = 0;
-                  const step = 1000;
-                  let hasMore = true;
-
-                  while (hasMore) {
-                    const { data, error } = await supabase
-                      .schema('core_comercial')
-                      .from('leads')
-                      .select('*')
-                      .range(from, from + step - 1)
-                      .order('name', { ascending: true });
-
-                    if (error) throw error;
-
-                    if (data && data.length > 0) {
-                      allFetchedLeads = [...allFetchedLeads, ...data];
-                      from += step;
-                      if (data.length < step) hasMore = false;
-                    } else {
-                      hasMore = false;
-                    }
-                  }
-
-                  setAllLeads(allFetchedLeads);
-                } catch(e) {}
-                setLoadingAudienceLeads(false);
+                await fetchAudienceLeads();
               }} 
               className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
             >
@@ -3592,11 +3599,86 @@ export function CampaignsPage() {
                   </div>
                 )}
 
+                {/* Passo 1: Selecionar o Mercado / País */}
+                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-amber-500" />
+                      <span>1. Selecionar Mercado / País</span>
+                    </Label>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Adapta base e regiões
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        userModifiedSelection.current = false;
+                        setAudienceFilters(prev => ({
+                          ...prev,
+                          selectedCountries: [],
+                          selectedRegions: [],
+                          selectedProvinces: []
+                        }));
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+                        !audienceFilters.selectedCountries || audienceFilters.selectedCountries.length === 0
+                          ? 'bg-amber-500 text-slate-950 font-bold ring-2 ring-amber-500/40 shadow-sm'
+                          : 'bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>🌐</span>
+                      <span>Todos</span>
+                      <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 font-bold">
+                        {allLeads.length}
+                      </span>
+                    </button>
+
+                    {countryOptionsInEmpresa.map(item => {
+                      const isSelected = audienceFilters.selectedCountries?.length === 1 && audienceFilters.selectedCountries[0] === item.code;
+                      return (
+                        <button
+                          key={item.code}
+                          type="button"
+                          onClick={() => {
+                            userModifiedSelection.current = false;
+                            setAudienceFilters(prev => ({
+                              ...prev,
+                              selectedCountries: [item.code],
+                              selectedRegions: [],
+                              selectedProvinces: []
+                            }));
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+                            isSelected
+                              ? 'bg-amber-500 text-slate-950 font-bold ring-2 ring-amber-500/40 shadow-sm'
+                              : 'bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span>{item.flag}</span>
+                          <span>{item.name}</span>
+                          <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 font-bold">
+                            {item.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Live Stats Summary Banner */}
                 <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center justify-between text-xs mb-3 shadow-xs">
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Total da Base</span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">{allLeads.length} leads</span>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">
+                      {audienceFilters.selectedCountries && audienceFilters.selectedCountries.length === 1 
+                        ? `Base ${countryLabels[audienceFilters.selectedCountries[0]]?.name || ''}` 
+                        : 'Total da Empresa'}
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      {leadsInCountryScope.length} leads
+                    </span>
                   </div>
                   <div className="text-center">
                     <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">No Filtro Atual</span>
@@ -3993,11 +4075,86 @@ export function CampaignsPage() {
                   <h3 className="font-semibold text-xs uppercase tracking-wider text-slate-400 mb-2">Filtros Gerais</h3>
                 </div>
 
+                {/* Passo 1: Selecionar o Mercado / País */}
+                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-amber-500" />
+                      <span>1. Selecionar Mercado / País</span>
+                    </Label>
+                    <span className="text-[10px] text-slate-400 font-medium">
+                      Adapta base e regiões
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        userModifiedSelection.current = false;
+                        setAudienceFilters(prev => ({
+                          ...prev,
+                          selectedCountries: [],
+                          selectedRegions: [],
+                          selectedProvinces: []
+                        }));
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+                        !audienceFilters.selectedCountries || audienceFilters.selectedCountries.length === 0
+                          ? 'bg-amber-500 text-slate-950 font-bold ring-2 ring-amber-500/40 shadow-sm'
+                          : 'bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <span>🌐</span>
+                      <span>Todos</span>
+                      <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 font-bold">
+                        {allLeads.length}
+                      </span>
+                    </button>
+
+                    {countryOptionsInEmpresa.map(item => {
+                      const isSelected = audienceFilters.selectedCountries?.length === 1 && audienceFilters.selectedCountries[0] === item.code;
+                      return (
+                        <button
+                          key={item.code}
+                          type="button"
+                          onClick={() => {
+                            userModifiedSelection.current = false;
+                            setAudienceFilters(prev => ({
+                              ...prev,
+                              selectedCountries: [item.code],
+                              selectedRegions: [],
+                              selectedProvinces: []
+                            }));
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs ${
+                            isSelected
+                              ? 'bg-amber-500 text-slate-950 font-bold ring-2 ring-amber-500/40 shadow-sm'
+                              : 'bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <span>{item.flag}</span>
+                          <span>{item.name}</span>
+                          <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 font-bold">
+                            {item.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* Live Stats Summary Banner */}
                 <div className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/20 p-3 rounded-xl flex items-center justify-between text-xs mb-3 shadow-xs">
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">Total da Base</span>
-                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">{allLeads.length} leads</span>
+                    <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">
+                      {audienceFilters.selectedCountries && audienceFilters.selectedCountries.length === 1 
+                        ? `Base ${countryLabels[audienceFilters.selectedCountries[0]]?.name || ''}` 
+                        : 'Total da Empresa'}
+                    </span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      {leadsInCountryScope.length} leads
+                    </span>
                   </div>
                   <div className="text-center">
                     <span className="text-slate-500 dark:text-slate-400 block text-[10px] uppercase font-bold">No Filtro Atual</span>
