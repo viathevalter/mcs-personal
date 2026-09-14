@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +62,8 @@ import { useSalesScripts, useMutateDialer } from './hooks/useDialer';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { detectLeadCountry, COUNTRY_LABELS } from './utils/leadCountryUtils';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -100,7 +102,30 @@ export function KanbanPage() {
   const isSpanish = (i18n.language || i18n.resolvedLanguage || '').toLowerCase().startsWith('es');
 
   const { selectedEmpresaId, currentEmpresa } = useEmpresa();
+  const { user } = useAuth();
   const [selectedSalesperson, setSelectedSalesperson] = useState<string>('all');
+  const [selectedCountry, setSelectedCountry] = useState<string>('all');
+
+  const isGiada = useMemo(() => {
+    const email = user?.email?.toLowerCase() || '';
+    return email.includes('giada') || user?.id === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
+  }, [user]);
+
+  const isMichelle = useMemo(() => {
+    const email = user?.email?.toLowerCase() || '';
+    return email.includes('mitch') || email.includes('michel') || user?.id === 'dbc361a1-e4af-446a-8079-39c0caab00d2';
+  }, [user]);
+
+  // Initial user-based filtering setup for team isolation
+  useEffect(() => {
+    if (isGiada) {
+      setSelectedCountry('IT');
+      setSelectedSalesperson('76f9a2f5-116a-456e-a7d9-9a6a0401ac65');
+    } else if (isMichelle) {
+      setSelectedCountry('ES');
+      setSelectedSalesperson('dbc361a1-e4af-446a-8079-39c0caab00d2');
+    }
+  }, [isGiada, isMichelle]);
 
   // Queries & Mutations
   const { data: salespeople = [] } = useSalespeople();
@@ -358,7 +383,20 @@ export function KanbanPage() {
     }
   };
 
-  // Filtered Leads (strictly for selected company and optional search/salesperson)
+  // Country distribution counts for active company
+  const countryCounts = useMemo(() => {
+    const counts: Record<string, number> = { ES: 0, FR: 0, IT: 0, PT: 0, total: 0 };
+    leads.forEach(l => {
+      counts.total++;
+      const c = detectLeadCountry(l);
+      if (counts[c] !== undefined) {
+        counts[c]++;
+      }
+    });
+    return counts;
+  }, [leads]);
+
+  // Filtered Leads (strictly for selected company and optional search/salesperson/country)
   const filteredLeads = useMemo(() => {
     return leads.filter(lead => {
       // Must match active company
@@ -369,6 +407,11 @@ export function KanbanPage() {
       if (selectedSalesperson !== 'all' && lead.assigned_to !== selectedSalesperson) {
         return false;
       }
+      // Country filter
+      if (selectedCountry !== 'all') {
+        const c = detectLeadCountry(lead);
+        if (c !== selectedCountry) return false;
+      }
       const search = searchTerm.toLowerCase();
       return (
         lead.name.toLowerCase().includes(search) ||
@@ -378,7 +421,7 @@ export function KanbanPage() {
         (lead.notes && lead.notes.toLowerCase().includes(search))
       );
     });
-  }, [leads, searchTerm, selectedEmpresaId, selectedSalesperson]);
+  }, [leads, searchTerm, selectedEmpresaId, selectedSalesperson, selectedCountry]);
 
   const getLeadsInStage = (stage: KanbanStage) => {
     return filteredLeads.filter(lead => {
@@ -597,6 +640,102 @@ export function KanbanPage() {
             {t('comercialKanban.configStages', 'Configurar Etapas')}
           </Button>
         </div>
+      </div>
+
+      {/* Country Selection & Regional Pipeline Division */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-xl shadow-sm">
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+          <Globe className="w-4 h-4 text-amber-500" />
+          <span>{isSpanish ? 'Mercado / País:' : 'Mercado / País:'}</span>
+        </div>
+
+        {isGiada ? (
+          <div className="flex items-center gap-2">
+            <Badge className="bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 text-xs px-3 py-1 font-bold flex items-center gap-1.5">
+              <span>🇮🇹</span>
+              <span>Operação Itália - Giada Galdonase ({countryCounts.IT} leads)</span>
+            </Badge>
+          </div>
+        ) : isMichelle ? (
+          <div className="flex items-center gap-2">
+            <Badge className="bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 text-xs px-3 py-1 font-bold flex items-center gap-1.5">
+              <span>🇪🇸</span>
+              <span>Operação Espanha - Michelle ({countryCounts.ES} leads)</span>
+            </Badge>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setSelectedCountry('all')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                selectedCountry === 'all'
+                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
+                  : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              <span>🌐</span>
+              <span>Todos</span>
+              <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                {countryCounts.total}
+              </span>
+            </button>
+
+            {countryCounts.ES > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedCountry('ES')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                  selectedCountry === 'ES'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
+                    : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <span>🇪🇸</span>
+                <span>Espanha (Michelle)</span>
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                  {countryCounts.ES}
+                </span>
+              </button>
+            )}
+
+            {countryCounts.IT > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedCountry('IT')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                  selectedCountry === 'IT'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
+                    : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <span>🇮🇹</span>
+                <span>Itália (Giada)</span>
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                  {countryCounts.IT}
+                </span>
+              </button>
+            )}
+
+            {countryCounts.FR > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedCountry('FR')}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
+                  selectedCountry === 'FR'
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
+                    : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                <span>🇫🇷</span>
+                <span>França</span>
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                  {countryCounts.FR}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filter Toolbar & View Switcher */}
@@ -1095,103 +1234,124 @@ export function KanbanPage() {
                       {t('comercialKanban.emptyStage', 'Arraste leads para cá')}
                     </div>
                   ) : (
-                    stageLeads.map(lead => {
-                      const budgetInfo = parseBudgetNotes(lead.notes);
-                      const assignedName = lead.assigned_to ? salespersonMap.get(lead.assigned_to) : null;
+                    <>
+                      {stageLeads.slice(0, 80).map(lead => {
+                        const budgetInfo = parseBudgetNotes(lead.notes);
+                        const assignedName = lead.assigned_to ? salespersonMap.get(lead.assigned_to) : null;
 
-                      return (
-                        <div
-                          key={lead.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, lead.id)}
-                          onClick={() => {
-                            setSelectedLead(lead);
-                            setIsDetailsOpen(true);
-                          }}
-                          className="group relative bg-white dark:bg-slate-950 hover:border-amber-500/80 dark:hover:border-amber-500/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all duration-200 space-y-2.5"
-                        >
-                          {/* Top Card Bar: Company & Budget Badge */}
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate max-w-[160px]">
-                              <Building className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                              <span className="truncate">{lead.company_name || 'Sem Empresa'}</span>
-                            </span>
-                            {budgetInfo?.isBudgetForm && (
-                              <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0">
-                                Orçamento
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Lead Name */}
-                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                            {lead.name}
-                          </h4>
-
-                          {/* Salesperson Assigned Badge */}
-                          {assignedName && (
-                            <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md w-fit">
-                              <User className="h-3 w-3 shrink-0" />
-                              <span className="truncate max-w-[170px]">{assignedName}</span>
-                            </div>
-                          )}
-
-                          {/* Budget Form Snippet if present */}
-                          {budgetInfo?.parsed && (
-                            <div className="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 rounded-lg p-2 text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
-                              {budgetInfo.parsed['Perfis Profissionais Requeridos'] && (
-                                <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1 truncate">
-                                  <Briefcase className="h-3 w-3 shrink-0" />
-                                  <span className="truncate">{budgetInfo.parsed['Perfis Profissionais Requeridos']}</span>
-                                </div>
-                              )}
-                              {budgetInfo.parsed['Quantidade de Operários'] && (
-                                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                                  <Users className="h-3 w-3 shrink-0" />
-                                  <span>{budgetInfo.parsed['Quantidade de Operários']} Operários</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Contact Info Footer */}
-                          <div className="pt-2 border-t border-slate-100 dark:border-slate-900 flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-                            {lead.website && (
-                              <a
-                                href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline font-medium"
-                                title={`Abrir site: ${lead.website}`}
-                              >
-                                <Globe className="h-3 w-3 shrink-0 text-blue-500" />
-                                <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
-                                <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
-                              </a>
-                            )}
-                            {lead.email && (
-                              <div className="flex items-center gap-1.5 truncate">
-                                <Mail className="h-3 w-3 shrink-0 text-slate-400" />
-                                <span className="truncate">{lead.email}</span>
-                              </div>
-                            )}
-                            {lead.phone && (
-                              <div className="flex items-center gap-1.5 truncate">
-                                <Phone className="h-3 w-3 shrink-0 text-slate-400" />
-                                <span>{lead.phone}</span>
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDate(lead.created_at)}
+                        return (
+                          <div
+                            key={lead.id}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, lead.id)}
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setIsDetailsOpen(true);
+                            }}
+                            className="group relative bg-white dark:bg-slate-950 hover:border-amber-500/80 dark:hover:border-amber-500/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all duration-200 space-y-2.5"
+                          >
+                            {/* Top Card Bar: Company & Budget Badge */}
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate max-w-[160px]">
+                                <Building className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                <span className="truncate">{lead.company_name || 'Sem Empresa'}</span>
                               </span>
+                              {budgetInfo?.isBudgetForm && (
+                                <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0">
+                                  Orçamento
+                                </Badge>
+                              )}
+                            </div>
+
+                            {/* Lead Name */}
+                            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                              {lead.name}
+                            </h4>
+
+                            {/* Salesperson Assigned Badge */}
+                            {assignedName && (
+                              <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md w-fit">
+                                <User className="h-3 w-3 shrink-0" />
+                                <span className="truncate max-w-[170px]">{assignedName}</span>
+                              </div>
+                            )}
+
+                            {/* Budget Form Snippet if present */}
+                            {budgetInfo?.parsed && (
+                              <div className="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 rounded-lg p-2 text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
+                                {budgetInfo.parsed['Perfis Profissionais Requeridos'] && (
+                                  <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1 truncate">
+                                    <Briefcase className="h-3 w-3 shrink-0" />
+                                    <span className="truncate">{budgetInfo.parsed['Perfis Profissionais Requeridos']}</span>
+                                  </div>
+                                )}
+                                {budgetInfo.parsed['Quantidade de Operários'] && (
+                                  <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                                    <Users className="h-3 w-3 shrink-0" />
+                                    <span>{budgetInfo.parsed['Quantidade de Operários']} Operários</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Contact Info Footer */}
+                            <div className="pt-2 border-t border-slate-100 dark:border-slate-900 flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                              {lead.website && (
+                                <a
+                                  href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline font-medium"
+                                  title={`Abrir site: ${lead.website}`}
+                                >
+                                  <Globe className="h-3 w-3 shrink-0 text-blue-500" />
+                                  <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
+                                  <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                                </a>
+                              )}
+                              {lead.email && (
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <Mail className="h-3 w-3 shrink-0 text-slate-400" />
+                                  <span className="truncate">{lead.email}</span>
+                                </div>
+                              )}
+                              {lead.phone && (
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <Phone className="h-3 w-3 shrink-0 text-slate-400" />
+                                  <span>{lead.phone}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {formatDate(lead.created_at)}
+                                </span>
+                              </div>
                             </div>
                           </div>
+                        );
+                      })}
+
+                      {stageLeads.length > 80 && (
+                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center space-y-1 mt-1">
+                          <p className="text-xs text-amber-700 dark:text-amber-300 font-bold">
+                            Mostrando os 80 primeiros de {stageLeads.length} leads nesta etapa.
+                          </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                            Use a busca acima ou clique em{' '}
+                            <button 
+                              type="button" 
+                              onClick={() => setViewMode('list')} 
+                              className="text-amber-600 dark:text-amber-400 underline font-semibold hover:text-amber-700"
+                            >
+                              Modo Lista
+                            </button>{' '}
+                            para ver e exportar toda a base.
+                          </p>
                         </div>
-                      );
-                    })
+                      )}
+                    </>
                   )}
                 </div>
               </div>

@@ -742,14 +742,26 @@ Return JSON array only:
         continue;
       }
 
+      const isFranceLead = res.country === 'França' || 
+        (res.email && res.email.toLowerCase().endsWith('.fr')) || 
+        (res.phone && res.phone.startsWith('+33')) ||
+        (res.province && res.province.toLowerCase().includes('fran'));
+
+      const targetEmpresaId = isFranceLead ? 'dae64d51-2181-4510-b14f-e63d2f111a8e' : empresaId;
+      if (isFranceLead && !tagList.includes('🇫🇷 França')) {
+        tagList.push('🇫🇷 França');
+      }
+
       const { data: insertedLead, error: leadErr } = await supabase
         .schema('core_comercial')
         .from('leads')
         .insert({
-          empresa_id: empresaId,
+          empresa_id: targetEmpresaId,
+          region: isFranceLead ? 'França' : undefined,
+          stage_id: isFranceLead ? '048f4587-f416-4fc2-b3c9-09c42347df95' : undefined,
           name: res.company_name,
           company_name: res.company_name,
-          email: res.email || `contato@${res.company_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.es`,
+          email: res.email || `contato@${res.company_name.toLowerCase().replace(/[^a-z0-9]/g, '')}.${isFranceLead ? 'fr' : 'es'}`,
           phone: res.phone || undefined,
           sector: leadSector,
           city: res.city || undefined,

@@ -21,6 +21,15 @@ export const COUNTRY_LABELS: Record<string, { name: string; flag: string; lang: 
 export function detectLeadCountry(lead: any): string {
   if (!lead) return 'ES';
 
+  if (lead.region && typeof lead.region === 'string') {
+    const r = lead.region.toLowerCase();
+    if (r.includes('frança') || r.includes('france')) return 'FR';
+    if (r.includes('itália') || r.includes('italia') || r.includes('italy')) return 'IT';
+    if (r.includes('portugal')) return 'PT';
+    if (r.includes('espanha') || r.includes('spain') || r.includes('españa')) return 'ES';
+    if (r.includes('alemanha') || r.includes('germany') || r.includes('deutschland')) return 'DE';
+  }
+
   if (lead.country_id) {
     const c = String(lead.country_id).toLowerCase();
     if (c === COUNTRY_UUIDS.ES.toLowerCase() || c === '8caaddaf-88cd-4a50-aff6-127b8979b1c3' || c === 'es') return 'ES';
