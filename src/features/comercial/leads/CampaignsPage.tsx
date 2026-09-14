@@ -51,6 +51,10 @@ import {
   Globe,
   Filter,
   Search,
+  LayoutGrid,
+  List,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -375,8 +379,8 @@ export function CampaignsPage() {
   const [activeTab, setActiveTab] = useState('campaigns');
   const queryClient = useQueryClient();
 
-  // Query: Estatísticas agregadas da fila para cada campanha (total, sent, pending, failed)
-  const { data: campaignStats = {}, refetch: refetchCampaignStats } = useQuery<Record<string, { total: number; sent: number; pending: number; failed: number }>>({
+  // Query: Estatísticas agregadas da fila para cada campanha (total, sent, pending, failed, first_sent_at, last_sent_at)
+  const { data: campaignStats = {}, refetch: refetchCampaignStats } = useQuery<Record<string, { total: number; sent: number; pending: number; failed: number; first_sent_at?: string; last_sent_at?: string }>>({
     queryKey: ['campaign_queue_stats', selectedEmpresaId, campaigns],
     queryFn: async () => {
       const validEmpresaId = (selectedEmpresaId && selectedEmpresaId !== 'all' && selectedEmpresaId.length === 36) ? selectedEmpresaId : null;
@@ -389,7 +393,7 @@ export function CampaignsPage() {
         return {};
       }
 
-      const statsMap: Record<string, { total: number; sent: number; pending: number; failed: number }> = {};
+      const statsMap: Record<string, { total: number; sent: number; pending: number; failed: number; first_sent_at?: string; last_sent_at?: string }> = {};
       if (data && Array.isArray(data)) {
         data.forEach((row: any) => {
           statsMap[row.campaign_id] = {
@@ -397,6 +401,8 @@ export function CampaignsPage() {
             sent: Number(row.sent || 0),
             pending: Number(row.pending || 0),
             failed: Number(row.failed || 0),
+            first_sent_at: row.first_sent_at,
+            last_sent_at: row.last_sent_at,
           };
         });
       }
@@ -404,6 +410,41 @@ export function CampaignsPage() {
     },
     enabled: campaigns.length > 0,
   });
+
+  // Query: Histórico de envio de leads (para controle de frequência e antifadiga)
+  const { data: leadsLastSentData = [], refetch: refetchLeadsLastSent } = useQuery({
+    queryKey: ['leads_last_sent', selectedEmpresaId],
+    queryFn: async () => {
+      const validEmpresaId = (selectedEmpresaId && selectedEmpresaId !== 'all' && selectedEmpresaId.length === 36) ? selectedEmpresaId : null;
+      const { data, error } = await supabase.rpc('fn_get_leads_last_sent', {
+        p_empresa_id: validEmpresaId,
+      });
+      if (error) {
+        console.error('Error fetching leads last sent history:', error);
+        return [];
+      }
+      return (data as any[]) || [];
+    },
+    enabled: !!selectedEmpresaId,
+  });
+
+  const leadsLastSentMap = useMemo(() => {
+    const map = new Map<string, { lastSentAt: Date | null; hasActive: boolean; totalSent: number }>();
+    leadsLastSentData.forEach((row: any) => {
+      map.set(row.lead_id, {
+        lastSentAt: row.last_sent_at ? new Date(row.last_sent_at) : null,
+        hasActive: Boolean(row.has_active),
+        totalSent: Number(row.total_sent || 0),
+      });
+    });
+    return map;
+  }, [leadsLastSentData]);
+
+  // Campaigns View Mode & Filters (Galeria vs Lista, Status, Busca e Datas)
+  const [campaignViewMode, setCampaignViewMode] = useState<'grid' | 'table'>('grid');
+  const [campaignSearchTerm, setCampaignSearchTerm] = useState('');
+  const [campaignStatusFilter, setCampaignStatusFilter] = useState<'all' | 'active' | 'completed' | 'draft'>('all');
+  const [campaignDateFilter, setCampaignDateFilter] = useState<'all' | 'today' | '7d' | '30d'>('all');
 
   // Auto queue processor for active sending/scheduled campaigns
   useEffect(() => {
@@ -452,6 +493,7 @@ export function CampaignsPage() {
     stageId: string;
     origin: string;
     intelligence: string;
+    recencyDays: string;
     selectedCountries: string[];
     selectedCompanySizes: string[];
     selectedRegions: string[];
@@ -470,6 +512,7 @@ export function CampaignsPage() {
     stageId: '',
     origin: '',
     intelligence: 'all',
+    recencyDays: 'all',
     selectedCountries: [],
     selectedCompanySizes: [],
     selectedRegions: [],
@@ -2150,10 +2193,28 @@ export function CampaignsPage() {
         }
 
         let targetLeadIds: string[] = [];
+        const recency = audienceFilters.recencyDays || 'all';
+
         if (pendingAudienceForCampaign.leadIds && Array.isArray(pendingAudienceForCampaign.leadIds) && pendingAudienceForCampaign.leadIds.length > 0) {
-          targetLeadIds = pendingAudienceForCampaign.leadIds;
+          targetLeadIds = pendingAudienceForCampaign.leadIds.filter((leadId: string) => {
+            const info = leadsLastSentMap.get(leadId);
+            if (recency === 'never') {
+              return !(info && (info.totalSent > 0 || info.lastSentAt));
+            }
+            if (recency !== 'all') {
+              const days = parseInt(recency, 10);
+              if (!isNaN(days) && days > 0 && info && info.lastSentAt) {
+                const diffDays = (Date.now() - info.lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
+                return diffDays >= days;
+              }
+            }
+            return true;
+          });
         } else {
-          targetLeadIds = getFilteredLeads(pendingAudienceForCampaign.filters, currentLeads).map(l => l.id);
+          targetLeadIds = getFilteredLeads({
+            ...pendingAudienceForCampaign.filters,
+            recencyDays: recency,
+          }, currentLeads).map(l => l.id);
         }
 
         if (targetLeadIds.length > 0) {
@@ -2378,6 +2439,7 @@ export function CampaignsPage() {
       stageId: '',
       origin: '',
       intelligence: 'all',
+      recencyDays: 'all',
       selectedCountries: isWiseowe ? ['FR'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : [],
       selectedCompanySizes: [],
       selectedRegions: [],
@@ -2394,6 +2456,7 @@ export function CampaignsPage() {
       offset: '',
     });
     setIsAudienceModalOpen(true);
+    refetchLeadsLastSent();
     await fetchAudienceLeads();
   };
 
@@ -2542,16 +2605,30 @@ export function CampaignsPage() {
       }
 
       // 15. Filter by intelligence rule
+      const leadInfo = leadsLastSentMap.get(l.id);
       if (filters.intelligence === 'never_sent') {
-        const hasBeenSent = allQueuedLeads.some(q => q.lead_id === l.id);
-        if (hasBeenSent) return false;
+        if (leadInfo && (leadInfo.totalSent > 0 || leadInfo.lastSentAt)) return false;
       }
 
       if (filters.intelligence === 'no_active') {
-        const hasActiveCampaign = allQueuedLeads.some(q => 
-          q.lead_id === l.id && (q.status === 'pending' || q.status === 'sending')
-        );
-        if (hasActiveCampaign) return false;
+        if (leadInfo && leadInfo.hasActive) return false;
+      }
+
+      // 16. Recency / Anti-Fatigue Rule (Controle de Frequência de Envios)
+      const recency = filters.recencyDays || 'all';
+      if (recency !== 'all') {
+        if (recency === 'never') {
+          if (leadInfo && (leadInfo.totalSent > 0 || leadInfo.lastSentAt)) return false;
+        } else {
+          const days = parseInt(recency, 10);
+          if (!isNaN(days) && days > 0 && leadInfo && leadInfo.lastSentAt) {
+            const diffMs = Date.now() - leadInfo.lastSentAt.getTime();
+            const diffDays = diffMs / (1000 * 60 * 60 * 24);
+            if (diffDays < days) {
+              return false; // Exclui quem recebeu e-mail nos últimos X dias
+            }
+          }
+        }
       }
 
       // Must have valid email address and not be opted out
@@ -2672,8 +2749,35 @@ export function CampaignsPage() {
     audienceFilters.limit,
     audienceFilters.offset,
     audienceFilters.intelligence,
+    audienceFilters.recencyDays,
+    leadsLastSentMap,
     allLeads.length
   ]);
+
+  const rawFilteredLeadsCount = useMemo(() => {
+    if (!isAudienceModalOpen && !isNewAudienceDialogOpen) return 0;
+    const filtersWithoutRecency = { ...audienceFilters, recencyDays: 'all' };
+    return getFilteredLeads(filtersWithoutRecency).length;
+  }, [audienceFilters, allLeads, isAudienceModalOpen, isNewAudienceDialogOpen, leadsLastSentMap]);
+
+  const excludedByRecencyCount = useMemo(() => {
+    if (audienceFilters.recencyDays === 'all') return 0;
+    return Math.max(0, rawFilteredLeadsCount - visibleLeadsForGrid.length);
+  }, [rawFilteredLeadsCount, visibleLeadsForGrid.length, audienceFilters.recencyDays]);
+
+  const formatRelativeSent = (date: Date | null) => {
+    if (!date) return 'Nunca enviado';
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffHours < 1) return 'Enviado há instantes';
+    if (diffHours < 24) return `Enviado há ${diffHours}h`;
+    if (diffDays === 1) return 'Enviado ontem';
+    if (diffDays < 30) return `Enviado há ${diffDays} dias`;
+    return `Enviado em ${date.toLocaleDateString()}`;
+  };
 
   const handleSaveAudience = async () => {
     if (!selectedCampaignIdForAudience) return;
@@ -2828,6 +2932,53 @@ export function CampaignsPage() {
     }
   };
 
+  const filteredCampaigns = useMemo(() => {
+    return campaigns.filter((camp: any) => {
+      // 1. Search filter
+      if (campaignSearchTerm.trim()) {
+        const term = campaignSearchTerm.toLowerCase();
+        const titleMatch = (camp.title || '').toLowerCase().includes(term);
+        const tmplMatch = (camp.marketing_templates?.title || '').toLowerCase().includes(term);
+        const subjectMatch = (camp.marketing_templates?.subject || '').toLowerCase().includes(term);
+        if (!titleMatch && !tmplMatch && !subjectMatch) return false;
+      }
+
+      // 2. Status filter
+      if (campaignStatusFilter === 'active') {
+        if (camp.status !== 'sending' && camp.status !== 'scheduled') return false;
+      } else if (campaignStatusFilter === 'completed') {
+        if (camp.status !== 'completed') return false;
+      } else if (campaignStatusFilter === 'draft') {
+        if (camp.status !== 'draft') return false;
+      }
+
+      // 3. Date filter
+      if (campaignDateFilter !== 'all') {
+        const stats = campaignStats[camp.id];
+        const refDateStr = stats?.first_sent_at || camp.scheduled_at || camp.created_at;
+        if (!refDateStr) return false;
+        const refDate = new Date(refDateStr);
+        const now = new Date();
+        const diffMs = now.getTime() - refDate.getTime();
+        const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+        if (campaignDateFilter === 'today') {
+          const isToday =
+            refDate.getDate() === now.getDate() &&
+            refDate.getMonth() === now.getMonth() &&
+            refDate.getFullYear() === now.getFullYear();
+          if (!isToday) return false;
+        } else if (campaignDateFilter === '7d') {
+          if (diffDays > 7 || diffDays < -0.5) return false;
+        } else if (campaignDateFilter === '30d') {
+          if (diffDays > 30 || diffDays < -0.5) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [campaigns, campaignSearchTerm, campaignStatusFilter, campaignDateFilter, campaignStats]);
+
   const visibleLeadsForGrid = getFilteredAndSearchedLeads();
   const leadsPerPage = 50;
   const totalPages = Math.ceil(visibleLeadsForGrid.length / leadsPerPage);
@@ -2871,158 +3022,450 @@ export function CampaignsPage() {
         </TabsList>
 
         {/* Tab CAMPANHAS */}
-        <TabsContent value="campaigns" className="mt-4">
+        <TabsContent value="campaigns" className="mt-4 space-y-4">
+          {/* Toolbar de Filtros e Alternância de Visualização */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card border p-3 rounded-xl shadow-xs">
+            {/* Filtros à Esquerda */}
+            <div className="flex flex-wrap items-center gap-2.5 flex-1">
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por título ou template..."
+                  value={campaignSearchTerm}
+                  onChange={(e) => setCampaignSearchTerm(e.target.value)}
+                  className="pl-8 pr-8 h-9 text-xs"
+                />
+                {campaignSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setCampaignSearchTerm('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filtro por Status */}
+              <select
+                value={campaignStatusFilter}
+                onChange={(e) => setCampaignStatusFilter(e.target.value as any)}
+                className="h-9 border rounded-lg bg-background px-3 text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+              >
+                <option value="all">Todas as Campanhas ({campaigns.length})</option>
+                <option value="active">⚡ Ativas / Disparando ({campaigns.filter(c => c.status === 'sending' || c.status === 'scheduled').length})</option>
+                <option value="completed">✅ Concluídas ({campaigns.filter(c => c.status === 'completed').length})</option>
+                <option value="draft">📝 Rascunhos ({campaigns.filter(c => c.status === 'draft').length})</option>
+              </select>
+
+              {/* Filtro por Datas */}
+              <select
+                value={campaignDateFilter}
+                onChange={(e) => setCampaignDateFilter(e.target.value as any)}
+                className="h-9 border rounded-lg bg-background px-3 text-xs font-medium text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+              >
+                <option value="all">📅 Qualquer Data</option>
+                <option value="today">Hoje</option>
+                <option value="7d">Últimos 7 dias</option>
+                <option value="30d">Últimos 30 dias</option>
+              </select>
+
+              {(campaignSearchTerm || campaignStatusFilter !== 'all' || campaignDateFilter !== 'all') && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCampaignSearchTerm('');
+                    setCampaignStatusFilter('all');
+                    setCampaignDateFilter('all');
+                  }}
+                  className="h-9 text-xs px-2.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+                >
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Limpar
+                </Button>
+              )}
+            </div>
+
+            {/* Alternador Galeria / Lista */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 border p-0.5 rounded-lg shrink-0 self-end md:self-auto">
+              <Button
+                type="button"
+                variant={campaignViewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCampaignViewMode('grid')}
+                className="h-8 px-3 text-xs font-semibold gap-1.5"
+                title="Visualização em Galeria de Cards"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span>Galeria</span>
+              </Button>
+              <Button
+                type="button"
+                variant={campaignViewMode === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCampaignViewMode('table')}
+                className="h-8 px-3 text-xs font-semibold gap-1.5"
+                title="Visualização em Lista / Tabela"
+              >
+                <List className="h-3.5 w-3.5" />
+                <span>Lista</span>
+              </Button>
+            </div>
+          </div>
+
           {loadingCampaigns ? (
-            <div className="text-center py-20 text-muted-foreground">Carregando campanhas...</div>
+            <div className="text-center py-20 text-muted-foreground flex flex-col items-center gap-2">
+              <Loader2 className="h-6 w-6 text-yellow-500 animate-spin" />
+              Carregando campanhas...
+            </div>
           ) : campaigns.length === 0 ? (
             <div className="flex flex-col justify-center items-center py-20 text-muted-foreground border border-dashed rounded-xl bg-card">
               <Send className="h-12 w-12 text-slate-400 mb-2" />
-              <p className="font-semibold">Nenhuma campanha criada</p>
+              <p className="font-semibold text-slate-900 dark:text-slate-100">Nenhuma campanha criada</p>
               <p className="text-sm">Clique em "Nova Campanha" para preparar o primeiro disparo.</p>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {campaigns.map((camp) => (
-                <div key={camp.id} className="bg-card border p-5 rounded-xl shadow-sm hover:shadow transition-all flex flex-col justify-between min-h-[255px]">
-                  <div>
-                    <div className="flex justify-between items-start mb-2.5">
-                      {getStatusBadge(camp.status)}
-                      <div className="flex gap-1.5">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
-                          onClick={() => handleDeleteCampaign(camp.id)}
-                        >
-                          <Trash2 size={14} />
-                        </Button>
-                      </div>
-                    </div>
-                    <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-base truncate mb-1">{camp.title}</h3>
-                    <p className="text-xs text-slate-500 flex items-center gap-1.5 mb-2">
-                      <FileText size={12} />
-                      Template: <span className="font-medium truncate max-w-[150px]">{camp.marketing_templates?.title || 'Sem template'}</span>
-                    </p>
-                    <p className="text-[10px] text-muted-foreground flex items-center gap-1.5 mb-2">
-                      <Calendar size={11} />
-                      Criado em: {formatDate(camp.created_at)}
-                    </p>
-                    {camp.scheduled_at && (
-                      <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1.5 mt-1 mb-2">
-                        <Clock size={11} />
-                        Agendado para: {formatDate(camp.scheduled_at)}
-                      </p>
-                    )}
-                    
-                    {/* Target Audience & Metrics status info */}
-                    {(() => {
+          ) : filteredCampaigns.length === 0 ? (
+            <div className="flex flex-col justify-center items-center py-16 text-muted-foreground border border-dashed rounded-xl bg-card">
+              <Filter className="h-10 w-10 text-slate-400 mb-2" />
+              <p className="font-semibold text-slate-900 dark:text-slate-100">Nenhuma campanha encontrada</p>
+              <p className="text-xs text-muted-foreground mb-3">Tente ajustar seus termos de busca ou filtros de status/datas.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCampaignSearchTerm('');
+                  setCampaignStatusFilter('all');
+                  setCampaignDateFilter('all');
+                }}
+                className="text-xs"
+              >
+                Limpar Filtros
+              </Button>
+            </div>
+          ) : campaignViewMode === 'table' ? (
+            /* VISUALIZAÇÃO EM LISTA / TABELA */
+            <div className="bg-card border rounded-xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
+                      <th className="py-3 px-4">Campanha & Template</th>
+                      <th className="py-3 px-3">Status</th>
+                      <th className="py-3 px-3 text-center">Público</th>
+                      <th className="py-3 px-4 min-w-[200px]">Progresso & Envios</th>
+                      <th className="py-3 px-3">Datas (Criada / Disparo / Conclusão)</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredCampaigns.map((camp) => {
                       const stats = campaignStats[camp.id] || { total: 0, sent: 0, pending: 0, failed: 0 };
                       const percent = stats.total > 0 ? Math.min(100, Math.round((stats.sent / stats.total) * 100)) : 0;
+                      const isCompleted = camp.status === 'completed' || (stats.total > 0 && stats.pending === 0 && stats.sent > 0);
+                      const sentDate = stats.first_sent_at || camp.scheduled_at;
+                      const completedDate = isCompleted ? (stats.last_sent_at || camp.updated_at) : null;
 
                       return (
-                        <div className="mt-3 border-t pt-2.5 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground font-medium">Público / Destinatários:</span>
+                        <tr key={camp.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="font-semibold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1.5">
+                              {camp.title}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                              <FileText size={11} className="text-slate-400 shrink-0" />
+                              <span className="truncate max-w-[240px]">
+                                {camp.marketing_templates?.title || 'Sem template'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            {getStatusBadge(camp.status)}
+                          </td>
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
                             {camp.status === 'draft' && stats.total === 0 ? (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleOpenAudienceModal(camp.id)}
-                                className="text-xs py-1 h-7 border-dashed border-slate-300 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+                                className="text-[11px] py-0.5 h-6 border-dashed"
                               >
-                                Configurar público...
+                                Configurar...
                               </Button>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() => camp.status === 'draft' ? handleOpenAudienceModal(camp.id) : handleOpenTrackingModal(camp)}
-                                className="text-xs font-bold text-slate-800 dark:text-slate-200 hover:underline flex items-center gap-1"
-                              >
+                              <span className="inline-block font-bold text-xs bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-700 dark:text-slate-300">
                                 {stats.total} leads
-                              </button>
+                              </span>
                             )}
-                          </div>
-
-                          {/* Stats Chips */}
-                          {stats.total > 0 && (
-                            <div className="space-y-1.5 pt-1">
-                              <div className="flex flex-wrap gap-1.5 text-[11px]">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-medium">
-                                  <CheckCircle2 size={11} className="text-emerald-500" />
-                                  {stats.sent} enviados
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 font-medium">
-                                  <Clock size={11} className="text-amber-500" />
-                                  {stats.pending} na fila
-                                </span>
-                                {stats.failed > 0 && (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800/60 font-medium">
-                                    <XCircle size={11} className="text-red-500" />
-                                    {stats.failed} erros
+                          </td>
+                          <td className="py-3 px-4">
+                            {stats.total > 0 ? (
+                              <div className="space-y-1.5 max-w-xs">
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="font-medium text-slate-600 dark:text-slate-400">
+                                    {percent}% ({stats.sent}/{stats.total})
                                   </span>
-                                )}
-                              </div>
-
-                              {/* Progress bar */}
-                              {(stats.sent > 0 || camp.status === 'sending' || camp.status === 'completed') && (
-                                <div>
-                                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                    <div 
-                                      className={`h-1.5 rounded-full transition-all duration-500 ${percent === 100 ? 'bg-emerald-500' : 'bg-yellow-500'}`} 
-                                      style={{ width: `${percent}%` }} 
-                                    />
-                                  </div>
-                                  <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                                    <span>Progresso do Envio</span>
-                                    <span className="font-semibold text-slate-700 dark:text-slate-300">{percent}% ({stats.sent}/{stats.total})</span>
+                                  <div className="flex gap-1">
+                                    {stats.pending > 0 && (
+                                      <span className="text-amber-600 dark:text-amber-400 font-semibold">{stats.pending} fila</span>
+                                    )}
+                                    {stats.failed > 0 && (
+                                      <span className="text-red-500 font-semibold">{stats.failed} erros</span>
+                                    )}
                                   </div>
                                 </div>
-                              )}
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-1.5 rounded-full transition-all duration-500 ${percent === 100 ? 'bg-emerald-500' : 'bg-yellow-500'}`}
+                                    style={{ width: `${percent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">Sem destinatários</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 whitespace-nowrap text-[11px] text-slate-500 space-y-0.5">
+                            <div>
+                              <span className="text-slate-400">Criada:</span> {formatDate(camp.created_at)}
                             </div>
+                            {sentDate && (
+                              <div className="text-blue-600 dark:text-blue-400 font-medium">
+                                <span className="text-slate-400">Disparo:</span> {formatDate(sentDate)}
+                              </div>
+                            )}
+                            {completedDate && (
+                              <div className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                <span className="text-slate-400">Conclusão:</span> {formatDate(completedDate)}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {camp.status === 'draft' ? (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => handleStartCampaignImmediate(camp.id)}
+                                    disabled={!stats.total}
+                                    className="h-7 text-xs bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold px-2.5"
+                                  >
+                                    <Play size={11} className="mr-1" />
+                                    Disparar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenScheduleCampaign(camp.id)}
+                                    disabled={!stats.total}
+                                    className="h-7 text-xs px-2.5"
+                                  >
+                                    <Clock size={11} className="mr-1" />
+                                    Agendar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleOpenAudienceModal(camp.id)}
+                                    className="h-7 text-xs px-2"
+                                    title="Configurar Público"
+                                  >
+                                    <Users size={12} />
+                                  </Button>
+                                </>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleOpenTrackingModal(camp)}
+                                  className="h-7 text-xs font-semibold px-2.5 border-slate-300 dark:border-slate-800"
+                                >
+                                  <Eye size={12} className="mr-1 text-blue-500" />
+                                  Relatório & Envios
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                onClick={() => handleDeleteCampaign(camp.id)}
+                                title="Excluir Campanha"
+                              >
+                                <Trash2 size={13} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            /* VISUALIZAÇÃO EM GALERIA DE CARDS */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredCampaigns.map((camp) => {
+                const stats = campaignStats[camp.id] || { total: 0, sent: 0, pending: 0, failed: 0 };
+                const percent = stats.total > 0 ? Math.min(100, Math.round((stats.sent / stats.total) * 100)) : 0;
+                const isCompleted = camp.status === 'completed' || (stats.total > 0 && stats.pending === 0 && stats.sent > 0);
+                const sentDate = stats.first_sent_at || camp.scheduled_at;
+                const completedDate = isCompleted ? (stats.last_sent_at || camp.updated_at) : null;
+
+                return (
+                  <div key={camp.id} className="bg-card border p-5 rounded-xl shadow-sm hover:shadow transition-all flex flex-col justify-between min-h-[265px]">
+                    <div>
+                      <div className="flex justify-between items-start mb-2.5">
+                        {getStatusBadge(camp.status)}
+                        <div className="flex gap-1.5">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                            onClick={() => handleDeleteCampaign(camp.id)}
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </div>
+                      <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-base truncate mb-1">{camp.title}</h3>
+                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mb-2">
+                        <FileText size={12} />
+                        Template: <span className="font-medium truncate max-w-[150px]">{camp.marketing_templates?.title || 'Sem template'}</span>
+                      </p>
+
+                      {/* Datas da Campanha */}
+                      <div className="space-y-1 text-[10px] text-muted-foreground border-y py-2 my-2">
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Calendar size={11} className="text-slate-400" />
+                            Criada:
+                          </span>
+                          <span className="font-medium text-slate-700 dark:text-slate-300">{formatDate(camp.created_at)}</span>
+                        </div>
+                        {sentDate && (
+                          <div className="flex items-center justify-between text-blue-600 dark:text-blue-400">
+                            <span className="flex items-center gap-1">
+                              <Play size={11} />
+                              {camp.status === 'scheduled' ? 'Agendada:' : 'Disparada:'}
+                            </span>
+                            <span className="font-semibold">{formatDate(sentDate)}</span>
+                          </div>
+                        )}
+                        {completedDate && (
+                          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 size={11} />
+                              Concluída:
+                            </span>
+                            <span className="font-semibold">{formatDate(completedDate)}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Target Audience & Metrics status info */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground font-medium">Público / Destinatários:</span>
+                          {camp.status === 'draft' && stats.total === 0 ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenAudienceModal(camp.id)}
+                              className="text-xs py-1 h-7 border-dashed border-slate-300 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+                            >
+                              Configurar público...
+                            </Button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => camp.status === 'draft' ? handleOpenAudienceModal(camp.id) : handleOpenTrackingModal(camp)}
+                              className="text-xs font-bold text-slate-800 dark:text-slate-200 hover:underline flex items-center gap-1"
+                            >
+                              {stats.total} leads
+                            </button>
                           )}
                         </div>
-                      );
-                    })()}
+
+                        {/* Stats Chips */}
+                        {stats.total > 0 && (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex flex-wrap gap-1.5 text-[11px]">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 font-medium">
+                                <CheckCircle2 size={11} className="text-emerald-500" />
+                                {stats.sent} enviados
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 font-medium">
+                                <Clock size={11} className="text-amber-500" />
+                                {stats.pending} na fila
+                              </span>
+                              {stats.failed > 0 && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800/60 font-medium">
+                                  <XCircle size={11} className="text-red-500" />
+                                  {stats.failed} erros
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Progress bar */}
+                            {(stats.sent > 0 || camp.status === 'sending' || camp.status === 'completed') && (
+                              <div>
+                                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                  <div 
+                                    className={`h-1.5 rounded-full transition-all duration-500 ${percent === 100 ? 'bg-emerald-500' : 'bg-yellow-500'}`} 
+                                    style={{ width: `${percent}%` }} 
+                                  />
+                                </div>
+                                <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
+                                  <span>Progresso do Envio</span>
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">{percent}% ({stats.sent}/{stats.total})</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Campaign Actions */}
+                    {camp.status === 'draft' ? (
+                      <div className="flex gap-2 mt-4 pt-3 border-t">
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleStartCampaignImmediate(camp.id)}
+                          disabled={!stats.total}
+                          className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
+                        >
+                          <Play size={12} className="mr-1.5" />
+                          Disparar
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => handleOpenScheduleCampaign(camp.id)}
+                          disabled={!stats.total}
+                          className="flex-1 border-slate-300 dark:border-slate-800"
+                        >
+                          <Clock size={12} className="mr-1.5" />
+                          Agendar
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 mt-4 pt-3 border-t">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleOpenTrackingModal(camp)}
+                          className="w-full border-slate-300 dark:border-slate-800 font-semibold text-xs"
+                        >
+                          <Eye size={13} className="mr-1.5 text-blue-500" />
+                          Acompanhar Envios & Relatório
+                        </Button>
+                      </div>
+                    )}
                   </div>
-                  
-                  {/* Campaign Actions */}
-                  {camp.status === 'draft' ? (
-                    <div className="flex gap-2 mt-4 pt-3 border-t">
-                      <Button 
-                        size="sm" 
-                        onClick={() => handleStartCampaignImmediate(camp.id)}
-                        disabled={!campaignStats[camp.id]?.total}
-                        className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
-                      >
-                        <Play size={12} className="mr-1.5" />
-                        Disparar
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleOpenScheduleCampaign(camp.id)}
-                        disabled={!campaignStats[camp.id]?.total}
-                        className="flex-1 border-slate-300 dark:border-slate-800"
-                      >
-                        <Clock size={12} className="mr-1.5" />
-                        Agendar
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 mt-4 pt-3 border-t">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleOpenTrackingModal(camp)}
-                        className="w-full border-slate-300 dark:border-slate-800 font-semibold text-xs"
-                      >
-                        <Eye size={13} className="mr-1.5 text-blue-500" />
-                        Acompanhar Envios & Relatório
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -3418,11 +3861,11 @@ export function CampaignsPage() {
 
       {/* Campaign Modal */}
       <Dialog open={isCampaignModalOpen} onOpenChange={setIsCampaignModalOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle>Criar Nova Campanha de E-mail</DialogTitle>
             <DialogDescription>
-              Selecione o template de marketing cadastrado para criar um rascunho de campanha.
+              Defina o nome, template e selecione o público-alvo com controle anti-fadiga de envios.
             </DialogDescription>
           </DialogHeader>
 
@@ -3452,12 +3895,137 @@ export function CampaignsPage() {
               </select>
             </div>
 
+            {/* Seleção de Público Reutilizável */}
+            <div className="space-y-1.5 border-t pt-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="campAudience" className="text-xs font-semibold flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                  <Users className="h-3.5 w-3.5 text-yellow-500" />
+                  Público-Alvo / Segmento
+                </Label>
+                {pendingAudienceForCampaign && (
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                    ✓ Público Selecionado
+                  </span>
+                )}
+              </div>
+              <select
+                id="campAudience"
+                className="w-full border rounded-md p-2 text-xs bg-card"
+                value={pendingAudienceForCampaign?.id || ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) {
+                    setPendingAudienceForCampaign(null);
+                  } else {
+                    const found = savedAudiences.find(a => a.id === val);
+                    if (found) {
+                      setPendingAudienceForCampaign(found);
+                      if (found.filters) {
+                        setAudienceFilters(prev => ({ ...prev, ...found.filters }));
+                      }
+                      if (allLeads.length === 0) {
+                        fetchAudienceLeads();
+                      }
+                    }
+                  }
+                }}
+              >
+                <option value="">Configurar público depois manualmente (Criar Rascunho)</option>
+                {savedAudiences.map(aud => (
+                  <option key={aud.id} value={aud.id}>
+                    {aud.name} ({aud.leadCount || aud.leadIds?.length || 'Base'} leads)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Controle de Frequência & Anti-Fadiga */}
+            {pendingAudienceForCampaign && (
+              <div className="space-y-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="campRecency" className="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                    <ShieldCheck className="h-4 w-4 text-amber-500" />
+                    Controle de Frequência / Anti-Fadiga
+                  </Label>
+                  <span className="text-[10px] text-muted-foreground font-medium">Não enviar para quem recebeu recentemente</span>
+                </div>
+
+                <select
+                  id="campRecency"
+                  value={audienceFilters.recencyDays || 'all'}
+                  onChange={(e) => setAudienceFilters(prev => ({ ...prev, recencyDays: e.target.value }))}
+                  className="w-full h-9 border rounded-lg bg-card px-3 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                >
+                  <option value="all">Sem restrição (Enviar para todos)</option>
+                  <option value="7">🛡️ Excluir quem recebeu nos últimos 7 dias</option>
+                  <option value="10">🛡️ Excluir quem recebeu nos últimos 10 dias (Recomendado)</option>
+                  <option value="14">🛡️ Excluir quem recebeu nos últimos 14 dias (2 semanas)</option>
+                  <option value="21">🛡️ Excluir quem recebeu nos últimos 21 dias (3 semanas)</option>
+                  <option value="30">🛡️ Excluir quem recebeu nos últimos 30 dias (1 mês)</option>
+                  <option value="never">✨ Apenas quem NUNCA recebeu nenhuma campanha</option>
+                </select>
+
+                {/* Previsão do lote */}
+                {(() => {
+                  const baseCount = pendingAudienceForCampaign.leadCount || pendingAudienceForCampaign.leadIds?.length || 0;
+                  let effectiveCount = baseCount;
+                  let excludedCount = 0;
+
+                  if (allLeads.length > 0) {
+                    let targetIds: string[] = [];
+                    if (pendingAudienceForCampaign.leadIds && Array.isArray(pendingAudienceForCampaign.leadIds) && pendingAudienceForCampaign.leadIds.length > 0) {
+                      targetIds = pendingAudienceForCampaign.leadIds;
+                    } else {
+                      targetIds = getFilteredLeads({ ...pendingAudienceForCampaign.filters, recencyDays: 'all' }, allLeads).map(l => l.id);
+                    }
+
+                    const recency = audienceFilters.recencyDays || 'all';
+                    if (recency !== 'all') {
+                      const filteredIds = targetIds.filter((id: string) => {
+                        const info = leadsLastSentMap.get(id);
+                        if (recency === 'never') {
+                          return !(info && (info.totalSent > 0 || info.lastSentAt));
+                        }
+                        const days = parseInt(recency, 10);
+                        if (!isNaN(days) && days > 0 && info && info.lastSentAt) {
+                          const diffDays = (Date.now() - info.lastSentAt.getTime()) / (1000 * 60 * 60 * 24);
+                          return diffDays >= days;
+                        }
+                        return true;
+                      });
+                      effectiveCount = filteredIds.length;
+                      excludedCount = targetIds.length - filteredIds.length;
+                    } else {
+                      effectiveCount = targetIds.length;
+                    }
+                  }
+
+                  return (
+                    <div className="grid grid-cols-3 gap-2 text-center pt-2 border-t border-slate-200 dark:border-slate-800">
+                      <div className="bg-background border rounded-lg p-1.5">
+                        <span className="text-[10px] text-muted-foreground block">Público Bruto</span>
+                        <span className="font-bold text-xs text-slate-800 dark:text-slate-200">{baseCount} leads</span>
+                      </div>
+                      <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 rounded-lg p-1.5">
+                        <span className="text-[10px] text-red-600 dark:text-red-400 block">Excluídos Recentes</span>
+                        <span className="font-bold text-xs text-red-700 dark:text-red-300">-{excludedCount}</span>
+                      </div>
+                      <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 rounded-lg p-1.5">
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block">Total a Enviar</span>
+                        <span className="font-bold text-xs text-emerald-700 dark:text-emerald-300">{effectiveCount} leads</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => setIsCampaignModalOpen(false)}>
                 Cancelar
               </Button>
               <Button type="submit" className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
-                Criar Rascunho
+                Criar Campanha
               </Button>
             </DialogFooter>
           </form>
@@ -3715,6 +4283,18 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
+                {audienceFilters.recencyDays && audienceFilters.recencyDays !== 'all' && (
+                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 p-2.5 rounded-xl flex items-center justify-between text-xs mb-3 shadow-xs">
+                    <span className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-200">
+                      <ShieldCheck className="h-4 w-4 text-amber-500 shrink-0" />
+                      Filtro Anti-Fadiga ({audienceFilters.recencyDays === 'never' ? 'Nunca enviados' : `Últimos ${audienceFilters.recencyDays} dias`})
+                    </span>
+                    <span className="font-bold text-red-500 text-[11px] bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded border border-red-200 dark:border-red-800/40">
+                      -{excludedByRecencyCount} excluídos
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="audStage" className="text-xs">Estágio (Kanban)</Label>
@@ -3867,16 +4447,31 @@ export function CampaignsPage() {
                 </div>
 
                 <div className="space-y-1.5 border-t pt-3">
-                  <Label htmlFor="audIntel" className="text-xs">Filtro Antispam / Frequência</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="audRecency" className="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                      <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
+                      Controle Anti-Fadiga / Recência de Envio
+                    </Label>
+                    {audienceFilters.recencyDays && audienceFilters.recencyDays !== 'all' && (
+                      <span className="text-[10px] text-red-500 font-bold">
+                        -{excludedByRecencyCount} excluídos
+                      </span>
+                    )}
+                  </div>
                   <select
-                    id="audIntel"
-                    value={audienceFilters.intelligence}
-                    onChange={(e) => setAudienceFilters({ ...audienceFilters, intelligence: e.target.value })}
-                    className="w-full h-9 border rounded-lg bg-card px-3 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                    id="audRecency"
+                    value={audienceFilters.recencyDays || 'all'}
+                    onChange={(e) => setAudienceFilters({ ...audienceFilters, recencyDays: e.target.value })}
+                    className="w-full h-9 border rounded-lg bg-card px-3 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
                   >
-                    <option value="all">Enviar para todos que atendem aos filtros</option>
-                    <option value="never_sent">Apenas quem NUNCA recebeu campanha</option>
-                    <option value="no_active">Apenas quem não tem campanhas ativas</option>
+                    <option value="all">Sem restrição (Qualquer época)</option>
+                    <option value="7">🛡️ Não enviar se recebeu e-mail nos últimos 7 dias</option>
+                    <option value="10">🛡️ Não enviar se recebeu e-mail nos últimos 10 dias (Recomendado)</option>
+                    <option value="14">🛡️ Não enviar se recebeu e-mail nos últimos 14 dias (2 semanas)</option>
+                    <option value="21">🛡️ Não enviar se recebeu e-mail nos últimos 21 dias (3 semanas)</option>
+                    <option value="30">🛡️ Não enviar se recebeu e-mail nos últimos 30 dias (1 mês)</option>
+                    <option value="60">🛡️ Não enviar se recebeu e-mail nos últimos 60 dias (2 meses)</option>
+                    <option value="never">✨ Apenas leads que NUNCA receberam nenhuma campanha</option>
                   </select>
                 </div>
 
@@ -4013,6 +4608,20 @@ export function CampaignsPage() {
                                 <Mail className="h-3 w-3 text-slate-400 shrink-0" />
                                 <span className="text-blue-600 dark:text-blue-400 font-medium truncate">{l.email}</span>
                               </p>
+                              {(() => {
+                                const info = leadsLastSentMap.get(l.id);
+                                return info?.lastSentAt ? (
+                                  <p className="text-[9px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                                    <Clock className="h-2.5 w-2.5 shrink-0" />
+                                    <span>{formatRelativeSent(info.lastSentAt)} ({info.totalSent} envio{info.totalSent === 1 ? '' : 's'})</span>
+                                  </p>
+                                ) : (
+                                  <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                    <Sparkles className="h-2.5 w-2.5 shrink-0" />
+                                    <span>Nunca enviado</span>
+                                  </p>
+                                );
+                              })()}
                             </div>
                           </div>
                           <div className="text-right shrink-0 space-y-0.5">
@@ -4191,6 +4800,18 @@ export function CampaignsPage() {
                   </div>
                 </div>
 
+                {audienceFilters.recencyDays && audienceFilters.recencyDays !== 'all' && (
+                  <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/60 p-2.5 rounded-xl flex items-center justify-between text-xs mb-3 shadow-xs">
+                    <span className="flex items-center gap-1.5 font-semibold text-amber-800 dark:text-amber-200">
+                      <ShieldCheck className="h-4 w-4 text-amber-500 shrink-0" />
+                      Filtro Anti-Fadiga ({audienceFilters.recencyDays === 'never' ? 'Nunca enviados' : `Últimos ${audienceFilters.recencyDays} dias`})
+                    </span>
+                    <span className="font-bold text-red-500 text-[11px] bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded border border-red-200 dark:border-red-800/40">
+                      -{excludedByRecencyCount} excluídos
+                    </span>
+                  </div>
+                )}
+
                 <div className="space-y-1.5">
                   <Label htmlFor="newAudSaveName" className="text-xs font-semibold">Nome do Público Salvo</Label>
                   <Input
@@ -4352,6 +4973,35 @@ export function CampaignsPage() {
                     />
                   </div>
                 </div>
+
+                <div className="space-y-1.5 border-t pt-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="newAudRecency" className="text-xs font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                      <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
+                      Controle Anti-Fadiga / Recência de Envio
+                    </Label>
+                    {audienceFilters.recencyDays && audienceFilters.recencyDays !== 'all' && (
+                      <span className="text-[10px] text-red-500 font-bold">
+                        -{excludedByRecencyCount} excluídos
+                      </span>
+                    )}
+                  </div>
+                  <select
+                    id="newAudRecency"
+                    value={audienceFilters.recencyDays || 'all'}
+                    onChange={(e) => setAudienceFilters({ ...audienceFilters, recencyDays: e.target.value })}
+                    className="w-full h-9 border rounded-lg bg-card px-3 text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                  >
+                    <option value="all">Sem restrição (Qualquer época)</option>
+                    <option value="7">🛡️ Não enviar se recebeu e-mail nos últimos 7 dias</option>
+                    <option value="10">🛡️ Não enviar se recebeu e-mail nos últimos 10 dias (Recomendado)</option>
+                    <option value="14">🛡️ Não enviar se recebeu e-mail nos últimos 14 dias (2 semanas)</option>
+                    <option value="21">🛡️ Não enviar se recebeu e-mail nos últimos 21 dias (3 semanas)</option>
+                    <option value="30">🛡️ Não enviar se recebeu e-mail nos últimos 30 dias (1 mês)</option>
+                    <option value="60">🛡️ Não enviar se recebeu e-mail nos últimos 60 dias (2 meses)</option>
+                    <option value="never">✨ Apenas leads que NUNCA receberam nenhuma campanha</option>
+                  </select>
+                </div>
               </div>
 
               {/* Right Column: Galeria e Seleção de Leads (col-span-7) */}
@@ -4460,6 +5110,20 @@ export function CampaignsPage() {
                                 <Mail className="h-3 w-3 text-slate-400 shrink-0" />
                                 <span className="text-blue-600 dark:text-blue-400 font-medium truncate">{l.email}</span>
                               </p>
+                              {(() => {
+                                const info = leadsLastSentMap.get(l.id);
+                                return info?.lastSentAt ? (
+                                  <p className="text-[9px] text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                                    <Clock className="h-2.5 w-2.5 shrink-0" />
+                                    <span>{formatRelativeSent(info.lastSentAt)} ({info.totalSent} envio{info.totalSent === 1 ? '' : 's'})</span>
+                                  </p>
+                                ) : (
+                                  <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                                    <Sparkles className="h-2.5 w-2.5 shrink-0" />
+                                    <span>Nunca enviado</span>
+                                  </p>
+                                );
+                              })()}
                             </div>
                           </div>
                           <div className="text-right shrink-0 space-y-0.5">
