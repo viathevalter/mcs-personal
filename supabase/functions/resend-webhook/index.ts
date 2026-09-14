@@ -42,11 +42,54 @@ serve(async (req) => {
 
     const resendEmailId = body.data?.email_id;
 
+    // Extração de tags do Resend (podem vir como array [{ name, value }] ou objeto { name: value })
+    let tagLeadId: string | null = null;
+    let tagCampaignId: string | null = null;
+    const rawTags = body.data?.tags;
+    if (Array.isArray(rawTags)) {
+      for (const t of rawTags) {
+        if (t.name === "lead_id" || t.key === "lead_id") tagLeadId = String(t.value);
+        if (t.name === "campaign_id" || t.key === "campaign_id") tagCampaignId = String(t.value);
+      }
+    } else if (rawTags && typeof rawTags === "object") {
+      tagLeadId = rawTags.lead_id ? String(rawTags.lead_id) : null;
+      tagCampaignId = rawTags.campaign_id ? String(rawTags.campaign_id) : null;
+    }
+
+    // Detecção da empresa pelo remetente (header 'from') ou TLD do destinatário
+    const fromHeader = String(body.data?.from || "").toLowerCase();
+    let hintEmpresaId: string | null = null;
+    const WISEOWE_ID = "dae64d51-2181-4510-b14f-e63d2f111a8e";
+    const TRIANGULO_ID = "a0000000-0000-0000-0000-000000000001";
+    const LUMINOUS_ID = "847796c4-d1ee-4a87-ba86-25f08cb6fb3f";
+
+    if (fromHeader.includes("wiseowe") || fromHeader.includes("fr.wiseowe.com") || cleanEmail.endsWith(".fr")) {
+      hintEmpresaId = WISEOWE_ID;
+    } else if (fromHeader.includes("triangulolda") || fromHeader.includes("es.triangulolda.com") || fromHeader.includes("it.triangulolda.com")) {
+      hintEmpresaId = TRIANGULO_ID;
+    } else if (fromHeader.includes("luminousalley") || fromHeader.includes("luminous")) {
+      hintEmpresaId = LUMINOUS_ID;
+    }
+
     let lead: any = null;
     let queueItem: any = null;
 
-    // 1. Busca prioritária por resend_email_id na fila da campanha
-    if (resendEmailId) {
+    // 1. Busca prioritária por tagLeadId
+    if (tagLeadId) {
+      const { data: leadData } = await supabase
+        .schema("core_comercial")
+        .from("leads")
+        .select("id, stage_id, empresa_id, email, name, tags, notes")
+        .eq("id", tagLeadId)
+        .maybeSingle();
+
+      if (leadData) {
+        lead = leadData;
+      }
+    }
+
+    // 2. Busca por resend_email_id na fila da campanha
+    if (!lead && resendEmailId) {
       const { data: queueItems } = await supabase
         .schema("core_comercial")
         .from("marketing_campaign_queue")
@@ -71,31 +114,48 @@ serve(async (req) => {
       }
     }
 
-    // 2. Fallback: busca direta por e-mail na tabela de leads
+    // 3. Fallback: busca por e-mail priorizando a empresa detectada
     if (!lead && cleanEmail) {
-      const { data: leads } = await supabase
-        .schema("core_comercial")
-        .from("leads")
-        .select("id, stage_id, empresa_id, email, name, tags, notes")
-        .ilike("email", cleanEmail)
-        .limit(1);
+      if (hintEmpresaId) {
+        const { data: hintedLeads } = await supabase
+          .schema("core_comercial")
+          .from("leads")
+          .select("id, stage_id, empresa_id, email, name, tags, notes")
+          .ilike("email", cleanEmail)
+          .eq("empresa_id", hintEmpresaId)
+          .limit(1);
 
-      if (leads && leads.length > 0) {
-        lead = leads[0];
+        if (hintedLeads && hintedLeads.length > 0) {
+          lead = hintedLeads[0];
+        }
+      }
+
+      if (!lead) {
+        const { data: leads } = await supabase
+          .schema("core_comercial")
+          .from("leads")
+          .select("id, stage_id, empresa_id, email, name, tags, notes")
+          .ilike("email", cleanEmail)
+          .limit(1);
+
+        if (leads && leads.length > 0) {
+          lead = leads[0];
+        }
       }
     }
 
-    // 3. Processar abertura ou clique
+    // 4. Processar abertura ou clique
     if (isOpenOrClick && lead) {
-      let targetEmpresaId = lead.empresa_id;
+      let targetEmpresaId = hintEmpresaId || lead.empresa_id;
 
       // Se soubermos qual campanha enviou o e-mail, a campanha determina a empresa dona
-      if (queueItem?.campaign_id) {
+      const effectiveCampaignId = queueItem?.campaign_id || tagCampaignId;
+      if (effectiveCampaignId) {
         const { data: campaignData } = await supabase
           .schema("core_comercial")
           .from("marketing_campaigns")
           .select("empresa_id")
-          .eq("id", queueItem.campaign_id)
+          .eq("id", effectiveCampaignId)
           .maybeSingle();
         if (campaignData?.empresa_id) {
           targetEmpresaId = campaignData.empresa_id;

@@ -341,7 +341,7 @@ serve(async (req) => {
             },
             tags: [
               { name: "campaign_id", value: campaign.id },
-              { name: "lead_id", value: lead.id },
+              { name: "lead_id", value: item.lead_id || lead?.id },
             ],
           };
 

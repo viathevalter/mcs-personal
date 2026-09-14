@@ -424,14 +424,20 @@ export function KanbanPage() {
   }, [leads, searchTerm, selectedEmpresaId, selectedSalesperson, selectedCountry]);
 
   const getLeadsInStage = (stage: KanbanStage) => {
-    return filteredLeads.filter(lead => {
-      if (lead.stage_id === stage.id) return true;
-      const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
-      if (leadOrderIndex !== undefined) {
-        return leadOrderIndex === stage.order_index;
-      }
-      return stage.order_index === 1;
-    });
+    return filteredLeads
+      .filter(lead => {
+        if (lead.stage_id === stage.id) return true;
+        const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
+        if (leadOrderIndex !== undefined) {
+          return leadOrderIndex === stage.order_index;
+        }
+        return stage.order_index === 1;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+        const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+        return timeB - timeA;
+      });
   };
 
   const formatDate = (dateString?: string) => {
@@ -460,17 +466,23 @@ export function KanbanPage() {
 
   // List Mode Filtered Leads
   const listFilteredLeads = useMemo(() => {
-    return filteredLeads.filter(lead => {
-      if (selectedStageFilter === 'all') return true;
-      const stage = stages.find(s => s.id === selectedStageFilter);
-      if (!stage) return true;
-      if (lead.stage_id === stage.id) return true;
-      const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
-      if (leadOrderIndex !== undefined) {
-        return leadOrderIndex === stage.order_index;
-      }
-      return stage.order_index === 1;
-    });
+    return filteredLeads
+      .filter(lead => {
+        if (selectedStageFilter === 'all') return true;
+        const stage = stages.find(s => s.id === selectedStageFilter);
+        if (!stage) return true;
+        if (lead.stage_id === stage.id) return true;
+        const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
+        if (leadOrderIndex !== undefined) {
+          return leadOrderIndex === stage.order_index;
+        }
+        return stage.order_index === 1;
+      })
+      .sort((a, b) => {
+        const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+        const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+        return timeB - timeA;
+      });
   }, [filteredLeads, selectedStageFilter, stages, stageIdToOrderMap]);
 
   // Pagination for List Mode
@@ -1323,9 +1335,9 @@ export function KanbanPage() {
                                 </div>
                               )}
                               <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                                <span className="flex items-center gap-1">
+                                <span className="flex items-center gap-1" title={lead.updated_at ? `Última atualização: ${formatDate(lead.updated_at)}` : `Criado em: ${formatDate(lead.created_at)}`}>
                                   <Calendar className="h-3 w-3" />
-                                  {formatDate(lead.created_at)}
+                                  {formatDate(lead.updated_at || lead.created_at)}
                                 </span>
                               </div>
                             </div>
