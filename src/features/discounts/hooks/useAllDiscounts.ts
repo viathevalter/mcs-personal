@@ -22,13 +22,16 @@ export function useAllDiscounts() {
             const { data: workers, error: workersError } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, contratante, cliente_nombre, status_trabajador, empresa_id')
+                .select('id, cod_colab, nome, contratante, status_trabajador')
                 .in('id', workerIds);
 
-            if (workersError) throw workersError;
+            if (workersError) {
+                console.error("Error fetching workers for discounts:", workersError);
+                throw workersError;
+            }
 
             // Passo 4: Criar um dicionário (Map) para junção em O(1)
-            const workersMap = new Map(workers?.map(w => [w.id, w]));
+            const workersMap = new Map((workers || []).map(w => [w.id, w]));
 
             // Passo 5: Combinar os dois Array, mantendo a integridade sem Inner Join frágil
             const enrichedDiscounts = discounts.map(discount => {
@@ -37,7 +40,6 @@ export function useAllDiscounts() {
                     cod_colab: '',
                     nome: 'Desconhecido',
                     contratante: '',
-                    cliente_nombre: '',
                     status_trabajador: 'Alta'
                 };
                 return {

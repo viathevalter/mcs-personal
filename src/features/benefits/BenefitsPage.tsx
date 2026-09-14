@@ -22,6 +22,50 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
 import { isHoldingId } from '@/shared/utils/empresaUtils';
 
+export function isDateInCompetence(dateStr?: string | null, mesCompetencia?: string | null): boolean {
+    if (!mesCompetencia || mesCompetencia === 'ALL') return true;
+    if (!dateStr) return false;
+    const str = String(dateStr).trim();
+
+    const [year, month] = mesCompetencia.split('-');
+    if (!year || !month) return true;
+
+    if (str.startsWith(`${year}-${month}`)) return true;
+
+    const slashParts = str.split('/');
+    if (slashParts.length === 3) {
+        const dMonth = slashParts[1].padStart(2, '0');
+        const dYear = slashParts[2].substring(0, 4);
+        if (dYear === year && dMonth === month) return true;
+    }
+
+    const dashParts = str.split('-');
+    if (dashParts.length === 3 && dashParts[0].length <= 2) {
+        const dMonth = dashParts[1].padStart(2, '0');
+        const dYear = dashParts[2].substring(0, 4);
+        if (dYear === year && dMonth === month) return true;
+    }
+
+    return false;
+}
+
+export function formatDisplayDate(dateStr?: string | null, locale = ptBR): string {
+    if (!dateStr) return '-';
+    try {
+        const str = String(dateStr).trim();
+        if (str.includes('/')) {
+            const parts = str.split('/');
+            if (parts.length === 3) {
+                const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+                return format(d, 'dd/MM/yyyy', { locale });
+            }
+        }
+        return format(parseISO(str), 'dd/MM/yyyy', { locale });
+    } catch {
+        return dateStr;
+    }
+}
+
 export function BenefitsPage() {
     const { i18n } = useTranslation();
     const { selectedEmpresaId: empresaId, empresas } = useEmpresa();
@@ -199,11 +243,12 @@ export function BenefitsPage() {
             const matchesCategory = selectedCategory === 'ALL' || bCategory.toUpperCase() === selectedCategory.toUpperCase();
 
             let matchesMonth = true;
-            if (monthFilter && monthFilter !== 'ALL' && w.housing_benefit?.start_date) {
-                const bMonth = w.housing_benefit.start_date.substring(0, 7);
-                matchesMonth = bMonth === monthFilter;
-            } else if (monthFilter && monthFilter !== 'ALL' && !w.housing_benefit) {
-                matchesMonth = false;
+            if (monthFilter && monthFilter !== 'ALL') {
+                if (!w.housing_benefit) {
+                    matchesMonth = false;
+                } else {
+                    matchesMonth = isDateInCompetence(w.housing_benefit.start_date, monthFilter);
+                }
             }
 
             return matchesSearch && matchesClient && matchesCompany && matchesCategory && matchesMonth;
@@ -553,7 +598,7 @@ export function BenefitsPage() {
                                                 {hasBenefit ? `€ ${benefit!.monthly_amount.toFixed(2)}` : '-'}
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-xs">
-                                                {benefit?.start_date ? format(new Date(benefit.start_date), 'dd/MM/yyyy') : '-'}
+                                                {formatDisplayDate(benefit?.start_date, i18n.language === 'pt' ? ptBR : es)}
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <Button

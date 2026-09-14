@@ -28,6 +28,54 @@ import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '
 import { useUniqueClients } from '@/features/workers/hooks/useUniqueClients';
 import { isHoldingId } from '@/shared/utils/empresaUtils';
 
+export function isDateInCompetence(dateStr?: string | null, mesCompetencia?: string | null): boolean {
+    if (!mesCompetencia || mesCompetencia === 'ALL') return true;
+    if (!dateStr) return false;
+    const str = String(dateStr).trim();
+
+    // mesCompetencia is formatted as "YYYY-MM" (e.g. "2026-07")
+    const [year, month] = mesCompetencia.split('-');
+    if (!year || !month) return true;
+
+    // 1. ISO style: 2026-07-xx or 2026-07
+    if (str.startsWith(`${year}-${month}`)) return true;
+
+    // 2. Slash style: DD/MM/YYYY or D/M/YYYY
+    const slashParts = str.split('/');
+    if (slashParts.length === 3) {
+        const dMonth = slashParts[1].padStart(2, '0');
+        const dYear = slashParts[2].substring(0, 4);
+        if (dYear === year && dMonth === month) return true;
+    }
+
+    // 3. Dash style: DD-MM-YYYY
+    const dashParts = str.split('-');
+    if (dashParts.length === 3 && dashParts[0].length <= 2) {
+        const dMonth = dashParts[1].padStart(2, '0');
+        const dYear = dashParts[2].substring(0, 4);
+        if (dYear === year && dMonth === month) return true;
+    }
+
+    return false;
+}
+
+export function formatDisplayDate(dateStr?: string | null, locale = ptBR): string {
+    if (!dateStr) return '-';
+    try {
+        const str = String(dateStr).trim();
+        if (str.includes('/')) {
+            const parts = str.split('/');
+            if (parts.length === 3) {
+                const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+                return format(d, 'MMM yyyy', { locale });
+            }
+        }
+        return format(parseISO(str), 'MMM yyyy', { locale });
+    } catch {
+        return dateStr;
+    }
+}
+
 export function DiscountsPage() {
     const { i18n } = useTranslation();
     const { data: allDiscounts, isLoading } = useAllDiscounts();
@@ -133,10 +181,9 @@ export function DiscountsPage() {
             // 3. Status
             if (selectedStatus !== 'ALL' && discount.status !== selectedStatus) return false;
 
-            // 4. Month filter
+            // 4. Month filter (robust across ISO, slash DD/MM/YYYY, dash DD-MM-YYYY)
             if (monthFilter && monthFilter !== 'ALL') {
-                const discountMonth = discount.reference_date.substring(0, 7); // yyyy-MM
-                if (discountMonth !== monthFilter) return false;
+                if (!isDateInCompetence(discount.reference_date, monthFilter)) return false;
             }
 
             // 5. Company filter
@@ -148,7 +195,7 @@ export function DiscountsPage() {
             // 6. Client filter
             if (clientFilter && clientFilter !== 'ALL') {
                 const workerClient = worker.cliente_nombre || '';
-                if (workerClient.toLowerCase() !== clientFilter.toLowerCase()) return false;
+                if (workerClient && workerClient.toLowerCase() !== clientFilter.toLowerCase()) return false;
             }
 
             return true;
@@ -467,7 +514,7 @@ export function DiscountsPage() {
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                {format(parseISO(discount.reference_date), "MMM yyyy", { locale: i18n.language === 'pt' ? ptBR : es })}
+                                                {formatDisplayDate(discount.reference_date, i18n.language === 'pt' ? ptBR : es)}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <Badge variant="secondary" className="font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200">

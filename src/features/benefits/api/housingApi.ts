@@ -1,6 +1,7 @@
 import { supabase } from '@/shared/supabase/client';
 import { mapSupabaseError } from '@/shared/api/supabaseError';
 import type { HousingBenefit } from '@/shared/types/corePersonal';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 export async function getHousingByWorker(workerId: string): Promise<HousingBenefit[]> {
     const { data, error } = await supabase
@@ -53,8 +54,6 @@ export async function deleteHousing(id: string): Promise<void> {
         throw mapSupabaseError(error);
     }
 }
-
-import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 export async function getWorkersWithHousing(empresaId?: string): Promise<import('@/shared/types/corePersonal').WorkerWithHousing[]> {
     try {
