@@ -39,6 +39,7 @@ import {
 interface ImportHousingDialogProps {
     workers?: WorkerWithHousing[];
     trigger: React.ReactNode;
+    defaultCompetence?: string;
 }
 
 interface ParsedRow {
@@ -69,12 +70,12 @@ const DEFAULT_BENEFIT_CATEGORIES = [
     'Outros Proventos'
 ];
 
-export function ImportHousingDialog({ workers: initialWorkers, trigger }: ImportHousingDialogProps) {
+export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultCompetence }: ImportHousingDialogProps) {
     const { selectedEmpresaId } = useEmpresa();
     const { data: benefitCategoriesData } = useBenefitCategories(selectedEmpresaId || undefined);
 
     const competenceOptions = useMemo(() => getCompetenceOptions(), []);
-    const currentCompetence = useMemo(() => getCurrentCompetence(), []);
+    const initialCompetence = defaultCompetence || getCurrentCompetence();
 
     const categoryList = useMemo(() => {
         if (benefitCategoriesData && benefitCategoriesData.length > 0) {
@@ -131,7 +132,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger }: Import
     const [rawRows, setRawRows] = useState<any[]>([]);
 
     // Combobox Selection States (Competência e Categoria)
-    const [selectedCompetence, setSelectedCompetence] = useState<string>(currentCompetence);
+    const [selectedCompetence, setSelectedCompetence] = useState<string>(initialCompetence);
     const [selectedCategory, setSelectedCategory] = useState<string>('Auxílio Moradia');
 
     // Mapping state
@@ -153,7 +154,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger }: Import
         setRawRows([]);
         setParsedRows([]);
         setColMapping({ cod_colab: '', valor: '', data_inicio: '', categoria: '', nome: '' });
-        setSelectedCompetence(currentCompetence);
+        setSelectedCompetence(defaultCompetence || initialCompetence);
         setSelectedCategory('Auxílio Moradia');
         setIsParsing(false);
     };

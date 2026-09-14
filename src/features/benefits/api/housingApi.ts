@@ -54,14 +54,21 @@ export async function deleteHousing(id: string): Promise<void> {
     }
 }
 
-export async function getWorkersWithHousing(empresaId: string): Promise<import('@/shared/types/corePersonal').WorkerWithHousing[]> {
+import { isHoldingId } from '@/shared/utils/empresaUtils';
+
+export async function getWorkersWithHousing(empresaId?: string): Promise<import('@/shared/types/corePersonal').WorkerWithHousing[]> {
     try {
-        // 1. Fetch all housing benefits for this company (Usually a small list)
-        const { data: housingBenefits, error: housingError } = await supabase
+        // 1. Fetch housing benefits (if specific subsidiary empresa is provided, filter by it; if holding or all, fetch all)
+        let query = supabase
             .schema('core_personal')
             .from('worker_benefit_housing')
-            .select('*')
-            .eq('empresa_id', empresaId);
+            .select('*');
+
+        if (empresaId && empresaId !== 'all' && !isHoldingId(empresaId)) {
+            query = query.eq('empresa_id', empresaId);
+        }
+
+        const { data: housingBenefits, error: housingError } = await query;
 
         if (housingError) {
             throw mapSupabaseError(housingError);

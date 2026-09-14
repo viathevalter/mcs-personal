@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAllDiscounts } from '../hooks/useAllDiscounts';
 import type { DiscountCategory, DiscountStatus } from '../types';
@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR, es } from 'date-fns/locale';
-import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2 } from 'lucide-react';
+import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2, X, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
@@ -22,28 +22,37 @@ import { useDeleteDiscount, useDeleteDiscountBatch } from '../hooks/useDiscountM
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 import { normalizeDiscountCategoryName, STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
-
 import { useSearchParams } from 'react-router-dom';
-
 import { CreateDiscountDialog } from '../components/CreateDiscountDialog';
+import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
+import { useUniqueClients } from '@/features/workers/hooks/useUniqueClients';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 export function DiscountsPage() {
     const { i18n } = useTranslation();
     const { data: allDiscounts, isLoading } = useAllDiscounts();
-    const { selectedEmpresaId } = useEmpresa();
+    const { selectedEmpresaId, empresas } = useEmpresa();
     const { data: discountCategories = [] } = useDiscountCategories(selectedEmpresaId || undefined);
+    const { data: clientsList = [] } = useUniqueClients();
     const [searchParams, setSearchParams] = useSearchParams();
+
+    const [isRevertBannerDismissed, setIsRevertBannerDismissed] = useState(false);
+
+    // Default to current competence month (e.g. "2026-08")
+    const defaultMonth = useMemo(() => format(new Date(), 'yyyy-MM'), []);
 
     // Filters from URL
     const searchTerm = searchParams.get('search') || '';
     const selectedCategory = (searchParams.get('category') as DiscountCategory | 'ALL') || 'ALL';
     const selectedStatus = (searchParams.get('status') as DiscountStatus | 'ALL') || 'ALL';
-    const monthFilter = searchParams.get('month') || ''; // YYYY-MM format
+    const monthFilter = searchParams.get('month') !== null ? (searchParams.get('month') || '') : defaultMonth;
+    const companyFilter = searchParams.get('company') || 'ALL';
+    const clientFilter = searchParams.get('client') || 'ALL';
 
     const updateSearchParams = (updates: Record<string, string | null | undefined>) => {
         const newParams = new URLSearchParams(searchParams);
         Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === undefined || value === '' || value === 'ALL') {
+            if (value === null || value === undefined || value === 'ALL') {
                 newParams.delete(key);
             } else {
                 newParams.set(key, value);
@@ -52,16 +61,66 @@ export function DiscountsPage() {
         setSearchParams(newParams, { replace: true });
     };
 
+    // Keep companyFilter synced with header Empresa context
+    useEffect(() => {
+        if (!selectedEmpresaId || selectedEmpresaId === 'all' || isHoldingId(selectedEmpresaId, empresas)) {
+            if (companyFilter !== 'ALL' && !searchParams.has('company')) {
+                // leave as is or ALL
+            }
+            return;
+        }
+
+        if (selectedEmpresaId && empresas) {
+            const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
+            if (currentEmpresa) {
+                const normCurrent = normalizeEmpresaName(currentEmpresa.trade_name || currentEmpresa.nome);
+                if (normCurrent && normCurrent !== companyFilter) {
+                    updateSearchParams({ company: normCurrent });
+                }
+            }
+        }
+    }, [selectedEmpresaId, empresas]);
+
+    // Month options list (last 12 months + next 2 months)
+    const monthOptions = useMemo(() => {
+        const list: { value: string; label: string }[] = [
+            { value: 'ALL', label: 'Todos os Meses (Histórico Completo)' }
+        ];
+
+        for (let i = -2; i < 12; i++) {
+            const d = new Date();
+            d.setDate(1);
+            d.setMonth(d.getMonth() - i);
+            const val = format(d, 'yyyy-MM');
+            const label = format(d, 'MMMM yyyy', { locale: i18n.language.startsWith('pt') ? ptBR : es });
+            const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1);
+            list.push({ value: val, label: capitalizedLabel });
+        }
+
+        return list;
+    }, [i18n.language]);
+
+    // Unique clients from discounts data + global list
+    const availableClients = useMemo(() => {
+        const set = new Set<string>(clientsList);
+        (allDiscounts || []).forEach(d => {
+            if (d.workers?.cliente_nombre) set.add(d.workers.cliente_nombre);
+        });
+        return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }, [allDiscounts, clientsList]);
+
     // Filter application
     const filteredDiscounts = useMemo(() => {
         if (!allDiscounts) return [];
 
         return allDiscounts.filter((discount) => {
-            // 1. Search term (Worker Name or Code)
+            const worker = discount.workers || ({} as any);
+
+            // 1. Search term (Worker Name or Code or Description)
             const matchesSearch =
-                discount.workers.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                discount.workers.cod_colab?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                discount.description?.toLowerCase().includes(searchTerm.toLowerCase());
+                (worker.nome || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (worker.cod_colab || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (discount.description || '').toLowerCase().includes(searchTerm.toLowerCase());
             if (searchTerm && !matchesSearch) return false;
 
             // 2. Category
@@ -75,14 +134,26 @@ export function DiscountsPage() {
             if (selectedStatus !== 'ALL' && discount.status !== selectedStatus) return false;
 
             // 4. Month filter
-            if (monthFilter) {
+            if (monthFilter && monthFilter !== 'ALL') {
                 const discountMonth = discount.reference_date.substring(0, 7); // yyyy-MM
                 if (discountMonth !== monthFilter) return false;
             }
 
+            // 5. Company filter
+            if (companyFilter && companyFilter !== 'ALL') {
+                const workerContratante = worker.contratante || '';
+                if (!matchesEmpresaFilter(workerContratante, companyFilter)) return false;
+            }
+
+            // 6. Client filter
+            if (clientFilter && clientFilter !== 'ALL') {
+                const workerClient = worker.cliente_nombre || '';
+                if (workerClient.toLowerCase() !== clientFilter.toLowerCase()) return false;
+            }
+
             return true;
         });
-    }, [allDiscounts, searchTerm, selectedCategory, selectedStatus, monthFilter, discountCategories]);
+    }, [allDiscounts, searchTerm, selectedCategory, selectedStatus, monthFilter, companyFilter, clientFilter, discountCategories]);
 
     const { mutate: deleteDiscount } = useDeleteDiscount();
     const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteDiscountBatch();
@@ -99,6 +170,7 @@ export function DiscountsPage() {
         }
     };
 
+    // Category Stats (filtered)
     const categoryStats = useMemo(() => {
         if (!allDiscounts) return [];
         const stats: Record<string, number> = {};
@@ -109,18 +181,34 @@ export function DiscountsPage() {
         return Object.entries(stats).sort((a, b) => b[1] - a[1]).slice(0, 3);
     }, [filteredDiscounts, allDiscounts, discountCategories]);
 
+    // Recent Batches: only show batches relevant to the selected month OR created within last 48h
     const recentBatches = useMemo(() => {
         if (!allDiscounts) return [];
 
-        const map = new Map<string, { time: number, count: number }>();
+        const now = Date.now();
+        const twoDaysAgo = now - (48 * 60 * 60 * 1000);
+
+        const map = new Map<string, { time: number; count: number; month: string }>();
         allDiscounts.forEach(d => {
             if (d.import_batch_id) {
                 const time = new Date(d.created_at).getTime();
-                const existing = map.get(d.import_batch_id);
-                if (!existing) {
-                    map.set(d.import_batch_id, { time, count: 1 });
-                } else {
-                    map.set(d.import_batch_id, { time: Math.max(existing.time, time), count: existing.count + 1 });
+                const dMonth = (d.reference_date || '').substring(0, 7);
+
+                // Check relevance: either created in last 48h OR matches active monthFilter
+                const isRecent = time >= twoDaysAgo;
+                const matchesActiveMonth = monthFilter && monthFilter !== 'ALL' ? dMonth === monthFilter : true;
+
+                if (isRecent || matchesActiveMonth) {
+                    const existing = map.get(d.import_batch_id);
+                    if (!existing) {
+                        map.set(d.import_batch_id, { time, count: 1, month: dMonth });
+                    } else {
+                        map.set(d.import_batch_id, {
+                            time: Math.max(existing.time, time),
+                            count: existing.count + 1,
+                            month: dMonth
+                        });
+                    }
                 }
             }
         });
@@ -128,8 +216,8 @@ export function DiscountsPage() {
         return Array.from(map.entries())
             .sort((a, b) => b[1].time - a[1].time)
             .slice(0, 3)
-            .map(([id, data]) => ({ id, count: data.count, date: new Date(data.time) }));
-    }, [allDiscounts]);
+            .map(([id, data]) => ({ id, count: data.count, date: new Date(data.time), month: data.month }));
+    }, [allDiscounts, monthFilter]);
 
     // Aggregate stats
     const totalAmount = filteredDiscounts.reduce((sum, d) => sum + Number(d.amount), 0);
@@ -137,10 +225,12 @@ export function DiscountsPage() {
     const handleExportExcel = () => {
         if (!filteredDiscounts.length) return;
 
-        const headers = ['Trabalhador', 'Código', 'Data Referência', 'Categoria', 'Valor', 'Status', 'Recorrente', 'Descrição'];
+        const headers = ['Trabalhador', 'Código', 'Empresa', 'Cliente', 'Data Referência', 'Categoria', 'Valor', 'Status', 'Recorrente', 'Descrição'];
         const rows = filteredDiscounts.map(d => [
-            d.workers.nome,
-            d.workers.cod_colab || '',
+            d.workers?.nome || '-',
+            d.workers?.cod_colab || '',
+            d.workers?.contratante || '',
+            d.workers?.cliente_nombre || '',
             format(parseISO(d.reference_date), 'dd/MM/yyyy'),
             d.category,
             d.amount.toFixed(2),
@@ -173,6 +263,7 @@ export function DiscountsPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                     <CreateDiscountDialog />
                     <ImportDiscountsDialog
+                        defaultCompetence={monthFilter && monthFilter !== 'ALL' ? monthFilter : defaultMonth}
                         trigger={
                             <Button variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
                                 <DownloadCloud className="mr-2 h-4 w-4" />
@@ -193,7 +284,7 @@ export function DiscountsPage() {
                     <div className="bg-white rounded-xl shadow-sm border p-6 flex flex-col justify-center">
                         <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Total em Descontos</h3>
                         <div className="mt-2 text-3xl font-bold text-gray-900">€ {totalAmount.toFixed(2)}</div>
-                        <p className="mt-1 text-xs text-muted-foreground">{filteredDiscounts.length} registros no filtro</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{filteredDiscounts.length} registros no período</p>
                     </div>
                     {categoryStats.map(([cat, val]) => (
                         <div key={cat} className="bg-white rounded-xl shadow-sm border p-6 flex flex-col justify-center">
@@ -203,39 +294,53 @@ export function DiscountsPage() {
                     ))}
                 </div>
 
-                {/* Batch Revert Section */}
-                {recentBatches.length > 0 && (
-                    <div className="flex flex-col gap-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100/60">
-                        <div className="text-sm font-medium text-amber-900 flex items-center gap-2">
-                            <Undo2 className="h-4 w-4" /> Desfazer Importações Recentes
+                {/* Batch Revert Section (Dismissible & Context-aware) */}
+                {recentBatches.length > 0 && !isRevertBannerDismissed && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/70 rounded-xl p-4 border border-amber-200/70">
+                        <div className="space-y-1">
+                            <div className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                                <Undo2 className="h-4 w-4 text-amber-700" /> Importações Recentes Disponíveis para Reversão
+                            </div>
+                            <p className="text-xs text-amber-700">
+                                Se você realizou uma importação com erros, clique abaixo para desfazê-la em lote:
+                            </p>
+                            <div className="flex gap-2 flex-wrap pt-1">
+                                {recentBatches.map(b => (
+                                    <Button
+                                        key={b.id}
+                                        variant="outline"
+                                        size="sm"
+                                        className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border-amber-200 shadow-sm"
+                                        onClick={() => handleUndoBatch(b.id)}
+                                        disabled={isDeletingBatch}
+                                    >
+                                        Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
+                                    </Button>
+                                ))}
+                            </div>
                         </div>
-                        <div className="flex gap-2 flex-wrap">
-                            {recentBatches.map(b => (
-                                <Button
-                                    key={b.id}
-                                    variant="outline"
-                                    size="sm"
-                                    className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    onClick={() => handleUndoBatch(b.id)}
-                                    disabled={isDeletingBatch}
-                                >
-                                    Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
-                                </Button>
-                            ))}
-                        </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-amber-700 hover:text-amber-900 hover:bg-amber-100/60 self-start sm:self-center"
+                            onClick={() => setIsRevertBannerDismissed(true)}
+                            title="Ocultar aviso de reversão"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
                     </div>
                 )}
 
                 {/* Filters bar */}
-                <div className="bg-white p-4 rounded-xl shadow-sm border flex flex-col md:flex-row gap-4 items-end">
-                    <div className="flex-1 space-y-1.5 w-full">
+                <div className="bg-white p-4 rounded-xl shadow-sm border grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+                    <div className="space-y-1.5 w-full">
                         <label className="text-xs font-medium text-gray-700">Buscar Trabalhador</label>
                         <div className="relative">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <Search className="h-4 w-4 text-gray-400" />
                             </div>
                             <Input
-                                placeholder="Nome ou código do trabalhador..."
+                                placeholder="Nome, código..."
                                 value={searchTerm}
                                 onChange={(e) => updateSearchParams({ search: e.target.value })}
                                 className="pl-9"
@@ -243,20 +348,73 @@ export function DiscountsPage() {
                         </div>
                     </div>
 
-                    <div className="space-y-1.5 w-full md:w-48">
-                        <label className="text-xs font-medium text-gray-700">Mês / Ano</label>
-                        <Input
-                            type="month"
-                            value={monthFilter}
-                            onChange={(e) => updateSearchParams({ month: e.target.value })}
-                        />
+                    {/* Mês / Competência */}
+                    <div className="space-y-1.5 w-full">
+                        <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                            <span>Mês / Competência</span>
+                        </label>
+                        <Select
+                            value={monthFilter || 'ALL'}
+                            onValueChange={(v) => updateSearchParams({ month: v === 'ALL' ? '' : v })}
+                        >
+                            <SelectTrigger className="font-medium">
+                                <SelectValue placeholder="Selecione o mês..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {monthOptions.map(m => (
+                                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
-                    <div className="space-y-1.5 w-full md:w-48">
-                        <label className="text-xs font-medium text-gray-700">Categoria</label>
-                        <Select value={selectedCategory} onValueChange={(v: DiscountCategory | 'ALL') => updateSearchParams({ category: v })}>
+                    {/* Empresa Contratante */}
+                    <div className="space-y-1.5 w-full">
+                        <label className="text-xs font-semibold text-gray-700">Empresa (Contratante)</label>
+                        <Select
+                            value={companyFilter}
+                            onValueChange={(v) => updateSearchParams({ company: v })}
+                        >
                             <SelectTrigger>
-                                <SelectValue placeholder="Todas" />
+                                <SelectValue placeholder="Todas as Empresas" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">Todas as Empresas</SelectItem>
+                                {CANONICAL_EMPRESAS.map(empName => (
+                                    <SelectItem key={empName} value={empName}>{empName}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Cliente */}
+                    <div className="space-y-1.5 w-full">
+                        <label className="text-xs font-semibold text-gray-700">Cliente</label>
+                        <Select
+                            value={clientFilter}
+                            onValueChange={(v) => updateSearchParams({ client: v })}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Todos os Clientes" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="ALL">Todos os Clientes</SelectItem>
+                                {availableClients.map(cName => (
+                                    <SelectItem key={cName} value={cName}>{cName}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Categoria */}
+                    <div className="space-y-1.5 w-full">
+                        <label className="text-xs font-semibold text-gray-700">Categoria</label>
+                        <Select
+                            value={selectedCategory}
+                            onValueChange={(v: DiscountCategory | 'ALL') => updateSearchParams({ category: v })}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Todas as categorias" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="ALL">Todas as categorias</SelectItem>
@@ -275,6 +433,7 @@ export function DiscountsPage() {
                             <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                                 <tr>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Trabalhador</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Empresa / Cliente</th>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Data</th>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Categoria</th>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Valor (€)</th>
@@ -287,7 +446,7 @@ export function DiscountsPage() {
                                 {isLoading ? (
                                     Array.from({ length: 3 }).map((_, i) => (
                                         <tr key={i} className="animate-pulse">
-                                            <td colSpan={7} className="px-6 py-5 bg-gray-50/50" />
+                                            <td colSpan={8} className="px-6 py-5 bg-gray-50/50" />
                                         </tr>
                                     ))
                                 ) : filteredDiscounts.length > 0 ? (
@@ -299,6 +458,12 @@ export function DiscountsPage() {
                                                     <span className="text-xs text-muted-foreground font-mono">
                                                         Código: {discount.workers.cod_colab || '-'} {discount.workers.status_trabajador ? `(${discount.workers.status_trabajador})` : ''}
                                                     </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-slate-800">{normalizeEmpresaName(discount.workers.contratante) || '-'}</span>
+                                                    <span className="text-muted-foreground">{discount.workers.cliente_nombre || '-'}</span>
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
@@ -332,7 +497,7 @@ export function DiscountsPage() {
                                                     <EditDiscountDialog
                                                         discount={discount}
                                                         trigger={
-                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
                                                                 <Edit className="h-4 w-4" />
                                                             </Button>
                                                         }
@@ -351,7 +516,7 @@ export function DiscountsPage() {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                                        <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                                             Nenhum desconto encontrado com os filtros atuais.
                                         </td>
                                     </tr>

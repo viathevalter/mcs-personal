@@ -38,6 +38,7 @@ import {
 
 interface ImportDiscountsDialogProps {
     trigger: React.ReactNode;
+    defaultCompetence?: string;
 }
 
 interface ParsedRow {
@@ -70,12 +71,12 @@ const DEFAULT_DISCOUNT_CATEGORIES = [
     'Outros Descontos'
 ];
 
-export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
+export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDiscountsDialogProps) {
     const { selectedEmpresaId } = useEmpresa();
     const { data: discountCategoriesData } = useDiscountCategories(selectedEmpresaId || undefined);
 
     const competenceOptions = useMemo(() => getCompetenceOptions(), []);
-    const currentCompetence = useMemo(() => getCurrentCompetence(), []);
+    const initialCompetence = defaultCompetence || getCurrentCompetence();
 
     const categoryList = useMemo(() => {
         if (discountCategoriesData && discountCategoriesData.length > 0) {
@@ -132,7 +133,7 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
     const [rawRows, setRawRows] = useState<any[]>([]);
 
     // Combobox Selection States (Competência e Categoria)
-    const [selectedCompetence, setSelectedCompetence] = useState<string>(currentCompetence);
+    const [selectedCompetence, setSelectedCompetence] = useState<string>(initialCompetence);
     const [selectedCategory, setSelectedCategory] = useState<string>('Aluguel de Carro');
 
     // Column Mapping state
@@ -156,7 +157,7 @@ export function ImportDiscountsDialog({ trigger }: ImportDiscountsDialogProps) {
         setRawRows([]);
         setParsedRows([]);
         setColMapping({ cod_colab: '', valor: '', nome: '', categoria: '', data: '', descricao: '' });
-        setSelectedCompetence(currentCompetence);
+        setSelectedCompetence(defaultCompetence || initialCompetence);
         setSelectedCategory('Aluguel de Carro');
         setIsParsing(false);
     };

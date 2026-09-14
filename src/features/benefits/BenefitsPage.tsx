@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useWorkersWithHousing } from './hooks/useWorkersWithHousing';
 import { EditHousingDialog } from './components/EditHousingDialog';
@@ -8,28 +8,78 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Edit, FileSpreadsheet, Loader2, Link2Off, Link2, ArrowUpDown, ArrowUp, ArrowDown, Undo2, DownloadCloud } from 'lucide-react';
+import { Edit, FileSpreadsheet, Loader2, Link2Off, Link2, ArrowUpDown, ArrowUp, ArrowDown, Undo2, DownloadCloud, X } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
+import { ptBR, es } from 'date-fns/locale';
+import { useTranslation } from 'react-i18next';
 import type { WorkerWithHousing } from '@/shared/types/corePersonal';
 import { useDeleteHousingBatch } from './hooks/useDeleteHousingBatch';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { useUniqueClients } from '../workers/hooks/useUniqueClients';
 import { useBenefitCategories } from '@/features/settings/hooks/useCategories';
 import { useSearchParams } from 'react-router-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 export function BenefitsPage() {
-    const { selectedEmpresaId: empresaId } = useEmpresa();
+    const { i18n } = useTranslation();
+    const { selectedEmpresaId: empresaId, empresas } = useEmpresa();
     const [searchParams, setSearchParams] = useSearchParams();
 
     const { data: workers, isLoading, isError } = useWorkersWithHousing(empresaId || undefined);
     const { data: benefitCategoriesData } = useBenefitCategories(empresaId || undefined);
+
+    const [isRevertBannerDismissed, setIsRevertBannerDismissed] = useState(false);
+
+    // Default to current competence month (e.g. "2026-08")
+    const defaultMonth = useMemo(() => format(new Date(), 'yyyy-MM'), []);
 
     // Filters from URL
     const searchTerm = searchParams.get('search') || '';
     const selectedClient = searchParams.get('client')?.split('||').filter(Boolean) || [];
     const selectedCompany = searchParams.get('company') || 'ALL';
     const selectedCategory = searchParams.get('category') || 'ALL';
-    const monthFilter = searchParams.get('month') || '';
+    const monthFilter = searchParams.get('month') !== null ? (searchParams.get('month') || '') : defaultMonth;
+
+    // Month options list (last 12 months + next 2 months)
+    const monthOptions = useMemo(() => {
+        const list: { value: string; label: string }[] = [
+            { value: 'ALL', label: 'Todos os Meses (Histórico Completo)' }
+        ];
+
+        for (let i = -2; i < 12; i++) {
+            const d = new Date();
+            d.setDate(1);
+            d.setMonth(d.getMonth() - i);
+            const val = format(d, 'yyyy-MM');
+            const label = format(d, 'MMMM yyyy', { locale: i18n.language.startsWith('pt') ? ptBR : es });
+            const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1);
+            list.push({ value: val, label: capitalizedLabel });
+        }
+
+        return list;
+    }, [i18n.language]);
+
+    // Keep selectedCompany synced with header Empresa context
+    useEffect(() => {
+        if (!empresaId || empresaId === 'all' || isHoldingId(empresaId, empresas)) {
+            if (selectedCompany !== 'ALL' && !searchParams.has('company')) {
+                // keep
+            }
+            return;
+        }
+
+        if (empresaId && empresas) {
+            const currentEmpresa = empresas.find(e => String(e.id) === String(empresaId));
+            if (currentEmpresa) {
+                const normCurrent = normalizeEmpresaName(currentEmpresa.trade_name || currentEmpresa.nome);
+                if (normCurrent && normCurrent !== selectedCompany) {
+                    updateSearchParams({ company: normCurrent });
+                }
+            }
+        }
+    }, [empresaId, empresas]);
 
     // Sort from URL
     const sortKeyParam = searchParams.get('sortKey');
@@ -39,7 +89,7 @@ export function BenefitsPage() {
     const updateSearchParams = (updates: Record<string, string | string[] | null | undefined>) => {
         const newParams = new URLSearchParams(searchParams);
         Object.entries(updates).forEach(([key, value]) => {
-            if (value === null || value === undefined || value === '' || value === 'ALL' || (Array.isArray(value) && value.length === 0)) {
+            if (value === null || value === undefined || value === 'ALL' || (Array.isArray(value) && value.length === 0)) {
                 newParams.delete(key);
             } else if (Array.isArray(value)) {
                 newParams.set(key, value.join('||'));
@@ -63,12 +113,6 @@ export function BenefitsPage() {
         const clients = new Set(workers.map(w => w.cliente_nombre).filter(Boolean) as string[]);
         return Array.from(clients).sort();
     }, [workers, globalClientsList]);
-
-    const uniqueCompanies = useMemo(() => {
-        if (!workers) return [];
-        const companies = new Set(workers.map(w => w.contratante).filter(Boolean) as string[]);
-        return Array.from(companies).sort();
-    }, [workers]);
 
     const availableCategories = useMemo(() => {
         const defaultCats = [
@@ -104,19 +148,34 @@ export function BenefitsPage() {
         }
     };
 
+    // Recent Batches: only show batches relevant to the selected month OR created within last 48h
     const recentBatches = useMemo(() => {
         if (!workers) return [];
 
-        const map = new Map<string, { time: number, count: number }>();
+        const now = Date.now();
+        const twoDaysAgo = now - (48 * 60 * 60 * 1000);
+
+        const map = new Map<string, { time: number; count: number; month: string }>();
         workers.forEach(w => {
             const h = w.housing_benefit;
             if (h && h.import_batch_id) {
                 const time = new Date(h.created_at || Date.now()).getTime();
-                const existing = map.get(h.import_batch_id);
-                if (!existing) {
-                    map.set(h.import_batch_id, { time, count: 1 });
-                } else {
-                    map.set(h.import_batch_id, { time: Math.max(existing.time, time), count: existing.count + 1 });
+                const bMonth = (h.start_date || '').substring(0, 7);
+
+                const isRecent = time >= twoDaysAgo;
+                const matchesActiveMonth = monthFilter && monthFilter !== 'ALL' ? bMonth === monthFilter : true;
+
+                if (isRecent || matchesActiveMonth) {
+                    const existing = map.get(h.import_batch_id);
+                    if (!existing) {
+                        map.set(h.import_batch_id, { time, count: 1, month: bMonth });
+                    } else {
+                        map.set(h.import_batch_id, {
+                            time: Math.max(existing.time, time),
+                            count: existing.count + 1,
+                            month: bMonth
+                        });
+                    }
                 }
             }
         });
@@ -124,8 +183,8 @@ export function BenefitsPage() {
         return Array.from(map.entries())
             .sort((a, b) => b[1].time - a[1].time)
             .slice(0, 3)
-            .map(([id, data]) => ({ id, count: data.count, date: new Date(data.time) }));
-    }, [workers]);
+            .map(([id, data]) => ({ id, count: data.count, date: new Date(data.time), month: data.month }));
+    }, [workers, monthFilter]);
 
     const filteredAndSortedWorkers = useMemo(() => {
         if (!workers) return [];
@@ -134,16 +193,16 @@ export function BenefitsPage() {
             const matchesSearch = w.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                 w.cod_colab.toLowerCase().includes(searchTerm.toLowerCase());
             const matchesClient = selectedClient.length === 0 || selectedClient.includes(w.cliente_nombre || '');
-            const matchesCompany = selectedCompany === 'ALL' || w.contratante === selectedCompany;
+            const matchesCompany = selectedCompany === 'ALL' || matchesEmpresaFilter(w.contratante, selectedCompany);
 
             const bCategory = w.housing_benefit?.category || (w.housing_benefit ? 'Auxílio Moradia' : '');
-            const matchesCategory = selectedCategory === 'ALL' || bCategory === selectedCategory;
+            const matchesCategory = selectedCategory === 'ALL' || bCategory.toUpperCase() === selectedCategory.toUpperCase();
 
             let matchesMonth = true;
-            if (monthFilter && w.housing_benefit?.start_date) {
+            if (monthFilter && monthFilter !== 'ALL' && w.housing_benefit?.start_date) {
                 const bMonth = w.housing_benefit.start_date.substring(0, 7);
                 matchesMonth = bMonth === monthFilter;
-            } else if (monthFilter && !w.housing_benefit) {
+            } else if (monthFilter && monthFilter !== 'ALL' && !w.housing_benefit) {
                 matchesMonth = false;
             }
 
@@ -216,7 +275,7 @@ export function BenefitsPage() {
             w.nome,
             w.cod_colab || '',
             w.cliente_nombre || '',
-            w.contratante || '',
+            normalizeEmpresaName(w.contratante) || '',
             w.housing_benefit?.category || (w.housing_benefit ? 'Auxílio Moradia' : '-'),
             w.housing_benefit ? w.housing_benefit.monthly_amount.toFixed(2) : '0.00',
             w.housing_benefit?.start_date ? format(new Date(w.housing_benefit.start_date), 'dd/MM/yyyy') : '-',
@@ -271,6 +330,7 @@ export function BenefitsPage() {
                     <CreateBenefitDialog />
                     <ImportHousingDialog
                         workers={workers || []}
+                        defaultCompetence={monthFilter && monthFilter !== 'ALL' ? monthFilter : defaultMonth}
                         trigger={
                             <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
                                 <DownloadCloud className="mr-2 h-4 w-4" />
@@ -300,32 +360,47 @@ export function BenefitsPage() {
                 ))}
             </div>
 
-            {recentBatches.length > 0 && (
-                <div className="flex flex-col gap-3 bg-amber-50/50 rounded-xl p-4 border border-amber-100/60 max-w-3xl">
-                    <div className="text-sm font-medium text-amber-900 flex items-center gap-2">
-                        <Undo2 className="h-4 w-4" /> Desfazer Importações Recentes
+            {/* Batch Revert Section (Dismissible & Context-aware) */}
+            {recentBatches.length > 0 && !isRevertBannerDismissed && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-amber-50/70 rounded-xl p-4 border border-amber-200/70">
+                    <div className="space-y-1">
+                        <div className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                            <Undo2 className="h-4 w-4 text-amber-700" /> Importações Recentes Disponíveis para Reversão
+                        </div>
+                        <p className="text-xs text-amber-700">
+                            Se você realizou uma importação com erros, clique abaixo para desfazê-la em lote:
+                        </p>
+                        <div className="flex gap-2 flex-wrap pt-1">
+                            {recentBatches.map(b => (
+                                <Button
+                                    key={b.id}
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 border-amber-200 shadow-sm"
+                                    onClick={() => handleUndoBatch(b.id)}
+                                    disabled={isDeletingBatch}
+                                >
+                                    Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
+                                </Button>
+                            ))}
+                        </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap">
-                        {recentBatches.map(b => (
-                            <Button
-                                key={b.id}
-                                variant="outline"
-                                size="sm"
-                                className="bg-white text-xs font-semibold text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => handleUndoBatch(b.id)}
-                                disabled={isDeletingBatch}
-                            >
-                                Reverter Lote {format(b.date, 'dd/MM HH:mm')} ({b.count} itens)
-                            </Button>
-                        ))}
-                    </div>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-amber-700 hover:text-amber-900 hover:bg-amber-100/60 self-start sm:self-center"
+                        onClick={() => setIsRevertBannerDismissed(true)}
+                        title="Ocultar aviso de reversão"
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
                 </div>
             )}
 
             {/* Filters */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 bg-muted/30 p-4 rounded-xl border">
-                <div className="w-full">
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Buscar Trabalhador</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 bg-white p-4 rounded-xl border shadow-sm items-end">
+                <div className="space-y-1.5 w-full">
+                    <label className="text-xs font-medium text-gray-700">Buscar Trabalhador</label>
                     <Input
                         placeholder="Nome ou código..."
                         value={searchTerm}
@@ -333,30 +408,47 @@ export function BenefitsPage() {
                         className="w-full bg-background"
                     />
                 </div>
-                <div className="w-full">
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Mês / Ano</label>
-                    <Input
-                        type="month"
-                        value={monthFilter}
-                        onChange={(e) => updateSearchParams({ month: e.target.value })}
-                        className="w-full bg-background"
-                    />
-                </div>
-                <div className="w-full">
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Categoria Provento</label>
-                    <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={selectedCategory}
-                        onChange={(e) => updateSearchParams({ category: e.target.value })}
+
+                {/* Mês / Competência */}
+                <div className="space-y-1.5 w-full">
+                    <label className="text-xs font-semibold text-gray-700">Mês / Competência</label>
+                    <Select
+                        value={monthFilter || 'ALL'}
+                        onValueChange={(v) => updateSearchParams({ month: v === 'ALL' ? '' : v })}
                     >
-                        <option value="ALL">Todas as Categorias</option>
-                        {availableCategories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                        ))}
-                    </select>
+                        <SelectTrigger className="font-medium">
+                            <SelectValue placeholder="Selecione o mês..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {monthOptions.map(m => (
+                                <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
-                <div className="w-full">
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Cliente</label>
+
+                {/* Empresa */}
+                <div className="space-y-1.5 w-full">
+                    <label className="text-xs font-semibold text-gray-700">Empresa (Contratante)</label>
+                    <Select
+                        value={selectedCompany}
+                        onValueChange={(v) => updateSearchParams({ company: v })}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder="Todas as Empresas" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">Todas as Empresas</SelectItem>
+                            {CANONICAL_EMPRESAS.map(company => (
+                                <SelectItem key={company} value={company}>{company}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Cliente */}
+                <div className="space-y-1.5 w-full">
+                    <label className="text-xs font-semibold text-gray-700">Cliente</label>
                     <MultiSelect
                         options={uniqueClients.filter(c => c && c.trim() !== '').map(client => ({ value: client, label: client })) || []}
                         selected={selectedClient}
@@ -365,98 +457,112 @@ export function BenefitsPage() {
                         emptyText="Nenhum cliente"
                     />
                 </div>
-                <div className="w-full">
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Empresa</label>
-                    <select
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        value={selectedCompany}
-                        onChange={(e) => updateSearchParams({ company: e.target.value })}
+
+                {/* Categoria Provento */}
+                <div className="space-y-1.5 w-full">
+                    <label className="text-xs font-semibold text-gray-700">Categoria Provento</label>
+                    <Select
+                        value={selectedCategory}
+                        onValueChange={(v) => updateSearchParams({ category: v })}
                     >
-                        <option value="ALL">Todas as Empresas</option>
-                        {uniqueCompanies.map(company => (
-                            <option key={company} value={company}>{company}</option>
-                        ))}
-                    </select>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Todas as Categorias" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ALL">Todas as Categorias</SelectItem>
+                            {availableCategories.map(cat => (
+                                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
             </div>
 
             {/* Table */}
-            <div className="border rounded-xl bg-card shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-260px)] min-h-[450px]">
+            <div className="bg-white border rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-260px)] min-h-[450px]">
                 <div className="overflow-auto flex-1">
-                    <Table className="relative w-full">
-                        <TableHeader className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-900 shadow-sm backdrop-blur-sm">
-                            <TableRow className="border-b">
-                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('nome')}>
+                    <Table>
+                        <TableHeader className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
+                            <TableRow>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('nome')}>
                                     Trabalhador <SortIcon columnKey="nome" />
                                 </TableHead>
-                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('cod_colab')}>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('cod_colab')}>
                                     Código <SortIcon columnKey="cod_colab" />
                                 </TableHead>
-                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('category')}>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('cliente_nombre')}>
+                                    Cliente <SortIcon columnKey="cliente_nombre" />
+                                </TableHead>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('contratante')}>
+                                    Contratante <SortIcon columnKey="contratante" />
+                                </TableHead>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('category')}>
                                     Tipo de Provento <SortIcon columnKey="category" />
                                 </TableHead>
-                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('housing_benefit_status')}>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('housing_benefit_status')}>
                                     Status <SortIcon columnKey="housing_benefit_status" />
                                 </TableHead>
-                                <TableHead className="cursor-pointer hover:bg-muted/50 text-right text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('housing_benefit_amount')}>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('housing_benefit_amount')}>
                                     Valor Mensal (€) <SortIcon columnKey="housing_benefit_amount" />
                                 </TableHead>
-                                <TableHead className="cursor-pointer hover:bg-muted/50 text-slate-800 dark:text-slate-200 font-semibold" onClick={() => handleSort('housing_benefit_date')}>
+                                <TableHead className="cursor-pointer font-semibold text-slate-800 dark:text-slate-200" onClick={() => handleSort('housing_benefit_date')}>
                                     Data Inicial <SortIcon columnKey="housing_benefit_date" />
                                 </TableHead>
-                                <TableHead className="text-right text-slate-800 dark:text-slate-200 font-semibold">Ações</TableHead>
+                                <TableHead className="text-right font-semibold text-slate-800 dark:text-slate-200">Ações</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filteredAndSortedWorkers.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
+                                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                                         Nenhum benefício ou provento encontrado com os filtros atuais.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredAndSortedWorkers.map(w => {
-                                    const hasBenefit = !!w.housing_benefit;
-                                    const categoryName = w.housing_benefit?.category || (hasBenefit ? 'Auxílio Moradia' : '-');
+                                filteredAndSortedWorkers.map((worker) => {
+                                    const benefit = worker.housing_benefit;
+                                    const hasBenefit = Boolean(benefit);
+
                                     return (
-                                        <TableRow key={w.id} className="hover:bg-slate-50 transition-colors">
-                                            <TableCell className="font-medium">
-                                                {w.nome}
-                                                <div className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px]">
-                                                    {w.cliente_nombre ? `${w.cliente_nombre}` : ''} {w.contratante ? `- ${w.contratante}` : ''}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="font-mono text-xs">{w.cod_colab}</TableCell>
+                                        <TableRow key={worker.id} className="hover:bg-muted/50">
+                                            <TableCell className="font-medium text-slate-900">{worker.nome}</TableCell>
+                                            <TableCell className="font-mono text-xs">{worker.cod_colab}</TableCell>
+                                            <TableCell className="text-muted-foreground text-xs">{worker.cliente_nombre || '-'}</TableCell>
+                                            <TableCell className="font-semibold text-xs text-slate-800">{normalizeEmpresaName(worker.contratante) || '-'}</TableCell>
                                             <TableCell>
-                                                {hasBenefit ? (
-                                                    <Badge variant="secondary" className="bg-emerald-50 text-emerald-800 border-emerald-200 font-medium">
-                                                        {categoryName}
+                                                {benefit ? (
+                                                    <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold">
+                                                        {benefit.category || 'Auxílio Moradia'}
                                                     </Badge>
                                                 ) : (
-                                                    <span className="text-xs text-muted-foreground">-</span>
+                                                    <span className="text-muted-foreground text-xs">-</span>
                                                 )}
                                             </TableCell>
                                             <TableCell>
                                                 {hasBenefit ? (
-                                                    <span className="flex items-center text-emerald-600 dark:text-emerald-400 text-sm font-medium">
-                                                        <Link2 className="h-4 w-4 mr-1" /> {w.housing_benefit?.status || 'Ativo'}
-                                                    </span>
+                                                    <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200">
+                                                        <Link2 className="h-3 w-3 mr-1" /> Ativo
+                                                    </Badge>
                                                 ) : (
-                                                    <span className="flex items-center text-muted-foreground text-sm font-medium">
-                                                        <Link2Off className="h-4 w-4 mr-1" /> Não Vinculado
-                                                    </span>
+                                                    <Badge variant="outline" className="text-slate-500 border-slate-200">
+                                                        <Link2Off className="h-3 w-3 mr-1" /> Não Vinculado
+                                                    </Badge>
                                                 )}
                                             </TableCell>
-                                            <TableCell className="text-right font-semibold">
-                                                {hasBenefit ? `€ ${w.housing_benefit!.monthly_amount.toFixed(2)}` : '-'}
+                                            <TableCell className="font-semibold">
+                                                {hasBenefit ? `€ ${benefit!.monthly_amount.toFixed(2)}` : '-'}
                                             </TableCell>
-                                            <TableCell className="text-sm text-gray-600">
-                                                {hasBenefit && w.housing_benefit!.start_date ? format(new Date(w.housing_benefit!.start_date), 'dd/MM/yyyy') : '-'}
+                                            <TableCell className="text-muted-foreground text-xs">
+                                                {benefit?.start_date ? format(new Date(benefit.start_date), 'dd/MM/yyyy') : '-'}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <Button variant="ghost" size="sm" onClick={() => handleEditClick(w)} className="text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50">
-                                                    <Edit className="h-4 w-4 mr-1" />
-                                                    Editar
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => handleEditClick(worker)}
+                                                    className="h-8 w-8 p-0"
+                                                >
+                                                    <Edit className="h-4 w-4 text-emerald-600" />
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
@@ -468,14 +574,12 @@ export function BenefitsPage() {
                 </div>
             </div>
 
-            {selectedWorker && empresaId && (
+            {/* Edit Dialog */}
+            {selectedWorker && (
                 <EditHousingDialog
+                    worker={selectedWorker}
                     open={isEditOpen}
                     onOpenChange={setIsEditOpen}
-                    workerId={selectedWorker.id}
-                    empresaId={empresaId}
-                    workerName={selectedWorker.nome}
-                    existingBenefit={selectedWorker.housing_benefit}
                 />
             )}
         </div>
