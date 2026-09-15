@@ -6,11 +6,21 @@ import { Loader2 } from 'lucide-react';
 export function WhatsAppRedirectPage() {
   const [searchParams] = useSearchParams();
   const leadId = searchParams.get('lead_id');
+  const destParam = searchParams.get('dest');
 
   useEffect(() => {
     async function trackAndRedirect() {
-      // Default WhatsApp Link for salesperson Alex (+34 937 37 41 80)
-      const whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      // Default fallback
+      let whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+
+      // 1. If explicit destination link is passed from email template, prioritize it 100%
+      if (destParam) {
+        try {
+          whatsappUrl = decodeURIComponent(destParam);
+        } catch {
+          whatsappUrl = destParam;
+        }
+      }
 
       try {
         if (leadId) {
@@ -23,6 +33,24 @@ export function WhatsAppRedirectPage() {
             .maybeSingle();
 
           if (lead && lead.empresa_id) {
+            // If no explicit destination was passed, resolve dynamic WhatsApp by company
+            if (!destParam) {
+              const empId = lead.empresa_id.toLowerCase();
+              const isTriangulo = empId === 'a798620a-358a-4c6c-9db2-3a507c583cac';
+              const isWiseowe = empId === 'dae64d51-2181-4510-b14f-e63d2f111a8e';
+
+              if (isTriangulo) {
+                // Triângulo España -> +34 937 37 48 30 (Michelle)
+                whatsappUrl = 'https://wa.me/34937374830?text=Hola,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+              } else if (isWiseowe) {
+                // Wiseowe France -> +34 652 51 92 10 (Omar)
+                whatsappUrl = 'https://wa.me/34652519210?text=Bonjour,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
+              } else {
+                // Luminous -> +34 937 37 41 80 (Alex)
+                whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+              }
+            }
+
             // Check current stage order_index
             let currentOrderIndex = 0;
             if (lead.stage_id) {
@@ -64,15 +92,15 @@ export function WhatsAppRedirectPage() {
       } catch (err) {
         console.error('Failed to track WhatsApp click:', err);
       } finally {
-        // Small delay to ensure Supabase connection is fully committed
+        // Delay to ensure Supabase stage update commits before redirect
         setTimeout(() => {
           window.location.href = whatsappUrl;
-        }, 500);
+        }, 350);
       }
     }
 
     trackAndRedirect();
-  }, [leadId]);
+  }, [leadId, destParam]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center p-6 text-slate-100">

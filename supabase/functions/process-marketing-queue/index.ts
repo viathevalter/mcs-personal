@@ -183,6 +183,18 @@ serve(async (req) => {
         .eq("id", campaign.empresa_id)
         .maybeSingle();
 
+      // Determinar contexto da empresa e WhatsApp padrão
+      const companyTrade = (company?.trade_name || "").toUpperCase();
+      const isTriangulo = companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO") || campaign.empresa_id === 'a798620a-358a-4c6c-9db2-3a507c583cac';
+      const isWiseowe = companyTrade.includes("WISEOWE") || campaign.empresa_id === 'dae64d51-2181-4510-b14f-e63d2f111a8e';
+
+      let defaultWaUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
+      if (isTriangulo) {
+        defaultWaUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola, quisiera más información sobre sus servicios")}`;
+      } else if (isWiseowe) {
+        defaultWaUrl = `https://wa.me/34652519210?text=${encodeURIComponent("Bonjour, je souhaite plus d'informations sur vos services")}`;
+      }
+
       // Substituição de placeholders dinâmicos
       const rawHtml = template.html_content;
       const rawSubject = template.subject;
@@ -191,7 +203,7 @@ serve(async (req) => {
       const appUrl = Deno.env.get("PUBLIC_APP_URL") || "https://mcs.gestaologinpro.com";
       const unsubscribeLink = `${appUrl}/public/coleta-dados/${targetLeadId}?opt_out=1`;
       const formatVars = (text: string) => {
-        return text
+        let res = text
           .replace(/\{\{\s*name\s*\}\}/g, lead.name || "")
           .replace(/\{\{\s*company_name\s*\}\}/g, lead.company_name || "")
           .replace(/\{\{\s*email\s*\}\}/g, lead.email || "")
@@ -208,8 +220,14 @@ serve(async (req) => {
           .replace(/\*\|UNSUB\|\*/gi, unsubscribeLink)
           .replace(/\*\|UNSUBSCRIBE\|\*/gi, unsubscribeLink)
           .replace(/%UNSUBSCRIBE_URL%/gi, unsubscribeLink)
-          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}`)
-          .replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}`);
+          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(defaultWaUrl)}`);
+
+        // Preservar links wa.me explicitamente definidos no template, roteando pelo tracker com dest
+        res = res.replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, (match) => {
+          return `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(match)}`;
+        });
+
+        return res;
       };
 
       const rawFormattedHtml = formatVars(rawHtml);

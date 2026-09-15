@@ -270,9 +270,23 @@ function getCountryFlag(country) {
  * em tempo real, garantindo persistência imediata e segmentação automática.
  */
 async function saveLeadDirectlyToCrmAndStaging(client, job, lead) {
-  const empresaId = job.empresa_id || '847796c4-b253-4e53-9e6b-34a127ec7d85';
-  const sector = getSectorFromTitle(job.title);
   const countryFlag = getCountryFlag(lead.country || job.location);
+  let empresaId = job.empresa_id;
+  let assignedTo = null;
+  if (countryFlag.includes('Espanha')) {
+    empresaId = 'a798620a-358a-4c6c-9db2-3a507c583cac'; // Triângulo
+    assignedTo = 'dbc361a1-e4af-446a-8079-39c0caab00d2'; // Michelle
+  } else if (countryFlag.includes('Itália')) {
+    empresaId = 'a798620a-358a-4c6c-9db2-3a507c583cac'; // Triângulo
+    assignedTo = '76f9a2f5-116a-456e-a7d9-9a6a0401ac65'; // Giada
+  } else if (countryFlag.includes('França')) {
+    empresaId = 'dae64d51-2181-4510-b14f-e63d2f111a8e'; // Wiseowe
+    assignedTo = '346a9262-2edf-4a2e-80fc-aa5b43bf483a'; // Omar
+  } else {
+    empresaId = empresaId || '847796c4-b253-4e53-9e6b-34a127ec7d85'; // Luminous
+    assignedTo = 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'; // Alex
+  }
+  const sector = getSectorFromTitle(job.title);
   const compName = lead.compName || 'Empresa Industrial';
   const normEmail = (lead.email || '').trim().toLowerCase();
 
@@ -291,15 +305,15 @@ async function saveLeadDirectlyToCrmAndStaging(client, job, lead) {
     const leadRes = await client.query(`
       INSERT INTO core_comercial.leads (
         empresa_id, name, company_name, email, phone, website,
-        address_line, city, province, sector, origen_lead, tags, notes, prospecting_job_id
+        address_line, city, province, sector, origen_lead, tags, notes, prospecting_job_id, assigned_to
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Prospecção Automática 24/7', $11, $12, $13
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Prospecção Automática 24/7', $11, $12, $13, $14
       )
       ON CONFLICT DO NOTHING
       RETURNING id;
     `, [
       empresaId, compName, compName, normEmail, lead.phone || null, lead.website || null,
-      lead.address || null, lead.city || null, lead.province || null, sector, tags, notes, job.id
+      lead.address || null, lead.city || null, lead.province || null, sector, tags, notes, job.id, assignedTo
     ]);
 
     if (leadRes.rows.length > 0) {
