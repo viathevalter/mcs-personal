@@ -69,6 +69,7 @@ import { EditHoleriteEventoDialog } from '../components/EditHoleriteEventoDialog
 import { EditDiscountDialog } from '../../discounts/components/EditDiscountDialog';
 import { useAllDiscounts } from '../../discounts/hooks/useAllDiscounts';
 import { useAllHousingBenefits } from '../../benefits/hooks/useAllHousingBenefits';
+import { deleteHousing } from '../../benefits/api/housingApi';
 import { calculateProratedBenefitAmount } from '@/shared/utils/importUtils';
 import { ExportHoleritesDialog } from '../components/ExportHoleritesDialog';
 import { BatchHoleritesExportDialog } from '../components/BatchHoleritesExportDialog';
@@ -333,6 +334,20 @@ export function HoleritesPage() {
 
     const { mutate: deleteEvento } = useDeleteHoleriteEvento();
     const { mutate: deleteDiscount } = useDeleteDiscount();
+
+    const handleDeleteHousingBenefit = async (benefitId: string, desc: string, amount: number) => {
+        if (!confirm(`Deseja remover o benefício "${desc}" no valor de € ${Number(amount).toFixed(2)} deste colaborador?`)) {
+            return;
+        }
+        try {
+            await deleteHousing(benefitId);
+            queryClient.invalidateQueries({ queryKey: ['all-worker-housing-benefits'] });
+            queryClient.invalidateQueries({ queryKey: ['workers_holerites'] });
+            toast.success('Benefício removido da folha com sucesso!');
+        } catch (err: any) {
+            toast.error('Erro ao remover benefício: ' + (err.message || 'Erro desconhecido'));
+        }
+    };
 
     const handleSort = (col: 'nome' | 'cliente_nombre') => {
         if (sortColumn === col) {
@@ -1075,10 +1090,25 @@ export function HoleritesPage() {
             if (startStr > lastDayOfMonthStr) return false;
             if (endStr && endStr < firstDayOfMonthStr) return false;
 
+            // Strict Company Scoping:
+            const isHoldingBenefit = !hb.empresa_id || isHoldingId(hb.empresa_id, empresas);
+            if (!isHoldingBenefit && targetEmpresaId) {
+                if (String(hb.empresa_id) !== String(targetEmpresaId)) return false;
+            }
+            if (targetEmpresa && !isHoldingBenefit) {
+                const targetEmp = empresas?.find(e => matchesEmpresaFilter(e.trade_name || e.nome || e.legal_name, targetEmpresa));
+                if (targetEmp && String(hb.empresa_id) !== String(targetEmp.id)) return false;
+            }
+            if (isHoldingBenefit && targetEmpresa) {
+                const dominantComp = dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)?.contratante || worker.contratante;
+                const isDominant = !dominantComp || dominantComp === '-' || matchesEmpresaFilter(dominantComp, targetEmpresa);
+                if (!isDominant) return false;
+            }
+
             return true;
         });
 
-        let beneficiosFixosArray: { desc: string; val: number }[] = [];
+        let beneficiosFixosArray: { id?: string; desc: string; val: number; empresa_id?: string }[] = [];
         let totalBeneficios = 0;
 
         if (isWorkerAdmittedAfterCompetence(worker, mesReferencia)) {
@@ -1090,37 +1120,45 @@ export function HoleritesPage() {
                 const proratedVal = calculateProratedBenefitAmount(hb, mesReferencia);
                 totalBeneficios += proratedVal;
                 beneficiosFixosArray.push({
+                    id: hb.id,
                     desc: hb.category || 'Auxílio Moradia',
-                    val: proratedVal
+                    val: proratedVal,
+                    empresa_id: hb.empresa_id
                 });
             });
         } else {
             // Contract fallback from worker_beneficios_settings ONLY if receives fixed housing or fixed allowances are enabled
-            const bSet = worker.worker_beneficios_settings || {};
-            const receivesFixedHousing =
-                bSet.recebe_auxilio_moradia === true ||
-                String(bSet.recebe_auxilio_moradia || '').toLowerCase() === 'sim' ||
-                String(bSet.recebe_auxilio_moradia || '').toLowerCase() === 'true';
+            // and ONLY for the worker's dominant company for the month!
+            const dominantComp = dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)?.contratante || worker.contratante;
+            const isDominant = !targetEmpresa || targetEmpresa === 'all' || !dominantComp || dominantComp === '-' || matchesEmpresaFilter(dominantComp, targetEmpresa);
 
-            if (receivesFixedHousing && Number(bSet.auxilio_moradia_base || 0) > 0) {
-                beneficiosFixosArray.push({ desc: 'Auxílio Moradia', val: Number(bSet.auxilio_moradia_base) });
-                totalBeneficios += Number(bSet.auxilio_moradia_base);
-            }
-            if (Number(bSet.subsidio_alimentacao || 0) > 0) {
-                beneficiosFixosArray.push({ desc: 'Subsídio Alimentação', val: Number(bSet.subsidio_alimentacao) });
-                totalBeneficios += Number(bSet.subsidio_alimentacao);
-            }
-            if (Number(bSet.bono_produtividade || 0) > 0) {
-                beneficiosFixosArray.push({ desc: 'Bônus Produtividade', val: Number(bSet.bono_produtividade) });
-                totalBeneficios += Number(bSet.bono_produtividade);
-            }
-            if (Number(bSet.ajuda_custo || 0) > 0) {
-                beneficiosFixosArray.push({ desc: 'Ajuda de Custo', val: Number(bSet.ajuda_custo) });
-                totalBeneficios += Number(bSet.ajuda_custo);
-            }
-            if (Number(bSet.outros_beneficios || 0) > 0) {
-                beneficiosFixosArray.push({ desc: 'Outros Benefícios', val: Number(bSet.outros_beneficios) });
-                totalBeneficios += Number(bSet.outros_beneficios);
+            if (isDominant) {
+                const bSet = worker.worker_beneficios_settings || {};
+                const receivesFixedHousing =
+                    bSet.recebe_auxilio_moradia === true ||
+                    String(bSet.recebe_auxilio_moradia || '').toLowerCase() === 'sim' ||
+                    String(bSet.recebe_auxilio_moradia || '').toLowerCase() === 'true';
+
+                if (receivesFixedHousing && Number(bSet.auxilio_moradia_base || 0) > 0) {
+                    beneficiosFixosArray.push({ desc: 'Auxílio Moradia', val: Number(bSet.auxilio_moradia_base) });
+                    totalBeneficios += Number(bSet.auxilio_moradia_base);
+                }
+                if (Number(bSet.subsidio_alimentacao || 0) > 0) {
+                    beneficiosFixosArray.push({ desc: 'Subsídio Alimentação', val: Number(bSet.subsidio_alimentacao) });
+                    totalBeneficios += Number(bSet.subsidio_alimentacao);
+                }
+                if (Number(bSet.bono_produtividade || 0) > 0) {
+                    beneficiosFixosArray.push({ desc: 'Bônus Produtividade', val: Number(bSet.bono_produtividade) });
+                    totalBeneficios += Number(bSet.bono_produtividade);
+                }
+                if (Number(bSet.ajuda_custo || 0) > 0) {
+                    beneficiosFixosArray.push({ desc: 'Ajuda de Custo', val: Number(bSet.ajuda_custo) });
+                    totalBeneficios += Number(bSet.ajuda_custo);
+                }
+                if (Number(bSet.outros_beneficios || 0) > 0) {
+                    beneficiosFixosArray.push({ desc: 'Outros Benefícios', val: Number(bSet.outros_beneficios) });
+                    totalBeneficios += Number(bSet.outros_beneficios);
+                }
             }
         }
 
@@ -1170,15 +1208,17 @@ export function HoleritesPage() {
                               worker.cliente === clienteFilter ||
                               (dbHoursSummary?.workerClientsMap?.get(worker.id)?.has(clienteFilter) ?? false);
 
-        const matchesContratante = matchesEmpresaFilter(act.contratante, contratanteFilter) ||
+        const targetEmpresaForTally = contratanteFilter !== 'all' ? contratanteFilter : undefined;
+        const tally = calculateWorkerTally(worker, targetEmpresaForTally);
+
+        const matchesContratante = contratanteFilter === 'all' ||
+                                  matchesEmpresaFilter(act.contratante, contratanteFilter) ||
                                   Array.from(act.allContratantes).some(c => matchesEmpresaFilter(c, contratanteFilter)) ||
-                                  matchesEmpresaFilter(worker.contratante, contratanteFilter);
+                                  (tally.totalHoras > 0 || tally.proventos > 0 || tally.descontos > 0);
 
         const matchesSeguridad = seguridadFilter === 'all' || worker.status_seguridad === seguridadFilter;
 
         if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
-
-        const tally = calculateWorkerTally(worker);
 
         // 1. If worker starts in a future month and has 0 hours worked in this competence, DO NOT show them!
         if (isWorkerAdmittedAfterCompetence(worker, mesReferencia) && tally.totalHoras <= 0) {
@@ -1187,6 +1227,11 @@ export function HoleritesPage() {
 
         // 2. If worker was terminated before this competence started and has 0 hours and 0 balance, DO NOT show them!
         if (isWorkerTerminatedBeforeCompetence(worker, mesReferencia) && tally.totalHoras <= 0 && tally.proventos <= 0 && tally.descontos <= 0) {
+            return false;
+        }
+
+        // 3. If filtering by a specific company and worker has 0 hours and 0 balance for that company, DO NOT show them!
+        if (contratanteFilter !== 'all' && tally.totalHoras <= 0 && tally.proventos <= 0 && tally.descontos <= 0) {
             return false;
         }
 
@@ -1434,23 +1479,23 @@ export function HoleritesPage() {
         if (!workers) return map;
 
         workers.forEach(w => {
-            const { proventos, descontos, liquido, totalHoras } = calculateWorkerTally(w);
+            const { proventos, descontos, liquido, totalHoras } = calculateWorkerTally(w, contratanteFilter !== 'all' ? contratanteFilter : undefined);
             map.set(w.id, { totalProventos: proventos, totalDescontos: descontos, valorLiquido: liquido, totalHoras });
         });
         return map;
-    }, [workers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary]);
+    }, [workers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, contratanteFilter, empresas]);
 
     const housingBenefitsMap = React.useMemo(() => {
         const map = new Map<string, number>();
         if (!workers) return map;
 
         workers.forEach(w => {
-            const { beneficiosFixos } = calculateWorkerTally(w);
+            const { beneficiosFixos } = calculateWorkerTally(w, contratanteFilter !== 'all' ? contratanteFilter : undefined);
             const sumBeneficios = (beneficiosFixos || []).reduce((s: number, b: any) => s + Number(b.val || 0), 0);
             map.set(w.id, sumBeneficios);
         });
         return map;
-    }, [workers, allHousingBenefits, mesReferencia]);
+    }, [workers, allHousingBenefits, mesReferencia, contratanteFilter, empresas]);
 
     return (
         <div className="w-full flex flex-col space-y-3 p-0 pb-6">
@@ -2261,7 +2306,23 @@ export function HoleritesPage() {
                                                                                     <TableCell className="text-right">-</TableCell>
                                                                                     <TableCell className="text-right font-medium text-emerald-600 dark:text-emerald-500">€ {Number(b.val).toFixed(2)}</TableCell>
                                                                                     <TableCell className="text-right font-medium text-red-600 dark:text-red-500">-</TableCell>
-                                                                                    <TableCell className="text-right text-muted-foreground text-[10px]">-</TableCell>
+                                                                                    <TableCell className="text-right">
+                                                                                        {b.id ? (
+                                                                                            <div className="flex items-center justify-end">
+                                                                                                <Button
+                                                                                                    variant="ghost"
+                                                                                                    size="icon"
+                                                                                                    className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/50"
+                                                                                                    onClick={() => handleDeleteHousingBenefit(b.id, b.desc, b.val)}
+                                                                                                    title="Excluir benefício deste colaborador"
+                                                                                                >
+                                                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <span className="text-muted-foreground text-[10px]">-</span>
+                                                                                        )}
+                                                                                    </TableCell>
                                                                                 </TableRow>
                                                                             ))}
                                                                             {descontosExtras.map((d: any, idx: number) => (
