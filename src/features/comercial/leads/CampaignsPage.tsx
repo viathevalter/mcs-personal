@@ -4274,7 +4274,8 @@ export function CampaignsPage() {
                       .replace(/\*\|UNSUB\|\*/gi, testOptOutUrl)
                       .replace(/\*\|UNSUBSCRIBE\|\*/gi, testOptOutUrl)
                       .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${window.location.origin}/public/whatsapp`)
-                      .replace(/https:\/\/mcs\.gestaologinpro\.com/g, window.location.origin);
+                      .replace(/https:\/\/mcs\.gestaologinpro\.com/g, window.location.origin)
+                      .replace(/(src=["'])assets\/images\//gi, `$1${window.location.origin}/assets/images/`);
                     return html;
                   })()} 
                   title="Preview" 
