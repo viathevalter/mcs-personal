@@ -35,6 +35,8 @@ import {
     parseExcelDateToISO,
     type SimpleWorker
 } from '@/shared/utils/importUtils';
+import { findMatchingEmpresa, normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 interface ImportDiscountsDialogProps {
     trigger: React.ReactNode;
@@ -44,6 +46,8 @@ interface ImportDiscountsDialogProps {
 interface ParsedRow {
     cod_colab: string;
     nome_planilha: string;
+    empresa_planilha?: string;
+    empresaNome?: string;
     categoria: string;
     valor: number;
     data: string;
@@ -72,7 +76,7 @@ const DEFAULT_DISCOUNT_CATEGORIES = [
 ];
 
 export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDiscountsDialogProps) {
-    const { selectedEmpresaId } = useEmpresa();
+    const { selectedEmpresaId, empresas = [] } = useEmpresa();
     const { data: discountCategoriesData } = useDiscountCategories(selectedEmpresaId || undefined);
 
     const competenceOptions = useMemo(() => getCompetenceOptions(), []);
@@ -99,7 +103,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
                 const { data, error } = await supabase
                     .schema('core_personal')
                     .from('workers')
-                    .select('id, cod_colab, nome, contratante')
+                    .select('id, cod_colab, nome, contratante, empresa_id')
                     .range(from, from + pageSize - 1);
 
                 if (error) {
@@ -141,6 +145,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
         cod_colab: '',
         valor: '',
         nome: '',
+        empresa: '',
         categoria: '',
         data: '',
         descricao: ''
@@ -156,7 +161,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
         setRawHeaders([]);
         setRawRows([]);
         setParsedRows([]);
-        setColMapping({ cod_colab: '', valor: '', nome: '', categoria: '', data: '', descricao: '' });
+        setColMapping({ cod_colab: '', valor: '', nome: '', empresa: '', categoria: '', data: '', descricao: '' });
         setSelectedCompetence(defaultCompetence || initialCompetence);
         setSelectedCategory('Aluguel de Carro');
         setIsParsing(false);
@@ -185,6 +190,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
                     cod_colab: findKeyIgnoreCase(headers, ['id', 'id ', 'cod', 'cod ', 'cód', 'codigo', 'código', 'cod colab', 'cod_colab', 'cód trabalhador']) || '',
                     valor: findKeyIgnoreCase(headers, ['total a descontar', 'valor', 'montante', 'quantidade', 'amount', 'total', 'custo']) || '',
                     nome: findKeyIgnoreCase(headers, ['nombre del trabalhador', 'nombre', 'nome', 'trabalhador', 'colaborador', 'funcionario']) || '',
+                    empresa: findKeyIgnoreCase(headers, ['empresa', 'empresa contratante', 'contratante', 'sociedad', 'company', 'empresa / contratante', 'empresa_contratante']) || '',
                     categoria: findKeyIgnoreCase(headers, ['categoria', 'tipo', 'category']) || '',
                     data: findKeyIgnoreCase(headers, ['data', 'data referencia', 'mes', 'mês', 'date']) || '',
                     descricao: findKeyIgnoreCase(headers, ['descrição', 'descricao', 'notas', 'description', 'observaciones', 'observações']) || ''
@@ -222,6 +228,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
         for (const row of rawRows) {
             const rawCod = colMapping.cod_colab ? String(row[colMapping.cod_colab] || '').trim() : '';
             const rawNome = colMapping.nome ? String(row[colMapping.nome] || '').trim() : '';
+            const rawEmpresa = colMapping.empresa && colMapping.empresa !== ' ' ? String(row[colMapping.empresa] || '').trim() : '';
             const rawDesc = colMapping.descricao ? String(row[colMapping.descricao] || '').trim() : '';
 
             // Clean amount parsing
@@ -264,11 +271,33 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
             }
 
             const matchedWorker = matchResult?.worker;
-            const empresaId = matchedWorker?.empresa_id || selectedEmpresaId || '00000000-0000-0000-0000-000000000000';
+
+            // Empresa resolution priority:
+            // 1. Column value in spreadsheet (e.g. "LUMINUS", "LUMINOUS", "STOCCO")
+            // 2. Selected Empresa in header context (if not holding)
+            // 3. Worker's master profile contratante / empresa_id
+            let resolvedEmpresa = rawEmpresa ? findMatchingEmpresa(empresas, rawEmpresa) : undefined;
+
+            if (!resolvedEmpresa && selectedEmpresaId && !isHoldingId(selectedEmpresaId, empresas)) {
+                resolvedEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
+            }
+
+            if (!resolvedEmpresa && matchedWorker?.contratante) {
+                resolvedEmpresa = findMatchingEmpresa(empresas, matchedWorker.contratante);
+            }
+
+            if (!resolvedEmpresa && matchedWorker?.empresa_id) {
+                resolvedEmpresa = empresas.find(e => String(e.id) === String(matchedWorker.empresa_id));
+            }
+
+            const empresaId = resolvedEmpresa?.id || selectedEmpresaId || (empresas[0]?.id) || '00000000-0000-0000-0000-000000000000';
+            const empresaNome = normalizeEmpresaName(resolvedEmpresa?.trade_name || resolvedEmpresa?.nome || rawEmpresa || matchedWorker?.contratante) || 'Geral';
 
             rows.push({
                 cod_colab: matchedWorker?.cod_colab || rawCod || '-',
                 nome_planilha: rawNome,
+                empresa_planilha: rawEmpresa,
+                empresaNome,
                 categoria: finalCategory,
                 valor: isNaN(rawValor) ? 0 : rawValor,
                 data: finalDate,
@@ -457,6 +486,17 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
                                     </div>
 
                                     <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-700">Empresa / Contratante (Recomendado)</Label>
+                                        <Select value={colMapping.empresa} onValueChange={(v) => setColMapping({ ...colMapping, empresa: v })}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value=" ">-- Auto / Padrão do Cadastro --</SelectItem>
+                                                {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
                                         <Label className="text-xs font-medium text-gray-700">Nome do Trabalhador (Recomendado)</Label>
                                         <Select value={colMapping.nome} onValueChange={(v) => setColMapping({ ...colMapping, nome: v })}>
                                             <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
@@ -505,6 +545,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
                                         <tr>
                                             <th className="px-3 py-2 text-left font-semibold w-16">Cód</th>
                                             <th className="px-3 py-2 text-left font-semibold">Trabalhador</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Empresa</th>
                                             <th className="px-3 py-2 text-left font-semibold">Categoria</th>
                                             <th className="px-3 py-2 text-center font-semibold">Competência</th>
                                             <th className="px-3 py-2 text-right font-semibold">Valor</th>
@@ -519,7 +560,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
                                                 <td className="px-3 py-2.5">
                                                     <div className="flex flex-col">
                                                         <span className="font-semibold text-gray-900">
-                                                            {row.nomeBanco || row.nome_planilha || 'Não encontrado'}
+                                                             {row.nomeBanco || row.nome_planilha || 'Não encontrado'}
                                                         </span>
                                                         {row.errorMessage && (
                                                             <span className="text-[11px] text-destructive flex items-center mt-0.5">
@@ -528,6 +569,11 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
                                                             </span>
                                                         )}
                                                     </div>
+                                                </td>
+                                                <td className="px-3 py-2.5 whitespace-nowrap">
+                                                    <Badge variant="outline" className="text-[11px] font-medium bg-slate-50 text-slate-700 border-slate-300">
+                                                        {row.empresaNome || '-'}
+                                                    </Badge>
                                                 </td>
                                                 <td className="px-3 py-2.5 whitespace-nowrap">
                                                     <Badge variant="outline" className="text-[11px] font-normal border-slate-300">

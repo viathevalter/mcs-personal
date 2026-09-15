@@ -27,6 +27,8 @@ import { supabase } from '@/shared/supabase/client';
 import { Plus, Search, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
+import { findMatchingEmpresa, normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 interface CreateDiscountDialogProps {
     trigger?: React.ReactNode;
@@ -34,8 +36,9 @@ interface CreateDiscountDialogProps {
 
 export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const { selectedEmpresaId } = useEmpresa();
-    const { data: discountCategories = [] } = useDiscountCategories(selectedEmpresaId || undefined);
+    const { selectedEmpresaId, empresas = [] } = useEmpresa();
+    const [empresaId, setEmpresaId] = useState<string>('');
+    const { data: discountCategories = [] } = useDiscountCategories(empresaId || selectedEmpresaId || undefined);
 
     // Form fields
     const [workerId, setWorkerId] = useState<string>('');
@@ -49,20 +52,15 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
 
     // Fetch workers for select
     const { data: workers = [], isLoading: isLoadingWorkers } = useQuery({
-        queryKey: ['workers-for-discount-create', selectedEmpresaId],
+        queryKey: ['workers-for-discount-create'],
         enabled: isOpen,
         queryFn: async () => {
-            let query = supabase
+            const { data, error } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, empresa_id, status_trabajador')
+                .select('id, cod_colab, nome, contratante, status_trabajador')
                 .order('nome', { ascending: true });
 
-            if (selectedEmpresaId) {
-                query = query.eq('empresa_id', selectedEmpresaId);
-            }
-
-            const { data, error } = await query;
             if (error) throw error;
             return data || [];
         }
@@ -78,10 +76,22 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
 
     const selectedWorkerObj = workers.find(w => w.id === workerId);
 
+    const handleWorkerChange = (wId: string) => {
+        setWorkerId(wId);
+        const wObj = workers.find(w => w.id === wId);
+        if (wObj?.contratante) {
+            const match = findMatchingEmpresa(empresas, wObj.contratante);
+            if (match) setEmpresaId(match.id);
+        } else if (selectedEmpresaId && !isHoldingId(selectedEmpresaId, empresas)) {
+            setEmpresaId(selectedEmpresaId);
+        }
+    };
+
     const { mutate: createDiscount, isPending } = useCreateDiscount();
 
     const resetForm = () => {
         setWorkerId('');
+        setEmpresaId(selectedEmpresaId && !isHoldingId(selectedEmpresaId, empresas) ? selectedEmpresaId : (empresas[0]?.id || ''));
         setWorkerSearch('');
         setAmount('');
         setCategory('');
@@ -94,12 +104,12 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
     const handleSave = () => {
         if (!workerId || !amount || !category || !date) return;
 
-        const matchedEmpresaId = selectedWorkerObj?.empresa_id || selectedEmpresaId || '00000000-0000-0000-0000-000000000000';
+        const finalEmpresaId = empresaId || selectedEmpresaId || empresas[0]?.id || '00000000-0000-0000-0000-000000000000';
 
         createDiscount(
             {
                 worker_id: workerId,
-                empresa_id: matchedEmpresaId,
+                empresa_id: finalEmpresaId,
                 amount: Number(amount),
                 category,
                 reference_date: date,
@@ -159,7 +169,7 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                                         className="pl-9 text-xs"
                                     />
                                 </div>
-                                <Select value={workerId} onValueChange={setWorkerId}>
+                                <Select value={workerId} onValueChange={handleWorkerChange}>
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="Selecione o trabalhador..." />
                                     </SelectTrigger>
@@ -169,7 +179,7 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                                         ) : (
                                             filteredWorkers.map((w) => (
                                                 <SelectItem key={w.id} value={w.id}>
-                                                    <span className="font-semibold">[{w.cod_colab}]</span> {w.nome}
+                                                    <span className="font-semibold">[{w.cod_colab}]</span> {w.nome} {w.contratante ? `(${normalizeEmpresaName(w.contratante)})` : ''}
                                                 </SelectItem>
                                             ))
                                         )}
@@ -177,6 +187,23 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                                 </Select>
                             </div>
                         )}
+                    </div>
+
+                    {/* Empresa Selector */}
+                    <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-gray-700">Empresa (Contratante) *</Label>
+                        <Select value={empresaId} onValueChange={setEmpresaId}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Selecione a empresa..." />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[200px]">
+                                {empresas.map(emp => (
+                                    <SelectItem key={emp.id} value={emp.id}>
+                                        {normalizeEmpresaName(emp.trade_name || emp.nome)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {/* Category & Amount */}

@@ -21,6 +21,8 @@ import { useUpdateDiscount } from '../hooks/useDiscountMutations';
 import type { WorkerDiscount, DiscountCategory, DiscountStatus } from '../types';
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 import { normalizeDiscountCategoryName, STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
 
 interface EditDiscountDialogProps {
     discount: WorkerDiscount;
@@ -29,7 +31,9 @@ interface EditDiscountDialogProps {
 
 export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const { data: discountCategories = [] } = useDiscountCategories(discount.empresa_id);
+    const { empresas = [] } = useEmpresa();
+    const [empresaId, setEmpresaId] = useState<string>(discount.empresa_id);
+    const { data: discountCategories = [] } = useDiscountCategories(empresaId || discount.empresa_id);
 
     const [amount, setAmount] = useState<string>(discount.amount.toString());
     const [category, setCategory] = useState<DiscountCategory>(() => 
@@ -43,6 +47,7 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
 
     useEffect(() => {
         if (isOpen) {
+            setEmpresaId(discount.empresa_id);
             setAmount(discount.amount.toString());
             const resolved = normalizeDiscountCategoryName(discount.category, discountCategories) || discount.category;
             setCategory(resolved);
@@ -56,6 +61,7 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
         updateDiscount(
             {
                 id: discount.id,
+                empresa_id: empresaId,
                 amount: Number(amount),
                 category,
                 reference_date: date,
@@ -83,6 +89,24 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
                     <DialogTitle>Editar Desconto</DialogTitle>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="empresa" className="text-right">
+                            Empresa
+                        </Label>
+                        <Select value={empresaId} onValueChange={(v: string) => setEmpresaId(v)}>
+                            <SelectTrigger className="col-span-3">
+                                <SelectValue placeholder="Selecione a empresa..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {empresas.map(emp => (
+                                    <SelectItem key={emp.id} value={emp.id}>
+                                        {normalizeEmpresaName(emp.trade_name || emp.nome)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="category" className="text-right">
                             Categoria

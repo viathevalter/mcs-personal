@@ -29,7 +29,7 @@ export function normalizeEmpresaName(raw?: string | null): string {
     const upper = raw.trim().toUpperCase();
 
     if (upper.includes('WISEOWE')) return 'WISEOWE';
-    if (upper.includes('LUMINOUS')) return 'LUMINOUS';
+    if (upper.includes('LUMINOUS') || upper.includes('LUMINUS')) return 'LUMINOUS';
     if (upper.includes('STOCCO')) return 'STOCCO';
     if (upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO')) return 'TRIANGULO';
     if (upper.includes('KOTRIK') || upper.includes('ROSAS')) return 'KOTRIK & ROSAS';
@@ -41,11 +41,36 @@ export function normalizeEmpresaName(raw?: string | null): string {
 }
 
 /**
+ * Finds the matching Empresa entity from a list of Empresa objects based on name, code, or trade name.
+ */
+export function findMatchingEmpresa<T extends { id: string; nome?: string | null; trade_name?: string | null; codigo?: string | null }>(
+    empresas: T[],
+    rawNameOrCode?: string | null
+): T | undefined {
+    if (!rawNameOrCode || !empresas.length) return undefined;
+    const targetNorm = normalizeEmpresaName(rawNameOrCode);
+    if (!targetNorm) return undefined;
+
+    return empresas.find(e => {
+        if (e.id === rawNameOrCode) return true;
+        const eNormNome = normalizeEmpresaName(e.nome);
+        const eNormTrade = normalizeEmpresaName(e.trade_name);
+        const eCodigo = (e.codigo || '').toUpperCase();
+        return (
+            eNormNome === targetNorm ||
+            eNormTrade === targetNorm ||
+            eCodigo === targetNorm ||
+            (targetNorm.length >= 3 && (eNormNome.includes(targetNorm) || eNormTrade.includes(targetNorm)))
+        );
+    });
+}
+
+/**
  * Checks if a worker's company matches the selected company filter,
  * taking into account canonical normalization.
  */
 export function matchesEmpresaFilter(workerEmpresa?: string | null, filterVal?: string | null): boolean {
-    if (!filterVal || filterVal === 'all') return true;
+    if (!filterVal || filterVal === 'all' || filterVal === 'ALL') return true;
     if (!workerEmpresa) return false;
 
     const normWorker = normalizeEmpresaName(workerEmpresa);

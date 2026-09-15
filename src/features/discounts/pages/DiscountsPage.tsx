@@ -188,8 +188,12 @@ export function DiscountsPage() {
 
             // 5. Company filter
             if (companyFilter && companyFilter !== 'ALL') {
+                const discountEmpresaObj = empresas?.find(e => String(e.id) === String(discount.empresa_id));
+                const discountEmpresaName = discountEmpresaObj?.trade_name || discountEmpresaObj?.nome || '';
                 const workerContratante = worker.contratante || '';
-                if (!matchesEmpresaFilter(workerContratante, companyFilter)) return false;
+                const matchesByDiscountEmpresa = discountEmpresaName ? matchesEmpresaFilter(discountEmpresaName, companyFilter) : false;
+                const matchesByWorkerContratante = matchesEmpresaFilter(workerContratante, companyFilter);
+                if (!matchesByDiscountEmpresa && !matchesByWorkerContratante) return false;
             }
 
             // 6. Client filter
@@ -497,7 +501,11 @@ export function DiscountsPage() {
                                         </tr>
                                     ))
                                 ) : filteredDiscounts.length > 0 ? (
-                                    filteredDiscounts.map((discount) => (
+                                    filteredDiscounts.map((discount) => {
+                                    const discountEmpresaObj = empresas?.find(e => String(e.id) === String(discount.empresa_id));
+                                    const discountEmpresaName = normalizeEmpresaName(discountEmpresaObj?.trade_name || discountEmpresaObj?.nome || discount.workers?.contratante);
+
+                                    return (
                                         <tr key={discount.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col">
@@ -509,7 +517,7 @@ export function DiscountsPage() {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-600">
                                                 <div className="flex flex-col">
-                                                    <span className="font-semibold text-slate-800">{normalizeEmpresaName(discount.workers.contratante) || '-'}</span>
+                                                    <span className="font-semibold text-slate-800">{discountEmpresaName || '-'}</span>
                                                     <span className="text-muted-foreground">{discount.workers.cliente_nombre || '-'}</span>
                                                 </div>
                                             </td>
@@ -560,7 +568,8 @@ export function DiscountsPage() {
                                                 </div>
                                             </td>
                                         </tr>
-                                    ))
+                                    );
+                                })
                                 ) : (
                                     <tr>
                                         <td colSpan={8} className="px-6 py-12 text-center text-gray-500">

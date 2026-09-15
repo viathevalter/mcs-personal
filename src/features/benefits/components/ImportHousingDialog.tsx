@@ -35,6 +35,8 @@ import {
     parseExcelDateToISO,
     type SimpleWorker
 } from '@/shared/utils/importUtils';
+import { findMatchingEmpresa, normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 interface ImportHousingDialogProps {
     workers?: WorkerWithHousing[];
@@ -45,6 +47,8 @@ interface ImportHousingDialogProps {
 interface ParsedRow {
     cod_colab: string;
     nome_planilha: string;
+    empresa_planilha?: string;
+    empresaNome?: string;
     valor: number;
     data_inicio: string;
     categoria: string;
@@ -71,7 +75,7 @@ const DEFAULT_BENEFIT_CATEGORIES = [
 ];
 
 export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultCompetence }: ImportHousingDialogProps) {
-    const { selectedEmpresaId } = useEmpresa();
+    const { selectedEmpresaId, empresas = [] } = useEmpresa();
     const { data: benefitCategoriesData } = useBenefitCategories(selectedEmpresaId || undefined);
 
     const competenceOptions = useMemo(() => getCompetenceOptions(), []);
@@ -98,7 +102,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
                 const { data, error } = await supabase
                     .schema('core_personal')
                     .from('workers')
-                    .select('id, cod_colab, nome, contratante')
+                    .select('id, cod_colab, nome, contratante, empresa_id')
                     .range(from, from + pageSize - 1);
 
                 if (error) {
@@ -141,6 +145,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
         valor: '',
         data_inicio: '',
         categoria: '',
+        empresa: '',
         nome: ''
     });
 
@@ -153,7 +158,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
         setRawHeaders([]);
         setRawRows([]);
         setParsedRows([]);
-        setColMapping({ cod_colab: '', valor: '', data_inicio: '', categoria: '', nome: '' });
+        setColMapping({ cod_colab: '', valor: '', data_inicio: '', categoria: '', empresa: '', nome: '' });
         setSelectedCompetence(defaultCompetence || initialCompetence);
         setSelectedCategory('Auxílio Moradia');
         setIsParsing(false);
@@ -190,6 +195,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
                     cod_colab: findKeyIgnoreCase(headers, ['cod', 'cod ', 'cód', 'codigo', 'código', 'id', 'id ', 'cod colab', 'cod_colab']) || '',
                     valor: findKeyIgnoreCase(headers, ['valor', 'valor_mensal', 'mensalidade', 'costo fijo', 'costo', 'total', 'amount']) || '',
                     data_inicio: findKeyIgnoreCase(headers, ['data_inicio', 'inicio', 'data inicio', 'start', 'mes', 'mês', 'fecha inicio']) || '',
+                    empresa: findKeyIgnoreCase(headers, ['empresa', 'empresa contratante', 'contratante', 'sociedad', 'company', 'empresa / contratante', 'empresa_contratante']) || '',
                     categoria: findKeyIgnoreCase(headers, ['categoria', 'tipo', 'category', 'tipo alojamiento']) || '',
                     nome: findKeyIgnoreCase(headers, ['trabalhador', 'nome', 'nombre', 'colaborador', 'funcionario']) || ''
                 };
@@ -217,6 +223,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
         for (const row of rawRows) {
             const rawCod = colMapping.cod_colab ? String(row[colMapping.cod_colab] || '').trim() : '';
             const rawNome = colMapping.nome ? String(row[colMapping.nome] || '').trim() : '';
+            const rawEmpresa = colMapping.empresa && colMapping.empresa !== ' ' ? String(row[colMapping.empresa] || '').trim() : '';
 
             // Clean amount parsing
             const rawValorStr = colMapping.valor ? String(row[colMapping.valor] || '0') : '0';
@@ -258,11 +265,33 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
             }
 
             const matchedWorker = matchResult?.worker;
-            const empresaId = matchedWorker?.empresa_id || selectedEmpresaId || '00000000-0000-0000-0000-000000000000';
+
+            // Empresa resolution priority:
+            // 1. Column value in spreadsheet (e.g. "LUMINUS", "LUMINOUS", "STOCCO")
+            // 2. Selected Empresa in header context (if not holding)
+            // 3. Worker's master profile contratante / empresa_id
+            let resolvedEmpresa = rawEmpresa ? findMatchingEmpresa(empresas, rawEmpresa) : undefined;
+
+            if (!resolvedEmpresa && selectedEmpresaId && !isHoldingId(selectedEmpresaId, empresas)) {
+                resolvedEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
+            }
+
+            if (!resolvedEmpresa && matchedWorker?.contratante) {
+                resolvedEmpresa = findMatchingEmpresa(empresas, matchedWorker.contratante);
+            }
+
+            if (!resolvedEmpresa && matchedWorker?.empresa_id) {
+                resolvedEmpresa = empresas.find(e => String(e.id) === String(matchedWorker.empresa_id));
+            }
+
+            const empresaId = resolvedEmpresa?.id || selectedEmpresaId || (empresas[0]?.id) || '00000000-0000-0000-0000-000000000000';
+            const empresaNome = normalizeEmpresaName(resolvedEmpresa?.trade_name || resolvedEmpresa?.nome || rawEmpresa || matchedWorker?.contratante) || 'Geral';
 
             rows.push({
                 cod_colab: matchedWorker?.cod_colab || rawCod || '-',
                 nome_planilha: rawNome,
+                empresa_planilha: rawEmpresa,
+                empresaNome,
                 valor: isNaN(rawValor) ? 0 : rawValor,
                 data_inicio: finalDate,
                 categoria: finalCategory,
@@ -462,6 +491,17 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
                                     </div>
 
                                     <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-gray-700">Empresa / Contratante (Recomendado)</Label>
+                                        <Select value={colMapping.empresa} onValueChange={(v) => setColMapping({ ...colMapping, empresa: v })}>
+                                            <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value=" ">-- Auto / Padrão do Cadastro --</SelectItem>
+                                                {rawHeaders.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1.5">
                                         <Label className="text-xs font-medium text-gray-700">Nome do Trabalhador (Recomendado)</Label>
                                         <Select value={colMapping.nome} onValueChange={(v) => setColMapping({ ...colMapping, nome: v })}>
                                             <SelectTrigger><SelectValue placeholder="Selecione a coluna..." /></SelectTrigger>
@@ -510,6 +550,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
                                         <tr>
                                             <th className="px-3 py-2 text-left font-semibold w-16">Cód</th>
                                             <th className="px-3 py-2 text-left font-semibold">Trabalhador</th>
+                                            <th className="px-3 py-2 text-left font-semibold">Empresa</th>
                                             <th className="px-3 py-2 text-left font-semibold">Categoria</th>
                                             <th className="px-3 py-2 text-center font-semibold">Competência</th>
                                             <th className="px-3 py-2 text-right font-semibold">Valor Mensal</th>
@@ -533,6 +574,11 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
                                                             </span>
                                                         )}
                                                     </div>
+                                                </td>
+                                                <td className="px-3 py-2.5 whitespace-nowrap">
+                                                    <Badge variant="outline" className="text-[11px] font-medium bg-slate-50 text-slate-700 border-slate-300">
+                                                        {row.empresaNome || '-'}
+                                                    </Badge>
                                                 </td>
                                                 <td className="px-3 py-2.5 whitespace-nowrap">
                                                     <Badge variant="outline" className="text-[11px] font-normal border-slate-300">
