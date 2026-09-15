@@ -1484,7 +1484,7 @@ export async function processarContestacaoFatura(
         const { data: existingRow } = await supabase
           .schema('core_finance')
           .from('horas_trabalhadas')
-          .select('id, tarifa_faturada, client_id, empresa_id, funcao_id')
+          .select('id, tarifa_faturada, client_id, funcao_id')
           .eq('fatura_id', faturaId)
           .eq('worker_id', workerId)
           .eq('data_trabalho', cleanDate)
@@ -1604,7 +1604,7 @@ export async function desmembrarFaturaPorObras(
         const { data: existingRow } = await supabase
           .schema('core_finance')
           .from('horas_trabalhadas')
-          .select('id, tarifa_faturada, client_id, empresa_id, funcao_id, obra_id')
+          .select('id, tarifa_faturada, client_id, funcao_id, obra_id')
           .eq('fatura_id', faturaId)
           .eq('worker_id', workerId)
           .eq('data_trabalho', cleanDate)
@@ -1684,7 +1684,7 @@ export async function desmembrarFaturaPorObras(
     return supabase
       .schema('core_finance')
       .from('horas_trabalhadas')
-      .select('id, worker_id, obra_id, horas_totais, tarifa_faturada, client_id, empresa_id, funcao_id, data_trabalho')
+      .select('id, worker_id, obra_id, horas_totais, tarifa_faturada, client_id, funcao_id, data_trabalho')
       .eq('fatura_id', faturaId)
       .range(from, to);
   });
