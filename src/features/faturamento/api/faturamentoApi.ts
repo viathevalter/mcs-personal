@@ -1571,6 +1571,314 @@ export async function processarContestacaoFatura(
   if (horasError) throw mapSupabaseError(horasError);
 }
 
+export async function desmembrarFaturaPorObras(
+  faturaId: string,
+  aceitarContestacao: boolean = true,
+  proposedHours?: any,
+  financialAdjustments?: {
+    incrementos?: number;
+    incrementos_desc?: string;
+    reducoes?: number;
+    reducoes_desc?: string;
+    iva_pct?: number;
+    descricao_servico?: string;
+  }
+): Promise<{ originalFaturaId: string; createdFaturas: any[] }> {
+  // 1. If contestation hours are provided and accepted, apply them directly to horas_trabalhadas
+  const normHours = proposedHours ? normalizeDisputedHours(proposedHours) : undefined;
+  
+  if (aceitarContestacao && normHours) {
+    const { data: fatData } = await supabase
+      .schema('core_finance')
+      .from('faturas')
+      .select('client_id, empresa_id')
+      .eq('id', faturaId)
+      .single();
+
+    for (const workerId of Object.keys(normHours)) {
+      const dates = normHours[workerId];
+      for (const rawDateKey of Object.keys(dates)) {
+        const cleanDate = rawDateKey.split('T')[0];
+        const newHours = Number(dates[rawDateKey]);
+
+        const { data: existingRow } = await supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .select('id, tarifa_faturada, client_id, empresa_id, funcao_id, obra_id')
+          .eq('fatura_id', faturaId)
+          .eq('worker_id', workerId)
+          .eq('data_trabalho', cleanDate)
+          .maybeSingle();
+
+        if (existingRow) {
+          if (newHours === 0) {
+            const { error: delErr } = await supabase
+              .schema('core_finance')
+              .from('horas_trabalhadas')
+              .delete()
+              .eq('id', existingRow.id);
+            if (delErr) console.error(`Erro ao deletar hora do trabalhador ${workerId} no dia ${cleanDate}:`, delErr);
+          } else {
+            const { error: updErr } = await supabase
+              .schema('core_finance')
+              .from('horas_trabalhadas')
+              .update({ horas_totais: newHours })
+              .eq('id', existingRow.id);
+            if (updErr) console.error(`Erro ao atualizar hora do trabalhador ${workerId} no dia ${cleanDate}:`, updErr);
+          }
+        } else if (newHours > 0) {
+          const { data: sampleRow } = await supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .select('tarifa_faturada, client_id, funcao_id, obra_id')
+            .eq('fatura_id', faturaId)
+            .eq('worker_id', workerId)
+            .not('tarifa_faturada', 'is', null)
+            .gt('tarifa_faturada', 0)
+            .limit(1)
+            .maybeSingle();
+
+          const { error: insErr } = await supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .insert({
+              fatura_id: faturaId,
+              worker_id: workerId,
+              data_trabalho: cleanDate,
+              horas_totais: newHours,
+              client_id: sampleRow?.client_id || fatData?.client_id,
+              tarifa_faturada: sampleRow?.tarifa_faturada || 0,
+              funcao_id: sampleRow?.funcao_id || null,
+              obra_id: sampleRow?.obra_id || null,
+              status: 'invoiced'
+            });
+
+          if (insErr) console.error(`Erro ao inserir nova hora para o trabalhador ${workerId} no dia ${cleanDate}:`, insErr);
+        }
+
+        await supabase
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .delete()
+          .eq('worker_id', workerId)
+          .eq('data_trabalho', cleanDate)
+          .is('fatura_id', null);
+      }
+    }
+  }
+
+  // 2. Fetch original fatura
+  const { data: originalFat, error: fatErr } = await supabase
+    .schema('core_finance')
+    .from('faturas')
+    .select('*')
+    .eq('id', faturaId)
+    .single();
+
+  if (fatErr || !originalFat) {
+    throw new Error('Fatura não encontrada para desmembramento.');
+  }
+
+  // 3. Fetch all hours currently linked to this fatura
+  const allHours = await fetchAllPages(async (from, to) => {
+    return supabase
+      .schema('core_finance')
+      .from('horas_trabalhadas')
+      .select('id, worker_id, obra_id, horas_totais, tarifa_faturada, client_id, empresa_id, funcao_id, data_trabalho')
+      .eq('fatura_id', faturaId)
+      .range(from, to);
+  });
+
+  if (!allHours || allHours.length === 0) {
+    throw new Error('Nenhuma hora encontrada nesta fatura para desmembrar.');
+  }
+
+  // 4. Fetch obra names from client_sites
+  const obraIds = Array.from(new Set(allHours.map(h => h.obra_id).filter(Boolean)));
+  const sitesMap = new Map<string, string>();
+  if (obraIds.length > 0) {
+    const { data: sites } = await supabase
+      .schema('core_common')
+      .from('client_sites')
+      .select('id, name')
+      .in('id', obraIds);
+    (sites || []).forEach(s => sitesMap.set(s.id, s.name));
+  }
+
+  // 5. Group hours by obra
+  const obraGroupsMap = new Map<string, { obraId: string | null; obraName: string; hours: any[] }>();
+  allHours.forEach(h => {
+    const oKey = h.obra_id || 'sem_obra';
+    if (!obraGroupsMap.has(oKey)) {
+      const oName = h.obra_id ? (sitesMap.get(h.obra_id) || 'Obra Desconhecida') : 'Sem Obra';
+      obraGroupsMap.set(oKey, { obraId: h.obra_id || null, obraName: oName, hours: [] });
+    }
+    obraGroupsMap.get(oKey)!.hours.push(h);
+  });
+
+  const obraGroups = Array.from(obraGroupsMap.values());
+
+  // Period label for service description
+  const emissionDate = originalFat.data_emissao ? new Date(originalFat.data_emissao + 'T00:00:00') : new Date();
+  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const monthStr = monthNames[emissionDate.getMonth()] || '';
+  const yearStr = emissionDate.getFullYear();
+  const periodLabel = `${monthStr} ${yearStr}`;
+
+  if (obraGroups.length <= 1) {
+    // Only 1 obra exists, just approve and update obra name if available
+    const g = obraGroups[0];
+    const gName = g ? g.obraName : (originalFat.ajustes_json?.obra || 'Sin Obra');
+    const updatedAdj = {
+      ...(originalFat.ajustes_json || {}),
+      ...(financialAdjustments || {}),
+      obra: gName,
+      obra_id: g?.obraId || originalFat.ajustes_json?.obra_id || null,
+      descricao_servico: `Prestação de Serviços - ${periodLabel} - Obra: ${gName}`,
+      disputed_hours: null
+    };
+
+    await supabase
+      .schema('core_finance')
+      .from('faturas')
+      .update({
+        status: 'approved',
+        ajustes_json: updatedAdj,
+        observacoes_cliente: null
+      })
+      .eq('id', faturaId);
+
+    await supabase
+      .schema('core_finance')
+      .from('horas_trabalhadas')
+      .update({ status: 'invoiced' })
+      .eq('fatura_id', faturaId);
+
+    return { originalFaturaId: faturaId, createdFaturas: [] };
+  }
+
+  // Sort groups by total hours descending so the primary obra retains the original invoice number
+  obraGroups.sort((a, b) => b.hours.length - a.hours.length);
+
+  const group1 = obraGroups[0];
+  const subsequentGroups = obraGroups.slice(1);
+
+  // Group 1 keeps original fatura ID
+  const g1Ajustes = {
+    ...(originalFat.ajustes_json || {}),
+    ...(financialAdjustments || {}),
+    obra: group1.obraName,
+    obra_id: group1.obraId,
+    descricao_servico: `Prestação de Serviços - ${periodLabel} - Obra: ${group1.obraName}`,
+    disputed_hours: null
+  };
+
+  await supabase
+    .schema('core_finance')
+    .from('faturas')
+    .update({
+      status: 'approved',
+      ajustes_json: g1Ajustes,
+      observacoes_cliente: null
+    })
+    .eq('id', faturaId);
+
+  // Mark group 1 hours as invoiced
+  const g1HourIds = group1.hours.map(h => h.id);
+  for (let i = 0; i < g1HourIds.length; i += 100) {
+    await supabase
+      .schema('core_finance')
+      .from('horas_trabalhadas')
+      .update({ status: 'invoiced' })
+      .in('id', g1HourIds.slice(i, i + 100));
+  }
+
+  // Create new faturas for subsequent groups
+  const createdFaturas: any[] = [];
+  for (const g of subsequentGroups) {
+    let faturaNumero: string | null = null;
+    let atcud: string | null = null;
+
+    if (originalFat.empresa_id) {
+      const { data: empresa } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .select('invoice_series, next_invoice_number, atcud_prefix')
+        .eq('id', originalFat.empresa_id)
+        .single();
+
+      if (empresa) {
+        const series = empresa.invoice_series || '1';
+        const num = empresa.next_invoice_number || 1;
+        faturaNumero = `Factura nº${series} ${yearStr}/${num}`;
+        if (empresa.atcud_prefix) {
+          atcud = `${empresa.atcud_prefix}-${num}`;
+        }
+
+        await supabase
+          .schema('core_common')
+          .from('empresas')
+          .update({ next_invoice_number: num + 1 })
+          .eq('id', originalFat.empresa_id);
+      }
+    }
+
+    const newAjustes = {
+      ...(originalFat.ajustes_json || {}),
+      obra: g.obraName,
+      obra_id: g.obraId,
+      descricao_servico: `Prestação de Serviços - ${periodLabel} - Obra: ${g.obraName}`,
+      incrementos: 0,
+      incrementos_desc: '',
+      reducoes: 0,
+      reducoes_desc: '',
+      disputed_hours: null,
+      dispute_file_url: null,
+      iban: originalFat.ajustes_json?.iban,
+      condicoes_pagamento: originalFat.ajustes_json?.condicoes_pagamento,
+      iva_pct: originalFat.ajustes_json?.iva_pct ?? 0,
+      data_emissao: originalFat.data_emissao,
+      data_vencimento: originalFat.ajustes_json?.data_vencimento
+    };
+
+    const newToken = crypto.randomUUID();
+    const { data: newFat, error: newFatErr } = await supabase
+      .schema('core_finance')
+      .from('faturas')
+      .insert({
+        client_id: originalFat.client_id,
+        empresa_id: originalFat.empresa_id,
+        status: 'approved',
+        magic_link_token: newToken,
+        data_emissao: originalFat.data_emissao,
+        ajustes_json: newAjustes,
+        fatura_numero: faturaNumero,
+        atcud: atcud
+      })
+      .select()
+      .single();
+
+    if (newFatErr) throw mapSupabaseError(newFatErr);
+
+    // Re-link hours to new fatura
+    const gHourIds = g.hours.map(h => h.id);
+    for (let i = 0; i < gHourIds.length; i += 100) {
+      await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .update({
+          fatura_id: newFat.id,
+          status: 'invoiced'
+        })
+        .in('id', gHourIds.slice(i, i + 100));
+    }
+
+    createdFaturas.push(newFat);
+  }
+
+  return { originalFaturaId: faturaId, createdFaturas };
+}
+
 export async function atualizarHorasDiarias(
   horaId: string, 
   novasHoras: number,

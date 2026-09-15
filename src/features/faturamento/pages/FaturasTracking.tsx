@@ -4,11 +4,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Badge } from '@/components/ui/badge';
 import { 
   Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, 
-  AlertTriangle, Trash2, Save, Euro, Calendar, Layers, Filter, CheckCheck, RefreshCw 
+  AlertTriangle, Trash2, Save, Euro, Calendar, Layers, Filter, CheckCheck, RefreshCw, Building2 
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getFaturasTracking, processarContestacaoFatura, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue, deepMergeDisputedHours } from '../api/faturamentoApi';
+import { getFaturasTracking, processarContestacaoFatura, desmembrarFaturaPorObras, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue, deepMergeDisputedHours } from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -104,9 +104,25 @@ export function FaturasTracking() {
   const [disputeReductionsDesc, setDisputeReductionsDesc] = useState<string>('');
   const [disputeIvaPct, setDisputeIvaPct] = useState<number>(0);
   const [isSavingAdjustments, setIsSavingAdjustments] = useState(false);
+  const [isSplittingObras, setIsSplittingObras] = useState(false);
   const [disputeActiveTab, setDisputeActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
   const [isGeneratingCobro, setIsGeneratingCobro] = useState(false);
   const { selectedEmpresaId, empresas } = useEmpresa();
+
+  const disputeObras = React.useMemo(() => {
+    if (!disputeHours || disputeHours.length === 0) return [];
+    const map = new Map<string, { id: string | null; name: string; hours: number; workers: Set<string> }>();
+    disputeHours.forEach((h: any) => {
+      const key = h.obra_id || 'sem_obra';
+      if (!map.has(key)) {
+        map.set(key, { id: h.obra_id || null, name: h.obra_name || 'Sem Obra', hours: 0, workers: new Set() });
+      }
+      const item = map.get(key)!;
+      item.hours += Number(h.horas_totais || 0);
+      if (h.worker_id) item.workers.add(h.worker_id);
+    });
+    return Array.from(map.values());
+  }, [disputeHours]);
 
   const [pdfRenderData, setPdfRenderData] = useState<{ fatura: any, hours: any[], type: 'informe' | 'factura' } | null>(null);
   const [statusFilter, setStatusFilter] = useState(() => {
@@ -325,9 +341,21 @@ export function FaturasTracking() {
         workersMap = new Map((wData || []).map(w => [w.id, w]));
       }
       
+      const obraIds = Array.from(new Set((data || []).map((h: any) => h.obra_id).filter(Boolean)));
+      let sitesMap = new Map();
+      if (obraIds.length > 0) {
+        const { data: sData } = await supabase
+          .schema('core_common')
+          .from('client_sites')
+          .select('id, name')
+          .in('id', obraIds);
+        sitesMap = new Map((sData || []).map(s => [s.id, s.name]));
+      }
+
       const mapped = (data || []).map(h => ({
         ...h,
-        worker: workersMap.get(h.worker_id)
+        worker: workersMap.get(h.worker_id),
+        obra_name: h.obra_id ? (sitesMap.get(h.obra_id) || 'Obra') : 'Sem Obra'
       }));
       setDisputeHours(mapped);
     } catch (err: any) {
@@ -1281,9 +1309,13 @@ export function FaturasTracking() {
     const cycleStartDay = fatura.client?.billing_cycle_start_day || 1;
     const daysArray = getBillingCycleDays(cycleStartDay, disputeYear, disputeMonth);
 
+    const obraTitle = (fatura.ajustes_json?.obra || fatura.ajustesJson?.obra)
+      ? `OBRA: ${(fatura.ajustes_json?.obra || fatura.ajustesJson?.obra).toUpperCase()}`
+      : 'OBRA: TODAS AS OBRAS';
+
     const tablesToRender = [
       {
-        title: 'OBRA: TODAS AS OBRAS',
+        title: obraTitle,
         workers: groupedWorkers,
         totalHoras: totalHorasCalculadas,
         totalValor: totalValorCalculado
@@ -1599,9 +1631,13 @@ export function FaturasTracking() {
     const cycleStartDay = fatura.client?.billingCycleStartDay || fatura.client?.billing_cycle_start_day || 1;
     const daysArray = getBillingCycleDays(cycleStartDay, periodYear, periodMonth);
 
+    const obraTitle = (fat.ajustes_json?.obra || fat.ajustesJson?.obra)
+      ? `OBRA: ${(fat.ajustes_json?.obra || fat.ajustesJson?.obra).toUpperCase()}`
+      : 'OBRA: TODAS AS OBRAS';
+
     const tablesToRender = [
       {
-        title: 'OBRA: TODAS AS OBRAS',
+        title: obraTitle,
         workers: groupedWorkers,
         totalHoras: totalHorasVal,
         totalValor: totalTarifaVal
@@ -2062,6 +2098,46 @@ export function FaturasTracking() {
       toast.error('Erro ao processar contestação: ' + err.message);
     } finally {
       setResolvingDispute(false);
+    }
+  };
+
+  const handleDesmembrarObrasAction = async (aceitar: boolean = true) => {
+    if (!selectedDispute) return;
+    try {
+      setIsSplittingObras(true);
+      
+      const financialAdjustments = {
+        incrementos: disputeIncrements,
+        incrementos_desc: disputeIncrementsDesc,
+        reducoes: disputeReductions,
+        reducoes_desc: disputeReductionsDesc,
+        iva_pct: disputeIvaPct
+      };
+
+      const activeEdits = Object.keys(adminModifiedHoursRef.current).length > 0
+        ? adminModifiedHoursRef.current
+        : (selectedDispute.ajustes_json?.disputed_hours || null);
+
+      const result = await desmembrarFaturaPorObras(
+        selectedDispute.id,
+        aceitar,
+        aceitar ? activeEdits : null,
+        financialAdjustments
+      );
+
+      const totalFaturas = 1 + (result.createdFaturas?.length || 0);
+      toast.success(
+        `Fatura desmembrada com sucesso em ${totalFaturas} faturas independentes por obra! Cada obra possui agora número de fatura oficial, horas e valor individualizados.`
+      );
+
+      setSelectedDispute(null);
+      const freshFaturas = await getFaturasTracking(selectedEmpresaId);
+      setFaturas(freshFaturas);
+    } catch (err: any) {
+      console.error('Erro ao desmembrar fatura por obras:', err);
+      toast.error('Erro ao faturar separado por obra: ' + err.message);
+    } finally {
+      setIsSplittingObras(false);
     }
   };
 
@@ -2986,6 +3062,13 @@ MCS - Gestão Comercial`;
                               ) : null}
                               <span className="font-bold text-slate-900 dark:text-slate-100">{fatura.client?.nombre_comercial || 'Cliente Desconhecido'}</span>
                             </div>
+                            {(fatura.ajustes_json?.obra || fatura.ajustesJson?.obra) && (
+                              <div className="flex items-center gap-1 text-[11px] text-indigo-700 dark:text-indigo-300 font-medium mt-0.5">
+                                <span className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded px-1.5 py-0.5 max-w-[280px] truncate" title={fatura.ajustes_json?.obra || fatura.ajustesJson?.obra}>
+                                  🏗️ {fatura.ajustes_json?.obra || fatura.ajustesJson?.obra}
+                                </span>
+                              </div>
+                            )}
                             {fatura.client?.viesApplicable && (
                               <Badge 
                                 variant="outline" 
@@ -3397,6 +3480,35 @@ MCS - Gestão Comercial`;
 
                 <div className="py-2 space-y-4 max-h-[62vh] overflow-y-auto text-left text-xs font-semibold">
                   
+                  {/* Multi-Obras Banner */}
+                  {disputeObras.length > 1 && (
+                    <div className="bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl p-3.5 text-xs text-indigo-950 dark:text-indigo-200 shadow-sm space-y-2 mb-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-bold text-indigo-900 dark:text-indigo-300 text-sm">
+                          <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <span>Faturamento Multi-Obras ({disputeObras.length} Obras Detectadas)</span>
+                        </div>
+                        <span className="text-[11px] bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 font-semibold px-2 py-0.5 rounded-full">
+                          Multi-Obras
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 font-normal">
+                        Esta fatura engloba múltiplas obras. Você pode aceitar a proposta gerando uma fatura independente para cada obra, com seu próprio número sequencial oficial e PDF.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                        {disputeObras.map((o, idx) => (
+                          <div key={idx} className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-indigo-100 dark:border-indigo-900 flex flex-col justify-between shadow-xs">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate" title={o.name}>🏗️ {o.name}</span>
+                            <div className="flex justify-between items-center text-[11px] text-slate-500 mt-1.5 font-medium">
+                              <span>{o.workers.size} colaborador{o.workers.size > 1 ? 'es' : ''}</span>
+                              <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{o.hours.toFixed(1)}h</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Resumo de Horas Tab */}
                   {disputeActiveTab === 'resumo' && (
                     <>
@@ -4191,14 +4303,14 @@ MCS - Gestão Comercial`;
                   })()}
                 </div>
 
-                <DialogFooter className="gap-2 sm:gap-0 border-t dark:border-slate-800 pt-4 mt-2">
-                  <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute}>
+                <DialogFooter className="gap-2 sm:gap-2 flex-wrap justify-end border-t dark:border-slate-800 pt-4 mt-2">
+                  <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute || isSplittingObras}>
                     Fechar
                   </Button>
                   <Button 
                     variant="outline" 
                     onClick={handleSaveFinancialAdjustments} 
-                    disabled={isSavingAdjustments || resolvingDispute}
+                    disabled={isSavingAdjustments || resolvingDispute || isSplittingObras}
                     className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
                   >
                     {isSavingAdjustments ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
@@ -4206,15 +4318,52 @@ MCS - Gestão Comercial`;
                   </Button>
                   {selectedDispute.status === 'disputed' && (
                     <>
-                      <Button variant="outline" onClick={() => handleResolveDispute(false)} disabled={resolvingDispute} className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">
+                      <Button variant="outline" onClick={() => handleResolveDispute(false)} disabled={resolvingDispute || isSplittingObras} className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">
                         {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <XCircle className="w-4 h-4 mr-2" />}
                         Recusar & Comentar
                       </Button>
-                      <Button onClick={() => handleResolveDispute(true)} disabled={resolvingDispute} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">
-                        {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                        Aceitar Proposta & Atualizar Ponto
-                      </Button>
+
+                      {disputeObras.length > 1 ? (
+                        <>
+                          <Button 
+                            variant="outline"
+                            onClick={() => handleResolveDispute(true)} 
+                            disabled={resolvingDispute || isSplittingObras} 
+                            className="text-slate-700 border-slate-300 hover:bg-slate-50"
+                            title="Aprova e mantém todas as obras unificadas em uma única fatura"
+                          >
+                            {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                            Aceitar (Fatura Única)
+                          </Button>
+                          <Button 
+                            onClick={() => handleDesmembrarObrasAction(true)} 
+                            disabled={resolvingDispute || isSplittingObras} 
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold border-none shadow-sm"
+                            title="Aprova a proposta e gera faturas oficiais separadas com número sequencial para cada obra"
+                          >
+                            {isSplittingObras ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Layers className="w-4 h-4 mr-2" />}
+                            Aceitar Proposta & Faturar Separado por Obra ({disputeObras.length} Obras)
+                          </Button>
+                        </>
+                      ) : (
+                        <Button onClick={() => handleResolveDispute(true)} disabled={resolvingDispute || isSplittingObras} className="bg-emerald-600 hover:bg-emerald-700 text-white border-none">
+                          {resolvingDispute ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                          Aceitar Proposta & Atualizar Ponto
+                        </Button>
+                      )}
                     </>
+                  )}
+
+                  {selectedDispute.status !== 'disputed' && disputeObras.length > 1 && (
+                    <Button 
+                      onClick={() => handleDesmembrarObrasAction(false)} 
+                      disabled={resolvingDispute || isSplittingObras} 
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold border-none shadow-sm"
+                      title="Desmembra as horas desta fatura em faturas oficiais separadas para cada obra"
+                    >
+                      {isSplittingObras ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Layers className="w-4 h-4 mr-2" />}
+                      Desmembrar Fatura por Obra ({disputeObras.length} Obras)
+                    </Button>
                   )}
                 </DialogFooter>
               </>
