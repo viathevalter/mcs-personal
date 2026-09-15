@@ -122,7 +122,7 @@ export function parseExcelDateToISO(excelDate: any): string | null {
     if (!excelDate) return null;
 
     if (excelDate instanceof Date) {
-        if (isValid(excelDate)) return format(excelDate, 'yyyy-MM-01');
+        if (isValid(excelDate)) return format(excelDate, 'yyyy-MM-dd');
         return null;
     }
 
@@ -130,7 +130,7 @@ export function parseExcelDateToISO(excelDate: any): string | null {
         const date = new Date((excelDate - 25569) * 86400 * 1000);
         const utcDate = new Date(date.getTime() + date.getTimezoneOffset() * 60000);
         if (isValid(utcDate)) {
-            return format(utcDate, 'yyyy-MM-01');
+            return format(utcDate, 'yyyy-MM-dd');
         }
         return null;
     }
@@ -138,13 +138,32 @@ export function parseExcelDateToISO(excelDate: any): string | null {
     if (typeof excelDate === 'string') {
         const str = excelDate.trim();
         if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-        if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+        if (/^\d{4}-\d{2}$/.test(str)) return `${str}-01`;
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
             const [d, m, y] = str.split('/');
-            return `${y}-${m}-${d}`;
+            return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        }
+        if (/^\d{1,2}\/\d{4}$/.test(str)) {
+            const [m, y] = str.split('/');
+            return `${y}-${m.padStart(2, '0')}-01`;
+        }
+        if (/^\d{4}\/\d{1,2}$/.test(str)) {
+            const [y, m] = str.split('/');
+            return `${y}-${m.padStart(2, '0')}-01`;
         }
     }
 
     return null;
+}
+
+export function normalizeCompetenceDate(dateStr?: string | null): string {
+    if (!dateStr) return getCurrentCompetence();
+    const str = String(dateStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    if (/^\d{4}-\d{2}$/.test(str)) return `${str}-01`;
+    const parsed = parseExcelDateToISO(str);
+    if (parsed) return parsed;
+    return getCurrentCompetence();
 }
 
 export function calculateProratedBenefitAmount(

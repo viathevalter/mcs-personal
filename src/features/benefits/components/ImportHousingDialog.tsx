@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { DownloadCloud, Loader2, AlertCircle, ArrowRight, ArrowLeft, Calendar, Tag } from 'lucide-react';
 import {
@@ -32,6 +32,7 @@ import {
     findMatchingWorker,
     getCompetenceOptions,
     getCurrentCompetence,
+    normalizeCompetenceDate,
     parseExcelDateToISO,
     type SimpleWorker
 } from '@/shared/utils/importUtils';
@@ -79,7 +80,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
     const { data: benefitCategoriesData } = useBenefitCategories(selectedEmpresaId || undefined);
 
     const competenceOptions = useMemo(() => getCompetenceOptions(), []);
-    const initialCompetence = defaultCompetence || getCurrentCompetence();
+    const initialCompetence = useMemo(() => normalizeCompetenceDate(defaultCompetence), [defaultCompetence]);
 
     const categoryList = useMemo(() => {
         if (benefitCategoriesData && benefitCategoriesData.length > 0) {
@@ -138,6 +139,10 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
     // Combobox Selection States (Competência e Categoria)
     const [selectedCompetence, setSelectedCompetence] = useState<string>(initialCompetence);
     const [selectedCategory, setSelectedCategory] = useState<string>('Auxílio Moradia');
+
+    useEffect(() => {
+        setSelectedCompetence(initialCompetence);
+    }, [initialCompetence]);
 
     // Mapping state
     const [colMapping, setColMapping] = useState({
@@ -237,10 +242,10 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
             }
 
             // Competence resolution: Column date if mapped, otherwise Selected Competence Combobox
-            let finalDate = selectedCompetence;
+            let finalDate = normalizeCompetenceDate(selectedCompetence);
             if (colMapping.data_inicio && colMapping.data_inicio !== ' ') {
                 const sheetDate = parseExcelDateToISO(row[colMapping.data_inicio]);
-                if (sheetDate) finalDate = sheetDate;
+                if (sheetDate) finalDate = normalizeCompetenceDate(sheetDate);
             }
 
             // Skip empty and summary rows
@@ -316,9 +321,10 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
         const batchId = crypto.randomUUID();
 
         const eventsToInsert: Omit<HousingBenefit, 'id' | 'created_at'>[] = validRows.map(r => {
+            const validStartDate = normalizeCompetenceDate(r.data_inicio || selectedCompetence);
             let endDateForMonth: string | null = null;
-            if (r.data_inicio && r.data_inicio.length >= 7) {
-                const parts = r.data_inicio.split('-').map(Number);
+            if (validStartDate && validStartDate.length >= 7) {
+                const parts = validStartDate.substring(0, 7).split('-').map(Number);
                 if (parts.length >= 2) {
                     const y = parts[0];
                     const m = parts[1];
@@ -331,7 +337,7 @@ export function ImportHousingDialog({ workers: initialWorkers, trigger, defaultC
                 worker_id: r.workerId!,
                 empresa_id: r.empresaId || selectedEmpresaId || '00000000-0000-0000-0000-000000000000',
                 monthly_amount: Number(r.valor.toFixed(2)),
-                start_date: r.data_inicio,
+                start_date: validStartDate,
                 category: r.categoria,
                 status: 'Ativo',
                 end_date: endDateForMonth,

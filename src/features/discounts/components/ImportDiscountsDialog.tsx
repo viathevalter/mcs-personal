@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { DownloadCloud, Loader2, AlertCircle, ArrowRight, ArrowLeft, Calendar, Tag } from 'lucide-react';
 import {
@@ -32,6 +32,7 @@ import {
     findMatchingWorker,
     getCompetenceOptions,
     getCurrentCompetence,
+    normalizeCompetenceDate,
     parseExcelDateToISO,
     type SimpleWorker
 } from '@/shared/utils/importUtils';
@@ -80,7 +81,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
     const { data: discountCategoriesData } = useDiscountCategories(selectedEmpresaId || undefined);
 
     const competenceOptions = useMemo(() => getCompetenceOptions(), []);
-    const initialCompetence = defaultCompetence || getCurrentCompetence();
+    const initialCompetence = useMemo(() => normalizeCompetenceDate(defaultCompetence), [defaultCompetence]);
 
     const categoryList = useMemo(() => {
         if (discountCategoriesData && discountCategoriesData.length > 0) {
@@ -139,6 +140,10 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
     // Combobox Selection States (Competência e Categoria)
     const [selectedCompetence, setSelectedCompetence] = useState<string>(initialCompetence);
     const [selectedCategory, setSelectedCategory] = useState<string>('Aluguel de Carro');
+
+    useEffect(() => {
+        setSelectedCompetence(initialCompetence);
+    }, [initialCompetence]);
 
     // Column Mapping state
     const [colMapping, setColMapping] = useState({
@@ -243,10 +248,10 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
             }
 
             // Competence resolution: Column date if mapped and valid, otherwise Selected Competence Combobox
-            let finalDate = selectedCompetence;
+            let finalDate = normalizeCompetenceDate(selectedCompetence);
             if (colMapping.data && colMapping.data !== ' ') {
                 const sheetDate = parseExcelDateToISO(row[colMapping.data]);
-                if (sheetDate) finalDate = sheetDate;
+                if (sheetDate) finalDate = normalizeCompetenceDate(sheetDate);
             }
 
             // Skip empty rows and summary rows (e.g., TOTAL GENERAL)
@@ -328,7 +333,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
             empresa_id: r.empresaId || selectedEmpresaId || '00000000-0000-0000-0000-000000000000',
             category: r.categoria as any,
             amount: Number(r.valor.toFixed(2)),
-            reference_date: r.data,
+            reference_date: normalizeCompetenceDate(r.data || selectedCompetence),
             description: r.descricao || null,
             is_recurring: false,
             import_batch_id: batchId,
