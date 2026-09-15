@@ -1504,6 +1504,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_guadalajara_huelva_huesca',
+        name: '🚀 Mailing Alex - Inéditos Guadalajara, Huelva & Huesca (212 leads)',
+        leadCount: 212,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Guadalajara Huelva Huesca',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_alex_guadalajara_huelva_huesca',
+        name: '🎯 Mailing Alex - Guadalajara, Huelva & Huesca Completo (248 leads)',
+        leadCount: 248,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Guadalajara Huelva Huesca',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
         id: 'aud_mailing_alex_ineditos_guipuzcoa',
         name: '🚀 Mailing Alex - Inéditos Guipúzcoa (190 leads)',
         leadCount: 190,
