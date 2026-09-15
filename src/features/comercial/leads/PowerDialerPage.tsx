@@ -38,7 +38,8 @@ import {
   Info,
   Wrench,
   FileText,
-  CreditCard
+  CreditCard,
+  Edit
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
@@ -76,6 +78,8 @@ import { SendMaterialModal } from './components/SendMaterialModal';
 import { GatekeeperModal } from './components/GatekeeperModal';
 import { CollectProjectDemandModal } from './components/CollectProjectDemandModal';
 import { CollectFiscalDataModal } from './components/CollectFiscalDataModal';
+import { EditLeadModal } from './components/EditLeadModal';
+import type { Lead } from '../estimaciones/types';
 import type { CallOutcome, RejectionReason, DialerQueueItem } from './types/dialerTypes';
 
 const countryFlags: Record<string, string> = {
@@ -123,6 +127,10 @@ export function PowerDialerPage() {
   const [isPresupuestoModalOpen, setIsPresupuestoModalOpen] = useState(false);
   const [isDemandModalOpen, setIsDemandModalOpen] = useState(false);
   const [isFiscalModalOpen, setIsFiscalModalOpen] = useState(false);
+  const [isEditLeadModalOpen, setIsEditLeadModalOpen] = useState(false);
+  const [activeLeadOverride, setActiveLeadOverride] = useState<Lead | null>(null);
+
+  const queryClient = useQueryClient();
 
   // Check if a specific queueItemId was requested from Agenda
   const queueItemIdParam = searchParams.get('queueItemId');
@@ -138,7 +146,14 @@ export function PowerDialerPage() {
 
   // Selected Lead Data from Queue
   const currentQueueItem: DialerQueueItem | undefined = queue[currentQueueIndex] || queue[0];
-  const currentLead = currentQueueItem?.lead;
+  const currentLead: Lead | undefined = (activeLeadOverride && activeLeadOverride.id === currentQueueItem?.lead?.id)
+    ? activeLeadOverride
+    : currentQueueItem?.lead;
+
+  const handleLeadUpdated = (updatedLead: Lead) => {
+    setActiveLeadOverride(updatedLead);
+    queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
+  };
 
   // History Logs for current lead
   const { data: leadHistory = [], isLoading: loadingHistory } = useLeadCallLogs(currentLead?.id);
@@ -603,15 +618,28 @@ export function PowerDialerPage() {
                     </p>
                   </div>
 
-                  {currentLead.do_not_call ? (
-                    <Badge variant="destructive" className="text-[10px] uppercase">
-                      Blacklist
-                    </Badge>
-                  ) : (
-                    <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[10px] uppercase">
-                      {currentQueueItem.status}
-                    </Badge>
-                  )}
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditLeadModalOpen(true)}
+                      className="h-7 text-xs border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold gap-1 px-2.5 shadow-sm"
+                      title="Editar cadastro completo do Lead (Telefone, E-mail, CIF, etc.)"
+                    >
+                      <Edit className="w-3.5 h-3.5 text-amber-500" />
+                      Editar Lead
+                    </Button>
+
+                    {currentLead.do_not_call ? (
+                      <Badge variant="destructive" className="text-[10px] uppercase">
+                        Blacklist
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[10px] uppercase">
+                        {currentQueueItem.status}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
 
                 {/* Scheduled Callback Alert Box if lead was scheduled */}
@@ -683,6 +711,15 @@ export function PowerDialerPage() {
                     </div>
 
                     <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsEditLeadModalOpen(true)}
+                        className="h-7 w-7 p-0 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                        title="Corrigir ou alterar número de telefone do lead"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1065,13 +1102,23 @@ export function PowerDialerPage() {
         isSubmitting={isLoggingCall}
       />
 
-      {/* Send Commercial Material Modal */}
+      {/* Send Commercial Material Modal (M365 Direct) */}
       <SendMaterialModal
         isOpen={isMaterialModalOpen}
         onClose={() => setIsMaterialModalOpen(false)}
         lead={currentLead}
+        queueItemId={currentQueueItem?.id}
         onConfirm={handleConfirmSendMaterial}
+        onLeadUpdated={handleLeadUpdated}
         isSubmitting={isLoggingCall}
+      />
+
+      {/* Edit Lead Modal (CRUD Cockpit Discador) */}
+      <EditLeadModal
+        isOpen={isEditLeadModalOpen}
+        onClose={() => setIsEditLeadModalOpen(false)}
+        lead={currentLead}
+        onLeadUpdated={handleLeadUpdated}
       />
 
       {/* Gatekeeper / Reception Modal */}

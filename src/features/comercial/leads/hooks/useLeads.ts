@@ -8,6 +8,9 @@ export interface Salesperson {
   email: string;
   display_name: string;
   role: string;
+  commercial_email?: string;
+  commercial_name?: string;
+  commercial_phone?: string;
 }
 
 export function useSalespeople() {
@@ -16,7 +19,7 @@ export function useSalespeople() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('mcs_users')
-        .select('id, email, display_name, role')
+        .select('id, email, display_name, role, commercial_email, commercial_name, commercial_phone')
         .eq('active', true)
         .order('display_name', { ascending: true });
 

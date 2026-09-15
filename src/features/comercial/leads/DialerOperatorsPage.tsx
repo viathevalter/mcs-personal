@@ -20,10 +20,11 @@ import {
   Italic,
   Underline,
   Copy,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  AlertCircle
+  ExternalLink, 
+  ChevronDown, 
+  ChevronUp, 
+  AlertCircle,
+  Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,11 +37,13 @@ import {
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
-  DialogDescription,
-  DialogFooter
+  DialogDescription, 
+  DialogFooter 
 } from '@/components/ui/dialog';
-import { useSalespeople } from './hooks/useLeads';
+import { useSalespeople, type Salesperson } from './hooks/useLeads';
 import { useSalesScripts, useMutateDialer } from './hooks/useDialer';
+import { supabase } from '@/shared/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { SalesScript, ObjectionItem, QualifyingQuestion } from './types/dialerTypes';
 
@@ -48,8 +51,51 @@ export function DialerOperatorsPage() {
   const { data: salespeople = [], isLoading: loadingSalespeople } = useSalespeople();
   const { data: scripts = [], isLoading: loadingScripts } = useSalesScripts();
   const { saveSalesScript, isSavingSalesScript, deleteSalesScript, isDeletingSalesScript } = useMutateDialer();
+  const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<'operators' | 'scripts'>('scripts');
+
+  // Operator M365 Config Modal State
+  const [isM365ModalOpen, setIsM365ModalOpen] = useState(false);
+  const [selectedOperator, setSelectedOperator] = useState<Salesperson | null>(null);
+  const [operatorCommercialEmail, setOperatorCommercialEmail] = useState('');
+  const [operatorCommercialName, setOperatorCommercialName] = useState('');
+  const [operatorCommercialPhone, setOperatorCommercialPhone] = useState('');
+  const [savingOperator, setSavingOperator] = useState(false);
+
+  const handleOpenM365Config = (sp: Salesperson) => {
+    setSelectedOperator(sp);
+    setOperatorCommercialEmail(sp.commercial_email || '');
+    setOperatorCommercialName(sp.commercial_name || sp.display_name || '');
+    setOperatorCommercialPhone(sp.commercial_phone || '');
+    setIsM365ModalOpen(true);
+  };
+
+  const handleSaveOperatorM365 = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOperator?.id) return;
+    try {
+      setSavingOperator(true);
+      const { error } = await supabase
+        .from('mcs_users')
+        .update({
+          commercial_email: operatorCommercialEmail.trim() || null,
+          commercial_name: operatorCommercialName.trim() || null,
+          commercial_phone: operatorCommercialPhone.trim() || null,
+        })
+        .eq('id', selectedOperator.id);
+
+      if (error) throw error;
+      toast.success(`Configuração M365 de ${selectedOperator.display_name} salva com sucesso!`);
+      queryClient.invalidateQueries({ queryKey: ['salespeople_users'] });
+      setIsM365ModalOpen(false);
+    } catch (err: any) {
+      console.error('Erro ao salvar configuração de remetente M365:', err);
+      toast.error(err.message || 'Falha ao salvar configuração M365.');
+    } finally {
+      setSavingOperator(false);
+    }
+  };
 
   // Script Edit Modal State
   const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
@@ -367,6 +413,39 @@ export function DialerOperatorsPage() {
                   </Badge>
                 </div>
 
+                {/* M365 Email Remetente Mapping */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5 text-blue-500" />
+                      Remetente M365 (Discador):
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleOpenM365Config(sp)}
+                      className="h-6 px-2 text-[11px] text-blue-600 dark:text-blue-400 hover:bg-blue-500/10 font-semibold"
+                    >
+                      Configurar
+                    </Button>
+                  </div>
+                  <p className="font-mono text-xs font-bold text-foreground truncate">
+                    {sp.commercial_email || (
+                      <span className="text-muted-foreground italic font-normal text-[11px]">E-mail padrão da empresa</span>
+                    )}
+                  </p>
+                  {sp.commercial_name && (
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      Assinatura: <strong className="text-foreground font-medium">{sp.commercial_name}</strong>
+                    </p>
+                  )}
+                  {sp.commercial_phone && (
+                    <p className="text-[11px] text-muted-foreground truncate font-mono">
+                      Tel: {sp.commercial_phone}
+                    </p>
+                  )}
+                </div>
+
                 <div className="pt-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                   <span>Perfil: <strong>{sp.role || 'Vendedor Comercial'}</strong></span>
                   <span className="text-purple-600 dark:text-purple-400 font-semibold">Telemarketing Ativo</span>
@@ -374,6 +453,94 @@ export function DialerOperatorsPage() {
               </div>
             ))}
           </div>
+
+          {/* Modal de Configuração do Remetente M365 do Operador */}
+          <Dialog open={isM365ModalOpen} onOpenChange={setIsM365ModalOpen}>
+            <DialogContent className="sm:max-w-md bg-card border-border text-foreground p-0 shadow-2xl overflow-hidden">
+              <DialogHeader className="p-5 pb-4 border-b border-border bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-base font-bold text-foreground">
+                      Configurar Remetente M365
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-muted-foreground">
+                      Operador: <strong className="text-foreground">{selectedOperator?.display_name}</strong> ({selectedOperator?.email})
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <form onSubmit={handleSaveOperatorM365} className="p-5 space-y-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">
+                    E-mail Corporativo M365 (Saída para Clientes)
+                  </Label>
+                  <Input
+                    type="email"
+                    value={operatorCommercialEmail}
+                    onChange={e => setOperatorCommercialEmail(e.target.value)}
+                    placeholder="Ex: comercial1@luminous-servicios.com"
+                    className="h-9 text-xs bg-background font-mono"
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    Caixa oficial do Microsoft 365 da qual sairão os catálogos e orçamentos enviados por este operador.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">
+                    Nome Comercial na Assinatura
+                  </Label>
+                  <Input
+                    value={operatorCommercialName}
+                    onChange={e => setOperatorCommercialName(e.target.value)}
+                    placeholder="Ex: Alex | Depto. Comercial"
+                    className="h-9 text-xs bg-background"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-foreground">
+                    Telefone / WhatsApp Comercial (Assinatura)
+                  </Label>
+                  <Input
+                    value={operatorCommercialPhone}
+                    onChange={e => setOperatorCommercialPhone(e.target.value)}
+                    placeholder="Ex: +34 600 000 000"
+                    className="h-9 text-xs bg-background font-mono"
+                  />
+                </div>
+
+                <DialogFooter className="pt-3 border-t border-border flex justify-between items-center sm:justify-between">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsM365ModalOpen(false)}
+                    disabled={savingOperator}
+                    className="text-xs"
+                  >
+                    Cancelar
+                  </Button>
+
+                  <Button
+                    type="submit"
+                    disabled={savingOperator}
+                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold gap-1.5 shadow-md shadow-blue-600/20"
+                  >
+                    {savingOperator ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4" />
+                    )}
+                    Salvar Configuração
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       )}
 
