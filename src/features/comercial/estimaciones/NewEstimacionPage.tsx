@@ -27,8 +27,18 @@ import {
   Calendar,
   Users,
   MapPin,
-  Clock
+  Clock,
+  ShieldAlert
 } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useEstimacionMutations } from './hooks/useEstimacionMutations';
@@ -134,6 +144,10 @@ export function NewEstimacionPage() {
     hours_domingo: 0.0,
     additional_revenues: [],
   });
+
+  const [jobFunctionRateMap, setJobFunctionRateMap] = useState<Record<string, { minRate: number; name: string }>>({});
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewJustification, setReviewJustification] = useState('');
 
   const { data: sites = [] } = useClientSites(payload.client_id || undefined);
   const { data: estimacion, isLoading } = useEstimacionDetail(id);
@@ -273,7 +287,7 @@ export function NewEstimacionPage() {
     fetchSettings();
   }, [payload.empresa_id, selectedEmpresaId, id]);
 
-  // Load Client Data
+  // Load Client Data & Overdue Invoices
   useEffect(() => {
     async function fetchClient() {
       if (!payload.client_id) {
@@ -288,6 +302,25 @@ export function NewEstimacionPage() {
           .eq('id', payload.client_id)
           .maybeSingle();
         if (error) throw error;
+        
+        if (data?.codigo) {
+          const { data: overdueData } = await supabase
+            .from('contas_receber')
+            .select('id, saldo_a_pagar')
+            .eq('cod_cliente', data.codigo)
+            .eq('status', 'Vencido');
+
+          if (overdueData && overdueData.length > 0) {
+            const totalOverdue = overdueData.reduce((acc: number, row: any) => {
+              const cleaned = (row.saldo_a_pagar || '').toString().replace(/\./g, '').replace(',', '.');
+              const num = parseFloat(cleaned);
+              return acc + (isNaN(num) ? 0 : num);
+            }, 0);
+            data.overdue_invoices_count = overdueData.length;
+            data.total_overdue_amount = totalOverdue;
+          }
+        }
+
         setSelectedClientData(data);
       } catch (err) {
         console.error('Error fetching client data:', err);
@@ -295,6 +328,35 @@ export function NewEstimacionPage() {
     }
     fetchClient();
   }, [payload.client_id]);
+
+  // Load Job Function Rate Refs for Floor checks
+  useEffect(() => {
+    async function fetchRateRefs() {
+      const targetEmpresa = payload.empresa_id || selectedEmpresaId;
+      if (!targetEmpresa) return;
+      try {
+        const { data } = await supabase
+          .schema('core_comercial')
+          .from('job_function_rate_refs')
+          .select('job_function_id, minimum_sell_rate_hour, job_functions:core_comercial.job_functions(name)')
+          .eq('empresa_id', targetEmpresa);
+
+        if (data) {
+          const map: Record<string, { minRate: number; name: string }> = {};
+          data.forEach((r: any) => {
+            map[r.job_function_id] = {
+              minRate: Number(r.minimum_sell_rate_hour || 0),
+              name: r.job_functions?.name || '',
+            };
+          });
+          setJobFunctionRateMap(map);
+        }
+      } catch (err) {
+        console.error('Error fetching rate refs:', err);
+      }
+    }
+    fetchRateRefs();
+  }, [payload.empresa_id, selectedEmpresaId]);
 
   // Load Existing Estimation in Edit Mode
   useEffect(() => {
@@ -415,11 +477,18 @@ export function NewEstimacionPage() {
   };
   const handlePrev = () => setCurrentStep(prev => Math.max(prev - 1, 1));
 
-  const handleSave = (status: 'draft' | 'review' | 'sent') => {
+  const viability = useMemo(() => {
+    return calculateViability(payload, selectedClientData, comercialSettings, t, jobFunctionRateMap);
+  }, [payload, selectedClientData, comercialSettings, t, jobFunctionRateMap]);
+
+  const handleSave = (status: 'draft' | 'review' | 'sent', customJustification?: string) => {
     const finalPayload = {
       ...payload,
       empresa_id: payload.empresa_id || selectedEmpresaId,
       status,
+      review_justification: customJustification || reviewJustification || null,
+      review_requested_at: status === 'review' ? new Date().toISOString() : null,
+      viability_reasons: viability.reasons || [],
       client_id: payload.client_id || null,
       lead_id: payload.lead_id || null,
       client_site_id: payload.client_site_id || null,
@@ -652,19 +721,91 @@ export function NewEstimacionPage() {
                   <Save className="mr-2 h-4 w-4" />
                   {t('comercial.detail.btnSaveDraft')}
                 </Button>
-                <Button 
-                  onClick={() => handleSave('sent')}
-                  disabled={isMutationPending}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                >
-                  <Send className="mr-2 h-4 w-4" />
-                  Salvar e Finalizar
-                </Button>
+
+                {viability.hasBlockingViolations ? (
+                  <Button 
+                    onClick={() => setIsReviewModalOpen(true)}
+                    disabled={isMutationPending}
+                    className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+                  >
+                    <ShieldAlert className="mr-2 h-4 w-4" />
+                    Enviar para Análise da Gerência
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => handleSave('sent')}
+                    disabled={isMutationPending}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    Salvar e Finalizar
+                  </Button>
+                )}
               </>
             )}
           </div>
         </div>
       </div>
+
+      {/* Modal de Envio para Análise da Gerência */}
+      <Dialog open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+              <ShieldAlert className="h-5 w-5" />
+              Solicitar Aprovação da Gerência Comercial
+            </DialogTitle>
+            <DialogDescription>
+              Este orçamento contém condições fora dos parâmetros padrão da empresa e requer validação da gerência antes do envio da proposta ao cliente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 p-3 rounded-lg text-xs space-y-1.5">
+              <span className="font-bold text-amber-900 dark:text-amber-300 block">Condições fora do parâmetro:</span>
+              <ul className="list-disc pl-4 text-amber-800 dark:text-amber-400 space-y-1">
+                {viability.reasons.map((r: string, idx: number) => (
+                  <li key={idx}>{r}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Justificativa Comercial do Vendedor <span className="text-red-500">*</span>
+              </label>
+              <Textarea
+                placeholder="Explique o contexto estratégico, histórico do cliente, negociação de volume, contrapartida ou motivos da exceção..."
+                value={reviewJustification}
+                onChange={(e) => setReviewJustification(e.target.value)}
+                rows={4}
+                className="text-xs"
+              />
+              <span className="text-[11px] text-muted-foreground block">
+                Esta justificativa será apresentada na Mesa de Aprovações para decisão do gestor.
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsReviewModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+              disabled={!reviewJustification.trim() || isMutationPending}
+              onClick={() => {
+                const just = reviewJustification;
+                setIsReviewModalOpen(false);
+                handleSave('review', just);
+              }}
+            >
+              {isMutationPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Confirmar Envio para Análise
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

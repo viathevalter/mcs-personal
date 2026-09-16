@@ -484,6 +484,38 @@ export function EstimacionReviewStep({ data, client, settings }: Props) {
                   </div>
                 </div>
 
+                {/* Blocking Governance Banner */}
+                {viability.hasBlockingViolations && (
+                  <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-xl border-2 border-red-300 dark:border-red-900/60 shadow-sm space-y-3">
+                    <div className="flex items-start">
+                      <ShieldAlert className="h-6 w-6 text-red-600 dark:text-red-400 mr-3 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-base font-bold text-red-900 dark:text-red-300">
+                          Bloqueio de Envio Direto: Análise Gerencial Obrigatória
+                        </h4>
+                        <p className="text-xs text-red-700 dark:text-red-400 mt-1 leading-relaxed">
+                          Este orçamento viola parâmetros comerciais mínimos da empresa (margem, tarifas abaixo do piso ou cliente com débito). O envio direto está bloqueado e a proposta precisará ser submetida para avaliação de um gestor.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid sm:grid-cols-3 gap-2 pt-1">
+                      <div className={`p-2.5 rounded-lg border text-xs ${viability.marginRisk ? 'bg-red-100/80 dark:bg-red-900/50 border-red-300 text-red-900 dark:text-red-200 font-semibold' : 'bg-white/60 dark:bg-slate-900/60 border-slate-200 text-slate-500'}`}>
+                        <span className="font-bold block">1. Margem Mínima</span>
+                        <span>{viability.marginRisk ? 'Violada (Abaixo do piso)' : '✓ Em conformidade'}</span>
+                      </div>
+                      <div className={`p-2.5 rounded-lg border text-xs ${viability.rateFloorViolations.length > 0 ? 'bg-red-100/80 dark:bg-red-900/50 border-red-300 text-red-900 dark:text-red-200 font-semibold' : 'bg-white/60 dark:bg-slate-900/60 border-slate-200 text-slate-500'}`}>
+                        <span className="font-bold block">2. Tarifas por Função</span>
+                        <span>{viability.rateFloorViolations.length > 0 ? `⚠️ ${viability.rateFloorViolations.length} abaixo do piso` : '✓ Em conformidade'}</span>
+                      </div>
+                      <div className={`p-2.5 rounded-lg border text-xs ${viability.debtViolation?.isDebtor ? 'bg-red-100/80 dark:bg-red-900/50 border-red-300 text-red-900 dark:text-red-200 font-semibold' : 'bg-white/60 dark:bg-slate-900/60 border-slate-200 text-slate-500'}`}>
+                        <span className="font-bold block">3. Situação do Cliente</span>
+                        <span>{viability.debtViolation?.isDebtor ? '⚠️ Inadimplente / Débito' : '✓ Regular'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Detailed reasons list if approval is needed */}
                 {viability.reasons.length > 0 && (
                   <div className="p-4 bg-amber-50/50 dark:bg-amber-950/10 rounded-lg border border-amber-200/50 dark:border-amber-900/30">

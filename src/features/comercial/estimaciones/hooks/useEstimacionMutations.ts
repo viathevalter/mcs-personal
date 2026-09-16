@@ -103,28 +103,24 @@ export function useEstimacionMutations() {
   });
 
   const decidirAprovacaoGerente = useMutation({
-    mutationFn: async ({ id, aprovado }: { id: string; aprovado: boolean }) => {
-      const { data, error } = await supabase
-        .schema('core_comercial')
-        .from('estimaciones')
-        .update({ 
-          status: 'draft', 
-          is_approved_by_manager: aprovado 
-        })
-        .eq('id', id)
-        .select()
-        .single();
+    mutationFn: async ({ id, aprovado, notes }: { id: string; aprovado: boolean; notes?: string }) => {
+      const { data, error } = await supabase.schema('core_comercial').rpc('decidir_aprovacao_gerente', {
+        p_estimacion_id: id,
+        p_aprovado: aprovado,
+        p_decision_notes: notes || null,
+      });
       if (error) throw error;
       return data;
     },
     onSuccess: (data: any, variables) => {
       toast.success(
         variables.aprovado 
-          ? 'Orçamento aprovado pelo gerente comercial!' 
-          : 'Orçamento rejeitado pelo gerente comercial!'
+          ? 'Orçamento aprovado pelo gerente comercial! O envio de propostas foi liberado.' 
+          : 'Orçamento rejeitado pelo gerente comercial.'
       );
       queryClient.invalidateQueries({ queryKey: ['estimaciones', selectedEmpresaId] });
       queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['aprovacoes-pendentes', selectedEmpresaId] });
     },
     onError: (error: any) => {
       console.error(error);

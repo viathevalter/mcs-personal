@@ -105,6 +105,7 @@ import { ProspectingPage } from '../features/comercial/leads/ProspectingPage';
 import { AnalisesPage } from '../features/comercial/analises/AnalisesPage';
 import { ComercialSettingsPage } from '../features/comercial/settings/ComercialSettingsPage';
 import { PortfolioReferenciasPage } from '../features/comercial/portfolio/PortfolioReferenciasPage';
+import { MesaAprovacoesPage } from '../features/comercial/aprovacoes/MesaAprovacoesPage';
 
 import { LogisticaLayout } from '../features/logistica/layout/LogisticaLayout';
 import { LogisticaDashboard } from '../features/logistica/pages/LogisticaDashboard';
@@ -291,6 +292,7 @@ export const router = createBrowserRouter([
                     { path: 'estimaciones/new', element: <NewEstimacionPage /> },
                     { path: 'estimaciones/:id', element: <EstimacionDetailPage /> },
                     { path: 'estimaciones/:id/editar', element: <NewEstimacionPage /> },
+                    { path: 'aprovacoes', element: <MesaAprovacoesPage /> },
                     { path: 'analises', element: <AnalisesPage /> },
                     { path: 'portfolio', element: <PortfolioReferenciasPage /> },
                     { path: 'configuracion', element: <ComercialSettingsPage /> }

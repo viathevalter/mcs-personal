@@ -47,6 +47,37 @@ export function EstimacionDetailPage() {
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
   const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
 
+  const [decisionModalOpen, setDecisionModalOpen] = useState(false);
+  const [decisionType, setDecisionType] = useState<'approve' | 'reject'>('approve');
+  const [decisionNotes, setDecisionNotes] = useState('');
+
+  const handleOpenDecision = (type: 'approve' | 'reject') => {
+    setDecisionType(type);
+    setDecisionNotes('');
+    setDecisionModalOpen(true);
+  };
+
+  const handleConfirmDecision = () => {
+    if (!estimacion) return;
+    if (decisionType === 'reject' && !decisionNotes.trim()) {
+      toast.error('Informe o motivo ou a contraproposta ao rejeitar o orçamento.');
+      return;
+    }
+
+    decidirAprovacaoGerente.mutate(
+      {
+        id: estimacion.id,
+        aprovado: decisionType === 'approve',
+        notes: decisionNotes.trim() || undefined,
+      },
+      {
+        onSuccess: () => {
+          setDecisionModalOpen(false);
+        },
+      }
+    );
+  };
+
   useEffect(() => {
     async function fetchSettings() {
       if (!estimacion?.empresa_id) return;
@@ -193,11 +224,11 @@ export function EstimacionDetailPage() {
                 {t('comercial.detail.btnEdit')}
               </Button>
             )}
-            {estimacion.status === 'review' && role === 'admin' && (
+            {estimacion.status === 'review' && (role === 'admin' || role === 'super_admin') && (
               <>
                 <Button 
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  onClick={() => decidirAprovacaoGerente.mutate({ id: estimacion.id, aprovado: true })}
+                  onClick={() => handleOpenDecision('approve')}
                   disabled={decidirAprovacaoGerente.isPending}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -205,7 +236,7 @@ export function EstimacionDetailPage() {
                 </Button>
                 <Button 
                   variant="destructive"
-                  onClick={() => decidirAprovacaoGerente.mutate({ id: estimacion.id, aprovado: false })}
+                  onClick={() => handleOpenDecision('reject')}
                   disabled={decidirAprovacaoGerente.isPending}
                 >
                   <AlertCircle className="mr-2 h-4 w-4" />
@@ -243,27 +274,64 @@ export function EstimacionDetailPage() {
         </div>
 
         {estimacion.status === 'review' && (
-          <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 p-4 rounded-lg text-amber-800 dark:text-amber-400 flex flex-col space-y-2 text-sm">
+          <div className="bg-amber-50/70 dark:bg-amber-950/20 border-2 border-amber-300 dark:border-amber-900/60 p-5 rounded-xl text-amber-900 dark:text-amber-200 space-y-3 text-sm shadow-sm">
             <div className="flex items-start">
-              <Clock className="h-5 w-5 mr-3 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <Clock className="h-6 w-6 mr-3 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-base">{t('comercial.detail.awaitingApprovalTitle')}</p>
-                <p className="mt-1">
-                  {role === 'admin' 
-                    ? t('comercial.detail.awaitingApprovalDescAdmin') 
-                    : t('comercial.detail.awaitingApprovalDescUser')}
+                <p className="font-bold text-base text-amber-900 dark:text-amber-100">{t('comercial.detail.awaitingApprovalTitle')}</p>
+                <p className="mt-1 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                  {role === 'admin' || role === 'super_admin'
+                    ? 'Este orçamento contém condições fora das diretrizes comerciais padrão e aguarda sua decisão. Você pode aprovar a exceção para liberar o envio da proposta ou rejeitá-lo informando contraproposta/instruções ao vendedor.' 
+                    : 'Este orçamento violou parâmetros comerciais mínimos (margem, tarifas ou restrições de crédito) e está sob análise gerencial. O envio da proposta comercial estará disponível após a aprovação de um gestor.'}
                 </p>
               </div>
             </div>
+
+            {/* Salesperson Justification */}
+            {estimacion.review_justification && (
+              <div className="p-3 bg-white/80 dark:bg-slate-900/80 rounded-lg border border-amber-200 dark:border-amber-900/40 text-xs">
+                <span className="font-bold text-amber-800 dark:text-amber-400 uppercase tracking-wider text-[10px] block mb-1">
+                  Justificativa Comercial do Vendedor:
+                </span>
+                <p className="italic text-slate-800 dark:text-slate-200 pl-3 border-l-2 border-amber-500">
+                  "{estimacion.review_justification}"
+                </p>
+              </div>
+            )}
             
-            {viability.reasons.length > 0 && (
-              <div className="mt-2 pl-8 border-l-2 border-amber-400 dark:border-amber-600 space-y-1">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">{t('comercial.detail.viabilityReasonsTitle')}</p>
-                <ul className="list-disc pl-5 text-xs text-amber-700 dark:text-amber-400 space-y-1">
-                  {viability.reasons.map((r, idx) => (
+            {(estimacion.viability_reasons?.length || viability.reasons.length > 0) && (
+              <div className="p-3 bg-amber-100/50 dark:bg-amber-900/20 rounded-lg border border-amber-200/60 dark:border-amber-900/40 space-y-1.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-900 dark:text-amber-300">{t('comercial.detail.viabilityReasonsTitle')}</p>
+                <ul className="list-disc pl-5 text-xs text-amber-800 dark:text-amber-400 space-y-1">
+                  {(estimacion.viability_reasons || viability.reasons).map((r: string, idx: number) => (
                     <li key={idx}>{r}</li>
                   ))}
                 </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rejection Banner with Manager instructions */}
+        {estimacion.status === 'rejected' && (
+          <div className="bg-red-50/70 dark:bg-red-950/20 border-2 border-red-300 dark:border-red-900/60 p-5 rounded-xl text-red-900 dark:text-red-200 space-y-2 text-sm shadow-sm">
+            <div className="flex items-start">
+              <AlertCircle className="h-6 w-6 mr-3 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-base text-red-900 dark:text-red-100">Orçamento Rejeitado pela Gerência</p>
+                <p className="mt-1 text-xs text-red-800 dark:text-red-300 leading-relaxed">
+                  Este orçamento foi rejeitado pelo gestor comercial e não pode ser enviado ao cliente na configuração atual. Crie uma nova versão para aplicar as correções solicitadas.
+                </p>
+              </div>
+            </div>
+            {estimacion.review_decision_notes && (
+              <div className="p-3 bg-white/80 dark:bg-slate-900/80 rounded-lg border border-red-200 dark:border-red-900/40 text-xs mt-2">
+                <span className="font-bold text-red-800 dark:text-red-400 uppercase tracking-wider text-[10px] block mb-1">
+                  Instruções da Gerência:
+                </span>
+                <p className="italic text-slate-800 dark:text-slate-200 pl-3 border-l-2 border-red-500">
+                  "{estimacion.review_decision_notes}"
+                </p>
               </div>
             )}
           </div>
@@ -1268,6 +1336,74 @@ export function EstimacionDetailPage() {
             <DialogFooter>
               <Button onClick={() => setIsHistoricalDialogOpen(false)} className="bg-slate-800 hover:bg-slate-900 text-white w-full sm:w-auto">
                 {t('comercial.detail.btnBack')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de Decisão do Gerente */}
+        <Dialog open={decisionModalOpen} onOpenChange={setDecisionModalOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {decisionType === 'approve' ? (
+                  <>
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    Aprovar Exceção Comercial
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className="h-5 w-5 text-red-600" />
+                    Rejeitar Orçamento / Solicitar Revisão
+                  </>
+                )}
+              </DialogTitle>
+              <DialogDescription>
+                {decisionType === 'approve' ? (
+                  <>
+                    Ao aprovar, o orçamento {estimacion?.codigo} retornará ao status de rascunho com a aprovação gerencial validada, liberando a geração e envio de propostas ao cliente.
+                  </>
+                ) : (
+                  <>
+                    Ao rejeitar, o orçamento {estimacion?.codigo} será marcado como rejeitado e o vendedor receberá suas instruções para refazer a proposta.
+                  </>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-3 py-2">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {decisionType === 'approve'
+                  ? 'Observações da Aprovação (Opcional - registrado no histórico)'
+                  : 'Instruções de Revisão / Contraproposta *'}
+              </label>
+              <Textarea
+                placeholder={
+                  decisionType === 'approve'
+                    ? 'Ex: Aprovado em caráter excepcional devido ao volume acordado com a diretoria...'
+                    : 'Ex: Aumentar tarifa para 28,00€ ou exigir pagamento de sinal de 30% em virtude das faturas em atraso...'
+                }
+                value={decisionNotes}
+                onChange={(e) => setDecisionNotes(e.target.value)}
+                rows={4}
+                className="text-xs"
+              />
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDecisionModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                className={
+                  decisionType === 'approve'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold'
+                    : 'bg-red-600 hover:bg-red-700 text-white font-bold'
+                }
+                onClick={handleConfirmDecision}
+                disabled={decidirAprovacaoGerente.isPending}
+              >
+                {decidirAprovacaoGerente.isPending ? 'Processando...' : decisionType === 'approve' ? 'Confirmar Aprovação' : 'Confirmar Rejeição'}
               </Button>
             </DialogFooter>
           </DialogContent>

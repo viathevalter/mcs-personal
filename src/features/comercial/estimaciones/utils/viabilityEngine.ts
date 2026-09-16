@@ -1,5 +1,13 @@
 import { differenceInDays, parseISO, isValid } from 'date-fns';
 
+export interface RateFloorViolation {
+  jobFunctionId: string;
+  jobTitle: string;
+  sellRate: number;
+  minimumRate: number;
+  deficit: number;
+}
+
 export interface ViabilityResult {
   diasObra: number;
   paxTotal: number;
@@ -13,9 +21,17 @@ export interface ViabilityResult {
   ivp: number;
   status: 'viable' | 'warning' | 'critical';
   reasons: string[];
+  hasBlockingViolations: boolean;
   coastalSummerRisk: boolean;
   creditRisk: 'none' | 'warning' | 'blocked';
   marginRisk: boolean;
+  rateFloorViolations: RateFloorViolation[];
+  debtViolation?: {
+    isDebtor: boolean;
+    overdueInvoicesCount?: number;
+    totalOverdueAmount?: number;
+    notes?: string;
+  };
 }
 
 // Prefixos de códigos postais de províncias costeiras na Espanha (primeiros 2 dígitos)
@@ -56,7 +72,8 @@ export function calculateViability(
   payload: any,
   client?: any,
   settings?: any,
-  t?: any
+  t?: any,
+  jobFunctionRateMap?: Record<string, { minRate: number; name: string }>
 ): ViabilityResult {
   const reasons: string[] = [];
   
@@ -154,29 +171,44 @@ export function calculateViability(
     }
   }
 
-  // 6. Verificar Risco de Crédito do Cliente
+  // 6. Verificar Risco de Crédito / Inadimplência do Cliente
   let creditRisk: 'none' | 'warning' | 'blocked' = 'none';
+  let debtViolation: ViabilityResult['debtViolation'] = undefined;
+
   if (client) {
+    const hasOverdueDebt = 
+      client.financial_status === 'blocked' || 
+      client.financial_status === 'debtor' ||
+      (Number(client.overdue_invoices_count || 0) > 0) ||
+      (Number(client.total_overdue_amount || 0) > 0);
+
     if (client.financial_status === 'blocked') {
       creditRisk = 'blocked';
-      reasons.push(
-        t
-          ? t('comercial.stepReview.reasons.clientBlocked', { name: client.legal_name })
-          : `Cliente Bloqueado: O cliente ${client.legal_name} possui restrição total de faturamento por inadimplência.`
-      );
-    } else if (client.financial_status === 'debtor') {
+      const reasonMsg = `Cliente Bloqueado: O cliente ${client.legal_name || client.name} possui restrição total de faturamento por inadimplência.`;
+      reasons.push(reasonMsg);
+      debtViolation = {
+        isDebtor: true,
+        overdueInvoicesCount: Number(client.overdue_invoices_count || 0),
+        totalOverdueAmount: Number(client.total_overdue_amount || 0),
+        notes: reasonMsg,
+      };
+    } else if (hasOverdueDebt) {
       creditRisk = 'warning';
-      reasons.push(
-        t
-          ? t('comercial.stepReview.reasons.clientDebtor', { name: client.legal_name })
-          : `Cliente Inadimplente: O cliente ${client.legal_name} possui faturas em atraso.`
-      );
+      const reasonMsg = client.total_overdue_amount 
+        ? `Cliente Inadimplente: O cliente ${client.legal_name || client.name} possui faturas em atraso no valor total de € ${Number(client.total_overdue_amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`
+        : `Cliente com débito em atraso: Bloqueio de envio direto para o cliente ${client.legal_name || client.name}.`;
+      reasons.push(reasonMsg);
+      debtViolation = {
+        isDebtor: true,
+        overdueInvoicesCount: Number(client.overdue_invoices_count || 0),
+        totalOverdueAmount: Number(client.total_overdue_amount || 0),
+        notes: reasonMsg,
+      };
     }
   }
 
-  // 7. Verificar Margem
+  // 7. Verificar Margem Mínima Global
   const minMargin = settings?.min_margin_percent !== undefined ? Number(settings.min_margin_percent) : 15.0;
-  // Margem global informada no payload ou calculada
   const actualMargin = Number(payload.estimated_margin_percent || 0);
   const marginRisk = actualMargin < minMargin;
   
@@ -184,11 +216,42 @@ export function calculateViability(
     reasons.push(
       t
         ? t('comercial.stepReview.reasons.lowMargin', { actual: actualMargin.toFixed(2), min: minMargin })
-        : `Margem Baixa: A margem global (${actualMargin.toFixed(2)}%) está abaixo da margem mínima permitida (${minMargin}%).`
+        : `Margem Abaixo do Mínimo: A margem global (${actualMargin.toFixed(2)}%) está abaixo da margem mínima permitida (${minMargin}%).`
     );
   }
 
-  // 8. Verificar Limiar do IVP
+  // 8. Verificar Piso de Tarifas por Função (Rate Floor per Role)
+  const rateFloorViolations: RateFloorViolation[] = [];
+  (payload.items || []).forEach((item: any) => {
+    const sellRate = Number(item.sell_rate_hour || 0);
+    let minRate = Number(item.minimum_sell_rate || item.minimum_sell_rate_hour || 0);
+    let jobTitle = item.job_title || item.job_function?.title || item.job_function?.name;
+
+    if (jobFunctionRateMap && item.job_function_id && jobFunctionRateMap[item.job_function_id]) {
+      const ref = jobFunctionRateMap[item.job_function_id];
+      if (ref.minRate > 0) {
+        minRate = Math.max(minRate, ref.minRate);
+      }
+      if (!jobTitle) jobTitle = ref.name;
+    }
+
+    if (minRate > 0 && sellRate < minRate) {
+      const deficit = minRate - sellRate;
+      const title = jobTitle || 'Função Operacional';
+      rateFloorViolations.push({
+        jobFunctionId: item.job_function_id,
+        jobTitle: title,
+        sellRate,
+        minimumRate: minRate,
+        deficit,
+      });
+      reasons.push(
+        `Tarifa Abaixo do Piso: ${title} cotado a € ${sellRate.toFixed(2)}/h (piso mínimo obrigatório: € ${minRate.toFixed(2)}/h - déficit de € ${deficit.toFixed(2)}/h).`
+      );
+    }
+  });
+
+  // 9. Verificar Limiar do IVP
   const minIvp = settings?.ivp_min_threshold !== undefined ? Number(settings.ivp_min_threshold) : 5.0;
   if (ivp < minIvp && paxTotal > 0) {
     reasons.push(
@@ -198,11 +261,21 @@ export function calculateViability(
     );
   }
 
-  // 9. Classificar status geral da viabilidade
+  // 10. Classificar Bloqueio e Status Geral
+  // Violações críticas que bloqueiam envio direto e exigem envio para análise da gerência:
+  // - Margem global abaixo do mínimo
+  // - Alguma tarifa por função abaixo do piso estabelecido
+  // - Cliente com restrição ou débito no Contas a Receber
+  const hasBlockingViolations = 
+    marginRisk || 
+    rateFloorViolations.length > 0 || 
+    creditRisk === 'blocked' || 
+    creditRisk === 'warning';
+
   let status: 'viable' | 'warning' | 'critical' = 'viable';
-  if (creditRisk === 'blocked' || (marginRisk && settings?.block_debtor_estimations)) {
+  if (hasBlockingViolations) {
     status = 'critical';
-  } else if (marginRisk || creditRisk === 'warning' || ivp < minIvp || coastalSummerRisk) {
+  } else if (ivp < minIvp || coastalSummerRisk) {
     status = 'warning';
   }
 
@@ -219,8 +292,11 @@ export function calculateViability(
     ivp,
     status,
     reasons,
+    hasBlockingViolations,
     coastalSummerRisk,
     creditRisk,
     marginRisk,
+    rateFloorViolations,
+    debtViolation,
   };
 }

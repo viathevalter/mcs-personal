@@ -15,19 +15,24 @@ import {
     PhoneCall,
     Layers,
     Headphones,
-    CalendarDays
+    CalendarDays,
+    ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
 import type { AppRole } from '@/shared/rbac/roles';
 import { useSidebar } from '@/app/providers/SidebarProvider';
 import { useTranslation } from 'react-i18next';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 
 type SidebarLink = {
     to: string;
     label: string;
     icon: React.ElementType;
     roles: AppRole[];
+    badge?: number;
 };
 
 type SidebarSection = {
@@ -40,6 +45,27 @@ export function ComercialSidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const { selectedEmpresaId } = useEmpresa();
+
+    const { data: pendingCount = 0 } = useQuery({
+        queryKey: ['aprovacoes-pendentes-count', selectedEmpresaId],
+        queryFn: async () => {
+            if (!selectedEmpresaId) return 0;
+            let q = supabase
+                .schema('core_comercial')
+                .from('estimaciones')
+                .select('id', { count: 'exact', head: true })
+                .eq('status', 'review');
+            if (selectedEmpresaId !== 'all') {
+                q = q.eq('empresa_id', selectedEmpresaId);
+            }
+            const { count, error } = await q;
+            if (error) return 0;
+            return count || 0;
+        },
+        enabled: !!selectedEmpresaId,
+        refetchInterval: 30000,
+    });
 
     const sections: SidebarSection[] = [
         {
@@ -47,6 +73,7 @@ export function ComercialSidebar() {
             titleDefault: 'Gestão Comercial',
             links: [
                 { to: '/comercial/estimaciones', label: t('comercial.sidebar.estimaciones'), icon: Briefcase, roles: ['admin', 'commercial', 'rh'] },
+                { to: '/comercial/aprovacoes', label: 'Mesa de Aprovações', icon: ShieldCheck, roles: ['admin'], badge: pendingCount },
                 { to: '/comercial/portfolio', label: 'Portfólio & Referências', icon: Award, roles: ['admin', 'commercial', 'rh'] },
                 { to: '/comercial/tarefas', label: t('comercial.sidebar.tasks'), icon: CheckSquare, roles: ['admin', 'commercial', 'rh'] },
             ]
@@ -128,23 +155,33 @@ export function ComercialSidebar() {
                                 <div className="mx-4 my-2 border-t border-slate-800/80" />
                             )}
                             <nav className="grid items-start px-2 text-sm font-medium gap-1">
-                                {section.links.map(({ to, label, icon: Icon, roles }) => (
+                                {section.links.map(({ to, label, icon: Icon, roles, badge }) => (
                                     <RoleGate key={to} allow={roles}>
                                         <NavLink
                                             to={to}
                                             title={!isExpanded ? label : undefined}
                                             className={({ isActive }) =>
                                                 cn(
-                                                    'flex items-center rounded-md transition-all outline-none',
-                                                    isExpanded ? 'gap-3 px-3 py-2.5' : 'justify-center p-3 mb-1 mx-auto w-12',
+                                                    'flex items-center rounded-md transition-all outline-none relative',
+                                                    isExpanded ? 'gap-3 px-3 py-2.5 justify-between' : 'justify-center p-3 mb-1 mx-auto w-12',
                                                     isActive
                                                         ? 'bg-yellow-500/10 text-yellow-400 font-semibold border border-yellow-500/20'
                                                         : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
                                                 )
                                             }
                                         >
-                                            <Icon className="h-[18px] w-[18px] shrink-0" />
-                                            {isExpanded && <span>{label}</span>}
+                                            <div className="flex items-center gap-3">
+                                                <Icon className="h-[18px] w-[18px] shrink-0" />
+                                                {isExpanded && <span>{label}</span>}
+                                            </div>
+                                            {badge !== undefined && badge > 0 && (
+                                                <span className={cn(
+                                                    "bg-amber-500 text-slate-950 font-bold text-[10px] rounded-full flex items-center justify-center font-mono",
+                                                    isExpanded ? "px-1.5 py-0.2" : "absolute top-1 right-1 h-4 w-4 text-[9px]"
+                                                )}>
+                                                    {badge}
+                                                </span>
+                                            )}
                                         </NavLink>
                                     </RoleGate>
                                 ))}

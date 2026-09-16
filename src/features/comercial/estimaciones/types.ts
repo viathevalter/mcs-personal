@@ -57,6 +57,13 @@ export interface Estimacion {
   document_language?: 'pt' | 'es' | 'en' | 'it' | 'fr';
   status: 'draft' | 'review' | 'sent' | 'signed' | 'approved' | 'rejected' | 'expired' | 'superseded' | 'cancelled';
   is_approved_by_manager?: boolean;
+  review_justification?: string;
+  review_requested_at?: string;
+  review_decision_notes?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+  viability_reasons?: string[];
+  reviewer?: { id: string; email?: string; raw_user_meta_data?: any };
   current_version_id?: string;
   created_at: string;
   updated_at: string;
