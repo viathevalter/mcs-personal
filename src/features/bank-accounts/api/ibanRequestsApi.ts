@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/supabase/client';
 import { mapSupabaseError } from '@/shared/api/supabaseError';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 const BUCKET_NAME = 'worker-incoming-docs';
 
@@ -247,7 +248,7 @@ export async function rejectIbanRequest(id: string, reason: string): Promise<voi
 }
 
 export async function getAllIbanRequests(empresaId: string): Promise<IbanChangeRequest[]> {
-    const { data, error } = await supabase
+    let query = supabase
         .schema('core_personal')
         .from('iban_change_requests')
         .select(`
@@ -255,9 +256,13 @@ export async function getAllIbanRequests(empresaId: string): Promise<IbanChangeR
             worker:workers (
                 id, nome, email, movil, cod_colab
             )
-        `)
-        .eq('empresa_id', empresaId)
-        .order('created_at', { ascending: false });
+        `);
+
+    if (empresaId && !isHoldingId(empresaId)) {
+        query = query.eq('empresa_id', empresaId);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
         throw mapSupabaseError(error);
