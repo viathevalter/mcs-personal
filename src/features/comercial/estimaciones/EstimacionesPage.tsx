@@ -11,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, FilterX } from 'lucide-react';
+import { Plus, Search, FilterX, ShieldAlert, ArrowRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +30,7 @@ import { Label } from '@/components/ui/label';
 export function EstimacionesPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { selectedEmpresaId, setSelectedEmpresaId, empresas = [] } = useEmpresa();
+  const { selectedEmpresaId, setSelectedEmpresaId, empresas = [], role } = useEmpresa();
   const [filters, setFilters] = useState({
     status: 'all',
     solicitud_type: 'all',
@@ -77,23 +78,70 @@ export function EstimacionesPage() {
     setFilters({ status: 'all', solicitud_type: 'all', search: '', empresa_id: selectedEmpresaId || 'all' });
   };
 
+  const pendingReviewsCount = allEstimaciones.filter(est => est.status === 'review').length;
+  const isAdmin = role === 'admin' || role === 'super_admin';
+
   return (
     <div className="flex flex-col space-y-6 p-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{t('comercial.list.title')}</h1>
             <p className="text-muted-foreground">
               {t('comercial.list.subtitle')}
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 flex-wrap">
             <EmpresaSelector />
-            <Button onClick={handleNewEstimacionClick}>
+
+            {isAdmin && (
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/comercial/aprovacoes')}
+                className="border-amber-400 text-amber-900 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30 gap-2 font-semibold"
+              >
+                <ShieldAlert className="h-4 w-4 text-amber-500" />
+                Mesa de Aprovações
+                {pendingReviewsCount > 0 && (
+                  <Badge className="bg-amber-500 text-slate-950 font-bold px-1.5 py-0.2 text-[10px] ml-0.5">
+                    {pendingReviewsCount}
+                  </Badge>
+                )}
+              </Button>
+            )}
+
+            <Button onClick={handleNewEstimacionClick} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
               <Plus className="mr-2 h-4 w-4" />
               {t('comercial.list.btnNew')}
             </Button>
           </div>
         </div>
+
+        {/* Banner de alerta para gerentes caso existam aprovações pendentes */}
+        {isAdmin && pendingReviewsCount > 0 && (
+          <div 
+            onClick={() => navigate('/comercial/aprovacoes')}
+            className="bg-amber-500/10 hover:bg-amber-500/15 border-2 border-amber-500/30 p-4 rounded-2xl flex items-center justify-between cursor-pointer transition-all shadow-sm text-amber-950 dark:text-amber-200 group"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="p-2.5 bg-amber-500 text-slate-950 rounded-xl shadow shrink-0">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <span>Mesa de Aprovações: {pendingReviewsCount} orçamento(s) aguardando sua validação</span>
+                  <Badge className="bg-amber-500 text-slate-950 text-[10px] font-bold">Ação Requerida</Badge>
+                </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Existem orçamentos com margem reduzida, tarifas abaixo do piso ou pendências de débito aguardando liberação.
+                </p>
+              </div>
+            </div>
+            <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs gap-1 shadow shrink-0 ml-4 group-hover:translate-x-0.5 transition-transform">
+              Analisar Agora
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
 
         <EstimacionKpiCards 
           estimaciones={allEstimaciones} 
