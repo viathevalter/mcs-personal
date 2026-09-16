@@ -292,7 +292,9 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         movil: movil || undefined,
         tarifa_acordada: parseFloat(tarifaAcordada),
         solicitud_id: position.solicitud_id || undefined,
-        empresa_id: (position as any).empresa_id || selectedEmpresaId || undefined
+        empresa_id: (position as any).empresa_id || selectedEmpresaId || undefined,
+        job_function_id: position.job_function_id || undefined,
+        job_function_name: position.job_function_name || undefined
       },
       {
         onSuccess: () => {
@@ -369,16 +371,47 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                 </p>
               </div>
 
-              {position.replacement_due_date && (
-                <div className="mt-3 flex items-start gap-2 text-xs text-purple-800 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/20 p-3 rounded-lg border border-purple-200 dark:border-purple-900/40">
-                  <AlertTriangle className="h-4 w-4 text-purple-650 dark:text-purple-400 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block font-bold">Vaga de Reemplazo (Substituição) Ativa!</strong>
-                    <span className="block mt-1">
-                      Esta vaga foi reaberta devido a uma solicitação operacional de substituição. 
-                      O novo trabalhador deve iniciar em: <strong>{new Date(position.replacement_due_date).toLocaleDateString('pt-PT')}</strong>.
-                    </span>
+              {(position.replacement_due_date || position.isReplacement || position.solicitud_id) && (
+                <div className="mt-3 flex flex-col gap-2 text-xs text-purple-900 dark:text-purple-300 bg-purple-50/80 dark:bg-purple-950/25 p-3.5 rounded-lg border border-purple-200 dark:border-purple-900/50 shadow-sm">
+                  <div className="flex items-center justify-between font-bold text-xs text-purple-800 dark:text-purple-300">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4 text-purple-600 shrink-0" />
+                      <span>Vaga de Reemplazo (Substituição) Ativa {position.solicitud_codigo ? `(${position.solicitud_codigo})` : ''}</span>
+                    </div>
+                    {position.replacement_due_date && (
+                      <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-400">
+                        Início esperado: {new Date(position.replacement_due_date).toLocaleDateString('pt-PT')}
+                      </span>
+                    )}
                   </div>
+                  
+                  {position.replaced_worker_name && (
+                    <p className="text-[11px] text-slate-700 dark:text-slate-300">
+                      Substituir: <strong className="text-purple-900 dark:text-purple-200 font-bold">{position.replaced_worker_name}</strong>
+                    </p>
+                  )}
+
+                  {position.job_function_name && (
+                    <p className="text-[11px] text-purple-800 dark:text-purple-300 font-semibold">
+                      Novo Cargo Solicitado: <span className="underline font-bold">{position.job_function_name}</span>
+                    </p>
+                  )}
+
+                  {position.replacement_reason && (
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-900/40 p-2.5 rounded border border-purple-100 dark:border-purple-900/40">
+                      <strong className="text-slate-800 dark:text-slate-200 block mb-0.5">Motivo da Substituição:</strong>
+                      {position.replacement_reason}
+                    </div>
+                  )}
+
+                  {position.replacement_notes && (
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-900/40 p-2.5 rounded border border-purple-100 dark:border-purple-900/40 max-h-48 overflow-y-auto">
+                      <strong className="text-slate-800 dark:text-slate-200 block mb-0.5">Observações Operacionais / Perfil Requerido:</strong>
+                      <p className="whitespace-pre-line text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">
+                        {position.replacement_notes}
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 

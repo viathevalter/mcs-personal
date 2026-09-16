@@ -18,6 +18,8 @@ interface AllocateWorkerPayload {
   licencia_conducir?: string;
   movil?: string;
   tarifa_acordada?: number;
+  job_function_id?: string;
+  job_function_name?: string;
 }
 
 export const useAllocateWorker = () => {

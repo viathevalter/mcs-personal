@@ -633,7 +633,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     // Find if there is a pending replacement target for this item
     const repTarget = selectedPedido.isSynthetic 
       ? replacementTargets.find(t => t.id === item.solicitud_target_id)
-      : replacementTargets.find(t => t.source_pedido_item_id === item.id);
+      : replacementTargets.find(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'));
 
     const targetJobFuncId = repTarget?.target_job_function_id || item.job_function_id;
     const targetJobFuncName = repTarget?.target_job_function_name || item.job_function_name_snapshot || item.job_function?.name || 'Função';
@@ -657,7 +657,12 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       solicitud_id: selectedPedido.isSynthetic ? selectedPedido.solicitud_id : (repTarget?.solicitud_id || undefined),
       replacement_due_date: repTarget?.solicitud?.due_date || undefined,
       isSynthetic: selectedPedido.isSynthetic || false,
-      empresa_id: selectedPedido.empresa_id
+      empresa_id: selectedPedido.empresa_id,
+      isReplacement: !!repTarget || item.isReplacementItem,
+      replaced_worker_name: repTarget?.source_worker?.nome || item.replaced_worker?.nome,
+      replacement_notes: repTarget?.notes || item.notes,
+      replacement_reason: repTarget?.reason || repTarget?.solicitud?.description || item.reason,
+      solicitud_codigo: repTarget?.solicitud?.codigo
     });
     
     setIsDialogOpen(true);
@@ -991,6 +996,11 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
                     const isReplacement = repCount > 0 || item.isReplacementItem;
 
+                    // Support function change on replacement
+                    const originalProfileName = item.job_function_name_snapshot || item.job_function?.name || 'Perfil';
+                    const targetProfileName = firstRep?.target_job_function_name || originalProfileName;
+                    const isFunctionChanged = !!(firstRep?.target_job_function_name && firstRep.target_job_function_name.trim().toLowerCase() !== originalProfileName.trim().toLowerCase());
+
                     return (
                       <div 
                         key={item.id} 
@@ -1003,39 +1013,52 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                         }`}
                       >
                         <div>
-                          <div className="flex justify-between items-start">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <h4 className="font-bold text-sm text-slate-850 dark:text-white truncate">
-                                {item.job_function_name_snapshot || item.job_function?.name || 'Perfil'}
-                              </h4>
-                              {(() => {
-                                const qas = getProfileQuestions(selectedPedido.pergunta_respuesta, item.job_function_name_snapshot || item.job_function?.name);
-                                if (qas.length === 0) return null;
-                                return (
-                                  <TooltipProvider>
-                                    <Tooltip delayDuration={100}>
-                                      <TooltipTrigger asChild>
-                                        <button type="button" className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
-                                          <HelpCircle className="h-3.5 w-3.5" />
-                                        </button>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="max-w-xs bg-slate-900 border border-slate-800 text-white p-3 rounded-lg shadow-lg">
-                                        <div className="space-y-2 text-xs">
-                                          <p className="font-bold border-b border-slate-800 pb-1 text-slate-350">Respostas da Viabilidade:</p>
-                                          {qas.map((qa: any, idx: number) => (
-                                            <div key={idx} className="space-y-0.5">
-                                              <span className="text-slate-400 font-medium block">{qa.pergunta}</span>
-                                              <span className="text-white font-semibold block">{qa.resposta}</span>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                );
-                              })()}
+                          <div className="flex justify-between items-start gap-2">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <h4 className="font-bold text-sm text-slate-850 dark:text-white truncate">
+                                  {targetProfileName}
+                                </h4>
+                                {isFunctionChanged && (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-300 dark:border-purple-800 shrink-0">
+                                    Novo Perfil
+                                  </span>
+                                )}
+                                {(() => {
+                                  const qas = getProfileQuestions(firstRep?.solicitud?.pergunta_respuesta || selectedPedido.pergunta_respuesta, targetProfileName);
+                                  if (qas.length === 0) return null;
+                                  return (
+                                    <TooltipProvider>
+                                      <Tooltip delayDuration={100}>
+                                        <TooltipTrigger asChild>
+                                          <button type="button" className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0">
+                                            <HelpCircle className="h-3.5 w-3.5" />
+                                          </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-xs bg-slate-900 border border-slate-800 text-white p-3 rounded-lg shadow-lg">
+                                          <div className="space-y-2 text-xs">
+                                            <p className="font-bold border-b border-slate-800 pb-1 text-slate-350">Respostas da Viabilidade:</p>
+                                            {qas.map((qa: any, idx: number) => (
+                                              <div key={idx} className="space-y-0.5">
+                                                <span className="text-slate-400 font-medium block">{qa.pergunta}</span>
+                                                <span className="text-white font-semibold block">{qa.resposta}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  );
+                                })()}
+                              </div>
+                              {isFunctionChanged && (
+                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                  Substitui vaga de: <span className="font-medium line-through text-slate-400">{originalProfileName}</span>
+                                </span>
+                              )}
                             </div>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
                               isItemFulfilled 
                                 ? 'bg-emerald-50 text-emerald-700 border-emerald-250 dark:bg-emerald-950/40 dark:text-emerald-400' 
                                 : isReplacement
@@ -1060,20 +1083,47 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                             const repDate = (firstRep?.solicitud?.due_date || selectedPedido.expected_start_date)
                               ? new Date(firstRep?.solicitud?.due_date || selectedPedido.expected_start_date).toLocaleDateString('pt-PT')
                               : '';
-                            const workerName = item.replaced_worker?.nome || 'Trabalhador';
-                            const workerCod = item.replaced_worker?.cod_colab ? ` (Cód: ${item.replaced_worker.cod_colab})` : '';
-                            const reasonStr = item.reason ? ` Motivo: ${item.reason}.` : '';
+                            const workerName = firstRep?.source_worker?.nome || item.replaced_worker?.nome || 'Trabalhador';
+                            const workerCod = firstRep?.source_worker?.cod_colab 
+                              ? ` (Cód: ${firstRep.source_worker.cod_colab})` 
+                              : (item.replaced_worker?.cod_colab ? ` (Cód: ${item.replaced_worker.cod_colab})` : '');
+                            const reasonStr = firstRep?.reason || firstRep?.solicitud?.description || item.reason;
+                            const notesStr = firstRep?.notes || item.notes;
+                            const solCodigo = firstRep?.solicitud?.codigo || 'Reemplazo';
+
                             return (
-                              <div className="mt-3 flex flex-col gap-1 text-[10px] text-purple-700 dark:text-purple-400 bg-purple-50/40 dark:bg-purple-950/15 p-2 rounded-lg border border-purple-200/40">
-                                <div className="flex items-center gap-1.5 font-bold">
-                                  <AlertTriangle className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                                  <span>Substituição Pendente</span>
+                              <div className="mt-3 flex flex-col gap-2 text-xs text-purple-900 dark:text-purple-300 bg-purple-50/80 dark:bg-purple-950/25 p-3 rounded-lg border border-purple-200 dark:border-purple-900/50 shadow-sm">
+                                <div className="flex items-center justify-between font-bold text-xs text-purple-800 dark:text-purple-300">
+                                  <div className="flex items-center gap-1.5">
+                                    <AlertTriangle className="h-4 w-4 text-purple-600 shrink-0" />
+                                    <span>Substituição Pendente ({solCodigo})</span>
+                                  </div>
+                                  {repDate && <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-400">Início: {repDate}</span>}
                                 </div>
-                                <p className="mt-1">
-                                  Substituir: <strong>{workerName}</strong>{workerCod}.
+                                
+                                <p className="text-[11px] text-slate-700 dark:text-slate-300">
+                                  Substituir: <strong className="text-purple-900 dark:text-purple-200 font-bold">{workerName}</strong>{workerCod}
                                 </p>
-                                {reasonStr && <p className="text-slate-500">{reasonStr}</p>}
-                                {repDate && <p className="mt-1 font-semibold text-purple-700 dark:text-purple-400">Data de início esperada: {repDate}</p>}
+
+                                {isFunctionChanged && (
+                                  <p className="text-[11px] text-purple-800 dark:text-purple-300 font-semibold">
+                                    Novo Cargo Solicitado: <span className="underline font-bold">{targetProfileName}</span>
+                                  </p>
+                                )}
+
+                                {reasonStr && (
+                                  <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-900/40 p-2 rounded border border-purple-100 dark:border-purple-900/30">
+                                    <strong className="text-slate-800 dark:text-slate-200 block mb-0.5">Motivo:</strong>
+                                    {reasonStr}
+                                  </div>
+                                )}
+
+                                {notesStr && (
+                                  <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-900/40 p-2.5 rounded border border-purple-100 dark:border-purple-900/30 max-h-36 overflow-y-auto">
+                                    <strong className="text-slate-800 dark:text-slate-200 block mb-0.5">Observações Operacionais / Perfil Requerido:</strong>
+                                    <p className="whitespace-pre-line text-[11px] text-slate-700 dark:text-slate-200 leading-relaxed">{notesStr}</p>
+                                  </div>
+                                )}
                               </div>
                             );
                           })()}

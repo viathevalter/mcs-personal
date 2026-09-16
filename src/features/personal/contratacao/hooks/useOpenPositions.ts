@@ -23,6 +23,14 @@ export interface OpenPosition {
   base_cost_hour_snapshot?: number | string;
   solicitud_id?: string;
   replacement_due_date?: string;
+  isReplacement?: boolean;
+  replaced_worker_name?: string;
+  target_job_function_name?: string;
+  replacement_notes?: string;
+  replacement_reason?: string;
+  solicitud_codigo?: string;
+  empresa_id?: string;
+  isSynthetic?: boolean;
 }
 
 export const useOpenPositions = () => {
