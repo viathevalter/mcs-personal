@@ -1,9 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { FilePlus, RefreshCw, MapPin, Wrench, Microscope, UserMinus, FileEdit, AlertTriangle, CalendarDays, ClipboardCheck } from 'lucide-react';
+import { FilePlus, RefreshCw, MapPin, Wrench, Microscope, UserMinus, FileEdit, AlertTriangle, CalendarDays, ClipboardCheck, XCircle } from 'lucide-react';
 
 interface Props {
-  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination' | 'order_postponement';
+  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination' | 'order_postponement' | 'order_cancellation' | 'cancellation';
   className?: string;
 }
 
@@ -20,6 +20,8 @@ export function SolicitudTypeBadge({ tipo, className }: Props) {
     order_extension: { label: 'Prorrogação de Obra', color: 'bg-emerald-500/10 text-emerald-500', icon: CalendarDays },
     order_termination: { label: 'Finalização de Obra', color: 'bg-slate-500/10 text-slate-500', icon: ClipboardCheck },
     order_postponement: { label: 'Adiamento de Início', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400', icon: CalendarDays },
+    order_cancellation: { label: 'Cancelamento de Pedido', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-450', icon: XCircle },
+    cancellation: { label: 'Cancelamento', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-450', icon: XCircle },
   };
 
   const { label, color, icon: Icon } = config[tipo] || config.new_order;

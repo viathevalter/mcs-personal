@@ -87,6 +87,7 @@ export function PedidosPage() {
               <SelectItem value="active">Ativo</SelectItem>
               <SelectItem value="suspended">Suspenso</SelectItem>
               <SelectItem value="completed">Finalizado</SelectItem>
+              <SelectItem value="cancelled">Cancelado</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -105,6 +106,7 @@ export function PedidosPage() {
               <SelectItem value="pending_operations">Pendente</SelectItem>
               <SelectItem value="partially_fulfilled">Parcialmente Atendido</SelectItem>
               <SelectItem value="fulfilled">Atendido</SelectItem>
+              <SelectItem value="cancelled">Cancelado</SelectItem>
             </SelectContent>
           </Select>
         </div>

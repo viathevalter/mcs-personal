@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { fetchPedidos, fetchPedidoDetails } from '../services/queries';
 import type { Pedido, PedidoItem, ColaboradorAlocado } from '../services/types';
-import { Download, X, Briefcase, User, Calendar, AlertTriangle, List, CalendarDays, Clock, ShieldAlert, Phone, Mail } from 'lucide-react';
+import { Download, X, Briefcase, User, Calendar, AlertTriangle, List, CalendarDays, Clock, ShieldAlert, Phone, Mail, XCircle } from 'lucide-react';
 import { FilterBar } from '../components/FilterBar';
 
 export const Pedidos: React.FC = () => {
@@ -427,6 +427,12 @@ export const Pedidos: React.FC = () => {
                         {selectedPedido.Status === 'Ativo' ? (
                             <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end space-x-3 shrink-0">
                                 <button 
+                                    onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_cancellation&pedido_id=${selectedPedido.id}`)}
+                                    className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md cursor-pointer animate-fade-in"
+                                >
+                                    <XCircle size={14} /> Cancelar Pedido
+                                </button>
+                                <button 
                                     onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_extension&pedido_id=${selectedPedido.id}`)}
                                     className="px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md cursor-pointer animate-fade-in"
                                 >
@@ -441,6 +447,12 @@ export const Pedidos: React.FC = () => {
                             </div>
                         ) : (selectedPedido.Status !== 'Cancelado' && selectedPedido.Status !== 'Concluído') ? (
                             <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-end space-x-3 shrink-0">
+                                <button 
+                                    onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_cancellation&pedido_id=${selectedPedido.id}`)}
+                                    className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md cursor-pointer animate-fade-in"
+                                >
+                                    <XCircle size={14} /> Cancelar Pedido
+                                </button>
                                 <button 
                                     onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_postponement&pedido_id=${selectedPedido.id}`)}
                                     className="px-4 py-2 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-all flex items-center gap-1.5 shadow-sm hover:shadow-md cursor-pointer animate-fade-in"

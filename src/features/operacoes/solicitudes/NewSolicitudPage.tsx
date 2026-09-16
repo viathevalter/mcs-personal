@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle, Mail, RotateCcw, HelpCircle } from 'lucide-react';
+import { ArrowLeft, Users, FileText, CheckCircle2, Bold, Italic, Underline, List, ListOrdered, Link, Loader2, AlertCircle, Mail, RotateCcw, HelpCircle, XCircle } from 'lucide-react';
 import { useWorkerAssignments } from './hooks/useWorkerAssignments';
 import { useCreateSolicitud } from './hooks/useCreateSolicitud';
 import { AssignmentsSelectionTable } from './components/AssignmentsSelectionTable';
@@ -267,7 +267,7 @@ export function NewSolicitudPage() {
         }
 
         // Filter by Pedido (Obra)
-        if ((actionType === 'order_extension' || actionType === 'order_termination' || (actionType === 'order_postponement' && postponeOriginType === 'pedido')) && selectedPedidoId !== 'all') {
+        if ((actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_cancellation' || (actionType === 'order_postponement' && postponeOriginType === 'pedido')) && selectedPedidoId !== 'all') {
             const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
             const selectedPedidoCode = selectedPedido?.codigo || '';
             const assignmentPedidoCode = a.pedido?.codigo || '';
@@ -286,7 +286,7 @@ export function NewSolicitudPage() {
         }
 
         // Filter by Client Site (for other types)
-        if (actionType !== 'order_extension' && actionType !== 'order_termination' && actionType !== 'order_postponement' && selectedClientSiteId !== 'all') {
+        if (actionType !== 'order_extension' && actionType !== 'order_termination' && actionType !== 'order_cancellation' && actionType !== 'order_postponement' && selectedClientSiteId !== 'all') {
             const selectedSite = clientSites.find(s => s.id === selectedClientSiteId);
             const selectedSiteName = selectedSite?.name || '';
             const assignmentSiteName = a.client_site?.name || '';
@@ -447,7 +447,8 @@ export function NewSolicitudPage() {
                               actionType === 'offboarding' ? 'Desligamento' :
                               actionType === 'order_extension' ? 'Prorrogação' :
                               actionType === 'order_postponement' ? 'Adiamento' :
-                              actionType === 'order_termination' ? 'Finalização' : 'Operação';
+                              actionType === 'order_termination' ? 'Finalização' :
+                              actionType === 'order_cancellation' ? 'Cancelamento' : 'Operação';
 
         const typeName = actionType === 'replacement' ? 'Substituição (Reemplazo)' : 
                          actionType === 'relocation' ? 'Realocação' : 
@@ -455,7 +456,8 @@ export function NewSolicitudPage() {
                          actionType === 'offboarding' ? 'Desligamento' : 
                          actionType === 'order_extension' ? 'Prorrogação de Obra' : 
                          actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 
-                         actionType === 'order_termination' ? 'Finalização de Obra' : 'Operação';
+                         actionType === 'order_termination' ? 'Finalização de Obra' : 
+                         actionType === 'order_cancellation' ? 'Cancelamento de Pedido' : 'Operação';
         
         if (actionType === 'order_postponement') {
             if (postponeOriginType === 'reemplazo' && selectedReemplazo) {
@@ -468,6 +470,18 @@ export function NewSolicitudPage() {
                     return;
                 }
             }
+        }
+
+        if (actionType === 'order_cancellation') {
+            if (selectedPedidoId !== 'all') {
+                const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
+                if (p) {
+                    setTitle(`${p.codigo} - ${p.client?.trade_name || p.client?.legal_name || 'Cliente'} - Cancelamento pelo Cliente`);
+                    return;
+                }
+            }
+            setTitle('Cancelamento de Pedido pelo Cliente');
+            return;
         }
 
         if (selectedAssignments.length === 1) {
@@ -635,7 +649,8 @@ export function NewSolicitudPage() {
                     offboarding: 'baja',
                     order_extension: 'prorrogacao',
                     order_postponement: 'adiamento',
-                    order_termination: 'finalizacao'
+                    order_termination: 'finalizacao',
+                    order_cancellation: 'cancelamento'
                 };
                 let eventType = eventTypeMap[actionType] || 'reemplazo';
 
@@ -646,9 +661,9 @@ export function NewSolicitudPage() {
                     .eq('empresa_id', selectedEmpresaId)
                     .eq('event_type', eventType);
 
-                // Fallback for adiamento if none specifically defined yet
-                if ((!data || data.length === 0) && actionType === 'order_postponement') {
-                    const fallbackType = postponeOriginType === 'reemplazo' ? 'reemplazo' : 'pedido';
+                // Fallback for adiamento or cancelamento if none specifically defined yet
+                if ((!data || data.length === 0) && (actionType === 'order_postponement' || actionType === 'order_cancellation')) {
+                    const fallbackType = (actionType === 'order_postponement' && postponeOriginType === 'reemplazo') ? 'reemplazo' : 'pedido';
                     const { data: fbData } = await supabase
                         .schema('core_comercial')
                         .from('notification_emails')
@@ -711,16 +726,19 @@ export function NewSolicitudPage() {
             dateLabel = actionType === 'offboarding' ? 'Fecha Efectiva de Baja (Salida)' :
                         actionType === 'order_extension' ? 'Nueva Fecha de Término' :
                         actionType === 'order_termination' ? 'Fecha de Cierre' :
+                        actionType === 'order_cancellation' ? 'Fecha Efectiva de Cancelación' :
                         actionType === 'relocation' ? 'Fecha de Inicio de Reubicación' : 'Fecha de Inicio';
         } else if (emailLanguage === 'en') {
             dateLabel = actionType === 'offboarding' ? 'Effective Termination Date' :
                         actionType === 'order_extension' ? 'New End Date' :
                         actionType === 'order_termination' ? 'Completion Date' :
+                        actionType === 'order_cancellation' ? 'Effective Cancellation Date' :
                         actionType === 'relocation' ? 'Relocation Start Date' : 'Start Date';
         } else {
             dateLabel = actionType === 'offboarding' ? 'Data Efetiva da Baixa (Saída)' :
                         actionType === 'order_extension' ? 'Nova Data de Término' :
                         actionType === 'order_termination' ? 'Data de Encerramento' :
+                        actionType === 'order_cancellation' ? 'Data Efetiva do Cancelamento' :
                         actionType === 'relocation' ? 'Data de Início da Realocação' : 'Data de Início';
         }
 
@@ -731,25 +749,30 @@ export function NewSolicitudPage() {
                         actionType === 'technical_test' ? 'Prueba Técnica (Prueba)' : 
                         actionType === 'offboarding' ? 'Desvinculación (Baja)' : 
                         actionType === 'order_extension' ? 'Prórroga de Obra' : 
-                        actionType === 'order_postponement' ? 'Aplazamiento de Inicio de Obra' : 'Finalización de Obra';
+                        actionType === 'order_postponement' ? 'Aplazamiento de Inicio de Obra' : 
+                        actionType === 'order_cancellation' ? 'Cancelación de Pedido por el Cliente' : 'Finalización de Obra';
         } else if (emailLanguage === 'en') {
             typeLabel = actionType === 'replacement' ? 'Replacement' : 
                         actionType === 'relocation' ? 'Relocation' : 
                         actionType === 'technical_test' ? 'Technical Test' : 
                         actionType === 'offboarding' ? 'Termination' : 
                         actionType === 'order_extension' ? 'Worksite Extension' : 
-                        actionType === 'order_postponement' ? 'Worksite Postponement' : 'Worksite Completion';
+                        actionType === 'order_postponement' ? 'Worksite Postponement' : 
+                        actionType === 'order_cancellation' ? 'Order Cancellation by Client' : 'Worksite Completion';
         } else {
             typeLabel = actionType === 'replacement' ? 'Substituição (Reemplazo)' : 
                         actionType === 'relocation' ? 'Realocação (Reubicación)' : 
                         actionType === 'technical_test' ? 'Teste Técnico (Prueba)' : 
                         actionType === 'offboarding' ? 'Desligamento (Baja)' : 
                         actionType === 'order_extension' ? 'Prorrogação de Obra' : 
-                        actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 'Finalização de Obra';
+                        actionType === 'order_postponement' ? 'Adiamento de Início de Obra' : 
+                        actionType === 'order_cancellation' ? 'Cancelamento de Pedido pelo Cliente' : 'Finalização de Obra';
         }
 
         let subject = '';
-        if (emailLanguage === 'es') {
+        if (actionType === 'order_cancellation') {
+            subject = `[CANCELAMENTO DE PEDIDO] ${pedidoCodigo} - ${clientName}`;
+        } else if (emailLanguage === 'es') {
             subject = `Notificación Operativa: ${typeLabel} - ${pedidoCodigo} - ${clientName}`;
         } else if (emailLanguage === 'en') {
             subject = `Operational Notification: ${typeLabel} - ${pedidoCodigo} - ${clientName}`;
@@ -758,7 +781,69 @@ export function NewSolicitudPage() {
         }
 
         let body = '';
-        if (emailLanguage === 'es') {
+        if (actionType === 'order_cancellation') {
+            if (emailLanguage === 'es') {
+                body = `<p>Hola Equipo,</p>
+<p>Les informamos que el <strong>Pedido ${pedidoCodigo} (${clientName})</strong> ha sido <strong>CANCELADO</strong> a solicitud del cliente por baja/cierre en el proyecto.</p>
+<p><strong>Detalles de la Cancelación:</strong></p>
+<ul>
+  <li><strong>Cliente:</strong> ${clientName}</li>
+  <li><strong>Código del Pedido:</strong> ${pedidoCodigo}</li>
+  <li><strong>Fecha Efectiva:</strong> ${expectedStartStr}</li>
+  <li><strong>Motivo informado:</strong> ${reason || 'Cancelación por parte del cliente'}</li>
+  <li><strong>Observaciones extras:</strong> ${notes || 'Ninguna'}</li>
+  <li><strong>Trabajador(es) Desmovilizado(s):</strong> ${workerNames || 'Ningún trabajador alocado'}</li>
+</ul>
+<p><strong>Instrucciones Inmediatas:</strong></p>
+<ul>
+  <li><strong>RRHH / Contratación:</strong> Cancelar trámites de alta y emisión de contratos pendientes. Retornar candidatos al banco de talentos como Disponibles.</li>
+  <li><strong>Logística:</strong> Anular reservas de alojamiento, billetes y paralizar envíos de EPIs/herramientas.</li>
+  <li><strong>Documentación:</strong> Suspender altas en plataformas del cliente (Nalanda/Obralia).</li>
+  <li><strong>Comercial:</strong> Ajustar previsiones de facturación y archivar la propuesta correspondiente.</li>
+</ul>
+<p>Atentamente,<br/><strong>Operaciones</strong></p>`;
+            } else if (emailLanguage === 'en') {
+                body = `<p>Hello Team,</p>
+<p>Please be advised that <strong>Order ${pedidoCodigo} (${clientName})</strong> has been <strong>CANCELLED</strong> at the client's request due to project termination.</p>
+<p><strong>Cancellation Details:</strong></p>
+<ul>
+  <li><strong>Client:</strong> ${clientName}</li>
+  <li><strong>Order Code:</strong> ${pedidoCodigo}</li>
+  <li><strong>Effective Date:</strong> ${expectedStartStr}</li>
+  <li><strong>Reason:</strong> ${reason || 'Cancelled by client'}</li>
+  <li><strong>Additional Notes:</strong> ${notes || 'None'}</li>
+  <li><strong>Demobilized Worker(s):</strong> ${workerNames || 'No workers currently allocated'}</li>
+</ul>
+<p><strong>Immediate Departmental Actions:</strong></p>
+<ul>
+  <li><strong>HR / Onboarding:</strong> Cancel pending employment contracts and registrations. Revert workers to Available in the talent pool.</li>
+  <li><strong>Logistics:</strong> Cancel housing and transport bookings and halt PPE shipments.</li>
+  <li><strong>Documentation:</strong> Suspend client platform document uploads.</li>
+  <li><strong>Sales / Commercial:</strong> Adjust revenue forecasts and archive the deal.</li>
+</ul>
+<p>Best regards,<br/><strong>Operations</strong></p>`;
+            } else {
+                body = `<p>Olá Equipe,</p>
+<p>Informamos que o <strong>Pedido ${pedidoCodigo} (${clientName})</strong> foi <strong>CANCELADO</strong> a pedido do cliente devido a baixa/encerramento no projeto.</p>
+<p><strong>Detalhes do Cancelamento:</strong></p>
+<ul>
+  <li><strong>Cliente:</strong> ${clientName}</li>
+  <li><strong>Código do Pedido:</strong> ${pedidoCodigo}</li>
+  <li><strong>Data Efetiva:</strong> ${expectedStartStr}</li>
+  <li><strong>Motivo informado:</strong> ${reason || 'Cancelamento pelo cliente'}</li>
+  <li><strong>Observações adicionais:</strong> ${notes || 'Nenhuma'}</li>
+  <li><strong>Trabalhador(es) Desmobilizado(s):</strong> ${workerNames || 'Nenhum trabalhador alocado'}</li>
+</ul>
+<p><strong>Instruções Departamentais Imediatas:</strong></p>
+<ul>
+  <li><strong>RH / Admissões:</strong> Cancelar emissão de contratos e processos de admissão pendentes dos trabalhadores listados. Os colaboradores retornam ao banco de talentos como Disponíveis.</li>
+  <li><strong>Logística:</strong> Cancelar imediatamente reservas de alojamento, passagens e recolher/estornar remessas de EPIs.</li>
+  <li><strong>Documentação:</strong> Suspender cadastros nas plataformas de homologação (Nalanda/Obralia).</li>
+  <li><strong>Comercial:</strong> Ajustar previsão de faturamento e arquivar a negociação correspondente.</li>
+</ul>
+<p>Atenciosamente,<br/><strong>Operações</strong></p>`;
+            }
+        } else if (emailLanguage === 'es') {
             body = `<p>Hola Equipo,</p>
 <p>Se ha registrado en el sistema una nueva solicitud de <strong>${typeLabel}</strong>.</p>
 <p><strong>Detalles de la Operación:</strong></p>
@@ -868,6 +953,15 @@ export function NewSolicitudPage() {
                 toast.error('Informe o motivo do adiamento.');
                 return;
             }
+        } else if (actionType === 'order_cancellation') {
+            if (!selectedPedidoId || selectedPedidoId === 'all') {
+                toast.error('Selecione o Pedido (Obra) a ser cancelado.');
+                return;
+            }
+            if (!reason.trim()) {
+                toast.error('Informe o motivo do cancelamento pelo cliente.');
+                return;
+            }
         } else if (actionType === 'order_extension' || actionType === 'order_termination') {
             if ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0) {
                 toast.error('Selecione uma obra ou trabalhadores para continuar.');
@@ -892,17 +986,17 @@ export function NewSolicitudPage() {
         const firstAssignment = selectedList[0];
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
-        const originPedidoId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+        const originPedidoId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation')
             ? (selectedPedidoId !== 'all' ? selectedPedidoId : null)
             : (firstAssignment?.pedido_id || null);
 
-        const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+        const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation')
             ? (selectedPedido?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null)
             : (actionType === 'relocation')
                 ? (targetClientId !== 'all' ? targetClientId : null)
                 : (firstAssignment?.client_id || null);
 
-        const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+        const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation')
             ? (selectedPedido?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null)
             : (actionType === 'relocation')
                 ? (targetClientSiteId !== 'all' ? targetClientSiteId : null)
@@ -930,6 +1024,7 @@ export function NewSolicitudPage() {
                           actionType === 'technical_test' ? 'test' : 
                           actionType === 'order_extension' ? 'extend' : 
                           actionType === 'order_postponement' ? 'postpone' : 
+                          actionType === 'order_cancellation' ? 'cancel' :
                           actionType === 'order_termination' ? 'offboard' : 'replace') as any,
             reason: reason,
             notes: notes
@@ -954,13 +1049,14 @@ export function NewSolicitudPage() {
         }
 
         const payload = {
-            empresa_id: selectedEmpresaId!,
+            empresa_id: selectedEmpresaId,
+            origin_pedido_id: originPedidoId,
             type: actionType,
-            title: title,
-            description: reason || `Solicitação gerada para ${selectedAssignments.length} alvo(s)`,
+            title: title || `Nova Solicitação de ${actionType}`,
+            description: notes,
+            reason: reason,
             priority: priority,
             due_date: dueDate ? new Date(dueDate).toISOString() : null,
-            origin_pedido_id: originPedidoId,
             client_id: clientId,
             client_site_id: clientSiteId,
             pergunta_respuesta: actionType === 'replacement' && Object.keys(pergunta_respuesta).length > 0 ? pergunta_respuesta : null,
@@ -971,7 +1067,37 @@ export function NewSolicitudPage() {
         try {
             let targetSolicitudId = '';
             
-            if (actionType === 'order_postponement') {
+            if (actionType === 'order_cancellation') {
+                let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_cancelamento_pedido', {
+                    payload: {
+                        empresa_id: selectedEmpresaId,
+                        pedido_id: selectedPedidoId,
+                        motivo: reason,
+                        observacoes: notes,
+                        cancel_assignments: true,
+                        worker_destination_status: 'Disponível'
+                    }
+                });
+                if (rpcErr) {
+                    console.warn("Retrying with core_operacoes schema...", rpcErr);
+                    const retryRes = await supabase.schema('core_operacoes').rpc('processar_cancelamento_pedido', {
+                        payload: {
+                            empresa_id: selectedEmpresaId,
+                            pedido_id: selectedPedidoId,
+                            motivo: reason,
+                            observacoes: notes,
+                            cancel_assignments: true,
+                            worker_destination_status: 'Disponível'
+                        }
+                    });
+                    rpcRes = retryRes.data;
+                    rpcErr = retryRes.error;
+                }
+                if (rpcErr) throw rpcErr;
+
+                targetSolicitudId = (rpcRes as any)?.solicitud_id || '';
+                toast.success('Pedido cancelado com sucesso! Contratações e alocações desmobilizadas.');
+            } else if (actionType === 'order_postponement') {
                 const origemId = postponeOriginType === 'pedido' ? selectedPedidoId : selectedReemplazoId;
                 let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_adiamento_inicio', {
                     payload: {
@@ -1140,9 +1266,14 @@ export function NewSolicitudPage() {
 
             await queryClient.invalidateQueries({ queryKey: ['solicitudes'] });
             await queryClient.invalidateQueries({ queryKey: ['pedidos'] });
+            if (selectedPedidoId && selectedPedidoId !== 'all') {
+                await queryClient.invalidateQueries({ queryKey: ['pedido', selectedPedidoId] });
+            }
             await queryClient.invalidateQueries({ queryKey: ['worker_assignments'] });
             await queryClient.invalidateQueries({ queryKey: ['reemplazos_para_adiamento'] });
-            if (targetSolicitudId) {
+            if (actionType === 'order_cancellation' && selectedPedidoId && selectedPedidoId !== 'all') {
+                navigate(`/operacoes/pedidos/${selectedPedidoId}`);
+            } else if (targetSolicitudId) {
                 navigate(`/operacoes/solicitudes/${targetSolicitudId}`);
             } else {
                 navigate('/operacoes/solicitudes');
@@ -1192,7 +1323,7 @@ export function NewSolicitudPage() {
                 
                 {/* Esquerda: Filtros e Tabela */}
                 <div className={`${
-                    (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') 
+                    (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation') 
                         ? 'lg:col-span-2 xl:col-span-2' 
                         : 'lg:col-span-3 xl:col-span-4'
                 } h-full flex flex-col min-h-0 overflow-hidden`}>
@@ -1202,13 +1333,13 @@ export function NewSolicitudPage() {
                             <h2 className="text-lg font-semibold">
                                 {actionType === 'order_postponement'
                                     ? '1. Selecionar Origem do Adiamento'
-                                    : (actionType === 'order_extension' || actionType === 'order_termination')
+                                    : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_cancellation')
                                     ? '1. Selecionar Pedido (Obra)'
                                     : '1. Buscar Alocações (Trabalhadores)'}
                             </h2>
                         </div>
                         
-                        {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') ? (
+                        {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation') ? (
                             <div className="space-y-4">
                                 {actionType === 'order_postponement' && (
                                     <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
@@ -1444,6 +1575,25 @@ export function NewSolicitudPage() {
                                                                 </div>
                                                             </div>
                                                         )}
+
+                                                        {actionType === 'order_cancellation' && (
+                                                            <div className="col-span-2 p-3 rounded-lg border bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900/60 shadow-sm mt-1">
+                                                                <div className="flex items-start gap-2.5">
+                                                                    <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                                                                    <div className="text-xs text-rose-900 dark:text-rose-200 space-y-1">
+                                                                        <span className="font-bold block text-sm text-rose-700 dark:text-rose-300">
+                                                                            Atenção: Cancelamento Operacional e Comercial
+                                                                        </span>
+                                                                        <p>
+                                                                            Ao confirmar, este pedido será marcado como <strong>Cancelado</strong>. Todas as solicitações operacionais ativas e tarefas pendentes vinculadas a esta obra serão canceladas.
+                                                                        </p>
+                                                                        <p>
+                                                                            Os trabalhadores alocados nesta obra serão automaticamente desmobilizados e seus status retornarão para <strong>Disponível</strong> no RH/Operações.
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );
@@ -1517,7 +1667,7 @@ export function NewSolicitudPage() {
                                     selectedIds={selectedAssignments}
                                     onToggleSelection={handleToggleSelection}
                                     onToggleAll={handleToggleAll}
-                                    isCompact={actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement'}
+                                    isCompact={actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation'}
                                 />
                             </div>
                         </div>
@@ -1526,7 +1676,7 @@ export function NewSolicitudPage() {
 
                 {/* Direita: Formulário de Solicitação */}
                 <div className={`${
-                    (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement') 
+                    (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation') 
                         ? 'lg:col-span-2 xl:col-span-3' 
                         : 'lg:col-span-1 xl:col-span-1'
                 } h-full overflow-y-auto pr-1`}>
@@ -1551,6 +1701,7 @@ export function NewSolicitudPage() {
                                         <SelectItem value="order_postponement">Adiamento de Início de Obra</SelectItem>
                                         <SelectItem value="order_extension">Prorrogação de Obra</SelectItem>
                                         <SelectItem value="order_termination">Finalização de Obra</SelectItem>
+                                        <SelectItem value="order_cancellation" className="text-rose-600 font-semibold focus:text-rose-700">Cancelamento de Pedido</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -1608,6 +1759,7 @@ export function NewSolicitudPage() {
                                      actionType === 'order_postponement' ? (postponeOriginType === 'reemplazo' ? 'Nova Data de Início do Reemplazo' : 'Nova Data de Início da Obra') : 
                                      actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
                                      actionType === 'order_termination' ? 'Data de Encerramento (Término da Obra)' : 
+                                     actionType === 'order_cancellation' ? 'Data Efetiva do Cancelamento' :
                                      'Data de Início da Nova Contratação'}
                                 </label>
                                 <Input 
@@ -1617,7 +1769,8 @@ export function NewSolicitudPage() {
                                     className={`h-10 text-sm transition-all duration-250 ${
                                         actionType === 'offboarding' ? 'border-blue-300 dark:border-blue-900/60 focus-visible:ring-blue-500 bg-blue-50/5 dark:bg-blue-955/5 shadow-inner' :
                                         actionType === 'order_postponement' ? 'border-amber-300 dark:border-amber-900/60 focus-visible:ring-amber-500 bg-amber-50/5 dark:bg-amber-955/5 shadow-inner' :
-                                        actionType === 'order_extension' ? 'border-emerald-300 dark:border-emerald-900/60 focus-visible:ring-emerald-500 bg-emerald-50/5 dark:bg-emerald-955/5 shadow-inner' : ''
+                                        actionType === 'order_extension' ? 'border-emerald-300 dark:border-emerald-900/60 focus-visible:ring-emerald-500 bg-emerald-50/5 dark:bg-emerald-955/5 shadow-inner' :
+                                        actionType === 'order_cancellation' ? 'border-rose-300 dark:border-rose-900/60 focus-visible:ring-rose-500 bg-rose-50/5 dark:bg-rose-955/5 shadow-inner' : ''
                                     }`}
                                 />
                                     {dueDate && (() => {
@@ -1890,14 +2043,14 @@ export function NewSolicitudPage() {
 
                         <div className="pt-4 mt-2 border-t">
                             <Button 
-                                className="w-full" 
+                                className={`w-full ${actionType === 'order_cancellation' ? 'bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-md shadow-rose-600/20' : ''}`} 
                                 size="lg"
                                 disabled={
                                     (actionType === 'order_postponement'
                                         ? (postponeOriginType === 'reemplazo' 
                                             ? (!selectedReemplazoId || selectedReemplazoId === 'all')
                                             : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
-                                        : (actionType === 'order_extension' || actionType === 'order_termination')
+                                        : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_cancellation')
                                         ? ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0)
                                         : (selectedAssignments.length === 0)) ||
                                     !reason.trim() ||
@@ -1907,20 +2060,28 @@ export function NewSolicitudPage() {
                                 }
                                 onClick={handleSubmit}
                             >
-                                <CheckCircle2 className="w-5 h-5 mr-2" />
-                                {createSolicitudWithTargets.isPending || isSubmitting ? 'Processando...' : 'Iniciar Operação'}
+                                {actionType === 'order_cancellation' ? (
+                                    <XCircle className="w-5 h-5 mr-2" />
+                                ) : (
+                                    <CheckCircle2 className="w-5 h-5 mr-2" />
+                                )}
+                                {createSolicitudWithTargets.isPending || isSubmitting 
+                                    ? 'Processando...' 
+                                    : actionType === 'order_cancellation'
+                                    ? 'Confirmar Cancelamento do Pedido'
+                                    : 'Iniciar Operação'}
                             </Button>
                             {(actionType === 'order_postponement'
                                 ? (postponeOriginType === 'reemplazo' 
                                     ? (!selectedReemplazoId || selectedReemplazoId === 'all')
                                     : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
-                                : (actionType === 'order_extension' || actionType === 'order_termination')
+                                : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_cancellation')
                                 ? ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0)
                                 : (selectedAssignments.length === 0)) && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
                                     {actionType === 'order_postponement' && postponeOriginType === 'reemplazo'
                                         ? 'Selecione um Reemplazo (Substituição) para continuar.'
-                                        : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement')
+                                        : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation')
                                         ? 'Selecione um Pedido (Obra) ou pelo menos um trabalhador para continuar.'
                                         : 'Selecione pelo menos um trabalhador na tabela.'}
                                 </p>
@@ -1998,7 +2159,7 @@ export function NewSolicitudPage() {
                                     actionType === 'replacement' ? 'Reemplazo' : 
                                     actionType === 'relocation' ? 'Reubicación' : 
                                     actionType === 'technical_test' ? 'Prueba' : 
-                                    (actionType === 'order_extension' || actionType === 'order_postponement' || actionType === 'order_termination') ? 'Pedido' : 
+                                    (actionType === 'order_extension' || actionType === 'order_postponement' || actionType === 'order_termination' || actionType === 'order_cancellation') ? 'Pedido' : 
                                     'Baja'
                                 })
                             </label>

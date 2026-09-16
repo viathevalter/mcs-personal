@@ -48,7 +48,23 @@ BEGIN
   WITH base_workers AS (
     SELECT 
       w.id,
-      e.id as empresa_id,
+      COALESCE(
+        e.id,
+        (
+          SELECT cnt.empresa_id
+          FROM core_personal.contracts cnt
+          WHERE cnt.worker_id = w.id
+          ORDER BY cnt.created_at DESC
+          LIMIT 1
+        ),
+        (
+          SELECT wa.empresa_id
+          FROM core_personal.worker_assignments wa
+          WHERE wa.worker_id = w.id
+          ORDER BY wa.planned_start_date DESC
+          LIMIT 1
+        )
+      ) as empresa_id,
       w.cod_colab,
       w.nome,
       w.email,
@@ -60,6 +76,8 @@ BEGIN
       w.pasaporte,
       w.status_seguridad,
       w.status_trabajador,
+      w.data_ingresso,
+      w.data_alta_seguridad,
       w.created_at,
       COALESCE(NULLIF(w.contratante, ''), c.contratante) as contratante,
       COALESCE(NULLIF(w.funcion, ''), jf.name, c.funcion) as funcion,
@@ -73,7 +91,8 @@ BEGIN
       (UPPER(w.contratante) LIKE 'LUMINOUS%' AND e.codigo = 'LUM') OR
       (UPPER(w.contratante) LIKE 'WISEOWE%' AND e.codigo = 'WIS') OR
       (UPPER(w.contratante) LIKE 'STOCCO%' AND e.codigo = 'STO') OR
-      (UPPER(w.contratante) LIKE 'TRIANGULO%' AND e.codigo = 'TRI')
+      (UPPER(w.contratante) LIKE 'TRIANGULO%' AND e.codigo = 'TRI') OR
+      (UPPER(w.contratante) LIKE '%ROSAS%' AND e.codigo = 'KOT')
     )
   ),
   filtered AS (
@@ -84,24 +103,87 @@ BEGIN
         OR p_empresa_id = '' 
         OR p_empresa_id = v_holding_id 
         OR (bw.empresa_id IS NOT NULL AND bw.empresa_id::text = p_empresa_id)
+        OR EXISTS (
+          SELECT 1 FROM core_personal.contracts cnt 
+          WHERE cnt.worker_id = bw.id AND cnt.empresa_id::text = p_empresa_id
+        )
+        OR EXISTS (
+          SELECT 1 FROM core_personal.worker_assignments wa 
+          WHERE wa.worker_id = bw.id AND wa.empresa_id::text = p_empresa_id
+        )
         OR bw.empresa_id IS NULL
       )
-      AND (p_search IS NULL OR (
-        bw.nome ILIKE '%' || p_search || '%' OR
-        bw.cod_colab ILIKE '%' || p_search || '%' OR
-        bw.nif ILIKE '%' || p_search || '%' OR
-        bw.niss ILIKE '%' || p_search || '%'
-      ))
+      AND (
+        p_search IS NULL OR TRIM(p_search) = '' OR (
+          bw.nome ILIKE '%' || TRIM(p_search) || '%' OR
+          bw.cod_colab ILIKE '%' || TRIM(p_search) || '%' OR
+          bw.nif ILIKE '%' || TRIM(p_search) || '%' OR
+          bw.niss ILIKE '%' || TRIM(p_search) || '%' OR
+          bw.nie ILIKE '%' || TRIM(p_search) || '%' OR
+          bw.dni ILIKE '%' || TRIM(p_search) || '%' OR
+          bw.pasaporte ILIKE '%' || TRIM(p_search) || '%'
+        )
+      )
       AND (p_cliente_nombre IS NULL OR cardinality(p_cliente_nombre) = 0 OR bw.active_client_nombre = ANY(p_cliente_nombre))
-      AND (p_status_trabajador_filter IS NULL OR cardinality(p_status_trabajador_filter) = 0 OR bw.status_trabajador = ANY(p_status_trabajador_filter) OR (
-          -- Array match logic for 'ativos', 'inativos', etc.
-          ('ativos' = ANY(p_status_trabajador_filter) AND LOWER(bw.status_trabajador) = 'ativo') OR
-          ('inativos' = ANY(p_status_trabajador_filter) AND LOWER(bw.status_trabajador) = 'inativo') OR
-          ('pendientes_ingreso' = ANY(p_status_trabajador_filter) AND LOWER(bw.status_trabajador) = 'pendientes_ingreso')
-      ))
-      AND (p_status_seguridad_filter IS NULL OR cardinality(p_status_seguridad_filter) = 0 OR bw.status_seguridad = ANY(p_status_seguridad_filter))
+      AND (
+        p_status_trabajador_filter IS NULL 
+        OR cardinality(p_status_trabajador_filter) = 0 
+        OR bw.status_trabajador = ANY(p_status_trabajador_filter)
+        OR (
+          EXISTS (
+            SELECT 1 FROM unnest(p_status_trabajador_filter) AS st
+            WHERE 
+              (st = 'ativos' AND (bw.status_trabajador ILIKE 'Ativo%' OR bw.status_trabajador ILIKE 'Activo%'))
+              OR
+              (st = 'inativos' AND (
+                bw.status_trabajador ILIKE 'Inativo%' 
+                OR bw.status_trabajador ILIKE 'Inactivo%' 
+                OR bw.status_trabajador ILIKE 'Desligado%' 
+                OR bw.status_trabajador ILIKE 'Desistiu%'
+              ))
+              OR
+              (st IN ('pendientes_ingreso', 'pendentes_ingreso', 'pendentes_ingresso') AND (
+                bw.status_trabajador ILIKE '%Pendente%' 
+                OR bw.status_trabajador ILIKE '%Pendiente%'
+              ))
+              OR
+              (bw.status_trabajador ILIKE st)
+          )
+        )
+      )
+      AND (
+        p_status_seguridad_filter IS NULL 
+        OR cardinality(p_status_seguridad_filter) = 0 
+        OR bw.status_seguridad = ANY(p_status_seguridad_filter)
+        OR (
+          EXISTS (
+            SELECT 1 FROM unnest(p_status_seguridad_filter) AS sf
+            WHERE 
+              (sf = 'alta' AND bw.status_seguridad ILIKE 'Alta')
+              OR
+              (sf = 'pendentes_alta' AND (bw.status_seguridad ILIKE 'Pendente Alta' OR bw.status_seguridad ILIKE 'Pendiente Alta'))
+              OR
+              (sf = 'baixa' AND (bw.status_seguridad ILIKE 'Baixa' OR bw.status_seguridad ILIKE 'Baja' OR bw.status_seguridad ILIKE 'Anulado'))
+              OR
+              (sf = 'pendentes_baixa' AND (bw.status_seguridad ILIKE 'Pendente Baixa' OR bw.status_seguridad ILIKE 'Pendiente Baja'))
+              OR
+              (sf = 'em_regularizacao' AND (
+                bw.status_seguridad ILIKE 'Em Regulariza%' 
+                OR bw.status_seguridad ILIKE 'En Regulariza%'
+              ))
+              OR
+              (bw.status_seguridad ILIKE sf)
+          )
+        )
+      )
       AND (p_contratante IS NULL OR bw.contratante ILIKE '%' || p_contratante || '%')
       AND (p_funcion IS NULL OR bw.funcion ILIKE '%' || p_funcion || '%')
+      AND (
+        p_period_month IS NULL OR p_period_year IS NULL OR
+        (EXTRACT(MONTH FROM bw.data_ingresso) = p_period_month AND EXTRACT(YEAR FROM bw.data_ingresso) = p_period_year) OR
+        (EXTRACT(MONTH FROM bw.data_alta_seguridad) = p_period_month AND EXTRACT(YEAR FROM bw.data_alta_seguridad) = p_period_year) OR
+        (EXTRACT(MONTH FROM bw.created_at) = p_period_month AND EXTRACT(YEAR FROM bw.created_at) = p_period_year)
+      )
   ),
   total AS (
     SELECT COUNT(*) AS exact_count FROM filtered

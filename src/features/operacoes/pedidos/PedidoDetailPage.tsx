@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus, Pencil, Loader2, Mail } from 'lucide-react';
+import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus, Pencil, Loader2, Mail, XCircle } from 'lucide-react';
 import { PedidoStatusBadge } from './components/PedidoStatusBadge';
 import { ResendPedidoNotificationModal } from './components/ResendPedidoNotificationModal';
 
@@ -134,6 +134,15 @@ export function PedidoDetailPage() {
         </div>
         
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {pedido.commercial_status !== 'cancelled' && (
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_cancellation&pedido_id=${pedido.id}`)}
+              className="border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 font-semibold"
+            >
+              <XCircle className="mr-2 h-4 w-4" /> Cancelar Pedido
+            </Button>
+          )}
           <Button 
             variant="outline" 
             onClick={handleOpenEdit}

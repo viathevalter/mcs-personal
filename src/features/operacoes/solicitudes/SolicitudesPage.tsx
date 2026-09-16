@@ -63,6 +63,9 @@ export function SolicitudesPage() {
                 <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=order_termination')} className="cursor-pointer">
                   Nova Finalização de Obra
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=order_cancellation')} className="cursor-pointer text-red-600 focus:text-red-700">
+                  Novo Cancelamento de Pedido
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" onClick={() => refetch()}>
@@ -86,6 +89,7 @@ export function SolicitudesPage() {
               <TabsTrigger value="offboarding" className="px-4 py-1.5 text-sm font-medium rounded-md">Bajas (Desligamentos)</TabsTrigger>
               <TabsTrigger value="order_extension" className="px-4 py-1.5 text-sm font-medium rounded-md">Prorrogações</TabsTrigger>
               <TabsTrigger value="order_termination" className="px-4 py-1.5 text-sm font-medium rounded-md">Finalizações</TabsTrigger>
+              <TabsTrigger value="order_cancellation" className="px-4 py-1.5 text-sm font-medium rounded-md">Cancelamentos</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
