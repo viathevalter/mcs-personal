@@ -1631,8 +1631,8 @@ export function FaturasTracking() {
     const cycleStartDay = fatura.client?.billingCycleStartDay || fatura.client?.billing_cycle_start_day || 1;
     const daysArray = getBillingCycleDays(cycleStartDay, periodYear, periodMonth);
 
-    const obraTitle = (fat.ajustes_json?.obra || fat.ajustesJson?.obra)
-      ? `OBRA: ${(fat.ajustes_json?.obra || fat.ajustesJson?.obra).toUpperCase()}`
+    const obraTitle = (fatura.ajustes_json?.obra || fatura.ajustesJson?.obra)
+      ? `OBRA: ${(fatura.ajustes_json?.obra || fatura.ajustesJson?.obra).toUpperCase()}`
       : 'OBRA: TODAS AS OBRAS';
 
     const tablesToRender = [
