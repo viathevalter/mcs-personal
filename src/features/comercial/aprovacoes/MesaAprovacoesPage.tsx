@@ -24,6 +24,13 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   ShieldAlert,
   ShieldCheck,
   CheckCircle2,
@@ -52,14 +59,21 @@ export function MesaAprovacoesPage() {
   const { decidirAprovacaoGerente } = useEstimacionMutations();
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [empresaFilter, setEmpresaFilter] = useState<string>(selectedEmpresaId || 'all');
   const [selectedEstimacion, setSelectedEstimacion] = useState<any | null>(null);
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
   const [decisionType, setDecisionType] = useState<'approve' | 'reject'>('approve');
   const [decisionNotes, setDecisionNotes] = useState('');
 
+  React.useEffect(() => {
+    if (selectedEmpresaId && selectedEmpresaId !== 'all') {
+      setEmpresaFilter(selectedEmpresaId);
+    }
+  }, [selectedEmpresaId]);
+
   // Consulta de orçamentos em status 'review'
   const { data: pendingEstimaciones = [], isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['aprovacoes-pendentes', selectedEmpresaId],
+    queryKey: ['aprovacoes-pendentes', empresaFilter, selectedEmpresaId],
     queryFn: async () => {
       let query = supabase
         .schema('core_comercial')
@@ -77,7 +91,7 @@ export function MesaAprovacoesPage() {
               id,
               quantity,
               sell_rate_hour,
-              minimum_sell_rate,
+              minimum_sell_rate_hour,
               job_function:job_functions(id, name)
             )
           )
@@ -85,12 +99,15 @@ export function MesaAprovacoesPage() {
         .eq('status', 'review')
         .order('review_requested_at', { ascending: false, nullsFirst: false });
 
-      if (selectedEmpresaId && selectedEmpresaId !== 'all') {
-        query = query.eq('empresa_id', selectedEmpresaId);
+      if (empresaFilter && empresaFilter !== 'all') {
+        query = query.eq('empresa_id', empresaFilter);
       }
 
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error('Erro na query de aprovações pendentes:', error);
+        throw error;
+      }
       if (!data || data.length === 0) return [];
 
       const clientIds = [...new Set(data.map(d => d.client_id).filter(Boolean))];
@@ -297,20 +314,38 @@ export function MesaAprovacoesPage() {
         </Card>
       </div>
 
-      {/* Search Bar */}
-      <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
-        <Search className="h-4 w-4 text-slate-400 shrink-0 ml-1" />
-        <Input
-          placeholder="Buscar por código, cliente, lead ou vendedor..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border-0 focus-visible:ring-0 shadow-none text-sm p-0 h-auto"
-        />
-        {searchTerm && (
-          <Button variant="ghost" size="sm" onClick={() => setSearchTerm('')} className="h-7 text-xs">
-            Limpar
-          </Button>
-        )}
+      {/* Search Bar & Company Filter */}
+      <div className="flex flex-col sm:flex-row items-center gap-3">
+        <div className="flex-1 flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 w-full">
+          <Search className="h-4 w-4 text-slate-400 shrink-0 ml-1" />
+          <Input
+            placeholder="Buscar por código, cliente, lead ou vendedor..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="border-0 focus-visible:ring-0 shadow-none text-sm p-0 h-auto"
+          />
+          {searchTerm && (
+            <Button variant="ghost" size="sm" onClick={() => setSearchTerm('')} className="h-7 text-xs">
+              Limpar
+            </Button>
+          )}
+        </div>
+
+        <div className="w-full sm:w-[240px]">
+          <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
+            <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-11 rounded-xl">
+              <SelectValue placeholder="Todas as Empresas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Empresas</SelectItem>
+              {empresas.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  {emp.trade_name || emp.legal_name || emp.nome || 'Empresa'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* List of Pending Reviews */}
