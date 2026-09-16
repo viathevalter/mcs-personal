@@ -264,14 +264,23 @@ function isWorkerAdmittedAfterCompetence(worker: any, mesCompetencia: string): b
     const lastDay = new Date(year, month, 0).getDate();
     const lastDayOfMonthIso = `${mesCompetencia}-${String(lastDay).padStart(2, '0')}`;
 
-    const rawStartDate = worker.data_ingresso || worker.data_inicio || worker.start_date || worker.data_alta_seguridad;
-    const startIso = parseDateToIsoClean(rawStartDate);
+    // Collect all candidate start/admission dates
+    const dateCandidates = [
+        worker.data_alta_seguridad,
+        worker.data_ingresso,
+        worker.data_inicio,
+        worker.start_date
+    ].map(parseDateToIsoClean).filter(Boolean) as string[];
 
-    if (startIso && startIso > lastDayOfMonthIso) {
-        return true;
+    if (dateCandidates.length === 0) return false;
+
+    // If ANY start date is on or before the end of the competence month, the worker was already active/admitted!
+    const hasAnyPriorOrCurrentStart = dateCandidates.some(d => d <= lastDayOfMonthIso);
+    if (hasAnyPriorOrCurrentStart) {
+        return false;
     }
 
-    return false;
+    return true;
 }
 
 function isWorkerTerminatedBeforeCompetence(worker: any, mesCompetencia: string): boolean {
@@ -1111,11 +1120,7 @@ export function HoleritesPage() {
         let beneficiosFixosArray: { id?: string; desc: string; val: number; empresa_id?: string }[] = [];
         let totalBeneficios = 0;
 
-        if (isWorkerAdmittedAfterCompetence(worker, mesReferencia)) {
-            // Worker is admitted in a future month: no fixed benefits apply for this previous month
-            totalBeneficios = 0;
-            beneficiosFixosArray = [];
-        } else if (workerHousingBenefits.length > 0) {
+        if (workerHousingBenefits.length > 0) {
             workerHousingBenefits.forEach((hb: any) => {
                 const proratedVal = calculateProratedBenefitAmount(hb, mesReferencia);
                 totalBeneficios += proratedVal;
@@ -1126,7 +1131,7 @@ export function HoleritesPage() {
                     empresa_id: hb.empresa_id
                 });
             });
-        } else {
+        } else if (!isWorkerAdmittedAfterCompetence(worker, mesReferencia) || totalHoras > 0) {
             // Contract fallback from worker_beneficios_settings ONLY if receives fixed housing or fixed allowances are enabled
             // and ONLY for the worker's dominant company for the month!
             const dominantComp = dbHoursSummary?.workerMonthlyActivityMap?.get(worker.id)?.contratante || worker.contratante;
@@ -1220,8 +1225,8 @@ export function HoleritesPage() {
 
         if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
 
-        // 1. If worker starts in a future month and has 0 hours worked in this competence, DO NOT show them!
-        if (isWorkerAdmittedAfterCompetence(worker, mesReferencia) && tally.totalHoras <= 0) {
+        // 1. If worker starts in a future month and has 0 hours worked and no financial entries in this competence, DO NOT show them!
+        if (isWorkerAdmittedAfterCompetence(worker, mesReferencia) && tally.totalHoras <= 0 && tally.proventos <= 0 && tally.descontos <= 0) {
             return false;
         }
 
