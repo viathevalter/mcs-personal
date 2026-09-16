@@ -70,6 +70,9 @@ import {
   Building2,
   Zap,
   PhoneCall,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
@@ -160,11 +163,23 @@ export function LeadsPage() {
 
   // Main Table Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 100;
+  const [pageSize, setPageSize] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('mcs_leads_page_size');
+      if (saved) return Number(saved) || 50;
+    } catch {
+      // ignore
+    }
+    return 50;
+  });
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, sortField, sortDirection]);
+    try {
+      localStorage.setItem('mcs_leads_page_size', String(pageSize));
+    } catch {
+      // ignore
+    }
+  }, [pageSize]);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [dnsCache] = useState<Map<string, boolean>>(() => new Map());
@@ -801,11 +816,33 @@ export function LeadsPage() {
   };
 
   const [selectedSector, setSelectedSector] = useState<string>('all');
-  const [selectedCountry, setSelectedCountry] = useState<string>('ES');
+  const [selectedCountry, setSelectedCountry] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('mcs_leads_selected_country');
+      if (saved) return saved;
+    } catch {
+      // ignore
+    }
+    return 'ES';
+  });
   const [selectedCompanySize, setSelectedCompanySize] = useState<string>('all');
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
   const [selectedWebsiteFilter, setSelectedWebsiteFilter] = useState<'all' | 'with_web' | 'no_web'>('all');
+
+  useEffect(() => {
+    try {
+      if (selectedCountry) {
+        localStorage.setItem('mcs_leads_selected_country', selectedCountry);
+      }
+    } catch {
+      // ignore
+    }
+  }, [selectedCountry]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCountry, selectedSector, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, sortField, sortDirection, pageSize]);
 
   const countryLabels = COUNTRY_LABELS;
 
@@ -915,62 +952,78 @@ export function LeadsPage() {
     toast.success(`Exportados ${filteredLeads.length} leads em Excel (.xlsx) com sucesso!`);
   };
 
-  const filteredLeads = leads.filter((lead: any) => {
-    const leadNormSector = normalizeSectorName(lead.sector);
-    if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
-    if (selectedCountry !== 'all' && detectLeadCountry(lead) !== selectedCountry) return false;
-    if (selectedCompanySize !== 'all') {
-      const sizeStr = lead.company_size || '';
-      const inTags = Array.isArray(lead.tags) && lead.tags.includes(selectedCompanySize);
-      if (sizeStr !== selectedCompanySize && !inTags) return false;
-    }
-    if (selectedRegion !== 'all') {
-      const regStr = lead.region || '';
-      const inTags = Array.isArray(lead.tags) && lead.tags.includes(selectedRegion);
-      if (regStr !== selectedRegion && !inTags) return false;
-    }
-    if (selectedProvince !== 'all' && lead.province !== selectedProvince) return false;
-    if (selectedWebsiteFilter === 'with_web' && (!lead.website || lead.website === '#' || lead.website.trim() === '')) return false;
-    if (selectedWebsiteFilter === 'no_web' && (lead.website && lead.website !== '#' && lead.website.trim() !== '')) return false;
+  const filteredLeads = useMemo(() => {
+    return leads.filter((lead: any) => {
+      const leadNormSector = normalizeSectorName(lead.sector);
+      if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
+      if (selectedCountry !== 'all' && detectLeadCountry(lead) !== selectedCountry) return false;
+      if (selectedCompanySize !== 'all') {
+        const sizeStr = lead.company_size || '';
+        const inTags = Array.isArray(lead.tags) && lead.tags.includes(selectedCompanySize);
+        if (sizeStr !== selectedCompanySize && !inTags) return false;
+      }
+      if (selectedRegion !== 'all') {
+        const regStr = lead.region || '';
+        const inTags = Array.isArray(lead.tags) && lead.tags.includes(selectedRegion);
+        if (regStr !== selectedRegion && !inTags) return false;
+      }
+      if (selectedProvince !== 'all' && lead.province !== selectedProvince) return false;
+      if (selectedWebsiteFilter === 'with_web' && (!lead.website || lead.website === '#' || lead.website.trim() === '')) return false;
+      if (selectedWebsiteFilter === 'no_web' && (lead.website && lead.website !== '#' && lead.website.trim() !== '')) return false;
 
-    if (!searchTerm) return true;
-    const search = searchTerm.toLowerCase();
-    return (
-      lead.name?.toLowerCase().includes(search) ||
-      lead.email?.toLowerCase().includes(search) ||
-      (lead.company_name && lead.company_name.toLowerCase().includes(search)) ||
-      (lead.phone && lead.phone.includes(search)) ||
-      (lead.city && lead.city.toLowerCase().includes(search)) ||
-      (lead.province && lead.province.toLowerCase().includes(search)) ||
-      (lead.region && lead.region.toLowerCase().includes(search)) ||
-      (lead.company_size && lead.company_size.toLowerCase().includes(search)) ||
-      (lead.sector && lead.sector.toLowerCase().includes(search)) ||
-      (lead.origen_lead && lead.origen_lead.toLowerCase().includes(search)) ||
-      (Array.isArray(lead.tags) && lead.tags.some((t: string) => t.toLowerCase().includes(search)))
-    );
-  });
+      if (!searchTerm) return true;
+      const search = searchTerm.toLowerCase().trim();
+      return (
+        lead.name?.toLowerCase().includes(search) ||
+        lead.email?.toLowerCase().includes(search) ||
+        (lead.company_name && lead.company_name.toLowerCase().includes(search)) ||
+        (lead.phone && lead.phone.includes(search)) ||
+        (lead.city && lead.city.toLowerCase().includes(search)) ||
+        (lead.province && lead.province.toLowerCase().includes(search)) ||
+        (lead.region && lead.region.toLowerCase().includes(search)) ||
+        (lead.company_size && lead.company_size.toLowerCase().includes(search)) ||
+        (lead.sector && lead.sector.toLowerCase().includes(search)) ||
+        (lead.origen_lead && lead.origen_lead.toLowerCase().includes(search)) ||
+        (Array.isArray(lead.tags) && lead.tags.some((t: string) => t.toLowerCase().includes(search)))
+      );
+    });
+  }, [leads, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
 
-  const sortedLeads = [...filteredLeads].sort((a, b) => {
-    if (!sortField) return 0;
+  const sortedLeads = useMemo(() => {
+    return [...filteredLeads].sort((a, b) => {
+      if (!sortField) return 0;
 
-    let valA = a[sortField as keyof typeof a] || '';
-    let valB = b[sortField as keyof typeof b] || '';
+      if (sortField === 'created_at') {
+        const timeA = new Date(a.created_at || a.updated_at || 0).getTime();
+        const timeB = new Date(b.created_at || b.updated_at || 0).getTime();
+        return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+      }
 
-    if (sortField === 'email') {
-      valA = a.email || a.phone || '';
-      valB = b.email || b.phone || '';
-    }
+      let valA = a[sortField as keyof typeof a] || '';
+      let valB = b[sortField as keyof typeof b] || '';
 
-    if (typeof valA === 'string') valA = valA.toLowerCase().trim();
-    if (typeof valB === 'string') valB = valB.toLowerCase().trim();
+      if (sortField === 'email') {
+        valA = a.email || a.phone || '';
+        valB = b.email || b.phone || '';
+      } else if (sortField === 'sector') {
+        valA = normalizeSectorName(a.sector) || '';
+        valB = normalizeSectorName(b.sector) || '';
+      } else if (sortField === 'notes') {
+        valA = a.notes || '';
+        valB = b.notes || '';
+      }
 
-    if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
-    if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
-    return 0;
-  });
+      if (typeof valA === 'string') valA = valA.toLowerCase().trim();
+      if (typeof valB === 'string') valB = valB.toLowerCase().trim();
 
-  const totalLeadPages = Math.ceil(sortedLeads.length / itemsPerPage);
-  const paginatedSortedLeads = sortedLeads.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+      if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+      if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredLeads, sortField, sortDirection]);
+
+  const totalLeadPages = Math.ceil(sortedLeads.length / pageSize) || 1;
+  const paginatedSortedLeads = sortedLeads.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
@@ -1339,10 +1392,20 @@ export function LeadsPage() {
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('comercial.leads.searchPlaceholder')}
-            className="pl-10 h-9 text-xs focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
+            className="pl-10 pr-9 h-9 text-xs focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full transition-colors"
+              title="Limpar pesquisa"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3 w-full md:w-auto flex-wrap sm:flex-nowrap">
@@ -1456,6 +1519,28 @@ export function LeadsPage() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* Quick Clear All Filters button */}
+          {(searchTerm || selectedSector !== 'all' || selectedCompanySize !== 'all' || selectedRegion !== 'all' || selectedProvince !== 'all' || selectedWebsiteFilter !== 'all') && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedSector('all');
+                setSelectedCompanySize('all');
+                setSelectedRegion('all');
+                setSelectedProvince('all');
+                setSelectedWebsiteFilter('all');
+              }}
+              className="h-9 text-xs text-muted-foreground hover:text-destructive gap-1.5 px-3 shrink-0"
+              title="Limpar todos os filtros da busca"
+            >
+              <X className="h-3.5 w-3.5" />
+              Limpar Filtros
+            </Button>
+          )}
         </div>
       </div>
       {error ? (
@@ -1489,11 +1574,12 @@ export function LeadsPage() {
         </div>
       ) : (
         <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
-          <div className="overflow-x-auto">
+          {/* Scrollable table container with mouse-wheel scroll & sticky header */}
+          <div className="overflow-auto max-h-[620px] relative scrollbar-thin">
             <table className="w-full text-sm">
-              <thead className="border-b bg-muted/30">
+              <thead className="border-b bg-slate-50 dark:bg-slate-900 sticky top-0 z-20 shadow-sm">
                 <tr>
-                  <th className="py-3 px-3 text-center align-middle w-10 sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
+                  <th className="py-3 px-3 text-center align-middle w-10 sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
                     <input
                       type="checkbox"
                       checked={paginatedSortedLeads.length > 0 && paginatedSortedLeads.every(l => selectedLeadIds.includes(l.id))}
@@ -1509,26 +1595,26 @@ export function LeadsPage() {
                       className="rounded border-slate-400 text-blue-600 focus:ring-blue-500 cursor-pointer"
                     />
                   </th>
-                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {renderSortHeader('company_name', t('comercial.leads.table.company'))}
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
+                    {renderSortHeader('company_name', t('comercial.leads.table.company', 'Empresa / Organização'))}
                   </th>
-                  <th className="py-3 px-4 text-left align-middle font-medium text-slate-500 dark:text-slate-400 font-semibold sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {t('comercial.leads.table.sector')}
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
+                    {renderSortHeader('sector', t('comercial.leads.table.sector', 'Setor'))}
                   </th>
-                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {renderSortHeader('name', t('comercial.leads.table.name'))}
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
+                    {renderSortHeader('name', t('comercial.leads.table.name', 'Nome'))}
                   </th>
-                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {renderSortHeader('email', t('comercial.leads.table.contact'))}
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
+                    {renderSortHeader('email', t('comercial.leads.table.contact', 'Contato'))}
                   </th>
-                  <th className="py-3 px-4 text-left align-middle font-medium text-slate-500 dark:text-slate-400 font-semibold sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {t('comercial.leads.table.notes')}
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
+                    {renderSortHeader('notes', t('comercial.leads.table.notes', 'Observações'))}
                   </th>
-                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {renderSortHeader('created_at', t('comercial.leads.table.date'))}
+                  <th className="py-3 px-4 text-left align-middle font-medium text-muted-foreground sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
+                    {renderSortHeader('created_at', t('comercial.leads.table.date', 'Data Cadastro'))}
                   </th>
-                  <th className="py-3 px-4 text-right align-middle font-medium text-slate-500 dark:text-slate-400 font-semibold sticky top-0 bg-slate-50 dark:bg-slate-900 z-10 border-b">
-                    {t('comercial.leads.table.actions')}
+                  <th className="py-3 px-4 text-right align-middle font-medium text-slate-500 dark:text-slate-400 font-semibold sticky top-0 bg-slate-50 dark:bg-slate-900 z-20 border-b">
+                    {t('comercial.leads.table.actions', 'Ações')}
                   </th>
                 </tr>
               </thead>
@@ -1789,40 +1875,55 @@ export function LeadsPage() {
             </tbody>
             </table>
           </div>
-        </div>
-      )}
 
-      {totalLeadPages > 1 && (
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-card border rounded-xl p-4 shadow-sm mt-4">
-          <span className="text-xs text-muted-foreground">
-            Mostrando <strong className="text-slate-700 dark:text-slate-350">{Math.min(sortedLeads.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(sortedLeads.length, currentPage * itemsPerPage)}</strong> de <strong className="text-slate-700 dark:text-slate-350">{sortedLeads.length}</strong> leads
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              className="h-8 text-xs px-3 font-semibold"
-            >
-              Anterior
-            </Button>
-            <div className="flex items-center gap-1.5 text-xs font-semibold">
-              <span className="text-muted-foreground">Página</span>
-              <span className="bg-slate-100 dark:bg-slate-950 border px-2.5 py-1 rounded text-slate-800 dark:text-slate-200">
-                {currentPage}
-              </span>
-              <span className="text-muted-foreground">de {totalLeadPages}</span>
+          {/* Integrated Pagination Footer (Trabalhadores standard) */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-3.5 bg-muted/20 border-t shrink-0">
+            <p className="text-xs text-muted-foreground">
+              Mostrando <strong className="font-semibold text-foreground">{sortedLeads.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}</strong> até <strong className="font-semibold text-foreground">{Math.min(currentPage * pageSize, sortedLeads.length)}</strong> de <strong className="font-semibold text-foreground">{sortedLeads.length}</strong> resultados
+            </p>
+            <div className="flex items-center gap-4 flex-wrap justify-end">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>Exibir:</span>
+                <select
+                  className="h-8 w-[72px] rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring cursor-pointer"
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="h-8 text-xs px-2.5 font-semibold"
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Anterior
+                </Button>
+                <div className="text-xs font-semibold px-3 py-1.5 rounded-md bg-muted/60 border text-foreground">
+                  {currentPage} / {totalLeadPages || 1}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage >= totalLeadPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalLeadPages, p + 1))}
+                  className="h-8 text-xs px-2.5 font-semibold"
+                >
+                  Próximo
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={currentPage === totalLeadPages}
-              onClick={() => setCurrentPage(p => Math.min(totalLeadPages, p + 1))}
-              className="h-8 text-xs px-3 font-semibold"
-            >
-              Próxima
-            </Button>
           </div>
         </div>
       )}
