@@ -672,9 +672,55 @@ export function CampaignsPage() {
     if (isTriangulo) {
       return [
         {
+          id: 'aud_triangulo_giada_ineditos_pdf',
+          name: '🚀 🇮🇹 Giada - Inéditos PDF Itália (92 leads)',
+          leadCount: 92,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['IT'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Giada - Inéditos PDF Italia',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_triangulo_giada_pdf_empresas',
+          name: '🎯 🇮🇹 Giada - Mailing PDF Empresas Itália (108 leads)',
+          leadCount: 108,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['IT'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Giada - PDF Empresas Italia',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
           id: 'aud_triangulo_giada_italia_geral',
-          name: '🚀 🇮🇹 Giada - Mailing Geral Itália (1.691 leads)',
-          leadCount: 1691,
+          name: '🌟 🇮🇹 Giada - Mailing Geral Itália (1.790 leads)',
+          leadCount: 1790,
           filters: {
             stageId: '',
             origin: '',
