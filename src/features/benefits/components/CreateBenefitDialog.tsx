@@ -24,6 +24,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { Plus, Search, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { findMatchingEmpresa } from '@/shared/utils/empresaNormalizer';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 interface CreateBenefitDialogProps {
     trigger?: React.ReactNode;
@@ -31,7 +33,7 @@ interface CreateBenefitDialogProps {
 
 export function CreateBenefitDialog({ trigger }: CreateBenefitDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
-    const { selectedEmpresaId } = useEmpresa();
+    const { selectedEmpresaId, empresas = [] } = useEmpresa();
     const { data: benefitCategories = [] } = useBenefitCategories(selectedEmpresaId || undefined);
 
     const [workerId, setWorkerId] = useState<string>('');
@@ -44,20 +46,15 @@ export function CreateBenefitDialog({ trigger }: CreateBenefitDialogProps) {
 
     // Fetch workers for select
     const { data: workers = [], isLoading: isLoadingWorkers } = useQuery({
-        queryKey: ['workers-for-benefit-create', selectedEmpresaId],
+        queryKey: ['workers-for-benefit-create'],
         enabled: isOpen,
         queryFn: async () => {
-            let query = supabase
+            const { data, error } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, empresa_id, status_trabajador')
+                .select('id, cod_colab, nome, contratante, status_trabajador')
                 .order('nome', { ascending: true });
 
-            if (selectedEmpresaId) {
-                query = query.eq('empresa_id', selectedEmpresaId);
-            }
-
-            const { data, error } = await query;
             if (error) throw error;
             return data || [];
         }
@@ -87,7 +84,15 @@ export function CreateBenefitDialog({ trigger }: CreateBenefitDialogProps) {
     const handleSave = () => {
         if (!workerId || !amount || !startDate || !category) return;
 
-        const matchedEmpresaId = selectedWorkerObj?.empresa_id || selectedEmpresaId || '00000000-0000-0000-0000-000000000000';
+        let resolvedEmpresa = selectedEmpresaId && !isHoldingId(selectedEmpresaId, empresas)
+            ? empresas.find(e => String(e.id) === String(selectedEmpresaId))
+            : undefined;
+
+        if (!resolvedEmpresa && (selectedWorkerObj as any)?.contratante) {
+            resolvedEmpresa = findMatchingEmpresa(empresas, (selectedWorkerObj as any).contratante);
+        }
+
+        const matchedEmpresaId = resolvedEmpresa?.id || selectedEmpresaId || empresas[0]?.id || '00000000-0000-0000-0000-000000000000';
 
         upsertBenefit(
             {

@@ -104,7 +104,7 @@ export function ImportDiscountsDialog({ trigger, defaultCompetence }: ImportDisc
                 const { data, error } = await supabase
                     .schema('core_personal')
                     .from('workers')
-                    .select('id, cod_colab, nome, contratante, empresa_id')
+                    .select('id, cod_colab, nome, contratante')
                     .range(from, from + pageSize - 1);
 
                 if (error) {
