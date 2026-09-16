@@ -177,8 +177,7 @@ Obs: ' || v_observacoes ELSE '' END,
                 END,
                 departure_reason = 'Pedido cancelado pelo cliente: ' || v_motivo,
                 notes = COALESCE(notes || E'
-', '') || 'Alocação cancelada por cancelamento do pedido ' || v_pedido_codigo || ' em ' || to_char(NOW(), 'DD/MM/YYYY HH24:MI') || ': ' || v_motivo,
-                updated_at = NOW()
+', '') || 'Alocação cancelada por cancelamento do pedido ' || v_pedido_codigo || ' em ' || to_char(NOW(), 'DD/MM/YYYY HH24:MI') || ': ' || v_motivo
             WHERE id = r_assign.worker_id
               AND status_trabajador = 'Pendente Ingresso';
 
@@ -239,6 +238,7 @@ Obs: ' || v_observacoes ELSE '' END,
 
     -- 8. Registrar targets na solicitude de cancelamento para cada trabalhador desmobilizado
     INSERT INTO core_operacoes.solicitud_targets (
+        empresa_id,
         solicitud_id,
         source_assignment_id,
         source_worker_id,
@@ -251,6 +251,7 @@ Obs: ' || v_observacoes ELSE '' END,
         notes
     )
     SELECT 
+        v_empresa_id,
         v_new_solicitud_id,
         wa.id,
         wa.worker_id,
