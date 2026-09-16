@@ -7,23 +7,37 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Loader2, Trash2, Gift } from 'lucide-react';
-import type { HousingBenefit } from '@/shared/types/corePersonal';
+import type { HousingBenefit, WorkerWithHousing } from '@/shared/types/corePersonal';
 import { useBenefitCategories } from '@/features/settings/hooks/useCategories';
 
 interface EditHousingDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    workerId: string;
-    empresaId: string;
-    workerName: string;
+    workerId?: string;
+    empresaId?: string;
+    workerName?: string;
     existingBenefit?: HousingBenefit | null;
+    worker?: WorkerWithHousing | null;
 }
 
-export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, workerName, existingBenefit }: EditHousingDialogProps) {
+export function EditHousingDialog({
+    open,
+    onOpenChange,
+    workerId,
+    empresaId,
+    workerName,
+    existingBenefit,
+    worker
+}: EditHousingDialogProps) {
+    const effectiveWorkerId = (worker as any)?.worker_id || worker?.id || workerId || '';
+    const effectiveBenefit = worker ? worker.housing_benefit : existingBenefit;
+    const effectiveEmpresaId = effectiveBenefit?.empresa_id || (worker as any)?.empresa_id || empresaId || '';
+    const effectiveWorkerName = worker?.nome || workerName || '';
+
     const upsertHousing = useUpsertHousing();
-    const deleteHousing = useDeleteHousing(workerId);
+    const deleteHousing = useDeleteHousing(effectiveWorkerId, effectiveEmpresaId);
     const queryClient = useQueryClient();
-    const { data: benefitCategories = [] } = useBenefitCategories(empresaId);
+    const { data: benefitCategories = [] } = useBenefitCategories(effectiveEmpresaId);
 
     // Form state
     const [monthlyAmount, setMonthlyAmount] = useState('');
@@ -36,14 +50,14 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
 
     useEffect(() => {
         if (open) {
-            if (existingBenefit) {
-                setMonthlyAmount(existingBenefit.monthly_amount?.toString() || '');
-                setStartDate(existingBenefit.start_date || '');
-                setEndDate(existingBenefit.end_date || '');
-                setProrationMethod(existingBenefit.proration_method || 'daily_actual');
-                setCategory(existingBenefit.category || 'Auxílio Moradia');
-                setDescription(existingBenefit.description || '');
-                setStatus(existingBenefit.status || 'Ativo');
+            if (effectiveBenefit) {
+                setMonthlyAmount(effectiveBenefit.monthly_amount?.toString() || '');
+                setStartDate(effectiveBenefit.start_date || '');
+                setEndDate(effectiveBenefit.end_date || '');
+                setProrationMethod(effectiveBenefit.proration_method || 'daily_actual');
+                setCategory(effectiveBenefit.category || 'Auxílio Moradia');
+                setDescription(effectiveBenefit.description || '');
+                setStatus(effectiveBenefit.status || 'Ativo');
             } else {
                 setMonthlyAmount('');
                 setStartDate('');
@@ -54,7 +68,7 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
                 setStatus('Ativo');
             }
         }
-    }, [open, existingBenefit]);
+    }, [open, effectiveBenefit]);
 
     const defaultCategoryOptions = [
         'AUXILIO MORADIA',
@@ -109,9 +123,9 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
         }
 
         upsertHousing.mutate({
-            id: existingBenefit?.id,
-            empresa_id: empresaId,
-            worker_id: workerId,
+            id: effectiveBenefit?.id,
+            empresa_id: effectiveEmpresaId,
+            worker_id: effectiveWorkerId,
             monthly_amount: Number(monthlyAmount),
             start_date: startDate,
             end_date: endDate || null,
@@ -122,7 +136,9 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
         }, {
             onSuccess: () => {
                 queryClient.invalidateQueries({ queryKey: ['workers_with_housing'] });
-                queryClient.invalidateQueries({ queryKey: ['housing_benefit', workerId] });
+                queryClient.invalidateQueries({ queryKey: ['housing_benefit', effectiveWorkerId] });
+                queryClient.invalidateQueries({ queryKey: ['all-worker-housing-benefits'] });
+                queryClient.invalidateQueries({ queryKey: ['workers_holerites'] });
                 onOpenChange(false);
             },
             onError: (err) => {
@@ -132,11 +148,13 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
     };
 
     const handleDelete = () => {
-        if (existingBenefit && confirm('Tem certeza que deseja remover este benefício/provento?')) {
-            deleteHousing.mutate(existingBenefit.id, {
+        if (effectiveBenefit && confirm('Tem certeza que deseja remover este benefício/provento?')) {
+            deleteHousing.mutate(effectiveBenefit.id, {
                 onSuccess: () => {
                     queryClient.invalidateQueries({ queryKey: ['workers_with_housing'] });
-                    queryClient.invalidateQueries({ queryKey: ['housing_benefit', workerId] });
+                    queryClient.invalidateQueries({ queryKey: ['housing_benefit', effectiveWorkerId] });
+                    queryClient.invalidateQueries({ queryKey: ['all-worker-housing-benefits'] });
+                    queryClient.invalidateQueries({ queryKey: ['workers_holerites'] });
                     onOpenChange(false);
                 },
                 onError: (err) => {
@@ -154,13 +172,13 @@ export function EditHousingDialog({ open, onOpenChange, workerId, empresaId, wor
                         <div>
                             <DialogTitle className="flex items-center gap-2 text-xl font-bold">
                                 <Gift className="h-5 w-5 text-emerald-600" />
-                                Provento / Benefício - {workerName}
+                                Provento / Benefício - {effectiveWorkerName}
                             </DialogTitle>
                             <DialogDescription>
                                 Configure o benefício ou adicional cadastrado para este trabalhador.
                             </DialogDescription>
                         </div>
-                        {existingBenefit && (
+                        {effectiveBenefit && (
                             <Button variant="destructive" size="icon" onClick={handleDelete} className="mr-6">
                                 <Trash2 className="h-4 w-4" />
                             </Button>

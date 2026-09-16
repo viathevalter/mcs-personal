@@ -61,7 +61,8 @@ export async function getWorkersWithHousing(empresaId?: string): Promise<import(
         let query = supabase
             .schema('core_personal')
             .from('worker_benefit_housing')
-            .select('*');
+            .select('*')
+            .order('start_date', { ascending: false });
 
         if (empresaId && empresaId !== 'all' && !isHoldingId(empresaId)) {
             query = query.eq('empresa_id', empresaId);
@@ -77,17 +78,9 @@ export async function getWorkersWithHousing(empresaId?: string): Promise<import(
             return [];
         }
 
-        const housingMap = new Map();
-        const workerIds: string[] = [];
-
-        housingBenefits.forEach(h => {
-            if (!housingMap.has(h.worker_id)) {
-                housingMap.set(h.worker_id, h);
-                workerIds.push(h.worker_id);
-            }
-        });
-
         // 2. Fetch specific workers bypassing the PostgREST 1000-row limit
+        const workerIds = [...new Set(housingBenefits.map(h => h.worker_id))];
+
         const { data: workersData, error: workersError } = await supabase
             .schema('core_personal')
             .from('workers')
@@ -98,6 +91,7 @@ export async function getWorkersWithHousing(empresaId?: string): Promise<import(
             throw mapSupabaseError(workersError);
         }
 
+        const workersMap = new Map((workersData || []).map(w => [w.id, w]));
         const codColabs = (workersData || []).map(w => w.cod_colab).filter(Boolean);
 
         // 2.5 Fetch 'colaboradores' manually since PostgREST might lack the foreign key definition 
@@ -111,38 +105,56 @@ export async function getWorkersWithHousing(empresaId?: string): Promise<import(
 
             if (colabsErr) {
                 console.error("ColabsErr:", colabsErr);
-                throw new Error("Colaboradores Query: " + colabsErr.message);
+            } else if (colabsData) {
+                colabsData.forEach(c => {
+                    colabMap.set(c.cod_colab, c);
+                });
             }
-
-            (colabsData || []).forEach(c => {
-                colabMap.set(c.cod_colab, c);
-            });
         }
 
-        // 3. Assemble the final worker array, resolving the active client for each
-        const workersWithHousing = await Promise.all((workersData || []).map(async (w: any) => {
-
-            let clientNombre = '';
+        // 2.6 Cache active clients by cod_colab to avoid duplicate RPC calls
+        const clientCache = new Map<string, string>();
+        const getActiveClient = async (codColab: string): Promise<string> => {
+            if (!codColab) return '';
+            if (clientCache.has(codColab)) return clientCache.get(codColab)!;
             try {
-                // Retrieve active client specific to this worker
                 const { data: clientData } = await supabase
                     .schema('core_personal')
-                    .rpc('fn_get_active_client_for_worker', { p_cod_colab: w.cod_colab });
-                clientNombre = clientData || '';
-            } catch (e) {
-                console.error('Failed to get active client for worker', w.cod_colab, e);
+                    .rpc('fn_get_active_client_for_worker', { p_cod_colab: codColab });
+                const val = clientData || '';
+                clientCache.set(codColab, val);
+                return val;
+            } catch {
+                clientCache.set(codColab, '');
+                return '';
             }
+        };
 
-            const colabData = colabMap.get(w.cod_colab);
+        // Preload active clients in parallel for unique workers
+        await Promise.all(codColabs.map(c => getActiveClient(c)));
+
+        // 3. Assemble each housing benefit row enriched with worker information
+        const workersWithHousing = housingBenefits.map((h: any) => {
+            const w = workersMap.get(h.worker_id) || {
+                id: h.worker_id,
+                cod_colab: '',
+                nome: 'Trabalhador Desconhecido',
+                contratante: ''
+            };
+
+            const colabData = w.cod_colab ? colabMap.get(w.cod_colab) : undefined;
+            const clientNombre = w.cod_colab ? (clientCache.get(w.cod_colab) || '') : '';
 
             return {
                 ...w,
-                contratante: colabData?.contratante || '',
-                funcion: colabData?.funcion || '',
+                id: h.id, // Primary key of worker_benefit_housing as unique row key
+                worker_id: w.id,
+                contratante: colabData?.contratante || w.contratante || '',
+                funcion: colabData?.funcion || w.funcion || '',
                 cliente_nombre: clientNombre,
-                housing_benefit: housingMap.get(w.id)
+                housing_benefit: h
             };
-        }));
+        });
 
         // Defensive check to ensure no nameless/null workers break UI.
         return workersWithHousing.filter(w => w.nome && w.nome.trim() !== '');
