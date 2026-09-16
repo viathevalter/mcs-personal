@@ -299,31 +299,40 @@ export function WorkersPage() {
                 <div className="flex flex-col xl:flex-row gap-6 shrink-0">
                     {/* Bloco 1: Status do Trabalhador */}
                     <div className="flex flex-col gap-2 flex-1">
-                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                            <Users className="w-4 h-4" /> {t('workersPage.kpi.statusTitle')}
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Users className="w-3.5 h-3.5 text-slate-500" /> {t('workersPage.kpi.statusTitle')}
                         </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Card className="border-emerald-200/50 dark:border-emerald-900/30">
-                                <CardContent className="p-3 sm:p-4">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-semibold text-emerald-700 dark:text-emerald-400">{t('workersPage.kpi.active')}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.ativos}</span>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <Card className="bg-emerald-500/[0.04] border-emerald-500/20 shadow-xs hover:border-emerald-500/30 transition-all duration-200">
+                                <CardContent className="p-3 sm:p-3.5">
+                                    <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            <span className="text-[11px] leading-tight font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">{t('workersPage.kpi.active')}</span>
+                                        </div>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-950 dark:text-emerald-100">{kpisLoading ? '-' : kpis.ativos}</span>
                                     </div>
                                 </CardContent>
                             </Card>
-                            <Card className="border-rose-200/50 dark:border-rose-900/30">
-                                <CardContent className="p-3 sm:p-4">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-semibold text-rose-700 dark:text-rose-400">{t('workersPage.kpi.inactive')}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.inativos}</span>
+                            <Card className="bg-rose-500/[0.04] border-rose-500/20 shadow-xs hover:border-rose-500/30 transition-all duration-200">
+                                <CardContent className="p-3 sm:p-3.5">
+                                    <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                                            <span className="text-[11px] leading-tight font-semibold uppercase tracking-wider text-rose-700 dark:text-rose-400">{t('workersPage.kpi.inactive')}</span>
+                                        </div>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-rose-950 dark:text-rose-100">{kpisLoading ? '-' : kpis.inativos}</span>
                                     </div>
                                 </CardContent>
                             </Card>
-                            <Card className="border-amber-200/50 dark:border-amber-900/30">
-                                <CardContent className="p-3 sm:p-4">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-semibold text-amber-700 dark:text-amber-500" title={t('workersPage.kpi.pendingEntry')}>{t('workersPage.kpi.pendingEntry')}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold">{kpisLoading ? '-' : kpis.pendentes_ingreso}</span>
+                            <Card className="bg-amber-500/[0.04] border-amber-500/20 shadow-xs hover:border-amber-500/30 transition-all duration-200">
+                                <CardContent className="p-3 sm:p-3.5">
+                                    <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                            <span className="text-[11px] leading-tight font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400" title={t('workersPage.kpi.pendingEntry')}>{t('workersPage.kpi.pendingEntry')}</span>
+                                        </div>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-amber-950 dark:text-amber-100">{kpisLoading ? '-' : kpis.pendentes_ingreso}</span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -332,47 +341,47 @@ export function WorkersPage() {
 
                     {/* Bloco 2: Seguridade (Alta/Baixa) */}
                     <div className="flex flex-col gap-2 flex-[1.3]">
-                        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                            <ShieldAlert className="w-4 h-4" /> {t('workersPage.kpi.securityTitle')}
+                        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <ShieldAlert className="w-3.5 h-3.5 text-slate-500" /> {t('workersPage.kpi.securityTitle')}
                         </h3>
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-2.5">
+                            <Card className="bg-emerald-500/[0.04] border-emerald-500/20 shadow-xs hover:border-emerald-500/30 transition-all duration-200">
                                 <CardContent className="p-3">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground">{t('workersPage.kpi.alta')}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold text-emerald-600 dark:text-emerald-500">{kpisLoading ? '-' : kpis.seguridade_alta}</span>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[11px] leading-tight font-medium text-muted-foreground">{t('workersPage.kpi.alta')}</span>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">{kpisLoading ? '-' : kpis.seguridade_alta}</span>
                                     </div>
                                 </CardContent>
                             </Card>
-                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                            <Card className="bg-amber-500/[0.04] border-amber-500/20 shadow-xs hover:border-amber-500/30 transition-all duration-200">
                                 <CardContent className="p-3">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground" title={t('workersPage.kpi.pendingAlta')}>{t('workersPage.kpi.pendingAlta')}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-500">{kpisLoading ? '-' : kpis.seguridade_pendente_alta}</span>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[11px] leading-tight font-medium text-muted-foreground truncate" title={t('workersPage.kpi.pendingAlta')}>{t('workersPage.kpi.pendingAlta')}</span>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-amber-600 dark:text-amber-400">{kpisLoading ? '-' : kpis.seguridade_pendente_alta}</span>
                                     </div>
                                 </CardContent>
                             </Card>
-                            <Card className="bg-[#E0E7FF] border-[#E0E7FF]/80 shadow-none dark:bg-[#2e314a] dark:border-[#383d5c]">
+                            <Card className="bg-sky-500/[0.04] border-sky-500/20 shadow-xs hover:border-sky-500/30 transition-all duration-200">
                                 <CardContent className="p-3">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground" title="Em Regularização">Em Regularização</span>
-                                        <span className="text-2xl sm:text-3xl font-bold text-indigo-600 dark:text-indigo-400">{kpisLoading ? '-' : kpis.seguridade_em_regularizacao}</span>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[11px] leading-tight font-medium text-muted-foreground truncate" title="Em Regularização">Em Regularização</span>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-sky-600 dark:text-sky-400">{kpisLoading ? '-' : kpis.seguridade_em_regularizacao}</span>
                                     </div>
                                 </CardContent>
                             </Card>
-                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                            <Card className="bg-rose-500/[0.04] border-rose-500/20 shadow-xs hover:border-rose-500/30 transition-all duration-200">
                                 <CardContent className="p-3">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground">{t('workersPage.kpi.baixa')}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold text-rose-600 dark:text-rose-500">{kpisLoading ? '-' : kpis.seguridade_baixa}</span>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[11px] leading-tight font-medium text-muted-foreground">{t('workersPage.kpi.baixa')}</span>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-rose-600 dark:text-rose-400">{kpisLoading ? '-' : kpis.seguridade_baixa}</span>
                                     </div>
                                 </CardContent>
                             </Card>
-                            <Card className="bg-[#FFE6BB] border-[#FFE6BB]/80 shadow-none dark:bg-[#4a3a20] dark:border-[#5c4a2e]">
+                            <Card className="bg-orange-500/[0.04] border-orange-500/20 shadow-xs hover:border-orange-500/30 transition-all duration-200">
                                 <CardContent className="p-3">
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[11px] leading-tight line-clamp-2 font-medium text-muted-foreground" title={t('workersPage.kpi.pendingBaixa')}>{t('workersPage.kpi.pendingBaixa')}</span>
-                                        <span className="text-2xl sm:text-3xl font-bold text-orange-500 dark:text-orange-500">{kpisLoading ? '-' : kpis.seguridade_pendente_baixa}</span>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[11px] leading-tight font-medium text-muted-foreground truncate" title={t('workersPage.kpi.pendingBaixa')}>{t('workersPage.kpi.pendingBaixa')}</span>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tight text-orange-600 dark:text-orange-400">{kpisLoading ? '-' : kpis.seguridade_pendente_baixa}</span>
                                     </div>
                                 </CardContent>
                             </Card>
@@ -459,26 +468,79 @@ export function WorkersPage() {
                                     <TableCell className="text-sm truncate max-w-[120px]">{worker.funcion || '-'}</TableCell>
                                     <TableCell className="text-sm truncate max-w-[150px]" title={worker.cliente_nombre || undefined}>{worker.cliente_nombre || '-'}</TableCell>
                                     <TableCell>
-                                        <span className="text-xs truncate max-w-[120px] inline-block">
-                                            {worker.status_trabajador ? t(`workersPage.statusValues.trabajador.${worker.status_trabajador.toLowerCase().replace(/ /g, '_')}`) : '-'}
-                                        </span>
+                                        {(() => {
+                                            const s = (worker.status_trabajador || '').toLowerCase();
+                                            const isAtivo = s.includes('ativo') || s.includes('activo');
+                                            const isPendente = s.includes('pendente') || s.includes('pendiente');
+                                            const isDesligado = s.includes('inativ') || s.includes('desligad') || s.includes('desist');
+                                            
+                                            const label = worker.status_trabajador ? t(`workersPage.statusValues.trabajador.${worker.status_trabajador.toLowerCase().replace(/ /g, '_')}`) : '-';
+
+                                            if (isAtivo) {
+                                                return (
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                        {label}
+                                                    </span>
+                                                );
+                                            } else if (isPendente) {
+                                                return (
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200/80 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                                        {label}
+                                                    </span>
+                                                );
+                                            } else if (isDesligado) {
+                                                return (
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200/80 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/60">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                                        {label}
+                                                    </span>
+                                                );
+                                            }
+                                            return <span className="text-xs text-muted-foreground">{label}</span>;
+                                        })()}
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        {worker.status_seguridad ? (
-                                            <Badge
-                                                className={
-                                                    worker.status_seguridad.toLowerCase() === 'em regularização' ? 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800/50' : ''
-                                                }
-                                                variant={
-                                                    worker.status_seguridad.toLowerCase().includes('alta') ? 'default' :
-                                                        worker.status_seguridad.toLowerCase().includes('baja') ? 'destructive' :
-                                                            worker.status_seguridad.toLowerCase() === 'em regularização' ? 'outline' : 'secondary'
-                                                }
-                                            >
-                                                {t(`workersPage.statusValues.seguridad.${worker.status_seguridad.toLowerCase().replace(/ /g, '_')}`)}
-                                            </Badge>
-                                        ) : (
-                                            <span className="text-muted-foreground">-</span>
+                                        {worker.status_seguridad ? (() => {
+                                            const ss = worker.status_seguridad.toLowerCase();
+                                            const label = t(`workersPage.statusValues.seguridad.${worker.status_seguridad.toLowerCase().replace(/ /g, '_')}`);
+                                            
+                                            if (ss === 'alta') {
+                                                return (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                                                        {label}
+                                                    </span>
+                                                );
+                                            }
+                                            if (ss.includes('regulariz')) {
+                                                return (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800">
+                                                        {label}
+                                                    </span>
+                                                );
+                                            }
+                                            if (ss.includes('baixa') || ss.includes('baja') || ss.includes('anulado')) {
+                                                return (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800">
+                                                        {label}
+                                                    </span>
+                                                );
+                                            }
+                                            if (ss.includes('pendente') || ss.includes('pendiente')) {
+                                                return (
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+                                                        {label}
+                                                    </span>
+                                                );
+                                            }
+                                            return (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300">
+                                                    {label}
+                                                </span>
+                                            );
+                                        })() : (
+                                            <span className="text-xs text-muted-foreground">-</span>
                                         )}
                                     </TableCell>
                                 </TableRow>
