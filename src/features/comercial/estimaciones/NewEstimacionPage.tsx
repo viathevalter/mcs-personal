@@ -569,7 +569,7 @@ export function NewEstimacionPage() {
   }
 
   return (
-    <div className="relative flex flex-col space-y-3 p-4 pt-1 max-w-7xl mx-auto pb-36">
+    <div className="relative flex flex-col space-y-2.5 p-2 sm:px-6 pt-1 max-w-[1600px] mx-auto pb-20 w-full">
       {/* Sticky Post-It Lead Budget Reference Drawer / Floating Card */}
       {attachedLead && (
         <div className="fixed top-20 right-4 lg:right-8 z-40 w-80 sm:w-96 shadow-2xl rounded-2xl bg-amber-500/10 dark:bg-slate-900/95 backdrop-blur-md border-2 border-amber-500/40 text-slate-900 dark:text-slate-100 transition-all duration-300 overflow-hidden">
@@ -634,17 +634,17 @@ export function NewEstimacionPage() {
         </div>
       )}
 
-      {/* Main Form Navigation & Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex items-center space-x-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(id ? `/comercial/estimaciones/${id}` : '/comercial/estimaciones')}>
-            <ArrowLeft className="h-5 w-5" />
+      {/* Main Form Navigation & Header Compacto */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex items-center space-x-3">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(id ? `/comercial/estimaciones/${id}` : '/comercial/estimaciones')}>
+            <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               {id ? t('comercial.detail.editEstimationTitle') : t('comercial.detail.newEstimationTitle')}
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {id ? t('comercial.detail.editEstimationDesc', { code: estimacion?.codigo }) : t('comercial.detail.newEstimationDesc')}{' '}
               {t('comercial.detail.stepProgress', { currentStep })}
             </p>
@@ -652,15 +652,15 @@ export function NewEstimacionPage() {
         </div>
 
         {/* Empresa do Grupo Selector */}
-        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800">
-          <Building2 size={16} className="text-amber-500 shrink-0" />
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Empresa Emissora</span>
+        <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-950 py-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+          <Building2 size={15} className="text-amber-500 shrink-0" />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase text-slate-400 hidden sm:inline">Empresa Emissora:</span>
             <Select
               value={payload.empresa_id || selectedEmpresaId}
               onValueChange={(val) => updatePayload({ empresa_id: val })}
             >
-              <SelectTrigger className="w-[180px] h-8 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-semibold">
+              <SelectTrigger className="w-[170px] h-7 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 font-semibold">
                 <SelectValue placeholder="Selecione a empresa" />
               </SelectTrigger>
               <SelectContent>
@@ -676,17 +676,17 @@ export function NewEstimacionPage() {
       </div>
 
       {/* Step Progress Bar */}
-      <div className="flex space-x-2 mb-2">
+      <div className="flex space-x-2 mb-1">
         {[1, 2, 3, 4].map(step => (
           <div 
             key={step} 
-            className={`h-2 flex-1 rounded-full transition-all duration-300 ${currentStep >= step ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-800'}`}
+            className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${currentStep >= step ? 'bg-amber-500' : 'bg-slate-200 dark:bg-slate-800'}`}
           />
         ))}
       </div>
 
       {/* Step Content Container */}
-      <div className="bg-card rounded-2xl border border-slate-200 dark:border-slate-800 p-6 min-h-[420px] shadow-sm">
+      <div className="bg-card rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 min-h-[380px] shadow-sm">
         {currentStep === 1 && <EstimacionGeneralStep data={payload} onChange={updatePayload} />}
         {currentStep === 2 && <EstimacionItemsStep data={payload} onChange={updatePayload} />}
         {currentStep === 3 && <EstimacionCostsStep data={payload} onChange={updatePayload} />}
@@ -700,15 +700,15 @@ export function NewEstimacionPage() {
       </div>
 
       {/* Fixed Footer Actions Bar */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-between z-30 md:pl-64">
-        <div className="max-w-7xl mx-auto w-full flex justify-between px-4">
-          <Button variant="outline" onClick={handlePrev} disabled={currentStep === 1 || isMutationPending}>
+      <div className="fixed bottom-0 left-0 right-0 py-2.5 px-4 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 flex justify-between z-30 md:pl-64">
+        <div className="max-w-[1600px] mx-auto w-full flex justify-between px-2 sm:px-4">
+          <Button variant="outline" size="sm" onClick={handlePrev} disabled={currentStep === 1 || isMutationPending}>
             {t('comercial.detail.btnPrev')}
           </Button>
 
           <div className="flex space-x-3">
             {currentStep < 4 ? (
-              <Button onClick={handleNext} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6">
+              <Button size="sm" onClick={handleNext} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold px-6">
                 {t('comercial.detail.btnNext')}
               </Button>
             ) : (

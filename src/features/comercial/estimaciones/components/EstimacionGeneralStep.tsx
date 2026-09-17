@@ -9,7 +9,8 @@ import { useClientSites } from '@/features/master-data/client-sites/hooks/useCli
 import { useLeads } from '@/features/comercial/leads/hooks/useLeads';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
 import { CountrySelector } from '@/features/master-data/locations/components/LocationSelectors';
-import { Calendar, Trash2, Search, X, Check, Building2, User, Globe, ChevronDown, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, Trash2, Search, X, Check, Building2, User, Globe, ChevronDown, ChevronUp, CheckCircle2, RotateCcw, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { detectLeadCountry, COUNTRY_UUIDS, COUNTRY_LABELS } from '@/features/comercial/leads/utils/leadCountryUtils';
@@ -172,6 +173,55 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
     setLeadSearchTerm('');
   };
 
+  // Fast Search State for Active Clients
+  const [clientSearchTerm, setClientSearchTerm] = useState<string>('');
+  const [isClientSearchOpen, setIsClientSearchOpen] = useState<boolean>(false);
+  const [isScheduleExpanded, setIsScheduleExpanded] = useState<boolean>(false);
+
+  const activeClients = useMemo(() => {
+    return (clients || []).filter((c: any) => c.status !== 'inactive');
+  }, [clients]);
+
+  const selectedClientObj = useMemo(() => {
+    if (!data.client_id) return null;
+    return (clients || []).find((c: any) => c.id === data.client_id) || null;
+  }, [clients, data.client_id]);
+
+  const { matchingClients, totalMatchingClients } = useMemo(() => {
+    let list = activeClients;
+    if (clientSearchTerm.trim()) {
+      const term = clientSearchTerm.toLowerCase().trim();
+      list = list.filter((c: any) =>
+        (c.trade_name && c.trade_name.toLowerCase().includes(term)) ||
+        (c.legal_name && c.legal_name.toLowerCase().includes(term)) ||
+        (c.tax_id && c.tax_id.toLowerCase().includes(term)) ||
+        (c.codigo && c.codigo.toLowerCase().includes(term)) ||
+        (c.city && c.city.toLowerCase().includes(term))
+      );
+    }
+    return {
+      matchingClients: list.slice(0, 40),
+      totalMatchingClients: list.length
+    };
+  }, [activeClients, clientSearchTerm]);
+
+  const handleSelectClient = (selectedClient: any) => {
+    const defaultTerm = selectedClient?.payment_term || paymentTerms.find(pt => pt.id === selectedClient?.payment_term_id);
+    const mappedLanguage = selectedClient?.country_id ? countryLanguageMap[selectedClient.country_id] : undefined;
+    onChange({ 
+      client_id: selectedClient.id, 
+      client_site_id: '',
+      contact_name: selectedClient?.trade_name || selectedClient?.legal_name || '',
+      contact_email: selectedClient?.email || '',
+      ...(selectedClient?.country_id ? { country_id: selectedClient.country_id } : {}),
+      ...(mappedLanguage ? { document_language: mappedLanguage } : {}),
+      payment_term_id: defaultTerm ? defaultTerm.id : '',
+      payment_terms: defaultTerm ? defaultTerm.name : ''
+    });
+    setIsClientSearchOpen(false);
+    setClientSearchTerm('');
+  };
+
   // Auto-select site if client has exactly one site
   useEffect(() => {
     if (targetType === 'client' && data.client_id && !isLoadingSites && sites.length === 1) {
@@ -227,44 +277,134 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
         </Tabs>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
         {targetType === 'client' ? (
-          <div className="space-y-2">
-            <Label htmlFor="client_id">{t('comercial.stepGeneral.client')} <span className="text-red-500">*</span></Label>
-            <Select 
-              value={data.client_id || ''} 
-              onValueChange={(val) => {
-                const selectedClient = clients.find(c => c.id === val);
-                const defaultTerm = selectedClient?.payment_term || paymentTerms.find(pt => pt.id === selectedClient?.payment_term_id);
-                const mappedLanguage = selectedClient?.country_id ? countryLanguageMap[selectedClient.country_id] : undefined;
-                onChange({ 
-                  client_id: val, 
-                  client_site_id: '',
-                  contact_name: selectedClient?.trade_name || selectedClient?.legal_name || '',
-                  contact_email: selectedClient?.email || '',
-                  ...(selectedClient?.country_id ? { country_id: selectedClient.country_id } : {}),
-                  ...(mappedLanguage ? { document_language: mappedLanguage } : {}),
-                  payment_term_id: defaultTerm ? defaultTerm.id : '',
-                  payment_terms: defaultTerm ? defaultTerm.name : ''
-                });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={isLoadingClients ? t('comercial.stepGeneral.loading') : t('comercial.stepGeneral.selectClient')} />
-              </SelectTrigger>
-              <SelectContent>
-                {clients.map(client => (
-                  <SelectItem key={client.id} value={client.id}>
-                    <div className="flex flex-col text-left py-0.5">
-                      <span className="font-medium text-sm">{client.trade_name || client.legal_name}</span>
-                      {client.tax_id && (
-                        <span className="text-[11px] text-muted-foreground mt-0.5">NIF: {client.tax_id}</span>
-                      )}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="client_id" className="flex items-center gap-1.5 text-xs font-semibold">
+                <span>{t('comercial.stepGeneral.client')}</span>
+                <span className="text-red-500">*</span>
+              </Label>
+              {selectedClientObj && (
+                <button
+                  type="button"
+                  onClick={() => setIsClientSearchOpen(prev => !prev)}
+                  className="text-xs text-amber-600 hover:text-amber-700 dark:text-amber-400 font-semibold underline"
+                >
+                  {isClientSearchOpen ? 'Fechar busca' : 'Trocar Cliente'}
+                </button>
+              )}
+            </div>
+
+            {selectedClientObj && !isClientSearchOpen ? (
+              <div className="p-2.5 bg-card border rounded-lg shadow-sm flex items-start justify-between gap-2 border-amber-500/30 bg-amber-50/20 dark:bg-slate-900/40">
+                <div className="space-y-0.5 text-left min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-sm text-foreground truncate max-w-xs">
+                      {selectedClientObj.trade_name || selectedClientObj.legal_name}
+                    </span>
+                    {selectedClientObj.tax_id && (
+                      <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                        NIF: {selectedClientObj.tax_id}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
+                    {selectedClientObj.legal_name && selectedClientObj.trade_name && (
+                      <span>{selectedClientObj.legal_name}</span>
+                    )}
+                    {selectedClientObj.city && <span>• {selectedClientObj.city}</span>}
+                    {selectedClientObj.email && <span>• {selectedClientObj.email}</span>}
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onChange({
+                      client_id: '',
+                      client_site_id: '',
+                      contact_name: '',
+                      contact_email: '',
+                      payment_term_id: '',
+                      payment_terms: ''
+                    });
+                    setIsClientSearchOpen(true);
+                  }}
+                  className="h-7 px-2 text-muted-foreground hover:text-red-500 shrink-0"
+                  title="Remover seleção"
+                >
+                  <X size={14} />
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 border rounded-lg p-2.5 bg-slate-50/50 dark:bg-slate-900/40">
+                {/* Instant Search Input */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Digite nome, razão social, NIF ou cidade para filtrar..."
+                    className="pl-8 pr-8 h-8 text-xs bg-background"
+                    value={clientSearchTerm}
+                    onChange={(e) => setClientSearchTerm(e.target.value)}
+                    autoFocus={isClientSearchOpen}
+                  />
+                  {clientSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setClientSearchTerm('')}
+                      className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Results List */}
+                <div className="max-h-48 overflow-y-auto divide-y border rounded bg-background">
+                  {isLoadingClients ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">Carregando clientes ativos...</div>
+                  ) : matchingClients.length === 0 ? (
+                    <div className="p-3 text-xs text-muted-foreground text-center">
+                      Nenhum cliente ativo encontrado com os termos pesquisados.
                     </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                  ) : (
+                    matchingClients.map(client => {
+                      const isSelected = data.client_id === client.id;
+                      return (
+                        <div
+                          key={client.id}
+                          onClick={() => handleSelectClient(client)}
+                          className={`p-2 hover:bg-muted/60 cursor-pointer text-xs flex items-center justify-between gap-2 transition-colors ${
+                            isSelected ? 'bg-amber-500/10 font-medium' : ''
+                          }`}
+                        >
+                          <div className="min-w-0 text-left">
+                            <div className="flex items-center gap-1.5 truncate font-medium">
+                              <Building2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                              <span className="text-foreground">{client.trade_name || client.legal_name}</span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5 mt-0.5">
+                              {client.tax_id && <span className="font-mono">NIF: {client.tax_id}</span>}
+                              {client.city && <span>• {client.city}</span>}
+                              {client.legal_name && client.trade_name && <span>• {client.legal_name}</span>}
+                            </div>
+                          </div>
+                          {isSelected && <CheckCircle2 className="h-4 w-4 text-amber-500 shrink-0" />}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {totalMatchingClients > 40 && (
+                  <div className="text-[10px] text-muted-foreground text-right px-1">
+                    Mostrando 40 de {totalMatchingClients} clientes ativos. Digite na busca para refinar.
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -600,62 +740,85 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
           </Select>
         </div>
 
-        {/* Datas de Início/Fim e Duração do Projeto */}
-        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-b border-slate-200 dark:border-slate-850 py-3 my-1">
-          <div className="space-y-2">
-            <Label htmlFor="expected_start_date">{t('comercial.stepGeneral.startDate')}</Label>
-            <Input 
-              id="expected_start_date"
-              type="date"
-              value={data.expected_start_date || ''}
-              onChange={(e) => onChange({ expected_start_date: e.target.value })}
-              className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100"
-            />
-          </div>
+        {/* Datas de Início/Fim e Duração do Projeto Compacto */}
+        <div className="md:col-span-2 space-y-2 border-t border-slate-200 dark:border-slate-800 pt-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="expected_start_date" className="text-xs font-semibold">{t('comercial.stepGeneral.startDate')}</Label>
+              <Input 
+                id="expected_start_date"
+                type="date"
+                value={data.expected_start_date || ''}
+                onChange={(e) => onChange({ expected_start_date: e.target.value })}
+                className="h-8 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="expected_end_date">{t('comercial.stepGeneral.endDate')}</Label>
-            <Input 
-              id="expected_end_date"
-              type="date"
-              value={data.expected_end_date || ''}
-              onChange={(e) => onChange({ expected_end_date: e.target.value })}
-              className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100"
-            />
+            <div className="space-y-1.5">
+              <Label htmlFor="expected_end_date" className="text-xs font-semibold">{t('comercial.stepGeneral.endDate')}</Label>
+              <Input 
+                id="expected_end_date"
+                type="date"
+                value={data.expected_end_date || ''}
+                onChange={(e) => onChange({ expected_end_date: e.target.value })}
+                className="h-8 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs"
+              />
+            </div>
           </div>
 
           {data.expected_start_date && data.expected_end_date && (
-            <div className="md:col-span-2 p-4 rounded-lg bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 text-blue-800 dark:text-blue-300 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-sm font-medium">
-              <div className="flex items-center space-x-2">
-                <Calendar className="h-5 w-5 text-blue-500" />
-                <span>{t('comercial.stepGeneral.calculatedDuration')}</span>
+            <div className="py-2 px-3 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-blue-900 dark:text-blue-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <Calendar className="h-4 w-4 text-blue-500 shrink-0" />
+                <span>{t('comercial.stepGeneral.calculatedDuration')}:</span>
               </div>
-              <div className="flex flex-wrap gap-2 text-right">
-                <span className="bg-blue-105/60 dark:bg-blue-900/30 px-3 py-1 rounded-full text-xs font-semibold border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-400">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className="bg-white dark:bg-slate-900 border-blue-300 dark:border-blue-800 text-[11px] font-bold">
                   {totalDays} {t('comercial.stepGeneral.calendarDays')} (~{formattedMonths} {Number(formattedMonths) === 1 ? t('comercial.stepGeneral.month') : t('comercial.stepGeneral.months')})
-                </span>
-                <span className="bg-blue-105/60 dark:bg-blue-900/30 px-3 py-1 rounded-full text-xs font-semibold border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-400">
+                </Badge>
+                <Badge variant="outline" className="bg-white dark:bg-slate-900 border-blue-300 dark:border-blue-800 text-[11px] font-bold">
                   {weekdays} {t('comercial.stepGeneral.weekdays')}
-                </span>
-                <span className="bg-blue-105/60 dark:bg-blue-900/30 px-3 py-1 rounded-full text-xs font-semibold border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-400 font-bold">
+                </Badge>
+                <Badge className="bg-blue-600 text-white text-[11px] font-bold">
                   {formattedWeeks} {t('comercial.stepGeneral.weeks')}
-                </span>
+                </Badge>
               </div>
             </div>
           )}
         </div>
       </div>
- 
-      {/* 1. Working Schedule Configurator */}
-      <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
-            {t('comercial.stepGeneral.scheduleTitle', { defaultValue: 'Jornada de Trabalho Personalizada' })}
-          </h3>
-          <p className="text-xs text-muted-foreground">
-            {t('comercial.stepGeneral.scheduleSubtitle', { defaultValue: 'Configure os dias de trabalho e as horas diárias para esta proposta/estimativa.' })}
-          </p>
+
+      {/* 1. Working Schedule Configurator (Collapsible) */}
+      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+        <div 
+          onClick={() => setIsScheduleExpanded(!isScheduleExpanded)}
+          className="flex items-center justify-between p-2.5 sm:px-4 cursor-pointer select-none bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/80 transition-colors"
+        >
+          <div className="flex items-center gap-2 flex-wrap">
+            <Clock className="h-4 w-4 text-amber-500" />
+            <span className="text-xs font-bold uppercase tracking-wide text-slate-800 dark:text-slate-200">
+              {t('comercial.stepGeneral.scheduleTitle', { defaultValue: 'Jornada de Trabalho' })}
+            </span>
+            <Badge variant="outline" className="text-[11px] font-semibold bg-white dark:bg-slate-950 border-slate-300 dark:border-slate-700">
+              {data.hours_weekday ?? 8}h/dia ({data.work_sabado ? 'Seg a Sáb' : 'Seg a Sex'})
+            </Badge>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+            <span>{isScheduleExpanded ? 'Recolher' : 'Personalizar Jornada'}</span>
+            {isScheduleExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </div>
         </div>
+
+        {isScheduleExpanded && (
+          <div className="p-4 space-y-4 border-t border-slate-200 dark:border-slate-800">
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                {t('comercial.stepGeneral.scheduleTitle', { defaultValue: 'Jornada de Trabalho Personalizada' })}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {t('comercial.stepGeneral.scheduleSubtitle', { defaultValue: 'Configure os dias de trabalho e as horas diárias para esta proposta/estimativa.' })}
+              </p>
+            </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           {/* Weekdays (Mon-Fri) Card */}
@@ -955,6 +1118,8 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
             })
           }} />
         </div>
+          </div>
+        )}
       </div>
 
       {/* 2. Calendar Breakdown (Visual Panel) */}
@@ -1022,7 +1187,7 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
       )}
 
       {/* 3. Additional Revenues List */}
-      <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-4">
+      <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
@@ -1099,12 +1264,13 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
         )}
       </div>
 
-      <div className="space-y-2 pt-2">
-        <Label htmlFor="general_notes">{t('comercial.stepGeneral.generalNotes')}</Label>
+      <div className="space-y-1.5 pt-1">
+        <Label htmlFor="general_notes" className="text-xs font-semibold">{t('comercial.stepGeneral.generalNotes')}</Label>
         <Textarea 
           id="general_notes"
+          rows={2}
           placeholder={t('comercial.stepGeneral.generalNotesPlaceholder')}
-          className="min-h-[100px]"
+          className="min-h-[50px] text-xs resize-none"
           value={data.general_notes || ''}
           onChange={(e) => onChange({ general_notes: e.target.value })}
         />

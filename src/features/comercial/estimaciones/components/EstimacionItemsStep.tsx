@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Trash2, HelpCircle, Building, Shield, Truck, DollarSign, AlertTriangle, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, HelpCircle, Building, Shield, Truck, DollarSign, AlertTriangle, RefreshCw, Coins } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { useJobFunctions, useAllJobFunctionRates, useAllJobFunctionEpis } from '../hooks/useJobFunctions';
@@ -345,7 +345,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
   const [newQuantity, setNewQuantity] = useState(1);
   const [newBaseCost, setNewBaseCost] = useState(0);
   const [newSellRate, setNewSellRate] = useState(0);
-  const [newSsRegime, setNewSsRegime] = useState<'none' | 'local' | 'destacado'>('local');
+  const [newSsRegime, setNewSsRegime] = useState<'none' | 'local' | 'destacado'>('destacado');
 
   // Atualizar regime de Seg. Social padrão quando o país selecionado muda
   useEffect(() => {
@@ -883,12 +883,11 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
       ...result
     });
 
-    // Limpar form
+    // Limpar form (preserva o regime de seguridade social selecionado para os próximos perfis)
     setNewJobFunctionId('');
     setNewQuantity(1);
     setNewBaseCost(0);
     setNewSellRate(0);
-    setNewSsRegime('local');
   };
 
   const removeItem = (index: number) => {
@@ -934,31 +933,81 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
     .filter((c: any) => c.id === 'auto-zentralcom')
     .reduce((sum: number, c: any) => sum + Number(c.amount || 0), 0);
 
-  // Obter tarifa acordada para a função selecionada no formulário de adição
-  let matchedClientTariff: number | null = null;
-  if (data.client_id && clientTariffs && clientTariffs.length > 0 && newJobFunctionId) {
-    if (data.client_site_id) {
-      const siteTariff = clientTariffs.find(
-        (t: any) => t.job_function_id === newJobFunctionId && t.client_site_id === data.client_site_id
-      );
-      if (siteTariff) matchedClientTariff = Number(siteTariff.valor_tarifa);
+  // Referências de Tarifas Comparativas para a Função Selecionada
+  const selectedFunctionTariffRefs = useMemo(() => {
+    if (!newJobFunctionId) return null;
+
+    const jfRates = rateRefs.filter((r: any) => r.job_function_id === newJobFunctionId);
+
+    // 1. Tarifa Acordada no Cadastro do Cliente
+    let clientRate: number | null = null;
+    let clientSiteName: string | null = null;
+    if (data.client_id && clientTariffs && clientTariffs.length > 0) {
+      if (data.client_site_id) {
+        const siteTariff = clientTariffs.find(
+          (t: any) => t.job_function_id === newJobFunctionId && t.client_site_id === data.client_site_id
+        );
+        if (siteTariff) {
+          clientRate = Number(siteTariff.valor_tarifa);
+          const currentSite = sites.find((s: any) => s.id === data.client_site_id);
+          clientSiteName = currentSite?.name || 'Obra Específica';
+        }
+      }
+      if (clientRate === null) {
+        const globalTariff = clientTariffs.find(
+          (t: any) => t.job_function_id === newJobFunctionId && (!t.client_site_id || t.client_site_id === 'global')
+        );
+        if (globalTariff) {
+          clientRate = Number(globalTariff.valor_tarifa);
+          clientSiteName = 'Tabela Geral do Cliente';
+        }
+      }
     }
-    if (matchedClientTariff === null) {
-      const globalTariff = clientTariffs.find(
-        (t: any) => t.job_function_id === newJobFunctionId && (!t.client_site_id || t.client_site_id === 'global')
-      );
-      if (globalTariff) matchedClientTariff = Number(globalTariff.valor_tarifa);
+
+    // 2. Tarifa Oficial da Tabela do País da Proposta (Espanha, e futuramente Itália, França, etc.)
+    const countryObj = countries.find((c: any) => c.id === data.country_id);
+    const countryName = countryObj?.name || 'País';
+    let countryRateRef = null;
+    if (data.country_id) {
+      countryRateRef = jfRates.find((r: any) => r.country_id === data.country_id && r.empresa_id === selectedEmpresaId)
+        || jfRates.find((r: any) => r.country_id === data.country_id);
     }
-  }
+
+    // 3. Tarifa Oficial da Tabela Global
+    const globalRateRef = jfRates.find((r: any) => (r.country_id === null || !r.country_id) && r.empresa_id === selectedEmpresaId)
+      || jfRates.find((r: any) => r.country_id === null || !r.country_id);
+
+    return {
+      clientRate,
+      clientSiteName,
+      countryRate: countryRateRef ? Number(countryRateRef.recommended_sell_rate_hour) : null,
+      countryMinRate: countryRateRef ? Number(countryRateRef.minimum_sell_rate_hour) : null,
+      countryCost: countryRateRef ? Number(countryRateRef.base_cost_hour) : null,
+      countryName,
+      hasCountryTable: !!countryRateRef,
+      globalRate: globalRateRef ? Number(globalRateRef.recommended_sell_rate_hour) : null,
+      globalMinRate: globalRateRef ? Number(globalRateRef.minimum_sell_rate_hour) : null,
+      globalCost: globalRateRef ? Number(globalRateRef.base_cost_hour) : null,
+      hasGlobalTable: !!globalRateRef
+    };
+  }, [newJobFunctionId, rateRefs, data.country_id, data.client_id, data.client_site_id, clientTariffs, countries, sites, selectedEmpresaId]);
+
+  const isBelowOfficialCountryRate = useMemo(() => {
+    if (!selectedFunctionTariffRefs?.countryRate || newSellRate <= 0) return false;
+    return newSellRate < selectedFunctionTariffRefs.countryRate;
+  }, [selectedFunctionTariffRefs, newSellRate]);
+
+  // Backward compatibility alias
+  const matchedClientTariff = selectedFunctionTariffRefs?.clientRate ?? null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
             {t('comercial.stepItems.title', { defaultValue: 'Perfis Profissionais e Serviços' })}
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {t('comercial.stepItems.subtitle', { defaultValue: 'Adicione os perfis, configure taxas locais e controle a margem comercial.' })}
           </p>
         </div>
@@ -968,226 +1017,206 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
             variant="outline"
             size="sm"
             onClick={handleReapplyCountryRates}
-            className="text-xs gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 shadow-sm"
+            className="h-7 text-xs gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-900/50 dark:text-blue-400 shadow-sm"
             title="Atualiza todos os perfis inseridos com as tarifas oficiais deste país"
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <RefreshCw className="h-3 w-3" />
             <span>{t('comercial.stepItems.reapplyRates', { defaultValue: 'Reaplicar Tarifas do País' })}</span>
           </Button>
         )}
       </div>
 
-      {/* Resumo da Localidade e Datas */}
-      <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-350 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs shadow-sm">
-        <div>
-          <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">{t('comercial.stepItems.projectDuration', { defaultValue: 'Duração do Projeto' })}</span>
+      {/* Resumo da Localidade e Datas Compacto */}
+      <div className="py-2 px-3.5 rounded-lg bg-slate-50/70 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Duração:</span>
           {data.expected_start_date && data.expected_end_date ? (
-            <span className="text-slate-900 dark:text-white font-semibold flex items-center gap-1.5">
+            <span className="font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-              {totalDays} {t('comercial.stepGeneral.calendarDays', { defaultValue: 'dias corridos' })} (~{formattedMonths} {Number(formattedMonths) === 1 ? t('comercial.stepGeneral.month', { defaultValue: 'mês' }) : t('comercial.stepGeneral.months', { defaultValue: 'meses' })})
-              <span className="text-slate-400">|</span>
-              {weekdays} {t('comercial.stepGeneral.weekdays', { defaultValue: 'dias de semana' })} ({formattedWeeks} {t('comercial.stepGeneral.weeks', { defaultValue: 'semanas' })})
+              {totalDays} {t('comercial.stepGeneral.calendarDays', { defaultValue: 'dias corridos' })} ({formattedWeeks} {t('comercial.stepGeneral.weeks', { defaultValue: 'sem.' })})
             </span>
           ) : (
-            <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-              <AlertTriangle className="h-3.5 w-3.5" /> {t('comercial.stepItems.insertDatesFirst', { defaultValue: 'Insira as datas no passo anterior' })}
-            </span>
+            <span className="text-amber-600 font-medium italic">Datas não definidas</span>
           )}
         </div>
-        <div>
-          <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">{t('comercial.stepItems.postalCodeSite', { defaultValue: 'Código Postal / Localidade' })}</span>
-          {postalCode ? (
-            <span className="text-slate-900 dark:text-white font-semibold">{postalCode}</span>
-          ) : (
-            <span className="text-slate-400 font-medium italic">{t('comercial.stepItems.notInformed', { defaultValue: 'Não informado' })}</span>
-          )}
+
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Local / CP:</span>
+          <span className="font-semibold text-slate-900 dark:text-white font-mono">
+            {postalCode || selectedSite?.name || 'Não informado'}
+          </span>
         </div>
-        <div>
-          <span className="font-semibold text-slate-500 dark:text-slate-400 block mb-1">{t('comercial.stepItems.provinceRates', { defaultValue: 'Província / Taxas Referência' })}</span>
+
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-500 text-[11px] uppercase tracking-wider">Região / Taxas:</span>
           {province ? (
-            <span className="text-slate-900 dark:text-white font-semibold">
-              {province.provincia} ({t('comercial.stepItems.accommodation', { defaultValue: 'Alojamento' })}: €{province.valor_dia}/dia, {t('comercial.stepItems.epi', { defaultValue: 'EPI' })}: €{province.coste_envio}/{t('comercial.stepItems.block', { defaultValue: 'bloco' })})
+            <span className="font-semibold text-slate-900 dark:text-white">
+              {province.provincia} (Aloj: €{province.valor_dia}/dia | EPI: €{province.coste_envio})
             </span>
           ) : (
-            <span className="text-slate-450 dark:text-slate-400 italic">{t('comercial.stepItems.noSpainProvince', { defaultValue: 'Nenhuma província de Espanha identificada' })}</span>
+            <span className="text-muted-foreground italic">Padrão Nacional</span>
           )}
         </div>
       </div>
 
-      {/* Parâmetros Globais Padrão */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label className="text-xs font-bold uppercase tracking-wider text-slate-555 dark:text-slate-400">{t('comercial.stepItems.globalParams', { defaultValue: 'Parâmetros Globais de Proposta' })}</Label>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-xl">
+      {/* Parâmetros Globais Padrão Compactos */}
+      <div className="space-y-1.5">
+        <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          {t('comercial.stepItems.globalParams', { defaultValue: 'Parâmetros Globais de Proposta' })}
+        </Label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 p-2.5 bg-slate-50/50 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800/80 rounded-xl">
           {/* Alojamento */}
-          <div className="flex flex-col justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm transition-all duration-200 hover:shadow-md min-h-[130px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Building className="h-4 w-4 text-blue-500" /> {t('comercial.stepItems.accommodation', { defaultValue: 'Alojamento' })}
-                </Label>
-                <Switch 
-                  checked={globalAlojamento} 
-                  onCheckedChange={handleGlobalAlojamentoChange} 
-                />
-              </div>
-              <div className="pt-1">
-                <Label className="text-[10px] text-slate-500 dark:text-slate-450 font-medium">{t('comercial.stepItems.defaultLodgingRate', { defaultValue: 'Diária Padrão (€)' })}</Label>
-                <div className="relative flex items-center mt-0.5">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    disabled={!globalAlojamento}
-                    value={globalLodgingRate ?? ''}
-                    onChange={(e) => handleGlobalLodgingRateChange(e.target.value === '' ? null : Number(e.target.value))}
-                    placeholder="0.00"
-                    className="h-8 font-mono text-sm bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 pr-5"
-                  />
-                  <span className="absolute right-2 text-xs text-slate-400 font-mono font-medium">€</span>
-                </div>
-              </div>
+          <div className="p-2.5 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                <Building className="h-3.5 w-3.5 text-blue-500" /> {t('comercial.stepItems.accommodation', { defaultValue: 'Alojamento' })}
+              </Label>
+              <Switch checked={globalAlojamento} onCheckedChange={handleGlobalAlojamentoChange} />
             </div>
-            {globalAlojamento && (
-              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400 font-medium">{t('comercial.stepItems.totalHousing', { defaultValue: 'Total Alojamento:' })}</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-white">€{housingTotal.toFixed(2)}</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  disabled={!globalAlojamento}
+                  value={globalLodgingRate ?? ''}
+                  onChange={(e) => handleGlobalLodgingRateChange(e.target.value === '' ? null : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="h-7 font-mono text-xs pr-5"
+                />
+                <span className="absolute right-1.5 top-1.5 text-[10px] text-slate-400 font-mono">€/d</span>
               </div>
-            )}
+              {globalAlojamento && (
+                <span className="text-[11px] font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                  €{housingTotal.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* EPI */}
-          <div className="flex flex-col justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm transition-all duration-200 hover:shadow-md min-h-[130px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Shield className="h-4 w-4 text-emerald-500" /> {t('comercial.stepItems.epiShipping', { defaultValue: 'EPIs' })}
-                </Label>
-                <Switch 
-                  checked={globalEpi} 
-                  onCheckedChange={handleGlobalEpiChange} 
-                />
-              </div>
-              <div className="pt-1">
-                <Label className="text-[10px] text-slate-500 dark:text-slate-450 font-medium">{t('comercial.stepItems.defaultEpiRate', { defaultValue: 'Custo Padrão (€/bloco 30d)' })}</Label>
-                <div className="relative flex items-center mt-0.5">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    disabled={!globalEpi}
-                    value={globalEpiRate ?? ''}
-                    onChange={(e) => handleGlobalEpiRateChange(e.target.value === '' ? null : Number(e.target.value))}
-                    placeholder="0.00"
-                    className="h-8 font-mono text-sm bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 pr-5"
-                  />
-                  <span className="absolute right-2 text-xs text-slate-400 font-mono font-medium">€</span>
-                </div>
-              </div>
+          <div className="p-2.5 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                <Shield className="h-3.5 w-3.5 text-emerald-500" /> {t('comercial.stepItems.epiShipping', { defaultValue: 'EPIs' })}
+              </Label>
+              <Switch checked={globalEpi} onCheckedChange={handleGlobalEpiChange} />
             </div>
-            {globalEpi && (
-              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400 font-medium">{t('comercial.stepItems.totalEpi', { defaultValue: 'Total EPIs:' })}</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-white">€{epiTotal.toFixed(2)}</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  disabled={!globalEpi}
+                  value={globalEpiRate ?? ''}
+                  onChange={(e) => handleGlobalEpiRateChange(e.target.value === '' ? null : Number(e.target.value))}
+                  placeholder="0.00"
+                  className="h-7 font-mono text-xs pr-5"
+                />
+                <span className="absolute right-1.5 top-1.5 text-[10px] text-slate-400 font-mono">€/b</span>
               </div>
-            )}
+              {globalEpi && (
+                <span className="text-[11px] font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                  €{epiTotal.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Transporte */}
-          <div className="flex flex-col justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm transition-all duration-200 hover:shadow-md min-h-[130px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Truck className="h-4 w-4 text-amber-500" /> {t('comercial.stepItems.transport', { defaultValue: 'Transporte' })}
-                </Label>
-                <Switch 
-                  checked={globalTransport} 
-                  onCheckedChange={handleGlobalTransportChange} 
-                />
-              </div>
-              <div className="pt-1">
-                <Label className="text-[10px] text-slate-500 dark:text-slate-450 font-medium">{t('comercial.stepItems.defaultTransportRate', { defaultValue: 'Custo Padrão (€/pessoa)' })}</Label>
-                <div className="relative flex items-center mt-0.5">
-                  <Input
-                    type="number"
-                    step="0.01"
-                    disabled={!globalTransport}
-                    value={globalTransportRate}
-                    onChange={(e) => handleGlobalTransportRateChange(Number(e.target.value))}
-                    placeholder="0.00"
-                    className="h-8 font-mono text-sm bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 pr-5"
-                  />
-                  <span className="absolute right-2 text-xs text-slate-400 font-mono font-medium">€</span>
-                </div>
-              </div>
+          <div className="p-2.5 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                <Truck className="h-3.5 w-3.5 text-amber-500" /> {t('comercial.stepItems.transport', { defaultValue: 'Transporte' })}
+              </Label>
+              <Switch checked={globalTransport} onCheckedChange={handleGlobalTransportChange} />
             </div>
-            {globalTransport && (
-              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400 font-medium">{t('comercial.stepItems.totalTransport', { defaultValue: 'Total Transporte:' })}</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-white">€{transportTotal.toFixed(2)}</span>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Input
+                  type="number"
+                  step="0.01"
+                  disabled={!globalTransport}
+                  value={globalTransportRate}
+                  onChange={(e) => handleGlobalTransportRateChange(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="h-7 font-mono text-xs pr-5"
+                />
+                <span className="absolute right-1.5 top-1.5 text-[10px] text-slate-400 font-mono">€/p</span>
               </div>
-            )}
+              {globalTransport && (
+                <span className="text-[11px] font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                  €{transportTotal.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
 
-          {/* Broker / Intermediação */}
-          <div className="flex flex-col justify-between p-3 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm transition-all duration-200 hover:shadow-md min-h-[130px]">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="font-semibold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <DollarSign className="h-4 w-4 text-purple-500" /> {t('comercial.stepItems.brokerFee', { defaultValue: 'Comissão Broker' })}
-                </Label>
-                <Switch 
-                  checked={globalBroker} 
-                  onCheckedChange={handleGlobalBrokerChange} 
-                />
-              </div>
-              <div className="text-[10px] text-slate-550 dark:text-slate-400 leading-normal pt-1">
-                {t('comercial.stepItems.brokerFeeDesc', { defaultValue: 'Taxa de intermediação: €2/h por pessoa + €20 taxa operacional por pessoa (+ €30 se alocação nova).' })}
-              </div>
+          {/* Broker */}
+          <div className="p-2.5 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-850 shadow-sm space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                <DollarSign className="h-3.5 w-3.5 text-purple-500" /> {t('comercial.stepItems.brokerFee', { defaultValue: 'Comissão Broker' })}
+              </Label>
+              <Switch checked={globalBroker} onCheckedChange={handleGlobalBrokerChange} />
             </div>
-            {globalBroker && (
-              <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-xs">
-                <span className="text-slate-500 dark:text-slate-400 font-medium">{t('comercial.stepItems.totalBroker', { defaultValue: 'Total Broker:' })}</span>
-                <span className="font-mono font-bold text-slate-900 dark:text-white">€{brokerTotal.toFixed(2)}</span>
-              </div>
-            )}
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
+                €2/h + €20/pessoa
+              </span>
+              {globalBroker && (
+                <span className="text-[11px] font-mono font-bold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                  €{brokerTotal.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Compact Inclusion Form */}
-      <div className="p-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{t('comercial.stepItems.addProfile', { defaultValue: 'Incluir Perfil Profissional' })}</h3>
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+      {/* Formulário de Inclusão de Perfil Profissional */}
+      <div className="p-3.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm space-y-3">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+          {t('comercial.stepItems.addProfile', { defaultValue: 'Incluir Perfil Profissional' })}
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-end">
           {/* Função / Perfil */}
-          <div className="space-y-1.5 md:col-span-3">
-            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">{t('comercial.stepItems.profileLabel', { defaultValue: 'Função / Perfil' })}</Label>
+          <div className="space-y-1 md:col-span-3">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              {t('comercial.stepItems.profileLabel', { defaultValue: 'Função / Perfil' })}
+            </Label>
             <Select value={newJobFunctionId} onValueChange={handleJobFunctionChange}>
-              <SelectTrigger className="h-9 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm">
+              <SelectTrigger className="h-8 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs">
                 <SelectValue placeholder={t('comercial.stepItems.selectProfilePlaceholder', { defaultValue: 'Selecione a Função' })} />
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                 {jobFunctions.map((jf: any) => (
-                  <SelectItem key={jf.id} value={jf.id}>{jf.name}</SelectItem>
+                  <SelectItem key={jf.id} value={jf.id} className="text-xs">{jf.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
           {/* Quantidade */}
-          <div className="space-y-1.5 md:col-span-1">
-            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">{t('comercial.stepItems.quantityLabel', { defaultValue: 'Qtd' })}</Label>
+          <div className="space-y-1 md:col-span-1">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              {t('comercial.stepItems.quantityLabel', { defaultValue: 'Qtd' })}
+            </Label>
             <Input
               type="number"
               min="1"
               value={newQuantity}
               onChange={(e) => setNewQuantity(Number(e.target.value))}
-              className="h-9 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm text-center"
+              className="h-8 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs text-center"
             />
           </div>
 
           {/* Custo Base Hora */}
-          <div className="space-y-1.5 md:col-span-2">
-            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">{t('comercial.stepItems.baseCostLabel', { defaultValue: 'Custo Base/h (€)' })}</Label>
+          <div className="space-y-1 md:col-span-2">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              {t('comercial.stepItems.baseCostLabel', { defaultValue: 'Custo Base/h (€)' })}
+            </Label>
             <div className="relative flex items-center">
               <Input
                 type="number"
@@ -1195,15 +1224,17 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
                 value={newBaseCost || ''}
                 onChange={(e) => setNewBaseCost(Number(e.target.value))}
                 placeholder="0.00"
-                className="h-9 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm text-right pr-6"
+                className="h-8 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs text-right pr-6"
               />
-              <span className="absolute right-2 text-xs text-slate-450 font-mono">€</span>
+              <span className="absolute right-2 text-xs text-slate-400 font-mono">€</span>
             </div>
           </div>
 
           {/* Tarifa Venda */}
-          <div className="space-y-1.5 md:col-span-2">
-            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">{t('comercial.stepItems.sellRateLabel', { defaultValue: 'Tarifa Venda/h (€)' })}</Label>
+          <div className="space-y-1 md:col-span-2">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              {t('comercial.stepItems.sellRateLabel', { defaultValue: 'Tarifa Venda/h (€)' })}
+            </Label>
             <div className="relative flex items-center">
               <Input
                 type="number"
@@ -1211,25 +1242,22 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
                 value={newSellRate || ''}
                 onChange={(e) => setNewSellRate(Number(e.target.value))}
                 placeholder="0.00"
-                className="h-9 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm text-right pr-6"
+                className="h-8 font-mono bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs text-right pr-6"
               />
-              <span className="absolute right-2 text-xs text-slate-450 font-mono">€</span>
+              <span className="absolute right-2 text-xs text-slate-400 font-mono">€</span>
             </div>
-            {matchedClientTariff !== null && (
-              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 block mt-1">
-                Tarifa acordada: €{matchedClientTariff.toFixed(2)}/h
-              </span>
-            )}
           </div>
 
           {/* Seguridade Social */}
-          <div className="space-y-1.5 md:col-span-2">
-            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">{t('comercial.stepItems.ssRegimeLabel', { defaultValue: 'Seg. Social (Regime)' })}</Label>
+          <div className="space-y-1 md:col-span-2">
+            <Label className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+              {t('comercial.stepItems.ssRegimeLabel', { defaultValue: 'Seg. Social (Regime)' })}
+            </Label>
             <Select value={newSsRegime} onValueChange={(val: any) => setNewSsRegime(val)}>
-              <SelectTrigger className="h-9 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-sm">
+              <SelectTrigger className="h-8 bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs font-semibold">
                 <SelectValue placeholder={t('comercial.stepItems.selectRegimePlaceholder', { defaultValue: 'Selecione o Regime' })} />
               </SelectTrigger>
-              <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-sm">
+              <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs">
                 <SelectItem value="none">{t('comercial.stepItems.regimeNone', { defaultValue: 'Isento / N/A' })}</SelectItem>
                 <SelectItem value="local">{t('comercial.stepItems.regimeLocal', { rate: ssPercentageText, defaultValue: 'Local ({{rate}})' })}</SelectItem>
                 <SelectItem value="destacado">{t('comercial.stepItems.regimeDestacado', { base: ssDestacadoBase.toFixed(0), defaultValue: 'Destacado (€{{base}})' })}</SelectItem>
@@ -1242,12 +1270,131 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
             <Button
               onClick={addItem}
               disabled={!newJobFunctionId}
-              className="w-full h-9 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold shadow-md shadow-yellow-500/10 hover:shadow-yellow-500/20 transition-all duration-200 text-sm flex items-center justify-center gap-1.5"
+              className="w-full h-8 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold shadow-sm transition-all duration-200 text-xs flex items-center justify-center gap-1.5"
             >
               <Plus className="h-4 w-4 stroke-[2.5]" /> {t('comercial.stepItems.btnAdd', { defaultValue: 'Adicionar' })}
             </Button>
           </div>
         </div>
+
+        {/* Painel Comparativo e Inteligência de Tarifas da Função Selecionada */}
+        {selectedFunctionTariffRefs && (
+          <div className="pt-2 border-t border-slate-100 dark:border-slate-850 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                <Coins className="h-3.5 w-3.5 text-amber-500" />
+                <span>Referências de Tarifa:</span>
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* 1. Tarifa Acordada do Cliente */}
+                {selectedFunctionTariffRefs.clientRate !== null ? (
+                  <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800/80 py-1 px-2.5 rounded-lg text-xs">
+                    <span className="text-emerald-800 dark:text-emerald-300 font-semibold">
+                      Acordada no Cliente:
+                    </span>
+                    <span className="font-mono font-bold text-emerald-900 dark:text-emerald-200">
+                      € {selectedFunctionTariffRefs.clientRate.toFixed(2)}/h
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setNewSellRate(selectedFunctionTariffRefs.clientRate!)}
+                      className="h-5 px-1.5 text-[10px] font-bold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                    >
+                      Usar
+                    </Button>
+                  </div>
+                ) : data.client_id ? (
+                  <div className="text-[11px] text-muted-foreground bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded border text-slate-500">
+                    Sem tarifa acordada neste cliente
+                  </div>
+                ) : null}
+
+                {/* 2. Tarifa Tabela do País */}
+                {selectedFunctionTariffRefs.hasCountryTable && (
+                  <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-300 dark:border-blue-800/80 py-1 px-2.5 rounded-lg text-xs">
+                    <span className="text-blue-800 dark:text-blue-300 font-semibold">
+                      Tabela {selectedFunctionTariffRefs.countryName}:
+                    </span>
+                    <span className="font-mono font-bold text-blue-900 dark:text-blue-200">
+                      € {selectedFunctionTariffRefs.countryRate?.toFixed(2)}/h
+                    </span>
+                    {selectedFunctionTariffRefs.countryCost && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-mono">
+                        (Custo: €{selectedFunctionTariffRefs.countryCost.toFixed(2)})
+                      </span>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (selectedFunctionTariffRefs.countryRate) setNewSellRate(selectedFunctionTariffRefs.countryRate);
+                        if (selectedFunctionTariffRefs.countryCost) setNewBaseCost(selectedFunctionTariffRefs.countryCost);
+                      }}
+                      className="h-5 px-1.5 text-[10px] font-bold text-blue-700 hover:text-blue-900 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                    >
+                      Usar
+                    </Button>
+                  </div>
+                )}
+
+                {/* 3. Tarifa Tabela Global */}
+                {selectedFunctionTariffRefs.hasGlobalTable && (
+                  <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 py-1 px-2.5 rounded-lg text-xs">
+                    <span className="text-slate-700 dark:text-slate-300 font-semibold">
+                      Tabela Global:
+                    </span>
+                    <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                      € {selectedFunctionTariffRefs.globalRate?.toFixed(2)}/h
+                    </span>
+                    {selectedFunctionTariffRefs.globalCost && (
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        (Custo: €{selectedFunctionTariffRefs.globalCost.toFixed(2)})
+                      </span>
+                    )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (selectedFunctionTariffRefs.globalRate) setNewSellRate(selectedFunctionTariffRefs.globalRate);
+                        if (selectedFunctionTariffRefs.globalCost) setNewBaseCost(selectedFunctionTariffRefs.globalCost);
+                      }}
+                      className="h-5 px-1.5 text-[10px] font-bold text-slate-700 hover:text-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Usar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Aviso quando a tarifa está abaixo da tabela oficial do país */}
+            {isBelowOfficialCountryRate && (
+              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800/80 p-2 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>
+                    <strong>Atenção à Margem:</strong> Tarifa proposta (€ {newSellRate.toFixed(2)}/h) está <strong>abaixo da tabela oficial de {selectedFunctionTariffRefs.countryName} (€ {selectedFunctionTariffRefs.countryRate?.toFixed(2)}/h)</strong>. Pode exigir renegociação com o cliente ou aprovação gerencial na Mesa de Aprovações.
+                  </span>
+                </div>
+                {selectedFunctionTariffRefs.countryRate && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setNewSellRate(selectedFunctionTariffRefs.countryRate!)}
+                    className="h-6 text-[11px] bg-amber-600 hover:bg-amber-700 text-white font-bold shrink-0 ml-auto"
+                  >
+                    Ajustar para Tabela (€ {selectedFunctionTariffRefs.countryRate.toFixed(2)})
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabela de Perfis */}
