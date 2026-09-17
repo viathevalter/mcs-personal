@@ -255,7 +255,7 @@ export function resolveEmpresaInfo(
         endereco,
         codigoPostal,
         cidade,
-        seguros: 'Fidelidade - Companhia de Seguros, S.A.',
+        seguros: '',
     };
 }
 
@@ -506,21 +506,36 @@ export function calculateHoleriteAlta(options: {
     // Se o imposto foi importado na planilha (ex: 218.80 €), utiliza o valor importado; senão, usa a taxa de 11%
     const descontoSS = Number(descontosParsed.imposto > 0 ? descontosParsed.imposto : descontoSSCalculado);
 
-    // Descontos não fiscais autorizados (EPIs, Desconto Carro, Multas, Adiantamentos, Limpeza, etc.)
-    const nonTaxDiscounts = (descontosParsed.itemizedList || []).filter(item => {
-        const catNorm = (item.categoria || item.label || '').toLowerCase();
-        const isSS = catNorm.includes('impost') || catNorm.includes('segurid') || catNorm.includes('social') || catNorm.includes('ss');
-        const isBanc = catNorm.includes('banc') || catNorm.includes('taxa') || catNorm.includes('tarifa') || catNorm.includes('transfer');
-        return !isSS && !isBanc;
-    });
+    // No Recibo Oficial de Alta, figuram apenas os descontos legais (Segurança Social e IRS)
+    const totalDescontosEfetivo = Math.round((descontoSS + Number.EPSILON) * 100) / 100;
 
-    // Taxa bancária (deduzida da composição dos abonos brutos para fechar os centavos de transferência)
-    const taxaBancaria = Number(descontosParsed.taxasBancarias || 0);
-    const totalAbonosAlvo = Math.max(0, Math.round((totalRemuneracoes - taxaBancaria + Number.EPSILON) * 100) / 100);
+    // O Total a Receber do Recibo Oficial deve bater exatamente com o valor líquido transferido/apurado
+    const totalAReceberEfetivo = liquidoRealAlvo;
+
+    // O Total de Abonos do Recibo Oficial é ajustado para fechar a conta (Abonos - Descontos Legais = Total a Receber)
+    const totalAbonosAlvo = Math.max(0, Math.round((totalAReceberEfetivo + totalDescontosEfetivo + Number.EPSILON) * 100) / 100);
 
     // Verbas fixas já alocadas
-    const abonosFixos = vencimentoBase + subsFerias + subsNatal;
-    let restanteADistribuir = Math.round((totalAbonosAlvo - abonosFixos + Number.EPSILON) * 100) / 100;
+    let vencimentoBaseFinal = vencimentoBase;
+    let subsFeriasFinal = subsFerias;
+    let subsNatalFinal = subsNatal;
+    let abonosFixos = vencimentoBaseFinal + subsFeriasFinal + subsNatalFinal;
+
+    // Se o valor total de abonos alvo for menor que a soma das verbas fixas, reduz proporcionalmente
+    if (totalAbonosAlvo < abonosFixos && totalAbonosAlvo > 0) {
+        const fator = totalAbonosAlvo / abonosFixos;
+        vencimentoBaseFinal = Math.round(vencimentoBaseFinal * fator * 100) / 100;
+        subsFeriasFinal = Math.round(subsFeriasFinal * fator * 100) / 100;
+        subsNatalFinal = Math.round((totalAbonosAlvo - vencimentoBaseFinal - subsFeriasFinal) * 100) / 100;
+        abonosFixos = totalAbonosAlvo;
+    } else if (totalAbonosAlvo <= 0) {
+        vencimentoBaseFinal = 0;
+        subsFeriasFinal = 0;
+        subsNatalFinal = 0;
+        abonosFixos = 0;
+    }
+
+    let restanteADistribuir = Math.max(0, Math.round((totalAbonosAlvo - abonosFixos + Number.EPSILON) * 100) / 100);
 
     // Subsídio de Alimentação (ex: 4 dias x 6.15 = 24.60 €)
     let diasAlimentacao = 4;
@@ -554,28 +569,22 @@ export function calculateHoleriteAlta(options: {
 
     // Recalcula soma exata dos abonos para conferência de precisão
     const totalAbonosEfetivo = Math.round((
-        vencimentoBase +
+        vencimentoBaseFinal +
         valorSubsAlimentacao +
-        subsFerias +
-        subsNatal +
+        subsFeriasFinal +
+        subsNatalFinal +
         valorKms +
         valorAjudaCusto +
         Number.EPSILON
     ) * 100) / 100;
 
-    const totalDescontosEfetivo = Math.round((
-        descontoSS +
-        nonTaxDiscounts.reduce((sum, d) => sum + Number(d.valor || 0), 0) +
-        Number.EPSILON
-    ) * 100) / 100;
-
-    const totalAReceberEfetivo = Math.round((totalAbonosEfetivo - totalDescontosEfetivo + Number.EPSILON) * 100) / 100;
-
     // Montagem das Linhas Oficiais do Holerite (TOConline layout)
+    // Conforme regra legal, descontos operacionais (aluguel de carro, limpeza, adiantamento, etc.)
+    // são exibidos no Demonstrativo Detalhado (anexo), figurando no recibo apenas Segurança Social e IRS.
     const linhasOficiais: HoleriteItemLinha[] = [
         {
             descricao: 'Vencimento Base',
-            abonos: vencimentoBase,
+            abonos: vencimentoBaseFinal,
         },
         ...(valorSubsAlimentacao > 0 ? [{
             descricao: 'Subs. Alimentação',
@@ -585,11 +594,11 @@ export function calculateHoleriteAlta(options: {
         }] : []),
         {
             descricao: 'Subs. Férias (100% c/duodécimos)',
-            abonos: subsFerias,
+            abonos: subsFeriasFinal,
         },
         {
             descricao: 'Subs. Natal (100% c/duodécimos)',
-            abonos: subsNatal,
+            abonos: subsNatalFinal,
         },
         ...(valorKms > 0 ? [{
             descricao: 'Kms em viatura própria',
@@ -607,10 +616,6 @@ export function calculateHoleriteAlta(options: {
             descricao: 'Segurança Social',
             descontos: descontoSS,
         },
-        ...nonTaxDiscounts.map(d => ({
-            descricao: d.descricao ? `${d.label} (${d.descricao})` : d.label,
-            descontos: d.valor,
-        })),
         {
             descricao: 'IRS - Taxa efetiva (Subsídio de Férias): 0%.',
             descontos: 0.00,

@@ -152,7 +152,9 @@ export function generateHoleriteAltaPdf(
     doc.setFont('helvetica', 'bold');
     doc.text('Companhia de Seguros:', margin, y);
     doc.setFont('helvetica', 'normal');
-    doc.text(data.empresa.seguros || '-', margin + 40, y);
+    if (data.empresa.seguros) {
+        doc.text(data.empresa.seguros, margin + 40, y);
+    }
 
     doc.setFont('helvetica', 'bold');
     doc.text('Dias do Mês:', margin + 125, y);
@@ -340,11 +342,6 @@ export function generateHoleriteAltaPdf(
         doc.setFont('helvetica', 'normal');
         doc.text(data.dadosProfissionais.categoria, margin + 26, y + 12);
 
-        doc.setFont('helvetica', 'bold');
-        doc.text('Empresa:', margin + 110, y + 12);
-        doc.setFont('helvetica', 'normal');
-        doc.text(data.empresa.nome, margin + 125, y + 12);
-
         y += 24;
 
         // Grid com duas colunas lado a lado: Remunerações vs Descontos
@@ -499,7 +496,7 @@ export function generateHoleriteAltaPdf(
         doc.setFontSize(8);
         doc.setTextColor(120, 125, 135);
         doc.text('Página   2  /  2', margin, 285);
-        doc.text(`Emitido por MCS System • ${data.empresa.nome}`, pageWidth - margin, 285, { align: 'right' });
+        doc.text('Emitido por MCS System', pageWidth - margin, 285, { align: 'right' });
     }
 
     return doc;

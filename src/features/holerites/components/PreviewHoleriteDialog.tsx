@@ -230,7 +230,7 @@ export function PreviewHoleriteDialog({
                                     <div className="flex"><span className="font-bold w-36">Tipo de Processamento:</span> <span>{altaData.dadosProfissionais.tipoProcessamento}</span></div>
                                     <div className="flex justify-between"><span className="font-bold">Dias do Mês:</span> <span>{altaData.dadosProfissionais.diasMes}</span></div>
                                     <div className="flex"><span className="font-bold w-36">Base do Processamento:</span> <span>{altaData.dadosProfissionais.baseProcessamento}</span></div>
-                                    <div className="flex"><span className="font-bold w-36">Companhia de Seguros:</span> <span>{altaData.empresa.seguros}</span></div>
+                                    <div className="flex"><span className="font-bold w-36">Companhia de Seguros:</span> <span>{altaData.empresa.seguros || ''}</span></div>
                                 </div>
 
                                 {/* Official Items Table */}
