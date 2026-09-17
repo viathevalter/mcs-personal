@@ -338,21 +338,33 @@ serve(async (req) => {
     });
 
     const docLang = est.document_language || 'pt';
-    const folderName = empresa.trade_name?.toLowerCase().replace(/\s+/g, "_") || "default";
+    const candidateFolders = Array.from(new Set([
+      empresa.trade_name?.toLowerCase().replace(/\s+/g, "_"),
+      empresa.trade_name?.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, ""),
+      empresa.legal_name?.toLowerCase().replace(/\s+/g, "_"),
+      empresa.legal_name?.toLowerCase().replace(/[^a-z0-9]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, ""),
+      "default"
+    ].filter(Boolean)));
 
     // Helper to download templates with tiered fallbacks
     async function loadTemplate(type: 'proposta' | 'contrato', lang: string) {
-      // Tier 1: Custom template for specific language: company/lang/type.docx
-      const pathTier1 = `${folderName}/${lang}/${type}.docx`;
-      console.log(`[Tier 1] Buscando template customizado no idioma (${lang}): ${pathTier1}`);
-      const { data: b1 } = await supabase.storage.from("proposal-templates").download(pathTier1);
-      if (b1) return b1;
+      // Tier 1: Custom template for specific language across candidate folders: folder/lang/type.docx
+      for (const folder of candidateFolders) {
+        if (folder === "default") continue;
+        const pathTier1 = `${folder}/${lang}/${type}.docx`;
+        console.log(`[Tier 1] Buscando template customizado no idioma (${lang}): ${pathTier1}`);
+        const { data: b1 } = await supabase.storage.from("proposal-templates").download(pathTier1);
+        if (b1) return b1;
+      }
 
-      // Tier 2: Custom template (no language fallback): company/type.docx
-      const pathTier2 = `${folderName}/${type}.docx`;
-      console.log(`[Tier 2] Buscando template customizado (sem idioma): ${pathTier2}`);
-      const { data: b2 } = await supabase.storage.from("proposal-templates").download(pathTier2);
-      if (b2) return b2;
+      // Tier 2: Custom template (no language fallback) across candidate folders: folder/type.docx
+      for (const folder of candidateFolders) {
+        if (folder === "default") continue;
+        const pathTier2 = `${folder}/${type}.docx`;
+        console.log(`[Tier 2] Buscando template customizado (sem idioma): ${pathTier2}`);
+        const { data: b2 } = await supabase.storage.from("proposal-templates").download(pathTier2);
+        if (b2) return b2;
+      }
 
       // Tier 3: Global template for specific language: default_lang.docx
       const defaultName = type === 'proposta' 

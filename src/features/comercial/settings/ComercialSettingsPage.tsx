@@ -10,6 +10,7 @@ import { Loader2, Save, ShieldAlert, Sliders, FileText, Download, Upload, Trash2
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const LANGUAGES = [
   { code: 'pt', label: 'Português' },
@@ -171,31 +172,51 @@ export function ComercialSettingsPage() {
 
   // Get active company info
   const selectedEmpresa = empresas.find(e => e.id === selectedEmpresaId);
-  const folderName = selectedEmpresa?.trade_name?.toLowerCase().replace(/\s+/g, '_') || 'default';
+  
+  // Explicit company selection for templates
+  const [templateEmpresaId, setTemplateEmpresaId] = useState<string>('');
+
+  useEffect(() => {
+    if (selectedEmpresaId && !templateEmpresaId) {
+      setTemplateEmpresaId(selectedEmpresaId);
+    }
+  }, [selectedEmpresaId]);
+
+  const activeTemplateEmpresaId = templateEmpresaId || selectedEmpresaId;
+  const currentTemplateEmpresa = empresas.find(e => e.id === activeTemplateEmpresaId) || selectedEmpresa;
+
+  const candidateFolderNames = Array.from(new Set([
+    currentTemplateEmpresa?.trade_name?.toLowerCase().replace(/\s+/g, '_'),
+    currentTemplateEmpresa?.trade_name?.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, ''),
+    currentTemplateEmpresa?.legal_name?.toLowerCase().replace(/\s+/g, '_'),
+    currentTemplateEmpresa?.legal_name?.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, ''),
+  ].filter(Boolean))) as string[];
+
+  const folderName = candidateFolderNames[0] || 'default';
 
   const checkTemplates = async () => {
-    if (!selectedEmpresaId || !selectedEmpresa) return;
+    if (!activeTemplateEmpresaId || !currentTemplateEmpresa) return;
     try {
       setLoadingTemplates(true);
-      const { data: files, error } = await supabase.storage
-        .from('proposal-templates')
-        .list(`${folderName}/${activeLang}`);
-      
-      if (error) {
-        console.warn(`Error checking templates for folder: ${folderName}/${activeLang}`, error);
-        setProposalStatus('default');
-        setContractStatus('default');
-        setPedidoStatus('default');
-        return;
+
+      let foundProp = false;
+      let foundCont = false;
+      let foundPed = false;
+
+      for (const fName of candidateFolderNames) {
+        const { data: files } = await supabase.storage
+          .from('proposal-templates')
+          .list(`${fName}/${activeLang}`);
+
+        if (files?.some(f => f.name === 'proposta.docx')) foundProp = true;
+        if (files?.some(f => f.name === 'contrato.docx')) foundCont = true;
+        if (files?.some(f => f.name === 'pedido.docx')) foundPed = true;
+        if (foundProp && foundCont && foundPed) break;
       }
-      
-      const hasProp = files?.some(f => f.name === 'proposta.docx') || false;
-      const hasCont = files?.some(f => f.name === 'contrato.docx') || false;
-      const hasPed = files?.some(f => f.name === 'pedido.docx') || false;
-      
-      setProposalStatus(hasProp ? 'custom' : 'default');
-      setContractStatus(hasCont ? 'custom' : 'default');
-      setPedidoStatus(hasPed ? 'custom' : 'default');
+
+      setProposalStatus(foundProp ? 'custom' : 'default');
+      setContractStatus(foundCont ? 'custom' : 'default');
+      setPedidoStatus(foundPed ? 'custom' : 'default');
     } catch (err) {
       console.error('Failed to list templates:', err);
     } finally {
@@ -286,10 +307,10 @@ export function ComercialSettingsPage() {
   }, [selectedEmpresaId]);
 
   useEffect(() => {
-    if (selectedEmpresaId && empresas.length > 0) {
+    if (activeTemplateEmpresaId && empresas.length > 0) {
       checkTemplates();
     }
-  }, [selectedEmpresaId, empresas, activeLang]);
+  }, [activeTemplateEmpresaId, empresas, activeLang]);
 
   const handleSave = async () => {
     if (!selectedEmpresaId) return;
@@ -361,40 +382,47 @@ export function ComercialSettingsPage() {
         ? contractStatus === 'custom' 
         : pedidoStatus === 'custom';
     
-    let fileName = "";
+    let downloadedBlob: Blob | null = null;
+
     if (isCustom) {
-      fileName = `${folderName}/${activeLang}/${type}.docx`;
-    } else {
-      if (type === 'proposta') {
-        fileName = activeLang === 'pt' ? 'default.docx' : `default_${activeLang}.docx`;
-      } else if (type === 'contrato') {
-        fileName = activeLang === 'pt' ? 'default_contrato.docx' : `default_contrato_${activeLang}.docx`;
-      } else {
-        fileName = activeLang === 'pt' ? 'default_pedido.docx' : `default_pedido_${activeLang}.docx`;
+      for (const fName of candidateFolderNames) {
+        const path = `${fName}/${activeLang}/${type}.docx`;
+        const { data, error } = await supabase.storage
+          .from('proposal-templates')
+          .download(path);
+        if (!error && data) {
+          downloadedBlob = data;
+          break;
+        }
       }
     }
-      
+
     try {
-      const { data, error } = await supabase.storage
+      if (downloadedBlob) {
+        triggerFileDownload(downloadedBlob, `${currentTemplateEmpresa?.trade_name || 'empresa'}_${activeLang}_${type}.docx`);
+        return;
+      }
+
+      // Default template download fallback
+      const defaultName = type === 'proposta' 
+        ? (activeLang === 'pt' ? 'default.docx' : `default_${activeLang}.docx`)
+        : type === 'contrato' 
+          ? (activeLang === 'pt' ? 'default_contrato.docx' : `default_contrato_${activeLang}.docx`)
+          : (activeLang === 'pt' ? 'default_pedido.docx' : `default_pedido_${activeLang}.docx`);
+
+      let { data, error } = await supabase.storage
         .from('proposal-templates')
-        .download(fileName);
-        
-      if (error) {
-        // Fallback para o template padrão global de base (pt) se o específico do idioma não existir no storage
-        console.warn(`Default template ${fileName} not found. Trying global default...`);
-        const fallbackFileName = type === 'proposta' 
-          ? 'default.docx' 
-          : type === 'contrato' 
-            ? 'default_contrato.docx' 
-            : 'default_pedido.docx';
-        const { data: fbData, error: fbErr } = await supabase.storage
-          .from('proposal-templates')
-          .download(fallbackFileName);
-        
-        if (fbErr) throw fbErr;
-        triggerFileDownload(fbData, `modelo_padrao_${type}_${activeLang}.docx`);
-      } else {
-        triggerFileDownload(data, isCustom ? `${selectedEmpresa?.trade_name || 'empresa'}_${activeLang}_${type}.docx` : `modelo_padrao_${type}_${activeLang}.docx`);
+        .download(defaultName);
+
+      if (error || !data) {
+        const fallbackName = type === 'proposta' ? 'default.docx' : type === 'contrato' ? 'default_contrato.docx' : 'default_pedido.docx';
+        const resFb = await supabase.storage.from('proposal-templates').download(fallbackName);
+        if (resFb.error) throw resFb.error;
+        data = resFb.data;
+      }
+
+      if (data) {
+        triggerFileDownload(data, `modelo_padrao_${type}_${activeLang}.docx`);
       }
     } catch (err: any) {
       console.error('Error downloading template:', err);
@@ -427,16 +455,17 @@ export function ComercialSettingsPage() {
     const targetType = type === 'proposta' ? 'proposal' : type === 'contrato' ? 'contract' : 'pedido';
     try {
       setUploadingType(targetType);
-      const path = `${folderName}/${activeLang}/${type}.docx`;
-      
-      const { error } = await supabase.storage
-        .from('proposal-templates')
-        .upload(path, file, {
-          upsert: true,
-          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        });
-        
-      if (error) throw error;
+
+      // Upload to all candidate folders for this company to guarantee match across systems
+      for (const fName of candidateFolderNames) {
+        const path = `${fName}/${activeLang}/${type}.docx`;
+        await supabase.storage
+          .from('proposal-templates')
+          .upload(path, file, {
+            upsert: true,
+            contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          });
+      }
       
       toast.success(t('comercial.settings.uploadSuccess', { defaultValue: 'Modelo Word enviado com sucesso!' }));
       checkTemplates();
@@ -454,10 +483,10 @@ export function ComercialSettingsPage() {
       return;
     }
     try {
-      const path = `${folderName}/${activeLang}/${type}.docx`;
+      const paths = candidateFolderNames.map(f => `${f}/${activeLang}/${type}.docx`);
       const { error } = await supabase.storage
         .from('proposal-templates')
-        .remove([path]);
+        .remove(paths);
         
       if (error) throw error;
       
@@ -1037,15 +1066,34 @@ export function ComercialSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="bg-indigo-50/50 dark:bg-slate-900/40 p-4 rounded-xl border border-indigo-100 dark:border-slate-800 text-sm flex items-start space-x-3">
-            <Info className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <span className="font-semibold block text-slate-800 dark:text-slate-200">
-                {t('comercial.settings.activeCompanyLabel')} <strong className="text-indigo-600 dark:text-indigo-400">{selectedEmpresa?.trade_name || 'Nenhuma'}</strong>
-              </span>
-              <p className="text-slate-600 dark:text-slate-400 mt-1 text-xs">
-                {t('comercial.settings.selectLanguageHelp')}
-              </p>
+          <div className="bg-indigo-50/50 dark:bg-slate-900/40 p-4 rounded-xl border border-indigo-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start space-x-3">
+              <Info className="h-5 w-5 text-indigo-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <span className="font-semibold block text-slate-800 dark:text-slate-200 text-sm">
+                  {t('comercial.settings.activeCompanyLabel')} <strong className="text-indigo-600 dark:text-indigo-400">{currentTemplateEmpresa?.trade_name || currentTemplateEmpresa?.legal_name || 'Nenhuma'}</strong>
+                </span>
+                <p className="text-slate-600 dark:text-slate-400 mt-1 text-xs">
+                  {t('comercial.settings.selectLanguageHelp')}
+                </p>
+              </div>
+            </div>
+            <div className="w-full md:w-[280px] shrink-0">
+              <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 block">
+                Empresa dos Modelos (.docx)
+              </Label>
+              <Select value={activeTemplateEmpresaId} onValueChange={setTemplateEmpresaId}>
+                <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-950 font-bold border-indigo-200 dark:border-slate-700 shadow-sm">
+                  <SelectValue placeholder="Selecione a empresa..." />
+                </SelectTrigger>
+                <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                  {empresas.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id} className="text-xs font-medium">
+                      {emp.trade_name || emp.legal_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
