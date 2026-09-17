@@ -140,10 +140,13 @@ serve(async (req) => {
           campaign_id,
           lead_id,
           marketing_campaigns (
+            id,
             empresa_id,
             title,
             template_id,
+            assigned_to,
             marketing_templates (
+              id,
               subject,
               html_content
             )
@@ -153,7 +156,10 @@ serve(async (req) => {
             name,
             email,
             company_name,
-            phone
+            phone,
+            tags,
+            assigned_to,
+            country_id
           )
         `)
         .eq("status", "pending")
@@ -174,8 +180,6 @@ serve(async (req) => {
     }
 
     console.log(`Processando ${queueItems.length} e-mails da fila com cadência suave...`);
-
-    console.log(`Processando ${queueItems.length} e-mails da fila...`);
 
     for (const item of queueItems) {
       const campaign = item.marketing_campaigns;
@@ -201,16 +205,52 @@ serve(async (req) => {
         .eq("id", campaign.empresa_id)
         .maybeSingle();
 
-      // Determinar contexto da empresa e WhatsApp padrão
+      // Determinar contexto da empresa e país do lead
       const companyTrade = (company?.trade_name || "").toUpperCase();
       const isTriangulo = companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO") || campaign.empresa_id === 'a798620a-358a-4c6c-9db2-3a507c583cac';
       const isWiseowe = companyTrade.includes("WISEOWE") || campaign.empresa_id === 'dae64d51-2181-4510-b14f-e63d2f111a8e';
+      const isLuminous = companyTrade.includes("LUMINOUS") || campaign.empresa_id === '847796c4-b253-4e53-9e6b-34a127ec7d85';
 
-      let defaultWaUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
-      if (isTriangulo) {
-        defaultWaUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola, quisiera más información sobre sus servicios")}`;
-      } else if (isWiseowe) {
-        defaultWaUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour Omar, je souhaite plus d'informations sur vos services")}`;
+      const leadTags = Array.isArray(lead.tags) ? lead.tags.join(' ').toLowerCase() : (typeof lead.tags === 'string' ? lead.tags.toLowerCase() : '');
+      const leadEmail = (lead.email || '').toLowerCase();
+      const leadPhone = (lead.phone || '').trim();
+
+      const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy') || leadTags.includes('giada') || leadEmail.endsWith('.it') || leadPhone.startsWith('+39') || leadPhone.startsWith('0039');
+      const isFranceLead = leadTags.includes('frança') || leadTags.includes('francia') || leadTags.includes('france') || leadTags.includes('wiseowe') || leadEmail.endsWith('.fr') || leadPhone.startsWith('+33') || leadPhone.startsWith('0033') || isWiseowe;
+
+      // IDs de vendedores conhecidos
+      const GIADA_ID = '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
+      const MICHELLE_ID = 'dbc361a1-e4af-446a-8079-39c0caab00d2';
+      const OMAR_ID = '346a9262-2edf-4a2e-80fc-aa5b43bf483a';
+      const ALEX_ID = 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
+
+      const assignedUserId = lead.assigned_to || campaign.assigned_to;
+
+      // URLs explícitas por vendedor
+      const waOmarUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour Omar, je souhaite plus d'informations sur vos services")}`;
+      const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Michelle, quisiera más información sobre sus servicios")}`;
+      const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
+      const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
+
+      // Resolução inteligente do WhatsApp padrão (Hierarquia: Vendedor Atribuído -> País/Mercado -> Empresa)
+      let defaultWaUrl = waMichelleUrl; // Triângulo padrão Espanha
+
+      if (assignedUserId === GIADA_ID) {
+        defaultWaUrl = waGiadaUrl;
+      } else if (assignedUserId === OMAR_ID) {
+        defaultWaUrl = waOmarUrl;
+      } else if (assignedUserId === MICHELLE_ID) {
+        defaultWaUrl = waMichelleUrl;
+      } else if (assignedUserId === ALEX_ID) {
+        defaultWaUrl = waAlexUrl;
+      } else if (isItalyLead) {
+        defaultWaUrl = waGiadaUrl;
+      } else if (isFranceLead || isWiseowe) {
+        defaultWaUrl = waOmarUrl;
+      } else if (isTriangulo) {
+        defaultWaUrl = waMichelleUrl;
+      } else if (isLuminous) {
+        defaultWaUrl = waAlexUrl;
       }
 
       // Substituição de placeholders dinâmicos
@@ -238,9 +278,15 @@ serve(async (req) => {
           .replace(/\*\|UNSUB\|\*/gi, unsubscribeLink)
           .replace(/\*\|UNSUBSCRIBE\|\*/gi, unsubscribeLink)
           .replace(/%UNSUBSCRIBE_URL%/gi, unsubscribeLink)
+          // Variáveis explícitas por vendedor (garantia 100% de direcionamento)
+          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waOmarUrl)}`)
+          .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waMichelleUrl)}`)
+          .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waGiadaUrl)}`)
+          .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waAlexUrl)}`)
+          // Variável genérica inteligente (respeita vendedor atribuído, país do lead e empresa)
           .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(defaultWaUrl)}`);
 
-        // Preservar links wa.me explicitamente definidos no template, roteando pelo tracker com dest
+        // Preservar links wa.me explicitamente definidos no HTML do template, mantendo o número e texto exatos
         res = res.replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, (match) => {
           return `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(match)}`;
         });
@@ -259,11 +305,7 @@ serve(async (req) => {
         ? rawFormattedHtml.replace('</body>', `${trackingPixelHtml}</body>`)
         : `${rawFormattedHtml}${trackingPixelHtml}`;
       
-      // 1. Resolução inteligente do Remetente por Empresa e País do Lead
-      const leadTags = Array.isArray(lead.tags) ? lead.tags.join(' ').toLowerCase() : '';
-      const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy');
-      const isFranceLead = leadTags.includes('frança') || leadTags.includes('francia') || leadTags.includes('france');
-
+      // Resolução inteligente do Remetente por Empresa e País do Lead
       let validSenderEmail = company?.marketing_sender_email || company?.proposal_sender_email || "comercial1@mail.luminousalley.com";
       let senderName = company?.trade_name || "Comercial";
 

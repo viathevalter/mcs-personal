@@ -10,8 +10,8 @@ export function WhatsAppRedirectPage() {
 
   useEffect(() => {
     async function trackAndRedirect() {
-      // Default fallback
-      let whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      // Fallback padrão seguro (Triângulo / Michelle)
+      let whatsappUrl = 'https://wa.me/34937374830?text=Hola,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
 
       // 1. If explicit destination link is passed from email template, prioritize it 100%
       if (destParam) {
@@ -28,26 +28,45 @@ export function WhatsAppRedirectPage() {
           const { data: lead } = await supabase
             .schema('core_comercial')
             .from('leads')
-            .select('empresa_id, stage_id, name, notes')
+            .select('empresa_id, stage_id, name, notes, assigned_to, tags, email, phone')
             .eq('id', leadId)
             .maybeSingle();
 
-          if (lead && lead.empresa_id) {
-            // If no explicit destination was passed, resolve dynamic WhatsApp by company
+          if (lead) {
+            // If no explicit destination was passed, resolve dynamic WhatsApp by salesperson / country / company
             if (!destParam) {
-              const empId = lead.empresa_id.toLowerCase();
+              const empId = (lead.empresa_id || '').toLowerCase();
               const isTriangulo = empId === 'a798620a-358a-4c6c-9db2-3a507c583cac';
               const isWiseowe = empId === 'dae64d51-2181-4510-b14f-e63d2f111a8e';
+              const isLuminous = empId === '847796c4-b253-4e53-9e6b-34a127ec7d85';
 
-              if (isTriangulo) {
-                // Triângulo España -> +34 937 37 48 30 (Michelle)
-                whatsappUrl = 'https://wa.me/34937374830?text=Hola,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
-              } else if (isWiseowe) {
-                // Wiseowe France -> +351 936 447 734 (Omar)
+              const leadTags = Array.isArray(lead.tags) ? lead.tags.join(' ').toLowerCase() : (typeof lead.tags === 'string' ? lead.tags.toLowerCase() : '');
+              const leadEmail = (lead.email || '').toLowerCase();
+              const leadPhone = (lead.phone || '').trim();
+
+              const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy') || leadTags.includes('giada') || leadEmail.endsWith('.it') || leadPhone.startsWith('+39') || leadPhone.startsWith('0039');
+              const isFranceLead = leadTags.includes('frança') || leadTags.includes('francia') || leadTags.includes('france') || leadTags.includes('wiseowe') || leadEmail.endsWith('.fr') || leadPhone.startsWith('+33') || leadPhone.startsWith('0033') || isWiseowe;
+
+              // IDs de vendedores
+              const GIADA_ID = '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
+              const MICHELLE_ID = 'dbc361a1-e4af-446a-8079-39c0caab00d2';
+              const OMAR_ID = '346a9262-2edf-4a2e-80fc-aa5b43bf483a';
+              const ALEX_ID = 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
+
+              const assignedUserId = lead.assigned_to;
+
+              if (assignedUserId === GIADA_ID || isItalyLead) {
+                // Giada / Itália
+                whatsappUrl = 'https://wa.me/393000000000?text=Ciao%20Giada,%20vorrei%20maggiori%20informazioni%20sui%20vostri%20servizi';
+              } else if (assignedUserId === OMAR_ID || isFranceLead || isWiseowe) {
+                // Omar / França / Wiseowe
                 whatsappUrl = 'https://wa.me/351936447734?text=Bonjour%20Omar,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
-              } else {
-                // Luminous -> +34 937 37 41 80 (Alex)
+              } else if (assignedUserId === ALEX_ID || isLuminous) {
+                // Alex / Luminous
                 whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+              } else {
+                // Triângulo España / Michelle
+                whatsappUrl = 'https://wa.me/34937374830?text=Hola%20Michelle,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
               }
             }
 
