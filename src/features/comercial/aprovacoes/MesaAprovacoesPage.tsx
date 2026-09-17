@@ -166,7 +166,7 @@ export function MesaAprovacoesPage() {
             try {
               let q = supabase
                 .from('contas_receber')
-                .select('id, empresa, cliente, cod_cliente, num_doc, data_emissao, dt_venc, dt_recebimento, valot_total, saldo_a_pagar, status')
+                .select('id, empresa, cliente, cod_cliente, num_doc, periodo_fat, data_emissao, dt_venc, dt_recebimento, valot_total, saldo_a_pagar, status')
                 .order('id', { ascending: false })
                 .limit(20);
 
@@ -646,6 +646,9 @@ export function MesaAprovacoesPage() {
                             <div className="text-[11px] text-muted-foreground leading-tight">
                               <span className="font-semibold text-slate-700 dark:text-slate-300">Última Fat: </span>
                               <span className="font-mono">{fin.ultimaFatura.num_doc || 'S/N'}</span>
+                              {fin.ultimaFatura.periodo_fat && (
+                                <span className="text-slate-600 dark:text-slate-400 font-medium"> ({fin.ultimaFatura.periodo_fat})</span>
+                              )}
                               <span className="block text-[10px]">
                                 {formatCurrency(parseEuroNumber(fin.ultimaFatura.valot_total))} -{' '}
                                 <span className={fin.ultimaFatura.status === 'Pago' ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
@@ -918,7 +921,8 @@ export function MesaAprovacoesPage() {
                           {fin.ultimaFatura ? (
                             <div>
                               <span className="font-bold font-mono text-xs block text-slate-900 dark:text-slate-100 truncate">
-                                {fin.ultimaFatura.num_doc || 'Sem nº'} ({formatCurrency(parseEuroNumber(fin.ultimaFatura.valot_total))})
+                                {fin.ultimaFatura.num_doc || 'Sem nº'}
+                                {fin.ultimaFatura.periodo_fat ? ` (${fin.ultimaFatura.periodo_fat})` : ''} ({formatCurrency(parseEuroNumber(fin.ultimaFatura.valot_total))})
                               </span>
                               <Badge className={`text-[9px] px-1 py-0 font-semibold ${fin.ultimaFatura.status === 'Pago' ? 'bg-emerald-600' : 'bg-red-600'}`}>
                                 {fin.ultimaFatura.status || 'Pendente'}
@@ -1021,14 +1025,14 @@ export function MesaAprovacoesPage() {
 
       {/* Modal de Extrato Financeiro Completo do Cliente */}
       <Dialog open={!!financialModalData} onOpenChange={(open) => !open && setFinancialModalData(null)}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl xl:max-w-6xl w-full max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold">
               <Receipt className="h-5 w-5 text-indigo-500" />
               Extrato de Cobrança & Faturamento — {financialModalData?.clientName}
             </DialogTitle>
             <DialogDescription>
-              Histórico das últimas faturas emitidas, vencimentos e liquidações registradas no Contas a Receber.
+              Histórico das últimas faturas emitidas, mês de faturamento de origem, vencimentos e liquidações registradas no Contas a Receber.
             </DialogDescription>
           </DialogHeader>
 
@@ -1068,6 +1072,7 @@ export function MesaAprovacoesPage() {
                   <TableHeader className="bg-slate-100 dark:bg-slate-800">
                     <TableRow>
                       <TableHead className="font-bold text-xs">Documento</TableHead>
+                      <TableHead className="font-bold text-xs">Mês Fat.</TableHead>
                       <TableHead className="font-bold text-xs">Emissão</TableHead>
                       <TableHead className="font-bold text-xs">Vencimento</TableHead>
                       <TableHead className="font-bold text-xs">Recebimento</TableHead>
@@ -1082,15 +1087,68 @@ export function MesaAprovacoesPage() {
                       const saldo = parseEuroNumber(inv.saldo_a_pagar);
                       const isPago = inv.status === 'Pago' || saldo <= 0;
 
+                      // Status dinâmico inteligente e cálculo de dias em atraso
+                      let statusBadge = null;
+                      let daysOverdue = 0;
+
+                      if (isPago) {
+                        statusBadge = (
+                          <Badge className="text-[10px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+                            Pago
+                          </Badge>
+                        );
+                      } else if (inv.dt_venc) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const vDate = new Date(inv.dt_venc);
+                        vDate.setHours(0, 0, 0, 0);
+                        daysOverdue = Math.floor((today.getTime() - vDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                        if (daysOverdue > 0) {
+                          statusBadge = (
+                            <Badge className="text-[10px] font-bold bg-red-600 hover:bg-red-700 text-white shadow-sm">
+                              Vencido ({daysOverdue}d)
+                            </Badge>
+                          );
+                        } else if (daysOverdue === 0) {
+                          statusBadge = (
+                            <Badge className="text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-sm">
+                              Vence Hoje
+                            </Badge>
+                          );
+                        } else {
+                          statusBadge = (
+                            <Badge variant="outline" className="text-[10px] font-bold text-amber-700 border-amber-400 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300">
+                              A Vencer
+                            </Badge>
+                          );
+                        }
+                      } else {
+                        statusBadge = (
+                          <Badge variant="outline" className="text-[10px] font-bold text-slate-600">
+                            {inv.status || 'Pendente'}
+                          </Badge>
+                        );
+                      }
+
                       return (
-                        <TableRow key={inv.id}>
+                        <TableRow key={inv.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40">
                           <TableCell className="font-mono font-bold text-xs">
                             {inv.num_doc || `DOC-${inv.id}`}
+                          </TableCell>
+                          <TableCell className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            {inv.periodo_fat ? (
+                              <Badge variant="outline" className="font-medium text-xs bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700">
+                                {inv.periodo_fat}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
                             {formatDateShort(inv.data_emissao)}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground font-mono">
+                          <TableCell className={`text-xs font-mono ${daysOverdue > 0 ? 'text-red-600 font-bold' : 'text-muted-foreground'}`}>
                             {formatDateShort(inv.dt_venc)}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground font-mono">
@@ -1099,13 +1157,11 @@ export function MesaAprovacoesPage() {
                           <TableCell className="font-mono font-semibold text-xs text-right">
                             {formatCurrency(total)}
                           </TableCell>
-                          <TableCell className={`font-mono font-semibold text-xs text-right ${saldo > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                          <TableCell className={`font-mono font-semibold text-xs text-right ${saldo > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-400'}`}>
                             {formatCurrency(saldo)}
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge className={`text-[10px] font-bold ${isPago ? 'bg-emerald-600' : 'bg-red-600'}`}>
-                              {inv.status || (isPago ? 'Pago' : 'Pendente')}
-                            </Badge>
+                            {statusBadge}
                           </TableCell>
                         </TableRow>
                       );
