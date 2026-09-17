@@ -56,120 +56,119 @@ serve(async (req) => {
 
     console.log("Iniciando processamento da fila de e-mail marketing...");
 
-    let targetCampaignId: string | null = requestedCampaignId;
+    // 1. Ativar campanhas agendadas cujo horário já chegou
+    const { data: dueScheduled } = await supabase
+      .from("marketing_campaigns")
+      .select("id, title")
+      .eq("status", "scheduled")
+      .lte("scheduled_at", new Date().toISOString());
 
-    // 1. Verificar campanhas com status 'sending' em ordem de agendamento/criação
-    if (!targetCampaignId) {
-      let query = supabase
-        .from("marketing_campaigns")
-        .select("id, title, scheduled_at, created_at, empresa_id")
-        .eq("status", "sending");
-
-      if (requestedEmpresaId) {
-        query = query.eq("empresa_id", requestedEmpresaId);
+    if (dueScheduled && dueScheduled.length > 0) {
+      for (const sc of dueScheduled) {
+        await supabase
+          .from("marketing_campaigns")
+          .update({ status: "sending", updated_at: new Date().toISOString() })
+          .eq("id", sc.id);
+        console.log(`Campanha agendada ativada para 'sending': ${sc.title}`);
       }
+    }
 
-      const { data: currentSendingCampaigns, error: errSending } = await query
-        .order("scheduled_at", { ascending: true, nullsFirst: true })
-        .order("created_at", { ascending: true });
+    // 2. Buscar todas as campanhas em status 'sending' (respeitando filtros se fornecidos)
+    let campQuery = supabase
+      .from("marketing_campaigns")
+      .select("id, title, scheduled_at, created_at, empresa_id")
+      .eq("status", "sending");
 
-      if (errSending) throw errSending;
+    if (requestedCampaignId) {
+      campQuery = campQuery.eq("id", requestedCampaignId);
+    } else if (requestedEmpresaId) {
+      campQuery = campQuery.eq("empresa_id", requestedEmpresaId);
+    }
 
-      // Priorizar a primeira campanha 'sending' que ainda possua e-mails pendentes
-      if (currentSendingCampaigns && currentSendingCampaigns.length > 0) {
-        for (const camp of currentSendingCampaigns) {
-          const { count, error: errCount } = await supabase
-            .from("marketing_campaign_queue")
-            .select("*", { count: "exact", head: true })
-            .eq("campaign_id", camp.id)
-            .eq("status", "pending");
+    const { data: currentSendingCampaigns, error: errSending } = await campQuery
+      .order("created_at", { ascending: true });
 
-          if (!errCount && count && count > 0) {
-            targetCampaignId = camp.id;
-            console.log(`Campanha prioritária em andamento: ${camp.title} (${count} pendentes).`);
-            break;
-          } else {
-            // Campanha sem pendências: marca como concluída
-            await supabase
-              .from("marketing_campaigns")
-              .update({ status: "completed", updated_at: new Date().toISOString() })
-              .eq("id", camp.id);
-            console.log(`Campanha ${camp.title} finalizada como 'completed'.`);
-          }
+    if (errSending) throw errSending;
+
+    // 3. Checar e-mails pendentes para cada campanha ativa
+    const campaignsToProcess: Array<{ id: string; title: string; empresa_id: string; pending: number }> = [];
+
+    if (currentSendingCampaigns && currentSendingCampaigns.length > 0) {
+      for (const camp of currentSendingCampaigns) {
+        const { count, error: errCount } = await supabase
+          .from("marketing_campaign_queue")
+          .select("*", { count: "exact", head: true })
+          .eq("campaign_id", camp.id)
+          .eq("status", "pending");
+
+        if (!errCount && count && count > 0) {
+          campaignsToProcess.push({ ...camp, pending: count });
+        } else if (!errCount && count === 0) {
+          // Campanha sem pendências: marca como concluída imediatamente
+          await supabase
+            .from("marketing_campaigns")
+            .update({ status: "completed", updated_at: new Date().toISOString() })
+            .eq("id", camp.id);
+          console.log(`Campanha ${camp.title} finalizada como 'completed' (fila zerada).`);
         }
       }
     }
 
-    // Se NÃO houver nenhuma campanha enviando ativa, ativa a próxima agendada da fila (1 por vez)
-    if (!targetCampaignId) {
-      const { data: nextScheduled, error: errNext } = await supabase
-        .from("marketing_campaigns")
-        .select("id, title")
-        .eq("status", "scheduled")
-        .lte("scheduled_at", new Date().toISOString())
-        .order("scheduled_at", { ascending: true })
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (errNext) throw errNext;
-
-      if (nextScheduled) {
-        targetCampaignId = nextScheduled.id;
-        await supabase
-          .from("marketing_campaigns")
-          .update({ status: "sending", updated_at: new Date().toISOString() })
-          .eq("id", nextScheduled.id);
-        console.log(`Iniciando próxima campanha agendada: ${nextScheduled.title}`);
-      }
-    }
-
-    if (!targetCampaignId) {
+    if (campaignsToProcess.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: "Nenhuma campanha ativa ou agendada para envio no momento." }),
+        JSON.stringify({ success: true, message: "Nenhuma campanha ativa com e-mails pendentes no momento." }),
         { headers: corsHeaders(), status: 200 }
       );
     }
 
-    // 2. Buscar até 25 e-mails pendentes estritamente da campanha prioritária da vez
-    const { data: queueItems, error: errQueue } = await supabase
-      .from("marketing_campaign_queue")
-      .select(`
-        id,
-        campaign_id,
-        lead_id,
-        marketing_campaigns (
-          empresa_id,
-          title,
-          template_id,
-          marketing_templates (
-            subject,
-            html_content
-          )
-        ),
-        leads:lead_id (
+    // 4. Fair-share: dividir a capacidade de envio entre as campanhas ativas para evitar starvation
+    const numActive = campaignsToProcess.length;
+    let limitPerCampaign = 25;
+    if (numActive === 2) {
+      limitPerCampaign = 15; // 15 cada = 30 no lote
+    } else if (numActive >= 3) {
+      limitPerCampaign = 10; // 10 cada (até 3-4 campanhas) = 30-40 no lote
+    }
+
+    const queueItems: any[] = [];
+
+    for (const camp of campaignsToProcess.slice(0, 4)) {
+      const { data: items, error: errItems } = await supabase
+        .from("marketing_campaign_queue")
+        .select(`
           id,
-          name,
-          email,
-          company_name,
-          phone
-        )
-      `)
-      .eq("status", "pending")
-      .eq("campaign_id", targetCampaignId)
-      .limit(25);
+          campaign_id,
+          lead_id,
+          marketing_campaigns (
+            empresa_id,
+            title,
+            template_id,
+            marketing_templates (
+              subject,
+              html_content
+            )
+          ),
+          leads:lead_id (
+            id,
+            name,
+            email,
+            company_name,
+            phone
+          )
+        `)
+        .eq("status", "pending")
+        .eq("campaign_id", camp.id)
+        .order("created_at", { ascending: true })
+        .limit(limitPerCampaign);
 
-    if (errQueue) throw errQueue;
+      if (!errItems && items && items.length > 0) {
+        queueItems.push(...items);
+      }
+    }
 
-    if (!queueItems || queueItems.length === 0) {
-      // Se não restou nenhum item para a campanha ativa, marca como completed
-      await supabase
-        .from("marketing_campaigns")
-        .update({ status: "completed", updated_at: new Date().toISOString() })
-        .eq("id", targetCampaignId);
-
+    if (queueItems.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: `Campanha ${targetCampaignId} concluída.` }),
+        JSON.stringify({ success: true, message: "Nenhum item pendente encontrado para envio." }),
         { headers: corsHeaders(), status: 200 }
       );
     }
@@ -458,6 +457,24 @@ serve(async (req) => {
             error_message: err.message,
           })
           .eq("id", item.id);
+      }
+    }
+
+    // 5. Verificar se as campanhas processadas zeraram suas filas para marcar como 'completed'
+    const processedCampaignIds = [...new Set(queueItems.map((it: any) => it.campaign_id))];
+    for (const cId of processedCampaignIds) {
+      const { count, error: countErr } = await supabase
+        .from("marketing_campaign_queue")
+        .select("*", { count: "exact", head: true })
+        .eq("campaign_id", cId)
+        .eq("status", "pending");
+
+      if (!countErr && count === 0) {
+        await supabase
+          .from("marketing_campaigns")
+          .update({ status: "completed", updated_at: new Date().toISOString() })
+          .eq("id", cId);
+        console.log(`Campanha ${cId} foi marcada como 'completed' com sucesso!`);
       }
     }
 

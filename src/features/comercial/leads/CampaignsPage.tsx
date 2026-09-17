@@ -471,13 +471,17 @@ export function CampaignsPage() {
     if (!hasActiveCampaign) return;
 
     // Immediately trigger processing on load
-    supabase.functions.invoke('process-marketing-queue').then(() => {
+    supabase.functions.invoke('process-marketing-queue', {
+      body: { empresa_id: selectedEmpresaId }
+    }).then(() => {
       refetchCampaignStats();
     }).catch(() => {});
 
     const interval = setInterval(async () => {
       try {
-        await supabase.functions.invoke('process-marketing-queue');
+        await supabase.functions.invoke('process-marketing-queue', {
+          body: { empresa_id: selectedEmpresaId }
+        });
         refetchCampaignStats();
       } catch (e) {
         console.warn('Auto queue invoke:', e);
@@ -485,7 +489,7 @@ export function CampaignsPage() {
     }, 15000);
 
     return () => clearInterval(interval);
-  }, [campaigns, refetchCampaignStats]);
+  }, [campaigns, refetchCampaignStats, selectedEmpresaId]);
 
   // Query: Estágios do Kanban da empresa (para filtro)
   const { data: kanbanStages = [] } = useQuery({
@@ -2384,7 +2388,9 @@ export function CampaignsPage() {
         
         // Auto-invoke Edge Function to process queue immediately
         try {
-          await supabase.functions.invoke('process-marketing-queue');
+          await supabase.functions.invoke('process-marketing-queue', {
+            body: { campaign_id: campaignId, empresa_id: selectedEmpresaId }
+          });
           queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
         } catch (e) {
           console.warn("Auto queue invoke warning:", e);
@@ -2466,7 +2472,12 @@ export function CampaignsPage() {
   const handleTriggerQueueManually = async () => {
     setIsTriggeringQueue(true);
     try {
-      const { data, error } = await supabase.functions.invoke('process-marketing-queue');
+      const { data, error } = await supabase.functions.invoke('process-marketing-queue', {
+        body: {
+          campaign_id: selectedCampaignForTracking?.id,
+          empresa_id: selectedEmpresaId
+        }
+      });
       if (error) throw error;
       toast.success(data?.message || 'Fila de e-mails processada com sucesso!');
       if (selectedCampaignForTracking) {
@@ -3340,8 +3351,13 @@ export function CampaignsPage() {
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                     {filteredCampaigns.map((camp) => {
                       const stats = campaignStats[camp.id] || { total: 0, sent: 0, pending: 0, failed: 0 };
-                      const percent = stats.total > 0 ? Math.min(100, Math.round((stats.sent / stats.total) * 100)) : 0;
-                      const isCompleted = camp.status === 'completed' || (stats.total > 0 && stats.pending === 0 && stats.sent > 0);
+                      const isCompleted = camp.status === 'completed' || (stats.total > 0 && stats.pending === 0 && (stats.sent > 0 || stats.failed > 0));
+                      const processedCount = stats.sent + stats.failed;
+                      const percent = stats.total > 0
+                        ? isCompleted || stats.pending === 0
+                          ? 100
+                          : Math.min(99, Math.round((processedCount / stats.total) * 100))
+                        : 0;
                       const sentDate = stats.first_sent_at || camp.scheduled_at;
                       const completedDate = isCompleted ? (stats.last_sent_at || camp.updated_at) : null;
 
@@ -3382,7 +3398,9 @@ export function CampaignsPage() {
                               <div className="space-y-1.5 max-w-xs">
                                 <div className="flex items-center justify-between text-[10px]">
                                   <span className="font-medium text-slate-600 dark:text-slate-400">
-                                    {percent}% ({stats.sent}/{stats.total})
+                                    {isCompleted 
+                                      ? `100% (${stats.sent} enviados${stats.failed > 0 ? `, ${stats.failed} erros` : ''})`
+                                      : `${percent}% (${stats.sent}/${stats.total})`}
                                   </span>
                                   <div className="flex gap-1">
                                     {stats.pending > 0 && (
@@ -3486,8 +3504,13 @@ export function CampaignsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCampaigns.map((camp) => {
                 const stats = campaignStats[camp.id] || { total: 0, sent: 0, pending: 0, failed: 0 };
-                const percent = stats.total > 0 ? Math.min(100, Math.round((stats.sent / stats.total) * 100)) : 0;
-                const isCompleted = camp.status === 'completed' || (stats.total > 0 && stats.pending === 0 && stats.sent > 0);
+                const isCompleted = camp.status === 'completed' || (stats.total > 0 && stats.pending === 0 && (stats.sent > 0 || stats.failed > 0));
+                const processedCount = stats.sent + stats.failed;
+                const percent = stats.total > 0 
+                  ? isCompleted || stats.pending === 0 
+                    ? 100 
+                    : Math.min(99, Math.round((processedCount / stats.total) * 100)) 
+                  : 0;
                 const sentDate = stats.first_sent_at || camp.scheduled_at;
                 const completedDate = isCompleted ? (stats.last_sent_at || camp.updated_at) : null;
 
@@ -3596,8 +3619,12 @@ export function CampaignsPage() {
                                   />
                                 </div>
                                 <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                                  <span>Progresso do Envio</span>
-                                  <span className="font-semibold text-slate-700 dark:text-slate-300">{percent}% ({stats.sent}/{stats.total})</span>
+                                  <span>{isCompleted ? 'Envio Concluído' : 'Progresso do Envio'}</span>
+                                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                                    {isCompleted 
+                                      ? `100% (${stats.sent} enviados${stats.failed > 0 ? `, ${stats.failed} erros` : ''})`
+                                      : `${percent}% (${stats.sent}/${stats.total})`}
+                                  </span>
                                 </div>
                               </div>
                             )}
