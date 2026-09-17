@@ -25,6 +25,16 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let supabase: any = null;
+  let worker_id: any = null;
+  let client_id: any = null;
+  let year: number | null = null;
+  let month: number | null = null;
+  let file_path = "";
+  let bucket_id = "";
+  let mime_type = "application/pdf";
+  let document_type = "";
+
   try {
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) {
@@ -33,18 +43,9 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body = await req.json();
-    
-    let file_path = "";
-    let bucket_id = "";
-    let mime_type = "application/pdf";
-    let document_type = "";
-    let worker_id = null;
-    let client_id = null;
-    let year: number | null = null;
-    let month: number | null = null;
 
     // Detectar se é um Webhook do Storage (tabela objects) ou chamada HTTP direta
     if (body.record && body.record.bucket_id) {
@@ -197,9 +198,28 @@ serve(async (req) => {
     console.log(`Iniciando OCR para o arquivo: ${file_path} no bucket: ${bucket_id} (tipo: ${document_type || 'timesheet'})`);
     
     // 1. Baixar o arquivo do storage
-    const { data: fileBlob, error: downloadErr } = await supabase.storage
+    let fileBlob: any = null;
+    let downloadErr: any = null;
+
+    const downloadRes = await supabase.storage
       .from(bucket_id)
       .download(file_path);
+    fileBlob = downloadRes.data;
+    downloadErr = downloadRes.error;
+
+    // Se falhar e for timesheet, tentar o bucket alternativo (extracao-horas <-> horas_trabalhadores)
+    if (downloadErr || !fileBlob) {
+      const alternateBucket = bucket_id === "extracao-horas" ? "horas_trabalhadores" : (bucket_id === "horas_trabalhadores" ? "extracao-horas" : null);
+      if (alternateBucket) {
+        console.log(`[Storage] Tentando bucket alternativo: ${alternateBucket} para ${file_path}`);
+        const altResult = await supabase.storage.from(alternateBucket).download(file_path);
+        if (!altResult.error && altResult.data) {
+          fileBlob = altResult.data;
+          downloadErr = null;
+          bucket_id = alternateBucket;
+        }
+      }
+    }
 
     if (downloadErr || !fileBlob) {
       throw new Error(`Falha ao baixar arquivo para OCR (${file_path}): ${downloadErr?.message}`);
@@ -730,18 +750,18 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erro no processamento OCR:", error);
     
-    if (worker_id && year && month) {
+    if (worker_id && year && month && supabase) {
       try {
-        console.log(`[DB Sync] Reseting status to 'pendente' for worker ${worker_id} due to OCR failure...`);
+        console.log(`[DB Sync] Resetting status to 'pendente' for worker ${worker_id} due to OCR failure...`);
         const { error: resetErr } = await supabase
           .schema('core_personal')
           .from('worker_hours')
           .update({ 
             status: 'pendente', 
-            observacoes: `Falha na leitura automática por IA: ${error.message || error}`,
+            observacoes: `Falha na leitura automática por IA: ${error?.message || String(error)}`,
             updated_at: new Date().toISOString() 
           })
           .eq('worker_id', worker_id)
@@ -758,7 +778,7 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
     }
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error?.message || String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
