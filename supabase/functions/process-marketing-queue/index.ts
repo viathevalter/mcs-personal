@@ -210,7 +210,7 @@ serve(async (req) => {
       if (isTriangulo) {
         defaultWaUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola, quisiera más información sobre sus servicios")}`;
       } else if (isWiseowe) {
-        defaultWaUrl = `https://wa.me/34652519210?text=${encodeURIComponent("Bonjour, je souhaite plus d'informations sur vos services")}`;
+        defaultWaUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour Omar, je souhaite plus d'informations sur vos services")}`;
       }
 
       // Substituição de placeholders dinâmicos

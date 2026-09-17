@@ -296,7 +296,9 @@ export function ColetaDadosPublicaPage() {
                 .from('kanban_stages')
                 .select('id')
                 .eq('empresa_id', lead.empresa_id)
-                .eq('name', 'Perdido')
+                .or('name.ilike.%Perdido%,name.ilike.%Desvinculado%')
+                .order('order_index', { ascending: false })
+                .limit(1)
                 .maybeSingle();
 
               await supabase

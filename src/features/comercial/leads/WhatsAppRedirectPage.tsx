@@ -28,7 +28,7 @@ export function WhatsAppRedirectPage() {
           const { data: lead } = await supabase
             .schema('core_comercial')
             .from('leads')
-            .select('empresa_id, stage_id')
+            .select('empresa_id, stage_id, name, notes')
             .eq('id', leadId)
             .maybeSingle();
 
@@ -43,13 +43,23 @@ export function WhatsAppRedirectPage() {
                 // Triângulo España -> +34 937 37 48 30 (Michelle)
                 whatsappUrl = 'https://wa.me/34937374830?text=Hola,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
               } else if (isWiseowe) {
-                // Wiseowe France -> +34 652 51 92 10 (Omar)
-                whatsappUrl = 'https://wa.me/34652519210?text=Bonjour,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
+                // Wiseowe France -> +351 936 447 734 (Omar)
+                whatsappUrl = 'https://wa.me/351936447734?text=Bonjour%20Omar,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
               } else {
                 // Luminous -> +34 937 37 41 80 (Alex)
                 whatsappUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
               }
             }
+
+            // Detect bots / email scanners (Proofpoint, Defender, etc.)
+            const userAgent = (navigator.userAgent || '').toLowerCase();
+            const isBot = /bot|crawler|spider|scanner|preview|slurp|facebookexternalhit|curl|wget|headless/i.test(userAgent);
+
+            // Check if lead is opted-out/descadastrado
+            const isDescadastrado = 
+              lead.name?.includes('[DESCADASTRADO]') || 
+              lead.notes?.includes('Opt-out') ||
+              lead.notes?.includes('[DESCADASTRADO]');
 
             // Check current stage order_index
             let currentOrderIndex = 0;
@@ -76,8 +86,8 @@ export function WhatsAppRedirectPage() {
 
             const targetStage = targetStages && targetStages.length > 0 ? targetStages[0] : null;
 
-            // Only transition if not already in WhatsApp stage or higher (stages 1, 2, 3)
-            if (targetStage && currentOrderIndex < targetStage.order_index) {
+            // Only transition if not a bot, not opted-out, and current stage is lower than WhatsApp stage
+            if (!isBot && !isDescadastrado && targetStage && currentOrderIndex < targetStage.order_index) {
               await supabase
                 .schema('core_comercial')
                 .from('leads')
