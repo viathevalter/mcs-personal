@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/shared/supabase/client';
@@ -31,6 +31,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
   ShieldAlert,
   ShieldCheck,
   CheckCircle2,
@@ -48,6 +62,15 @@ import {
   RefreshCw,
   Eye,
   Calendar,
+  List,
+  LayoutGrid,
+  Receipt,
+  CreditCard,
+  DollarSign,
+  Info,
+  Check,
+  X,
+  ChevronRight,
 } from 'lucide-react';
 import { format, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -60,18 +83,22 @@ export function MesaAprovacoesPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState<string>(selectedEmpresaId || 'all');
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [selectedEstimacion, setSelectedEstimacion] = useState<any | null>(null);
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
   const [decisionType, setDecisionType] = useState<'approve' | 'reject'>('approve');
   const [decisionNotes, setDecisionNotes] = useState('');
 
-  React.useEffect(() => {
+  // Modal para detalhamento financeiro do cliente
+  const [financialModalData, setFinancialModalData] = useState<{ clientName: string; financial: any } | null>(null);
+
+  useEffect(() => {
     if (selectedEmpresaId && selectedEmpresaId !== 'all') {
       setEmpresaFilter(selectedEmpresaId);
     }
   }, [selectedEmpresaId]);
 
-  // Consulta de orçamentos em status 'review'
+  // Consulta de orçamentos em status 'review' com enriquecimento financeiro do cliente
   const { data: pendingEstimaciones = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['aprovacoes-pendentes', empresaFilter, selectedEmpresaId],
     queryFn: async () => {
@@ -130,12 +157,97 @@ export function MesaAprovacoesPage() {
           : Promise.resolve({ data: [] }),
       ]);
 
+      // Enriquecer dados financeiros (contas_receber) para os clientes
+      const clientFinancialMap: Record<string, any> = {};
+      if (clients && clients.length > 0) {
+        await Promise.all(
+          clients.map(async (client: any) => {
+            try {
+              let q = supabase
+                .from('contas_receber')
+                .select('id, empresa, cliente, cod_cliente, num_doc, data_emissao, dt_venc, dt_recebimento, valot_total, saldo_a_pagar, status')
+                .order('id', { ascending: false })
+                .limit(20);
+
+              if (client.codigo) {
+                q = q.or(`cod_cliente.eq.${client.codigo},cliente.ilike.%${client.trade_name || client.legal_name}%`);
+              } else {
+                q = q.ilike('cliente', `%${client.trade_name || client.legal_name}%`);
+              }
+
+              const { data: crRows } = await q;
+              if (crRows && crRows.length > 0) {
+                let totalFaturado = 0;
+                let totalSaldoAberto = 0;
+                let totalVencido = 0;
+                let faturasVencidas = 0;
+                const now = new Date();
+
+                for (const row of crRows) {
+                  const total = parseFloat((row.valot_total || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
+                  const saldo = parseFloat((row.saldo_a_pagar || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
+                  totalFaturado += total;
+                  totalSaldoAberto += saldo;
+
+                  const isPago = row.status === 'Pago' || saldo <= 0;
+                  if (!isPago && row.dt_venc) {
+                    const vencDate = new Date(row.dt_venc);
+                    if (vencDate < now) {
+                      totalVencido += saldo;
+                      faturasVencidas++;
+                    }
+                  }
+                }
+
+                const ultimaFatura = crRows[0] || null;
+                const ultimosPagamentos = crRows.filter(r => r.status === 'Pago' || (r.dt_recebimento && r.dt_recebimento !== null)).slice(0, 3);
+
+                clientFinancialMap[client.id] = {
+                  invoices: crRows,
+                  totalFaturado,
+                  totalSaldoAberto,
+                  totalVencido,
+                  faturasVencidas,
+                  totalInvoicesCount: crRows.length,
+                  ultimaFatura,
+                  ultimosPagamentos,
+                  hasDebt: totalVencido > 0,
+                  isUpToDate: totalVencido === 0 && totalSaldoAberto === 0,
+                  statusLabel: totalVencido > 0 
+                    ? 'Em Atraso' 
+                    : totalSaldoAberto > 0 
+                      ? 'A Vencer' 
+                      : 'Em Dia',
+                };
+              } else {
+                clientFinancialMap[client.id] = {
+                  invoices: [],
+                  totalFaturado: 0,
+                  totalSaldoAberto: 0,
+                  totalVencido: 0,
+                  faturasVencidas: 0,
+                  totalInvoicesCount: 0,
+                  ultimaFatura: null,
+                  ultimosPagamentos: [],
+                  hasDebt: false,
+                  isUpToDate: true,
+                  statusLabel: 'Sem Histórico',
+                };
+              }
+            } catch (err) {
+              console.warn('Erro ao carregar dados financeiros do cliente:', client.id, err);
+            }
+          })
+        );
+      }
+
       return data.map(est => ({
         ...est,
         client: clients?.find((c: any) => c.id === est.client_id),
         lead: leads?.find((l: any) => l.id === est.lead_id),
         seller: users?.find((u: any) => u.id === est.created_by),
         empresa: empresas.find(e => e.id === est.empresa_id),
+        financial: est.client_id ? clientFinancialMap[est.client_id] : null,
       }));
     },
     enabled: !!selectedEmpresaId,
@@ -158,6 +270,10 @@ export function MesaAprovacoesPage() {
     return acc + val;
   }, 0);
 
+  const totalEmAtraso = pendingEstimaciones.reduce((acc, est) => {
+    return acc + (est.financial?.totalVencido || 0);
+  }, 0);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'EUR' }).format(value);
   };
@@ -167,6 +283,17 @@ export function MesaAprovacoesPage() {
     const date = parseISO(isoString);
     if (!isValid(date)) return 'Data inválida';
     return format(date, "dd 'de' MMM 'às' HH:mm", { locale: ptBR });
+  };
+
+  const formatDateShort = (isoString?: string | null) => {
+    if (!isoString) return '-';
+    try {
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) return isoString;
+      return format(date, "dd/MM/yyyy", { locale: ptBR });
+    } catch {
+      return isoString;
+    }
   };
 
   const handleOpenDecision = (est: any, type: 'approve' | 'reject') => {
@@ -219,7 +346,7 @@ export function MesaAprovacoesPage() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 w-full max-w-[1700px] mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -230,30 +357,62 @@ export function MesaAprovacoesPage() {
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Mesa de Aprovações Comerciais
             </h1>
-            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300">
+            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 font-bold">
               {totalPendentes} {totalPendentes === 1 ? 'pendente' : 'pendentes'}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Avaliação de orçamentos com margem abaixo do parâmetro, tarifas operacionais abaixo do piso ou clientes com restrições financeiras.
+            Controle de exceções comerciais: margem reduzida, tarifas abaixo do piso operacional e conformidade de crédito de clientes.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+            <Button
+              variant={viewMode === 'table' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('table')}
+              className={`h-8 px-3 text-xs font-semibold gap-1.5 transition-all ${
+                viewMode === 'table' 
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm' 
+                  : 'text-muted-foreground hover:text-slate-900'
+              }`}
+            >
+              <List className="h-3.5 w-3.5" />
+              Lista Gerencial
+            </Button>
+            <Button
+              variant={viewMode === 'cards' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('cards')}
+              className={`h-8 px-3 text-xs font-semibold gap-1.5 transition-all ${
+                viewMode === 'cards' 
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm' 
+                  : 'text-muted-foreground hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Cards Detalhados
+            </Button>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="gap-2"
+            className="gap-2 h-9"
           >
             <RefreshCw className={`h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
+
           <Button
             variant="ghost"
             size="sm"
             onClick={() => navigate('/comercial/estimaciones')}
+            className="h-9"
           >
             Ver Todos os Orçamentos
           </Button>
@@ -261,7 +420,7 @@ export function MesaAprovacoesPage() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <Card className="border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs font-bold uppercase text-amber-700 dark:text-amber-400 flex items-center justify-between">
@@ -291,7 +450,24 @@ export function MesaAprovacoesPage() {
               {formatCurrency(valorTotalSobAnalise)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Receita bruta estimada
+              Receita bruta das propostas em análise
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 dark:border-slate-800">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+              <span>Débito em Atraso dos Clientes</span>
+              <CreditCard className="h-4 w-4 text-red-500" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className={`text-3xl font-black ${totalEmAtraso > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+              {formatCurrency(totalEmAtraso)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {totalEmAtraso > 0 ? 'Clientes proponentes com faturas vencidas' : 'Nenhum débito vencido identificado'}
             </p>
           </CardContent>
         </Card>
@@ -305,10 +481,10 @@ export function MesaAprovacoesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              Controle de Margem & Piso de Tarifas
+              Piso de Margem: 15%
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Decisões registradas com auditoria para a diretoria
+              Aprovações com registro de auditoria gerencial
             </p>
           </CardContent>
         </Card>
@@ -316,7 +492,7 @@ export function MesaAprovacoesPage() {
 
       {/* Search Bar & Company Filter */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
-        <div className="flex-1 flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 w-full">
+        <div className="flex-1 flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 w-full shadow-sm">
           <Search className="h-4 w-4 text-slate-400 shrink-0 ml-1" />
           <Input
             placeholder="Buscar por código, cliente, lead ou vendedor..."
@@ -333,7 +509,7 @@ export function MesaAprovacoesPage() {
 
         <div className="w-full sm:w-[240px]">
           <Select value={empresaFilter} onValueChange={setEmpresaFilter}>
-            <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-11 rounded-xl">
+            <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-11 rounded-xl shadow-sm">
               <SelectValue placeholder="Todas as Empresas" />
             </SelectTrigger>
             <SelectContent>
@@ -348,11 +524,11 @@ export function MesaAprovacoesPage() {
         </div>
       </div>
 
-      {/* List of Pending Reviews */}
+      {/* List / Table of Pending Reviews */}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center h-64 space-y-3">
           <RefreshCw className="h-8 w-8 animate-spin text-amber-500" />
-          <p className="text-sm text-muted-foreground">Carregando solicitações de aprovação...</p>
+          <p className="text-sm text-muted-foreground">Carregando solicitações de aprovação e histórico financeiro...</p>
         </div>
       ) : filteredEstimaciones.length === 0 ? (
         <Card className="border-dashed border-2 p-12 text-center">
@@ -370,7 +546,241 @@ export function MesaAprovacoesPage() {
             </p>
           </div>
         </Card>
+      ) : viewMode === 'table' ? (
+        /* ================= TABELA / LISTA GERENCIAL COMPACTA ================= */
+        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+          <Table>
+            <TableHeader className="bg-slate-50 dark:bg-slate-800/60">
+              <TableRow>
+                <TableHead className="w-[180px] font-bold">Orçamento / Data</TableHead>
+                <TableHead className="font-bold">Cliente / Proponente</TableHead>
+                <TableHead className="w-[260px] font-bold">Saúde Financeira / Cobrança</TableHead>
+                <TableHead className="w-[170px] font-bold">Receita / Custo</TableHead>
+                <TableHead className="w-[140px] font-bold">Margem</TableHead>
+                <TableHead className="font-bold">Motivo & Justificativa</TableHead>
+                <TableHead className="w-[160px] text-right font-bold">Ações Gerenciais</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredEstimaciones.map((est: any) => {
+                const clientName = est.client?.trade_name || est.client?.legal_name || est.lead?.company_name || est.lead?.name || 'Cliente não identificado';
+                const revenue = Number(est.total_estimated_revenue || est.current_version?.total_revenue || 0);
+                const cost = Number(est.total_estimated_cost || est.current_version?.total_cost || 0);
+                const margin = Number(est.estimated_margin_percent || est.current_version?.margin_percent || 0);
+                const reasons: string[] = Array.isArray(est.viability_reasons) ? est.viability_reasons : [];
+                const fin = est.financial;
+
+                return (
+                  <TableRow key={est.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
+                    {/* Código, Data e Empresa */}
+                    <TableCell className="align-top py-4">
+                      <div className="space-y-1">
+                        <div 
+                          className="font-mono font-bold text-sm text-slate-900 dark:text-slate-100 hover:text-amber-600 cursor-pointer flex items-center gap-1.5"
+                          onClick={() => navigate(`/comercial/estimaciones/${est.id}`)}
+                        >
+                          {est.codigo}
+                          <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatDateShort(est.review_requested_at || est.created_at)}
+                        </div>
+                        {est.empresa && (
+                          <Badge variant="outline" className="text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-amber-300">
+                            {est.empresa.trade_name || est.empresa.legal_name}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Cliente e Vendedor */}
+                    <TableCell className="align-top py-4">
+                      <div className="space-y-1">
+                        <div 
+                          className="font-bold text-sm text-slate-900 dark:text-slate-100 hover:underline cursor-pointer"
+                          onClick={() => navigate(`/comercial/estimaciones/${est.id}`)}
+                        >
+                          {clientName}
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <User className="h-3 w-3 text-slate-400" />
+                          Vendedor: {est.seller?.display_name || est.seller?.email || 'Comercial'}
+                        </div>
+                        {est.client?.codigo && (
+                          <span className="text-[10px] font-mono text-slate-400">
+                            Cód: {est.client.codigo}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Saúde Financeira / Cobrança */}
+                    <TableCell className="align-top py-4">
+                      {fin ? (
+                        <div className="space-y-1.5">
+                          {fin.hasDebt ? (
+                            <Badge variant="destructive" className="font-bold text-[11px] px-2 py-0.5 gap-1">
+                              <AlertTriangle className="h-3 w-3" />
+                              Dívida: {formatCurrency(fin.totalVencido)} ({fin.faturasVencidas} vencida{fin.faturasVencidas > 1 ? 's' : ''})
+                            </Badge>
+                          ) : fin.totalSaldoAberto > 0 ? (
+                            <Badge className="bg-amber-500 text-slate-950 font-bold text-[11px] px-2 py-0.5 gap-1">
+                              <Clock className="h-3 w-3" />
+                              A Vencer: {formatCurrency(fin.totalSaldoAberto)}
+                            </Badge>
+                          ) : fin.totalInvoicesCount > 0 ? (
+                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2 py-0.5 gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Em Dia (€ 0 pendente)
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-slate-500 text-[10px]">
+                              Sem Histórico de Faturas
+                            </Badge>
+                          )}
+
+                          {/* Última fatura emitida */}
+                          {fin.ultimaFatura && (
+                            <div className="text-[11px] text-muted-foreground leading-tight">
+                              <span className="font-semibold text-slate-700 dark:text-slate-300">Última Fat: </span>
+                              <span className="font-mono">{fin.ultimaFatura.num_doc || 'S/N'}</span>
+                              <span className="block text-[10px]">
+                                {formatCurrency(parseFloat(fin.ultimaFatura.valot_total || 0))} -{' '}
+                                <span className={fin.ultimaFatura.status === 'Pago' ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
+                                  {fin.ultimaFatura.status || 'Pendente'}
+                                </span>
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Botão Ver Extrato */}
+                          {fin.totalInvoicesCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setFinancialModalData({ clientName, financial: fin })}
+                              className="text-[11px] text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold flex items-center gap-1 mt-1 hover:underline"
+                            >
+                              <Receipt className="h-3 w-3" />
+                              Ver Extrato ({fin.totalInvoicesCount} faturas)
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">
+                          Lead sem histórico financeiro
+                        </span>
+                      )}
+                    </TableCell>
+
+                    {/* Receita / Custo */}
+                    <TableCell className="align-top py-4">
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-sm font-mono text-slate-900 dark:text-slate-100">
+                          {formatCurrency(revenue)}
+                        </div>
+                        <div className="text-xs font-mono text-muted-foreground">
+                          Custo: {formatCurrency(cost)}
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">
+                          {est.current_version?.items?.length || 0} cargo(s)
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    {/* Margem */}
+                    <TableCell className="align-top py-4">
+                      <div className="space-y-1">
+                        <div className={`text-base font-black ${margin < 15 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {margin.toFixed(2)}%
+                        </div>
+                        {margin < 15 ? (
+                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold uppercase">
+                            Abaixo de 15%
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-100 text-emerald-800 text-[9px] px-1.5 py-0 font-bold">
+                            Conforme
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Motivo & Justificativa */}
+                    <TableCell className="align-top py-4 max-w-[280px]">
+                      <div className="space-y-2">
+                        {reasons.length > 0 ? (
+                          <div className="text-[11px] text-red-700 dark:text-red-300 font-medium space-y-0.5">
+                            {reasons.map((r, idx) => (
+                              <div key={idx} className="flex items-start gap-1">
+                                <span className="text-red-500 font-bold">•</span>
+                                <span className="line-clamp-2">{r}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                            Margem reduzida fora da diretriz padrão.
+                          </div>
+                        )}
+
+                        {est.review_justification && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 line-clamp-2 cursor-help">
+                                  "{est.review_justification}"
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs text-xs p-3">
+                                <p className="font-bold mb-1">Justificativa do Vendedor:</p>
+                                <p className="italic">"{est.review_justification}"</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    {/* Ações */}
+                    <TableCell className="align-top py-4 text-right">
+                      <div className="flex flex-col gap-1.5 items-end">
+                        <Button
+                          size="sm"
+                          onClick={() => handleOpenDecision(est, 'approve')}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-7 px-3 w-[115px] justify-center shadow-sm"
+                        >
+                          <Check className="h-3.5 w-3.5 mr-1" />
+                          Aprovar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenDecision(est, 'reject')}
+                          className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 text-xs font-semibold h-7 px-3 w-[115px] justify-center"
+                        >
+                          <X className="h-3.5 w-3.5 mr-1" />
+                          Rejeitar
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigate(`/comercial/estimaciones/${est.id}`)}
+                          className="text-[11px] text-muted-foreground h-6 px-2 w-[115px] justify-center"
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Ver Detalhes
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       ) : (
+        /* ================= CARDS DETALHADOS ================= */
         <div className="space-y-4">
           {filteredEstimaciones.map((est: any) => {
             const clientName = est.client?.trade_name || est.client?.legal_name || est.lead?.company_name || est.lead?.name || 'Cliente não identificado';
@@ -378,6 +788,7 @@ export function MesaAprovacoesPage() {
             const cost = Number(est.total_estimated_cost || est.current_version?.total_cost || 0);
             const margin = Number(est.estimated_margin_percent || est.current_version?.margin_percent || 0);
             const reasons: string[] = Array.isArray(est.viability_reasons) ? est.viability_reasons : [];
+            const fin = est.financial;
 
             return (
               <Card
@@ -397,7 +808,7 @@ export function MesaAprovacoesPage() {
 
                   <div className="flex items-center gap-2">
                     {est.empresa && (
-                      <Badge variant="outline" className="text-[11px] bg-white dark:bg-slate-900">
+                      <Badge variant="outline" className="text-[11px] bg-white dark:bg-slate-900 font-semibold">
                         <Building2 className="h-3 w-3 mr-1 text-amber-500" />
                         {est.empresa.trade_name || est.empresa.legal_name}
                       </Badge>
@@ -409,7 +820,7 @@ export function MesaAprovacoesPage() {
                 </div>
 
                 <CardContent className="p-6 space-y-5">
-                  {/* Client and Financial summary row */}
+                  {/* Financial and proposal summary */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                     <div>
                       <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 block mb-1">
@@ -426,7 +837,7 @@ export function MesaAprovacoesPage() {
 
                     <div>
                       <span className="text-[11px] uppercase tracking-wider font-bold text-slate-400 block mb-1">
-                        Faturamento & Custo
+                        Faturamento & Custo Propostos
                       </span>
                       <div className="flex items-baseline gap-2">
                         <span className="font-bold text-base text-slate-900 dark:text-slate-100 font-mono">
@@ -457,6 +868,78 @@ export function MesaAprovacoesPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* NOVO BLOCO: Situação Financeira do Cliente */}
+                  {fin && (
+                    <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+                          <CreditCard className="h-4 w-4 text-indigo-500" />
+                          Situação Financeira & Histórico de Cobrança do Cliente:
+                        </div>
+                        {fin.totalInvoicesCount > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFinancialModalData({ clientName, financial: fin })}
+                            className="h-6 text-xs text-indigo-600 hover:text-indigo-800 gap-1 font-semibold p-1"
+                          >
+                            <Receipt className="h-3.5 w-3.5" />
+                            Extrato Completo ({fin.totalInvoicesCount} faturas)
+                            <ChevronRight className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <span className="text-muted-foreground block text-[11px]">Débito Vencido (Atraso)</span>
+                          <span className={`font-bold text-sm ${fin.totalVencido > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {formatCurrency(fin.totalVencido)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block">
+                            {fin.faturasVencidas} fatura{fin.faturasVencidas === 1 ? '' : 's'} vencida{fin.faturasVencidas === 1 ? '' : 's'}
+                          </span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <span className="text-muted-foreground block text-[11px]">Saldo Total em Aberto</span>
+                          <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                            {formatCurrency(fin.totalSaldoAberto)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block">
+                            Total a liquidar
+                          </span>
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <span className="text-muted-foreground block text-[11px]">Última Fatura Emitida</span>
+                          {fin.ultimaFatura ? (
+                            <div>
+                              <span className="font-bold font-mono text-xs block text-slate-900 dark:text-slate-100 truncate">
+                                {fin.ultimaFatura.num_doc || 'Sem nº'} ({formatCurrency(parseFloat(fin.ultimaFatura.valot_total || 0))})
+                              </span>
+                              <Badge className={`text-[9px] px-1 py-0 font-semibold ${fin.ultimaFatura.status === 'Pago' ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                                {fin.ultimaFatura.status || 'Pendente'}
+                              </Badge>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground italic text-xs">Sem emissões</span>
+                          )}
+                        </div>
+
+                        <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <span className="text-muted-foreground block text-[11px]">Total Faturado Histórico</span>
+                          <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
+                            {formatCurrency(fin.totalFaturado)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground block">
+                            {fin.totalInvoicesCount} faturas registradas
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Violations / Reasons Box */}
                   <div className="bg-red-50/60 dark:bg-red-950/20 p-4 rounded-xl border border-red-200 dark:border-red-900/50 space-y-2">
@@ -535,6 +1018,111 @@ export function MesaAprovacoesPage() {
         </div>
       )}
 
+      {/* Modal de Extrato Financeiro Completo do Cliente */}
+      <Dialog open={!!financialModalData} onOpenChange={(open) => !open && setFinancialModalData(null)}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Receipt className="h-5 w-5 text-indigo-500" />
+              Extrato de Cobrança & Faturamento — {financialModalData?.clientName}
+            </DialogTitle>
+            <DialogDescription>
+              Histórico das últimas faturas emitidas, vencimentos e liquidações registradas no Contas a Receber.
+            </DialogDescription>
+          </DialogHeader>
+
+          {financialModalData && (
+            <div className="space-y-4 pt-2">
+              {/* Resumo rápido no topo */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Total Faturado</span>
+                  <span className="text-base font-bold font-mono">
+                    {formatCurrency(financialModalData.financial.totalFaturado)}
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Saldo em Aberto</span>
+                  <span className="text-base font-bold font-mono">
+                    {formatCurrency(financialModalData.financial.totalSaldoAberto)}
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Débito Vencido</span>
+                  <span className={`text-base font-bold font-mono ${financialModalData.financial.totalVencido > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                    {formatCurrency(financialModalData.financial.totalVencido)}
+                  </span>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border">
+                  <span className="text-xs text-muted-foreground block">Status do Cliente</span>
+                  <Badge className={`text-xs mt-1 ${financialModalData.financial.hasDebt ? 'bg-red-600' : 'bg-emerald-600'}`}>
+                    {financialModalData.financial.statusLabel}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Tabela de faturas */}
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-slate-100 dark:bg-slate-800">
+                    <TableRow>
+                      <TableHead className="font-bold text-xs">Documento</TableHead>
+                      <TableHead className="font-bold text-xs">Emissão</TableHead>
+                      <TableHead className="font-bold text-xs">Vencimento</TableHead>
+                      <TableHead className="font-bold text-xs">Recebimento</TableHead>
+                      <TableHead className="font-bold text-xs text-right">Valor Total</TableHead>
+                      <TableHead className="font-bold text-xs text-right">Saldo Aberto</TableHead>
+                      <TableHead className="font-bold text-xs text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {financialModalData.financial.invoices.map((inv: any) => {
+                      const total = parseFloat((inv.valot_total || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
+                      const saldo = parseFloat((inv.saldo_a_pagar || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
+                      const isPago = inv.status === 'Pago' || saldo <= 0;
+
+                      return (
+                        <TableRow key={inv.id}>
+                          <TableCell className="font-mono font-bold text-xs">
+                            {inv.num_doc || `DOC-${inv.id}`}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {formatDateShort(inv.data_emissao)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {formatDateShort(inv.dt_venc)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono">
+                            {formatDateShort(inv.dt_recebimento)}
+                          </TableCell>
+                          <TableCell className="font-mono font-semibold text-xs text-right">
+                            {formatCurrency(total)}
+                          </TableCell>
+                          <TableCell className={`font-mono font-semibold text-xs text-right ${saldo > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-slate-400'}`}>
+                            {formatCurrency(saldo)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={`text-[10px] font-bold ${isPago ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                              {inv.status || (isPago ? 'Pago' : 'Pendente')}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFinancialModalData(null)}>
+              Fechar Extrato
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Modal de Decisão do Gerente */}
       <Dialog open={decisionModalOpen} onOpenChange={setDecisionModalOpen}>
         <DialogContent className="sm:max-w-md">
@@ -553,51 +1141,60 @@ export function MesaAprovacoesPage() {
               )}
             </DialogTitle>
             <DialogDescription>
-              {decisionType === 'approve' ? (
-                <>
-                  Ao aprovar, o orçamento {selectedEstimacion?.codigo} retornará ao status de rascunho com a flag de aprovação gerencial validada, liberando a geração e envio de propostas ao cliente.
-                </>
-              ) : (
-                <>
-                  Ao rejeitar, o orçamento {selectedEstimacion?.codigo} será marcado como rejeitado e o vendedor receberá suas instruções para refazer a proposta.
-                </>
-              )}
+              {decisionType === 'approve'
+                ? `Você está aprovando as condições comerciais fora de padrão para o orçamento ${selectedEstimacion?.codigo}. O vendedor poderá gerar e enviar a proposta ao cliente.`
+                : `Você está rejeitando o orçamento ${selectedEstimacion?.codigo}. O vendedor será notificado e deverá ajustar os valores/tarifas.`}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-2">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              {decisionType === 'approve'
-                ? 'Observações da Aprovação (Opcional - registrado no histórico)'
-                : 'Instruções de Revisão / Contraproposta *'}
-            </label>
-            <Textarea
-              placeholder={
-                decisionType === 'approve'
-                  ? 'Ex: Aprovado em caráter excepcional devido à previsão de fechamento de contrato anual...'
-                  : 'Ex: Aumentar tarifa para 28,00€ ou exigir pagamento de sinal de 30% em virtude das faturas em atraso...'
-              }
-              value={decisionNotes}
-              onChange={(e) => setDecisionNotes(e.target.value)}
-              rows={4}
-              className="text-xs"
-            />
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                {decisionType === 'approve'
+                  ? 'Observações da Aprovação (Opcional):'
+                  : 'Motivo da Rejeição / Contraproposta (Obrigatório):'}
+              </label>
+              <Textarea
+                placeholder={
+                  decisionType === 'approve'
+                    ? 'Ex: Aprovado conforme acordo de volume ou fidelidade do cliente...'
+                    : 'Ex: Aumentar a tarifa do soldador para no mínimo € 28,00/h para atingir margem de 18%...'
+                }
+                value={decisionNotes}
+                onChange={(e) => setDecisionNotes(e.target.value)}
+                className="text-xs resize-none"
+                rows={4}
+              />
+            </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDecisionModalOpen(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setDecisionModalOpen(false)}
+              disabled={decidirAprovacaoGerente.isPending}
+            >
               Cancelar
             </Button>
             <Button
+              onClick={handleConfirmDecision}
+              disabled={decidirAprovacaoGerente.isPending}
               className={
                 decisionType === 'approve'
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold'
                   : 'bg-red-600 hover:bg-red-700 text-white font-bold'
               }
-              onClick={handleConfirmDecision}
-              disabled={decidirAprovacaoGerente.isPending}
             >
-              {decidirAprovacaoGerente.isPending ? 'Processando...' : decisionType === 'approve' ? 'Confirmar Aprovação' : 'Confirmar Rejeição'}
+              {decidirAprovacaoGerente.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                  Processando...
+                </>
+              ) : decisionType === 'approve' ? (
+                'Confirmar Aprovação'
+              ) : (
+                'Confirmar Rejeição'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
