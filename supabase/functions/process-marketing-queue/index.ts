@@ -35,6 +35,17 @@ serve(async (req) => {
   }
 
   try {
+    let reqBody: any = {};
+    if (req.method === "POST") {
+      try {
+        reqBody = await req.json();
+      } catch {
+        // empty body ok
+      }
+    }
+    const requestedCampaignId = reqBody?.campaign_id || null;
+    const requestedEmpresaId = reqBody?.empresa_id || null;
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
@@ -45,38 +56,46 @@ serve(async (req) => {
 
     console.log("Iniciando processamento da fila de e-mail marketing...");
 
+    let targetCampaignId: string | null = requestedCampaignId;
+
     // 1. Verificar campanhas com status 'sending' em ordem de agendamento/criação
-    const { data: currentSendingCampaigns, error: errSending } = await supabase
-      .from("marketing_campaigns")
-      .select("id, title, scheduled_at, created_at")
-      .eq("status", "sending")
-      .order("scheduled_at", { ascending: true, nullsFirst: true })
-      .order("created_at", { ascending: true });
+    if (!targetCampaignId) {
+      let query = supabase
+        .from("marketing_campaigns")
+        .select("id, title, scheduled_at, created_at, empresa_id")
+        .eq("status", "sending");
 
-    if (errSending) throw errSending;
+      if (requestedEmpresaId) {
+        query = query.eq("empresa_id", requestedEmpresaId);
+      }
 
-    let targetCampaignId: string | null = null;
+      const { data: currentSendingCampaigns, error: errSending } = await query
+        .order("scheduled_at", { ascending: true, nullsFirst: true })
+        .order("created_at", { ascending: true });
 
-    // Priorizar a primeira campanha 'sending' que ainda possua e-mails pendentes
-    if (currentSendingCampaigns && currentSendingCampaigns.length > 0) {
-      for (const camp of currentSendingCampaigns) {
-        const { count, error: errCount } = await supabase
-          .from("marketing_campaign_queue")
-          .select("*", { count: "exact", head: true })
-          .eq("campaign_id", camp.id)
-          .eq("status", "pending");
+      if (errSending) throw errSending;
 
-        if (!errCount && count && count > 0) {
-          targetCampaignId = camp.id;
-          console.log(`Campanha prioritária em andamento: ${camp.title} (${count} pendentes).`);
-          break;
-        } else {
-          // Campanha sem pendências: marca como concluída
-          await supabase
-            .from("marketing_campaigns")
-            .update({ status: "completed", updated_at: new Date().toISOString() })
-            .eq("id", camp.id);
-          console.log(`Campanha ${camp.title} finalizada como 'completed'.`);
+      // Priorizar a primeira campanha 'sending' que ainda possua e-mails pendentes
+      if (currentSendingCampaigns && currentSendingCampaigns.length > 0) {
+        for (const camp of currentSendingCampaigns) {
+          const { count, error: errCount } = await supabase
+            .from("marketing_campaign_queue")
+            .select("*", { count: "exact", head: true })
+            .eq("campaign_id", camp.id)
+            .eq("status", "pending");
+
+          if (!errCount && count && count > 0) {
+            targetCampaignId = camp.id;
+            console.log(`Campanha prioritária em andamento: ${camp.title} (${count} pendentes).`);
+            break;
+          } else {
+            // Campanha sem pendências: marca como concluída
+            await supabase
+              .from("marketing_campaigns")
+              .update({ status: "completed", updated_at: new Date().toISOString() })
+              .eq("id", camp.id);
+            console.log(`Campanha ${camp.title} finalizada como 'completed'.`);
+          }
         }
       }
     }
@@ -242,7 +261,6 @@ serve(async (req) => {
         : `${rawFormattedHtml}${trackingPixelHtml}`;
       
       // 1. Resolução inteligente do Remetente por Empresa e País do Lead
-      const companyTrade = (company?.trade_name || '').toUpperCase();
       const leadTags = Array.isArray(lead.tags) ? lead.tags.join(' ').toLowerCase() : '';
       const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy');
       const isFranceLead = leadTags.includes('frança') || leadTags.includes('francia') || leadTags.includes('france');
