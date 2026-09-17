@@ -120,11 +120,32 @@ export function useEstimacionMutations() {
       );
       queryClient.invalidateQueries({ queryKey: ['estimaciones', selectedEmpresaId] });
       queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, variables.id] });
-      queryClient.invalidateQueries({ queryKey: ['aprovacoes-pendentes', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['aprovacoes-pendentes'] });
     },
     onError: (error: any) => {
       console.error(error);
       toast.error('Erro ao processar decisão do gerente', { description: error.message });
+    },
+  });
+
+  const reabrirAnaliseGerente = useMutation({
+    mutationFn: async ({ id, notes }: { id: string; notes?: string }) => {
+      const { data, error } = await supabase.schema('core_comercial').rpc('reabrir_analise_gerente', {
+        p_estimacion_id: id,
+        p_notes: notes || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success('Orçamento reaberto e retornado para a fila de Pendentes!');
+      queryClient.invalidateQueries({ queryKey: ['estimaciones', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, variables.id] });
+      queryClient.invalidateQueries({ queryKey: ['aprovacoes-pendentes'] });
+    },
+    onError: (error: any) => {
+      console.error(error);
+      toast.error('Erro ao reabrir orçamento', { description: error.message });
     },
   });
 
@@ -216,6 +237,7 @@ export function useEstimacionMutations() {
     atualizarEstimacion,
     enviarProposta,
     decidirAprovacaoGerente,
+    reabrirAnaliseGerente,
     criarNovaVersao,
     decidirContratoCustomizado,
     submeterParaRevisao,

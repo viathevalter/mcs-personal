@@ -71,7 +71,13 @@ import {
   Check,
   X,
   ChevronRight,
+  History,
+  RotateCcw,
+  Sparkles,
+  AlertCircle,
+  ArrowUpRight,
 } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -80,8 +86,9 @@ import { parseEuroNumber } from '@/features/financeiro/lib/utils';
 export function MesaAprovacoesPage() {
   const navigate = useNavigate();
   const { selectedEmpresaId, role, empresas = [] } = useEmpresa();
-  const { decidirAprovacaoGerente } = useEstimacionMutations();
+  const { decidirAprovacaoGerente, reabrirAnaliseGerente } = useEstimacionMutations();
 
+  const [statusTab, setStatusTab] = useState<'pending' | 'rejected' | 'approved' | 'all_resolved'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [empresaFilter, setEmpresaFilter] = useState<string>(selectedEmpresaId || 'all');
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
@@ -89,6 +96,10 @@ export function MesaAprovacoesPage() {
   const [decisionModalOpen, setDecisionModalOpen] = useState(false);
   const [decisionType, setDecisionType] = useState<'approve' | 'reject'>('approve');
   const [decisionNotes, setDecisionNotes] = useState('');
+
+  // Modal para reabertura de orçamento para a fila de análise
+  const [reopenModalOpen, setReopenModalOpen] = useState(false);
+  const [reopenNotes, setReopenNotes] = useState('');
 
   // Modal para detalhamento financeiro do cliente
   const [financialModalData, setFinancialModalData] = useState<{ clientName: string; financial: any } | null>(null);
@@ -99,9 +110,9 @@ export function MesaAprovacoesPage() {
     }
   }, [selectedEmpresaId]);
 
-  // Consulta de orçamentos em status 'review' com enriquecimento financeiro do cliente
-  const { data: pendingEstimaciones = [], isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['aprovacoes-pendentes', empresaFilter, selectedEmpresaId],
+  // Consulta de orçamentos (pendentes de review, rejeitados ou aprovados pelo gerente)
+  const { data: allEstimaciones = [], isLoading, refetch, isRefetching } = useQuery({
+    queryKey: ['aprovacoes-comerciais', empresaFilter, selectedEmpresaId],
     queryFn: async () => {
       let query = supabase
         .schema('core_comercial')
@@ -124,8 +135,8 @@ export function MesaAprovacoesPage() {
             )
           )
         `)
-        .eq('status', 'review')
-        .order('review_requested_at', { ascending: false, nullsFirst: false });
+        .or('status.eq.review,status.eq.rejected,is_approved_by_manager.eq.true,reviewed_at.not.is.null')
+        .order('created_at', { ascending: false });
 
       if (empresaFilter && empresaFilter !== 'all') {
         query = query.eq('empresa_id', empresaFilter);
@@ -133,14 +144,19 @@ export function MesaAprovacoesPage() {
 
       const { data, error } = await query;
       if (error) {
-        console.error('Erro na query de aprovações pendentes:', error);
+        console.error('Erro na query de aprovações comerciais:', error);
         throw error;
       }
       if (!data || data.length === 0) return [];
 
       const clientIds = [...new Set(data.map(d => d.client_id).filter(Boolean))];
       const leadIds = [...new Set(data.map(d => d.lead_id).filter(Boolean))];
-      const userIds = [...new Set(data.map(d => d.created_by).filter(Boolean))];
+      const userIds = [
+        ...new Set([
+          ...data.map(d => d.created_by),
+          ...data.map(d => d.reviewed_by),
+        ].filter(Boolean))
+      ];
 
       const [
         { data: clients },
@@ -247,6 +263,7 @@ export function MesaAprovacoesPage() {
         client: clients?.find((c: any) => c.id === est.client_id),
         lead: leads?.find((l: any) => l.id === est.lead_id),
         seller: users?.find((u: any) => u.id === est.created_by),
+        reviewer: users?.find((u: any) => u.id === est.reviewed_by),
         empresa: empresas.find(e => e.id === est.empresa_id),
         financial: est.client_id ? clientFinancialMap[est.client_id] : null,
       }));
@@ -254,26 +271,76 @@ export function MesaAprovacoesPage() {
     enabled: !!selectedEmpresaId,
   });
 
-  // Filtragem local
-  const filteredEstimaciones = pendingEstimaciones.filter((est: any) => {
+  // Categorização de status
+  const isItemPending = (est: any) => est.status === 'review';
+  const isItemRejected = (est: any) => est.status === 'rejected' || (!est.is_approved_by_manager && !!est.reviewed_at);
+  const isItemApproved = (est: any) => Boolean(est.is_approved_by_manager);
+
+  const pendingEstimaciones = allEstimaciones.filter(isItemPending);
+  const rejectedEstimaciones = allEstimaciones.filter(isItemRejected);
+  const approvedEstimaciones = allEstimaciones.filter(isItemApproved);
+  const resolvedEstimaciones = allEstimaciones.filter(est => isItemRejected(est) || isItemApproved(est));
+
+  // Identificar orçamentos rejeitados cujos clientes agora estão com financeiro regularizado
+  const regularizedRejected = rejectedEstimaciones.filter(
+    est => est.financial?.isUpToDate && est.financial?.totalInvoicesCount > 0
+  );
+  const regularizedRejectedCount = regularizedRejected.length;
+
+  // Lista da aba ativa
+  const currentTabEstimaciones = (() => {
+    switch (statusTab) {
+      case 'pending':
+        return pendingEstimaciones;
+      case 'rejected':
+        return rejectedEstimaciones;
+      case 'approved':
+        return approvedEstimaciones;
+      case 'all_resolved':
+        return resolvedEstimaciones;
+      default:
+        return pendingEstimaciones;
+    }
+  })();
+
+  // Filtragem local por termo de busca
+  const filteredEstimaciones = currentTabEstimaciones.filter((est: any) => {
     if (!searchTerm.trim()) return true;
     const term = searchTerm.toLowerCase();
     const code = (est.codigo || '').toLowerCase();
     const clientName = (est.client?.trade_name || est.client?.legal_name || est.lead?.company_name || est.lead?.name || '').toLowerCase();
     const seller = (est.seller?.display_name || est.seller?.email || '').toLowerCase();
-    return code.includes(term) || clientName.includes(term) || seller.includes(term);
+    const reviewer = (est.reviewer?.display_name || est.reviewer?.email || '').toLowerCase();
+    const decisionNotes = (est.review_decision_notes || '').toLowerCase();
+    const justification = (est.review_justification || '').toLowerCase();
+
+    return (
+      code.includes(term) ||
+      clientName.includes(term) ||
+      seller.includes(term) ||
+      reviewer.includes(term) ||
+      decisionNotes.includes(term) ||
+      justification.includes(term)
+    );
   });
 
-  // KPIs
-  const totalPendentes = pendingEstimaciones.length;
-  const valorTotalSobAnalise = pendingEstimaciones.reduce((acc, est) => {
-    const val = Number(est.total_estimated_revenue || est.current_version?.total_revenue || 0);
-    return acc + val;
-  }, 0);
+  // KPIs dinâmicos conforme a aba ativa
+  const pendentesCount = pendingEstimaciones.length;
+  const pendentesRevenue = pendingEstimaciones.reduce((acc, est) => acc + Number(est.total_estimated_revenue || est.current_version?.total_revenue || 0), 0);
+  const pendentesDebito = pendingEstimaciones.reduce((acc, est) => acc + (est.financial?.totalVencido || 0), 0);
 
-  const totalEmAtraso = pendingEstimaciones.reduce((acc, est) => {
-    return acc + (est.financial?.totalVencido || 0);
-  }, 0);
+  const rejectedCount = rejectedEstimaciones.length;
+  const rejectedRevenue = rejectedEstimaciones.reduce((acc, est) => acc + Number(est.total_estimated_revenue || est.current_version?.total_revenue || 0), 0);
+
+  const approvedCount = approvedEstimaciones.length;
+  const approvedRevenue = approvedEstimaciones.reduce((acc, est) => acc + Number(est.total_estimated_revenue || est.current_version?.total_revenue || 0), 0);
+  const approvedMarginAvg = approvedCount > 0
+    ? (approvedEstimaciones.reduce((acc, est) => acc + Number(est.estimated_margin_percent || est.current_version?.margin_percent || 0), 0) / approvedCount)
+    : 0;
+
+  const resolvedCount = resolvedEstimaciones.length;
+  const resolvedRevenue = resolvedEstimaciones.reduce((acc, est) => acc + Number(est.total_estimated_revenue || est.current_version?.total_revenue || 0), 0);
+  const approvalRate = resolvedCount > 0 ? (approvedCount / resolvedCount) * 100 : 0;
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'EUR' }).format(value);
@@ -302,6 +369,27 @@ export function MesaAprovacoesPage() {
     setDecisionType(type);
     setDecisionNotes('');
     setDecisionModalOpen(true);
+  };
+
+  const handleOpenReopen = (est: any) => {
+    setSelectedEstimacion(est);
+    setReopenNotes('');
+    setReopenModalOpen(true);
+  };
+
+  const handleConfirmReopen = async () => {
+    if (!selectedEstimacion) return;
+    try {
+      await reabrirAnaliseGerente.mutateAsync({
+        id: selectedEstimacion.id,
+        notes: reopenNotes.trim() || 'Reaberto para nova análise da gerência',
+      });
+      setReopenModalOpen(false);
+      setSelectedEstimacion(null);
+      refetch();
+    } catch (err: any) {
+      console.error('Erro ao reabrir orçamento:', err);
+    }
   };
 
   const handleConfirmDecision = () => {
@@ -352,18 +440,41 @@ export function MesaAprovacoesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-xl">
+            <div className={`p-2 rounded-xl ${
+              statusTab === 'pending'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                : statusTab === 'rejected'
+                  ? 'bg-red-500/10 text-red-600 dark:text-red-400'
+                  : statusTab === 'approved'
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+            }`}>
               <ShieldCheck className="h-6 w-6" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
               Mesa de Aprovações Comerciais
             </h1>
-            <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 font-bold">
-              {totalPendentes} {totalPendentes === 1 ? 'pendente' : 'pendentes'}
+            <Badge variant="outline" className={`font-bold ${
+              statusTab === 'pending'
+                ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300'
+                : statusTab === 'rejected'
+                  ? 'bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 border-red-300'
+                  : statusTab === 'approved'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300'
+                    : 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-300'
+            }`}>
+              {currentTabEstimaciones.length}{' '}
+              {statusTab === 'pending'
+                ? currentTabEstimaciones.length === 1 ? 'pendente' : 'pendentes'
+                : statusTab === 'rejected'
+                  ? currentTabEstimaciones.length === 1 ? 'rejeitado' : 'rejeitados'
+                  : statusTab === 'approved'
+                    ? currentTabEstimaciones.length === 1 ? 'aprovado' : 'aprovados'
+                    : currentTabEstimaciones.length === 1 ? 'deliberação' : 'deliberações'}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Controle de exceções comerciais: margem reduzida, tarifas abaixo do piso operacional e conformidade de crédito de clientes.
+            Controle de exceções comerciais: pendências urgentes, histórico de orçamentos rejeitados/suspensos e aprovações gerenciais.
           </p>
         </div>
 
@@ -420,83 +531,356 @@ export function MesaAprovacoesPage() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Card className="border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/10">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-amber-700 dark:text-amber-400 flex items-center justify-between">
-              <span>Orçamentos em Análise</span>
-              <Clock className="h-4 w-4 text-amber-600" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-amber-900 dark:text-amber-200">
-              {totalPendentes}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Aguardando decisão da gerência
-            </p>
-          </CardContent>
-        </Card>
+      {/* Abas Principais: Pendentes vs Rejeitados vs Aprovados vs Todos Resolvidos */}
+      <Tabs value={statusTab} onValueChange={(val: any) => setStatusTab(val)} className="w-full">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full max-w-4xl h-12 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl shadow-inner">
+          <TabsTrigger 
+            value="pending"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-amber-600 dark:data-[state=active]:text-amber-400 font-bold text-xs gap-2 rounded-lg transition-all"
+          >
+            <Clock className="h-4 w-4 text-amber-500" />
+            <span>Pendentes (Urgente)</span>
+            <Badge className="bg-amber-500 hover:bg-amber-500 text-slate-950 font-black text-[10px] px-1.5 py-0 shadow-sm">
+              {pendentesCount}
+            </Badge>
+          </TabsTrigger>
 
-        <Card className="border-slate-200 dark:border-slate-800">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
-              <span>Valor Total Sob Avaliação</span>
-              <Coins className="h-4 w-4 text-indigo-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
-              {formatCurrency(valorTotalSobAnalise)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Receita bruta das propostas em análise
-            </p>
-          </CardContent>
-        </Card>
+          <TabsTrigger 
+            value="rejected"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-red-600 dark:data-[state=active]:text-red-400 font-bold text-xs gap-2 rounded-lg transition-all"
+          >
+            <XCircle className="h-4 w-4 text-red-500" />
+            <span>Rejeitados / Suspensos</span>
+            <Badge variant="outline" className={`font-black text-[10px] px-1.5 py-0 ${rejectedCount > 0 ? 'bg-red-50 text-red-700 border-red-300 dark:bg-red-950/40 dark:text-red-300' : 'text-slate-400'}`}>
+              {rejectedCount}
+            </Badge>
+          </TabsTrigger>
 
-        <Card className="border-slate-200 dark:border-slate-800">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
-              <span>Débito em Atraso dos Clientes</span>
-              <CreditCard className="h-4 w-4 text-red-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className={`text-3xl font-black ${totalEmAtraso > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-              {formatCurrency(totalEmAtraso)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {totalEmAtraso > 0 ? 'Clientes proponentes com faturas vencidas' : 'Nenhum débito vencido identificado'}
-            </p>
-          </CardContent>
-        </Card>
+          <TabsTrigger 
+            value="approved"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 font-bold text-xs gap-2 rounded-lg transition-all"
+          >
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            <span>Aprovados</span>
+            <Badge variant="outline" className={`font-black text-[10px] px-1.5 py-0 ${approvedCount > 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300' : 'text-slate-400'}`}>
+              {approvedCount}
+            </Badge>
+          </TabsTrigger>
 
-        <Card className="border-slate-200 dark:border-slate-800">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
-              <span>Diretriz Comercial</span>
-              <ShieldCheck className="h-4 w-4 text-emerald-500" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              Piso de Margem: 15%
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Aprovações com registro de auditoria gerencial
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+          <TabsTrigger 
+            value="all_resolved"
+            className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 font-bold text-xs gap-2 rounded-lg transition-all"
+          >
+            <History className="h-4 w-4 text-slate-500" />
+            <span>Todos Resolvidos</span>
+            <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0 text-slate-500">
+              {resolvedCount}
+            </Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Alerta de Clientes com Dívida Regularizada no Contas a Receber */}
+      {statusTab === 'rejected' && regularizedRejectedCount > 0 && (
+        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800/70 p-3.5 rounded-xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200 shadow-sm">
+          <div className="flex items-center gap-2.5 font-medium">
+            <Sparkles className="h-5 w-5 text-emerald-600 shrink-0 animate-bounce" />
+            <span>
+              <strong>{regularizedRejectedCount} orçamento(s)</strong> possuem clientes que regularizaram suas pendências financeiras no Contas a Receber! O histórico agora consta <strong>Em Dia (€ 0 pendente)</strong>. Você pode clicar em <strong>"Aprovar Agora"</strong> para liberar o orçamento.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Cards Dinâmicos Conforme a Aba Ativa */}
+      {statusTab === 'pending' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Card className="border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-950/10 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-amber-700 dark:text-amber-400 flex items-center justify-between">
+                <span>Orçamentos em Análise</span>
+                <Clock className="h-4 w-4 text-amber-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-amber-900 dark:text-amber-200">
+                {pendentesCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Aguardando decisão urgente da gerência
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Valor Total Sob Avaliação</span>
+                <Coins className="h-4 w-4 text-indigo-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                {formatCurrency(pendentesRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Receita bruta das propostas pendentes
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Débito em Atraso dos Clientes</span>
+                <CreditCard className="h-4 w-4 text-red-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-black ${pendentesDebito > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                {formatCurrency(pendentesDebito)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {pendentesDebito > 0 ? 'Proponentes com títulos vencidos no Contas a Receber' : 'Nenhum débito vencido identificado'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Diretriz Comercial</span>
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Piso de Margem: 15%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Aprovações com registro de auditoria gerencial
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : statusTab === 'rejected' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Card className="border-red-200 dark:border-red-900/40 bg-red-50/30 dark:bg-red-950/10 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-red-700 dark:text-red-400 flex items-center justify-between">
+                <span>Orçamentos Rejeitados / Suspensos</span>
+                <XCircle className="h-4 w-4 text-red-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-red-900 dark:text-red-200">
+                {rejectedCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Propostas retidas por crédito ou margem
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Volume Bloqueado / Em Espera</span>
+                <Coins className="h-4 w-4 text-amber-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                {formatCurrency(rejectedRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Volume financeiro sob suspensão temporária
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className={`border shadow-sm ${regularizedRejectedCount > 0 ? 'border-emerald-300 bg-emerald-50/40 dark:bg-emerald-950/20' : 'border-slate-200 dark:border-slate-800'}`}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Clientes Regularizados</span>
+                <Sparkles className="h-4 w-4 text-emerald-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className={`text-3xl font-black ${regularizedRejectedCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                {regularizedRejectedCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {regularizedRejectedCount > 0 ? 'Clientes quitaram débitos e podem ser aprovados' : 'Nenhum cliente regularizado ainda'}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Ação de Recuperação</span>
+                <RotateCcw className="h-4 w-4 text-indigo-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Reviver ou Aprovar Agora
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Reabra ou aprove propostas conforme liquidação financeira
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : statusTab === 'approved' ? (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Card className="border-emerald-200 dark:border-emerald-900/40 bg-emerald-50/30 dark:bg-emerald-950/10 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-emerald-700 dark:text-emerald-400 flex items-center justify-between">
+                <span>Orçamentos Aprovados</span>
+                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-emerald-900 dark:text-emerald-200">
+                {approvedCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Exceções comerciais autorizadas
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Receita Liberada</span>
+                <Coins className="h-4 w-4 text-emerald-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                {formatCurrency(approvedRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Volume financeiro desbloqueado para proposta
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Margem Média das Exceções</span>
+                <TrendingDown className="h-4 w-4 text-amber-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                {approvedMarginAvg.toFixed(2)}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Margem média ponderada das concessões
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Auditoria & Governança</span>
+                <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Histórico Auditado
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Decisões gravadas com responsável e data
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <Card className="border-indigo-200 dark:border-indigo-900/40 bg-indigo-50/30 dark:bg-indigo-950/10 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-indigo-700 dark:text-indigo-400 flex items-center justify-between">
+                <span>Total Deliberado</span>
+                <History className="h-4 w-4 text-indigo-600" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-indigo-900 dark:text-indigo-200">
+                {resolvedCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {approvedCount} aprovados e {rejectedCount} rejeitados
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Volume Total Avaliado</span>
+                <Coins className="h-4 w-4 text-indigo-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                {formatCurrency(resolvedRevenue)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Volume financeiro total deliberado
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Taxa de Aprovação</span>
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-slate-900 dark:text-slate-100">
+                {approvalRate.toFixed(1)}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Proporção de exceções autorizadas
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-bold uppercase text-slate-500 flex items-center justify-between">
+                <span>Fila Urgente Atual</span>
+                <Clock className="h-4 w-4 text-amber-500" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-black text-amber-600 dark:text-amber-400">
+                {pendentesCount}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Orçamentos aguardando na fila de análise
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Search Bar & Company Filter */}
       <div className="flex flex-col sm:flex-row items-center gap-3">
         <div className="flex-1 flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 w-full shadow-sm">
           <Search className="h-4 w-4 text-slate-400 shrink-0 ml-1" />
           <Input
-            placeholder="Buscar por código, cliente, lead ou vendedor..."
+            placeholder="Buscar por código, cliente, lead, vendedor ou motivo..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="border-0 focus-visible:ring-0 shadow-none text-sm p-0 h-auto"
@@ -534,16 +918,36 @@ export function MesaAprovacoesPage() {
       ) : filteredEstimaciones.length === 0 ? (
         <Card className="border-dashed border-2 p-12 text-center">
           <div className="flex flex-col items-center justify-center space-y-3">
-            <div className="h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 flex items-center justify-center">
-              <CheckCircle2 className="h-6 w-6" />
+            <div className={`h-12 w-12 rounded-full flex items-center justify-center ${
+              statusTab === 'pending'
+                ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600'
+                : statusTab === 'rejected'
+                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                  : 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-600'
+            }`}>
+              {statusTab === 'pending' ? <CheckCircle2 className="h-6 w-6" /> : <History className="h-6 w-6" />}
             </div>
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              {searchTerm ? 'Nenhum orçamento encontrado para o filtro' : 'Mesa de Aprovações Limpa!'}
+              {searchTerm
+                ? 'Nenhum orçamento encontrado para os termos da busca'
+                : statusTab === 'pending'
+                  ? 'Mesa de Aprovações Limpa!'
+                  : statusTab === 'rejected'
+                    ? 'Nenhum orçamento rejeitado ou suspenso'
+                    : statusTab === 'approved'
+                      ? 'Nenhum orçamento aprovado por exceção'
+                      : 'Nenhum histórico de deliberação'}
             </h3>
             <p className="text-xs text-muted-foreground max-w-sm">
               {searchTerm
                 ? 'Tente ajustar os termos de busca para localizar o orçamento desejado.'
-                : 'Não há orçamentos pendentes de análise ou aprovação no momento. Todos os orçamentos estão em conformidade.'}
+                : statusTab === 'pending'
+                  ? 'Não há orçamentos pendentes de análise ou aprovação no momento. Todos os orçamentos estão em conformidade.'
+                  : statusTab === 'rejected'
+                    ? 'Não constam orçamentos rejeitados ou aguardando regularização financeira de clientes.'
+                    : statusTab === 'approved'
+                      ? 'Ainda não foram aprovadas exceções comerciais com parecer gerencial.'
+                      : 'Nenhuma decisão de aprovação ou rejeição registrada até o momento.'}
             </p>
           </div>
         </Card>
@@ -555,11 +959,13 @@ export function MesaAprovacoesPage() {
               <TableRow>
                 <TableHead className="w-[180px] font-bold">Orçamento / Data</TableHead>
                 <TableHead className="font-bold">Cliente / Proponente</TableHead>
-                <TableHead className="w-[260px] font-bold">Saúde Financeira / Cobrança</TableHead>
-                <TableHead className="w-[170px] font-bold">Receita / Custo</TableHead>
-                <TableHead className="w-[140px] font-bold">Margem</TableHead>
-                <TableHead className="font-bold">Motivo & Justificativa</TableHead>
-                <TableHead className="w-[160px] text-right font-bold">Ações Gerenciais</TableHead>
+                <TableHead className="w-[270px] font-bold">Saúde Financeira / Cobrança</TableHead>
+                <TableHead className="w-[160px] font-bold">Receita / Custo</TableHead>
+                <TableHead className="w-[130px] font-bold">Margem</TableHead>
+                <TableHead className="font-bold">
+                  {statusTab === 'pending' ? 'Motivo do Bloqueio & Justificativa' : 'Deliberação & Motivo'}
+                </TableHead>
+                <TableHead className="w-[170px] text-right font-bold">Ações Gerenciais</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -570,6 +976,11 @@ export function MesaAprovacoesPage() {
                 const margin = Number(est.estimated_margin_percent || est.current_version?.margin_percent || 0);
                 const reasons: string[] = Array.isArray(est.viability_reasons) ? est.viability_reasons : [];
                 const fin = est.financial;
+
+                const isPending = isItemPending(est);
+                const isRejected = isItemRejected(est);
+                const isApproved = isItemApproved(est);
+                const isRegularized = isRejected && fin?.isUpToDate && fin?.totalInvoicesCount > 0;
 
                 return (
                   <TableRow key={est.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors">
@@ -590,6 +1001,17 @@ export function MesaAprovacoesPage() {
                         {est.empresa && (
                           <Badge variant="outline" className="text-[10px] font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border-amber-300">
                             {est.empresa.trade_name || est.empresa.legal_name}
+                          </Badge>
+                        )}
+                        {/* Status visual se for resolvido */}
+                        {isRejected && (
+                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0 font-bold uppercase block w-fit">
+                            Rejeitado
+                          </Badge>
+                        )}
+                        {isApproved && (
+                          <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0 font-bold uppercase block w-fit">
+                            Aprovado
                           </Badge>
                         )}
                       </div>
@@ -620,6 +1042,13 @@ export function MesaAprovacoesPage() {
                     <TableCell className="align-top py-4">
                       {fin ? (
                         <div className="space-y-1.5">
+                          {isRegularized && (
+                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] px-2 py-0.5 gap-1 mb-1 shadow-sm">
+                              <Sparkles className="h-3 w-3" />
+                              Dívida Regularizada!
+                            </Badge>
+                          )}
+
                           {fin.hasDebt ? (
                             <Badge variant="destructive" className="font-bold text-[11px] px-2 py-0.5 gap-1">
                               <AlertTriangle className="h-3 w-3" />
@@ -710,38 +1139,82 @@ export function MesaAprovacoesPage() {
                       </div>
                     </TableCell>
 
-                    {/* Motivo & Justificativa */}
+                    {/* Motivo & Decisão / Justificativa */}
                     <TableCell className="align-top py-4 max-w-[280px]">
                       <div className="space-y-2">
-                        {reasons.length > 0 ? (
-                          <div className="text-[11px] text-red-700 dark:text-red-300 font-medium space-y-0.5">
-                            {reasons.map((r, idx) => (
-                              <div key={idx} className="flex items-start gap-1">
-                                <span className="text-red-500 font-bold">•</span>
-                                <span className="line-clamp-2">{r}</span>
+                        {/* Se Pendente */}
+                        {isPending && (
+                          <>
+                            {reasons.length > 0 ? (
+                              <div className="text-[11px] text-red-700 dark:text-red-300 font-medium space-y-0.5">
+                                {reasons.map((r, idx) => (
+                                  <div key={idx} className="flex items-start gap-1">
+                                    <span className="text-red-500 font-bold">•</span>
+                                    <span className="line-clamp-2">{r}</span>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
-                            Margem reduzida fora da diretriz padrão.
+                            ) : (
+                              <div className="text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+                                Margem reduzida fora da diretriz padrão.
+                              </div>
+                            )}
+
+                            {est.review_justification && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 line-clamp-2 cursor-help">
+                                      "{est.review_justification}"
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs text-xs p-3">
+                                    <p className="font-bold mb-1">Justificativa do Vendedor:</p>
+                                    <p className="italic">"{est.review_justification}"</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </>
+                        )}
+
+                        {/* Se Rejeitado */}
+                        {isRejected && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-[11px] text-red-700 dark:text-red-300 font-semibold">
+                              <XCircle className="h-3.5 w-3.5 text-red-600" />
+                              Rejeitado em {formatDateShort(est.reviewed_at)}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground block">
+                              Por: {est.reviewer?.display_name || est.reviewer?.email || 'Gerência'}
+                            </span>
+                            <div className="text-[11px] text-slate-800 dark:text-slate-200 bg-red-50/60 dark:bg-red-950/20 p-1.5 rounded border border-red-200 dark:border-red-900/50">
+                              <span className="font-semibold block text-[10px] text-red-800 dark:text-red-300">Parecer:</span>
+                              "{est.review_decision_notes || 'Rejeitado pela gerência'}"
+                            </div>
                           </div>
                         )}
 
-                        {est.review_justification && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div className="text-[11px] text-slate-600 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 line-clamp-2 cursor-help">
-                                  "{est.review_justification}"
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent className="max-w-xs text-xs p-3">
-                                <p className="font-bold mb-1">Justificativa do Vendedor:</p>
-                                <p className="italic">"{est.review_justification}"</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
+                        {/* Se Aprovado */}
+                        {isApproved && (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-300 font-semibold">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                              Aprovado em {formatDateShort(est.reviewed_at)}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground block">
+                              Por: {est.reviewer?.display_name || est.reviewer?.email || 'Gerência'}
+                            </span>
+                            {est.review_decision_notes && (
+                              <div className="text-[11px] text-slate-800 dark:text-slate-200 bg-emerald-50/60 dark:bg-emerald-950/20 p-1.5 rounded border border-emerald-200 dark:border-emerald-900/50">
+                                <span className="font-semibold block text-[10px] text-emerald-800 dark:text-emerald-300">Parecer:</span>
+                                "{est.review_decision_notes}"
+                              </div>
+                            )}
+                            <span className="text-[10px] text-muted-foreground block">
+                              Status: <strong className="capitalize">{est.status === 'draft' ? 'Rascunho Liberado' : est.status}</strong>
+                            </span>
+                          </div>
                         )}
                       </div>
                     </TableCell>
@@ -749,32 +1222,92 @@ export function MesaAprovacoesPage() {
                     {/* Ações */}
                     <TableCell className="align-top py-4 text-right">
                       <div className="flex flex-col gap-1.5 items-end">
-                        <Button
-                          size="sm"
-                          onClick={() => handleOpenDecision(est, 'approve')}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-7 px-3 w-[115px] justify-center shadow-sm"
-                        >
-                          <Check className="h-3.5 w-3.5 mr-1" />
-                          Aprovar
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenDecision(est, 'reject')}
-                          className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 text-xs font-semibold h-7 px-3 w-[115px] justify-center"
-                        >
-                          <X className="h-3.5 w-3.5 mr-1" />
-                          Rejeitar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/comercial/estimaciones/${est.id}`)}
-                          className="text-[11px] text-muted-foreground h-6 px-2 w-[115px] justify-center"
-                        >
-                          <Eye className="h-3 w-3 mr-1" />
-                          Ver Detalhes
-                        </Button>
+                        {isPending && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenDecision(est, 'approve')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-7 px-3 w-[125px] justify-center shadow-sm"
+                            >
+                              <Check className="h-3.5 w-3.5 mr-1" />
+                              Aprovar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenDecision(est, 'reject')}
+                              className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 text-xs font-semibold h-7 px-3 w-[125px] justify-center"
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" />
+                              Rejeitar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/comercial/estimaciones/${est.id}`)}
+                              className="text-[11px] text-muted-foreground h-6 px-2 w-[125px] justify-center"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Ver Detalhes
+                            </Button>
+                          </>
+                        )}
+
+                        {isRejected && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={() => handleOpenDecision(est, 'approve')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-7 px-2.5 w-[125px] justify-center shadow-sm"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                              Aprovar Agora
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleOpenReopen(est)}
+                              className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 text-xs font-semibold h-7 px-2.5 w-[125px] justify-center"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5 mr-1 text-amber-600" />
+                              Reabrir Fila
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/comercial/estimaciones/${est.id}`)}
+                              className="text-[11px] text-muted-foreground h-6 px-2 w-[125px] justify-center"
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Ver Detalhes
+                            </Button>
+                          </>
+                        )}
+
+                        {isApproved && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => navigate(`/comercial/estimaciones/${est.id}`)}
+                              className="text-xs font-semibold h-7 px-2.5 w-[125px] justify-center gap-1"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-indigo-500" />
+                              Ver Orçamento
+                            </Button>
+                            {fin?.totalInvoicesCount > 0 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setFinancialModalData({ clientName, financial: fin })}
+                                className="text-[11px] text-indigo-600 hover:text-indigo-800 h-6 px-2 w-[125px] justify-center"
+                              >
+                                <Receipt className="h-3 w-3 mr-1" />
+                                Ver Extrato
+                              </Button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -794,19 +1327,40 @@ export function MesaAprovacoesPage() {
             const reasons: string[] = Array.isArray(est.viability_reasons) ? est.viability_reasons : [];
             const fin = est.financial;
 
+            const isPending = isItemPending(est);
+            const isRejected = isItemRejected(est);
+            const isApproved = isItemApproved(est);
+            const isRegularized = isRejected && fin?.isUpToDate && fin?.totalInvoicesCount > 0;
+
+            const cardBorderColor = isPending
+              ? 'border-amber-300/70 dark:border-amber-900/60'
+              : isRejected
+                ? 'border-red-300/70 dark:border-red-900/60'
+                : 'border-emerald-300/70 dark:border-emerald-900/60';
+
+            const cardHeaderBg = isPending
+              ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200/70 dark:border-amber-900/40'
+              : isRejected
+                ? 'bg-red-50/60 dark:bg-red-950/20 border-red-200/60 dark:border-red-900/30'
+                : 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/60 dark:border-emerald-900/30';
+
             return (
               <Card
                 key={est.id}
-                className="overflow-hidden border-2 border-amber-300/70 dark:border-amber-900/60 shadow-sm hover:shadow-md transition-shadow"
+                className={`overflow-hidden border-2 ${cardBorderColor} shadow-sm hover:shadow-md transition-shadow`}
               >
-                <div className="bg-amber-50/70 dark:bg-amber-950/30 px-6 py-3 border-b border-amber-200/70 dark:border-amber-900/40 flex flex-wrap items-center justify-between gap-2">
+                <div className={`${cardHeaderBg} px-6 py-3 border-b flex flex-wrap items-center justify-between gap-2`}>
                   <div className="flex items-center gap-3">
                     <span className="font-mono font-bold text-sm text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-900 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-800">
                       {est.codigo}
                     </span>
                     <span className="text-xs text-muted-foreground flex items-center gap-1">
                       <Calendar className="h-3.5 w-3.5" />
-                      Solicitado em {formatDate(est.review_requested_at || est.created_at)}
+                      {isPending
+                        ? `Solicitado em ${formatDate(est.review_requested_at || est.created_at)}`
+                        : isRejected
+                          ? `Rejeitado em ${formatDate(est.reviewed_at || est.updated_at)}`
+                          : `Aprovado em ${formatDate(est.reviewed_at || est.updated_at)}`}
                     </span>
                   </div>
 
@@ -817,13 +1371,43 @@ export function MesaAprovacoesPage() {
                         {est.empresa.trade_name || est.empresa.legal_name}
                       </Badge>
                     )}
-                    <Badge className="bg-amber-500 text-slate-950 font-bold text-[10px] uppercase tracking-wider">
-                      Sob Revisão Gerencial
-                    </Badge>
+                    {isPending && (
+                      <Badge className="bg-amber-500 text-slate-950 font-bold text-[10px] uppercase tracking-wider">
+                        Sob Revisão Gerencial
+                      </Badge>
+                    )}
+                    {isRejected && (
+                      <Badge variant="destructive" className="font-bold text-[10px] uppercase tracking-wider">
+                        Rejeitado / Suspenso
+                      </Badge>
+                    )}
+                    {isApproved && (
+                      <Badge className="bg-emerald-600 text-white font-bold text-[10px] uppercase tracking-wider">
+                        Aprovado por Exceção
+                      </Badge>
+                    )}
                   </div>
                 </div>
 
                 <CardContent className="p-6 space-y-5">
+                  {/* Banner se o cliente regularizou a dívida */}
+                  {isRegularized && (
+                    <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/80 p-3 rounded-xl flex items-center justify-between text-xs text-emerald-900 dark:text-emerald-200 shadow-sm">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <Sparkles className="h-4 w-4 text-emerald-600 animate-pulse" />
+                        <span>Cliente regularizou as pendências no Contas a Receber! Dívida quitada e histórico em dia.</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleOpenDecision(est, 'approve')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-7 gap-1 shadow"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Aprovar Agora
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Financial and proposal summary */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                     <div>
@@ -873,7 +1457,7 @@ export function MesaAprovacoesPage() {
                     </div>
                   </div>
 
-                  {/* NOVO BLOCO: Situação Financeira do Cliente */}
+                  {/* BLOCO: Situação Financeira do Cliente */}
                   {fin && (
                     <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                       <div className="flex items-center justify-between">
@@ -946,41 +1530,62 @@ export function MesaAprovacoesPage() {
                     </div>
                   )}
 
+                  {/* Parecer do Gerente se Rejeitado ou Aprovado */}
+                  {isRejected && (
+                    <div className="bg-red-50/60 dark:bg-red-950/20 p-4 rounded-xl border border-red-200 dark:border-red-900/50 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-red-900 dark:text-red-300">
+                        <XCircle className="h-4 w-4 text-red-600" />
+                        Motivo da Rejeição Gerencial (por {est.reviewer?.display_name || est.reviewer?.email || 'Gerência'} em {formatDate(est.reviewed_at)}):
+                      </div>
+                      <p className="text-xs text-red-950 dark:text-red-200 font-medium italic pl-6 border-l-2 border-red-500">
+                        "{est.review_decision_notes || 'Rejeitado pela gerência'}"
+                      </p>
+                    </div>
+                  )}
+
+                  {isApproved && (
+                    <div className="bg-emerald-50/60 dark:bg-emerald-950/20 p-4 rounded-xl border border-emerald-200 dark:border-emerald-900/50 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-300">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        Parecer da Aprovação por Exceção (por {est.reviewer?.display_name || est.reviewer?.email || 'Gerência'} em {formatDate(est.reviewed_at)}):
+                      </div>
+                      <p className="text-xs text-emerald-950 dark:text-emerald-200 font-medium italic pl-6 border-l-2 border-emerald-500">
+                        "{est.review_decision_notes || 'Aprovado por exceção comercial'}"
+                      </p>
+                    </div>
+                  )}
+
                   {/* Violations / Reasons Box */}
-                  <div className="bg-red-50/60 dark:bg-red-950/20 p-4 rounded-xl border border-red-200 dark:border-red-900/50 space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-bold text-red-900 dark:text-red-300">
-                      <AlertTriangle className="h-4 w-4 text-red-600" />
-                      Violações de Governança Identificadas:
+                  <div className="bg-amber-50/50 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-200/80 dark:border-amber-900/40 space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900 dark:text-amber-300">
+                      <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      Parâmetros Fora da Diretriz Comercial:
                     </div>
                     {reasons.length > 0 ? (
-                      <ul className="list-disc pl-5 text-xs text-red-800 dark:text-red-400 space-y-1">
+                      <ul className="list-disc pl-5 text-xs text-amber-950 dark:text-amber-400 space-y-1">
                         {reasons.map((r, idx) => (
                           <li key={idx} className="leading-relaxed">{r}</li>
                         ))}
                       </ul>
                     ) : (
-                      <p className="text-xs text-red-700 dark:text-red-400">
+                      <p className="text-xs text-amber-900 dark:text-amber-400">
                         Orçamento submetido para avaliação com parâmetros abaixo dos limites de viabilidade permitidos.
                       </p>
                     )}
                   </div>
 
                   {/* Salesperson Justification */}
-                  <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                      <MessageSquare className="h-4 w-4 text-amber-500" />
-                      Justificativa Comercial do Vendedor:
-                    </div>
-                    {est.review_justification ? (
+                  {est.review_justification && (
+                    <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
+                        <MessageSquare className="h-4 w-4 text-amber-500" />
+                        Justificativa Comercial do Vendedor:
+                      </div>
                       <p className="text-xs text-slate-800 dark:text-slate-200 italic whitespace-pre-wrap pl-6 border-l-2 border-amber-500">
                         "{est.review_justification}"
                       </p>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic pl-6">
-                        Nenhuma justificativa formal detalhada informada pelo vendedor.
-                      </p>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
@@ -996,24 +1601,58 @@ export function MesaAprovacoesPage() {
                     </Button>
 
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenDecision(est, 'reject')}
-                        className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30 text-xs font-semibold"
-                      >
-                        <XCircle className="h-4 w-4 mr-1.5" />
-                        Rejeitar / Solicitar Revisão
-                      </Button>
+                      {isPending && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenDecision(est, 'reject')}
+                            className="border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950/30 text-xs font-semibold"
+                          >
+                            <XCircle className="h-4 w-4 mr-1.5" />
+                            Rejeitar / Solicitar Revisão
+                          </Button>
 
-                      <Button
-                        size="sm"
-                        onClick={() => handleOpenDecision(est, 'approve')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow"
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                        Aprovar Exceção
-                      </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenDecision(est, 'approve')}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow"
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                            Aprovar Exceção
+                          </Button>
+                        </>
+                      )}
+
+                      {isRejected && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOpenReopen(est)}
+                            className="border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 text-xs font-semibold"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1.5 text-amber-600" />
+                            Reabrir para Análise
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            onClick={() => handleOpenDecision(est, 'approve')}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow"
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                            Aprovar Agora
+                          </Button>
+                        </>
+                      )}
+
+                      {isApproved && (
+                        <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold text-xs px-3 py-1 gap-1">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          Liberado para Envio de Proposta
+                        </Badge>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -1188,19 +1827,23 @@ export function MesaAprovacoesPage() {
               {decisionType === 'approve' ? (
                 <>
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  Aprovar Exceção Comercial
+                  {selectedEstimacion?.status === 'rejected'
+                    ? 'Aprovar Orçamento Anteriormente Rejeitado'
+                    : 'Aprovar Exceção Comercial'}
                 </>
               ) : (
                 <>
                   <XCircle className="h-5 w-5 text-red-600" />
-                  Rejeitar Orçamento / Solicitar Revisão
+                  Rejeitar Orçamento / Suspender
                 </>
               )}
             </DialogTitle>
             <DialogDescription>
               {decisionType === 'approve'
-                ? `Você está aprovando as condições comerciais fora de padrão para o orçamento ${selectedEstimacion?.codigo}. O vendedor poderá gerar e enviar a proposta ao cliente.`
-                : `Você está rejeitando o orçamento ${selectedEstimacion?.codigo}. O vendedor será notificado e deverá ajustar os valores/tarifas.`}
+                ? selectedEstimacion?.status === 'rejected'
+                  ? `Você está revertendo a rejeição e aprovando as condições do orçamento ${selectedEstimacion?.codigo}. O vendedor poderá gerar e enviar a proposta ao cliente.`
+                  : `Você está aprovando as condições comerciais fora de padrão para o orçamento ${selectedEstimacion?.codigo}. O vendedor poderá gerar e enviar a proposta ao cliente.`
+                : `Você está rejeitando o orçamento ${selectedEstimacion?.codigo}. Ele será movido para a aba de Rejeitados / Suspensos e o vendedor será notificado.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -1208,14 +1851,18 @@ export function MesaAprovacoesPage() {
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 {decisionType === 'approve'
-                  ? 'Observações da Aprovação (Opcional):'
+                  ? selectedEstimacion?.status === 'rejected'
+                    ? 'Motivo da Liberação / Parecer (Opcional):'
+                    : 'Observações da Aprovação (Opcional):'
                   : 'Motivo da Rejeição / Contraproposta (Obrigatório):'}
               </label>
               <Textarea
                 placeholder={
                   decisionType === 'approve'
-                    ? 'Ex: Aprovado conforme acordo de volume ou fidelidade do cliente...'
-                    : 'Ex: Aumentar a tarifa do soldador para no mínimo € 28,00/h para atingir margem de 18%...'
+                    ? selectedEstimacion?.status === 'rejected'
+                      ? 'Ex: Cliente quitou faturas pendentes / Condições acordadas com a diretoria...'
+                      : 'Ex: Aprovado conforme acordo de volume ou fidelidade do cliente...'
+                    : 'Ex: Cliente possui débitos vencidos / Ajustar tarifa do soldador para mínimo de € 28,00/h...'
                 }
                 value={decisionNotes}
                 onChange={(e) => setDecisionNotes(e.target.value)}
@@ -1251,6 +1898,60 @@ export function MesaAprovacoesPage() {
                 'Confirmar Aprovação'
               ) : (
                 'Confirmar Rejeição'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Reabrir Orçamento para Análise */}
+      <Dialog open={reopenModalOpen} onOpenChange={setReopenModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-amber-500" />
+              Reabrir Orçamento para Análise
+            </DialogTitle>
+            <DialogDescription>
+              O orçamento {selectedEstimacion?.codigo} retornará para a fila de Pendentes (Urgente) para nova deliberação gerencial.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Observações da Reabertura (Opcional):
+              </label>
+              <Textarea
+                placeholder="Ex: Cliente regularizou as pendências no financeiro / Condições revistas..."
+                value={reopenNotes}
+                onChange={(e) => setReopenNotes(e.target.value)}
+                className="text-xs resize-none"
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setReopenModalOpen(false)}
+              disabled={reabrirAnaliseGerente.isPending}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmReopen}
+              disabled={reabrirAnaliseGerente.isPending}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+            >
+              {reabrirAnaliseGerente.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                  Processando...
+                </>
+              ) : (
+                'Confirmar Reabertura'
               )}
             </Button>
           </DialogFooter>
