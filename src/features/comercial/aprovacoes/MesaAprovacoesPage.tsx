@@ -75,6 +75,7 @@ import {
 import { format, parseISO, isValid } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { parseEuroNumber } from '@/features/financeiro/lib/utils';
 
 export function MesaAprovacoesPage() {
   const navigate = useNavigate();
@@ -184,8 +185,8 @@ export function MesaAprovacoesPage() {
                 const now = new Date();
 
                 for (const row of crRows) {
-                  const total = parseFloat((row.valot_total || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
-                  const saldo = parseFloat((row.saldo_a_pagar || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
+                  const total = parseEuroNumber(row.valot_total);
+                  const saldo = parseEuroNumber(row.saldo_a_pagar);
                   totalFaturado += total;
                   totalSaldoAberto += saldo;
 
@@ -646,7 +647,7 @@ export function MesaAprovacoesPage() {
                               <span className="font-semibold text-slate-700 dark:text-slate-300">Última Fat: </span>
                               <span className="font-mono">{fin.ultimaFatura.num_doc || 'S/N'}</span>
                               <span className="block text-[10px]">
-                                {formatCurrency(parseFloat(fin.ultimaFatura.valot_total || 0))} -{' '}
+                                {formatCurrency(parseEuroNumber(fin.ultimaFatura.valot_total))} -{' '}
                                 <span className={fin.ultimaFatura.status === 'Pago' ? 'text-emerald-600 font-semibold' : 'text-red-600 font-semibold'}>
                                   {fin.ultimaFatura.status || 'Pendente'}
                                 </span>
@@ -917,7 +918,7 @@ export function MesaAprovacoesPage() {
                           {fin.ultimaFatura ? (
                             <div>
                               <span className="font-bold font-mono text-xs block text-slate-900 dark:text-slate-100 truncate">
-                                {fin.ultimaFatura.num_doc || 'Sem nº'} ({formatCurrency(parseFloat(fin.ultimaFatura.valot_total || 0))})
+                                {fin.ultimaFatura.num_doc || 'Sem nº'} ({formatCurrency(parseEuroNumber(fin.ultimaFatura.valot_total))})
                               </span>
                               <Badge className={`text-[9px] px-1 py-0 font-semibold ${fin.ultimaFatura.status === 'Pago' ? 'bg-emerald-600' : 'bg-red-600'}`}>
                                 {fin.ultimaFatura.status || 'Pendente'}
@@ -1077,8 +1078,8 @@ export function MesaAprovacoesPage() {
                   </TableHeader>
                   <TableBody>
                     {financialModalData.financial.invoices.map((inv: any) => {
-                      const total = parseFloat((inv.valot_total || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
-                      const saldo = parseFloat((inv.saldo_a_pagar || '0').toString().replace(/\./g, '').replace(',', '.')) || 0;
+                      const total = parseEuroNumber(inv.valot_total);
+                      const saldo = parseEuroNumber(inv.saldo_a_pagar);
                       const isPago = inv.status === 'Pago' || saldo <= 0;
 
                       return (
