@@ -46,6 +46,9 @@ export interface Estimacion {
   client_site_id?: string;
   country_id?: string;
   estimation_type: 'new_allocation' | 'expansion' | 'other';
+  pricing_model?: 'hourly' | 'fixed_price';
+  fixed_price_notes?: string;
+  parent_estimacion_id?: string;
   contact_name?: string;
   contact_email?: string;
   expected_start_date?: string;

@@ -277,6 +277,89 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
         </Tabs>
       </div>
 
+      {/* Seletor de Modalidade de Cobrança / Preço Fechado */}
+      <div className="border border-slate-200 dark:border-slate-800 rounded-xl p-3.5 bg-slate-50/60 dark:bg-slate-900/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+          <div>
+            <Label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+              <span>Modalidade de Cobrança / Formato da Proposta</span>
+            </Label>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Defina se o faturamento será discriminado por tarifas/hora normais ou pacote de preço global fechado (llave en mano / obras curtas).
+            </p>
+          </div>
+          {data.pricing_model === 'fixed_price' && (
+            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] font-bold self-start sm:self-auto uppercase tracking-wide">
+              Preço Fechado Ativo
+            </Badge>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div
+            onClick={() => onChange({ pricing_model: 'hourly' })}
+            className={`cursor-pointer rounded-lg border p-3 transition-all ${
+              (data.pricing_model || 'hourly') === 'hourly'
+                ? 'border-amber-500 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Tarifa por Hora (Padrão)</span>
+              <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                (data.pricing_model || 'hourly') === 'hourly' ? 'border-amber-500 bg-amber-500' : 'border-slate-300'
+              }`}>
+                {(data.pricing_model || 'hourly') === 'hourly' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Faturamento por horas efetivas. As tarifas horárias (€/h) aparecem discriminadas na proposta do cliente.
+            </p>
+          </div>
+
+          <div
+            onClick={() => onChange({ pricing_model: 'fixed_price' })}
+            className={`cursor-pointer rounded-lg border p-3 transition-all ${
+              data.pricing_model === 'fixed_price'
+                ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20 shadow-sm'
+                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:border-slate-300'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                <span>Preço Fechado (Precio Cerrado)</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded font-semibold">Recomendado obras curtas</span>
+              </span>
+              <div className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                data.pricing_model === 'fixed_price' ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300'
+              }`}>
+                {data.pricing_model === 'fixed_price' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              O cliente recebe apenas o Valor Global Fechado do projeto. Nenhuma tarifa horária é exibida na proposta ou contrato.
+            </p>
+          </div>
+        </div>
+
+        {data.pricing_model === 'fixed_price' && (
+          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+            <Label htmlFor="fixed_price_notes" className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+              <span>Escopo, Condições e Aditivos do Preço Fechado (aparece na proposta)</span>
+              <span className="text-[10px] text-muted-foreground font-normal">Cláusulas de tolerância e atrasos por responsabilidade do cliente</span>
+            </Label>
+            <Textarea
+              id="fixed_price_notes"
+              rows={2}
+              placeholder="Ex: Valor global fechado para a execução completa conforme escopo acordado. Quaisquer atrasos ou paradas por responsabilidade do cliente serão faturados à parte à razão da tabela hora adicional..."
+              className="text-xs resize-none bg-white dark:bg-slate-950"
+              value={data.fixed_price_notes || ''}
+              onChange={(e) => onChange({ fixed_price_notes: e.target.value })}
+            />
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
         {targetType === 'client' ? (
           <div className="space-y-1.5">

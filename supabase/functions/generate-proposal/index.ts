@@ -337,6 +337,11 @@ serve(async (req) => {
       };
     });
 
+    const isFixedPrice = est.pricing_model === 'fixed_price';
+    const totalDays = est.expected_start_date && est.expected_end_date 
+      ? Math.ceil(Math.abs(new Date(est.expected_end_date).getTime() - new Date(est.expected_start_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+      : 0;
+
     const docLang = est.document_language || 'pt';
     const candidateFolders = Array.from(new Set([
       empresa.trade_name?.toLowerCase().replace(/\s+/g, "_"),
@@ -348,22 +353,29 @@ serve(async (req) => {
 
     // Helper to download templates with tiered fallbacks
     async function loadTemplate(type: 'proposta' | 'contrato', lang: string) {
-      // Tier 1: Custom template for specific language across candidate folders: folder/lang/type.docx
-      for (const folder of candidateFolders) {
-        if (folder === "default") continue;
-        const pathTier1 = `${folder}/${lang}/${type}.docx`;
-        console.log(`[Tier 1] Buscando template customizado no idioma (${lang}): ${pathTier1}`);
-        const { data: b1 } = await supabase.storage.from("proposal-templates").download(pathTier1);
-        if (b1) return b1;
-      }
+      // Se for Preço Fechado, tentar primeiro os modelos dedicados 'proposta_fechado' ou 'contrato_fechado'
+      const candidateTypes = isFixedPrice 
+        ? [`${type}_fechado`, type] 
+        : [type];
 
-      // Tier 2: Custom template (no language fallback) across candidate folders: folder/type.docx
-      for (const folder of candidateFolders) {
-        if (folder === "default") continue;
-        const pathTier2 = `${folder}/${type}.docx`;
-        console.log(`[Tier 2] Buscando template customizado (sem idioma): ${pathTier2}`);
-        const { data: b2 } = await supabase.storage.from("proposal-templates").download(pathTier2);
-        if (b2) return b2;
+      for (const t of candidateTypes) {
+        // Tier 1: Custom template for specific language across candidate folders: folder/lang/t.docx
+        for (const folder of candidateFolders) {
+          if (folder === "default") continue;
+          const pathTier1 = `${folder}/${lang}/${t}.docx`;
+          console.log(`[Tier 1] Buscando template customizado no idioma (${lang}): ${pathTier1}`);
+          const { data: b1 } = await supabase.storage.from("proposal-templates").download(pathTier1);
+          if (b1) return b1;
+        }
+
+        // Tier 2: Custom template (no language fallback) across candidate folders: folder/t.docx
+        for (const folder of candidateFolders) {
+          if (folder === "default") continue;
+          const pathTier2 = `${folder}/${t}.docx`;
+          console.log(`[Tier 2] Buscando template customizado (sem idioma): ${pathTier2}`);
+          const { data: b2 } = await supabase.storage.from("proposal-templates").download(pathTier2);
+          if (b2) return b2;
+        }
       }
 
       // Tier 3: Global template for specific language: default_lang.docx
@@ -405,7 +417,7 @@ serve(async (req) => {
       cliente_nif: clientTaxId,
 
       obra_morada: siteAddress || "Instalações do Cliente",
-      tarifa_tipo: "Completa",
+      tarifa_tipo: isFixedPrice ? "Preço Fechado" : "Completa",
       data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString("pt-PT") : "",
       data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString("pt-PT") : "",
       condicoes_pagamento: est.payment_terms || "A combinar",
@@ -416,6 +428,19 @@ serve(async (req) => {
       total_receita: (version.total_revenue || 0).toFixed(2),
       margem_percentual: (version.margin_percent || 0).toFixed(2),
 
+      // SUPORTE A PREÇO FECHADO / PRECIO CERRADO
+      is_fixed_price: isFixedPrice,
+      MODALIDAD_PRESUPUESTO: isFixedPrice ? "Precio Cerrado / Llave en Mano" : "Tarifa por Horas",
+      MODALIDADE_PROPOSTA: isFixedPrice ? "Preço Fechado (Chave na mão)" : "Tarifa por Horas",
+      PRECIO_CERRADO: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      PRECIO_TOTAL: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      VALOR_GLOBAL: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      VALOR_TOTAL_GLOBAL: (version.total_revenue || 0).toFixed(2),
+      CONDICIONES_PRECIO_CERRADO: est.fixed_price_notes || "",
+      CONDICOES_PRECO_FECHADO: est.fixed_price_notes || "",
+      DIAS_TOTALES: totalDays > 0 ? totalDays.toString() : "",
+      PLAZO_EJECUCION_DIAS: totalDays > 0 ? `${totalDays} días` : "",
+
       // ALIASES EM ESPANHOL (Suporte aos modelos de presupuesto customizados)
       NUMERO_PRESUPUESTO: est.codigo || "",
       PRESUPUESTO_NUMERO: est.codigo || "",
@@ -424,10 +449,10 @@ serve(async (req) => {
       CLIENTE_CONTRATANTE: targetCompany || targetName || "",
       UBICACION: siteAddress || "Instalaciones del Cliente",
       UBICACION_OBRA: siteAddress || "Instalaciones del Cliente",
-      TIPO_TRABAJO: "Suministro de Mano de Obra",
+      TIPO_TRABAJO: isFixedPrice ? "Ejecución a Precio Cerrado" : "Suministro de Mano de Obra",
       FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString("es-ES") : "",
       FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString("es-ES") : "",
-      TARIFA_APLICABLE: "Completa",
+      TARIFA_APLICABLE: isFixedPrice ? "Precio Cerrado" : "Completa",
       CONDICIONES_PAGO: est.payment_terms || "A convenir",
       PLAZO_PAGO: est.payment_terms || "A convenir",
       VALIDEZ_PRESUPUESTO: est.validity_date ? Math.ceil((new Date(est.validity_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : "30",

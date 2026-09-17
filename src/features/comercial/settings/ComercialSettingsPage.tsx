@@ -135,6 +135,7 @@ export function ComercialSettingsPage() {
   const [settings, setSettings] = useState({
     id: '',
     min_margin_percent: 15.00,
+    fixed_price_markup_percent: 80.00,
     block_debtor_estimations: true,
     ivp_min_threshold: 5.00,
     default_hours_weekday: 8.0,
@@ -161,12 +162,16 @@ export function ComercialSettingsPage() {
   const [proposalStatus, setProposalStatus] = useState<'default' | 'custom'>('default');
   const [contractStatus, setContractStatus] = useState<'default' | 'custom'>('default');
   const [pedidoStatus, setPedidoStatus] = useState<'default' | 'custom'>('default');
+  const [proposalFixedStatus, setProposalFixedStatus] = useState<'default' | 'custom'>('default');
+  const [contractFixedStatus, setContractFixedStatus] = useState<'default' | 'custom'>('default');
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [uploadingType, setUploadingType] = useState<'proposal' | 'contract' | 'pedido' | null>(null);
+  const [uploadingType, setUploadingType] = useState<'proposal' | 'contract' | 'pedido' | 'proposal_fixed' | 'contract_fixed' | null>(null);
 
   const proposalInputRef = useRef<HTMLInputElement>(null);
   const contractInputRef = useRef<HTMLInputElement>(null);
   const pedidoInputRef = useRef<HTMLInputElement>(null);
+  const proposalFixedInputRef = useRef<HTMLInputElement>(null);
+  const contractFixedInputRef = useRef<HTMLInputElement>(null);
 
   const isUserAdmin = role === 'admin' || role === 'super_admin';
 
@@ -202,6 +207,8 @@ export function ComercialSettingsPage() {
       let foundProp = false;
       let foundCont = false;
       let foundPed = false;
+      let foundPropFixed = false;
+      let foundContFixed = false;
 
       for (const fName of candidateFolderNames) {
         const { data: files } = await supabase.storage
@@ -211,12 +218,16 @@ export function ComercialSettingsPage() {
         if (files?.some(f => f.name === 'proposta.docx')) foundProp = true;
         if (files?.some(f => f.name === 'contrato.docx')) foundCont = true;
         if (files?.some(f => f.name === 'pedido.docx')) foundPed = true;
-        if (foundProp && foundCont && foundPed) break;
+        if (files?.some(f => f.name === 'proposta_fechado.docx')) foundPropFixed = true;
+        if (files?.some(f => f.name === 'contrato_fechado.docx')) foundContFixed = true;
+        if (foundProp && foundCont && foundPed && foundPropFixed && foundContFixed) break;
       }
 
       setProposalStatus(foundProp ? 'custom' : 'default');
       setContractStatus(foundCont ? 'custom' : 'default');
       setPedidoStatus(foundPed ? 'custom' : 'default');
+      setProposalFixedStatus(foundPropFixed ? 'custom' : 'default');
+      setContractFixedStatus(foundContFixed ? 'custom' : 'default');
     } catch (err) {
       console.error('Failed to list templates:', err);
     } finally {
@@ -250,6 +261,7 @@ export function ComercialSettingsPage() {
           setSettings({
             id: data.id,
             min_margin_percent: Number(data.min_margin_percent),
+            fixed_price_markup_percent: Number(data.fixed_price_markup_percent ?? 80.00),
             block_debtor_estimations: !!data.block_debtor_estimations,
             ivp_min_threshold: Number(data.ivp_min_threshold),
             default_hours_weekday: dw,
@@ -274,6 +286,7 @@ export function ComercialSettingsPage() {
           setSettings({
             id: '',
             min_margin_percent: 15.00,
+            fixed_price_markup_percent: 80.00,
             block_debtor_estimations: true,
             ivp_min_threshold: 5.00,
             default_hours_weekday: 8.0,
@@ -320,6 +333,7 @@ export function ComercialSettingsPage() {
       const payload = {
         empresa_id: selectedEmpresaId,
         min_margin_percent: settings.min_margin_percent,
+        fixed_price_markup_percent: settings.fixed_price_markup_percent,
         block_debtor_estimations: settings.block_debtor_estimations,
         ivp_min_threshold: settings.ivp_min_threshold,
         default_hours_weekday: settings.default_hours_weekday,
@@ -375,12 +389,16 @@ export function ComercialSettingsPage() {
     }
   };
 
-  const handleDownload = async (type: 'proposta' | 'contrato' | 'pedido') => {
+  const handleDownload = async (type: 'proposta' | 'contrato' | 'pedido' | 'proposta_fechado' | 'contrato_fechado') => {
     const isCustom = type === 'proposta' 
       ? proposalStatus === 'custom' 
       : type === 'contrato' 
         ? contractStatus === 'custom' 
-        : pedidoStatus === 'custom';
+        : type === 'pedido'
+          ? pedidoStatus === 'custom'
+          : type === 'proposta_fechado'
+            ? proposalFixedStatus === 'custom'
+            : contractFixedStatus === 'custom';
     
     let downloadedBlob: Blob | null = null;
 
@@ -404,9 +422,9 @@ export function ComercialSettingsPage() {
       }
 
       // Default template download fallback
-      const defaultName = type === 'proposta' 
+      const defaultName = type === 'proposta' || type === 'proposta_fechado'
         ? (activeLang === 'pt' ? 'default.docx' : `default_${activeLang}.docx`)
-        : type === 'contrato' 
+        : type === 'contrato' || type === 'contrato_fechado'
           ? (activeLang === 'pt' ? 'default_contrato.docx' : `default_contrato_${activeLang}.docx`)
           : (activeLang === 'pt' ? 'default_pedido.docx' : `default_pedido_${activeLang}.docx`);
 
@@ -415,7 +433,7 @@ export function ComercialSettingsPage() {
         .download(defaultName);
 
       if (error || !data) {
-        const fallbackName = type === 'proposta' ? 'default.docx' : type === 'contrato' ? 'default_contrato.docx' : 'default_pedido.docx';
+        const fallbackName = (type === 'proposta' || type === 'proposta_fechado') ? 'default.docx' : (type === 'contrato' || type === 'contrato_fechado') ? 'default_contrato.docx' : 'default_pedido.docx';
         const resFb = await supabase.storage.from('proposal-templates').download(fallbackName);
         if (resFb.error) throw resFb.error;
         data = resFb.data;
@@ -442,7 +460,7 @@ export function ComercialSettingsPage() {
     toast.success(t('comercial.settings.downloadSuccess', { defaultValue: 'Modelo baixado com sucesso!' }));
   };
 
-  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'proposta' | 'contrato' | 'pedido') => {
+  const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'proposta' | 'contrato' | 'pedido' | 'proposta_fechado' | 'contrato_fechado') => {
     const file = event.target.files?.[0];
     if (!file) return;
     
@@ -452,7 +470,16 @@ export function ComercialSettingsPage() {
       return;
     }
     
-    const targetType = type === 'proposta' ? 'proposal' : type === 'contrato' ? 'contract' : 'pedido';
+    const targetType = type === 'proposta' 
+      ? 'proposal' 
+      : type === 'contrato' 
+        ? 'contract' 
+        : type === 'pedido' 
+          ? 'pedido' 
+          : type === 'proposta_fechado' 
+            ? 'proposal_fixed' 
+            : 'contract_fixed';
+
     try {
       setUploadingType(targetType);
 
@@ -478,7 +505,7 @@ export function ComercialSettingsPage() {
     }
   };
 
-  const handleRestore = async (type: 'proposta' | 'contrato' | 'pedido') => {
+  const handleRestore = async (type: 'proposta' | 'contrato' | 'pedido' | 'proposta_fechado' | 'contrato_fechado') => {
     if (!window.confirm(t('comercial.settings.confirmRestore', { defaultValue: 'Tem certeza que deseja restaurar este modelo para o padrão do sistema?' }))) {
       return;
     }
@@ -542,7 +569,7 @@ export function ComercialSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             <div className="space-y-2">
               <Label htmlFor="min_margin" className="text-sm font-semibold">
                 {t('comercial.settings.marginLabel')}
@@ -588,7 +615,33 @@ export function ComercialSettingsPage() {
                 {t('comercial.settings.ivpDesc')}
               </p>
             </div>
-                    <div className="border-t pt-6 space-y-4">
+
+            <div className="space-y-2">
+              <Label htmlFor="fixed_price_markup" className="text-sm font-semibold flex items-center justify-between">
+                <span>Markup Preço Fechado (%)</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 px-1.5 py-0.5 rounded font-semibold">Obras Curtas</span>
+              </Label>
+              <Input
+                id="fixed_price_markup"
+                type="number"
+                step="0.5"
+                min="0"
+                max="500"
+                value={settings.fixed_price_markup_percent}
+                onChange={e =>
+                  setSettings(prev => ({
+                    ...prev,
+                    fixed_price_markup_percent: parseFloat(e.target.value) || 0,
+                  }))
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Acréscimo percentual padrão sobre a tarifa horária sugerido em orçamentos de Preço Fechado (padrão 80%).
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t pt-6 space-y-4">
             <div>
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                 {t('comercial.settings.defaultScheduleTitle')}
@@ -611,7 +664,7 @@ export function ComercialSettingsPage() {
                     >
                       {customWeekdays ? t('comercial.stepGeneral.unifiedWeekdays') : t('comercial.stepGeneral.customizeWeekdays')}
                     </button>
-                  </div>             </div>
+                  </div>
                   <div className="flex items-center space-x-1">
                     <input
                       type="checkbox"
@@ -1114,7 +1167,7 @@ export function ComercialSettingsPage() {
             </Tabs>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Template da Proposta */}
             <div className="border rounded-xl p-5 space-y-4 bg-slate-50/50 dark:bg-slate-950/20">
               <div className="flex justify-between items-start">
@@ -1312,6 +1365,142 @@ export function ComercialSettingsPage() {
                 )}
               </div>
             </div>
+
+            {/* Template da Proposta Preço Fechado */}
+            <div className="border rounded-xl p-5 space-y-4 bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-200/60 dark:border-emerald-900/40">
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sm block">Proposta Preço Fechado ({activeLang.toUpperCase()})</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono">{folderName}/{activeLang}/proposta_fechado.docx</p>
+                </div>
+                {loadingTemplates ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                ) : proposalFixedStatus === 'custom' ? (
+                  <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 px-2 py-0.5 rounded-full text-xs font-semibold">
+                    Personalizado
+                  </span>
+                ) : (
+                  <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                    Padrão Global
+                  </span>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t text-xs">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 text-xs" 
+                  onClick={() => handleDownload('proposta_fechado')}
+                  disabled={loadingTemplates}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" /> Baixar Atual
+                </Button>
+                
+                <input 
+                  type="file" 
+                  ref={proposalFixedInputRef} 
+                  className="hidden" 
+                  accept=".docx"
+                  onChange={(e) => handleUpload(e, 'proposta_fechado')}
+                />
+                <Button 
+                  size="sm" 
+                  className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium" 
+                  onClick={() => proposalFixedInputRef.current?.click()}
+                  disabled={uploadingType === 'proposal_fixed' || loadingTemplates}
+                >
+                  {uploadingType === 'proposal_fixed' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Upload Word
+                </Button>
+
+                {proposalFixedStatus === 'custom' && (
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:border-rose-950 dark:hover:bg-rose-950/20" 
+                    onClick={() => handleRestore('proposta_fechado')}
+                    title="Restaurar para padrão"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Template do Contrato Preço Fechado */}
+            <div className="border rounded-xl p-5 space-y-4 bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-200/60 dark:border-emerald-900/40">
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-sm block">Contrato Preço Fechado ({activeLang.toUpperCase()})</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono">{folderName}/{activeLang}/contrato_fechado.docx</p>
+                </div>
+                {loadingTemplates ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                ) : contractFixedStatus === 'custom' ? (
+                  <span className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900 px-2 py-0.5 rounded-full text-xs font-semibold">
+                    Personalizado
+                  </span>
+                ) : (
+                  <span className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded-full text-xs font-semibold">
+                    Padrão Global
+                  </span>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t text-xs">
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="flex-1 text-xs" 
+                  onClick={() => handleDownload('contrato_fechado')}
+                  disabled={loadingTemplates}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1" /> Baixar Atual
+                </Button>
+                
+                <input 
+                  type="file" 
+                  ref={contractFixedInputRef} 
+                  className="hidden" 
+                  accept=".docx"
+                  onChange={(e) => handleUpload(e, 'contrato_fechado')}
+                />
+                <Button 
+                  size="sm" 
+                  className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium" 
+                  onClick={() => contractFixedInputRef.current?.click()}
+                  disabled={uploadingType === 'contract_fixed' || loadingTemplates}
+                >
+                  {uploadingType === 'contract_fixed' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                  )}
+                  Upload Word
+                </Button>
+
+                {contractFixedStatus === 'custom' && (
+                  <Button 
+                    size="icon" 
+                    variant="outline" 
+                    className="border-rose-200 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:border-rose-950 dark:hover:bg-rose-950/20" 
+                    onClick={() => handleRestore('contrato_fechado')}
+                    title="Restaurar para padrão"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Documentação de Variáveis e Loops */}
@@ -1366,6 +1555,15 @@ export function ComercialSettingsPage() {
                       <li><strong>{"{{"}data_fim{"}}"}</strong>: Data prevista de fim</li>
                       <li><strong>{"{{"}total_receita{"}}"}</strong>: Valor total da Proposta (€)</li>
                       <li><strong>{"{{"}margem_percentual{"}}"}</strong>: Margem líquida (%)</li>
+                    </ul>
+
+                    <h4 className="font-bold text-emerald-700 dark:text-emerald-400 border-b pb-1 pt-2">Tags Preço Fechado (Precio Cerrado)</h4>
+                    <ul className="space-y-1 font-mono text-[11px] list-disc pl-4">
+                      <li><strong>{"{{"}PRECIO_CERRADO{"}}"}</strong>: Valor total fechado formatado (ex: 15.400,00)</li>
+                      <li><strong>{"{{"}VALOR_GLOBAL{"}}"}</strong>: Alias para o valor global fechado</li>
+                      <li><strong>{"{{"}DIAS_TOTALES{"}}"}</strong>: Duração total em dias corridos</li>
+                      <li><strong>{"{{"}MODALIDAD_PRESUPUESTO{"}}"}</strong>: Modalidade (Precio Cerrado ou Tarifa por Horas)</li>
+                      <li><strong>{"{{"}CONDICIONES_PRECIO_CERRADO{"}}"}</strong>: Cláusulas de escopo e aditivos por atraso</li>
                     </ul>
                   </div>
                 </div>

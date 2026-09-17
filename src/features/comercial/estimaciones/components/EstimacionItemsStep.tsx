@@ -20,6 +20,7 @@ import { useClientTariffs } from '@/features/master-data/clients/hooks/useClient
 interface Props {
   data: any;
   onChange: (data: Partial<any>) => void;
+  settings?: any;
 }
 
 // Utility functions for date calculations
@@ -251,7 +252,7 @@ function calculateEffectiveLodgingRate({
   return totalCost / totalDays;
 }
 
-export function EstimacionItemsStep({ data, onChange }: Props) {
+export function EstimacionItemsStep({ data, onChange, settings }: Props) {
   const { t } = useTranslation();
   
   const getRiskBadge = (risk: string) => {
@@ -478,7 +479,18 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
         }
       }
 
-      setNewSellRate(clientRate !== null ? clientRate : Number(rateToUse.recommended_sell_rate_hour));
+      const standardRate = clientRate !== null ? clientRate : Number(rateToUse.recommended_sell_rate_hour);
+      
+      // Se for Preço Fechado (fixed_price), aplicar tarifa de preço fechado da tabela ou markup percentual
+      if (data.pricing_model === 'fixed_price') {
+        const fixedMarkup = Number(settings?.fixed_price_markup_percent ?? 80);
+        const fixedRefRate = rateToUse.fixed_price_sell_rate_hour 
+          ? Number(rateToUse.fixed_price_sell_rate_hour)
+          : Number((standardRate * (1 + fixedMarkup / 100)).toFixed(2));
+        setNewSellRate(fixedRefRate);
+      } else {
+        setNewSellRate(standardRate);
+      }
     } else {
       setNewBaseCost(0);
       setNewSellRate(0);
@@ -487,6 +499,9 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
 
   const handleReapplyCountryRates = () => {
     let count = 0;
+    const isFixed = data.pricing_model === 'fixed_price';
+    const fixedMarkup = Number(settings?.fixed_price_markup_percent ?? 80);
+
     const updatedItems = (data.items || []).map((item: any) => {
       const jfRates = rateRefs.filter((r: any) => r.job_function_id === item.job_function_id);
       const rateToUse = jfRates.find((r: any) => r.country_id === data.country_id && r.empresa_id === selectedEmpresaId)
@@ -496,11 +511,16 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
 
       if (rateToUse) {
         count++;
+        const standardRate = Number(rateToUse.recommended_sell_rate_hour);
+        const effectiveSellRate = isFixed
+          ? (rateToUse.fixed_price_sell_rate_hour ? Number(rateToUse.fixed_price_sell_rate_hour) : Number((standardRate * (1 + fixedMarkup / 100)).toFixed(2)))
+          : standardRate;
+
         return {
           ...item,
           base_cost_hour: Number(rateToUse.base_cost_hour),
-          sell_rate_hour: Number(rateToUse.recommended_sell_rate_hour),
-          recommended_sell_rate: Number(rateToUse.recommended_sell_rate_hour)
+          sell_rate_hour: effectiveSellRate,
+          recommended_sell_rate: standardRate
         };
       }
       return item;
@@ -511,7 +531,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
       items: updatedItems,
       ...result
     });
-    toast.success(`Tarifas padrão atualizadas em ${count} itens!`);
+    toast.success(`Tarifas (${isFixed ? 'Preço Fechado' : 'Tabela Oficial'}) atualizadas em ${count} itens!`);
   };
 
   const recalculateTotals = (currentItems: any[], includesZentralcom: boolean, prov: any) => {
@@ -977,11 +997,20 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
     const globalRateRef = jfRates.find((r: any) => (r.country_id === null || !r.country_id) && r.empresa_id === selectedEmpresaId)
       || jfRates.find((r: any) => r.country_id === null || !r.country_id);
 
+    const fixedMarkupPercent = Number(settings?.fixed_price_markup_percent ?? 80);
+    const countryFixedRate = countryRateRef?.fixed_price_sell_rate_hour 
+      ? Number(countryRateRef.fixed_price_sell_rate_hour) 
+      : (countryRateRef?.recommended_sell_rate_hour 
+          ? Number((Number(countryRateRef.recommended_sell_rate_hour) * (1 + fixedMarkupPercent / 100)).toFixed(2)) 
+          : null);
+
     return {
       clientRate,
       clientSiteName,
       countryRate: countryRateRef ? Number(countryRateRef.recommended_sell_rate_hour) : null,
       countryMinRate: countryRateRef ? Number(countryRateRef.minimum_sell_rate_hour) : null,
+      countryFixedRate,
+      fixedMarkupPercent,
       countryCost: countryRateRef ? Number(countryRateRef.base_cost_hour) : null,
       countryName,
       hasCountryTable: !!countryRateRef,
@@ -990,7 +1019,7 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
       globalCost: globalRateRef ? Number(globalRateRef.base_cost_hour) : null,
       hasGlobalTable: !!globalRateRef
     };
-  }, [newJobFunctionId, rateRefs, data.country_id, data.client_id, data.client_site_id, clientTariffs, countries, sites, selectedEmpresaId]);
+  }, [newJobFunctionId, rateRefs, data.country_id, data.client_id, data.client_site_id, clientTariffs, countries, sites, selectedEmpresaId, settings]);
 
   const isBelowOfficialCountryRate = useMemo(() => {
     if (!selectedFunctionTariffRefs?.countryRate || newSellRate <= 0) return false;
@@ -1369,6 +1398,34 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
                     </Button>
                   </div>
                 )}
+
+                {/* 4. Tarifa Preço Fechado Sugerida */}
+                {selectedFunctionTariffRefs.countryFixedRate !== null && (
+                  <div className={`flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-xs border ${
+                    data.pricing_model === 'fixed_price'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/80 text-emerald-900 dark:text-emerald-200'
+                      : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    <span className="font-semibold">
+                      Preço Fechado (+{selectedFunctionTariffRefs.fixedMarkupPercent}%):
+                    </span>
+                    <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                      € {selectedFunctionTariffRefs.countryFixedRate.toFixed(2)}/h
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        if (selectedFunctionTariffRefs.countryFixedRate) setNewSellRate(selectedFunctionTariffRefs.countryFixedRate);
+                        if (selectedFunctionTariffRefs.countryCost) setNewBaseCost(selectedFunctionTariffRefs.countryCost);
+                      }}
+                      className="h-5 px-1.5 text-[10px] font-bold text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                    >
+                      Usar
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -1396,6 +1453,21 @@ export function EstimacionItemsStep({ data, onChange }: Props) {
           </div>
         )}
       </div>
+
+      {/* Banner de Preço Fechado */}
+      {data.pricing_model === 'fixed_price' && (
+        <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-emerald-950 dark:text-emerald-200">
+          <div className="flex items-start sm:items-center gap-2">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0 mt-0.5 sm:mt-0" />
+            <div>
+              <strong className="font-bold">Modalidade Preço Fechado Ativa:</strong> As tarifas e margens desta tabela são exclusivamente de controle interno. Na proposta e contrato gerados para o cliente, <strong>as tarifas por hora serão ocultadas</strong>, exibindo unicamente o <strong>Valor Global Fechado de € {(data.total_estimated_revenue || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</strong>.
+            </div>
+          </div>
+          <span className="shrink-0 bg-emerald-600 text-white text-[11px] font-bold px-3 py-1 rounded-md shadow-sm self-start sm:self-auto">
+            Valor Global: € {(data.total_estimated_revenue || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      )}
 
       {/* Tabela de Perfis */}
       <div className="space-y-2">

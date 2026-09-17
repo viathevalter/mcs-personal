@@ -111,6 +111,9 @@ export function NewEstimacionPage() {
     country_id: '',
     postal_code: '',
     estimation_type: 'new_allocation',
+    pricing_model: 'hourly',
+    fixed_price_notes: '',
+    parent_estimacion_id: null,
     contact_name: '',
     contact_email: '',
     expected_start_date: '',
@@ -226,6 +229,7 @@ export function NewEstimacionPage() {
             min_margin_percent: Number(data.min_margin_percent),
             block_debtor_estimations: !!data.block_debtor_estimations,
             ivp_min_threshold: Number(data.ivp_min_threshold),
+            fixed_price_markup_percent: Number(data.fixed_price_markup_percent ?? 80.0),
             default_hours_weekday: Number(data.default_hours_weekday ?? 8.0),
             default_hours_lunes: Number(data.default_hours_lunes ?? data.default_hours_weekday ?? 8.0),
             default_hours_martes: Number(data.default_hours_martes ?? data.default_hours_weekday ?? 8.0),
@@ -268,6 +272,7 @@ export function NewEstimacionPage() {
             min_margin_percent: 15.0,
             block_debtor_estimations: true,
             ivp_min_threshold: 5.0,
+            fixed_price_markup_percent: 80.0,
             default_hours_weekday: 8.0,
             default_hours_sabado: 0.0,
             default_hours_domingo: 0.0,
@@ -402,6 +407,9 @@ export function NewEstimacionPage() {
         country_id: estimacion.country_id || '',
         postal_code: estimacion.postal_code || '',
         estimation_type: estimacion.estimation_type || 'new_allocation',
+        pricing_model: estimacion.pricing_model || 'hourly',
+        fixed_price_notes: estimacion.fixed_price_notes || '',
+        parent_estimacion_id: estimacion.parent_estimacion_id || null,
         contact_name: estimacion.contact_name || '',
         contact_email: estimacion.contact_email || '',
         expected_start_date: estimacion.expected_start_date || '',
@@ -688,7 +696,7 @@ export function NewEstimacionPage() {
       {/* Step Content Container */}
       <div className="bg-card rounded-xl border border-slate-200 dark:border-slate-800 p-3.5 sm:p-4 min-h-[380px] shadow-sm">
         {currentStep === 1 && <EstimacionGeneralStep data={payload} onChange={updatePayload} />}
-        {currentStep === 2 && <EstimacionItemsStep data={payload} onChange={updatePayload} />}
+        {currentStep === 2 && <EstimacionItemsStep data={payload} onChange={updatePayload} settings={comercialSettings} />}
         {currentStep === 3 && <EstimacionCostsStep data={payload} onChange={updatePayload} />}
         {currentStep === 4 && (
           <EstimacionReviewStep 
