@@ -630,10 +630,17 @@ LICENCIA DE CONDUCIR: ${cnh}`;
   const handleOpenAllocateDialog = (item: any) => {
     if (!selectedPedido) return;
 
-    // Find if there is a pending replacement target for this item
-    const repTarget = selectedPedido.isSynthetic 
-      ? replacementTargets.find(t => t.id === item.solicitud_target_id)
-      : replacementTargets.find(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'));
+    // Find if there is a pending replacement target for this item (prioritizing earliest due_date)
+    const itemTargets = selectedPedido.isSynthetic 
+      ? replacementTargets.filter(t => t.id === item.solicitud_target_id)
+      : replacementTargets.filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'));
+
+    const sortedTargets = [...itemTargets].sort((a, b) => {
+      const dateA = a.solicitud?.due_date ? new Date(a.solicitud.due_date).getTime() : Infinity;
+      const dateB = b.solicitud?.due_date ? new Date(b.solicitud.due_date).getTime() : Infinity;
+      return dateA - dateB;
+    });
+    const repTarget = sortedTargets[0];
 
     const targetJobFuncId = repTarget?.target_job_function_id || item.job_function_id;
     const targetJobFuncName = repTarget?.target_job_function_name || item.job_function_name_snapshot || item.job_function?.name || 'Função';
@@ -985,7 +992,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedPedido.pedido_items?.map((item: any) => {
-                    const itemReplacements = replacementTargets.filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'));
+                    const itemReplacements = replacementTargets
+                      .filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'))
+                      .sort((a, b) => {
+                        const dateA = a.solicitud?.due_date ? new Date(a.solicitud.due_date).getTime() : Infinity;
+                        const dateB = b.solicitud?.due_date ? new Date(b.solicitud.due_date).getTime() : Infinity;
+                        return dateA - dateB;
+                      });
                     const repCount = itemReplacements.length;
                     const firstRep = itemReplacements[0];
                     const effectiveFulfilled = Math.max(0, (item.quantity_fulfilled || 0) - repCount);
