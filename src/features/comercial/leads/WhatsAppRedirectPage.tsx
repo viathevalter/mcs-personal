@@ -5,8 +5,10 @@ import { MessageCircle, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 
 export function WhatsAppRedirectPage() {
   const [searchParams] = useSearchParams();
-  const leadId = searchParams.get('lead_id');
+  const rawLeadId = searchParams.get('lead_id');
+  const leadId = (rawLeadId && rawLeadId !== 'undefined' && rawLeadId !== 'null') ? rawLeadId : null;
   const destParam = searchParams.get('dest');
+  const empresaParam = searchParams.get('empresa_id');
 
   const [isLoadingLead, setIsLoadingLead] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -22,28 +24,83 @@ export function WhatsAppRedirectPage() {
 
   useEffect(() => {
     async function resolveContext() {
-      // 1. Fallback padrão seguro (Triângulo / Michelle)
-      let defaultWaUrl = 'https://wa.me/34937374830?text=Hola,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      // 1. URLs padrão por vendedor
+      const waOmarDefault = 'https://wa.me/351936447734?text=Bonjour%20Omar,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
+      const waMichelleDefault = 'https://wa.me/34937374830?text=Hola%20Michelle,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      const waAlexDefault = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      const waGiadaDefault = 'https://wa.me/393000000000?text=Ciao%20Giada,%20vorrei%20maggiori%20informazioni%20sui%20vostri%20servizi';
 
-      // Se URL de destino foi passada explicitamente pelo template de e-mail, priorizá-la
+      let currentWaUrl = waMichelleDefault;
+      let currentLang: 'fr' | 'es' | 'it' = 'es';
+      let currentSalesperson = 'Michelle';
+      let currentCompany = 'Triângulo Servicios Industriales';
+
+      // 2. Análise Imediata do Destino Explicito (dest) se informado
+      let explicitDest = '';
       if (destParam) {
         try {
-          defaultWaUrl = decodeURIComponent(destParam);
+          explicitDest = decodeURIComponent(destParam);
         } catch {
-          defaultWaUrl = destParam;
+          explicitDest = destParam;
+        }
+        currentWaUrl = explicitDest;
+
+        if (explicitDest.includes('351936447734') || explicitDest.toLowerCase().includes('wiseowe')) {
+          currentLang = 'fr';
+          currentSalesperson = 'Omar';
+          currentCompany = 'Wiseowe Industrie';
+        } else if (explicitDest.includes('34937374180') || explicitDest.toLowerCase().includes('luminous')) {
+          currentLang = 'es';
+          currentSalesperson = 'Alex';
+          currentCompany = 'Luminous Alley';
+        } else if (explicitDest.includes('393000000000') || explicitDest.includes('+39') || explicitDest.includes('it.triangulolda')) {
+          currentLang = 'it';
+          currentSalesperson = 'Giada';
+          currentCompany = 'Triangolo Servizi Industriali';
+        } else if (explicitDest.includes('34937374830') || explicitDest.toLowerCase().includes('triangulo')) {
+          currentLang = 'es';
+          currentSalesperson = 'Michelle';
+          currentCompany = 'Triângulo Servicios Industriales';
         }
       }
 
+      // 3. Análise Imediata da Empresa (empresa_id) se informada
+      if (empresaParam) {
+        const emp = empresaParam.toLowerCase();
+        if (emp === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
+          // Wiseowe
+          currentLang = 'fr';
+          currentSalesperson = 'Omar';
+          currentCompany = 'Wiseowe Industrie';
+          if (!destParam) currentWaUrl = waOmarDefault;
+        } else if (emp === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
+          // Luminous
+          currentLang = 'es';
+          currentSalesperson = 'Alex';
+          currentCompany = 'Luminous Alley';
+          if (!destParam) currentWaUrl = waAlexDefault;
+        } else if (emp === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
+          // Triângulo
+          currentLang = 'es';
+          currentSalesperson = 'Michelle';
+          currentCompany = 'Triângulo Servicios Industriales';
+          if (!destParam) currentWaUrl = waMichelleDefault;
+        }
+      }
+
+      // 4. Se houver leadId com formato UUID válido, buscar informações detalhadas no banco
+      const isValidUUID = Boolean(leadId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(leadId));
+
       try {
-        if (leadId) {
-          const { data: lead } = await supabase
+        if (isValidUUID && leadId) {
+          const { data: lead, error: leadErr } = await supabase
             .schema('core_comercial')
             .from('leads')
             .select('empresa_id, stage_id, name, notes, assigned_to, tags, email, phone')
             .eq('id', leadId)
             .maybeSingle();
 
-          if (lead) {
+          if (!leadErr && lead) {
             const empId = (lead.empresa_id || '').toLowerCase();
             const isTriangulo = empId === 'a798620a-358a-4c6c-9db2-3a507c583cac';
             const isWiseowe = empId === 'dae64d51-2181-4510-b14f-e63d2f111a8e';
@@ -92,33 +149,25 @@ export function WhatsAppRedirectPage() {
             const assignedUserId = lead.assigned_to;
 
             if (assignedUserId === GIADA_ID || isItalyLead) {
-              setLanguage('it');
-              setSalespersonName('Giada');
-              setCompanyName('Triangolo Servizi Industriali');
-              if (!destParam) {
-                defaultWaUrl = 'https://wa.me/393000000000?text=Ciao%20Giada,%20vorrei%20maggiori%20informazioni%20sui%20vostri%20servizi';
-              }
+              currentLang = 'it';
+              currentSalesperson = 'Giada';
+              currentCompany = 'Triangolo Servizi Industriali';
+              if (!destParam) currentWaUrl = waGiadaDefault;
             } else if (assignedUserId === OMAR_ID || isFranceLead || isWiseowe) {
-              setLanguage('fr');
-              setSalespersonName('Omar');
-              setCompanyName('Wiseowe Industrie');
-              if (!destParam) {
-                defaultWaUrl = 'https://wa.me/351936447734?text=Bonjour%20Omar,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
-              }
+              currentLang = 'fr';
+              currentSalesperson = 'Omar';
+              currentCompany = 'Wiseowe Industrie';
+              if (!destParam) currentWaUrl = waOmarDefault;
             } else if (assignedUserId === ALEX_ID || isLuminous) {
-              setLanguage('es');
-              setSalespersonName('Alex');
-              setCompanyName('Luminous Alley');
-              if (!destParam) {
-                defaultWaUrl = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
-              }
+              currentLang = 'es';
+              currentSalesperson = 'Alex';
+              currentCompany = 'Luminous Alley';
+              if (!destParam) currentWaUrl = waAlexDefault;
             } else {
-              setLanguage('es');
-              setSalespersonName('Michelle');
-              setCompanyName(isTriangulo ? 'Triángulo Servicios Industriales' : 'Atención Comercial');
-              if (!destParam) {
-                defaultWaUrl = 'https://wa.me/34937374830?text=Hola%20Michelle,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
-              }
+              currentLang = 'es';
+              currentSalesperson = 'Michelle';
+              currentCompany = isTriangulo ? 'Triángulo Servicios Industriales' : 'Atención Comercial';
+              if (!destParam) currentWaUrl = waMichelleDefault;
             }
 
             // Buscar order_index do estágio atual
@@ -135,29 +184,35 @@ export function WhatsAppRedirectPage() {
             }
 
             // Buscar o estágio de 'Contato Via WhatsApp' para esta empresa
-            const { data: targetStages } = await supabase
-              .schema('core_comercial')
-              .from('kanban_stages')
-              .select('id, order_index')
-              .eq('empresa_id', lead.empresa_id)
-              .ilike('name', '%WhatsApp%')
-              .limit(1);
+            const targetEmpId = lead.empresa_id || empresaParam;
+            if (targetEmpId) {
+              const { data: targetStages } = await supabase
+                .schema('core_comercial')
+                .from('kanban_stages')
+                .select('id, order_index')
+                .eq('empresa_id', targetEmpId)
+                .ilike('name', '%WhatsApp%')
+                .limit(1);
 
-            if (targetStages && targetStages.length > 0) {
-              setTargetStageId(targetStages[0].id);
+              if (targetStages && targetStages.length > 0) {
+                setTargetStageId(targetStages[0].id);
+              }
             }
           }
         }
       } catch (err) {
-        console.error('Erro ao resolver contexto do WhatsApp:', err);
+        console.error('Erro ao resolver contexto do WhatsApp no banco:', err);
       } finally {
-        setResolvedUrl(defaultWaUrl);
+        setResolvedUrl(currentWaUrl);
+        setLanguage(currentLang);
+        setSalespersonName(currentSalesperson);
+        setCompanyName(currentCompany);
         setIsLoadingLead(false);
       }
     }
 
     resolveContext();
-  }, [leadId, destParam]);
+  }, [leadId, destParam, empresaParam]);
 
   // Executado APENAS quando o usuário humano clica no botão
   const handleOpenWhatsApp = async () => {

@@ -279,16 +279,16 @@ serve(async (req) => {
           .replace(/\*\|UNSUBSCRIBE\|\*/gi, unsubscribeLink)
           .replace(/%UNSUBSCRIBE_URL%/gi, unsubscribeLink)
           // Variáveis explícitas por vendedor (garantia 100% de direcionamento)
-          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waOmarUrl)}`)
-          .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waMichelleUrl)}`)
-          .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waGiadaUrl)}`)
-          .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waAlexUrl)}`)
+          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${campaign.empresa_id}`)
           // Variável genérica inteligente (respeita vendedor atribuído, país do lead e empresa)
-          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(defaultWaUrl)}`);
+          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(defaultWaUrl)}&empresa_id=${campaign.empresa_id}`);
 
         // Preservar links wa.me explicitamente definidos no HTML do template, mantendo o número e texto exatos
         res = res.replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, (match) => {
-          return `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(match)}`;
+          return `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(match)}&empresa_id=${campaign.empresa_id}`;
         });
 
         return res;
