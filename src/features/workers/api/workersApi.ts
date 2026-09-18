@@ -138,7 +138,7 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             funcion: updates.funcion,
         })
         .eq('id', id)
-        .select('id');
+        .select('id, cod_colab');
 
     if (error) {
         throw mapSupabaseError(error);
@@ -146,6 +146,40 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
     
     if (!updatedWorker || updatedWorker.length === 0) {
         throw new Error("Falha ao atualizar o trabalhador. Verifique suas permissões (RLS).");
+    }
+
+    // Sincronizar com a tabela espelho public.colaboradores para manter paridade e evitar sobrescritas legadas
+    const codColab = updatedWorker[0]?.cod_colab;
+    if (codColab) {
+        const colabUpdates: any = {};
+        if (updates.nome !== undefined) colabUpdates.nombre = updates.nome;
+        if (updates.email !== undefined) colabUpdates.email = updates.email;
+        if (updates.movil !== undefined) colabUpdates.movil = updates.movil;
+        if (updates.niss !== undefined) colabUpdates.niss = updates.niss;
+        if (updates.nif !== undefined) colabUpdates.nif = updates.nif;
+        if (updates.nie !== undefined) colabUpdates.nie = updates.nie;
+        if (updates.dni !== undefined) colabUpdates.dni = updates.dni;
+        if (updates.pasaporte !== undefined) colabUpdates.pasaporte = updates.pasaporte;
+        if (updates.licencia_conducir !== undefined) colabUpdates.licencia_conducir = updates.licencia_conducir;
+        if (updates.nacionalidade !== undefined) colabUpdates.nacionalidade = updates.nacionalidade;
+        if (updates.fecha_nacimiento !== undefined) colabUpdates.fecha_nacimiento = updates.fecha_nacimiento;
+        if (updates.nuss !== undefined) colabUpdates.nuss = updates.nuss;
+        if (updates.foto !== undefined) colabUpdates.foto = updates.foto;
+        if (updates.status_trabajador !== undefined) colabUpdates.status_trabajador = updates.status_trabajador;
+        if (updates.status_seguridad !== undefined) colabUpdates.status_seguridad = updates.status_seguridad;
+        if (updates.funcion !== undefined) colabUpdates.funcion = updates.funcion;
+
+        if (Object.keys(colabUpdates).length > 0) {
+            try {
+                await supabase
+                    .schema('public')
+                    .from('colaboradores')
+                    .update(colabUpdates)
+                    .eq('cod_colab', codColab);
+            } catch (err) {
+                console.warn("Aviso: Falha ao sincronizar public.colaboradores:", err);
+            }
+        }
     }
 }
 

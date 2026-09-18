@@ -578,14 +578,42 @@ export async function approveDocumentRequest(
     updatedFormData?: any
 ): Promise<void> {
     // 1. Atualizar o cadastro do trabalhador
-    const { error: workerErr } = await supabase
+    const { data: updatedW, error: workerErr } = await supabase
         .schema('core_personal')
         .from('workers')
         .update(approvedData)
-        .eq('id', workerId);
+        .eq('id', workerId)
+        .select('cod_colab')
+        .maybeSingle();
 
     if (workerErr) {
         throw mapSupabaseError(workerErr);
+    }
+
+    if (updatedW?.cod_colab) {
+        const colabSync: any = {};
+        if (approvedData.nome) colabSync.nombre = approvedData.nome;
+        if (approvedData.nif) colabSync.nif = approvedData.nif;
+        if (approvedData.niss) colabSync.niss = approvedData.niss;
+        if (approvedData.nie) colabSync.nie = approvedData.nie;
+        if (approvedData.dni) colabSync.dni = approvedData.dni;
+        if (approvedData.pasaporte) colabSync.pasaporte = approvedData.pasaporte;
+        if (approvedData.email) colabSync.email = approvedData.email;
+        if (approvedData.fecha_nacimiento) colabSync.fecha_nacimiento = approvedData.fecha_nacimiento;
+        if (approvedData.nacionalidade) colabSync.nacionalidade = approvedData.nacionalidade;
+        if (approvedData.licencia_conducir) colabSync.licencia_conducir = approvedData.licencia_conducir;
+
+        if (Object.keys(colabSync).length > 0) {
+            try {
+                await supabase
+                    .schema('public')
+                    .from('colaboradores')
+                    .update(colabSync)
+                    .eq('cod_colab', updatedW.cod_colab);
+            } catch (err) {
+                console.warn("Aviso: Falha ao sincronizar public.colaboradores:", err);
+            }
+        }
     }
 
     // 2. Atualizar o extracted_data da solicitação e marcar como verificada

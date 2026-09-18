@@ -305,24 +305,29 @@ serve(async (req) => {
         ? rawFormattedHtml.replace('</body>', `${trackingPixelHtml}</body>`)
         : `${rawFormattedHtml}${trackingPixelHtml}`;
       
-      // Resolução inteligente do Remetente por Empresa e País do Lead
+      // Resolução inteligente do Remetente e Reply-To por Empresa e País do Lead
       let validSenderEmail = company?.marketing_sender_email || company?.proposal_sender_email || "comercial1@mail.luminousalley.com";
       let senderName = company?.trade_name || "Comercial";
+      let validReplyTo = "alex@mail.gestaologinpro.com";
 
-      if (companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO")) {
+      if (companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO") || isTriangulo) {
         if (isItalyLead) {
           validSenderEmail = "commerciale@it.triangulolda.com";
           senderName = "Triangolo Servizi Industriali";
+          validReplyTo = "commerciale@triangulolda.com";
         } else {
           validSenderEmail = "comercial2@es.triangulolda.com";
           senderName = "Triángulo Servicios Industriales";
+          validReplyTo = "comercial2@triangulolda.com";
         }
-      } else if (companyTrade.includes("WISEOWE")) {
+      } else if (companyTrade.includes("WISEOWE") || isFranceLead || isWiseowe) {
         validSenderEmail = "comercial3@fr.wiseowe.com";
         senderName = "Wiseowe Industrie";
-      } else if (companyTrade.includes("LUMINOUS")) {
+        validReplyTo = "comercial3@wiseowe.com"; // E-mail oficial do Omar no Outlook/Exchange!
+      } else if (companyTrade.includes("LUMINOUS") || isLuminous) {
         validSenderEmail = "comercial1@mail.luminousalley.com";
         senderName = "Luminous Alley";
+        validReplyTo = "comercial1@luminousalley.com";
       } else {
         const lowerSender = validSenderEmail.toLowerCase();
         if (
@@ -335,6 +340,12 @@ serve(async (req) => {
         ) {
           validSenderEmail = "alex@mail.gestaologinpro.com";
         }
+        validReplyTo = validSenderEmail;
+      }
+
+      // Se o vendedor for Omar ou for campanha/lead da França/Wiseowe, direcionar resposta diretamente para comercial3@wiseowe.com
+      if (assignedUserId === OMAR_ID || isFranceLead || isWiseowe) {
+        validReplyTo = "comercial3@wiseowe.com";
       }
 
       const fromHeader = `${senderName} <${validSenderEmail}>`;
@@ -418,10 +429,12 @@ serve(async (req) => {
           const emailPayload = {
             from: fromHeader,
             to: [cleanLeadEmail],
+            reply_to: validReplyTo,
             subject: emailSubject,
             html: htmlBody,
             text: plainTextBody,
             headers: {
+              "Reply-To": validReplyTo,
               "List-Unsubscribe": `<${unsubscribeLink}>`,
               "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
             },
