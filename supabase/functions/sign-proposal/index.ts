@@ -295,7 +295,8 @@ async function embedSignatureInDocx(
     otpCode: string;
     signedAtIso: string;
     ipAddress: string;
-  }
+  },
+  companyLogoBytes?: Uint8Array | null
 ): Promise<Uint8Array | null> {
   try {
     console.log(`[embedSignature] Downloading docx to insert signature: ${documentUrl}`);
@@ -319,13 +320,28 @@ async function embedSignatureInDocx(
 
     let signatureInserted = false;
 
-    // 0. Handle any .undefined image files from template generation
-    const undefinedPaths = Object.keys(zip.files).filter(p => p.includes('.undefined'));
-    for (const path of undefinedPaths) {
-      const pngPath = path.replace(/\.undefined/g, '.png');
-      console.log(`[embedSignature] Converting ${path} to ${pngPath} with client signature`);
-      zip.file(pngPath, signatureBytes); // Put client signature here so rId8 exists and renders!
-      zip.remove(path);
+    // 0. Handle company logo: preserve or restore true company logo bytes and ensure .png extension
+    const logoFile = Object.keys(zip.files).find(p => p.includes('1fb869ea57eb1285c7e04f58f151ca198002e19c') || p.includes('.undefined'));
+    if (logoFile) {
+      const pngLogoPath = logoFile.replace(/\.undefined/g, '.png');
+      if (companyLogoBytes) {
+        console.log(`[embedSignature] Restoring true company logo in ${pngLogoPath}`);
+        zip.file(pngLogoPath, companyLogoBytes);
+      } else if (logoFile.endsWith('.undefined')) {
+        const originalLogoBytes = await zip.file(logoFile)?.async("uint8array");
+        if (originalLogoBytes) {
+          zip.file(pngLogoPath, originalLogoBytes);
+        }
+      }
+      if (logoFile !== pngLogoPath) {
+        zip.remove(logoFile);
+      }
+    }
+
+    // 0.5 If template has an embedded signature placeholder image (e.g. template_document.xml_img4.png under "POR EL CLIENTE:"), replace it with the client signature!
+    if (zip.file("word/media/template_document.xml_img4.png")) {
+      console.log("[embedSignature] Replacing word/media/template_document.xml_img4.png with client signatureBytes");
+      zip.file("word/media/template_document.xml_img4.png", signatureBytes);
       signatureInserted = true;
     }
 
@@ -554,6 +570,28 @@ serve(async (req) => {
       }
     }
 
+    // 4.5. Buscar dados da empresa e logotipo oficial
+    const { data: empresa } = await supabase
+      .schema("core_common")
+      .from("empresas")
+      .select("*")
+      .eq("id", ps.empresa_id)
+      .single();
+
+    let companyLogoBytes: Uint8Array | null = null;
+    if (empresa?.invoice_logo_url) {
+      try {
+        console.log(`[sign-proposal] Fetching company logo from: ${empresa.invoice_logo_url}`);
+        const logoRes = await fetch(empresa.invoice_logo_url);
+        if (logoRes.ok) {
+          companyLogoBytes = new Uint8Array(await logoRes.arrayBuffer());
+          console.log(`[sign-proposal] Company logo fetched successfully (${companyLogoBytes.length} bytes)`);
+        }
+      } catch (e) {
+        console.warn("[sign-proposal] Error fetching company logo:", e);
+      }
+    }
+
     // 5. Salvar a assinatura desenhada (canvas) no storage ou recuperar existente
     let signatureImageUrl = "";
     let signedProposalBytes: Uint8Array | null = null;
@@ -602,11 +640,11 @@ serve(async (req) => {
       if (sigBinaryData) {
         if (ps.document_url) {
           console.log(`[sign-proposal-reprocess] Embedding signature in proposal docx: ${ps.document_url}`);
-          signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, sigBinaryData, auditInfo);
+          signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, sigBinaryData, auditInfo, companyLogoBytes);
         }
         if (ps.contract_document_url) {
           console.log(`[sign-proposal-reprocess] Embedding signature in contract docx: ${ps.contract_document_url}`);
-          signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, sigBinaryData, auditInfo);
+          signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, sigBinaryData, auditInfo, companyLogoBytes);
         }
       }
     } else {
@@ -641,11 +679,11 @@ serve(async (req) => {
           // Incorporar a imagem da assinatura nos arquivos DOCX da proposta e do contrato
           if (ps.document_url) {
             console.log(`[sign-proposal] Embedding signature in proposal docx: ${ps.document_url}`);
-            signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, binaryData, auditInfo);
+            signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, binaryData, auditInfo, companyLogoBytes);
           }
           if (ps.contract_document_url) {
             console.log(`[sign-proposal] Embedding signature in contract docx: ${ps.contract_document_url}`);
-            signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, binaryData, auditInfo);
+            signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, binaryData, auditInfo, companyLogoBytes);
           }
         } catch (errSig) {
           console.error("Erro ao decodificar a assinatura base64:", errSig);
@@ -697,13 +735,7 @@ serve(async (req) => {
         .eq("id", est.id);
     }
 
-    // 8.5. Buscar dados da empresa para o e-mail de notificação
-    const { data: empresa } = await supabase
-      .schema("core_common")
-      .from("empresas")
-      .select("*")
-      .eq("id", ps.empresa_id)
-      .single();
+    // 8.5. Obter proposta assinada em base64 (direto da memória se gerado ou do storage)
 
     // Obter proposta assinada em base64 (direto da memória se gerado ou do storage)
     let proposalBase64 = "";
