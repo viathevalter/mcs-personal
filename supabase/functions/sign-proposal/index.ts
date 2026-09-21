@@ -449,6 +449,9 @@ serve(async (req) => {
 
     // 5. Salvar a assinatura desenhada (canvas) no storage
     let signatureImageUrl = "";
+    let signedProposalBytes: Uint8Array | null = null;
+    let signedContractBytes: Uint8Array | null = null;
+
     if (signature_image) {
       try {
         const base64Data = signature_image.replace(/^data:image\/\w+;base64,/, "");
@@ -470,9 +473,6 @@ serve(async (req) => {
         }
 
         // Incorporar a imagem da assinatura nos arquivos DOCX da proposta e do contrato
-        let signedProposalBytes: Uint8Array | null = null;
-        let signedContractBytes: Uint8Array | null = null;
-
         if (ps.document_url) {
           console.log(`[sign-proposal] Embedding signature in proposal docx: ${ps.document_url}`);
           signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, binaryData);
