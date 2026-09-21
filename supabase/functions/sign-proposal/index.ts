@@ -338,10 +338,11 @@ async function embedSignatureInDocx(
       }
     }
 
-    // 0.5 If template has an embedded signature placeholder image (e.g. template_document.xml_img4.png under "POR EL CLIENTE:"), replace it with the client signature!
-    if (zip.file("word/media/template_document.xml_img4.png")) {
-      console.log("[embedSignature] Replacing word/media/template_document.xml_img4.png with client signatureBytes");
-      zip.file("word/media/template_document.xml_img4.png", signatureBytes);
+    // 0.5 If template has an embedded signature placeholder image (e.g. template_document.xml_img*.png in proposal or contract), replace it with the client signature!
+    const placeholderSigFiles = Object.keys(zip.files).filter(p => p.startsWith("word/media/template_document.xml_img"));
+    for (const phPath of placeholderSigFiles) {
+      console.log(`[embedSignature] Replacing signature placeholder ${phPath} with client signatureBytes`);
+      zip.file(phPath, signatureBytes);
       signatureInserted = true;
     }
 
@@ -374,6 +375,9 @@ async function embedSignatureInDocx(
     zip.file("[Content_Types].xml", contentTypesXml);
 
     let docXml = await zip.file("word/document.xml")?.async("text") || "";
+
+    // Clean any previous duplicate injected signature paragraphs from headers
+    docXml = docXml.replace(/<w:p><w:pPr><w:spacing w:before="60" w:after="60"\/><\/w:pPr><w:r><w:drawing>[\s\S]*?<\/w:drawing><\/w:r><\/w:p>/g, '');
 
     const createInlineImgXml = (docPrId: number) => `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="1600000" cy="700000"/><wp:docPr id="${docPrId}" name="Assinatura"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${docPrId}" name="Assinatura"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${sigRelId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1600000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
 
