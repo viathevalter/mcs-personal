@@ -34,12 +34,20 @@ function adjustDocxPreviewSpacing(container: HTMLElement | null) {
 function injectSignatureIntoDocxPreview(container: HTMLElement | null, signatureSrc: string | null) {
     if (!container) return;
 
+    // Restore any accidentally hidden containers or wrappers
+    container.style.removeProperty('display');
+    container.querySelectorAll('.docx-wrapper, .docx-document, section, table, tbody, tr, td').forEach((el: any) => {
+        if (el.style?.display === 'none') {
+            el.style.removeProperty('display');
+        }
+    });
+
     // Remove or update existing injected signatures
     const existing = container.querySelectorAll('.injected-client-sig-img');
     if (!signatureSrc) {
         existing.forEach(el => {
-            const wrapper = el.closest('.injected-client-sig-wrapper');
-            if (wrapper) wrapper.remove();
+            const sigWrap = el.closest('.injected-client-sig-wrapper');
+            if (sigWrap) sigWrap.remove();
             else el.remove();
         });
         return;
@@ -56,11 +64,13 @@ function injectSignatureIntoDocxPreview(container: HTMLElement | null, signature
         if (updated || existing.length > 0) return;
     }
 
-    // Hide any raw tag text like "{{IMAGE FIRMA_CLIENTE}}"
-    container.querySelectorAll('*').forEach((el: any) => {
-        const t = (el.innerText || el.textContent || '').trim();
-        if (t.includes('FIRMA_CLIENTE') || t.includes('FIRMA_CONTRATANTE')) {
-            el.style.setProperty('display', 'none', 'important');
+    // Hide ONLY specific leaf elements containing the raw tag text (length < 50 to avoid any container)
+    container.querySelectorAll('span, p').forEach((el: any) => {
+        if (el.children.length === 0) {
+            const t = (el.textContent || '').trim();
+            if ((t.includes('FIRMA_CLIENTE') || t.includes('FIRMA_CONTRATANTE')) && t.length < 50) {
+                el.style.setProperty('display', 'none', 'important');
+            }
         }
     });
 
@@ -93,9 +103,9 @@ function injectSignatureIntoDocxPreview(container: HTMLElement | null, signature
             if (cell.querySelector('.injected-client-sig-img')) continue;
 
             // Create signature element
-            const wrapper = document.createElement('div');
-            wrapper.className = 'injected-client-sig-wrapper';
-            wrapper.style.cssText = 'min-height: 50px; max-height: 80px; display: flex; align-items: center; justify-content: flex-start; margin: 4px 0 6px 0; overflow: visible;';
+            const sigWrapper = document.createElement('div');
+            sigWrapper.className = 'injected-client-sig-wrapper';
+            sigWrapper.style.cssText = 'min-height: 50px; max-height: 80px; display: flex; align-items: center; justify-content: flex-start; margin: 4px 0 6px 0; overflow: visible;';
 
             const img = document.createElement('img');
             img.className = 'injected-client-sig-img';
@@ -103,7 +113,7 @@ function injectSignatureIntoDocxPreview(container: HTMLElement | null, signature
             img.alt = 'Firma del Cliente';
             img.style.cssText = 'max-height: 70px; max-width: 220px; width: auto; height: auto; object-fit: contain; display: block; filter: contrast(1.1);';
 
-            wrapper.appendChild(img);
+            sigWrapper.appendChild(img);
 
             // Find where to insert inside this cell
             let insertBeforeChild: Node | null = null;
@@ -131,11 +141,11 @@ function injectSignatureIntoDocxPreview(container: HTMLElement | null, signature
             }
 
             if (insertBeforeChild) {
-                cell.insertBefore(wrapper, insertBeforeChild);
+                cell.insertBefore(sigWrapper, insertBeforeChild);
             } else if (headerChildIndex !== -1 && children[headerChildIndex].nextSibling) {
-                cell.insertBefore(wrapper, children[headerChildIndex].nextSibling);
+                cell.insertBefore(sigWrapper, children[headerChildIndex].nextSibling);
             } else {
-                cell.appendChild(wrapper);
+                cell.appendChild(sigWrapper);
             }
         }
     }
