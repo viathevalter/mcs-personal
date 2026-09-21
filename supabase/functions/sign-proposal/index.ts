@@ -93,7 +93,7 @@ async function convertDocxToPdfViaGraph(
   driveId: string,
   docxBase64: string,
   fileName: string
-): Promise<{ name: string; contentType: string; contentBytes: string }> {
+): Promise<{ name: string; contentType: string; contentBytes: string; error?: string }> {
   try {
     // Decode base64 to binary
     const binaryString = atob(docxBase64);
@@ -170,6 +170,7 @@ async function convertDocxToPdfViaGraph(
       name: fileName,
       contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       contentBytes: docxBase64,
+      error: err.message,
     };
   }
 }
@@ -287,7 +288,14 @@ async function sendMailViaGraph(
 async function embedSignatureInDocx(
   supabase: any,
   documentUrl: string,
-  signatureBytes: Uint8Array
+  signatureBytes: Uint8Array,
+  auditInfo?: {
+    clientOrLeadName: string;
+    emailUsed: string;
+    otpCode: string;
+    signedAtIso: string;
+    ipAddress: string;
+  }
 ): Promise<Uint8Array | null> {
   try {
     console.log(`[embedSignature] Downloading docx to insert signature: ${documentUrl}`);
@@ -301,32 +309,119 @@ async function embedSignatureInDocx(
     }
 
     let templateBuffer = new Uint8Array(await blob.arrayBuffer());
-    templateBuffer = await normalizeDocxTemplates(templateBuffer);
+    
+    // Direct JSZip XML insertion for signature image and eIDAS audit certificate
+    const zip = new JSZip();
+    await zip.loadAsync(templateBuffer);
 
-    console.log(`[embedSignature] Processing docx with docx-templates...`);
-    const finalDoc = await createReport({
-      template: templateBuffer,
-      data: {
-        FIRMA_CLIENTE: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        firma_cliente: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        Firma_Cliente: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        FIRMA_CONTRATANTE: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        firma_contratante: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        Firma_Contratante: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        FIRMA: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        firma: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        Firma: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        SIGNATURE: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        signature: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-        Signature: { width: 4.5, height: 2.0, data: signatureBytes, extension: '.png' },
-      },
-      cmdDelimiter: ["{{", "}}"],
-      noSandbox: true,
-      errorHandler: (err, command_code) => {
-        console.warn(`[embedSignature] Error on tag ${command_code}:`, err);
-        return "";
+    const sigRelId = "rIdSig99";
+    zip.file("word/media/signature_signed.png", signatureBytes);
+
+    let signatureInserted = false;
+
+    // 0. Handle any .undefined image files from template generation
+    const undefinedPaths = Object.keys(zip.files).filter(p => p.includes('.undefined'));
+    for (const path of undefinedPaths) {
+      const pngPath = path.replace(/\.undefined/g, '.png');
+      console.log(`[embedSignature] Converting ${path} to ${pngPath} with client signature`);
+      zip.file(pngPath, signatureBytes); // Put client signature here so rId8 exists and renders!
+      zip.remove(path);
+      signatureInserted = true;
+    }
+
+    let relsXml = await zip.file("word/_rels/document.xml.rels")?.async("text") || "";
+    if (relsXml.includes(".undefined")) {
+      console.log(`[embedSignature] Normalizing .undefined in document.xml.rels`);
+      relsXml = relsXml.replace(/\.undefined/g, '.png');
+    }
+    if (!relsXml.includes("signature_signed.png")) {
+      relsXml = relsXml.replace(
+        "</Relationships>",
+        `<Relationship Id="${sigRelId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/signature_signed.png"/></Relationships>`
+      );
+    }
+    zip.file("word/_rels/document.xml.rels", relsXml);
+
+    let contentTypesXml = await zip.file("[Content_Types].xml")?.async("text") || "";
+    if (!contentTypesXml.includes('Extension="png"')) {
+      contentTypesXml = contentTypesXml.replace(
+        "</Types>",
+        '<Default Extension="png" ContentType="image/png"/></Types>'
+      );
+    }
+    if (!contentTypesXml.includes('Extension="undefined"')) {
+      contentTypesXml = contentTypesXml.replace(
+        "</Types>",
+        '<Default Extension="undefined" ContentType="image/png"/></Types>'
+      );
+    }
+    zip.file("[Content_Types].xml", contentTypesXml);
+
+    let docXml = await zip.file("word/document.xml")?.async("text") || "";
+
+    const createInlineImgXml = (docPrId: number) => `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:extent cx="1600000" cy="700000"/><wp:docPr id="${docPrId}" name="Assinatura"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${docPrId}" name="Assinatura"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="${sigRelId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="1600000" cy="700000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+
+    const inlineImgXml = createInlineImgXml(999);
+
+    // 0. Clean any invalid <w:t><w:r> nesting from previous attempts
+    docXml = docXml.replace(/<w:t\b[^>]*>\s*(<w:r\b[\s\S]*?<\/w:r>)\s*<\/w:t>/gi, '$1');
+
+    // 1. Replace run containing placeholder tags if present
+    const runTagPattern = /<w:r\b[^>]*>(?:(?!<\/w:r>)[\s\S])*?(?:\{\{\s*(?:IMAGE\s+)?(?:FIRMA_CLIENTE|FIRMA_CONTRATANTE|FIRMA|SIGNATURE)\s*\}\}|\[ASSINATURA\]|\[assinatura\])(?:(?!<\/w:r>)[\s\S])*?<\/w:r>/gi;
+    if (runTagPattern.test(docXml)) {
+      console.log("[embedSignature] Replacing run containing placeholder tag with inlineImgXml in docXml");
+      docXml = docXml.replace(runTagPattern, inlineImgXml);
+      signatureInserted = true;
+    } else {
+      const paraTagPattern = /<w:p\b[^>]*>(?:(?!<\/w:p>)[\s\S])*?(?:\{\{\s*(?:IMAGE\s+)?(?:FIRMA_CLIENTE|FIRMA_CONTRATANTE|FIRMA|SIGNATURE)\s*\}\}|\[ASSINATURA\]|\[assinatura\])(?:(?!<\/w:p>)[\s\S])*?<\/w:p>/gi;
+      if (paraTagPattern.test(docXml)) {
+        console.log("[embedSignature] Replacing paragraph containing placeholder tag with inlineImgXml in docXml");
+        docXml = docXml.replace(paraTagPattern, `<w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr>${inlineImgXml}</w:p>`);
+        signatureInserted = true;
       }
-    });
+    }
+    
+    // 2. If tag was not in document or not replaced, inject after signature headers
+    if (!signatureInserted && !docXml.includes(`r:embed="${sigRelId}"`)) {
+      // In contract: look for "Firma LA CONTRATANTE" (case insensitive)
+      // In proposal: look for "POR EL CLIENTE:" (case insensitive)
+      const contratanteMatch = docXml.match(/(Firma\s+LA\s+CONTRATANTE|FIRMA\s+LA\s+CONTRATANTE|POR\s+LA\s+CONTRATANTE|POR\s+EL\s+CLIENTE:|POR\s+EL\s+CLIENTE|Por\s+el\s+Cliente)/i);
+      if (contratanteMatch && contratanteMatch.index !== undefined) {
+        console.log(`[embedSignature] Injected signature inlineImgXml after header "${contratanteMatch[0]}"`);
+        const pCloseIdx = docXml.indexOf('</w:p>', contratanteMatch.index);
+        if (pCloseIdx !== -1) {
+          const sigPara = `<w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr>${inlineImgXml}</w:p>`;
+          docXml = docXml.substring(0, pCloseIdx + 6) + sigPara + docXml.substring(pCloseIdx + 6);
+          signatureInserted = true;
+        }
+      }
+    }
+
+    // 3. Append eIDAS Audit Certificate Page at end of document if auditInfo is present
+    if (auditInfo && !docXml.includes("COMPROBANTE DE FIRMA ELECTRÓNICA") && !docXml.includes("COMPROVANTE DE ASSINATURA ELETRÔNICA")) {
+      console.log(`[embedSignature] Appending eIDAS Audit Certificate page to document`);
+      const certInlineImgXml = createInlineImgXml(1001);
+      const auditCertXml = `
+        <w:p><w:r><w:br w:type="page"/></w:r></w:p>
+        <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="240" w:after="120"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:color w:val="1E40AF"/></w:rPr><w:t>COMPROBANTE DE FIRMA ELECTRÓNICA</w:t></w:r></w:p>
+        <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="240"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="64748B"/></w:rPr><w:t>Validez Jurídica eIDAS / Reglamento (UE) Nº 910/2014</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="120" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Cliente / Signatario: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.clientOrLeadName}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>E-mail de Notificación: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.emailUsed}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Código de Autenticación OTP: </w:t></w:r><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="1E40AF"/></w:rPr><w:t>${auditInfo.otpCode}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Fecha y Hora de Firma: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.signedAtIso}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Dirección IP Registrada: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.ipAddress}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="160"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Estado de la Firma: </w:t></w:r><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="16A34A"/></w:rPr><w:t>FIRMADO Y AUDITADO</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="120" w:after="80"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Firma Digitalizada:</w:t></w:r></w:p>
+        <w:p><w:pPr><w:jc w:val="left"/><w:spacing w:before="40" w:after="240"/></w:pPr>${certInlineImgXml}</w:p>
+        <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="360" w:after="120"/></w:pPr><w:r><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/><w:color w:val="94A3B8"/></w:rPr><w:t>Este documento ha sido firmado electrónicamente con criptografía y pista de auditoría inmutable conforme al Reglamento (UE) Nº 910/2014 (eIDAS). La integridad y autenticidad del mismo quedan plenamente acreditadas en el sistema.</w:t></w:r></w:p>
+      `;
+      if (docXml.includes("</w:body>")) {
+        docXml = docXml.replace("</w:body>", auditCertXml + "</w:body>");
+      }
+    }
+
+    zip.file("word/document.xml", docXml);
+    const finalDoc = await zip.generateAsync({ type: "uint8array" });
 
     console.log(`[embedSignature] Uploading signed docx back to storage: ${documentUrl}`);
     const { error: uploadErr } = await supabase.storage
@@ -361,11 +456,12 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { token, otp_code, signature_image, ip_address, user_agent } = await req.json();
+    const body = await req.json();
+    const { token, otp_code, signature_image, ip_address, user_agent, action } = body;
 
-    if (!token || !otp_code) {
+    if (!token) {
       return new Response(
-        JSON.stringify({ error: "Parâmetros token e otp_code são obrigatórios." }),
+        JSON.stringify({ error: "Parâmetro token é obrigatório." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -385,27 +481,38 @@ serve(async (req) => {
       );
     }
 
-    if (ps.status !== "pending_signature") {
-      return new Response(
-        JSON.stringify({ error: `Esta proposta já está no status: ${ps.status}.` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    const isReprocess = action === "reprocess" || action === "generate-pdf";
 
-    // 2. Validar OTP e expiração
-    if (ps.otp_code !== otp_code) {
-      return new Response(
-        JSON.stringify({ error: "Código de verificação OTP inválido." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    if (!isReprocess) {
+      if (!otp_code) {
+        return new Response(
+          JSON.stringify({ error: "Parâmetros token e otp_code são obrigatórios." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
-    const expiresAt = new Date(ps.otp_expires_at);
-    if (expiresAt < new Date()) {
-      return new Response(
-        JSON.stringify({ error: "O código OTP expirou. Por favor, solicite o reenvio da proposta." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      if (ps.status !== "pending_signature") {
+        return new Response(
+          JSON.stringify({ error: `Esta proposta já está no status: ${ps.status}.` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // 2. Validar OTP e expiração
+      if (ps.otp_code !== otp_code) {
+        return new Response(
+          JSON.stringify({ error: "Código de verificação OTP inválido." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const expiresAt = new Date(ps.otp_expires_at);
+      if (expiresAt < new Date()) {
+        return new Response(
+          JSON.stringify({ error: "O código OTP expirou. Por favor, solicite o reenvio da proposta." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // 3. Buscar a estimación correspondente
@@ -447,88 +554,148 @@ serve(async (req) => {
       }
     }
 
-    // 5. Salvar a assinatura desenhada (canvas) no storage
+    // 5. Salvar a assinatura desenhada (canvas) no storage ou recuperar existente
     let signatureImageUrl = "";
     let signedProposalBytes: Uint8Array | null = null;
     let signedContractBytes: Uint8Array | null = null;
 
-    if (signature_image) {
-      try {
-        const base64Data = signature_image.replace(/^data:image\/\w+;base64,/, "");
-        const binaryData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-        const sigImagePath = `${ps.estimacion_id}/signature_${Date.now()}.png`;
-        
-        const { error: uploadImgErr } = await supabase.storage
+    if (isReprocess) {
+      console.log(`[sign-proposal] Executing REPROCESS mode for proposal signature ${ps.id}`);
+      // Recuperar log de auditoria existente
+      const { data: existingAudit } = await supabase
+        .schema("core_comercial")
+        .from("proposal_audit_logs")
+        .select("*")
+        .eq("proposal_signature_id", ps.id)
+        .order("verified_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      signatureImageUrl = existingAudit?.signature_image || signature_image || "";
+      let sigBinaryData: Uint8Array | null = null;
+
+      if (signatureImageUrl && !signatureImageUrl.startsWith("data:")) {
+        console.log(`[sign-proposal-reprocess] Downloading signature image from: ${signatureImageUrl}`);
+        const { data: sigBlob, error: sigErr } = await supabase.storage
           .from("proposal-signatures")
-          .upload(sigImagePath, binaryData, {
-            contentType: "image/png",
-            upsert: true,
-          });
-
-        if (!uploadImgErr) {
-          signatureImageUrl = sigImagePath;
+          .download(signatureImageUrl);
+        if (!sigErr && sigBlob) {
+          sigBinaryData = new Uint8Array(await sigBlob.arrayBuffer());
         } else {
-          console.error("Erro ao fazer upload da imagem de assinatura:", uploadImgErr);
-          signatureImageUrl = signature_image; // Fallback para base64 direto
+          console.error("[sign-proposal-reprocess] Erro ao baixar imagem de assinatura:", sigErr);
         }
+      } else if (signatureImageUrl.startsWith("data:")) {
+        const base64Data = signatureImageUrl.replace(/^data:image\/\w+;base64,/, "");
+        sigBinaryData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+      }
 
-        // Incorporar a imagem da assinatura nos arquivos DOCX da proposta e do contrato
+      const auditInfo = {
+        clientOrLeadName,
+        emailUsed: existingAudit?.email_or_phone_used || emailUsed,
+        otpCode: existingAudit?.verification_code || "VERIFICADO",
+        signedAtIso: ps.signed_at 
+          ? new Date(ps.signed_at).toLocaleString('pt-PT', { timeZone: 'Europe/Madrid' }) + ' (Europe/Madrid)'
+          : new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Madrid' }) + ' (Europe/Madrid)',
+        ipAddress: existingAudit?.ip_address || ip_address || "0.0.0.0",
+      };
+
+      if (sigBinaryData) {
         if (ps.document_url) {
-          console.log(`[sign-proposal] Embedding signature in proposal docx: ${ps.document_url}`);
-          signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, binaryData);
+          console.log(`[sign-proposal-reprocess] Embedding signature in proposal docx: ${ps.document_url}`);
+          signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, sigBinaryData, auditInfo);
         }
         if (ps.contract_document_url) {
-          console.log(`[sign-proposal] Embedding signature in contract docx: ${ps.contract_document_url}`);
-          signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, binaryData);
+          console.log(`[sign-proposal-reprocess] Embedding signature in contract docx: ${ps.contract_document_url}`);
+          signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, sigBinaryData, auditInfo);
         }
-      } catch (errSig) {
-        console.error("Erro ao decodificar a assinatura base64:", errSig);
-        signatureImageUrl = signature_image; // Fallback
       }
+    } else {
+      if (signature_image) {
+        try {
+          const base64Data = signature_image.replace(/^data:image\/\w+;base64,/, "");
+          const binaryData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+          const sigImagePath = `${ps.estimacion_id}/signature_${Date.now()}.png`;
+          
+          const { error: uploadImgErr } = await supabase.storage
+            .from("proposal-signatures")
+            .upload(sigImagePath, binaryData, {
+              contentType: "image/png",
+              upsert: true,
+            });
+
+          if (!uploadImgErr) {
+            signatureImageUrl = sigImagePath;
+          } else {
+            console.error("Erro ao fazer upload da imagem de assinatura:", uploadImgErr);
+            signatureImageUrl = signature_image; // Fallback para base64 direto
+          }
+
+          const auditInfo = {
+            clientOrLeadName,
+            emailUsed,
+            otpCode: otp_code,
+            signedAtIso: new Date().toLocaleString('pt-PT', { timeZone: 'Europe/Madrid' }) + ' (Europe/Madrid)',
+            ipAddress: ip_address || "0.0.0.0",
+          };
+
+          // Incorporar a imagem da assinatura nos arquivos DOCX da proposta e do contrato
+          if (ps.document_url) {
+            console.log(`[sign-proposal] Embedding signature in proposal docx: ${ps.document_url}`);
+            signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, binaryData, auditInfo);
+          }
+          if (ps.contract_document_url) {
+            console.log(`[sign-proposal] Embedding signature in contract docx: ${ps.contract_document_url}`);
+            signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, binaryData, auditInfo);
+          }
+        } catch (errSig) {
+          console.error("Erro ao decodificar a assinatura base64:", errSig);
+          signatureImageUrl = signature_image; // Fallback
+        }
+      }
+
+      // 6. Criar o log de auditoria
+      const auditPayload = {
+        proposal_signature_id: ps.id,
+        ip_address: ip_address || "0.0.0.0",
+        user_agent: user_agent || "Desconhecido",
+        verification_code: otp_code,
+        signature_image: signatureImageUrl,
+        email_or_phone_used: emailUsed,
+      };
+
+      const { error: auditErr } = await supabase
+        .schema("core_comercial")
+        .from("proposal_audit_logs")
+        .insert(auditPayload);
+
+      if (auditErr) {
+        throw new Error(`Falha ao salvar log de auditoria: ${auditErr.message}`);
+      }
+
+      // 7. Atualizar o registro da assinatura
+      const { error: updatePsErr } = await supabase
+        .schema("core_comercial")
+        .from("proposal_signatures")
+        .update({
+          status: "signed",
+          signed_at: new Date().toISOString(),
+          otp_code: null,
+          otp_expires_at: null,
+        })
+        .eq("id", ps.id);
+
+      if (updatePsErr) {
+        throw new Error(`Falha ao atualizar status da assinatura: ${updatePsErr.message}`);
+      }
+
+      // 8. Atualizar o status da estimación para 'signed'
+      console.log(`Atualizando status da estimativa ${est.id} para 'signed'...`);
+      await supabase
+        .schema("core_comercial")
+        .from("estimaciones")
+        .update({ status: "signed", updated_at: new Date().toISOString() })
+        .eq("id", est.id);
     }
-
-    // 6. Criar o log de auditoria
-    const auditPayload = {
-      proposal_signature_id: ps.id,
-      ip_address: ip_address || "0.0.0.0",
-      user_agent: user_agent || "Desconhecido",
-      verification_code: otp_code,
-      signature_image: signatureImageUrl,
-      email_or_phone_used: emailUsed,
-    };
-
-    const { error: auditErr } = await supabase
-      .schema("core_comercial")
-      .from("proposal_audit_logs")
-      .insert(auditPayload);
-
-    if (auditErr) {
-      throw new Error(`Falha ao salvar log de auditoria: ${auditErr.message}`);
-    }
-
-    // 7. Atualizar o registro da assinatura
-    const { error: updatePsErr } = await supabase
-      .schema("core_comercial")
-      .from("proposal_signatures")
-      .update({
-        status: "signed",
-        signed_at: new Date().toISOString(),
-        otp_code: null,
-        otp_expires_at: null,
-      })
-      .eq("id", ps.id);
-
-    if (updatePsErr) {
-      throw new Error(`Falha ao atualizar status da assinatura: ${updatePsErr.message}`);
-    }
-
-    // 8. Atualizar o status da estimación para 'signed'
-    console.log(`Atualizando status da estimativa ${est.id} para 'signed'...`);
-    await supabase
-      .schema("core_comercial")
-      .from("estimaciones")
-      .update({ status: "signed", updated_at: new Date().toISOString() })
-      .eq("id", est.id);
 
     // 8.5. Buscar dados da empresa para o e-mail de notificação
     const { data: empresa } = await supabase
@@ -573,6 +740,9 @@ serve(async (req) => {
     // Conversão de PDF e salvamento no bucket proposal-signatures
     let proposalPdfBase64 = "";
     let contractPdfBase64 = "";
+    let savedProposalPdfPath: string | null = null;
+    let savedContractPdfPath: string | null = null;
+    const conversionLogs: any[] = [];
 
     try {
       const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
@@ -599,9 +769,6 @@ serve(async (req) => {
           const access_token = tokenData.access_token;
           console.log("[sign-proposal] Token do Microsoft Graph obtido com sucesso para conversão");
 
-          let savedProposalPdfPath = null;
-          let savedContractPdfPath = null;
-
           // Proposta
           if (proposalBase64 && ps.document_url) {
             console.log(`[sign-proposal] Convertendo proposta DOCX para PDF...`);
@@ -625,10 +792,19 @@ serve(async (req) => {
                 });
               if (uploadPdfErr) {
                 console.error("[sign-proposal] Erro ao fazer upload do PDF da proposta:", uploadPdfErr.message);
+                conversionLogs.push({ doc: 'proposta', uploadError: uploadPdfErr.message });
               } else {
                 console.log("[sign-proposal] PDF da proposta salvo com sucesso no bucket.");
                 savedProposalPdfPath = pdfPath;
+                conversionLogs.push({ doc: 'proposta', success: true, path: pdfPath });
               }
+            } else {
+              const debugDocXml = signedProposalBytes ? new TextDecoder().decode(signedProposalBytes) : "";
+              conversionLogs.push({ 
+                doc: 'proposta', 
+                convertError: pdfAtt?.error || "Content-type is not pdf",
+                sigIndex: debugDocXml.indexOf("rIdSig99")
+              });
             }
           }
 
@@ -655,10 +831,14 @@ serve(async (req) => {
                 });
               if (uploadPdfErr) {
                 console.error("[sign-proposal] Erro ao fazer upload do PDF do contrato:", uploadPdfErr.message);
+                conversionLogs.push({ doc: 'contrato', uploadError: uploadPdfErr.message });
               } else {
                 console.log("[sign-proposal] PDF do contrato salvo com sucesso no bucket.");
                 savedContractPdfPath = pdfPath;
+                conversionLogs.push({ doc: 'contrato', success: true, path: pdfPath });
               }
+            } else {
+              conversionLogs.push({ doc: 'contrato', convertError: pdfAtt?.error || "Content-type is not pdf" });
             }
           }
 
@@ -677,6 +857,7 @@ serve(async (req) => {
 
             if (dbUpdateErr) {
               console.error("[sign-proposal] Erro ao salvar URLs de PDF no banco:", dbUpdateErr.message);
+              conversionLogs.push({ dbError: dbUpdateErr.message });
             } else {
               console.log("[sign-proposal] URLs de PDF salvas com sucesso no banco de dados.");
             }
@@ -692,8 +873,8 @@ serve(async (req) => {
     }
 
 
-    // Enviar email de confirmação com anexos
-    if (empresa) {
+    // Enviar email de confirmação com anexos (somente no fluxo original de assinatura)
+    if (empresa && !isReprocess) {
       const origin = req.headers.get("origin") || "https://mcs-personal.vercel.app";
       const publicLink = `${origin}/assinar-proposta/${token}`;
       const senderEmail = empresa.proposal_sender_email || "vendas@stoco.es";
@@ -851,10 +1032,13 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: "Proposta assinada com sucesso!",
-        signed_at: new Date().toISOString(),
+        message: isReprocess ? "Reprocessamento concluído com sucesso!" : "Proposta assinada com sucesso!",
+        signed_at: ps.signed_at || new Date().toISOString(),
         is_converted_to_order: isConvertedToOrder,
         conversion_details: conversionDetails,
+        signed_document_url: savedProposalPdfPath || ps.signed_document_url,
+        contract_signed_document_url: savedContractPdfPath || ps.contract_signed_document_url,
+        conversion_logs: conversionLogs,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

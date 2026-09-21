@@ -732,14 +732,32 @@ export function ProposalSigningPage() {
     // 7. Baixar PDF com Alta Fidelidade (via download direto do Storage ou iframe print isolado)
     const handlePrintPdf = async (type: 'proposal' | 'contract') => {
         // Se houver arquivo PDF assinado pelo backend, baixar direto
-        const signedPdfPath = type === 'proposal' ? proposal?.signed_document_url : proposal?.contract_signed_document_url;
+        let signedPdfPath = type === 'proposal' ? proposal?.signed_document_url : proposal?.contract_signed_document_url;
+        if (!signedPdfPath) {
+            const docxUrl = type === 'proposal' ? proposal?.document_url : proposal?.contract_document_url;
+            if (docxUrl) {
+                signedPdfPath = docxUrl.replace(/\.docx$/i, '.pdf');
+            }
+        }
+
         if (signedPdfPath) {
             try {
-                const { data: pdfBlob, error: pdfErr } = await supabase.storage
+                let pdfRes = await supabase.storage
                     .from('proposal-signatures')
                     .download(signedPdfPath);
-                if (!pdfErr && pdfBlob) {
-                    const blobUrl = URL.createObjectURL(pdfBlob);
+
+                if (pdfRes.error && proposal?.token) {
+                    toast.info(t('signing.generatingPdf', { defaultValue: 'Gerando documento oficial em PDF...' }));
+                    await supabase.functions.invoke('sign-proposal', {
+                        body: { token: proposal.token, action: 'reprocess' }
+                    });
+                    pdfRes = await supabase.storage
+                        .from('proposal-signatures')
+                        .download(signedPdfPath);
+                }
+
+                if (!pdfRes.error && pdfRes.data) {
+                    const blobUrl = URL.createObjectURL(pdfRes.data);
                     const link = document.createElement('a');
                     link.href = blobUrl;
                     link.download = `${type === 'proposal' ? 'proposta' : 'contrato'}_${proposal?.estimacion?.codigo || 'documento'}.pdf`;
