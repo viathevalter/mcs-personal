@@ -192,10 +192,20 @@ export function EstimacionDetailPage() {
                 <h1 className="text-3xl font-bold tracking-tight">{estimacion.codigo}</h1>
                 <EstimacionStatusBadge status={estimacion.status} />
               </div>
-              <p className="text-muted-foreground flex items-center mt-1">
-                <span className="font-medium mr-2">{getSolicitudTypeLabel(estimacion.estimation_type)}</span>
-                | {t('comercial.detail.versionLabel', { version: estimacion.current_version?.version_number || 1 })}
-              </p>
+              <div className="text-muted-foreground flex items-center mt-1 flex-wrap gap-2 text-sm">
+                <span className="font-medium">{getSolicitudTypeLabel(estimacion.estimation_type)}</span>
+                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <span>{t('comercial.detail.versionLabel', { version: estimacion.current_version?.version_number || 1 })}</span>
+                {(estimacion.seller || estimacion.created_by_user) && (
+                  <>
+                    <span className="text-slate-300 dark:text-slate-700">|</span>
+                    <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
+                      <User className="w-3.5 h-3.5 text-indigo-500" />
+                      Vendedor: <strong className="text-foreground">{estimacion.seller?.display_name || estimacion.created_by_user?.display_name || estimacion.seller?.email?.split('@')[0]}</strong>
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex space-x-3">

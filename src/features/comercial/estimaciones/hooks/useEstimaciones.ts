@@ -80,15 +80,29 @@ export function useEstimaciones(filters?: UseEstimacionesFilters) {
         supabase.schema('core_common').from('countries').select('id, name')
       ]);
 
-      return data.map(est => ({
-        ...est,
-        client: clients?.find((c: any) => c.id === est.client_id),
-        lead: leads?.find((l: any) => l.id === est.lead_id),
-        client_site: sites?.find((s: any) => s.id === est.client_site_id),
-        created_by_user: users?.find((u: any) => u.id === est.created_by),
-        empresa: companies?.find((e: any) => e.id === est.empresa_id),
-        country: countries?.find((c: any) => c.id === est.country_id)
-      })) as any[];
+      return data.map(est => {
+        const lead = leads?.find((l: any) => l.id === est.lead_id);
+        const sellerId = est.commercial_owner_id || est.created_by || lead?.assigned_to;
+        let sellerUser = users?.find((u: any) => u.id === sellerId);
+        
+        // Fallback: match by contact_email if it's an @gestaologinpro.com address
+        if (!sellerUser && est.contact_email && est.contact_email.toLowerCase().includes('@gestaologinpro.com')) {
+          sellerUser = users?.find((u: any) => u.email?.toLowerCase() === est.contact_email.toLowerCase());
+        }
+
+        const createdByUser = users?.find((u: any) => u.id === est.created_by) || sellerUser;
+
+        return {
+          ...est,
+          client: clients?.find((c: any) => c.id === est.client_id),
+          lead,
+          client_site: sites?.find((s: any) => s.id === est.client_site_id),
+          created_by_user: createdByUser,
+          seller: sellerUser || createdByUser,
+          empresa: companies?.find((e: any) => e.id === est.empresa_id),
+          country: countries?.find((c: any) => c.id === est.country_id)
+        };
+      }) as any[];
     },
     enabled: !!selectedEmpresaId,
   });

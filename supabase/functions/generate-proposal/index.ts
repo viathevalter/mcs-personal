@@ -292,6 +292,36 @@ serve(async (req) => {
       }
     }
 
+    // 3.6 Buscar dados do Vendedor / Comercial responsável
+    let sellerName = "";
+    let sellerEmail = "";
+    const sellerUserId = est.commercial_owner_id || est.created_by;
+    if (sellerUserId) {
+      const { data: sUser } = await supabase
+        .schema("core_operacoes")
+        .from("mcs_users")
+        .select("id, email, display_name")
+        .eq("id", sellerUserId)
+        .maybeSingle();
+      if (sUser) {
+        sellerName = sUser.display_name || sUser.email?.split("@")[0] || "";
+        sellerEmail = sUser.email || "";
+      }
+    }
+    // Fallback: se o contact_email for de um vendedor @gestaologinpro.com
+    if (!sellerName && est.contact_email && est.contact_email.toLowerCase().includes("@gestaologinpro.com")) {
+      const { data: sUser } = await supabase
+        .schema("core_operacoes")
+        .from("mcs_users")
+        .select("id, email, display_name")
+        .ilike("email", est.contact_email)
+        .maybeSingle();
+      if (sUser) {
+        sellerName = sUser.display_name || sUser.email?.split("@")[0] || "";
+        sellerEmail = sUser.email || "";
+      }
+    }
+
     // 4. Buscar a versão atual e seus itens
     const versionId = est.current_version_id;
     if (!versionId) {
@@ -473,11 +503,22 @@ serve(async (req) => {
       EMPRESA_CLIENTE: targetCompany || "",
       EMAIL_FIRMANTE_CLIENTE: targetEmail,
       
-      NOMBRE_REPRESENTANTE_PRESTADORA: empresa.trade_name || "MCS",
-      NOMBRE_FIRMANTE_PRESTADORA: empresa.trade_name || "MCS",
-      CARGO_FIRMANTE_PRESTADORA: "Administrador",
+      // Vendedor / Comercial
+      VENDEDOR_NOME: sellerName || "Departamento Comercial",
+      VENDEDOR_EMAIL: sellerEmail || senderEmail,
+      vendedor_nome: sellerName || "Departamento Comercial",
+      vendedor_email: sellerEmail || senderEmail,
+      COMERCIAL_NOME: sellerName || "Departamento Comercial",
+      COMERCIAL_EMAIL: sellerEmail || senderEmail,
+      RESPONSABLE_COMERCIAL: sellerName || "Departamento Comercial",
+      GESTOR_COMERCIAL: sellerName || "Departamento Comercial",
+      ASESOR_COMERCIAL: sellerName || "Departamento Comercial",
+
+      NOMBRE_REPRESENTANTE_PRESTADORA: sellerName || empresa.trade_name || "MCS",
+      NOMBRE_FIRMANTE_PRESTADORA: sellerName || empresa.trade_name || "MCS",
+      CARGO_FIRMANTE_PRESTADORA: sellerName ? "Asesor Comercial" : "Administrador",
       EMPRESA_PRESTADORA: empresa.legal_name || empresa.trade_name || "",
-      EMAIL_PRESTADORA: senderEmail,
+      EMAIL_PRESTADORA: sellerEmail || senderEmail,
       WEB_EMPRESA: "www.stoco.es",
     };
 

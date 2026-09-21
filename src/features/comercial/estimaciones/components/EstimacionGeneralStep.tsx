@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, Trash2, Search, X, Check, Building2, User, Globe, ChevronDown, ChevronUp, CheckCircle2, RotateCcw, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/shared/supabase/client';
 import { detectLeadCountry, COUNTRY_UUIDS, COUNTRY_LABELS } from '@/features/comercial/leads/utils/leadCountryUtils';
 
 const countryLanguageMap: Record<string, string> = {
@@ -120,6 +121,29 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
   const { data: leads = [], isLoading: isLoadingLeads } = useLeads({ global: true });
   const { data: sites = [], isLoading: isLoadingSites } = useClientSites(data.client_id || undefined);
   const { data: paymentTerms = [] } = usePaymentTerms();
+
+  const [sellers, setSellers] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadSellers() {
+      const { data: users } = await supabase
+        .schema('core_operacoes')
+        .from('mcs_users')
+        .select('id, email, display_name')
+        .order('display_name', { ascending: true });
+
+      if (users) {
+        const sorted = [...users].sort((a, b) => {
+          const aIsG = a.email?.includes('@gestaologinpro.com') ? 1 : 0;
+          const bIsG = b.email?.includes('@gestaologinpro.com') ? 1 : 0;
+          if (aIsG !== bIsG) return bIsG - aIsG;
+          return (a.display_name || '').localeCompare(b.display_name || '');
+        });
+        setSellers(sorted);
+      }
+    }
+    loadSellers();
+  }, []);
 
   // Fast Search & Country Filter State for Leads
   const [leadCountryFilter, setLeadCountryFilter] = useState<string>('ES');
@@ -668,6 +692,28 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
             )}
           </div>
         )}
+
+        <div className="space-y-2">
+          <Label htmlFor="commercial_owner_id" className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
+            <User className="h-3.5 w-3.5 text-indigo-500" />
+            Vendedor / Comercial Responsável
+          </Label>
+          <Select 
+            value={data.commercial_owner_id || ''} 
+            onValueChange={(val) => onChange({ commercial_owner_id: val, created_by: data.created_by || val })}
+          >
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder="Selecione o vendedor" />
+            </SelectTrigger>
+            <SelectContent>
+              {sellers.map((u: any) => (
+                <SelectItem key={u.id} value={u.id}>
+                  {u.display_name || u.email?.split('@')[0]} {u.email ? `(${u.email})` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="estimation_type">{t('comercial.stepGeneral.orderType')}</Label>

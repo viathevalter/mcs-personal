@@ -105,6 +105,18 @@ export function useEstimacionDetail(id: string | undefined) {
       // Find the current version and map it to current_version
       const currentVersion = estimacion.versions?.find((v: any) => v.id === estimacion.current_version_id) || estimacion.versions?.[0] || null;
       
+      // Resolve seller / commercial user
+      const sellerId = estimacion.commercial_owner_id || estimacion.created_by || lead?.assigned_to;
+      let sellerUser = null;
+      if (sellerId) {
+        const { data: su } = await supabase.schema('core_operacoes').from('mcs_users').select('id, email, display_name').eq('id', sellerId).maybeSingle();
+        sellerUser = su;
+      }
+      if (!sellerUser && estimacion.contact_email && estimacion.contact_email.toLowerCase().includes('@gestaologinpro.com')) {
+        const { data: su } = await supabase.schema('core_operacoes').from('mcs_users').select('id, email, display_name').ilike('email', estimacion.contact_email).maybeSingle();
+        sellerUser = su;
+      }
+
       return {
         ...estimacion,
         client: resolvedClient,
@@ -114,7 +126,9 @@ export function useEstimacionDetail(id: string | undefined) {
         current_version: currentVersion,
         proposal_signature,
         pedido,
-        solicitud
+        solicitud,
+        seller: sellerUser,
+        created_by_user: sellerUser
       } as Estimacion & { versions: any[]; proposal_signature: any; pedido: any; solicitud: any };
     },
     enabled: !!selectedEmpresaId && !!id,

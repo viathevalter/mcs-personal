@@ -321,8 +321,17 @@ export function EstimacionesTable({ estimaciones, isLoading }: Props) {
                   </Tooltip>
                 </TooltipProvider>
               </TableCell>
-              <TableCell className="text-slate-650 dark:text-slate-350">
-                {est.created_by_user?.display_name || est.created_by_user?.email || '-'}
+              <TableCell className="text-slate-700 dark:text-slate-300 font-medium">
+                {(() => {
+                  const s = est.seller || est.created_by_user;
+                  if (!s) return <span className="text-muted-foreground">-</span>;
+                  const name = s.display_name || s.email?.split('@')[0] || '-';
+                  return (
+                    <div className="flex items-center gap-1.5" title={s.email || undefined}>
+                      <span className="text-xs font-semibold truncate max-w-[160px]">{name}</span>
+                    </div>
+                  );
+                })()}
               </TableCell>
               <TableCell>
                 <span className="text-sm">{getSolicitudTypeLabel(est.estimation_type)}</span>

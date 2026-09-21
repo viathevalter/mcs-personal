@@ -50,6 +50,7 @@ import { EstimacionReviewStep } from './components/EstimacionReviewStep';
 import { supabase } from '@/shared/supabase/client';
 import { calculateViability } from './utils/viabilityEngine';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/app/providers/AuthProvider';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { toast } from 'sonner';
 
@@ -92,6 +93,7 @@ export function NewEstimacionPage() {
 
   const { t } = useTranslation();
   const { selectedEmpresaId, empresas = [] } = useEmpresa();
+  const { user } = useAuth();
   const { criarEstimacion, atualizarEstimacion } = useEstimacionMutations();
   
   const [currentStep, setCurrentStep] = useState(1);
@@ -109,6 +111,8 @@ export function NewEstimacionPage() {
     lead_id: urlLeadId || '',
     client_site_id: '',
     country_id: '',
+    commercial_owner_id: user?.id || null,
+    created_by: user?.id || null,
     postal_code: '',
     estimation_type: 'new_allocation',
     pricing_model: 'hourly',
@@ -209,6 +213,17 @@ export function NewEstimacionPage() {
     }
     fetchLeadContext();
   }, [urlLeadId, payload.lead_id, id, selectedEmpresaId]);
+
+  // Auto-set current logged in user as seller if not set
+  useEffect(() => {
+    if (!id && user?.id) {
+      setPayload((prev: any) => ({
+        ...prev,
+        commercial_owner_id: prev.commercial_owner_id || user.id,
+        created_by: prev.created_by || user.id,
+      }));
+    }
+  }, [id, user?.id]);
 
   // Load Comercial Settings
   useEffect(() => {
@@ -405,6 +420,8 @@ export function NewEstimacionPage() {
         lead_id: estimacion.lead_id || '',
         client_site_id: estimacion.client_site_id || '',
         country_id: estimacion.country_id || '',
+        commercial_owner_id: estimacion.commercial_owner_id || estimacion.created_by || user?.id || null,
+        created_by: estimacion.created_by || user?.id || null,
         postal_code: estimacion.postal_code || '',
         estimation_type: estimacion.estimation_type || 'new_allocation',
         pricing_model: estimacion.pricing_model || 'hourly',
@@ -494,6 +511,9 @@ export function NewEstimacionPage() {
       ...payload,
       empresa_id: payload.empresa_id || selectedEmpresaId,
       status,
+      commercial_owner_id: payload.commercial_owner_id || estimacion?.commercial_owner_id || user?.id || null,
+      created_by: payload.created_by || estimacion?.created_by || user?.id || null,
+      user_id: user?.id || null,
       review_justification: customJustification || reviewJustification || null,
       review_requested_at: status === 'review' ? new Date().toISOString() : null,
       viability_reasons: viability.reasons || [],

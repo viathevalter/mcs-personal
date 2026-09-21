@@ -70,6 +70,7 @@ export interface Estimacion {
   current_version_id?: string;
   created_at: string;
   updated_at: string;
+  commercial_owner_id?: string;
   created_by?: string;
   updated_by?: string;
   
@@ -78,6 +79,9 @@ export interface Estimacion {
   lead?: Lead;
   client_site?: ClientSite;
   country?: { id: string; name: string };
+  empresa?: { id: string; legal_name?: string; trade_name?: string };
+  created_by_user?: { id: string; email?: string; display_name?: string };
+  seller?: { id: string; email?: string; display_name?: string };
   current_version?: EstimacionVersion;
   pedido?: { id: string; codigo: string; commercial_status: string; operational_status: string } | null;
   solicitud?: { id: string; codigo: string; status: string } | null;
