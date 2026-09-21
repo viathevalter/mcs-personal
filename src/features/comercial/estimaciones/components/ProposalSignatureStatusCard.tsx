@@ -90,6 +90,8 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     });
   };
 
+  const token = sig?.signature_token || (sig as any)?.token;
+
   const handleDownloadDoc = async () => {
     const docUrl = sig?.signed_document_url || sig?.document_url;
     if (!docUrl) return;
@@ -101,11 +103,14 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
         .from('proposal-signatures')
         .download(pdfPath);
 
-      if (pdfRes.error && sig?.token) {
+      if (pdfRes.error && token) {
         toast.info('Gerando versão oficial em PDF...');
-        await supabase.functions.invoke('sign-proposal', {
-          body: { token: sig.token, action: 'reprocess' }
+        const invokeRes = await supabase.functions.invoke('sign-proposal', {
+          body: { token, action: 'reprocess' }
         });
+        if (invokeRes.error) {
+          throw new Error(invokeRes.error.message || 'Falha ao processar PDF.');
+        }
         pdfRes = await supabase.storage
           .from('proposal-signatures')
           .download(pdfPath);
@@ -133,20 +138,24 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   };
 
   const handleDownloadContract = async () => {
-    if (!sig?.contract_document_url) return;
+    const docUrl = sig?.contract_signed_document_url || sig?.contract_document_url;
+    if (!docUrl) return;
     try {
       setDownloadingContract(true);
-      const pdfPath = sig.contract_document_url.replace(/\.docx$/i, '.pdf');
+      const pdfPath = docUrl.replace(/\.docx$/i, '.pdf');
 
       let pdfRes = await supabase.storage
         .from('proposal-signatures')
         .download(pdfPath);
 
-      if (pdfRes.error && sig?.token) {
+      if (pdfRes.error && token) {
         toast.info('Gerando versão oficial em PDF...');
-        await supabase.functions.invoke('sign-proposal', {
-          body: { token: sig.token, action: 'reprocess' }
+        const invokeRes = await supabase.functions.invoke('sign-proposal', {
+          body: { token, action: 'reprocess' }
         });
+        if (invokeRes.error) {
+          throw new Error(invokeRes.error.message || 'Falha ao processar PDF.');
+        }
         pdfRes = await supabase.storage
           .from('proposal-signatures')
           .download(pdfPath);
@@ -184,11 +193,14 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
         .from('proposal-signatures')
         .download(pdfPath);
 
-      if (pdfRes.error && sig?.token) {
+      if (pdfRes.error && token) {
         toast.info('Gerando versão oficial em PDF...');
-        await supabase.functions.invoke('sign-proposal', {
-          body: { token: sig.token, action: 'reprocess' }
+        const invokeRes = await supabase.functions.invoke('sign-proposal', {
+          body: { token, action: 'reprocess' }
         });
+        if (invokeRes.error) {
+          throw new Error(invokeRes.error.message || 'Falha ao processar PDF.');
+        }
         pdfRes = await supabase.storage
           .from('proposal-signatures')
           .download(pdfPath);

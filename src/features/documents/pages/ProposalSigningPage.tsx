@@ -746,11 +746,15 @@ export function ProposalSigningPage() {
                     .from('proposal-signatures')
                     .download(signedPdfPath);
 
-                if (pdfRes.error && proposal?.token) {
+                const signToken = token || proposal?.signature_token || (proposal as any)?.token;
+                if (pdfRes.error && signToken) {
                     toast.info(t('signing.generatingPdf', { defaultValue: 'Gerando documento oficial em PDF...' }));
-                    await supabase.functions.invoke('sign-proposal', {
-                        body: { token: proposal.token, action: 'reprocess' }
+                    const invokeRes = await supabase.functions.invoke('sign-proposal', {
+                        body: { token: signToken, action: 'reprocess' }
                     });
+                    if (invokeRes.error) {
+                        console.error("Erro no sign-proposal invoke:", invokeRes.error);
+                    }
                     pdfRes = await supabase.storage
                         .from('proposal-signatures')
                         .download(signedPdfPath);
