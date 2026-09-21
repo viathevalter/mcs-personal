@@ -31,6 +31,117 @@ function adjustDocxPreviewSpacing(container: HTMLElement | null) {
 }
 
 
+function injectSignatureIntoDocxPreview(container: HTMLElement | null, signatureSrc: string | null) {
+    if (!container) return;
+
+    // Remove or update existing injected signatures
+    const existing = container.querySelectorAll('.injected-client-sig-img');
+    if (!signatureSrc) {
+        existing.forEach(el => {
+            const wrapper = el.closest('.injected-client-sig-wrapper');
+            if (wrapper) wrapper.remove();
+            else el.remove();
+        });
+        return;
+    }
+
+    if (existing.length > 0) {
+        let updated = false;
+        existing.forEach((img: any) => {
+            if (img.src !== signatureSrc) {
+                img.src = signatureSrc;
+                updated = true;
+            }
+        });
+        if (updated || existing.length > 0) return;
+    }
+
+    // Hide any raw tag text like "{{IMAGE FIRMA_CLIENTE}}"
+    container.querySelectorAll('*').forEach((el: any) => {
+        const t = (el.innerText || el.textContent || '').trim();
+        if (t.includes('FIRMA_CLIENTE') || t.includes('FIRMA_CONTRATANTE')) {
+            el.style.setProperty('display', 'none', 'important');
+        }
+    });
+
+    // Search for the client block in the document table
+    const allElements = Array.from(container.querySelectorAll('p, div, td, span, th'));
+    for (const el of allElements) {
+        const text = (el.textContent || '').trim();
+        const upper = text.toUpperCase();
+
+        if (text.length > 60) continue;
+        
+        const isClientHeader = (
+            upper === 'POR EL CLIENTE:' ||
+            upper === 'POR EL CLIENTE' ||
+            upper === 'POR LA CONTRATANTE:' ||
+            upper === 'POR LA CONTRATANTE' ||
+            upper === 'FIRMA LA CONTRATANTE' ||
+            upper === 'LA CONTRATANTE' ||
+            upper === 'POR EL CLIENTE / LA CONTRATANTE:' ||
+            upper === 'EL CLIENTE' ||
+            upper === 'POR LA PARTE CLIENTE:' ||
+            upper.includes('POR EL CLIENTE') ||
+            upper.includes('LA CONTRATANTE')
+        );
+
+        if (isClientHeader) {
+            const cell = el.closest('td') || el.closest('th') || el.parentElement;
+            if (!cell) continue;
+
+            if (cell.querySelector('.injected-client-sig-img')) continue;
+
+            // Create signature element
+            const wrapper = document.createElement('div');
+            wrapper.className = 'injected-client-sig-wrapper';
+            wrapper.style.cssText = 'min-height: 50px; max-height: 80px; display: flex; align-items: center; justify-content: flex-start; margin: 4px 0 6px 0; overflow: visible;';
+
+            const img = document.createElement('img');
+            img.className = 'injected-client-sig-img';
+            img.src = signatureSrc;
+            img.alt = 'Firma del Cliente';
+            img.style.cssText = 'max-height: 70px; max-width: 220px; width: auto; height: auto; object-fit: contain; display: block; filter: contrast(1.1);';
+
+            wrapper.appendChild(img);
+
+            // Find where to insert inside this cell
+            let insertBeforeChild: Node | null = null;
+            const children = Array.from(cell.children);
+            const headerChildIndex = children.findIndex(c => c === el || c.contains(el));
+
+            for (let i = Math.max(0, headerChildIndex + 1); i < children.length; i++) {
+                const child = children[i];
+                const childText = (child.textContent || '').trim().toUpperCase();
+                const hasBorderTop = (child as HTMLElement).style?.borderTop || (child as HTMLElement).style?.borderTopStyle;
+                if (
+                    hasBorderTop ||
+                    childText.startsWith('D./DÑA') ||
+                    childText.startsWith('D./D') ||
+                    childText.startsWith('NOMBRE:') ||
+                    childText.startsWith('NOMBRE') ||
+                    childText.startsWith('___') ||
+                    childText.startsWith('CARGO:') ||
+                    childText.startsWith('NIF:') ||
+                    childText.startsWith('FECHA:')
+                ) {
+                    insertBeforeChild = child;
+                    break;
+                }
+            }
+
+            if (insertBeforeChild) {
+                cell.insertBefore(wrapper, insertBeforeChild);
+            } else if (headerChildIndex !== -1 && children[headerChildIndex].nextSibling) {
+                cell.insertBefore(wrapper, children[headerChildIndex].nextSibling);
+            } else {
+                cell.appendChild(wrapper);
+            }
+        }
+    }
+}
+
+
 export function ProposalSigningPage() {
     const { token } = useParams<{ token: string }>();
     const proposalContainerRef = useRef<HTMLDivElement>(null);
@@ -48,6 +159,7 @@ export function ProposalSigningPage() {
     const [success, setSuccess] = useState(false);
     const [auditLog, setAuditLog] = useState<any | null>(null);
     const [signatureBase64, setSignatureBase64] = useState<string | null>(null);
+    const [currentSignatureBase64, setCurrentSignatureBase64] = useState<string | null>(null);
     
     // Canvas drawing states
     const [isDrawing, setIsDrawing] = useState(false);
@@ -105,7 +217,7 @@ export function ProposalSigningPage() {
                         .from('proposal_audit_logs')
                         .select('*')
                         .eq('proposal_signature_id', data.id)
-                        .order('created_at', { ascending: false })
+                        .order('verified_at', { ascending: false })
                         .limit(1)
                         .maybeSingle();
                     if (auditData) {
@@ -118,7 +230,9 @@ export function ProposalSigningPage() {
                                 if (!imgErr && imgBlob) {
                                     const reader = new FileReader();
                                     reader.onloadend = () => {
-                                        setSignatureBase64(reader.result as string);
+                                        const b64 = reader.result as string;
+                                        setSignatureBase64(b64);
+                                        setCurrentSignatureBase64(b64);
                                     };
                                     reader.readAsDataURL(imgBlob);
                                 }
@@ -127,6 +241,7 @@ export function ProposalSigningPage() {
                             }
                         } else if (auditData.signature_image) {
                             setSignatureBase64(auditData.signature_image);
+                            setCurrentSignatureBase64(auditData.signature_image);
                         }
                     }
                 }
@@ -185,6 +300,9 @@ export function ProposalSigningPage() {
             })
             .then(() => {
                 adjustDocxPreviewSpacing(proposalContainerRef.current);
+                if (currentSignatureBase64) {
+                    injectSignatureIntoDocxPreview(proposalContainerRef.current, currentSignatureBase64);
+                }
             })
             .catch(err => {
                 console.error("Falha ao renderizar visualização do docx da proposta:", err);
@@ -208,12 +326,26 @@ export function ProposalSigningPage() {
             })
             .then(() => {
                 adjustDocxPreviewSpacing(contractContainerRef.current);
+                if (currentSignatureBase64) {
+                    injectSignatureIntoDocxPreview(contractContainerRef.current, currentSignatureBase64);
+                }
             })
             .catch(err => {
                 console.error("Falha ao renderizar visualização do docx do contrato:", err);
             });
         }
     }, [contractBlob, loading]);
+
+    // Atualizar dinamicamente a assinatura no documento visualizado
+    useEffect(() => {
+        if (currentSignatureBase64) {
+            injectSignatureIntoDocxPreview(proposalContainerRef.current, currentSignatureBase64);
+            injectSignatureIntoDocxPreview(contractContainerRef.current, currentSignatureBase64);
+        } else {
+            injectSignatureIntoDocxPreview(proposalContainerRef.current, null);
+            injectSignatureIntoDocxPreview(contractContainerRef.current, null);
+        }
+    }, [currentSignatureBase64, activeTab]);
 
     // 3. Inicializar e redimensionar o canvas
     useEffect(() => {
@@ -300,6 +432,10 @@ export function ProposalSigningPage() {
 
     const stopDrawing = () => {
         setIsDrawing(false);
+        if (canvasRef.current && hasSigned) {
+            const dataUrl = canvasRef.current.toDataURL('image/png');
+            setCurrentSignatureBase64(dataUrl);
+        }
     };
 
     const clearCanvas = () => {
@@ -311,6 +447,7 @@ export function ProposalSigningPage() {
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         setHasSigned(false);
+        setCurrentSignatureBase64(null);
     };
 
     // 5. Gerenciar código OTP
@@ -435,6 +572,7 @@ export function ProposalSigningPage() {
         reader.onloadend = async () => {
             const processed = await processUploadedImage(reader.result as string);
             setUploadedImage(processed);
+            setCurrentSignatureBase64(processed);
         };
         reader.readAsDataURL(file);
     };
@@ -463,10 +601,36 @@ export function ProposalSigningPage() {
             reader.onloadend = async () => {
                 const processed = await processUploadedImage(reader.result as string);
                 setUploadedImage(processed);
+                setCurrentSignatureBase64(processed);
             };
             reader.readAsDataURL(file);
         }
     };
+
+    // Sincronizar assinatura ativa com visualização prévia no documento
+    useEffect(() => {
+        if (success) return; // Se já está assinado, preservar assinatura do log de auditoria
+        if (sigMethod === 'type') {
+            if (typedName.trim()) {
+                const sig = generateTypedSignature(typedName, selectedFont);
+                setCurrentSignatureBase64(sig);
+            } else {
+                setCurrentSignatureBase64(null);
+            }
+        } else if (sigMethod === 'upload') {
+            if (uploadedImage) {
+                setCurrentSignatureBase64(uploadedImage);
+            } else {
+                setCurrentSignatureBase64(null);
+            }
+        } else if (sigMethod === 'draw') {
+            if (hasSigned && canvasRef.current) {
+                setCurrentSignatureBase64(canvasRef.current.toDataURL('image/png'));
+            } else {
+                setCurrentSignatureBase64(null);
+            }
+        }
+    }, [typedName, selectedFont, sigMethod, uploadedImage, hasSigned, success]);
 
     // 6. Enviar Assinatura
     const handleOpenSignatureConfirmation = () => {
@@ -522,12 +686,26 @@ export function ProposalSigningPage() {
             const updatedProposal = await getProposalByToken(token!);
             setProposal(updatedProposal);
             
+            if (updatedProposal.document_url) {
+                const { data: fileData } = await supabase.storage
+                    .from('proposal-signatures')
+                    .download(updatedProposal.document_url);
+                if (fileData) setProposalBlob(fileData);
+            }
+
+            if (updatedProposal.contract_document_url) {
+                const { data: contractData } = await supabase.storage
+                    .from('proposal-signatures')
+                    .download(updatedProposal.contract_document_url);
+                if (contractData) setContractBlob(contractData);
+            }
+
             const { data: auditData } = await supabase
                 .schema('core_comercial')
                 .from('proposal_audit_logs')
                 .select('*')
                 .eq('proposal_signature_id', updatedProposal.id)
-                .order('created_at', { ascending: false })
+                .order('verified_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
             if (auditData) {
@@ -541,8 +719,31 @@ export function ProposalSigningPage() {
         }
     };
 
-    // 7. Baixar PDF com Alta Fidelidade (via iframe print isolado)
-    const handlePrintPdf = (type: 'proposal' | 'contract') => {
+    // 7. Baixar PDF com Alta Fidelidade (via download direto do Storage ou iframe print isolado)
+    const handlePrintPdf = async (type: 'proposal' | 'contract') => {
+        // Se houver arquivo PDF assinado pelo backend, baixar direto
+        const signedPdfPath = type === 'proposal' ? proposal?.signed_document_url : proposal?.contract_signed_document_url;
+        if (signedPdfPath) {
+            try {
+                const { data: pdfBlob, error: pdfErr } = await supabase.storage
+                    .from('proposal-signatures')
+                    .download(signedPdfPath);
+                if (!pdfErr && pdfBlob) {
+                    const blobUrl = URL.createObjectURL(pdfBlob);
+                    const link = document.createElement('a');
+                    link.href = blobUrl;
+                    link.download = `${type === 'proposal' ? 'proposta' : 'contrato'}_${proposal?.estimacion?.codigo || 'documento'}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(blobUrl);
+                    return;
+                }
+            } catch (err) {
+                console.warn("Erro ao descarregar PDF direto do storage:", err);
+            }
+        }
+
         const container = type === 'proposal' ? proposalContainerRef.current : contractContainerRef.current;
         const docElement = container?.querySelector('.docx-document');
         if (!docElement) {
@@ -597,6 +798,22 @@ export function ProposalSigningPage() {
                     max-width: 100% !important;
                     margin: 0 !important;
                     padding: 0 !important;
+                }
+                .injected-client-sig-wrapper {
+                    min-height: 50px !important;
+                    max-height: 80px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: flex-start !important;
+                    margin: 4px 0 6px 0 !important;
+                }
+                .injected-client-sig-img {
+                    max-height: 70px !important;
+                    max-width: 220px !important;
+                    display: block !important;
+                    object-fit: contain !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
                 }
                 .print-signature-block {
                     margin-top: 40px;

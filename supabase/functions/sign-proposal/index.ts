@@ -45,6 +45,19 @@ async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8
           });
         }
 
+        // 4. Auto-inject {{IMAGE FIRMA_CLIENTE}} if missing in document.xml
+        if (path === 'word/document.xml' && !content.includes('FIRMA_CLIENTE') && !content.includes('FIRMA_CONTRATANTE')) {
+          const clientHeaderMatch = content.match(/(Por\s+EL\s+CLIENTE|POR\s+EL\s+CLIENTE|Por\s+el\s+Cliente|LA\s+CONTRATANTE|Por\s+LA\s+CONTRATANTE|POR\s+LA\s+CONTRATANTE)/i);
+          if (clientHeaderMatch && clientHeaderMatch.index !== undefined) {
+            console.log(`[normalizeDocx] Auto-injecting {{IMAGE FIRMA_CLIENTE}} after header: "${clientHeaderMatch[0]}"`);
+            const pCloseIdx = content.indexOf('</w:p>', clientHeaderMatch.index);
+            if (pCloseIdx !== -1) {
+              const signatureTagPara = '<w:p><w:pPr><w:spacing w:after="100" w:before="100"/></w:pPr><w:r><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr><w:t>{{IMAGE FIRMA_CLIENTE}}</w:t></w:r></w:p>';
+              content = content.substring(0, pCloseIdx + 6) + signatureTagPara + content.substring(pCloseIdx + 6);
+            }
+          }
+        }
+
         if (content !== originalContent) {
           console.log(`[normalizeDocx] Saved normalized XML content for ${path}`);
           zip.file(path, content);
@@ -275,7 +288,7 @@ async function embedSignatureInDocx(
   supabase: any,
   documentUrl: string,
   signatureBytes: Uint8Array
-): Promise<void> {
+): Promise<Uint8Array | null> {
   try {
     console.log(`[embedSignature] Downloading docx to insert signature: ${documentUrl}`);
     const { data: blob, error: dlErr } = await supabase.storage
@@ -284,7 +297,7 @@ async function embedSignatureInDocx(
 
     if (dlErr || !blob) {
       console.warn(`[embedSignature] Failed to download file from storage: ${dlErr?.message}`);
-      return;
+      return null;
     }
 
     let templateBuffer = new Uint8Array(await blob.arrayBuffer());
@@ -328,8 +341,11 @@ async function embedSignatureInDocx(
     } else {
       console.log(`[embedSignature] Signed docx successfully uploaded.`);
     }
+
+    return finalDoc;
   } catch (err: any) {
     console.error(`[embedSignature] Error embedding signature in docx:`, err);
+    return null;
   }
 }
 
@@ -454,13 +470,16 @@ serve(async (req) => {
         }
 
         // Incorporar a imagem da assinatura nos arquivos DOCX da proposta e do contrato
+        let signedProposalBytes: Uint8Array | null = null;
+        let signedContractBytes: Uint8Array | null = null;
+
         if (ps.document_url) {
           console.log(`[sign-proposal] Embedding signature in proposal docx: ${ps.document_url}`);
-          await embedSignatureInDocx(supabase, ps.document_url, binaryData);
+          signedProposalBytes = await embedSignatureInDocx(supabase, ps.document_url, binaryData);
         }
         if (ps.contract_document_url) {
           console.log(`[sign-proposal] Embedding signature in contract docx: ${ps.contract_document_url}`);
-          await embedSignatureInDocx(supabase, ps.contract_document_url, binaryData);
+          signedContractBytes = await embedSignatureInDocx(supabase, ps.contract_document_url, binaryData);
         }
       } catch (errSig) {
         console.error("Erro ao decodificar a assinatura base64:", errSig);
@@ -519,9 +538,11 @@ serve(async (req) => {
       .eq("id", ps.empresa_id)
       .single();
 
-    // Baixar proposta assinada do storage
+    // Obter proposta assinada em base64 (direto da memória se gerado ou do storage)
     let proposalBase64 = "";
-    if (ps.document_url) {
+    if (signedProposalBytes) {
+      proposalBase64 = encode(signedProposalBytes);
+    } else if (ps.document_url) {
       console.log(`Baixando proposta para anexo: ${ps.document_url}`);
       const { data: blob, error: dlErr } = await supabase.storage
         .from("proposal-signatures")
@@ -533,9 +554,11 @@ serve(async (req) => {
       }
     }
 
-    // Baixar contrato assinado do storage
+    // Obter contrato assinado em base64
     let contractBase64 = "";
-    if (ps.contract_document_url) {
+    if (signedContractBytes) {
+      contractBase64 = encode(signedContractBytes);
+    } else if (ps.contract_document_url) {
       console.log(`Baixando contrato para anexo: ${ps.contract_document_url}`);
       const { data: blob, error: dlErr } = await supabase.storage
         .from("proposal-signatures")
