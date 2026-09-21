@@ -764,20 +764,22 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                   }`}
                 >
                   <option value="">Selecione a tarifa...</option>
-                  <option value="12">12,00 €</option>
-                  <option value="13">13,00 €</option>
-                  <option value="14">14,00 €</option>
-                  <option value="15">15,00 €</option>
-                  <option value="16">16,00 €</option>
-                  <option value="17">17,00 €</option>
-                  <option value="18">18,00 €</option>
-                  <option value="19">19,00 €</option>
-                  <option value="20">20,00 €</option>
-                  <option value="21">21,00 €</option>
-                  <option value="22">22,00 €</option>
-                  <option value="23">23,00 €</option>
-                  <option value="24">24,00 €</option>
-                  <option value="25">25,00 €</option>
+                  {tarifaAcordada && !['10.00', '10.50', '11.00', '11.50', '12.00', '12.50', '13.00', '13.50', '14.00', '14.50', '15.00', '15.50', '16.00', '16.50', '17.00', '17.50', '18.00', '18.50', '19.00', '19.50', '20.00', '20.50', '21.00', '21.50', '22.00', '22.50', '23.00', '23.50', '24.00', '24.50', '25.00', '25.50', '26.00', '26.50', '27.00', '27.50', '28.00', '28.50', '29.00', '29.50', '30.00'].includes(Number(tarifaAcordada).toFixed(2)) && (
+                    <option value={tarifaAcordada}>
+                      {Number(tarifaAcordada).toFixed(2).replace('.', ',')} €
+                    </option>
+                  )}
+                  {[
+                    '10.00', '10.50', '11.00', '11.50', '12.00', '12.50', '13.00', '13.50',
+                    '14.00', '14.50', '15.00', '15.50', '16.00', '16.50', '17.00', '17.50',
+                    '18.00', '18.50', '19.00', '19.50', '20.00', '20.50', '21.00', '21.50',
+                    '22.00', '22.50', '23.00', '23.50', '24.00', '24.50', '25.00', '25.50',
+                    '26.00', '26.50', '27.00', '27.50', '28.00', '28.50', '29.00', '29.50', '30.00'
+                  ].map(val => (
+                    <option key={val} value={val}>
+                      {val.replace('.', ',')} €
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
