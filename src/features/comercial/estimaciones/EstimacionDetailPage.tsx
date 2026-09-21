@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { 
   ArrowLeft, FileText, CheckCircle2, AlertCircle, 
   MapPin, Clock, Calendar, Users, DollarSign, ExternalLink,
-  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Building2, Briefcase, Link2, UserCheck
+  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Building2, Briefcase, Link2, UserCheck, User
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ConvertLeadToClientModal } from '@/features/comercial/leads/components/ConvertLeadToClientModal';
