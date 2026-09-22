@@ -1230,7 +1230,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                       <p className="text-slate-600">
                         {[fatura.client?.postal_code, fatura.client?.city].filter(Boolean).join(' ')}
                       </p>
-                      <p className="text-slate-600">{fatura.client?.province || 'Espanha'}</p>
+                      <p className="text-slate-600">{fatura.client?.country_name || fatura.client?.countryName || fatura.client?.country || fatura.client?.province || 'Espanha'}</p>
                     </div>
                   </div>
 
@@ -1422,7 +1422,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                         <p className="text-slate-600">
                           {[fatura.client?.postal_code, fatura.client?.city].filter(Boolean).join(' ')}
                         </p>
-                        <p className="text-slate-600">{fatura.client?.province || 'Espanha'}</p>
+                        <p className="text-slate-600">{fatura.client?.country_name || fatura.client?.countryName || fatura.client?.country || fatura.client?.province || 'Espanha'}</p>
                         <p className="text-slate-600 mt-2">Nº Contribuinte: {fatura.client?.tax_id || 'N/A'}</p>
                       </div>
                     </div>
@@ -1527,7 +1527,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                         <p className="font-bold uppercase mb-0.5">Local de Descarga</p>
                         <p>{fatura.client?.address_line || 'N/A'}</p>
                         <p>{[fatura.client?.postal_code, fatura.client?.city].filter(Boolean).join(' ')}</p>
-                        <p>{fatura.client?.province || 'Espanha'}</p>
+                        <p>{fatura.client?.country_name || fatura.client?.countryName || fatura.client?.country || fatura.client?.province || 'Espanha'}</p>
                       </div>
                     </div>
                   </div>

@@ -819,7 +819,7 @@ export function FaturasTracking() {
     const clientLegalName = fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName;
     const clientAddress = fat.client?.address_line || 'N/A';
     const clientPostalCity = [fat.client?.postal_code, fat.client?.city].filter(Boolean).join(' ') || '';
-    const clientCountry = fat.client?.province || fat.client?.country || 'Espanha';
+    const clientCountry = fat.client?.countryName || fat.client?.country || fat.client?.country_name || fat.client?.province || 'Espanha';
     const clientTaxId = fat.client?.tax_id || fat.client?.taxId || fat.client?.cif_nif || 'N/A';
 
     const container = document.createElement('div');
@@ -1059,10 +1059,11 @@ export function FaturasTracking() {
           const { data: clData } = await supabase
             .schema('core_common')
             .from('clients')
-            .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province')
+            .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province, countries(name)')
             .eq('id', targetFatura.client_id)
             .single();
           if (clData) {
+            const cName = (clData as any).countries ? (Array.isArray((clData as any).countries) ? (clData as any).countries[0]?.name : (clData as any).countries.name) : null;
             targetFatura = {
               ...targetFatura,
               client: {
@@ -1073,7 +1074,10 @@ export function FaturasTracking() {
                 address_line: clData.address_line,
                 postal_code: clData.postal_code,
                 city: clData.city,
-                province: clData.province
+                province: clData.province,
+                country: cName,
+                countryName: cName,
+                country_name: cName
               }
             };
           }
@@ -1162,10 +1166,11 @@ export function FaturasTracking() {
         const { data: clData } = await supabase
           .schema('core_common')
           .from('clients')
-          .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province')
+          .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province, countries(name)')
           .eq('id', targetFatura.client_id)
           .single();
         if (clData) {
+          const cName = (clData as any).countries ? (Array.isArray((clData as any).countries) ? (clData as any).countries[0]?.name : (clData as any).countries.name) : null;
           targetFatura = {
             ...targetFatura,
             client: {
@@ -1176,7 +1181,10 @@ export function FaturasTracking() {
               address_line: clData.address_line,
               postal_code: clData.postal_code,
               city: clData.city,
-              province: clData.province
+              province: clData.province,
+              country: cName,
+              countryName: cName,
+              country_name: cName
             }
           };
         }
@@ -4175,7 +4183,7 @@ MCS - Gestão Comercial`;
                                   <p className="font-bold text-slate-900">{selectedDispute.client?.legal_name || selectedDispute.client?.razon_social || selectedDispute.client?.nombre_comercial || 'Cliente'}</p>
                                   <p className="text-slate-600">{selectedDispute.client?.address_line || 'N/A'}</p>
                                   <p className="text-slate-600">{[selectedDispute.client?.postal_code, selectedDispute.client?.city].filter(Boolean).join(' ')}</p>
-                                  <p className="text-slate-600">{selectedDispute.client?.province || 'Espanha'}</p>
+                                  <p className="text-slate-600">{selectedDispute.client?.countryName || selectedDispute.client?.country || selectedDispute.client?.country_name || selectedDispute.client?.province || 'Espanha'}</p>
                                   <p className="text-slate-600 mt-2">Nº Contribuinte: {selectedDispute.client?.cif_nif || selectedDispute.client?.taxId || 'N/A'}</p>
                                 </div>
                               </div>
@@ -4923,7 +4931,7 @@ MCS - Gestão Comercial`;
                           <p className="font-bold text-slate-900">{emailData.fatura.client?.legal_name || emailData.fatura.client?.razon_social || emailData.fatura.client?.nombre_comercial || emailData.clientName}</p>
                           <p className="text-slate-600">{emailData.fatura.client?.address_line || 'N/A'}</p>
                           <p className="text-slate-600">{[emailData.fatura.client?.postal_code, emailData.fatura.client?.city].filter(Boolean).join(' ')}</p>
-                          <p className="text-slate-600">{emailData.fatura.client?.province || 'Espanha'}</p>
+                          <p className="text-slate-600">{emailData.fatura.client?.countryName || emailData.fatura.client?.country || emailData.fatura.client?.country_name || emailData.fatura.client?.province || 'Espanha'}</p>
                           <p className="text-slate-600 mt-2">Nº Contribuinte: {emailData.fatura.client?.cif_nif || emailData.fatura.client?.taxId || 'N/A'}</p>
                         </div>
                       </div>
@@ -5541,7 +5549,7 @@ MCS - Gestão Comercial`;
                       <p className="font-bold text-slate-900">{fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || 'Cliente'}</p>
                       <p className="text-slate-600">{fat.client?.address_line || 'N/A'}</p>
                       <p className="text-slate-600">{[fat.client?.postal_code, fat.client?.city].filter(Boolean).join(' ')}</p>
-                      <p className="text-slate-600">{fat.client?.province || 'Espanha'}</p>
+                      <p className="text-slate-600">{fat.client?.countryName || fat.client?.country || fat.client?.country_name || fat.client?.province || 'Espanha'}</p>
                       <p className="text-slate-600 mt-2">Nº Contribuinte: {fat.client?.cif_nif || fat.client?.taxId || 'N/A'}</p>
                     </div>
                   </div>

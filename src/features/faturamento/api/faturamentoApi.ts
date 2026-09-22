@@ -96,6 +96,9 @@ export interface Fatura {
     postal_code?: string | null;
     city?: string | null;
     province?: string | null;
+    country?: string | null;
+    countryName?: string | null;
+    country_name?: string | null;
     tax_id?: string | null;
   };
   empresa?: {
@@ -1174,6 +1177,9 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           .select(`
             id, codigo, trade_name, legal_name, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id,
             address_line, postal_code, city, province,
+            countries (
+              name
+            ),
             client_company_settings (
               empresa_id,
               payment_term_id,
@@ -1317,7 +1323,10 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             address_line: client.address_line || null,
             postal_code: client.postal_code || null,
             city: client.city || null,
-            province: client.province || null
+            province: client.province || null,
+            country: client.countries ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name) : null,
+            countryName: client.countries ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name) : null,
+            country_name: client.countries ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name) : null
           } : undefined,
           total_horas: finalH,
           total_valor: finalV,
