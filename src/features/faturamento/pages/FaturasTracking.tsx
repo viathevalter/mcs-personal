@@ -582,12 +582,16 @@ export function FaturasTracking() {
     const finalTotal = (totalBase + inc - red) * (1 + iva/100);
 
     const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
+    container.style.position = 'fixed';
+    container.style.left = '0';
     container.style.top = '0';
+    container.style.opacity = '0';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '-9999';
     container.style.width = '800px';
     container.style.background = '#ffffff';
-    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    container.style.fontFamily = "'Inter', Arial, Helvetica, sans-serif";
+    container.style.letterSpacing = '0.01px';
 
     const logoHtml = targetEmpresa?.invoice_logo_url 
       ? `<div style="height: 56px; display: flex; align-items: center; margin-bottom: 8px;"><img src="${targetEmpresa.invoice_logo_url}" style="max-height: 100%; max-width: 220px; object-fit: contain;" /></div>`
@@ -800,13 +804,24 @@ export function FaturasTracking() {
         compress: true
       });
       
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
       const pageElements = container.querySelectorAll('.pdf-portrait-page-tracking');
       
       for (let i = 0; i < pageElements.length; i++) {
         const pageEl = pageElements[i] as HTMLElement;
         const canvas = await html2canvas(pageEl, {
           scale: 1.5,
-          useCORS: true
+          useCORS: true,
+          scrollX: 0,
+          scrollY: 0,
+          backgroundColor: '#ffffff',
+          onclone: (clonedDoc) => {
+            if (document.fonts) {
+              document.fonts.forEach(font => clonedDoc.fonts.add(font));
+            }
+          }
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.82);
@@ -930,21 +945,24 @@ export function FaturasTracking() {
 
     const container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.left = '-9999px';
+    container.style.left = '0';
     container.style.top = '0';
-    container.style.width = '800px';
+    container.style.opacity = '0';
+    container.style.pointerEvents = 'none';
     container.style.zIndex = '-9999';
+    container.style.width = '800px';
     container.style.background = '#ffffff';
     container.style.color = '#000000';
-    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    container.style.fontFamily = "'Inter', Arial, Helvetica, sans-serif";
+    container.style.letterSpacing = '0.01px';
 
     const facturaHtml = `
-      <div style="width: 800px; min-height: 1130px; height: 1130px; background-color: #ffffff; padding: 40px; box-sizing: border-box; color: #1e293b; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
+      <div style="width: 800px; min-height: 1130px; height: 1130px; background-color: #ffffff; padding: 40px; box-sizing: border-box; color: #1e293b; font-family: 'Inter', Arial, Helvetica, sans-serif; letter-spacing: 0.01px; font-variant-ligatures: none; -webkit-font-variant-ligatures: none; font-feature-settings: 'liga' 0, 'kern' 0; display: flex; flex-direction: column; justify-content: space-between; position: relative;">
         <!-- TOP SECTION -->
         <div style="flex: 1;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px;">
             <div>
-              <h3 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.025em;">
+              <h3 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: normal;">
                 ${fat.fatura_numero || `Factura nº${targetEmpresa?.invoice_series || '1'} ${new Date().getFullYear()}/${targetEmpresa?.next_invoice_number || 1}`}
               </h3>
               <p style="font-size: 11px; font-weight: 700; color: #0f172a; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">ORIGINAL</p>
@@ -1099,12 +1117,26 @@ export function FaturasTracking() {
     container.innerHTML = facturaHtml;
     document.body.appendChild(container);
 
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+
     try {
       const canvas = await html2canvas(container, {
         scale: 2.0,
         useCORS: true,
         width: 800,
-        windowWidth: 800
+        windowWidth: 800,
+        scrollX: 0,
+        scrollY: 0,
+        x: 0,
+        y: 0,
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          if (document.fonts) {
+            document.fonts.forEach(font => clonedDoc.fonts.add(font));
+          }
+        }
       });
 
       const imgData = canvas.toDataURL('image/jpeg', 0.90);
@@ -1344,13 +1376,17 @@ export function FaturasTracking() {
     toast.info("Aguarde, gerando PDF do Relatório de Horas...");
     
     const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
+    container.style.position = 'fixed';
+    container.style.left = '0';
     container.style.top = '0';
+    container.style.opacity = '0';
+    container.style.pointerEvents = 'none';
+    container.style.zIndex = '-9999';
     container.style.width = '1120px';
     container.style.background = '#ffffff';
     container.style.color = '#000000';
-    container.style.fontFamily = 'Inter, system-ui, sans-serif';
+    container.style.fontFamily = "'Inter', Arial, Helvetica, sans-serif";
+    container.style.letterSpacing = '0.01px';
     
     const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
     
@@ -1613,13 +1649,24 @@ export function FaturasTracking() {
         format: 'a4'
       });
       
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
       const pageElements = container.querySelectorAll('.pdf-page-hours-tracking');
       
       for (let i = 0; i < pageElements.length; i++) {
         const pageEl = pageElements[i] as HTMLElement;
         const canvas = await html2canvas(pageEl, {
           scale: 2, // high quality
-          useCORS: true
+          useCORS: true,
+          scrollX: 0,
+          scrollY: 0,
+          backgroundColor: '#ffffff',
+          onclone: (clonedDoc) => {
+            if (document.fonts) {
+              document.fonts.forEach(font => clonedDoc.fonts.add(font));
+            }
+          }
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.9);

@@ -460,11 +460,22 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       
       const pageElements = container.querySelectorAll('.pdf-page-hours-portal');
       
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
       for (let i = 0; i < pageElements.length; i++) {
         const pageEl = pageElements[i] as HTMLElement;
         const canvas = await html2canvas(pageEl, {
           scale: 1.5,
-          useCORS: true
+          useCORS: true,
+          scrollX: 0,
+          scrollY: 0,
+          backgroundColor: '#ffffff',
+          onclone: (clonedDoc) => {
+            if (document.fonts) {
+              document.fonts.forEach(font => clonedDoc.fonts.add(font));
+            }
+          }
         });
         
         const imgData = canvas.toDataURL('image/jpeg', 0.9);
@@ -502,9 +513,20 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
     toast.info(`Generando PDF de la ${type === 'informe' ? 'Pro-forma' : 'Factura'}...`);
     
     try {
+      if (document.fonts?.ready) {
+        await document.fonts.ready;
+      }
       const canvas = await html2canvas(element, {
         scale: 2,
-        useCORS: true
+        useCORS: true,
+        scrollX: 0,
+        scrollY: 0,
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          if (document.fonts) {
+            document.fonts.forEach(font => clonedDoc.fonts.add(font));
+          }
+        }
       });
       
       const imgData = canvas.toDataURL('image/jpeg', 0.85);
