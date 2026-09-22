@@ -843,7 +843,7 @@ Muchas gracias.`;
     };
 
     // Carregar Lista de Clientes Ativos (com Código e filtro por Empresa)
-    const loadClients = async (empresaId?: string) => {
+    const loadClients = async (empresaId?: string, ensureClientId?: string, fallbackClientName?: string) => {
         try {
             const { data, error } = await supabase
                 .schema('core_common')
@@ -855,12 +855,22 @@ Muchas gracias.`;
                         status
                     )
                 `)
+                .is('deleted_at', null)
                 .order('trade_name', { ascending: true });
             
             if (error) throw error;
 
+            const holdingId = 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+
             const mapped = (data || [])
                 .filter(client => {
+                    // Sempre incluir o cliente que já está explicitamente vinculado a este documento/trabalhador
+                    if (ensureClientId && client.id === ensureClientId) return true;
+                    if (fallbackClientName && (
+                        (client.trade_name && client.trade_name.toLowerCase().includes(fallbackClientName.toLowerCase())) ||
+                        (client.legal_name && client.legal_name.toLowerCase().includes(fallbackClientName.toLowerCase()))
+                    )) return true;
+
                     const settings = client.client_company_settings || [];
                     if (settings.length === 0) return true;
                     
@@ -870,6 +880,10 @@ Muchas gracias.`;
                             return targetSetting.status === 'active';
                         }
                     }
+                    // Se não tiver setting para a empresa selecionada ou for holding, checa se está ativo na holding ou em qualquer empresa
+                    const holdingSetting = settings.find((s: any) => s.empresa_id === holdingId);
+                    if (holdingSetting && holdingSetting.status === 'active') return true;
+
                     return settings.some((s: any) => s.status === 'active');
                 })
                 .map(client => {
@@ -882,8 +896,10 @@ Muchas gracias.`;
                 });
 
             setClientsList(mapped);
+            return mapped;
         } catch (err) {
             console.error("Erro ao carregar lista de clientes:", err);
+            return [];
         }
     };
 
@@ -1137,12 +1153,35 @@ Muchas gracias.`;
     };
 
     // 5b. Editar Solicitação Existente
-    const handleOpenEditRequest = (req: DocumentRequest) => {
+    const handleOpenEditRequest = async (req: DocumentRequest) => {
         setEditingRequest(req);
         setEditEmpresaId(req.empresa_id);
-        loadClients(req.empresa_id);
-        const explicitClientId = (req as any).extracted_data?.client_id || (req as any).client?.id || 'none';
-        setEditClientId(explicitClientId);
+
+        const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+        const latestAssignment = req.worker?.assignments?.[0];
+
+        let explicitClientId = (req as any).extracted_data?.client_id || 
+                               (req as any).client?.id || 
+                               activeAssignment?.client_id || 
+                               (activeAssignment?.client as any)?.id || 
+                               latestAssignment?.client_id || 
+                               (latestAssignment?.client as any)?.id || '';
+
+        const clientNameFallback = req.worker?.cliente || (req as any).client?.trade_name || (req as any).client?.legal_name;
+
+        // Carrega a lista garantindo que o cliente atual desta solicitação não seja filtrado
+        const loadedClients = await loadClients(req.empresa_id, explicitClientId || undefined, clientNameFallback || undefined);
+
+        // Se ainda não tinha explicitClientId mas temos o nome do cliente, tenta bater pelo nome ou código
+        if (!explicitClientId && clientNameFallback && loadedClients.length > 0) {
+            const cleanFallback = clientNameFallback.toLowerCase().trim();
+            const matched = loadedClients.find(c => c.name.toLowerCase().includes(cleanFallback));
+            if (matched) {
+                explicitClientId = matched.id;
+            }
+        }
+
+        setEditClientId(explicitClientId || 'none');
         const explicitStartDate = (req as any).extracted_data?.start_date || (req as any).worker?.assignments?.[0]?.start_date || (req as any).worker?.assignments?.[0]?.planned_start_date || '';
         setEditStartDate(explicitStartDate);
         setEditDialogOpen(true);
@@ -1654,21 +1693,21 @@ Muchas gracias.`;
                                         </div>
 
                                          <div className="space-y-2">
-                                            <Label>Cliente (Alocação / Destino)</Label>
-                                            <Select 
-                                                value={requestClientId} 
-                                                onValueChange={setRequestClientId}
-                                            >
-                                                <SelectTrigger className="bg-white dark:bg-black w-full text-left">
-                                                    <SelectValue placeholder="Selecione o cliente de destino..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">Sem Cliente Especificado</SelectItem>
-                                                    {clientsList.map(cli => (
-                                                        <SelectItem key={cli.id} value={cli.id}>{cli.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                                Cliente (Alocação / Destino)
+                                            </Label>
+                                            <Combobox
+                                                options={[
+                                                    { value: 'none', label: 'Sem Cliente Especificado' },
+                                                    ...clientsList.map(cli => ({ value: cli.id, label: cli.name }))
+                                                ]}
+                                                value={requestClientId || 'none'}
+                                                onChange={(val) => setRequestClientId(val || 'none')}
+                                                placeholder="Pesquise o cliente pelo nome ou código..."
+                                                emptyText="Nenhum cliente ativo encontrado."
+                                                className="h-10 text-sm bg-white dark:bg-black border-slate-200 dark:border-slate-800 w-full"
+                                                popoverClassName="w-[450px]"
+                                            />
                                         </div>
 
                                         <div className="space-y-2">
@@ -1757,21 +1796,21 @@ Muchas gracias.`;
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label>Cliente (Alocação / Destino)</Label>
-                                        <Select 
-                                            value={editClientId} 
-                                            onValueChange={setEditClientId}
-                                        >
-                                            <SelectTrigger className="bg-white dark:bg-black w-full text-left">
-                                                <SelectValue placeholder="Selecione o cliente de destino..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">Sem Cliente Especificado</SelectItem>
-                                                {clientsList.map(cli => (
-                                                    <SelectItem key={cli.id} value={cli.id}>{cli.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                            Cliente (Alocação / Destino)
+                                        </Label>
+                                        <Combobox
+                                            options={[
+                                                { value: 'none', label: 'Sem Cliente Especificado' },
+                                                ...clientsList.map(cli => ({ value: cli.id, label: cli.name }))
+                                            ]}
+                                            value={editClientId || 'none'}
+                                            onChange={(val) => setEditClientId(val || 'none')}
+                                            placeholder="Pesquise o cliente pelo nome ou código..."
+                                            emptyText="Nenhum cliente ativo encontrado."
+                                            className="h-10 text-sm bg-white dark:bg-black border-slate-200 dark:border-slate-800 w-full"
+                                            popoverClassName="w-[450px]"
+                                        />
                                     </div>
 
                                     <div className="space-y-2">

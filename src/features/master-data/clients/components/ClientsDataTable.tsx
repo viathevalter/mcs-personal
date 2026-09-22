@@ -79,13 +79,29 @@ export function ClientsDataTable() {
   const clientIdsWithSites = new Set(allSites.map(s => s.client_id).filter(Boolean));
 
   const filteredClients = clients.filter(c => {
-    // 1. Text Search Filter
-    const matchesSearch = 
-      (c.trade_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
-      (c.legal_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (c.tax_id || '').includes(searchTerm);
+    // 1. Text Search Filter com busca inteligente, normalização e suporte a código
+    if (searchTerm.trim()) {
+      const cleanTerm = searchTerm.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const searchWords = cleanTerm.split(/\s+/).filter(Boolean);
 
-    if (!matchesSearch) return false;
+      const targetText = [
+        c.codigo,
+        c.trade_name,
+        c.legal_name,
+        c.tax_id,
+        c.phone,
+        c.city,
+        c.province
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+      const matchesSearch = searchWords.every(word => targetText.includes(word));
+      if (!matchesSearch) return false;
+    }
 
     // 2. Payment Term Filter
     if (paymentTermFilter === 'none') {
