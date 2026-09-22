@@ -468,8 +468,6 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
         const canvas = await html2canvas(pageEl, {
           scale: 1.5,
           useCORS: true,
-          scrollX: 0,
-          scrollY: 0,
           backgroundColor: '#ffffff',
           onclone: (clonedDoc) => {
             if (document.fonts) {
@@ -519,8 +517,6 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
-        scrollX: 0,
-        scrollY: 0,
         backgroundColor: '#ffffff',
         onclone: (clonedDoc) => {
           if (document.fonts) {
