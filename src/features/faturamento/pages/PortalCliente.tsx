@@ -14,6 +14,7 @@ import { getBillingCycleDays } from './FaturasPendentes';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
+import { buildFaturaPdfFilename } from './FaturasTracking';
 
 // Format helpers
 const formatHours = (decimalHours: number) => {
@@ -475,7 +476,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
         pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
       }
 
-      pdf.save(`registro-horas-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+      const filename = buildFaturaPdfFilename(fatura, horas, clientName, 'horas');
+      pdf.save(filename);
       toast.success("PDF del Registro de Horas generado correctamente!");
     } catch (error: any) {
       console.error("Error al generar PDF:", error);
@@ -518,7 +520,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       
       pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST');
       
-      const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
+      const filename = buildFaturaPdfFilename(fatura, horas, clientName, type);
       pdf.save(filename);
       toast.success(`¡PDF de la ${type === 'informe' ? 'Pro-forma' : 'Factura'} generado con éxito!`);
     } catch (error: any) {
