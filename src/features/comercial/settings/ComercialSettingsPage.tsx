@@ -219,7 +219,7 @@ export function ComercialSettingsPage() {
         if (files?.some(f => f.name === 'contrato.docx')) foundCont = true;
         if (files?.some(f => f.name === 'pedido.docx')) foundPed = true;
         if (files?.some(f => f.name === 'proposta_fechado.docx')) foundPropFixed = true;
-        if (files?.some(f => f.name === 'contrato_fechado.docx')) foundContFixed = true;
+        if (files?.some(f => f.name === 'contrato_fechado.docx' || f.name === 'contrato.docx')) foundContFixed = true;
         if (foundProp && foundCont && foundPed && foundPropFixed && foundContFixed) break;
       }
 
@@ -403,15 +403,24 @@ export function ComercialSettingsPage() {
     let downloadedBlob: Blob | null = null;
 
     if (isCustom) {
-      for (const fName of candidateFolderNames) {
-        const path = `${fName}/${activeLang}/${type}.docx`;
-        const { data, error } = await supabase.storage
-          .from('proposal-templates')
-          .download(path);
-        if (!error && data) {
-          downloadedBlob = data;
-          break;
+      const candidateTypes = type === 'contrato_fechado'
+        ? ['contrato_fechado', 'contrato']
+        : type === 'proposta_fechado'
+          ? ['proposta_fechado', 'proposta']
+          : [type];
+
+      for (const cType of candidateTypes) {
+        for (const fName of candidateFolderNames) {
+          const path = `${fName}/${activeLang}/${cType}.docx`;
+          const { data, error } = await supabase.storage
+            .from('proposal-templates')
+            .download(path);
+          if (!error && data) {
+            downloadedBlob = data;
+            break;
+          }
         }
+        if (downloadedBlob) break;
       }
     }
 
