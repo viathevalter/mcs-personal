@@ -197,8 +197,8 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       if (data && data.length > 0) {
         const found = data[0];
         toast.warning(
-          `Trabalhador já cadastrado: ${found.nome} (${found.cod_colab || 'Sem código'}). O sistema selecionará ele automaticamente.`,
-          { duration: 6000 }
+          `Trabalhador já cadastrado com este documento: ${found.nome} (${found.cod_colab || 'Sem código'}). O sistema selecionará ele automaticamente.`,
+          { duration: 7000 }
         );
         
         // Redireciona e seleciona o trabalhador
@@ -208,6 +208,35 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       }
     } catch (err) {
       console.error('Erro na consulta do documento:', err);
+    }
+  };
+
+  const checkDuplicateName = async (nameValue: string) => {
+    if (!nameValue || !selectedEmpresaId) return;
+    const cleanName = nameValue.trim();
+    if (cleanName.length < 5) return;
+
+    try {
+      const { data, error } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('id, nome, cod_colab, nif, dni, nie, pasaporte, status_trabajador')
+        .ilike('nome', cleanName)
+        .limit(1);
+
+      if (error) return;
+      if (data && data.length > 0) {
+        const found = data[0];
+        toast.warning(
+          `Já existe um trabalhador cadastrado com o nome "${found.nome}" (${found.cod_colab || 'Sem código'} - ${found.status_trabajador || 'Sem status'}). O sistema selecionará ele automaticamente.`,
+          { duration: 8000 }
+        );
+        setMode('existing');
+        setSelectedWorkerId(found.id);
+        setSearchWorker(found.nome);
+      }
+    } catch (err) {
+      console.error('Erro na consulta por nome:', err);
     }
   };
 
@@ -594,6 +623,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                       required
                       value={workerName}
                       onChange={(e) => setWorkerName(e.target.value)}
+                      onBlur={(e) => checkDuplicateName(e.target.value)}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                     />
                   </div>
