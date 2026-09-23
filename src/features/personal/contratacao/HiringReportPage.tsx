@@ -592,7 +592,7 @@ export function HiringReportPage() {
               <option value="all">Todos os Status</option>
               <option value="active">● Somente Ativos</option>
               <option value="pending_entry">● Pendente de Ingressar</option>
-              <option value="inactive">● Somente Desligados</option>
+              <option value="inactive">● Desligados / Cancelados</option>
             </select>
           </div>
 
@@ -726,7 +726,7 @@ export function HiringReportPage() {
             </div>
             <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
               {activeKpiCard === 'inactive' && <CheckCircle2 className="h-2.5 w-2.5 text-rose-600" />}
-              Remanejados / baixa
+              Cancelados / baixas do pedido
             </p>
           </div>
         </div>
@@ -1208,8 +1208,12 @@ export function HiringReportPage() {
                           ● Pendente Ingresso
                         </span>
                       ) : item.display_status === 'inactive' ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/30">
-                          ● Desligado
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                          item.status_label === 'Substituído'
+                            ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-500/30'
+                            : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-500/30'
+                        }`}>
+                          ● {item.status_label}
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">

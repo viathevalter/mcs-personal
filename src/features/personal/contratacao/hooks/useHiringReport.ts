@@ -309,18 +309,24 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
 
   const targetEmpresaNome = filters.empresa_id ? (empresasMap.get(filters.empresa_id)?.nome || '') : 'Grupo';
 
-  const mappedRealAssignments = assignmentsData.map(a => ({
-    ...a,
-    pedido: pedidosMap.get(a.pedido_id) || null,
-    client: clientsMap.get(a.client_id) || null,
-    client_site: sitesMap.get(a.client_site_id) || null,
-    empresa: empresasMap.get(a.empresa_id) || null,
-    status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
-    status_trabajador: a.worker?.status_trabajador || a.status_trabajador,
-    end_date: a.end_date || a.worker?.data_baixa || null,
-    contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome),
-    contratador: formatStandardContratador(a.created_by || a.contractor || a.worker?.contractor || a.sp_created_by, userMap)
-  }));
+  const mappedRealAssignments = assignmentsData.map(a => {
+    const validWorkerDataBaixa = (a.worker?.data_baixa && (!a.start_date || a.worker.data_baixa.split('T')[0] >= a.start_date.split('T')[0]))
+      ? a.worker.data_baixa
+      : null;
+
+    return {
+      ...a,
+      pedido: pedidosMap.get(a.pedido_id) || null,
+      client: clientsMap.get(a.client_id) || null,
+      client_site: sitesMap.get(a.client_site_id) || null,
+      empresa: empresasMap.get(a.empresa_id) || null,
+      status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
+      status_trabajador: a.worker?.status_trabajador || a.status_trabajador,
+      end_date: a.end_date || validWorkerDataBaixa || null,
+      contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome),
+      contratador: formatStandardContratador(a.created_by || a.contractor || a.worker?.contractor || a.sp_created_by, userMap)
+    };
+  });
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
   const allClients = allClientsRes.data || [];
@@ -363,7 +369,11 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         || (cpp?.inserted_at ? cpp.inserted_at.split('T')[0] : null)
         || (w.created_at ? w.created_at.split('T')[0] : null);
 
-      const endDate = w.data_baixa || cpp?.fechasalidatrabajador || cpp?.fechafinpedido || null;
+      const validWorkerDataBaixa = (w.data_baixa && (!allocationStartDate || w.data_baixa.split('T')[0] >= allocationStartDate))
+        ? w.data_baixa
+        : null;
+
+      const endDate = validWorkerDataBaixa || cpp?.fechasalidatrabajador || cpp?.fechafinpedido || null;
 
       const stdContratante = formatStandardContratante(w.contratante || cpp?.contratante || targetEmpresaNome);
       const stdContratador = workerRecruiterMap.get(w.id) || formatStandardContratador(w.contractor || cpp?.sp_created_by, userMap);
@@ -451,16 +461,34 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
 
     const isInactiveStatus = ['completed', 'cancelled', 'replaced', 'relocated'].includes(a.status);
     
-    // Accurately capture end date from assignment end_date or worker data_baixa
+    // Only accept worker.data_baixa if it is on or after startDateStr (avoids past historical bajas from prior contracts)
+    const validWorkerDataBaixa = (a.worker?.data_baixa && (!startDateStr || a.worker.data_baixa.split('T')[0] >= startDateStr))
+      ? a.worker.data_baixa.split('T')[0]
+      : null;
+
+    // Accurately capture end date from assignment end_date or valid worker data_baixa
     const endDateStr = a.end_date ? a.end_date.split('T')[0]
-      : a.worker?.data_baixa ? a.worker.data_baixa.split('T')[0]
-      : (isInactiveStatus && a.planned_end_date ? a.planned_end_date.split('T')[0] : null);
+      : (validWorkerDataBaixa || (isInactiveStatus && a.planned_end_date ? a.planned_end_date.split('T')[0] : null));
 
     const rawWorkerStatus = (a.worker?.status_trabajador || a.status_trabajador || a.status || '').toLowerCase();
     
     // Check for "Pendente Ingresso" / "Pendiente Ingresar"
-    const isPendingEntry = rawWorkerStatus.includes('pendiente') || rawWorkerStatus.includes('pendente') || (a.status === 'planned' && !!startDateStr && startDateStr > todayYMD);
-    const isInactive = !isPendingEntry && (isInactiveStatus || rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!endDateStr);
+    // Worker is pending entry if not in an inactive/cancelled status, and planned or start date in the future
+    const isPendingEntry = !isInactiveStatus && (
+      a.status === 'planned' || 
+      rawWorkerStatus.includes('pendiente') || 
+      rawWorkerStatus.includes('pendente') || 
+      (!!startDateStr && startDateStr > todayYMD)
+    );
+
+    const isInactive = !isPendingEntry && (
+      isInactiveStatus || 
+      rawWorkerStatus.includes('baja') || 
+      rawWorkerStatus.includes('inativo') || 
+      rawWorkerStatus.includes('desligado') || 
+      (!!endDateStr && endDateStr <= todayYMD)
+    );
+
     const isActive = !isPendingEntry && !isInactive;
 
     let display_status: WorkerDisplayStatus = 'active';
@@ -471,7 +499,13 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       status_label = 'Pendente Ingresso';
     } else if (isInactive) {
       display_status = 'inactive';
-      status_label = 'Desligado';
+      if (a.status === 'cancelled' || rawWorkerStatus.includes('desist')) {
+        status_label = 'Cancelado / Desistiu';
+      } else if (a.status === 'replaced') {
+        status_label = 'Substituído';
+      } else {
+        status_label = 'Desligado';
+      }
     } else {
       display_status = 'active';
       status_label = 'Ativo';
@@ -485,11 +519,18 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
 
     // Calculate days worked
     let daysWorked = 0;
-    const startDateObj = parseLocalDate(startDateStr);
-    if (startDateObj) {
-      startDateObj.setHours(0, 0, 0, 0);
-      const endDateObj = !isActive && endDateStr ? parseLocalDate(endDateStr) : new Date();
-      if (endDateObj) {
+    if (isActive) {
+      const startDateObj = parseLocalDate(startDateStr);
+      if (startDateObj) {
+        startDateObj.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - startDateObj.getTime();
+        daysWorked = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      }
+    } else if (isInactive && a.status !== 'cancelled' && !rawWorkerStatus.includes('desist')) {
+      const startDateObj = parseLocalDate(startDateStr);
+      const endDateObj = parseLocalDate(endDateStr);
+      if (startDateObj && endDateObj) {
+        startDateObj.setHours(0, 0, 0, 0);
         endDateObj.setHours(0, 0, 0, 0);
         const diffTime = endDateObj.getTime() - startDateObj.getTime();
         daysWorked = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
@@ -526,32 +567,11 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     };
   });
 
-  // Extract unique filter dropdown values BEFORE date filtering so drop downs don't collapse
-  const uniqueClientsMap = new Map<string, string>();
-  const uniqueContratantesSet = new Set<string>();
-  const uniqueContratadoresSet = new Set<string>();
-  const uniquePedidosMap = new Map<string, string>();
-  const uniqueFunctionsSet = new Set<string>();
-
-  allItems.forEach(item => {
-    if (item.client_id) uniqueClientsMap.set(item.client_id, item.client_name);
-    if (item.contratante) uniqueContratantesSet.add(item.contratante);
-    if (item.contratador) uniqueContratadoresSet.add(item.contratador);
-    if (item.pedido_id) uniquePedidosMap.set(item.pedido_id, item.pedido_codigo);
-    if (item.job_function_name) uniqueFunctionsSet.add(item.job_function_name);
-  });
-
-  const uniqueClients = Array.from(uniqueClientsMap.entries()).map(([id, name]) => ({ id, name }));
-  const uniqueContratantes = Array.from(uniqueContratantesSet).sort();
-  const uniqueContratadores = Array.from(uniqueContratadoresSet).sort();
-  const uniquePedidos = Array.from(uniquePedidosMap.entries()).map(([id, code]) => ({ id, code }));
-  const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
-
-  // Filter by Hiring Date Range: Include workers whose WORK START DATE is within [startDate, endDate]
-  let filtered = allItems;
+  // 1. Filter by Hiring Date Range: Include workers whose WORK START DATE is within [startDate, endDate]
+  let dateFilteredItems = allItems;
 
   if (filters.startDate || filters.endDate) {
-    filtered = filtered.filter(item => {
+    dateFilteredItems = dateFilteredItems.filter(item => {
       const start = item.start_date;
 
       if (!start) return true;
@@ -570,7 +590,56 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     });
   }
 
-  // Dropdown Filters (case-insensitive for contratante)
+  // 2. Extract unique filter dropdown values strictly from the selected period (dateFilteredItems)
+  // so that Pedidos, Clientes, Contratadores reflect the orders being served in the period.
+  const uniqueClientsMap = new Map<string, string>();
+  const uniqueContratantesSet = new Set<string>();
+  const uniqueContratadoresSet = new Set<string>();
+  const uniquePedidosMap = new Map<string, string>();
+  const uniqueFunctionsSet = new Set<string>();
+
+  dateFilteredItems.forEach(item => {
+    if (item.client_id) uniqueClientsMap.set(item.client_id, item.client_name);
+    if (item.contratante) uniqueContratantesSet.add(item.contratante);
+    if (item.contratador) uniqueContratadoresSet.add(item.contratador);
+    if (item.pedido_id) {
+      uniquePedidosMap.set(item.pedido_id, item.pedido_codigo);
+    } else if (item.pedido_codigo && item.pedido_codigo !== 'S/N') {
+      uniquePedidosMap.set(item.pedido_codigo, item.pedido_codigo);
+    }
+    if (item.job_function_name) uniqueFunctionsSet.add(item.job_function_name);
+  });
+
+  // Preserve any currently active filter in dropdowns so it doesn't vanish if already selected
+  if (filters.pedidoFilter && filters.pedidoFilter !== 'all' && !uniquePedidosMap.has(filters.pedidoFilter)) {
+    const existing = allItems.find(i => i.pedido_id === filters.pedidoFilter || i.pedido_codigo === filters.pedidoFilter);
+    if (existing) {
+      uniquePedidosMap.set(existing.pedido_id || existing.pedido_codigo, existing.pedido_codigo);
+    }
+  }
+  if (filters.clientFilter && filters.clientFilter !== 'all' && !uniqueClientsMap.has(filters.clientFilter)) {
+    const existing = allItems.find(i => i.client_id === filters.clientFilter);
+    if (existing) {
+      uniqueClientsMap.set(existing.client_id, existing.client_name);
+    }
+  }
+
+  const uniqueClients = Array.from(uniqueClientsMap.entries())
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const uniqueContratantes = Array.from(uniqueContratantesSet).sort();
+  const uniqueContratadores = Array.from(uniqueContratadoresSet).sort();
+
+  const uniquePedidos = Array.from(uniquePedidosMap.entries())
+    .map(([id, code]) => ({ id, code }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+
+  const uniqueFunctions = Array.from(uniqueFunctionsSet).sort();
+
+  // 3. Apply secondary dropdown filters on top of dateFilteredItems
+  let filtered = dateFilteredItems;
+
   if (filters.clientFilter && filters.clientFilter !== 'all') {
     filtered = filtered.filter(item => item.client_id === filters.clientFilter);
   }
@@ -588,7 +657,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   }
 
   if (filters.pedidoFilter && filters.pedidoFilter !== 'all') {
-    filtered = filtered.filter(item => item.pedido_id === filters.pedidoFilter);
+    filtered = filtered.filter(item => item.pedido_id === filters.pedidoFilter || item.pedido_codigo === filters.pedidoFilter);
   }
 
   if (filters.jobFunctionFilter && filters.jobFunctionFilter !== 'all') {
