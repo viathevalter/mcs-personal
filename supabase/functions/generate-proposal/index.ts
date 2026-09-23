@@ -426,10 +426,23 @@ serve(async (req) => {
     }
 
     // 6. Mesclar os dados usando docx-templates
-    const defaultAlcance = "El precio cerrado corresponde al alcance definido en este Anexo. Las horas, jornadas, personal y plazo indicados son estimaciones de planificación y no alteran el importe pactado.";
-    const defaultModificaciones = "Cualquier modificación o ampliación del alcance deberá ser acordada por escrito. Si la ejecución supera el plazo previsto, LA PRESTADORA podrá, a su criterio, mantener el precio pactado o facturar adicionalmente las horas o jornadas excedidas, previa comunicación a LA CONTRATANTE. Los retrasos, paralizaciones o sobrecostes no imputables a LA PRESTADORA podrán ser facturados adicionalmente.";
-    const defaultEpiDescripcion = "LA PRESTADORA proporcionará los EPI básicos: calzado de seguridad, uniforme de trabajo, protectores auditivos, gafas de protección y casco.";
-    const defaultEpiNota = "Cualquier EPI especial o protección específica para la obra será proporcionado por LA CONTRATANTE, salvo pacto en contrario.";
+    const isFr = docLang === 'fr';
+
+    const defaultAlcance = isFr
+      ? "Le prix forfaitaire ferme correspond au périmètre défini dans cette Annexe. Les heures, journées, effectifs et délais indiqués sont des estimations de planification et ne modifient pas le montant convenu."
+      : "El precio cerrado corresponde al alcance definido en este Anexo. Las horas, jornadas, personal y plazo indicados son estimaciones de planificación y no alteran el importe pactado.";
+
+    const defaultModificaciones = isFr
+      ? "Toute modification ou extension du périmètre devra être convenue par écrit. Si l'exécution dépasse le délai prévu, LE PRESTATAIRE pourra, à sa discrétion, maintenir le prix convenu ou facturer en sus les heures ou journées supplémentaires, après notification préalable au CLIENT CONTRACTANT. Les retards, arrêts de chantier ou surcoûts non imputables au PRESTATAIRE pourront faire l'objet d'une facturation complémentaire."
+      : "Cualquier modificación o ampliación del alcance deberá ser acordada por escrito. Si la ejecución supera el plazo previsto, LA PRESTADORA podrá, a su criterio, mantener el precio pactado o facturar adicionalmente las horas o jornadas excedidas, previa comunicación a LA CONTRATANTE. Los retrasos, paralizaciones o sobrecostes no imputables a LA PRESTADORA podrán ser facturados adicionalmente.";
+
+    const defaultEpiDescripcion = isFr
+      ? "LE PRESTATAIRE fournira les EPI de base : chaussures de sécurité, tenue de travail, protections auditives, lunettes de protection et casque."
+      : "LA PRESTADORA proporcionará los EPI básicos: calzado de seguridad, uniforme de trabajo, protectores auditivos, gafas de protección y casco.";
+
+    const defaultEpiNota = isFr
+      ? "Tout équipement spécial ou protection spécifique pour le chantier sera fourni par LE CLIENT CONTRACTANT, sauf accord contraire."
+      : "Cualquier EPI especial o protección específica para la obra será proporcionado por LA CONTRATANTE, salvo pacto en contrario.";
 
     const mergeData = {
       empresa_nome: empresa.legal_name || empresa.trade_name || "",
@@ -439,9 +452,9 @@ serve(async (req) => {
       empresa_morada: empresa.address_line || "",
       
       proposta_codigo: est.codigo || "",
-      proposta_data: new Date(est.created_at).toLocaleDateString("pt-PT"),
-      proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString("pt-PT") : "",
-      proposta_pagamento: est.payment_terms || "A combinar",
+      proposta_data: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "pt-PT"),
+      proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT") : "",
+      proposta_pagamento: est.payment_terms || (isFr ? "À convenir" : "A combinar"),
       proposta_notes: est.general_notes || "",
       
       cliente_nome: targetName,
@@ -451,11 +464,11 @@ serve(async (req) => {
       cliente_morada: clientAddress,
       cliente_nif: clientTaxId,
 
-      obra_morada: siteAddress || "Instalações do Cliente",
-      tarifa_tipo: isFixedPrice ? "Preço Fechado" : "Completa",
-      data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString("pt-PT") : "",
-      data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString("pt-PT") : "",
-      condicoes_pagamento: est.payment_terms || "A combinar",
+      obra_morada: siteAddress || (isFr ? "Installations du Client" : "Instalações do Cliente"),
+      tarifa_tipo: isFixedPrice ? (isFr ? "Prix Forfaitaire Ferme" : "Preço Fechado") : (isFr ? "Grille Complète" : "Completa"),
+      data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT") : "",
+      data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT") : "",
+      condicoes_pagamento: est.payment_terms || (isFr ? "À convenir" : "A combinar"),
 
       itens: formattedItems,
       
@@ -465,11 +478,15 @@ serve(async (req) => {
 
       // SUPORTE A PREÇO FECHADO / PRECIO CERRADO
       is_fixed_price: isFixedPrice,
-      MODALIDAD_PRESUPUESTO: isFixedPrice ? "Precio Cerrado / Llave en Mano" : "Tarifa por Horas",
-      MODALIDADE_PROPOSTA: isFixedPrice ? "Preço Fechado (Chave na mão)" : "Tarifa por Horas",
-      PRECIO_CERRADO: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      PRECIO_TOTAL: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      VALOR_GLOBAL: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      MODALIDAD_PRESUPUESTO: isFixedPrice 
+        ? (isFr ? "Prix Forfaitaire Ferme (Clé en main)" : "Precio Cerrado / Llave en Mano") 
+        : (isFr ? "Tarif Horaire" : "Tarifa por Horas"),
+      MODALIDADE_PROPOSTA: isFixedPrice 
+        ? (isFr ? "Prix Forfaitaire Ferme (Clé en main)" : "Preço Fechado (Chave na mão)") 
+        : (isFr ? "Tarif Horaire" : "Tarifa por Horas"),
+      PRECIO_CERRADO: (version.total_revenue || 0).toLocaleString(isFr ? "fr-FR" : "es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      PRECIO_TOTAL: (version.total_revenue || 0).toLocaleString(isFr ? "fr-FR" : "es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      VALOR_GLOBAL: (version.total_revenue || 0).toLocaleString(isFr ? "fr-FR" : "es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       VALOR_TOTAL_GLOBAL: (version.total_revenue || 0).toFixed(2),
       CONDICIONES_PRECIO_CERRADO: isFixedPrice ? (est.fixed_price_notes || defaultAlcance) : "",
       CONDICOES_PRECO_FECHADO: isFixedPrice ? (est.fixed_price_notes || defaultAlcance) : "",
@@ -481,22 +498,26 @@ serve(async (req) => {
       CLAUSULA_RETRASOS: isFixedPrice ? defaultModificaciones : "",
       CONDICIONES_MODIFICACIONES: isFixedPrice ? defaultModificaciones : "",
       DIAS_TOTALES: totalDays > 0 ? totalDays.toString() : "",
-      PLAZO_EJECUCION_DIAS: totalDays > 0 ? `${totalDays} días` : "",
+      PLAZO_EJECUCION_DIAS: totalDays > 0 ? `${totalDays} ${isFr ? "jours" : "días"}` : "",
 
       // ALIASES EM ESPANHOL (Suporte aos modelos de presupuesto customizados)
       NUMERO_PRESUPUESTO: est.codigo || "",
       PRESUPUESTO_NUMERO: est.codigo || "",
-      FECHA_EMISION: new Date(est.created_at).toLocaleDateString("es-ES"),
-      PAIS: "España",
+      FECHA_EMISION: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "es-ES"),
+      PAIS: isFr ? "France" : "España",
       CLIENTE_CONTRATANTE: targetCompany || targetName || "",
-      UBICACION: siteAddress || "Instalaciones del Cliente",
-      UBICACION_OBRA: siteAddress || "Instalaciones del Cliente",
-      TIPO_TRABAJO: isFixedPrice ? "Ejecución a Precio Cerrado" : "Suministro de Mano de Obra",
-      FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString("es-ES") : "",
-      FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString("es-ES") : "",
-      TARIFA_APLICABLE: isFixedPrice ? "Precio Cerrado" : "Completa",
-      CONDICIONES_PAGO: est.payment_terms || "A convenir",
-      PLAZO_PAGO: est.payment_terms || "A convenir",
+      UBICACION: siteAddress || (isFr ? "Installations du Client" : "Instalaciones del Cliente"),
+      UBICACION_OBRA: siteAddress || (isFr ? "Installations du Client" : "Instalaciones del Cliente"),
+      TIPO_TRABAJO: isFixedPrice 
+        ? (isFr ? "Exécution à Prix Forfaitaire Ferme" : "Ejecución a Precio Cerrado") 
+        : (isFr ? "Mise à Disposition de Main-d'Œuvre" : "Suministro de Mano de Obra"),
+      FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES") : "",
+      FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES") : "",
+      TARIFA_APLICABLE: isFixedPrice 
+        ? (isFr ? "Prix Forfaitaire Ferme" : "Precio Cerrado") 
+        : (isFr ? "Grille Complète" : "Completa"),
+      CONDICIONES_PAGO: est.payment_terms || (isFr ? "À convenir" : "A convenir"),
+      PLAZO_PAGO: est.payment_terms || (isFr ? "À convenir" : "A convenir"),
       VALIDEZ_PRESUPUESTO: est.validity_date ? Math.ceil((new Date(est.validity_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : "30",
       OBSERVACIONES: est.general_notes || "",
       CLIENTE_NIF: clientTaxId || "",
