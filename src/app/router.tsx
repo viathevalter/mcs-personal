@@ -66,6 +66,8 @@ import { Operacao as OperacoesOperacao } from '../features/operacoes/pages/Opera
 import { Tasks as OperacoesTasks } from '../features/operacoes/pages/Tasks';
 import { Incidencias as OperacoesIncidencias } from '../features/operacoes/pages/Incidencias';
 import { IncidenciaDetail as OperacoesIncidenciaDetail } from '../features/operacoes/pages/IncidenciaDetail';
+import { Reunioes as OperacoesReunioes } from '../features/operacoes/pages/Reunioes';
+import { ReuniaoDetail as OperacoesReuniaoDetail } from '../features/operacoes/pages/ReuniaoDetail';
 import { Playbooks as OperacoesPlaybooks } from '../features/operacoes/pages/Playbooks';
 import { TaskTemplates as OperacoesTaskTemplates } from '../features/operacoes/pages/TaskTemplates';
 import { Departamentos as OperacoesDepartamentos } from '../features/operacoes/pages/admin/Departamentos';
@@ -481,6 +483,14 @@ export const router = createBrowserRouter([
                     {
                         path: 'operacao/tarefas',
                         element: <OperacoesTasks />
+                    },
+                    {
+                        path: 'reunioes',
+                        element: <OperacoesReunioes />
+                    },
+                    {
+                        path: 'reunioes/:id',
+                        element: <OperacoesReuniaoDetail />
                     },
                     {
                         path: 'solicitudes',

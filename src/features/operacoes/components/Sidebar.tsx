@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Activity, AlertCircle, Box, Building, CheckSquare, FileText, FileSpreadsheet, LayoutDashboard, ListTodo, Settings, ShoppingCart, Upload, UserCog, Users, ArrowLeft, Menu } from 'lucide-react';
+import { Activity, AlertCircle, Box, Building, CalendarCheck, CheckSquare, FileText, FileSpreadsheet, LayoutDashboard, ListTodo, Settings, ShoppingCart, Upload, UserCog, Users, ArrowLeft, Menu } from 'lucide-react';
 import { useLanguage } from '../i18n';
 import { useSidebar } from '../contexts/SidebarContext';
 import { useRole } from '@/app/providers/RoleProvider';
@@ -97,6 +97,7 @@ export const Sidebar: React.FC = () => {
           <>
             <SectionLabel label={t('menu.daily_mgmt')} />
             <div className="space-y-1">
+              <NavItem to="/operacoes/reunioes" icon={CalendarCheck} label="Reuniões & Alinhamento" />
               <NavItem to="/operacoes/operacao/tarefas" icon={ListTodo} label={t('menu.minhas_tarefas')} />
               <NavItem to="/operacoes/incidencias" icon={AlertCircle} label={t('menu.incidencias')} />
             </div>
