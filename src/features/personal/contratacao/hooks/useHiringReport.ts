@@ -180,6 +180,7 @@ function emptyReport() {
     totalRegularizacao: 0,
     pctAlta: 0,
     pctRegularizacao: 0,
+    totalSeguridadeBase: 0,
     avgDaysWorked: 0,
     functionBreakdown: [],
     contratanteBreakdown: [],
@@ -539,8 +540,9 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     // Social Security Status Mapping (Alta vs Regularização)
     const rawSeg = a.status_seguridad || a.worker?.status_seguridad || '';
     const normSeg = normalizeString(rawSeg);
-    const isSeguridadAlta = (normSeg.includes('alta') && !normSeg.includes('pendent')) || normSeg === 'alta';
-    const statusSeguridadDisplay = isSeguridadAlta ? 'Alta' : 'Em Regularização';
+    const isPendenteAlta = normSeg.includes('alta') && normSeg.includes('pendent');
+    const isSeguridadAlta = (normSeg.includes('alta') && !normSeg.includes('baixa')) || normSeg === 'alta';
+    const statusSeguridadDisplay = isPendenteAlta ? 'Pendente Alta' : isSeguridadAlta ? 'Alta' : 'Em Regularização';
 
     // Calculate days worked (only for active or turnover in operation)
     let daysWorked = 0;
@@ -703,9 +705,19 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
 
   if (filters.seguridadFilter && filters.seguridadFilter !== 'all') {
     if (filters.seguridadFilter === 'alta') {
-      filtered = filtered.filter(item => item.is_seguridad_alta);
+      filtered = filtered.filter(item => {
+        if (!filters.statusFilter || filters.statusFilter === 'all') {
+          return item.is_seguridad_alta && (item.display_status === 'active' || item.display_status === 'pending_entry');
+        }
+        return item.is_seguridad_alta;
+      });
     } else if (filters.seguridadFilter === 'regularizacao') {
-      filtered = filtered.filter(item => !item.is_seguridad_alta);
+      filtered = filtered.filter(item => {
+        if (!filters.statusFilter || filters.statusFilter === 'all') {
+          return !item.is_seguridad_alta && (item.display_status === 'active' || item.display_status === 'pending_entry');
+        }
+        return !item.is_seguridad_alta;
+      });
     }
   }
 
@@ -726,10 +738,18 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     : 0;
 
   // Social Security Metrics
-  const totalAlta = filtered.filter(i => i.is_seguridad_alta).length;
-  const totalRegularizacao = totalHired - totalAlta;
-  const pctAlta = totalHired > 0 ? Math.round((totalAlta / totalHired) * 1000) / 10 : 0;
-  const pctRegularizacao = totalHired > 0 ? Math.round((totalRegularizacao / totalHired) * 1000) / 10 : 0;
+  // Base: calculate strictly on active workforce (active + pending_entry) when viewing all,
+  // excluding pre-start withdrawals and inactive/discharged workers,
+  // unless user explicitly selected inactive or withdrawn in statusFilter.
+  const seguridadeBaseItems = (filters.statusFilter === 'withdrawn' || filters.statusFilter === 'inactive')
+    ? filtered
+    : filtered.filter(i => i.display_status === 'active' || i.display_status === 'pending_entry');
+
+  const totalSeguridadeBase = seguridadeBaseItems.length;
+  const totalAlta = seguridadeBaseItems.filter(i => i.is_seguridad_alta).length;
+  const totalRegularizacao = totalSeguridadeBase - totalAlta;
+  const pctAlta = totalSeguridadeBase > 0 ? Math.round((totalAlta / totalSeguridadeBase) * 1000) / 10 : 0;
+  const pctRegularizacao = totalSeguridadeBase > 0 ? Math.round((totalRegularizacao / totalSeguridadeBase) * 1000) / 10 : 0;
 
   // Average days worked only for those who actually entered operation
   const operationalItems = filtered.filter(i => i.display_status === 'active' || i.display_status === 'inactive');
@@ -780,6 +800,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     totalRegularizacao,
     pctAlta,
     pctRegularizacao,
+    totalSeguridadeBase,
     avgDaysWorked,
     functionBreakdown,
     contratanteBreakdown,

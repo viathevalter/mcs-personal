@@ -774,7 +774,7 @@ export function HiringReportPage() {
               ? 'ring-2 ring-emerald-500 border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/40 shadow-sm'
               : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
           }`}
-          title="Clique para filtrar apenas os trabalhadores De Alta na Seguridade Social"
+          title="Clique para filtrar apenas os trabalhadores De Alta (ou Pendente de Alta) na Seguridade Social"
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider truncate">
@@ -790,7 +790,7 @@ export function HiringReportPage() {
             </div>
             <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
               {activeKpiCard === 'alta' && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />}
-              Alta na seguridade
+              {reportData?.totalSeguridadeBase ? `De ${reportData.totalSeguridadeBase} em op./ingresso` : 'Alta / Pendente Alta'}
             </p>
           </div>
         </div>
@@ -819,7 +819,7 @@ export function HiringReportPage() {
             </div>
             <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
               {activeKpiCard === 'regularizacao' && <CheckCircle2 className="h-2.5 w-2.5 text-amber-600" />}
-              Processo / regularização
+              {reportData?.totalSeguridadeBase ? `De ${reportData.totalSeguridadeBase} em op./ingresso` : 'Processo / regularização'}
             </p>
           </div>
         </div>
@@ -1269,11 +1269,15 @@ export function HiringReportPage() {
                     {/* Seguridade Social Badge */}
                     <td className="py-2.5 px-3">
                       {item.is_seguridad_alta ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30">
-                          ● De Alta
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                          item.status_seguridad === 'Pendente Alta'
+                            ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-500/30'
+                            : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30'
+                        }`} title={item.status_seguridad === 'Pendente Alta' ? 'Pendente de Alta na Seguridade Social' : 'Alta na Seguridade Social'}>
+                          ● {item.status_seguridad === 'Pendente Alta' ? 'Pendente Alta' : 'De Alta'}
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30" title="Em processo de regularização">
                           ● Regularização
                         </span>
                       )}
