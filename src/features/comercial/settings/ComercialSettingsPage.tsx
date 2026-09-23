@@ -1563,7 +1563,10 @@ export function ComercialSettingsPage() {
                       <li><strong>{"{{"}VALOR_GLOBAL{"}}"}</strong>: Alias para o valor global fechado</li>
                       <li><strong>{"{{"}DIAS_TOTALES{"}}"}</strong>: Duração total em dias corridos</li>
                       <li><strong>{"{{"}MODALIDAD_PRESUPUESTO{"}}"}</strong>: Modalidade (Precio Cerrado ou Tarifa por Horas)</li>
-                      <li><strong>{"{{"}CONDICIONES_PRECIO_CERRADO{"}}"}</strong>: Cláusulas de escopo e aditivos por atraso</li>
+                      <li><strong>{"{{"}CONDICIONES_PRECIO_CERRADO{"}}"}</strong>: Alcance acordado e condições técnicas padrão</li>
+                      <li><strong>{"{{"}MODIFICACIONES_RETRASOS{"}}"}</strong>: Cláusula de modificações, aditivos e atrasos</li>
+                      <li><strong>{"{{"}EPI_DESCRIPCION{"}}"}</strong>: Descrição padrão dos EPIs fornecidos pela prestadora</li>
+                      <li><strong>{"{{"}EPI_NOTA{"}}"}</strong>: Nota sobre EPIs especiais a cargo do cliente</li>
                     </ul>
                   </div>
                 </div>

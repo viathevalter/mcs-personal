@@ -426,6 +426,11 @@ serve(async (req) => {
     }
 
     // 6. Mesclar os dados usando docx-templates
+    const defaultAlcance = "El precio cerrado corresponde al alcance definido en este Anexo. Las horas, jornadas, personal y plazo indicados son estimaciones de planificación y no alteran el importe pactado.";
+    const defaultModificaciones = "Cualquier modificación o ampliación del alcance deberá ser acordada por escrito. Si la ejecución supera el plazo previsto, LA PRESTADORA podrá, a su criterio, mantener el precio pactado o facturar adicionalmente las horas o jornadas excedidas, previa comunicación a LA CONTRATANTE. Los retrasos, paralizaciones o sobrecostes no imputables a LA PRESTADORA podrán ser facturados adicionalmente.";
+    const defaultEpiDescripcion = "LA PRESTADORA proporcionará los EPI básicos: calzado de seguridad, uniforme de trabajo, protectores auditivos, gafas de protección y casco.";
+    const defaultEpiNota = "Cualquier EPI especial o protección específica para la obra será proporcionado por LA CONTRATANTE, salvo pacto en contrario.";
+
     const mergeData = {
       empresa_nome: empresa.legal_name || empresa.trade_name || "",
       empresa_nif: empresa.tax_id || empresa.vat_id || "",
@@ -466,8 +471,15 @@ serve(async (req) => {
       PRECIO_TOTAL: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       VALOR_GLOBAL: (version.total_revenue || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       VALOR_TOTAL_GLOBAL: (version.total_revenue || 0).toFixed(2),
-      CONDICIONES_PRECIO_CERRADO: est.fixed_price_notes || "",
-      CONDICOES_PRECO_FECHADO: est.fixed_price_notes || "",
+      CONDICIONES_PRECIO_CERRADO: est.fixed_price_notes || defaultAlcance,
+      CONDICOES_PRECO_FECHADO: est.fixed_price_notes || defaultAlcance,
+      ALCANCE_ACORDADO: est.fixed_price_notes || defaultAlcance,
+      CONDICIONES_TECNICAS: est.fixed_price_notes || defaultAlcance,
+      MODIFICACIONES_RETRASOS: defaultModificaciones,
+      MODIFICACIONES_AMPLIACIONES_RETRASOS: defaultModificaciones,
+      CLAUSULA_DESVIACIONES: defaultModificaciones,
+      CLAUSULA_RETRASOS: defaultModificaciones,
+      CONDICIONES_MODIFICACIONES: defaultModificaciones,
       DIAS_TOTALES: totalDays > 0 ? totalDays.toString() : "",
       PLAZO_EJECUCION_DIAS: totalDays > 0 ? `${totalDays} días` : "",
 
@@ -491,9 +503,11 @@ serve(async (req) => {
       CLIENTE_MORADA: clientAddress || "",
       PRESTADORA_NIF: empresa.tax_id || empresa.vat_id || "",
       PRESTADORA_MORADA: empresa.address_line || "",
-      EPI_DESCRIPCION: "EPI básicos (calzado de seguridad, uniforme de trabalho, protectores auditivos, gafas de protección y casco).",
-      NOTA_EPI: "Cualquier equipo especial o protección específica para a obra será proporcionada por EL CLIENTE, salvo pacto en contrario.",
-      EPI_NOTA: "Cualquier equipo especial o protección específica para la obra será proporcionada por EL CLIENTE, salvo pacto en contrario.",
+      EPI_DESCRIPCION: defaultEpiDescripcion,
+      NOTA_EPI: defaultEpiNota,
+      EPI_NOTA: defaultEpiNota,
+      EPI_COMPLETO: `${defaultEpiDescripcion} ${defaultEpiNota}`,
+      EPI_PREVENCION: `${defaultEpiDescripcion} ${defaultEpiNota}`,
       
       // Assinaturas e Representantes
       NOMBRE_REPRESENTANTE_CLIENTE: targetName,

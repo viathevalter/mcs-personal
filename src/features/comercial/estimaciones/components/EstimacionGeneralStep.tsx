@@ -375,7 +375,7 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
             <Textarea
               id="fixed_price_notes"
               rows={2}
-              placeholder="Ex: Valor global fechado para a execução completa conforme escopo acordado. Quaisquer atrasos ou paradas por responsabilidade do cliente serão faturados à parte à razão da tabela hora adicional..."
+              placeholder="Padrão: El precio cerrado corresponde al alcance definido en este Anexo. Las horas, jornadas, personal y plazo indicados son estimaciones de planificación y no alteran el importe pactado."
               className="text-xs resize-none bg-white dark:bg-slate-950"
               value={data.fixed_price_notes || ''}
               onChange={(e) => onChange({ fixed_price_notes: e.target.value })}
