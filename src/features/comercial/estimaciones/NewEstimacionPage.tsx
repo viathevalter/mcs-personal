@@ -515,6 +515,8 @@ export function NewEstimacionPage() {
 
     const finalPayload = {
       ...payload,
+      pricing_model: payload.pricing_model || 'hourly',
+      fixed_price_notes: payload.fixed_price_notes || null,
       empresa_id: cleanUuid(payload.empresa_id || selectedEmpresaId),
       status,
       commercial_owner_id: cleanUuid(payload.commercial_owner_id || estimacion?.commercial_owner_id || user?.id),

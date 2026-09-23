@@ -1,5 +1,5 @@
 -- Migration: 20260923151500_safe_uuid_parsing_in_estimacion_rpcs.sql
--- Description: Handle 'none' sentinel safely when parsing UUIDs in criar_estimacion_completa and atualizar_estimacion_completa.
+-- Description: Handle 'none' sentinel safely when parsing UUIDs and support pricing_model & fixed_price_notes in criar_estimacion_completa and atualizar_estimacion_completa.
 
 BEGIN;
 
@@ -28,6 +28,8 @@ DECLARE
     v_status TEXT;
     v_document_language TEXT;
     v_payment_term_id UUID;
+    v_pricing_model TEXT;
+    v_fixed_price_notes TEXT;
     
     -- Campos de jornada e receitas
     v_work_lunes BOOLEAN;
@@ -87,6 +89,8 @@ BEGIN
     v_postal_code := p_payload->>'postal_code';
     v_status := COALESCE(NULLIF(p_payload->>'status', ''), 'draft');
     v_document_language := COALESCE(NULLIF(p_payload->>'document_language', ''), 'pt');
+    v_pricing_model := COALESCE(NULLIF(p_payload->>'pricing_model', ''), 'hourly');
+    v_fixed_price_notes := NULLIF(p_payload->>'fixed_price_notes', '');
     v_payment_term_id := (NULLIF(NULLIF(p_payload->>'payment_term_id', ''), 'none'))::uuid;
     IF v_payment_term_id IS NOT NULL THEN
         SELECT name INTO v_payment_terms FROM core_common.payment_terms WHERE id = v_payment_term_id;
@@ -157,6 +161,7 @@ BEGIN
         estimation_type, contact_name, contact_email,
         expected_start_date, expected_end_date, validity_date, payment_terms, payment_term_id, status,
         general_notes, postal_code, document_language,
+        pricing_model, fixed_price_notes,
         work_lunes, work_martes, work_miercoles, work_jueves, work_viernes, work_sabado, work_domingo,
         hours_weekday, hours_sabado, hours_domingo, additional_revenues,
         hours_lunes, hours_martes, hours_miercoles, hours_jueves, hours_viernes,
@@ -168,6 +173,7 @@ BEGIN
         v_estimation_type, v_contact_name, v_contact_email,
         v_start_date, v_end_date, v_validity_date, v_payment_terms, v_payment_term_id, v_status,
         v_general_notes, v_postal_code, v_document_language,
+        v_pricing_model, v_fixed_price_notes,
         v_work_lunes, v_work_martes, v_work_miercoles, v_work_jueves, v_work_viernes, v_work_sabado, v_work_domingo,
         v_hours_weekday, v_hours_sabado, v_hours_domingo, v_additional_revenues,
         v_hours_lunes, v_hours_martes, v_hours_miercoles, v_hours_jueves, v_hours_viernes,
@@ -310,6 +316,8 @@ DECLARE
     v_status TEXT;
     v_document_language TEXT;
     v_payment_term_id UUID;
+    v_pricing_model TEXT;
+    v_fixed_price_notes TEXT;
     
     -- Campos de jornada e receitas
     v_work_lunes BOOLEAN;
@@ -388,6 +396,8 @@ BEGIN
     v_postal_code := p_payload->>'postal_code';
     v_status := COALESCE(NULLIF(p_payload->>'status', ''), 'draft');
     v_document_language := COALESCE(NULLIF(p_payload->>'document_language', ''), 'pt');
+    v_pricing_model := COALESCE(NULLIF(p_payload->>'pricing_model', ''), 'hourly');
+    v_fixed_price_notes := NULLIF(p_payload->>'fixed_price_notes', '');
     v_payment_term_id := (NULLIF(NULLIF(p_payload->>'payment_term_id', ''), 'none'))::uuid;
     IF v_payment_term_id IS NOT NULL THEN
         SELECT name INTO v_payment_terms FROM core_common.payment_terms WHERE id = v_payment_term_id;
@@ -446,6 +456,8 @@ BEGIN
         client_site_id = v_client_site_id,
         country_id = v_country_id,
         estimation_type = v_estimation_type,
+        pricing_model = v_pricing_model,
+        fixed_price_notes = v_fixed_price_notes,
         contact_name = v_contact_name,
         contact_email = v_contact_email,
         expected_start_date = v_start_date,
