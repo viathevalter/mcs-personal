@@ -74,13 +74,29 @@ export function formatStandardContratante(rawName: string | null | undefined): s
   return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
 }
 
-export function formatStandardContratador(rawName: string | null | undefined): string {
+export const KNOWN_CONTRATADORES: Record<string, string> = {
+  '83683c3d-06e9-423c-8e1c-1269f85657e1': 'Contratação',
+  'contratacao@wolterscontratacao.com': 'Contratação',
+  '5e02eed1-e0b2-4d88-9069-f01569b76785': 'Wolmer',
+  'wolmer@gestaologinpro.com': 'Wolmer',
+  'b9d213e3-c28c-4e97-b3ab-7fb7af9f48cb': 'Walter',
+  'valter@gestaologinpro.com': 'Walter',
+};
+
+export function formatStandardContratador(
+  rawName: string | null | undefined,
+  userMap?: Map<string, string>
+): string {
   if (!rawName) return 'Wolmer';
   const clean = rawName.trim();
+  if (KNOWN_CONTRATADORES[clean]) return KNOWN_CONTRATADORES[clean];
+  if (userMap?.has(clean)) return userMap.get(clean)!;
+
   const lower = clean.toLowerCase();
 
+  if (lower.includes('contratacao') || lower.includes('wolters') || lower.includes('contratação')) return 'Contratação';
   if (lower.includes('wolmer')) return 'Wolmer';
-  if (lower.includes('contratacao') || lower.includes('wolters')) return 'Contratação';
+  if (lower.includes('valter') || lower.includes('walter')) return 'Walter';
 
   if (clean.includes('@')) {
     const user = clean.split('@')[0];
@@ -224,7 +240,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     monthsToFetch.push({ year: startY, month: startM + 1 });
   }
 
-  const [pedidosRes, allClientsRes, sitesRes, empresasRes] = await Promise.all([
+  const [pedidosRes, allClientsRes, sitesRes, empresasRes, usersRes] = await Promise.all([
     pedidoIds.length > 0 
       ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
       : Promise.resolve({ data: [] }),
@@ -235,7 +251,36 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     empresaIds.length > 0
       ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
       : Promise.resolve({ data: [] }),
+    supabase.schema('core_operacoes').from('users').select('id, email, display_name'),
   ]);
+
+  const userMap = new Map<string, string>();
+  ((usersRes as any)?.data || []).forEach((u: any) => {
+    const lowerEmail = (u.email || '').toLowerCase();
+    const lowerName = (u.display_name || '').toLowerCase();
+    let standard = '';
+    if (lowerEmail.includes('contratacao') || lowerName.includes('contratacao') || lowerName.includes('wolters') || lowerEmail.includes('wolters')) {
+      standard = 'Contratação';
+    } else if (lowerEmail.includes('wolmer') || lowerName.includes('wolmer')) {
+      standard = 'Wolmer';
+    } else if (lowerEmail.includes('valter') || lowerName.includes('valter') || lowerName.includes('walter')) {
+      standard = 'Walter';
+    } else if (u.display_name) {
+      standard = u.display_name;
+    }
+    if (standard) {
+      if (u.id) userMap.set(u.id, standard);
+      if (u.email) userMap.set(u.email, standard);
+    }
+  });
+
+  const workerRecruiterMap = new Map<string, string>();
+  assignmentsData.forEach((a: any) => {
+    const raw = a.created_by || a.contractor || a.worker?.contractor || a.sp_created_by;
+    if (a.worker_id && raw) {
+      workerRecruiterMap.set(a.worker_id, formatStandardContratador(raw, userMap));
+    }
+  });
 
   // Fetch RPC get_hours_control_workers across all target months to get all active workers
   const activeWorkersMap = new Map<string, any>();
@@ -274,7 +319,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     status_trabajador: a.worker?.status_trabajador || a.status_trabajador,
     end_date: a.end_date || a.worker?.data_baixa || null,
     contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome),
-    contratador: formatStandardContratador(a.contractor || a.worker?.contractor || a.sp_created_by)
+    contratador: formatStandardContratador(a.created_by || a.contractor || a.worker?.contractor || a.sp_created_by, userMap)
   }));
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
@@ -321,7 +366,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
       const endDate = w.data_baixa || cpp?.fechasalidatrabajador || cpp?.fechafinpedido || null;
 
       const stdContratante = formatStandardContratante(w.contratante || cpp?.contratante || targetEmpresaNome);
-      const stdContratador = formatStandardContratador(w.contractor || cpp?.sp_created_by);
+      const stdContratador = workerRecruiterMap.get(w.id) || formatStandardContratador(w.contractor || cpp?.sp_created_by, userMap);
 
       return {
         id: `virtual-${w.id}`,
@@ -392,7 +437,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const contratante = formatStandardContratante(rawContratante);
     
     // Contratador / Recrutador responsável (Wolmer / Contratação)
-    const rawContratador = a.contratador || a.contractor || a.worker?.contractor || a.sp_created_by;
+    const rawContratador = a.contratador || a.created_by || a.contractor || a.worker?.contractor || a.sp_created_by;
     const contratador = formatStandardContratador(rawContratador);
 
     const clientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente_nombre || (a.client_id ? 'Cliente' : 'Não especificado');
