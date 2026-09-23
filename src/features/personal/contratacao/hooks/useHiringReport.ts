@@ -19,6 +19,12 @@ export interface HiringReportFilters {
 
 export type WorkerDisplayStatus = 'active' | 'pending_entry' | 'withdrawn' | 'inactive';
 
+export interface CountryInfo {
+  code: 'ES' | 'FR' | 'IT' | 'OTHER';
+  name: string;
+  flag: string;
+}
+
 export interface HiringReportItem {
   id: string;
   worker_id: string;
@@ -26,9 +32,13 @@ export interface HiringReportItem {
   worker_document: string;
   contratante: string; // Empresa do Grupo
   contratador: string; // Recrutador / Usuário que contratou (Wolmer / Contratação)
+  vendedor: string;    // Comercial / Vendedor Responsável pelo Pedido
   client_id: string;
   client_name: string;
   client_site_name: string;
+  country: string;      // 'Espanha' | 'França' | 'Itália'
+  country_code: string; // 'ES' | 'FR' | 'IT'
+  country_flag: string; // '🇪🇸' | '🇫🇷' | '🇮🇹'
   pedido_id: string;
   pedido_codigo: string;
   job_function_name: string;
@@ -38,7 +48,7 @@ export interface HiringReportItem {
   planned_start_date: string | null;
   days_worked: number;
   status: string; // 'planned' | 'active' | 'paused' | 'completed' | 'cancelled' | 'replaced' | 'relocated'
-  display_status: WorkerDisplayStatus; // 'active' | 'pending_entry' | 'inactive'
+  display_status: WorkerDisplayStatus; // 'active' | 'pending_entry' | 'withdrawn' | 'inactive'
   status_label: string; // 'Ativo' | 'Pendente Ingresso' | 'Desligado'
   is_active: boolean;
   assignment_type: string | null;
@@ -53,6 +63,55 @@ export interface FunctionBreakdown {
   total: number;
   active: number;
   inactive: number;
+  withdrawn: number;
+  retentionRate: number;
+  pctOfTotal: number;
+}
+
+export interface CountryStat {
+  countryCode: string;
+  countryName: string;
+  flag: string;
+  total: number;
+  active: number;
+  withdrawn: number;
+  inactive: number;
+  pct: number;
+}
+
+export interface DailyTimelinePoint {
+  day: number;
+  dateStr: string;
+  dayLabel: string;
+  total: number;
+  active: number;
+  withdrawn: number;
+  inactive: number;
+}
+
+export interface SellerStat {
+  sellerName: string;
+  totalHired: number;
+  active: number;
+  replaced: number;
+  withdrawn: number;
+  pedidosCount: number;
+  pedidosCodes: string[];
+  clientsCount: number;
+  retentionRate: number;
+}
+
+export interface ClientStat {
+  clientId: string;
+  clientName: string;
+  country: string;
+  flag: string;
+  totalHired: number;
+  active: number;
+  replaced: number;
+  withdrawn: number;
+  pedidosCodes: string[];
+  retentionRate: number;
 }
 
 export interface ContratanteBreakdown {
@@ -60,6 +119,51 @@ export interface ContratanteBreakdown {
   total: number;
   active: number;
   inactive: number;
+}
+
+export function resolveCountry(client?: any, site?: any): CountryInfo {
+  const countryId = site?.country_id || client?.country_id;
+  const taxId = (client?.tax_id || '').toUpperCase().trim();
+  const province = (site?.province || client?.province || '').toLowerCase();
+  const name = (client?.trade_name || client?.legal_name || '').toLowerCase();
+
+  // 1. Direct known Country UUIDs
+  if (countryId === 'a6a47427-89f2-4e6b-b4ee-e645381a9cfd' || taxId.startsWith('FR')) {
+    return { code: 'FR', name: 'França', flag: '🇫🇷' };
+  }
+  if (countryId === '3623ec00-42ae-4673-a842-c20b47da0e5e' || taxId.startsWith('IT')) {
+    return { code: 'IT', name: 'Itália', flag: '🇮🇹' };
+  }
+  if (countryId === '2f487ab4-c7f5-4b70-9c37-995dc4cda125' || taxId.startsWith('ES')) {
+    return { code: 'ES', name: 'Espanha', flag: '🇪🇸' };
+  }
+
+  // 2. Name or province indicators
+  if (
+    province.includes('occitanie') || 
+    province.includes('paris') || 
+    province.includes('lyon') || 
+    name.includes('france') || 
+    name.includes('delbeque') || 
+    name.includes('etudes et fabrication')
+  ) {
+    return { code: 'FR', name: 'França', flag: '🇫🇷' };
+  }
+  if (
+    province.includes('lucca') || 
+    province.includes('milano') || 
+    province.includes('roma') || 
+    name.includes('italia') || 
+    name.includes('italy') || 
+    name.includes('srl') || 
+    name.includes('stil montaggi') || 
+    name.includes('giada')
+  ) {
+    return { code: 'IT', name: 'Itália', flag: '🇮🇹' };
+  }
+
+  // Default to Espanha (primary Iberian operation)
+  return { code: 'ES', name: 'Espanha', flag: '🇪🇸' };
 }
 
 export function formatStandardContratante(rawName: string | null | undefined): string {
@@ -184,6 +288,10 @@ function emptyReport() {
     avgDaysWorked: 0,
     functionBreakdown: [],
     contratanteBreakdown: [],
+    countryBreakdown: [],
+    dailyTimeline: [],
+    sellerBreakdown: [],
+    clientBreakdown: [],
     uniqueClients: [],
     uniqueContratantes: [],
     uniqueContratadores: [],
@@ -252,12 +360,10 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
   }
 
   const [pedidosRes, allClientsRes, sitesRes, empresasRes, usersRes] = await Promise.all([
-    pedidoIds.length > 0 
-      ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
-      : Promise.resolve({ data: [] }),
-    supabase.schema('core_common').from('clients').select('id, trade_name, legal_name'),
+    supabase.schema('core_comercial').from('pedidos').select('id, codigo, commercial_owner_id, responsible_id, client_id, client_site_id'),
+    supabase.schema('core_common').from('clients').select('id, trade_name, legal_name, country_id, tax_id, province, city'),
     siteIds.length > 0
-      ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
+      ? supabase.schema('core_common').from('client_sites').select('id, name, country_id, province, city').in('id', siteIds)
       : Promise.resolve({ data: [] }),
     empresaIds.length > 0
       ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
@@ -266,6 +372,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
   ]);
 
   const userMap = new Map<string, string>();
+  const sellerMap = new Map<string, string>();
   ((usersRes as any)?.data || []).forEach((u: any) => {
     const lowerEmail = (u.email || '').toLowerCase();
     const lowerName = (u.display_name || '').toLowerCase();
@@ -282,6 +389,9 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     if (standard) {
       if (u.id) userMap.set(u.id, standard);
       if (u.email) userMap.set(u.email, standard);
+    }
+    if (u.id) {
+      sellerMap.set(u.id, u.display_name || u.email?.split('@')[0] || 'Comercial');
     }
   });
 
@@ -313,10 +423,12 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
   );
 
   const activeWorkers = Array.from(activeWorkersMap.values());
-  const pedidosMap = new Map((pedidosRes.data || []).map(p => [p.id, p]));
-  const clientsMap = new Map((allClientsRes.data || []).map(c => [c.id, c]));
-  const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
-  const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
+  const pedidosList = (pedidosRes.data || []) as any[];
+  const pedidosMapById = new Map(pedidosList.map(p => [p.id, p]));
+  const pedidosMapByCodigo = new Map(pedidosList.map(p => [p.codigo, p]));
+  const clientsMap = new Map(((allClientsRes as any).data || []).map((c: any) => [c.id, c]));
+  const sitesMap = new Map(((sitesRes as any).data || []).map((s: any) => [s.id, s]));
+  const empresasMap = new Map(((empresasRes as any).data || []).map((e: any) => [e.id, e]));
 
   const targetEmpresaNome = filters.empresa_id ? (empresasMap.get(filters.empresa_id)?.nome || '') : 'Grupo';
 
@@ -325,22 +437,33 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
       ? a.worker.data_baixa
       : null;
 
+    const matchedPedido = pedidosMapById.get(a.pedido_id) || (a.pedido?.codigo ? pedidosMapByCodigo.get(a.pedido.codigo) : null);
+    const matchedClient = clientsMap.get(a.client_id) || null;
+    const matchedSite = sitesMap.get(a.client_site_id) || null;
+    const countryInfo = resolveCountry(matchedClient, matchedSite);
+    const sellerId = matchedPedido?.commercial_owner_id || matchedPedido?.responsible_id;
+    const vendedor = (sellerId && sellerMap.get(sellerId)) || (a.worker?.contractor ? formatStandardContratador(a.worker.contractor, userMap) : 'Comercial Geral');
+
     return {
       ...a,
-      pedido: pedidosMap.get(a.pedido_id) || null,
-      client: clientsMap.get(a.client_id) || null,
-      client_site: sitesMap.get(a.client_site_id) || null,
+      pedido: matchedPedido || a.pedido || null,
+      client: matchedClient,
+      client_site: matchedSite,
       empresa: empresasMap.get(a.empresa_id) || null,
       status_seguridad: a.worker?.status_seguridad || a.status_seguridad,
       status_trabajador: a.worker?.status_trabajador || a.status_trabajador,
       end_date: a.end_date || validWorkerDataBaixa || null,
       contratante: formatStandardContratante(a.worker?.contratante || a.empresa?.nome || targetEmpresaNome),
-      contratador: formatStandardContratador(a.created_by || a.contractor || a.worker?.contractor || a.sp_created_by, userMap)
+      contratador: formatStandardContratador(a.created_by || a.contractor || a.worker?.contractor || a.sp_created_by, userMap),
+      vendedor,
+      country: countryInfo.name,
+      country_code: countryInfo.code,
+      country_flag: countryInfo.flag,
     };
   });
 
   const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
-  const allClients = allClientsRes.data || [];
+  const allClients = (allClientsRes.data || []) as any[];
 
   // Fetch latest colaborador_por_pedido allocations for virtual assignments to get exact fechainiciopedido/reemplazo start dates and exit dates
   const activeWorkerCodes = activeWorkers.map((w: any) => w.cod_colab).filter(Boolean);
@@ -372,6 +495,11 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
       });
 
+      const matchedPedido = cpp?.codpedido ? pedidosMapByCodigo.get(cpp.codpedido) : null;
+      const countryInfo = resolveCountry(matchedClient, null);
+      const sellerId = matchedPedido?.commercial_owner_id || matchedPedido?.responsible_id;
+      const vendedor = (sellerId && sellerMap.get(sellerId)) || (w.contractor ? formatStandardContratador(w.contractor, userMap) : 'Comercial Geral');
+
       const rawWorkerStatus = (w.status_trabajador || '').toLowerCase();
       const isInactive = rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!w.data_baixa || !!cpp?.fechasalidatrabajador;
 
@@ -396,7 +524,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         job_function_name_snapshot: w.funcion || cpp?.funcion,
         client_id: matchedClient?.id || null,
         client_site_id: null,
-        pedido_id: null,
+        pedido_id: matchedPedido?.id || null,
         pedido_item_id: null,
         status: isInactive ? 'completed' : 'active',
         start_date: allocationStartDate,
@@ -405,6 +533,10 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
         status_trabajador: w.status_trabajador,
         contratante: stdContratante,
         contratador: stdContratador,
+        vendedor,
+        country: countryInfo.name,
+        country_code: countryInfo.code,
+        country_flag: countryInfo.flag,
         worker: {
           id: w.id,
           nome: w.nome,
@@ -426,7 +558,7 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
           legal_name: matchedClient.legal_name
         } : (w.cliente_nombre || cpp?.cliente_nombre ? { id: null, trade_name: w.cliente_nombre || cpp?.cliente_nombre, legal_name: w.cliente_nombre || cpp?.cliente_nombre } : null),
         client_site: null,
-        pedido: cpp?.codpedido ? { id: null, codigo: cpp.codpedido } : null,
+        pedido: matchedPedido || (cpp?.codpedido ? { id: null, codigo: cpp.codpedido } : null),
         empresa: {
           id: w.empresa_id || filters.empresa_id,
           nome: stdContratante
@@ -564,6 +696,11 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       }
     }
 
+    const country = a.country || 'Espanha';
+    const country_code = a.country_code || 'ES';
+    const country_flag = a.country_flag || '🇪🇸';
+    const vendedor = a.vendedor || 'Comercial Geral';
+
     return {
       id: a.id,
       worker_id: a.worker_id,
@@ -571,9 +708,13 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       worker_document: workerDoc,
       contratante,
       contratador,
+      vendedor,
       client_id: a.client_id,
       client_name: clientName,
       client_site_name: siteName,
+      country,
+      country_code,
+      country_flag,
       pedido_id: a.pedido_id,
       pedido_codigo: pedidoCodigo,
       job_function_name: jobFuncName,
@@ -756,20 +897,204 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const sumDaysWorked = operationalItems.reduce((acc, curr) => acc + curr.days_worked, 0);
   const avgDaysWorked = operationalItems.length > 0 ? Math.round(sumDaysWorked / operationalItems.length) : 0;
 
-  // Breakdown by Job Function
-  const funcMap = new Map<string, { total: number; active: number; inactive: number }>();
+  // 1. Breakdown by Job Function (Rich Analytics)
+  const funcMap = new Map<string, { total: number; active: number; inactive: number; withdrawn: number }>();
   filtered.forEach(item => {
-    const fn = item.job_function_name;
-    const current = funcMap.get(fn) || { total: 0, active: 0, inactive: 0 };
+    const fn = item.job_function_name || 'Geral / Operacional';
+    const current = funcMap.get(fn) || { total: 0, active: 0, inactive: 0, withdrawn: 0 };
     current.total += 1;
     if (item.display_status === 'active') current.active += 1;
+    else if (item.display_status === 'withdrawn') current.withdrawn += 1;
     else current.inactive += 1;
     funcMap.set(fn, current);
   });
 
+  const totalFilteredCount = filtered.length;
   const functionBreakdown: FunctionBreakdown[] = Array.from(funcMap.entries())
-    .map(([functionName, stat]) => ({ functionName, ...stat }))
+    .map(([functionName, stat]) => ({
+      functionName,
+      total: stat.total,
+      active: stat.active,
+      inactive: stat.inactive,
+      withdrawn: stat.withdrawn,
+      retentionRate: stat.total > 0 ? Math.round((stat.active / stat.total) * 1000) / 10 : 0,
+      pctOfTotal: totalFilteredCount > 0 ? Math.round((stat.total / totalFilteredCount) * 1000) / 10 : 0,
+    }))
     .sort((a, b) => b.total - a.total);
+
+  // 2. Breakdown by Country (ES, FR, IT, etc.)
+  const countryMap = new Map<string, { countryCode: string; countryName: string; flag: string; total: number; active: number; withdrawn: number; inactive: number }>();
+  // Pre-seed known countries so they always appear cleanly in the dashboard
+  countryMap.set('ES', { countryCode: 'ES', countryName: 'Espanha', flag: '🇪🇸', total: 0, active: 0, withdrawn: 0, inactive: 0 });
+  countryMap.set('FR', { countryCode: 'FR', countryName: 'França', flag: '🇫🇷', total: 0, active: 0, withdrawn: 0, inactive: 0 });
+  countryMap.set('IT', { countryCode: 'IT', countryName: 'Itália', flag: '🇮🇹', total: 0, active: 0, withdrawn: 0, inactive: 0 });
+
+  filtered.forEach(item => {
+    const code = item.country_code || 'ES';
+    const current = countryMap.get(code) || {
+      countryCode: code,
+      countryName: item.country || 'Outro',
+      flag: item.country_flag || '🌐',
+      total: 0,
+      active: 0,
+      withdrawn: 0,
+      inactive: 0,
+    };
+    current.total += 1;
+    if (item.display_status === 'active') current.active += 1;
+    else if (item.display_status === 'withdrawn') current.withdrawn += 1;
+    else current.inactive += 1;
+    countryMap.set(code, current);
+  });
+
+  const countryBreakdown: CountryStat[] = Array.from(countryMap.values())
+    .map(c => ({
+      ...c,
+      pct: totalFilteredCount > 0 ? Math.round((c.total / totalFilteredCount) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  // 3. Daily Timeline of Hirings (Peaks across the month/period 1 to 31)
+  const dailyMap = new Map<string, { day: number; dateStr: string; dayLabel: string; total: number; active: number; withdrawn: number; inactive: number }>();
+  
+  // Build days in period if range provided, or default 1..31
+  let rangeStart = parseLocalDate(filters.startDate);
+  let rangeEnd = parseLocalDate(filters.endDate);
+  if (!rangeStart || !rangeEnd) {
+    const now = new Date();
+    rangeStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  }
+
+  // Cap timeline days to max 31 points for clean rendering
+  const cur = new Date(rangeStart);
+  let dayIndex = 1;
+  while (cur <= rangeEnd && dayIndex <= 31) {
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const d = String(cur.getDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+    dailyMap.set(dateStr, {
+      day: cur.getDate(),
+      dateStr,
+      dayLabel: `${d}/${m}`,
+      total: 0,
+      active: 0,
+      withdrawn: 0,
+      inactive: 0,
+    });
+    cur.setDate(cur.getDate() + 1);
+    dayIndex++;
+  }
+
+  filtered.forEach(item => {
+    if (!item.start_date) return;
+    const dateKey = item.start_date.split('T')[0];
+    const point = dailyMap.get(dateKey);
+    if (point) {
+      point.total += 1;
+      if (item.display_status === 'active') point.active += 1;
+      else if (item.display_status === 'withdrawn') point.withdrawn += 1;
+      else point.inactive += 1;
+    }
+  });
+
+  const dailyTimeline: DailyTimelinePoint[] = Array.from(dailyMap.values());
+
+  // 4. Commercial Intelligence: Sellers / Vendedores Breakdown (Comissionamento)
+  const sellerMap = new Map<string, {
+    sellerName: string;
+    totalHired: number;
+    active: number;
+    replaced: number;
+    withdrawn: number;
+    pedidosSet: Set<string>;
+    clientsSet: Set<string>;
+  }>();
+
+  filtered.forEach(item => {
+    const seller = item.vendedor || 'Comercial Geral';
+    const cur = sellerMap.get(seller) || {
+      sellerName: seller,
+      totalHired: 0,
+      active: 0,
+      replaced: 0,
+      withdrawn: 0,
+      pedidosSet: new Set<string>(),
+      clientsSet: new Set<string>(),
+    };
+    cur.totalHired += 1;
+    if (item.display_status === 'active') cur.active += 1;
+    if (item.replacement_of_worker_name || item.status === 'replaced') cur.replaced += 1;
+    if (item.display_status === 'withdrawn') cur.withdrawn += 1;
+    if (item.pedido_codigo && item.pedido_codigo !== 'Sem Pedido') cur.pedidosSet.add(item.pedido_codigo);
+    if (item.client_name && item.client_name !== 'Sem Cliente') cur.clientsSet.add(item.client_name);
+    sellerMap.set(seller, cur);
+  });
+
+  const sellerBreakdown: SellerStat[] = Array.from(sellerMap.values())
+    .map(s => ({
+      sellerName: s.sellerName,
+      totalHired: s.totalHired,
+      active: s.active,
+      replaced: s.replaced,
+      withdrawn: s.withdrawn,
+      pedidosCount: s.pedidosSet.size,
+      pedidosCodes: Array.from(s.pedidosSet),
+      clientsCount: s.clientsSet.size,
+      retentionRate: s.totalHired > 0 ? Math.round((s.active / s.totalHired) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.totalHired - a.totalHired);
+
+  // 5. Commercial Intelligence: Client Breakdown
+  const clientMap = new Map<string, {
+    clientId: string;
+    clientName: string;
+    country: string;
+    flag: string;
+    totalHired: number;
+    active: number;
+    replaced: number;
+    withdrawn: number;
+    pedidosSet: Set<string>;
+  }>();
+
+  filtered.forEach(item => {
+    const cName = item.client_name || 'Sem Cliente';
+    const cKey = item.client_id || cName;
+    const cur = clientMap.get(cKey) || {
+      clientId: item.client_id || cName,
+      clientName: cName,
+      country: item.country,
+      flag: item.country_flag,
+      totalHired: 0,
+      active: 0,
+      replaced: 0,
+      withdrawn: 0,
+      pedidosSet: new Set<string>(),
+    };
+    cur.totalHired += 1;
+    if (item.display_status === 'active') cur.active += 1;
+    if (item.replacement_of_worker_name || item.status === 'replaced') cur.replaced += 1;
+    if (item.display_status === 'withdrawn') cur.withdrawn += 1;
+    if (item.pedido_codigo && item.pedido_codigo !== 'Sem Pedido') cur.pedidosSet.add(item.pedido_codigo);
+    clientMap.set(cKey, cur);
+  });
+
+  const clientBreakdown: ClientStat[] = Array.from(clientMap.values())
+    .map(c => ({
+      clientId: c.clientId,
+      clientName: c.clientName,
+      country: c.country,
+      flag: c.flag,
+      totalHired: c.totalHired,
+      active: c.active,
+      replaced: c.replaced,
+      withdrawn: c.withdrawn,
+      pedidosCodes: Array.from(c.pedidosSet),
+      retentionRate: c.totalHired > 0 ? Math.round((c.active / c.totalHired) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.totalHired - a.totalHired);
 
   // Breakdown by Contratante (Standardized Name Grouping)
   const contrMap = new Map<string, { total: number; active: number; inactive: number }>();
@@ -804,6 +1129,10 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     avgDaysWorked,
     functionBreakdown,
     contratanteBreakdown,
+    countryBreakdown,
+    dailyTimeline,
+    sellerBreakdown,
+    clientBreakdown,
     uniqueClients,
     uniqueContratantes,
     uniqueContratadores,

@@ -22,7 +22,12 @@ import {
   ShieldAlert,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Globe2,
+  BarChart3,
+  Award,
+  CalendarDays,
+  MapPin
 } from 'lucide-react';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useHiringReport, formatStandardContratante, formatStandardContratador } from './hooks/useHiringReport';
@@ -183,7 +188,9 @@ export function HiringReportPage() {
       item.contratante.toLowerCase().includes(q) ||
       item.contratador.toLowerCase().includes(q) ||
       item.pedido_codigo.toLowerCase().includes(q) ||
-      item.job_function_name.toLowerCase().includes(q)
+      item.job_function_name.toLowerCase().includes(q) ||
+      (item.vendedor && item.vendedor.toLowerCase().includes(q)) ||
+      (item.country && item.country.toLowerCase().includes(q))
     );
   }, [reportData?.items, searchQuery]);
 
@@ -265,11 +272,13 @@ export function HiringReportPage() {
       '#': index + 1,
       'Trabalhador': item.worker_name,
       'Documento': item.worker_document,
+      'País': item.country,
       'Empresa do Grupo': item.contratante,
       'Contratador': item.contratador,
       'Cliente': item.client_name,
       'Obra / Unidade': item.client_site_name,
       'Código Pedido': item.pedido_codigo,
+      'Vendedor Comercial': item.vendedor,
       'Função / Perfil': item.job_function_name,
       'Tarifa €/h': item.tarifa_acordada ? `€ ${item.tarifa_acordada.toFixed(2)}` : '-',
       'Início Trabalho': formatDateBR(item.start_date),
@@ -866,112 +875,423 @@ export function HiringReportPage() {
 
       </div>
 
-      {/* Visual Charts Row Compact */}
+      {/* Analytical Cockpit Row 1: Funções Contratadas + Geografia & Ritmo Diário */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         
-        {/* Function Breakdown Bar Chart */}
+        {/* Card 1: Funções / Perfis Contratados (Mini Tabela com Scroll) */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-1.5">
               <Briefcase className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
               <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                Contratações por Função / Perfil
+                Funções & Perfis Contratados
               </h3>
             </div>
-            <span className="text-[10px] font-semibold text-slate-400">
-              {reportData?.functionBreakdown?.length || 0} perfis encontrados
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-slate-400">
+                {reportData?.functionBreakdown?.length || 0} perfis
+              </span>
+              {jobFunctionFilter !== 'all' && (
+                <button 
+                  onClick={() => setJobFunctionFilter('all')}
+                  className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline font-bold"
+                  title="Limpar filtro de função"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
+          <div className="max-h-72 overflow-y-auto pr-1">
             {reportData?.functionBreakdown?.length === 0 ? (
-              <p className="text-[11px] text-slate-400 py-4 text-center">Nenhum perfil no período.</p>
+              <p className="text-[11px] text-slate-400 py-8 text-center">Nenhum perfil no período.</p>
             ) : (
-              reportData?.functionBreakdown?.slice(0, 5).map(item => {
-                const maxVal = reportData.functionBreakdown[0]?.total || 1;
-                const activePct = (item.active / maxVal) * 100;
-                const inactivePct = (item.inactive / maxVal) * 100;
+              <table className="w-full text-left border-collapse text-[10px]">
+                <thead>
+                  <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-800 font-semibold uppercase text-[9px]">
+                    <th className="py-1 px-1.5">Função</th>
+                    <th className="py-1 px-1.5 text-center">Total</th>
+                    <th className="py-1 px-1.5 text-center">Ativos</th>
+                    <th className="py-1 px-1.5 text-center">Saídas</th>
+                    <th className="py-1 px-1.5 text-right">Retenção</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {reportData?.functionBreakdown?.map(item => {
+                    const isSelected = jobFunctionFilter === item.functionName;
+                    const dropCount = item.inactive + item.withdrawn;
 
-                return (
-                  <div key={item.functionName} className="space-y-0.5 text-[10px]">
-                    <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 font-medium">
-                      <span className="truncate max-w-[200px]" title={item.functionName}>
-                        {item.functionName}
-                      </span>
-                      <span className="font-mono text-slate-500">
-                        <strong className="text-slate-900 dark:text-white font-bold">{item.active}</strong> ativos ({item.total})
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-                      <div 
-                        style={{ width: `${activePct}%` }} 
-                        className="bg-emerald-500 h-full rounded-l-full transition-all duration-500" 
-                        title={`${item.active} ativos`}
-                      />
-                      <div 
-                        style={{ width: `${inactivePct}%` }} 
-                        className="bg-rose-400 h-full rounded-r-full transition-all duration-500" 
-                        title={`${item.inactive} encerrados`}
-                      />
-                    </div>
-                  </div>
-                );
-              })
+                    return (
+                      <tr 
+                        key={item.functionName}
+                        onClick={() => setJobFunctionFilter(prev => prev === item.functionName ? 'all' : item.functionName)}
+                        className={`cursor-pointer transition-colors ${
+                          isSelected 
+                            ? 'bg-indigo-50/80 dark:bg-indigo-950/50 font-bold text-indigo-700 dark:text-indigo-300' 
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-300'
+                        }`}
+                        title={`Clique para filtrar por ${item.functionName}`}
+                      >
+                        <td className="py-1.5 px-1.5 truncate max-w-[140px]" title={item.functionName}>
+                          <div className="flex items-center gap-1">
+                            {isSelected && <span className="h-1.5 w-1.5 rounded-full bg-indigo-600 shrink-0" />}
+                            <span className="truncate">{item.functionName}</span>
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-mono font-bold text-slate-900 dark:text-white">
+                          {item.total}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-mono text-emerald-600 font-semibold">
+                          {item.active}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-mono text-slate-400">
+                          {dropCount > 0 ? (
+                            <span className="text-rose-500 font-semibold">{dropCount}</span>
+                          ) : (
+                            '0'
+                          )}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-right font-mono">
+                          <span className={`inline-block px-1.5 py-0.2 rounded font-bold ${
+                            item.retentionRate >= 80 
+                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300'
+                              : item.retentionRate >= 50
+                              ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'
+                              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300'
+                          }`}>
+                            {item.retentionRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             )}
           </div>
         </div>
 
-        {/* Empresa do Grupo Breakdown Bar Chart */}
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-2">
-          <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-1.5">
-              <Building2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                Desempenho por Empresa do Grupo
-              </h3>
+        {/* Card 2: Geografia por País & Ritmo Diário de Contratações */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-3">
+          
+          {/* Top: Distribuição Geográfica por País */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between pb-1 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1.5">
+                <Globe2 className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                  Distribuição Geográfica (Headcount)
+                </h3>
+              </div>
+              <span className="text-[10px] text-slate-400">
+                Espanha • França • Itália
+              </span>
             </div>
-            <span className="text-[10px] font-semibold text-slate-400">
-              {reportData?.contratanteBreakdown?.length || 0} empresas
-            </span>
-          </div>
 
-          <div className="space-y-1.5 max-h-[160px] overflow-y-auto pr-1">
-            {reportData?.contratanteBreakdown?.length === 0 ? (
-              <p className="text-[11px] text-slate-400 py-4 text-center">Nenhuma empresa no período.</p>
-            ) : (
-              reportData?.contratanteBreakdown?.map(item => {
-                const maxVal = reportData.contratanteBreakdown[0]?.total || 1;
-                const activePct = (item.active / maxVal) * 100;
-                const inactivePct = (item.inactive / maxVal) * 100;
-                const rate = item.total > 0 ? Math.round((item.active / item.total) * 100) : 0;
-
-                return (
-                  <div key={item.contratante} className="space-y-0.5 text-[10px]">
-                    <div className="flex justify-between items-center text-slate-700 dark:text-slate-300 font-medium">
-                      <span className="font-semibold text-indigo-700 dark:text-indigo-300">
-                        {item.contratante}
-                      </span>
-                      <span className="font-mono text-slate-500">
-                        <strong className="text-slate-900 dark:text-white font-bold">{item.total}</strong> contratados ({rate}% retenção)
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-                      <div 
-                        style={{ width: `${activePct}%` }} 
-                        className="bg-sky-500 h-full rounded-l-full transition-all duration-500" 
-                        title={`${item.active} ativos`}
-                      />
-                      <div 
-                        style={{ width: `${inactivePct}%` }} 
-                        className="bg-rose-400 h-full rounded-r-full transition-all duration-500" 
-                        title={`${item.inactive} encerrados`}
-                      />
-                    </div>
+            <div className="grid grid-cols-3 gap-2">
+              {(reportData?.countryBreakdown || []).slice(0, 3).map(country => (
+                <div 
+                  key={country.countryCode}
+                  className="bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/60 rounded-lg p-2 space-y-1"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-base leading-none">{country.flag}</span>
+                    <span className="text-[9px] font-bold text-slate-400 font-mono">
+                      {country.pct}%
+                    </span>
                   </div>
-                );
-              })
-            )}
+                  <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 truncate">
+                    {country.countryName}
+                  </div>
+                  <div className="flex items-baseline justify-between text-[10px]">
+                    <span className="font-extrabold text-slate-900 dark:text-white font-mono text-sm">
+                      {country.total}
+                    </span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold font-mono text-[10px]">
+                      {country.active} ativos
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
+
+          {/* Bottom: Timeline Diária de Contratações (1 a 31) */}
+          <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <CalendarDays className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                <h4 className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Timeline Diária de Ingressos (Dias do Mês)
+                </h4>
+              </div>
+              <div className="flex items-center gap-2 text-[9px] text-slate-400 font-medium">
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 inline-block" /> Ativo
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full bg-rose-400 inline-block" /> Saída / Desistência
+                </span>
+              </div>
+            </div>
+
+            {/* Daily Bars Visual Container */}
+            <div className="pt-2 pb-1">
+              {(!reportData?.dailyTimeline || reportData.dailyTimeline.length === 0) ? (
+                <p className="text-[10px] text-slate-400 py-3 text-center">Sem ingressos registrados no período.</p>
+              ) : (
+                (() => {
+                  const maxDaily = Math.max(...reportData.dailyTimeline.map(d => d.total), 1);
+                  return (
+                    <div className="space-y-1">
+                      <div className="h-20 flex items-end gap-1 px-1 bg-slate-50/50 dark:bg-slate-800/30 rounded-lg p-2">
+                        {reportData.dailyTimeline.map((point) => {
+                          const heightPct = point.total > 0 ? Math.max(15, Math.round((point.total / maxDaily) * 100)) : 4;
+                          const activeHeight = point.total > 0 ? Math.round((point.active / point.total) * 100) : 0;
+
+                          return (
+                            <div 
+                              key={point.dateStr} 
+                              className="flex-1 flex flex-col items-center justify-end h-full group relative"
+                            >
+                              {/* Hover Tooltip */}
+                              <div className="absolute -top-9 hidden group-hover:flex flex-col items-center z-20 pointer-events-none">
+                                <div className="bg-slate-900 text-white text-[9px] font-mono px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap">
+                                  {point.dayLabel}: {point.total} contratações ({point.active} at.)
+                                </div>
+                                <div className="w-1.5 h-1.5 bg-slate-900 rotate-45 -mt-0.5" />
+                              </div>
+
+                              {/* Vertical Bar */}
+                              <div 
+                                style={{ height: `${heightPct}%` }}
+                                className={`w-full max-w-[14px] rounded-t-sm transition-all duration-300 flex flex-col justify-end overflow-hidden ${
+                                  point.total > 0 ? 'bg-indigo-200 dark:bg-indigo-900/60' : 'bg-slate-200/50 dark:bg-slate-800'
+                                }`}
+                              >
+                                {point.total > 0 && (
+                                  <>
+                                    <div 
+                                      style={{ height: `${100 - activeHeight}%` }} 
+                                      className="w-full bg-rose-400" 
+                                    />
+                                    <div 
+                                      style={{ height: `${activeHeight}%` }} 
+                                      className="w-full bg-emerald-500" 
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Day Labels Axis */}
+                      <div className="flex justify-between px-1 text-[8px] font-mono text-slate-400">
+                        <span>Dia {reportData.dailyTimeline[0]?.day || 1}</span>
+                        <span>Dia {reportData.dailyTimeline[Math.floor(reportData.dailyTimeline.length / 2)]?.day || 15}</span>
+                        <span>Dia {reportData.dailyTimeline[reportData.dailyTimeline.length - 1]?.day || 31}</span>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* Analytical Cockpit Row 2: Inteligência Comercial & Base de Comissionamento */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-1.5">
+            <Award className="h-4 w-4 text-amber-500" />
+            <div>
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Inteligência Comercial & Base de Comissionamento
+              </h3>
+              <p className="text-[10px] text-slate-400">
+                Apuração de volume e retenção por vendedor responsável e clientes atendidos no período
+              </p>
+            </div>
+          </div>
+          <div className="text-[10px] font-semibold text-slate-400">
+            {reportData?.sellerBreakdown?.length || 0} vendedores • {reportData?.clientBreakdown?.length || 0} clientes
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          
+          {/* Subcard 1: Vendedores / Comerciais Responsáveis */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+              <span className="flex items-center gap-1">
+                <UserCheck className="h-3 w-3 text-indigo-500" />
+                Vendedores Responsáveis
+              </span>
+              <span className="text-[9px] text-slate-400 uppercase tracking-wider">
+                Volume / Retenção
+              </span>
+            </div>
+
+            <div className="max-h-56 overflow-y-auto pr-1">
+              {reportData?.sellerBreakdown?.length === 0 ? (
+                <p className="text-[10px] text-slate-400 py-6 text-center">Nenhum vendedor no período.</p>
+              ) : (
+                <table className="w-full text-left border-collapse text-[10px]">
+                  <thead>
+                    <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-800 font-semibold uppercase text-[9px]">
+                      <th className="py-1 px-1.5">Vendedor</th>
+                      <th className="py-1 px-1.5 text-center">Pedidos</th>
+                      <th className="py-1 px-1.5 text-center">Contratados</th>
+                      <th className="py-1 px-1.5 text-center">Ativos</th>
+                      <th className="py-1 px-1.5 text-center">Reemplazos</th>
+                      <th className="py-1 px-1.5 text-right">Retenção</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {reportData?.sellerBreakdown?.map(seller => (
+                      <tr 
+                        key={seller.sellerName}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-300 transition-colors"
+                      >
+                        <td className="py-1.5 px-1.5 font-semibold truncate max-w-[130px]" title={seller.sellerName}>
+                          {seller.sellerName}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center">
+                          <span 
+                            className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[9px] font-semibold text-slate-600 dark:text-slate-400"
+                            title={seller.pedidosCodes.join(', ') || 'Nenhum'}
+                          >
+                            {seller.pedidosCount} ped.
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-mono font-bold text-slate-900 dark:text-white">
+                          {seller.totalHired}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-mono text-emerald-600 font-semibold">
+                          {seller.active}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-center font-mono">
+                          {seller.replaced > 0 ? (
+                            <span className="text-amber-600 font-semibold">{seller.replaced}</span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="py-1.5 px-1.5 text-right font-mono font-bold">
+                          <span className={`px-1.5 py-0.2 rounded ${
+                            seller.retentionRate >= 80 
+                              ? 'bg-emerald-50 text-emerald-700' 
+                              : seller.retentionRate >= 50 
+                              ? 'bg-amber-50 text-amber-700' 
+                              : 'bg-rose-50 text-rose-700'
+                          }`}>
+                            {seller.retentionRate}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* Subcard 2: Movimentação por Cliente */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300">
+              <span className="flex items-center gap-1">
+                <Building2 className="h-3 w-3 text-indigo-500" />
+                Clientes Atendidos
+              </span>
+              <span className="text-[9px] text-slate-400 uppercase tracking-wider">
+                Pedidos / Retenção
+              </span>
+            </div>
+
+            <div className="max-h-56 overflow-y-auto pr-1">
+              {reportData?.clientBreakdown?.length === 0 ? (
+                <p className="text-[10px] text-slate-400 py-6 text-center">Nenhum cliente no período.</p>
+              ) : (
+                <table className="w-full text-left border-collapse text-[10px]">
+                  <thead>
+                    <tr className="text-slate-400 border-b border-slate-100 dark:border-slate-800 font-semibold uppercase text-[9px]">
+                      <th className="py-1 px-1.5">Cliente</th>
+                      <th className="py-1 px-1.5 text-center">Pedidos</th>
+                      <th className="py-1 px-1.5 text-center">Contratados</th>
+                      <th className="py-1 px-1.5 text-center">Ativos</th>
+                      <th className="py-1 px-1.5 text-center">Reemplazos</th>
+                      <th className="py-1 px-1.5 text-right">Retenção</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {reportData?.clientBreakdown?.map(client => {
+                      const isSelected = clientFilter === client.clientName;
+
+                      return (
+                        <tr 
+                          key={client.clientId}
+                          onClick={() => setClientFilter(prev => prev === client.clientName ? 'all' : client.clientName)}
+                          className={`cursor-pointer transition-colors ${
+                            isSelected 
+                              ? 'bg-indigo-50/80 dark:bg-indigo-950/50 font-bold text-indigo-700 dark:text-indigo-300' 
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-700 dark:text-slate-300'
+                          }`}
+                          title={`Clique para filtrar pelo cliente ${client.clientName}`}
+                        >
+                          <td className="py-1.5 px-1.5 font-semibold truncate max-w-[130px]">
+                            <div className="flex items-center gap-1">
+                              <span>{client.flag}</span>
+                              <span className="truncate" title={client.clientName}>{client.clientName}</span>
+                            </div>
+                          </td>
+                          <td className="py-1.5 px-1.5 text-center">
+                            <span 
+                              className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[9px] font-semibold text-slate-600 dark:text-slate-400"
+                              title={client.pedidosCodes.join(', ') || 'Nenhum'}
+                            >
+                              {client.pedidosCodes.length} ped.
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-1.5 text-center font-mono font-bold text-slate-900 dark:text-white">
+                            {client.totalHired}
+                          </td>
+                          <td className="py-1.5 px-1.5 text-center font-mono text-emerald-600 font-semibold">
+                            {client.active}
+                          </td>
+                          <td className="py-1.5 px-1.5 text-center font-mono">
+                            {client.replaced > 0 ? (
+                              <span className="text-amber-600 font-semibold">{client.replaced}</span>
+                            ) : (
+                              <span className="text-slate-400">0</span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-1.5 text-right font-mono font-bold">
+                            <span className={`px-1.5 py-0.2 rounded ${
+                              client.retentionRate >= 80 
+                                ? 'bg-emerald-50 text-emerald-700' 
+                                : client.retentionRate >= 50 
+                                ? 'bg-amber-50 text-amber-700' 
+                                : 'bg-rose-50 text-rose-700'
+                            }`}>
+                              {client.retentionRate}%
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -1191,12 +1511,18 @@ export function HiringReportPage() {
 
                     {/* Client & Pedido */}
                     <td className="py-2.5 px-3">
-                      <div className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate max-w-[170px]" title={item.client_name}>
-                        {item.client_name}
+                      <div className="font-semibold text-slate-800 dark:text-slate-200 text-[11px] truncate max-w-[170px] flex items-center gap-1" title={item.client_name}>
+                        <span>{item.country_flag}</span>
+                        <span className="truncate">{item.client_name}</span>
                       </div>
                       <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">
                         Pedido: {item.pedido_codigo}
                       </div>
+                      {item.vendedor && item.vendedor !== 'Comercial Geral' && (
+                        <div className="text-[9px] text-slate-400 truncate max-w-[170px]" title={`Vendedor: ${item.vendedor}`}>
+                          Vendedor: {item.vendedor}
+                        </div>
+                      )}
                     </td>
 
                     {/* Function / Profile */}
