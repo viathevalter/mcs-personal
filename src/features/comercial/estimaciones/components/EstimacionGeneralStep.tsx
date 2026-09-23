@@ -750,11 +750,12 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
           <div className="space-y-2">
             <Label htmlFor="client_site_id">{t('comercial.stepGeneral.site')}</Label>
             <Select 
-              value={data.client_site_id || ''} 
+              value={data.client_site_id || 'none'} 
               onValueChange={(val) => {
-                const selectedSite = sites.find(s => s.id === val);
+                const siteId = (!val || val === 'none') ? null : val;
+                const selectedSite = siteId ? sites.find(s => s.id === siteId) : null;
                 onChange({ 
-                  client_site_id: val,
+                  client_site_id: siteId,
                   ...(selectedSite?.country_id ? { country_id: selectedSite.country_id } : {})
                 });
               }}
@@ -792,9 +793,10 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
           <Select 
             value={data.payment_term_id || ''} 
             onValueChange={(val) => {
+              if (val === 'none') return;
               const selectedTerm = paymentTerms.find(pt => pt.id === val);
               onChange({ 
-                payment_term_id: val === 'none' || val === '' ? '' : val,
+                payment_term_id: val || '',
                 payment_terms: selectedTerm ? selectedTerm.name : ''
               });
             }}

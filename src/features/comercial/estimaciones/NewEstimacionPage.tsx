@@ -507,21 +507,27 @@ export function NewEstimacionPage() {
   }, [payload, selectedClientData, comercialSettings, t, jobFunctionRateMap]);
 
   const handleSave = (status: 'draft' | 'review' | 'sent', customJustification?: string) => {
+    const cleanUuid = (val: any): string | null => {
+      if (!val || val === 'none' || typeof val !== 'string' || val.trim() === '') return null;
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+      return isUuid ? val.trim() : null;
+    };
+
     const finalPayload = {
       ...payload,
-      empresa_id: payload.empresa_id || selectedEmpresaId,
+      empresa_id: cleanUuid(payload.empresa_id || selectedEmpresaId),
       status,
-      commercial_owner_id: payload.commercial_owner_id || estimacion?.commercial_owner_id || user?.id || null,
-      created_by: payload.created_by || estimacion?.created_by || user?.id || null,
-      user_id: user?.id || null,
+      commercial_owner_id: cleanUuid(payload.commercial_owner_id || estimacion?.commercial_owner_id || user?.id),
+      created_by: cleanUuid(payload.created_by || estimacion?.created_by || user?.id),
+      user_id: cleanUuid(user?.id),
       review_justification: customJustification || reviewJustification || null,
       review_requested_at: status === 'review' ? new Date().toISOString() : null,
       viability_reasons: viability.reasons || [],
-      client_id: payload.client_id || null,
-      lead_id: payload.lead_id || null,
-      client_site_id: payload.client_site_id || null,
-      country_id: payload.country_id || null,
-      payment_term_id: payload.payment_term_id || null,
+      client_id: cleanUuid(payload.client_id),
+      lead_id: cleanUuid(payload.lead_id),
+      client_site_id: cleanUuid(payload.client_site_id),
+      country_id: cleanUuid(payload.country_id),
+      payment_term_id: cleanUuid(payload.payment_term_id),
       postal_code: payload.postal_code || null,
       expected_start_date: payload.expected_start_date || null,
       expected_end_date: payload.expected_end_date || null,
@@ -544,7 +550,7 @@ export function NewEstimacionPage() {
       hours_domingo: Number(payload.hours_domingo ?? 0.0),
       items: payload.items?.map((item: any) => ({
         ...item,
-        job_function_id: item.job_function_id || null,
+        job_function_id: cleanUuid(item.job_function_id),
       })) || [],
       additional_revenues: payload.additional_revenues || [],
     };
