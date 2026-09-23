@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 export interface HiringReportFilters {
   empresa_id?: string | null;
+  is_holding?: boolean;
   startDate?: string; // YYYY-MM-DD
   endDate?: string;   // YYYY-MM-DD
   clientFilter?: string;
@@ -11,11 +13,11 @@ export interface HiringReportFilters {
   contratadorFilter?: string;
   pedidoFilter?: string;
   jobFunctionFilter?: string;
-  statusFilter?: string;    // 'all' | 'active' | 'pending_entry' | 'inactive'
+  statusFilter?: string;    // 'all' | 'active' | 'pending_entry' | 'withdrawn' | 'inactive'
   seguridadFilter?: string; // 'all' | 'alta' | 'regularizacao'
 }
 
-export type WorkerDisplayStatus = 'active' | 'pending_entry' | 'inactive';
+export type WorkerDisplayStatus = 'active' | 'pending_entry' | 'withdrawn' | 'inactive';
 
 export interface HiringReportItem {
   id: string;
@@ -136,16 +138,21 @@ export function useHiringReport(filters: HiringReportFilters) {
   return useQuery({
     queryKey: ['hiring_report', filters],
     queryFn: async () => {
-      if (!filters.empresa_id) {
+      if (!filters.empresa_id && !filters.is_holding) {
         return emptyReport();
       }
 
-      // 1. Fetch report data for the selected empresa_id
-      let result = await fetchReportDataForEmpresa(filters.empresa_id, filters);
+      // If user selected Holding (e.g. LOGIN PRO) or is_holding is true,
+      // query with empresaId = null so it aggregates all companies across the group!
+      const isHolding = !!filters.is_holding || isHoldingId(filters.empresa_id);
+      const queryEmpresaId = isHolding ? null : filters.empresa_id;
 
-      // 2. Fallback / Holding Aggregation: If selected company returns 0 or very few items (e.g. Holding company Login Pro with no direct assignments),
+      // 1. Fetch report data for the selected empresa_id (or all companies if holding)
+      let result = await fetchReportDataForEmpresa(queryEmpresaId, filters);
+
+      // 2. Fallback / Holding Aggregation: If selected company returns 0 or 1 item while in holding or empty,
       // fetch across ALL companies in the group (empresaId = null) to ensure holding aggregates all child companies.
-      if (result.combined.length === 0 || (result.assignmentsData.length === 0 && result.activeWorkers.length <= 5)) {
+      if (queryEmpresaId && (result.combined.length <= 1 || (result.assignmentsData.length <= 1 && result.activeWorkers.length <= 5))) {
         const groupResult = await fetchReportDataForEmpresa(null, filters);
         if (groupResult.combined.length > result.combined.length) {
           result = groupResult;
@@ -154,7 +161,7 @@ export function useHiringReport(filters: HiringReportFilters) {
 
       return processAssignments(result.combined, filters, result.targetEmpresaNome);
     },
-    enabled: !!filters.empresa_id,
+    enabled: !!filters.empresa_id || !!filters.is_holding,
   });
 }
 
@@ -164,12 +171,15 @@ function emptyReport() {
     totalHired: 0,
     totalActive: 0,
     totalPendingEntry: 0,
+    totalWithdrawn: 0,
     totalInactive: 0,
+    totalStarted: 0,
+    retentionRate: 0,
+    turnoverRate: 0,
     totalAlta: 0,
     totalRegularizacao: 0,
     pctAlta: 0,
     pctRegularizacao: 0,
-    retentionRate: 0,
     avgDaysWorked: 0,
     functionBreakdown: [],
     contratanteBreakdown: [],
@@ -472,8 +482,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
 
     const rawWorkerStatus = (a.worker?.status_trabajador || a.status_trabajador || a.status || '').toLowerCase();
     
-    // Check for "Pendente Ingresso" / "Pendiente Ingresar"
-    // Worker is pending entry if not in an inactive/cancelled status, and planned or start date in the future
+    // Check if worker is pending entry (future start date and not cancelled/replaced)
     const isPendingEntry = !isInactiveStatus && (
       a.status === 'planned' || 
       rawWorkerStatus.includes('pendiente') || 
@@ -481,15 +490,28 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       (!!startDateStr && startDateStr > todayYMD)
     );
 
-    const isInactive = !isPendingEntry && (
-      isInactiveStatus || 
+    // Check if worker was cancelled / withdrew BEFORE starting to work
+    const isCancelled = a.status === 'cancelled' || rawWorkerStatus.includes('desist');
+    const isWithdrawnPreStart = isCancelled && (
+      !startDateStr || 
+      startDateStr > todayYMD || 
+      !endDateStr || 
+      endDateStr === startDateStr || 
+      (a.notes || '').toLowerCase().includes('cancelado em')
+    );
+
+    // Check if turnover in operation (started work and then replaced, completed, or left)
+    const isTurnoverInOperation = !isPendingEntry && !isWithdrawnPreStart && (
+      a.status === 'replaced' ||
+      a.status === 'completed' ||
+      isInactiveStatus ||
       rawWorkerStatus.includes('baja') || 
       rawWorkerStatus.includes('inativo') || 
       rawWorkerStatus.includes('desligado') || 
       (!!endDateStr && endDateStr <= todayYMD)
     );
 
-    const isActive = !isPendingEntry && !isInactive;
+    const isActive = !isPendingEntry && !isWithdrawnPreStart && !isTurnoverInOperation;
 
     let display_status: WorkerDisplayStatus = 'active';
     let status_label = 'Ativo';
@@ -497,12 +519,15 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     if (isPendingEntry) {
       display_status = 'pending_entry';
       status_label = 'Pendente Ingresso';
-    } else if (isInactive) {
+    } else if (isWithdrawnPreStart) {
+      display_status = 'withdrawn';
+      status_label = 'Desistência (Não Iniciou)';
+    } else if (isTurnoverInOperation) {
       display_status = 'inactive';
-      if (a.status === 'cancelled' || rawWorkerStatus.includes('desist')) {
-        status_label = 'Cancelado / Desistiu';
-      } else if (a.status === 'replaced') {
+      if (a.status === 'replaced') {
         status_label = 'Substituído';
+      } else if (a.status === 'completed') {
+        status_label = 'Concluído';
       } else {
         status_label = 'Desligado';
       }
@@ -517,7 +542,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const isSeguridadAlta = (normSeg.includes('alta') && !normSeg.includes('pendent')) || normSeg === 'alta';
     const statusSeguridadDisplay = isSeguridadAlta ? 'Alta' : 'Em Regularização';
 
-    // Calculate days worked
+    // Calculate days worked (only for active or turnover in operation)
     let daysWorked = 0;
     if (isActive) {
       const startDateObj = parseLocalDate(startDateStr);
@@ -526,7 +551,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
         const diffTime = today.getTime() - startDateObj.getTime();
         daysWorked = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
       }
-    } else if (isInactive && a.status !== 'cancelled' && !rawWorkerStatus.includes('desist')) {
+    } else if (isTurnoverInOperation) {
       const startDateObj = parseLocalDate(startDateStr);
       const endDateObj = parseLocalDate(endDateStr);
       if (startDateObj && endDateObj) {
@@ -669,6 +694,8 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
       filtered = filtered.filter(item => item.display_status === 'active');
     } else if (filters.statusFilter === 'pending_entry') {
       filtered = filtered.filter(item => item.display_status === 'pending_entry');
+    } else if (filters.statusFilter === 'withdrawn') {
+      filtered = filtered.filter(item => item.display_status === 'withdrawn');
     } else if (filters.statusFilter === 'inactive') {
       filtered = filtered.filter(item => item.display_status === 'inactive');
     }
@@ -686,17 +713,28 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
   const totalHired = filtered.length;
   const totalActive = filtered.filter(i => i.display_status === 'active').length;
   const totalPendingEntry = filtered.filter(i => i.display_status === 'pending_entry').length;
+  const totalWithdrawn = filtered.filter(i => i.display_status === 'withdrawn').length;
   const totalInactive = filtered.filter(i => i.display_status === 'inactive').length;
   
+  // Real retention rate: calculated strictly on those who actually started in operation
+  const totalStarted = totalActive + totalInactive;
+  const retentionRate = totalStarted > 0 
+    ? Math.round((totalActive / totalStarted) * 1000) / 10 
+    : (totalHired > 0 ? 100 : 0);
+  const turnoverRate = totalStarted > 0 
+    ? Math.round((totalInactive / totalStarted) * 1000) / 10 
+    : 0;
+
   // Social Security Metrics
   const totalAlta = filtered.filter(i => i.is_seguridad_alta).length;
   const totalRegularizacao = totalHired - totalAlta;
   const pctAlta = totalHired > 0 ? Math.round((totalAlta / totalHired) * 1000) / 10 : 0;
   const pctRegularizacao = totalHired > 0 ? Math.round((totalRegularizacao / totalHired) * 1000) / 10 : 0;
 
-  const retentionRate = totalHired > 0 ? Math.round((totalActive / totalHired) * 1000) / 10 : 0;
-  const sumDaysWorked = filtered.reduce((acc, curr) => acc + curr.days_worked, 0);
-  const avgDaysWorked = totalHired > 0 ? Math.round(sumDaysWorked / totalHired) : 0;
+  // Average days worked only for those who actually entered operation
+  const operationalItems = filtered.filter(i => i.display_status === 'active' || i.display_status === 'inactive');
+  const sumDaysWorked = operationalItems.reduce((acc, curr) => acc + curr.days_worked, 0);
+  const avgDaysWorked = operationalItems.length > 0 ? Math.round(sumDaysWorked / operationalItems.length) : 0;
 
   // Breakdown by Job Function
   const funcMap = new Map<string, { total: number; active: number; inactive: number }>();
@@ -704,7 +742,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const fn = item.job_function_name;
     const current = funcMap.get(fn) || { total: 0, active: 0, inactive: 0 };
     current.total += 1;
-    if (item.is_active) current.active += 1;
+    if (item.display_status === 'active') current.active += 1;
     else current.inactive += 1;
     funcMap.set(fn, current);
   });
@@ -719,7 +757,7 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     const c = formatStandardContratante(item.contratante);
     const current = contrMap.get(c) || { total: 0, active: 0, inactive: 0 };
     current.total += 1;
-    if (item.is_active) current.active += 1;
+    if (item.display_status === 'active') current.active += 1;
     else current.inactive += 1;
     contrMap.set(c, current);
   });
@@ -733,12 +771,15 @@ function processAssignments(assignments: any[], filters: HiringReportFilters, em
     totalHired,
     totalActive,
     totalPendingEntry,
+    totalWithdrawn,
     totalInactive,
+    totalStarted,
+    retentionRate,
+    turnoverRate,
     totalAlta,
     totalRegularizacao,
     pctAlta,
     pctRegularizacao,
-    retentionRate,
     avgDaysWorked,
     functionBreakdown,
     contratanteBreakdown,

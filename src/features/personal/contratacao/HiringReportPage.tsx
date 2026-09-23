@@ -5,6 +5,7 @@ import {
   UserMinus, 
   UserCog,
   UserPlus,
+  UserX,
   Clock, 
   TrendingUp, 
   Search, 
@@ -90,7 +91,7 @@ function getPresetDates(preset: string): { startDate: string; endDate: string } 
 }
 
 export function HiringReportPage() {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, isHolding } = useEmpresa();
 
   // Date Preset State
   const [presetFilter, setPresetFilter] = useState<string>('this_month');
@@ -110,7 +111,7 @@ export function HiringReportPage() {
   const [seguridadFilter, setSeguridadFilter] = useState<string>('all');
 
   // Interactive KPI Card Selection State
-  const [activeKpiCard, setActiveKpiCard] = useState<'total' | 'active' | 'pending_entry' | 'inactive' | 'alta' | 'regularizacao'>('total');
+  const [activeKpiCard, setActiveKpiCard] = useState<'total' | 'active' | 'pending_entry' | 'withdrawn' | 'inactive' | 'alta' | 'regularizacao'>('total');
 
   // Sorting State
   const [sortField, setSortField] = useState<SortKey>('start_date');
@@ -118,6 +119,7 @@ export function HiringReportPage() {
 
   const reportFilters: HiringReportFilters = useMemo(() => ({
     empresa_id: selectedEmpresaId,
+    is_holding: isHolding,
     startDate,
     endDate,
     clientFilter,
@@ -127,7 +129,7 @@ export function HiringReportPage() {
     jobFunctionFilter,
     statusFilter,
     seguridadFilter
-  }), [selectedEmpresaId, startDate, endDate, clientFilter, contratanteFilter, contratadorFilter, pedidoFilter, jobFunctionFilter, statusFilter, seguridadFilter]);
+  }), [selectedEmpresaId, isHolding, startDate, endDate, clientFilter, contratanteFilter, contratadorFilter, pedidoFilter, jobFunctionFilter, statusFilter, seguridadFilter]);
 
   const { data: reportData, isLoading, refetch, isFetching } = useHiringReport(reportFilters);
 
@@ -142,7 +144,7 @@ export function HiringReportPage() {
   };
 
   // Interactive KPI Card Click Handler
-  const handleKpiClick = (type: 'total' | 'active' | 'pending_entry' | 'inactive' | 'alta' | 'regularizacao') => {
+  const handleKpiClick = (type: 'total' | 'active' | 'pending_entry' | 'withdrawn' | 'inactive' | 'alta' | 'regularizacao') => {
     setActiveKpiCard(type);
     if (type === 'total') {
       setStatusFilter('all');
@@ -152,6 +154,9 @@ export function HiringReportPage() {
       setSeguridadFilter('all');
     } else if (type === 'pending_entry') {
       setStatusFilter('pending_entry');
+      setSeguridadFilter('all');
+    } else if (type === 'withdrawn') {
+      setStatusFilter('withdrawn');
       setSeguridadFilter('all');
     } else if (type === 'inactive') {
       setStatusFilter('inactive');
@@ -592,7 +597,8 @@ export function HiringReportPage() {
               <option value="all">Todos os Status</option>
               <option value="active">● Somente Ativos</option>
               <option value="pending_entry">● Pendente de Ingressar</option>
-              <option value="inactive">● Desligados / Cancelados</option>
+              <option value="withdrawn">● Desistências (Não Iniciaram)</option>
+              <option value="inactive">● Desligados / Reemplazos (Operação)</option>
             </select>
           </div>
 
@@ -613,7 +619,7 @@ export function HiringReportPage() {
       </div>
 
       {/* KPI Cards Grid Compact - Interactive Clickable Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-9 gap-2">
         
         {/* Total Contratados (Clickable) */}
         <div 
@@ -702,6 +708,35 @@ export function HiringReportPage() {
           </div>
         </div>
 
+        {/* Desistências Pré-Início (Clickable) */}
+        <div 
+          onClick={() => handleKpiClick('withdrawn')}
+          className={`bg-white dark:bg-slate-900 border rounded-xl p-2.5 shadow-2xs space-y-1 cursor-pointer transition-all hover:scale-[1.02] ${
+            activeKpiCard === 'withdrawn'
+              ? 'ring-2 ring-purple-500 border-purple-400 bg-purple-50/40 dark:bg-purple-950/40 shadow-sm'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
+          }`}
+          title="Clique para filtrar contratações que desistiram antes de iniciar"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase tracking-wider truncate">
+              Desistências
+            </span>
+            <div className={`p-1 rounded-lg shrink-0 ${activeKpiCard === 'withdrawn' ? 'bg-purple-600 text-white' : 'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400'}`}>
+              <UserX className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-lg font-black text-purple-600 dark:text-purple-400 leading-tight">
+              {reportData?.totalWithdrawn || 0} <span className="text-[10px] font-normal text-slate-500">não iniciaram</span>
+            </div>
+            <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
+              {activeKpiCard === 'withdrawn' && <CheckCircle2 className="h-2.5 w-2.5 text-purple-600" />}
+              Antes de entrar (0 dias)
+            </p>
+          </div>
+        </div>
+
         {/* Desligados / Saíram (Clickable) */}
         <div 
           onClick={() => handleKpiClick('inactive')}
@@ -710,7 +745,7 @@ export function HiringReportPage() {
               ? 'ring-2 ring-rose-500 border-rose-400 bg-rose-50/40 dark:bg-rose-950/40 shadow-sm'
               : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'
           }`}
-          title="Clique para filtrar apenas os desligados/encerrados"
+          title="Clique para filtrar trabalhadores que iniciaram e foram desligados/substituídos"
         >
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider truncate">
@@ -722,11 +757,11 @@ export function HiringReportPage() {
           </div>
           <div>
             <div className="text-lg font-black text-rose-600 dark:text-rose-400 leading-tight">
-              {reportData?.totalInactive || 0} <span className="text-[10px] font-normal text-slate-500">encerrados</span>
+              {reportData?.totalInactive || 0} <span className="text-[10px] font-normal text-slate-500">em operação</span>
             </div>
             <p className="text-[9px] text-slate-400 truncate flex items-center gap-1">
               {activeKpiCard === 'inactive' && <CheckCircle2 className="h-2.5 w-2.5 text-rose-600" />}
-              Cancelados / baixas do pedido
+              Reemplazos e baixas
             </p>
           </div>
         </div>
@@ -803,8 +838,8 @@ export function HiringReportPage() {
             <div className="text-lg font-black text-slate-900 dark:text-white leading-tight">
               {reportData?.retentionRate || 0}%
             </div>
-            <p className="text-[9px] text-slate-400 truncate">
-              Permanência total
+            <p className="text-[9px] text-slate-400 truncate" title={`Dos que iniciaram trabalho efetivo: ${reportData?.totalActive || 0} ativos / ${(reportData?.totalStarted || 0)} iniciaram`}>
+              Dos que iniciaram ({reportData?.totalActive || 0}/{reportData?.totalStarted || 0})
             </p>
           </div>
         </div>
@@ -962,6 +997,8 @@ export function HiringReportPage() {
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                   : activeKpiCard === 'pending_entry'
                   ? 'bg-sky-50 text-sky-700 border-sky-200'
+                  : activeKpiCard === 'withdrawn'
+                  ? 'bg-purple-50 text-purple-700 border-purple-200'
                   : activeKpiCard === 'inactive'
                   ? 'bg-rose-50 text-rose-700 border-rose-200'
                   : activeKpiCard === 'alta'
@@ -971,7 +1008,8 @@ export function HiringReportPage() {
                 Filtro KPI: {
                   activeKpiCard === 'active' ? 'Ativos' :
                   activeKpiCard === 'pending_entry' ? 'Pendente Ingresso' :
-                  activeKpiCard === 'inactive' ? 'Desligados' :
+                  activeKpiCard === 'withdrawn' ? 'Desistências (Não Iniciaram)' :
+                  activeKpiCard === 'inactive' ? 'Desligados / Reemplazos' :
                   activeKpiCard === 'alta' ? 'De Alta (Seguridade)' : 'Em Regularização'
                 }
               </span>
@@ -1194,6 +1232,8 @@ export function HiringReportPage() {
                           ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-500/30'
                           : item.display_status === 'pending_entry'
                           ? 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-500/30'
+                          : item.display_status === 'withdrawn'
+                          ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30'
                           : 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/30'
                       }`}>
                         <Clock className="h-2.5 w-2.5" />
@@ -1206,6 +1246,10 @@ export function HiringReportPage() {
                       {item.display_status === 'pending_entry' ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/30">
                           ● Pendente Ingresso
+                        </span>
+                      ) : item.display_status === 'withdrawn' ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-200 dark:border-purple-500/30" title="Desistência antes de iniciar o trabalho">
+                          ● Desistência (Não Iniciou)
                         </span>
                       ) : item.display_status === 'inactive' ? (
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
