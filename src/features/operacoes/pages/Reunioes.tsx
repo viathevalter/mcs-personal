@@ -84,6 +84,70 @@ export const Reunioes: React.FC = () => {
   const [isManualEmailBodyEdit, setIsManualEmailBodyEdit] = useState(false);
   const [emailPreviewTab, setEmailPreviewTab] = useState<'visual' | 'edit'>('visual');
 
+  // Formatador da Pauta para HTML de E-mail (Itens empilhados um abaixo do outro com layout limpo e 100% compatível)
+  const formatPautaToEmailHtml = (raw: string): string => {
+    if (!raw || !raw.trim()) {
+      return '<p style="color: #64748b; font-style: italic; margin: 0;">Nenhuma pauta detalhada informada.</p>';
+    }
+
+    let text = raw.trim();
+
+    // Se o texto não possui tags HTML de bloco (ex: markdown ou texto simples com quebras de linha)
+    const hasHtmlBlocks = /<(h[1-6]|ul|ol|li|p|div)[^>]*>/i.test(text);
+
+    if (!hasHtmlBlocks) {
+      // 1. Processar cabeçalhos markdown
+      text = text.replace(/^### (.*$)/gim, '<h4 style="margin: 4px 0 10px 0; font-size: 14px; font-weight: 800; color: #166534; border-bottom: 1px solid #bbf7d0; padding-bottom: 4px;">$1</h4>');
+      text = text.replace(/^## (.*$)/gim, '<h3 style="margin: 4px 0 12px 0; font-size: 15px; font-weight: 800; color: #166534; border-bottom: 1px solid #bbf7d0; padding-bottom: 4px;">$1</h3>');
+      text = text.replace(/^# (.*$)/gim, '<h2 style="margin: 4px 0 14px 0; font-size: 16px; font-weight: 800; color: #166534; border-bottom: 1px solid #bbf7d0; padding-bottom: 4px;">$1</h2>');
+
+      // Negrito e Itálico markdown
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #0f172a; font-weight: 700;">$1</strong>');
+      text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+      // Separar por linhas para colocar cada tópico exatamente um embaixo do outro em cards brancos limpos
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const formattedBlocks = lines.map(line => {
+        if (line.startsWith('<h')) return line;
+
+        // Linha com numeração (ex: 1. ou 1) )
+        const numMatch = line.match(/^(\d+)[\.\)]\s+(.*)/);
+        if (numMatch) {
+          return `<div style="margin: 8px 0; padding: 10px 14px; background-color: #ffffff; border: 1px solid #dcfce7; border-radius: 8px; line-height: 1.5; color: #1e293b;">
+            <strong style="color: #16a34a; font-weight: 800; margin-right: 6px; font-size: 13px;">${numMatch[1]}.</strong> ${numMatch[2]}
+          </div>`;
+        }
+
+        // Marcador (ex: - ou * ou •)
+        const bulletMatch = line.match(/^[\*\-•]\s+(.*)/);
+        if (bulletMatch) {
+          return `<div style="margin: 8px 0; padding: 10px 14px; background-color: #ffffff; border: 1px solid #dcfce7; border-radius: 8px; line-height: 1.5; color: #1e293b;">
+            <span style="color: #16a34a; font-weight: 800; margin-right: 8px; font-size: 14px;">•</span> ${bulletMatch[1]}
+          </div>`;
+        }
+
+        return `<p style="margin: 6px 0; line-height: 1.5; color: #1e293b;">${line}</p>`;
+      });
+
+      return formattedBlocks.join('\n');
+    } else {
+      // 2. Se já veio como HTML (gerado pelo editor WYSIWYG)
+      // Converte possíveis marcações residuais de markdown
+      text = text.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #0f172a; font-weight: 700;">$1</strong>');
+      text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+      // Aplica estilo inline para que cada item fique perfeitamente empilhado no e-mail
+      text = text.replace(/<ul[^>]*>/gi, '<ul style="margin: 6px 0; padding: 0; list-style-type: none;">');
+      text = text.replace(/<ol[^>]*>/gi, '<ol style="margin: 6px 0; padding: 0; list-style-type: none;">');
+      text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, '<li style="margin: 8px 0; padding: 10px 14px; background-color: #ffffff; border: 1px solid #dcfce7; border-radius: 8px; line-height: 1.5; color: #1e293b; list-style: none;">$1</li>');
+      text = text.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '<h4 style="margin: 4px 0 10px 0; font-size: 14px; font-weight: 800; color: #166534; border-bottom: 1px solid #bbf7d0; padding-bottom: 4px;">$1</h4>');
+      text = text.replace(/<p[^>]*>/gi, '<p style="margin: 6px 0; line-height: 1.5; color: #1e293b;">');
+      text = text.replace(/<strong[^>]*>/gi, '<strong style="color: #0f172a; font-weight: 700;">');
+
+      return text;
+    }
+  };
+
   // Conversor de HTML para Texto Limpo sem tags (para o editor de texto do e-mail)
   const htmlToCleanPlainText = (html: string): string => {
     if (!html) return '';
@@ -91,6 +155,9 @@ export const Reunioes: React.FC = () => {
 
     // Converte cabeçalhos em marcadores de seção
     str = str.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n📌 $1\n');
+    str = str.replace(/^### (.*$)/gim, '\n📌 $1\n');
+    str = str.replace(/^## (.*$)/gim, '\n📌 $1\n');
+    str = str.replace(/^# (.*$)/gim, '\n📌 $1\n');
 
     // Converte itens de lista em marcadores com recuo
     str = str.replace(/<li[^>]*>(.*?)<\/li>/gi, '  • $1\n');
@@ -104,6 +171,10 @@ export const Reunioes: React.FC = () => {
 
     // Remove todas as outras tags HTML (strong, span, u, ul, ol, etc)
     str = str.replace(/<[^>]+>/gi, '');
+
+    // Remove marcações markdown
+    str = str.replace(/\*\*(.*?)\*\*/g, '$1');
+    str = str.replace(/\*(.*?)\*/g, '$1');
 
     // Decodifica entidades HTML
     str = str
@@ -570,12 +641,12 @@ export const Reunioes: React.FC = () => {
                   ${localHtml}
                   <p style="margin: 3px 0;"><strong>👥 ${convocadosLabel}:</strong> ${participantsStr}</p>
                 </div>
-                <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 6px; padding: 14px 18px; margin: 18px 0;">
-                  <div style="font-weight: bold; color: #166534; font-size: 13px; margin-bottom: 8px;">
+                <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 8px; padding: 16px 20px; margin: 18px 0;">
+                  <div style="font-weight: 800; color: #166534; font-size: 13px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px;">
                     📋 ${pautaLabel}:
                   </div>
                   <div style="color: #1e293b; font-size: 13px; line-height: 1.6;">
-                    ${newReuniao.pauta_topicos}
+                    ${formatPautaToEmailHtml(newReuniao.pauta_topicos)}
                   </div>
                 </div>
                 <p style="margin: 16px 0 0 0; color: #475569; font-size: 13px; line-height: 1.5;">${despedida}</p>
@@ -686,9 +757,13 @@ export const Reunioes: React.FC = () => {
                 recorrente: true,
                 data_reuniao: new Date().toISOString().slice(0, 16),
                 duracao_minutos: 45,
-                pauta_topicos: `### Pauta do Alinhamento WBR\n1. **Cobrança de Ações:** Revisão das pendências pactuadas na semana anterior\n2. **Pedidos em Aberto:** Análise dos prazos de entrega vs capacidade de atração\n3. **Desistências e Ocorrências:** Casos críticos da semana e planos de contingência\n4. **Novas Regras e Tarefas:** Definição de responsáveis e prazos no sistema`,
+                pauta_topicos: `<h3>Pauta do Alinhamento WBR</h3><ul><li><strong>1. Cobrança de Ações:</strong> Revisão das pendências pactuadas na semana anterior</li><li><strong>2. Pedidos em Aberto:</strong> Análise dos prazos de entrega vs capacidade de atração</li><li><strong>3. Desistências e Ocorrências:</strong> Casos críticos da semana e planos de contingência</li><li><strong>4. Novas Regras e Tarefas:</strong> Definição de responsáveis e prazos no sistema</li></ul>`,
                 departamentos_envolvidos: ['Comercial', 'Recursos Humanos'],
-                participantesSelecionados: []
+                participantesSelecionados: [] as string[],
+                modalidade: 'hibrido' as ModalidadeReuniao,
+                local_presencial: 'Sala de Reuniões Principal (Sede Espanha)',
+                link_online: '',
+                plataforma_online: 'teams' as 'teams' | 'meet' | 'zoom' | 'outro'
               };
               setNewReuniao(defaultData);
               setIsManualEmailBodyEdit(false);
@@ -2262,9 +2337,9 @@ export const Reunioes: React.FC = () => {
                               </div>
                             </div>
 
-                            {/* Pauta com Formatação Visual Real */}
-                            <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 space-y-2">
-                              <div className="font-bold text-blue-950 dark:text-blue-300 text-xs flex items-center gap-1.5">
+                            {/* Pauta com Formatação Visual Real (Caixa Verde Idêntica ao E-mail) */}
+                            <div className="p-4 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border-l-4 border-l-emerald-600 border border-emerald-200 dark:border-emerald-800/60 space-y-2">
+                              <div className="font-extrabold text-emerald-900 dark:text-emerald-300 text-xs flex items-center gap-1.5 uppercase tracking-wider">
                                 📋 {emailLanguage === 'es' ? 'ORDEN DEL DÍA / TEMAS A TRATAR:' : emailLanguage === 'pt' ? 'PAUTA E PONTOS DE DISCUSSÃO:' : 'MEETING AGENDA:'}
                               </div>
                               {isManualEmailBodyEdit ? (
@@ -2273,8 +2348,8 @@ export const Reunioes: React.FC = () => {
                                 </div>
                               ) : (
                                 <div
-                                  className="prose prose-sm dark:prose-invert max-w-none text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-sans [&>h3]:text-xs [&>h3]:font-bold [&>h3]:text-slate-900 dark:[&>h3]:text-white [&>h3]:mt-1.5 [&>h3]:mb-0.5 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1"
-                                  dangerouslySetInnerHTML={{ __html: newReuniao.pauta_topicos }}
+                                  className="text-xs font-sans leading-relaxed"
+                                  dangerouslySetInnerHTML={{ __html: formatPautaToEmailHtml(newReuniao.pauta_topicos) }}
                                 />
                               )}
                             </div>

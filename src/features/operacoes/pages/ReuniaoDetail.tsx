@@ -214,11 +214,12 @@ export const ReuniaoDetail: React.FC = () => {
 
     // Markdown / plain text fallback
     const htmlConverted = pauta
-      .replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-slate-900 dark:text-white mt-2 mb-1">$1</h3>')
-      .replace(/^## (.*$)/gim, '<h2 class="text-base font-bold text-slate-900 dark:text-white mt-3 mb-1">$1</h2>')
+      .replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-slate-900 dark:text-white mt-3 mb-2 pb-1 border-b border-slate-200 dark:border-slate-800">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 class="text-base font-bold text-slate-900 dark:text-white mt-4 mb-2 pb-1 border-b border-slate-200 dark:border-slate-800">$1</h2>')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
-      .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
+      .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc my-1">$1</li>')
+      .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc my-1">$1</li>')
+      .replace(/^(\d+)[\.\)]\s+(.*$)/gim, '<div class="my-2 p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-750 shadow-xs"><strong class="text-emerald-600 dark:text-emerald-400 font-bold mr-2 text-sm">$1.</strong> $2</div>')
       .replace(/\n/g, '<br />');
 
     return (

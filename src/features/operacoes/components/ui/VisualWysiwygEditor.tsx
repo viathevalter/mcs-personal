@@ -31,17 +31,26 @@ export const VisualWysiwygEditor: React.FC<VisualWysiwygEditorProps> = ({
   useEffect(() => {
     if (editorRef.current && !isUpdatingRef.current) {
       if (editorRef.current.innerHTML !== value) {
-        // Se o valor estiver em markdown legado (ex: com ### ou **), converter para HTML limpo
+        // Se o valor estiver em markdown ou texto simples com listas, converter para HTML limpo
         let htmlVal = value || '';
-        if (htmlVal.includes('###') || htmlVal.includes('**')) {
+        let converted = false;
+
+        if (htmlVal.includes('###') || htmlVal.includes('**') || /^\d+[\.\)]\s/m.test(htmlVal) || /\n\d+[\.\)]\s/.test(htmlVal)) {
           htmlVal = htmlVal
-            .replace(/^### (.*$)/gim, '<h3 style="font-size: 16px; font-weight: 800; color: #1e293b; margin: 8px 0;">$1</h3>')
-            .replace(/^## (.*$)/gim, '<h2 style="font-size: 18px; font-weight: 800; color: #1e293b; margin: 10px 0;">$1</h2>')
+            .replace(/^### (.*$)/gim, '<h3 style="font-size: 15px; font-weight: 800; color: #1e293b; margin: 8px 0;">$1</h3>')
+            .replace(/^## (.*$)/gim, '<h2 style="font-size: 17px; font-weight: 800; color: #1e293b; margin: 10px 0;">$1</h2>')
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/(?:^|\n)(\d+)[\.\)]\s+(.*?)(?=\n\d+[\.\)]|\n[*-]|\n\n|$)/gs, '<p><strong>$1.</strong> $2</p>')
+            .replace(/(?:^|\n)[*-]\s+(.*?)(?=\n[*-]|\n\d+[\.\)]|\n\n|$)/gs, '<li>$1</li>')
             .replace(/\n/g, '<br/>');
+          converted = true;
         }
+
         editorRef.current.innerHTML = htmlVal;
+        if (converted) {
+          onChange(htmlVal);
+        }
       }
     }
   }, [value]);
