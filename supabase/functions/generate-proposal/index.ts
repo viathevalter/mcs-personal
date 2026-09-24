@@ -27,6 +27,13 @@ async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8
           content = content.replace(/\{\{\s*IMAGE\s*:\s*([a-zA-Z0-9_]+)\s*\}\}/gi, '{{IMAGE $1}}');
         }
 
+        // 3. Clean raw & that are not XML entities in <w:t> tags
+        if (content.includes('&')) {
+          content = content.replace(/<w:t\b([^>]*)>([\s\S]*?)<\/w:t>/g, (_match, attrs, text) => {
+            return `<w:t${attrs}>${text.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;')}</w:t>`;
+          });
+        }
+
         if (content !== originalContent) {
           console.log(`[normalizeDocx] Saved normalized XML content for ${path}`);
           zip.file(path, content);

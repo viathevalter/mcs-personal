@@ -285,6 +285,16 @@ async function sendMailViaGraph(
   }
 }
 
+function escapeXml(str: any): string {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 async function embedSignatureInDocx(
   supabase: any,
   documentUrl: string,
@@ -425,11 +435,11 @@ async function embedSignatureInDocx(
         <w:p><w:r><w:br w:type="page"/></w:r></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:before="240" w:after="120"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:color w:val="1E40AF"/></w:rPr><w:t>COMPROBANTE DE FIRMA ELECTRÓNICA</w:t></w:r></w:p>
         <w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="240"/></w:pPr><w:r><w:rPr><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/><w:color w:val="64748B"/></w:rPr><w:t>Validez Jurídica eIDAS / Reglamento (UE) Nº 910/2014</w:t></w:r></w:p>
-        <w:p><w:pPr><w:spacing w:before="120" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Cliente / Signatario: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.clientOrLeadName}</w:t></w:r></w:p>
-        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>E-mail de Notificación: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.emailUsed}</w:t></w:r></w:p>
-        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Código de Autenticación OTP: </w:t></w:r><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="1E40AF"/></w:rPr><w:t>${auditInfo.otpCode}</w:t></w:r></w:p>
-        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Fecha y Hora de Firma: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.signedAtIso}</w:t></w:r></w:p>
-        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Dirección IP Registrada: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${auditInfo.ipAddress}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="120" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Cliente / Signatario: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${escapeXml(auditInfo.clientOrLeadName)}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>E-mail de Notificación: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${escapeXml(auditInfo.emailUsed)}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Código de Autenticación OTP: </w:t></w:r><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="1E40AF"/></w:rPr><w:t>${escapeXml(auditInfo.otpCode)}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Fecha y Hora de Firma: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${escapeXml(auditInfo.signedAtIso)}</w:t></w:r></w:p>
+        <w:p><w:pPr><w:spacing w:before="60" w:after="60"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Dirección IP Registrada: </w:t></w:r><w:r><w:rPr><w:sz w:val="20"/><w:color w:val="0F172A"/></w:rPr><w:t>${escapeXml(auditInfo.ipAddress)}</w:t></w:r></w:p>
         <w:p><w:pPr><w:spacing w:before="60" w:after="160"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Estado de la Firma: </w:t></w:r><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="16A34A"/></w:rPr><w:t>FIRMADO Y AUDITADO</w:t></w:r></w:p>
         <w:p><w:pPr><w:spacing w:before="120" w:after="80"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="20"/><w:color w:val="334155"/></w:rPr><w:t>Firma Digitalizada:</w:t></w:r></w:p>
         <w:p><w:pPr><w:jc w:val="left"/><w:spacing w:before="40" w:after="240"/></w:pPr>${certInlineImgXml}</w:p>
@@ -440,7 +450,29 @@ async function embedSignatureInDocx(
       }
     }
 
+    // 4. Sanitize all <w:t> text nodes in docXml to ensure no raw ampersands exist
+    docXml = docXml.replace(/<w:t\b([^>]*)>([\s\S]*?)<\/w:t>/g, (_match, attrs, text) => {
+      const sanitized = text.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;');
+      return `<w:t${attrs}>${sanitized}</w:t>`;
+    });
+
     zip.file("word/document.xml", docXml);
+
+    // 5. Sanitize any other XML files in zip (headers, footers, etc.)
+    for (const [path, file] of Object.entries(zip.files)) {
+      if (path.endsWith('.xml') && path !== 'word/document.xml') {
+        const xmlContent = await file.async('string');
+        if (xmlContent.includes('&')) {
+          const sanitizedXml = xmlContent.replace(/<w:t\b([^>]*)>([\s\S]*?)<\/w:t>/g, (_match, attrs, text) => {
+            return `<w:t${attrs}>${text.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;')}</w:t>`;
+          });
+          if (sanitizedXml !== xmlContent) {
+            zip.file(path, sanitizedXml);
+          }
+        }
+      }
+    }
+
     const finalDoc = await zip.generateAsync({ type: "uint8array" });
 
     console.log(`[embedSignature] Uploading signed docx back to storage: ${documentUrl}`);
