@@ -5,7 +5,8 @@ import {
   Sparkles, TrendingUp, Layers, ChevronRight, Play, Check, ShieldAlert,
   ArrowUpRight, RefreshCw, X, MessageSquare, Repeat, Target, UserCheck,
   Building2, Briefcase, Mail, Send, Globe, AtSign, CheckSquare, Info,
-  LayoutGrid, List, CalendarClock, Ban, Trash2, MoreVertical, AlertTriangle
+  LayoutGrid, List, CalendarClock, Ban, Trash2, MoreVertical, AlertTriangle,
+  Eye, Edit3
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
@@ -77,6 +78,48 @@ export const Reunioes: React.FC = () => {
   const [emailSubject, setEmailSubject] = useState('');
   const [emailBody, setEmailBody] = useState('');
   const [isManualEmailBodyEdit, setIsManualEmailBodyEdit] = useState(false);
+  const [emailPreviewTab, setEmailPreviewTab] = useState<'visual' | 'edit'>('visual');
+
+  // Conversor de HTML para Texto Limpo sem tags (para o editor de texto do e-mail)
+  const htmlToCleanPlainText = (html: string): string => {
+    if (!html) return '';
+    let str = html;
+
+    // Converte cabeçalhos em marcadores de seção
+    str = str.replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '\n📌 $1\n');
+
+    // Converte itens de lista em marcadores com recuo
+    str = str.replace(/<li[^>]*>(.*?)<\/li>/gi, '  • $1\n');
+
+    // Converte quebras de linha e blocos
+    str = str.replace(/<br\s*[\/]?>/gi, '\n');
+    str = str.replace(/<\/p>/gi, '\n');
+    str = str.replace(/<p[^>]*>/gi, '');
+    str = str.replace(/<\/div>/gi, '\n');
+    str = str.replace(/<div[^>]*>/gi, '');
+
+    // Remove todas as outras tags HTML (strong, span, u, ul, ol, etc)
+    str = str.replace(/<[^>]+>/gi, '');
+
+    // Decodifica entidades HTML
+    str = str
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'");
+
+    // Limpa quebras de linhas repetidas
+    str = str
+      .split('\n')
+      .map(line => line.trimEnd())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    return str;
+  };
 
   // Gerador de Templates de E-mail nos 3 Idiomas
   const generateEmailContent = (
@@ -98,9 +141,8 @@ export const Reunioes: React.FC = () => {
       ? dados.participantesSelecionados.join(', ')
       : (lang === 'pt' ? 'Todos os convocados' : lang === 'es' ? 'Todos los convocados' : 'All participants');
 
-    const pautaLimpa = dados.pauta_topicos
-      .replace(/[#*`]/g, '')
-      .trim();
+    // Converte a pauta HTML em texto limpo com marcadores e SEM NENHUMA tag de código
+    const pautaLimpa = htmlToCleanPlainText(dados.pauta_topicos);
 
     if (lang === 'es') {
       return {
@@ -412,10 +454,68 @@ export const Reunioes: React.FC = () => {
 
         if (toEmails.length > 0) {
           try {
-            const linkRegex = /(https?:\/\/[^\s]+)/g;
-            const htmlFormattedBody = emailBody
-              .replace(linkRegex, (url) => `<a href="${url}" style="color: #2563eb; font-weight: bold; text-decoration: underline;">${url}</a>`)
-              .replace(/\n/g, '<br/>');
+            let contentBodyHtml = '';
+            if (isManualEmailBodyEdit) {
+              const linkRegex = /(https?:\/\/[^\s]+)/g;
+              contentBodyHtml = emailBody
+                .replace(linkRegex, (url) => `<a href="${url}" style="color: #2563eb; font-weight: bold; text-decoration: underline;">${url}</a>`)
+                .replace(/\n/g, '<br/>');
+            } else {
+              const dataObj = new Date(newReuniao.data_reuniao);
+              const dateFormatted = dataObj.toLocaleDateString(
+                emailLanguage === 'pt' ? 'pt-BR' : emailLanguage === 'es' ? 'es-ES' : 'en-US',
+                { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }
+              );
+              const timeFormatted = dataObj.toLocaleTimeString(
+                emailLanguage === 'pt' ? 'pt-BR' : emailLanguage === 'es' ? 'es-ES' : 'en-US',
+                { hour: '2-digit', minute: '2-digit' }
+              );
+              const deptsStr = newReuniao.departamentos_envolvidos.join(' • ') || 'Operaciones';
+              const participantsStr = newReuniao.participantesSelecionados.length > 0
+                ? newReuniao.participantesSelecionados.join(', ')
+                : (emailLanguage === 'pt' ? 'Todos os convocados' : emailLanguage === 'es' ? 'Todos los convocados' : 'All participants');
+
+              const saudacao = emailLanguage === 'pt'
+                ? 'Prezada equipe,<br/><br/>Vocês foram convocados para a reunião de alinhamento interdepartamental:'
+                : emailLanguage === 'es'
+                ? 'Estimado equipo,<br/><br/>Han sido convocados a la reunión de alineación interdepartamental:'
+                : 'Dear team,<br/><br/>You are invited to the cross-departmental alignment meeting:';
+
+              const tituloLabel = emailLanguage === 'es' ? 'TÍTULO' : emailLanguage === 'pt' ? 'TÍTULO' : 'TITLE';
+              const deptsLabel = emailLanguage === 'es' ? 'DEPARTAMENTOS' : emailLanguage === 'pt' ? 'DEPARTAMENTOS' : 'DEPARTMENTS';
+              const dataLabel = emailLanguage === 'es' ? 'FECHA' : emailLanguage === 'pt' ? 'DATA' : 'DATE';
+              const horaLabel = emailLanguage === 'es' ? 'HORA' : emailLanguage === 'pt' ? 'HORÁRIO' : 'TIME';
+              const duracaoLabel = emailLanguage === 'es' ? 'DURACIÓN PREVISTA' : emailLanguage === 'pt' ? 'DURAÇÃO PREVISTA' : 'ESTIMATED DURATION';
+              const convocadosLabel = emailLanguage === 'es' ? 'CONVOCADOS' : emailLanguage === 'pt' ? 'CONVOCADOS' : 'INVITED PARTICIPANTS';
+              const pautaLabel = emailLanguage === 'es' ? 'ORDEN DEL DÍA / TEMAS A TRATAR' : emailLanguage === 'pt' ? 'PAUTA E PONTOS DE DISCUSSÃO' : 'MEETING AGENDA';
+
+              const despedida = emailLanguage === 'pt'
+                ? 'Contamos com a pontualidade e participação ativa de todos para alinhamento dos fluxos e resolução dos gargalos operacionais.<br/><br/>Atenciosamente,<br/><strong>MCS Personal - Gestão Operacional</strong>'
+                : emailLanguage === 'es'
+                ? 'Agradecemos la puntualidad y el compromiso de todos para mantener nuestros procesos alineados y eficientes.<br/><br/>Atentamente,<br/><strong>MCS Personal - Gestión Operativa</strong>'
+                : 'Please ensure punctuality as we review performance and resolve cross-functional bottlenecks.<br/><br/>Best regards,<br/><strong>MCS Personal - Operations Management</strong>';
+
+              contentBodyHtml = `
+                <p style="margin: 0 0 16px 0;">${saudacao}</p>
+                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 13px; line-height: 1.6;">
+                  <p style="margin: 3px 0;"><strong>📌 ${tituloLabel}:</strong> ${newReuniao.titulo}</p>
+                  <p style="margin: 3px 0;"><strong>🏢 ${deptsLabel}:</strong> ${deptsStr}</p>
+                  <p style="margin: 3px 0;"><strong>📅 ${dataLabel}:</strong> ${dateFormatted}</p>
+                  <p style="margin: 3px 0;"><strong>⏰ ${horaLabel}:</strong> ${timeFormatted}</p>
+                  <p style="margin: 3px 0;"><strong>⏱️ ${duracaoLabel}:</strong> ${newReuniao.duracao_minutos} min</p>
+                  <p style="margin: 3px 0;"><strong>👥 ${convocadosLabel}:</strong> ${participantsStr}</p>
+                </div>
+                <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 6px; padding: 14px 18px; margin: 18px 0;">
+                  <div style="font-weight: bold; color: #166534; font-size: 13px; margin-bottom: 8px;">
+                    📋 ${pautaLabel}:
+                  </div>
+                  <div style="color: #1e293b; font-size: 13px; line-height: 1.6;">
+                    ${newReuniao.pauta_topicos}
+                  </div>
+                </div>
+                <p style="margin: 16px 0 0 0; color: #475569; font-size: 13px; line-height: 1.5;">${despedida}</p>
+              `;
+            }
 
             const emailHtmlCard = `
               <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
@@ -428,7 +528,7 @@ export const Reunioes: React.FC = () => {
                   </h2>
                 </div>
                 <div style="padding: 28px; color: #334155; font-size: 14px; line-height: 1.6;">
-                  ${htmlFormattedBody}
+                  ${contentBodyHtml}
                 </div>
                 <div style="padding: 16px 28px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b;">
                   Este é um comunicado automático gerado pelo módulo de Operações e Alinhamento da <strong>MCS Personal</strong>.
@@ -1739,12 +1839,36 @@ export const Reunioes: React.FC = () => {
                       />
                     </div>
 
-                    {/* Corpo do E-mail (Editável) */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                          Corpo do E-mail (Texto Formal)
-                        </label>
+                    {/* Corpo do E-mail (Prévia Visual + Edição) */}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-1 p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                          <button
+                            type="button"
+                            onClick={() => setEmailPreviewTab('visual')}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                              emailPreviewTab === 'visual'
+                                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            <Eye size={13} />
+                            Prévia Visual do E-mail
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEmailPreviewTab('edit')}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                              emailPreviewTab === 'edit'
+                                ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                            }`}
+                          >
+                            <Edit3 size={13} />
+                            Editar Mensagem (Texto)
+                          </button>
+                        </div>
+
                         <button
                           type="button"
                           onClick={() => {
@@ -1754,20 +1878,112 @@ export const Reunioes: React.FC = () => {
                             setEmailBody(generated.body);
                             toast.success('Modelo de e-mail regenerado!');
                           }}
-                          className="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold"
+                          className="text-[11px] text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold"
                         >
                           Restaurar Modelo Padrão
                         </button>
                       </div>
-                      <textarea
-                        rows={8}
-                        value={emailBody}
-                        onChange={e => {
-                          setEmailBody(e.target.value);
-                          setIsManualEmailBodyEdit(true);
-                        }}
-                        className="w-full p-3.5 text-xs font-mono font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
-                      />
+
+                      {/* Modo 1: Prévia Visual Real do E-mail */}
+                      {emailPreviewTab === 'visual' ? (
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-xs bg-white dark:bg-slate-900">
+                          {/* Banner Superior do E-mail */}
+                          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 p-4 text-white">
+                            <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-0.5">
+                              MCS Personal • Convocatória Oficial
+                            </div>
+                            <div className="text-sm font-black text-white">
+                              {newReuniao.titulo}
+                            </div>
+                          </div>
+
+                          {/* Corpo Formatado do E-mail */}
+                          <div className="p-4 md:p-5 space-y-3.5 text-xs text-slate-700 dark:text-slate-300">
+                            <p className="font-semibold text-slate-800 dark:text-slate-200">
+                              {emailLanguage === 'es' ? 'Estimado equipo,' : emailLanguage === 'pt' ? 'Prezada equipe,' : 'Dear team,'}
+                            </p>
+                            <p>
+                              {emailLanguage === 'es'
+                                ? 'Han sido convocados a la reunión de alineación interdepartamental:'
+                                : emailLanguage === 'pt'
+                                ? 'Vocês foram convocados para a reunião de alinhamento interdepartamental:'
+                                : 'You are invited to the cross-departmental alignment meeting:'}
+                            </p>
+
+                            {/* Cartão de Detalhes da Reunião */}
+                            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-750 space-y-1.5 font-sans">
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white">📌 {emailLanguage === 'es' ? 'TÍTULO' : emailLanguage === 'pt' ? 'TÍTULO' : 'TITLE'}:</span>{' '}
+                                {newReuniao.titulo}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white">🏢 {emailLanguage === 'es' ? 'DEPARTAMENTOS' : emailLanguage === 'pt' ? 'DEPARTAMENTOS' : 'DEPARTMENTS'}:</span>{' '}
+                                {newReuniao.departamentos_envolvidos.join(' • ')}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white">📅 {emailLanguage === 'es' ? 'FECHA' : emailLanguage === 'pt' ? 'DATA' : 'DATE'}:</span>{' '}
+                                {new Date(newReuniao.data_reuniao).toLocaleDateString(emailLanguage === 'pt' ? 'pt-BR' : emailLanguage === 'es' ? 'es-ES' : 'en-US', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white">⏰ {emailLanguage === 'es' ? 'HORA' : emailLanguage === 'pt' ? 'HORÁRIO' : 'TIME'}:</span>{' '}
+                                {new Date(newReuniao.data_reuniao).toLocaleTimeString(emailLanguage === 'pt' ? 'pt-BR' : emailLanguage === 'es' ? 'es-ES' : 'en-US', { hour: '2-digit', minute: '2-digit' })}{' '}
+                                ({newReuniao.duracao_minutos} min)
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 dark:text-white">👥 {emailLanguage === 'es' ? 'CONVOCADOS' : emailLanguage === 'pt' ? 'CONVOCADOS' : 'INVITED'}:</span>{' '}
+                                {newReuniao.participantesSelecionados.length > 0 ? newReuniao.participantesSelecionados.join(', ') : 'Todos os convocados'}
+                              </div>
+                            </div>
+
+                            {/* Pauta com Formatação Visual Real */}
+                            <div className="p-4 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 space-y-2">
+                              <div className="font-bold text-blue-950 dark:text-blue-300 text-xs flex items-center gap-1.5">
+                                📋 {emailLanguage === 'es' ? 'ORDEN DEL DÍA / TEMAS A TRATAR:' : emailLanguage === 'pt' ? 'PAUTA E PONTOS DE DISCUSSÃO:' : 'MEETING AGENDA:'}
+                              </div>
+                              {isManualEmailBodyEdit ? (
+                                <div className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans leading-relaxed">
+                                  {emailBody}
+                                </div>
+                              ) : (
+                                <div
+                                  className="prose prose-sm dark:prose-invert max-w-none text-xs text-slate-800 dark:text-slate-200 leading-relaxed font-sans [&>h3]:text-xs [&>h3]:font-bold [&>h3]:text-slate-900 dark:[&>h3]:text-white [&>h3]:mt-1.5 [&>h3]:mb-0.5 [&>ul]:list-disc [&>ul]:ml-4 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-4 [&>ol]:space-y-1"
+                                  dangerouslySetInnerHTML={{ __html: newReuniao.pauta_topicos }}
+                                />
+                              )}
+                            </div>
+
+                            <p className="text-slate-500 italic">
+                              {emailLanguage === 'es'
+                                ? 'Agradecemos la puntualidad y el compromiso de todos para mantener nuestros procesos alineados y eficientes.'
+                                : emailLanguage === 'pt'
+                                ? 'Contamos com a pontualidade e participação ativa de todos para alinhamento dos fluxos e resolução dos gargalos operacionais.'
+                                : 'Please ensure punctuality as we review performance and resolve cross-functional bottlenecks.'}
+                            </p>
+
+                            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-400">
+                              Atentamente,<br />
+                              <strong className="text-slate-700 dark:text-slate-300">MCS Personal • Gestão Operacional</strong>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Modo 2: Edição Manual do Texto (Sem tags de código) */
+                        <div className="space-y-1.5">
+                          <textarea
+                            rows={8}
+                            value={emailBody}
+                            onChange={e => {
+                              setEmailBody(e.target.value);
+                              setIsManualEmailBodyEdit(true);
+                            }}
+                            placeholder="Personalize o texto do e-mail livremente..."
+                            className="w-full p-3.5 text-xs font-sans rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                          />
+                          <p className="text-[11px] text-slate-400">
+                            Texto limpo sem tags de código HTML. Use a aba "Prévia Visual" para ver como ficará na caixa de entrada.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
