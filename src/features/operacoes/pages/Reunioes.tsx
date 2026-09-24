@@ -4,7 +4,7 @@ import {
   Users, Calendar, Clock, CheckCircle2, AlertCircle, Plus, Search,
   Sparkles, TrendingUp, Layers, ChevronRight, Play, Check, ShieldAlert,
   ArrowUpRight, RefreshCw, X, MessageSquare, Repeat, Target, UserCheck,
-  Building2, Briefcase, Mail
+  Building2, Briefcase, Mail, Send, Globe, AtSign, CheckSquare, Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
@@ -51,10 +51,62 @@ export const Reunioes: React.FC = () => {
     participantesSelecionados: [] as string[]
   });
 
+  // Estados da Notificação por E-mail
+  const [sendEmailNotification, setSendEmailNotification] = useState(true);
+  const [emailLanguage, setEmailLanguage] = useState<'es' | 'pt' | 'en'>('es');
+  const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
+  const [additionalEmails, setAdditionalEmails] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [isManualEmailBodyEdit, setIsManualEmailBodyEdit] = useState(false);
+
+  // Gerador de Templates de E-mail nos 3 Idiomas
+  const generateEmailContent = (
+    lang: 'es' | 'pt' | 'en',
+    dados: typeof newReuniao
+  ) => {
+    const dataObj = new Date(dados.data_reuniao);
+    const dateFormatted = dataObj.toLocaleDateString(
+      lang === 'pt' ? 'pt-BR' : lang === 'es' ? 'es-ES' : 'en-US',
+      { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }
+    );
+    const timeFormatted = dataObj.toLocaleTimeString(
+      lang === 'pt' ? 'pt-BR' : lang === 'es' ? 'es-ES' : 'en-US',
+      { hour: '2-digit', minute: '2-digit' }
+    );
+
+    const deptsStr = dados.departamentos_envolvidos.join(' • ') || 'Operaciones';
+    const participantsStr = dados.participantesSelecionados.length > 0
+      ? dados.participantesSelecionados.join(', ')
+      : (lang === 'pt' ? 'Todos os convocados' : lang === 'es' ? 'Todos los convocados' : 'All participants');
+
+    // Limpar markdown da pauta para texto fluido de e-mail
+    const pautaLimpa = dados.pauta_topicos
+      .replace(/[#*`]/g, '')
+      .trim();
+
+    if (lang === 'es') {
+      return {
+        subject: `[Convocatoria] ${dados.titulo} - ${dateFormatted} a las ${timeFormatted}`,
+        body: `Estimado equipo,\n\nHan sido convocados a la reunión de alineación interdepartamental:\n\n📌 TÍTULO: ${dados.titulo}\n🏢 DEPARTAMENTOS: ${deptsStr}\n📅 FECHA: ${dateFormatted}\n⏰ HORA: ${timeFormatted}\n⏱️ DURACIÓN PREVISTA: ${dados.duracao_minutos} minutos\n👥 CONVOCADOS: ${participantsStr}\n\n📋 ORDEN DEL DÍA / TEMAS A TRATAR:\n${pautaLimpa}\n\nAgradecemos la puntualidad y el compromiso de todos para mantener nuestros procesos alineados y eficientes.\n\nAtentamente,\nMCS Personal - Gestión Operativa`
+      };
+    } else if (lang === 'pt') {
+      return {
+        subject: `[Convocação] ${dados.titulo} - ${dateFormatted} às ${timeFormatted}`,
+        body: `Prezada equipe,\n\nVocês foram convocados para a reunião de alinhamento interdepartamental:\n\n📌 TÍTULO: ${dados.titulo}\n🏢 DEPARTAMENTOS: ${deptsStr}\n📅 DATA: ${dateFormatted}\n⏰ HORÁRIO: ${timeFormatted}\n⏱️ DURAÇÃO PREVISTA: ${dados.duracao_minutos} minutos\n👥 CONVOCADOS: ${participantsStr}\n\n📋 PAUTA E PONTOS DE DISCUSSÃO:\n${pautaLimpa}\n\nContamos com a pontualidade e participação ativa de todos para alinhamento dos fluxos e resolução dos gargalos operacionais.\n\nAtenciosamente,\nMCS Personal - Gestão Operacional`
+      };
+    } else {
+      return {
+        subject: `[Meeting Invitation] ${dados.titulo} - ${dateFormatted} at ${timeFormatted}`,
+        body: `Dear team,\n\nYou are invited to the cross-departmental alignment meeting:\n\n📌 TITLE: ${dados.titulo}\n🏢 DEPARTMENTS: ${deptsStr}\n📅 DATE: ${dateFormatted}\n⏰ TIME: ${timeFormatted}\n⏱️ ESTIMATED DURATION: ${dados.duracao_minutos} minutes\n👥 INVITED PARTICIPANTS: ${participantsStr}\n\n📋 MEETING AGENDA:\n${pautaLimpa}\n\nPlease ensure punctuality as we review performance and resolve cross-functional bottlenecks.\n\nBest regards,\nMCS Personal - Operations Management`
+      };
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
-      const [list, depts, { data: membersData, error: membersErr }] = await Promise.all([
+      const [list, depts, { data: membersData }] = await Promise.all([
         reunioesService.listReunioes({
           tipo: selectedTipo !== 'todos' ? selectedTipo : undefined,
           status: selectedStatus !== 'todos' ? selectedStatus : undefined
@@ -124,10 +176,7 @@ export const Reunioes: React.FC = () => {
   const funcionariosDisponiveis = useMemo(() => {
     if (newReuniao.departamentos_envolvidos.length === 0) return [];
     
-    // Normalizar nomes dos departamentos selecionados
     const deptsSelecionadosLower = newReuniao.departamentos_envolvidos.map(d => d.toLowerCase().trim());
-
-    // Mapear também IDs de departamentos correspondentes
     const deptIdsSelecionados = departments
       .filter(d => deptsSelecionadosLower.includes(d.name?.toLowerCase().trim()))
       .map(d => d.id);
@@ -138,6 +187,39 @@ export const Reunioes: React.FC = () => {
       return matchName || matchId;
     });
   }, [newReuniao.departamentos_envolvidos, allEmployees, departments]);
+
+  // Sincronizar e-mails dos convocados
+  const convocadosComEmail = useMemo(() => {
+    return allEmployees.filter(emp => 
+      newReuniao.participantesSelecionados.includes(emp.nombrecompleto) && 
+      emp.correoempresarial && 
+      emp.correoempresarial.includes('@')
+    );
+  }, [newReuniao.participantesSelecionados, allEmployees]);
+
+  // Atualizar destinatários selecionados automaticamente quando participantes mudam
+  useEffect(() => {
+    const validEmails = Array.from(new Set(convocadosComEmail.map(e => e.correoempresarial!.trim())));
+    setSelectedEmails(validEmails);
+  }, [convocadosComEmail]);
+
+  // Atualizar Assunto e Corpo do E-mail quando os dados principais mudarem (a menos que o usuário tenha editado manualmente)
+  useEffect(() => {
+    if (!isManualEmailBodyEdit) {
+      const generated = generateEmailContent(emailLanguage, newReuniao);
+      setEmailSubject(generated.subject);
+      setEmailBody(generated.body);
+    }
+  }, [newReuniao.titulo, newReuniao.data_reuniao, newReuniao.duracao_minutos, newReuniao.departamentos_envolvidos, newReuniao.participantesSelecionados, newReuniao.pauta_topicos, emailLanguage]);
+
+  // Ao trocar o idioma do e-mail explicitamente
+  const handleLanguageChange = (lang: 'es' | 'pt' | 'en') => {
+    setEmailLanguage(lang);
+    setIsManualEmailBodyEdit(false);
+    const generated = generateEmailContent(lang, newReuniao);
+    setEmailSubject(generated.subject);
+    setEmailBody(generated.body);
+  };
 
   // Ao trocar o Tipo de Alinhamento
   const handleTipoChange = (tipo: TipoReuniao) => {
@@ -167,7 +249,6 @@ export const Reunioes: React.FC = () => {
         updatedDepts = [...prev.departamentos_envolvidos, deptName];
       }
 
-      // Ajustar título amigável se for alinhamento livre
       const novoTitulo = updatedDepts.length > 0
         ? `Alinhamento: ${updatedDepts.join(' × ')}`
         : 'Alinhamento Intersetorial';
@@ -219,7 +300,7 @@ export const Reunioes: React.FC = () => {
     }));
   };
 
-  // Criar / Agendar Reunião
+  // Criar / Agendar Reunião & Disparar E-mails
   const handleCreateReuniao = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newReuniao.titulo.trim()) {
@@ -234,6 +315,7 @@ export const Reunioes: React.FC = () => {
 
     setCreating(true);
     try {
+      // 1. Criar reunião no banco de dados
       const created = await reunioesService.createReuniao({
         titulo: newReuniao.titulo,
         tipo: newReuniao.tipo,
@@ -246,7 +328,70 @@ export const Reunioes: React.FC = () => {
         status: 'agendada'
       });
 
-      toast.success('Reunião agendada com sucesso!');
+      // 2. Disparar e-mails se a notificação estiver ativada
+      if (sendEmailNotification) {
+        const toEmails = [...selectedEmails];
+        if (additionalEmails.trim()) {
+          additionalEmails.split(',').forEach(em => {
+            const trimmed = em.trim();
+            if (trimmed && trimmed.includes('@') && !toEmails.includes(trimmed)) {
+              toEmails.push(trimmed);
+            }
+          });
+        }
+
+        if (toEmails.length > 0) {
+          try {
+            // Formatar corpo em HTML corporativo elegante
+            const linkRegex = /(https?:\/\/[^\s]+)/g;
+            const htmlFormattedBody = emailBody
+              .replace(linkRegex, (url) => `<a href="${url}" style="color: #2563eb; font-weight: bold; text-decoration: underline;">${url}</a>`)
+              .replace(/\n/g, '<br/>');
+
+            const emailHtmlCard = `
+              <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background-color: #ffffff;">
+                <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 24px 28px; color: #ffffff;">
+                  <div style="font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; color: #60a5fa; margin-bottom: 6px;">
+                    MCS Personal • Convocatória Oficial
+                  </div>
+                  <h2 style="margin: 0; font-size: 20px; font-weight: 800; color: #ffffff; line-height: 1.3;">
+                    ${newReuniao.titulo}
+                  </h2>
+                </div>
+                <div style="padding: 28px; color: #334155; font-size: 14px; line-height: 1.6;">
+                  ${htmlFormattedBody}
+                </div>
+                <div style="padding: 16px 28px; background-color: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #64748b;">
+                  Este é um comunicado automático gerado pelo módulo de Operações e Alinhamento da <strong>MCS Personal</strong>.
+                </div>
+              </div>
+            `;
+
+            const { error: mailErr } = await supabase.functions.invoke('send-order-notification', {
+              body: {
+                to_emails: toEmails,
+                email_subject: emailSubject,
+                email_body: emailHtmlCard
+              }
+            });
+
+            if (mailErr) {
+              console.warn('Aviso ao enviar e-mails de convocação:', mailErr);
+              toast.warning(`Reunião agendada, mas ocorreu um erro no envio dos e-mails: ${mailErr.message}`);
+            } else {
+              toast.success(`E-mails de convocação enviados com sucesso para ${toEmails.length} destinatários!`);
+            }
+          } catch (mErr: any) {
+            console.warn('Falha na chamada de e-mail:', mErr);
+            toast.warning('Reunião agendada, mas os e-mails não puderam ser entregues.');
+          }
+        } else {
+          toast.info('Reunião agendada sem envio de e-mails (nenhum destinatário com e-mail selecionado).');
+        }
+      } else {
+        toast.success('Reunião agendada com sucesso!');
+      }
+
       setIsModalOpen(false);
       await loadData();
       if (created?.id) {
@@ -284,23 +429,28 @@ export const Reunioes: React.FC = () => {
             Reuniões & Alinhamentos Interdepartamentais
           </h1>
           <p className="text-slate-300 text-sm max-w-2xl leading-relaxed">
-            Elimine atritos entre Comercial, RH, Logística e Financeiro. Conduza encontros orientados a dados reais, convoque os colaboradores-chave e acompanhe o cumprimento das ações no sistema.
+            Elimine atritos entre Comercial, RH, Logística e Financeiro. Conduza encontros orientados a dados reais, convoque os colaboradores-chave com disparos de e-mail integrados e acompanhe o cumprimento das ações no sistema.
           </p>
         </div>
 
         <div className="flex items-center gap-3 relative z-10 self-start md:self-center">
           <button
             onClick={() => {
-              setNewReuniao({
+              const defaultData = {
                 titulo: 'Alinhamento Semanal: Comercial × Recursos Humanos',
-                tipo: 'comercial_rh',
+                tipo: 'comercial_rh' as TipoReuniao,
                 recorrente: true,
                 data_reuniao: new Date().toISOString().slice(0, 16),
                 duracao_minutos: 45,
                 pauta_topicos: `### Pauta do Alinhamento WBR\n1. **Cobrança de Ações:** Revisão das pendências pactuadas na semana anterior\n2. **Pedidos em Aberto:** Análise dos prazos de entrega vs capacidade de atração\n3. **Desistências e Ocorrências:** Casos críticos da semana e planos de contingência\n4. **Novas Regras e Tarefas:** Definição de responsáveis e prazos no sistema`,
                 departamentos_envolvidos: ['Comercial', 'Recursos Humanos'],
                 participantesSelecionados: []
-              });
+              };
+              setNewReuniao(defaultData);
+              setIsManualEmailBodyEdit(false);
+              const generated = generateEmailContent('es', defaultData);
+              setEmailSubject(generated.subject);
+              setEmailBody(generated.body);
               setIsModalOpen(true);
             }}
             className="flex items-center gap-2 px-5 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -667,7 +817,7 @@ export const Reunioes: React.FC = () => {
                     Agendar Alinhamento Intersetorial
                   </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Defina os departamentos envolvidos, convoque os colaboradores e estruture a pauta.
+                    Defina os departamentos envolvidos, convoque os colaboradores, configure o e-mail oficial e estruture a pauta.
                   </p>
                 </div>
               </div>
@@ -742,7 +892,6 @@ export const Reunioes: React.FC = () => {
                     const isSelected = newReuniao.departamentos_envolvidos.some(
                       d => d.toLowerCase().trim() === dept.name?.toLowerCase().trim()
                     );
-                    // Quantidade de funcionários ativos nesse departamento
                     const countEmps = allEmployees.filter(
                       e => e.department_name?.toLowerCase().trim() === dept.name?.toLowerCase().trim() ||
                            e.department_id === dept.id
@@ -856,7 +1005,6 @@ export const Reunioes: React.FC = () => {
                                       : 'bg-slate-50/60 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                                   }`}
                                 >
-                                  {/* Checkbox custom */}
                                   <div className={`w-5 h-5 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
                                     isSelected
                                       ? 'bg-emerald-600 text-white'
@@ -1004,9 +1152,200 @@ export const Reunioes: React.FC = () => {
                     value={newReuniao.pauta_topicos}
                     onChange={(val) => setNewReuniao({ ...newReuniao, pauta_topicos: val })}
                     placeholder="Estruture aqui os tópicos da pauta, pontos de atenção e metas do encontro..."
-                    minHeight="220px"
+                    minHeight="200px"
                   />
                 </div>
+              </div>
+
+              {/* 6. DISPARO E FORMATAÇÃO DE E-MAIL (NOVO) */}
+              <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
+                {/* Trigger Checkbox Principal */}
+                <div className="flex items-center justify-between p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 transition-all">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
+                      <Mail size={20} />
+                    </div>
+                    <div>
+                      <label htmlFor="chk_send_email" className="text-xs font-bold text-slate-900 dark:text-white cursor-pointer flex items-center gap-2">
+                        6. Disparar Convocação Oficial por E-mail?
+                      </label>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Gera o e-mail formal com a pauta e dispara aos colaboradores convocados.
+                      </p>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    id="chk_send_email"
+                    checked={sendEmailNotification}
+                    onChange={e => setSendEmailNotification(e.target.checked)}
+                    className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                </div>
+
+                {sendEmailNotification && (
+                  <div className="p-5 rounded-2xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-800 space-y-5 animate-fade-in">
+                    
+                    {/* Seletor de Idioma do E-mail */}
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block flex items-center gap-1.5">
+                        <Globe size={14} className="text-blue-500" />
+                        Idioma da Notificação
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleLanguageChange('es')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                            emailLanguage === 'es'
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          <span>🇪🇸</span> Espanhol (Espanha / Padrão)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLanguageChange('pt')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                            emailLanguage === 'pt'
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          <span>🇵🇹</span> Português
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleLanguageChange('en')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                            emailLanguage === 'en'
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          <span>🇬🇧</span> Inglês
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Destinatários com E-mail */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block flex items-center gap-1.5">
+                          <Users size={14} className="text-emerald-500" />
+                          Destinatários Selecionados ({selectedEmails.length})
+                        </label>
+                        <span className="text-[11px] text-slate-400">
+                          {convocadosComEmail.length} dos colaboradores convocados possuem e-mail corporativo
+                        </span>
+                      </div>
+
+                      {convocadosComEmail.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-900/50 flex items-center justify-center gap-2">
+                          <Info size={15} />
+                          Nenhum dos colaboradores convocados possui e-mail empresarial cadastrado. Você pode inserir e-mails manualmente abaixo.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                          {convocadosComEmail.map(emp => {
+                            const email = emp.correoempresarial!.trim();
+                            const isChecked = selectedEmails.includes(email);
+                            return (
+                              <label
+                                key={emp.id}
+                                className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer text-xs transition-colors ${
+                                  isChecked
+                                    ? 'bg-emerald-50/60 dark:bg-emerald-950/20 text-slate-900 dark:text-white'
+                                    : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={e => {
+                                    if (e.target.checked) {
+                                      setSelectedEmails(prev => [...prev, email]);
+                                    } else {
+                                      setSelectedEmails(prev => prev.filter(em => em !== email));
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div className="min-w-0 flex-1 truncate">
+                                  <span className="font-semibold">{emp.nombrecompleto}</span>
+                                  <span className="text-[11px] text-slate-400 block truncate">{email}</span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* E-mails Adicionais */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block flex items-center gap-1.5">
+                        <AtSign size={13} className="text-slate-400" />
+                        E-mails Adicionais (separados por vírgula)
+                      </label>
+                      <input
+                        type="text"
+                        value={additionalEmails}
+                        onChange={e => setAdditionalEmails(e.target.value)}
+                        placeholder="diretoria@mcspersonal.com, gestao@mcspersonal.com"
+                        className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* Assunto do E-mail */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                        Assunto do E-mail
+                      </label>
+                      <input
+                        type="text"
+                        value={emailSubject}
+                        onChange={e => {
+                          setEmailSubject(e.target.value);
+                          setIsManualEmailBodyEdit(true);
+                        }}
+                        className="w-full px-3.5 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    {/* Corpo do E-mail (Editável) */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                          Corpo do E-mail (Texto Formal)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsManualEmailBodyEdit(false);
+                            const generated = generateEmailContent(emailLanguage, newReuniao);
+                            setEmailSubject(generated.subject);
+                            setEmailBody(generated.body);
+                            toast.success('Modelo de e-mail regenerado!');
+                          }}
+                          className="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400 font-semibold"
+                        >
+                          Restaurar Modelo Padrão
+                        </button>
+                      </div>
+                      <textarea
+                        rows={8}
+                        value={emailBody}
+                        onChange={e => {
+                          setEmailBody(e.target.value);
+                          setIsManualEmailBodyEdit(true);
+                        }}
+                        className="w-full p-3.5 text-xs font-mono font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Footer Buttons */}
@@ -1026,7 +1365,12 @@ export const Reunioes: React.FC = () => {
                   {creating ? (
                     <>
                       <RefreshCw size={14} className="animate-spin" />
-                      Agendando...
+                      Processando e Agendando...
+                    </>
+                  ) : sendEmailNotification ? (
+                    <>
+                      <Send size={14} />
+                      Confirmar, Enviar E-mails e Abrir Cockpit
                     </>
                   ) : (
                     <>
