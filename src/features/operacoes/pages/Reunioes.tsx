@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
 import { listDepartments } from '../services/incidencias';
 import { supabase } from '../services/supabaseClient';
-import { RichTextEditor } from '../components/ui/RichTextEditor';
+import { VisualWysiwygEditor } from '../components/ui/VisualWysiwygEditor';
 import type { Reuniao, TipoReuniao, StatusReuniao } from '../types/reunioes';
 import { TIPOS_REUNIAO_MAP } from '../types/reunioes';
 
@@ -64,7 +64,7 @@ export const Reunioes: React.FC = () => {
     recorrente: true,
     data_reuniao: new Date().toISOString().slice(0, 16),
     duracao_minutos: 45,
-    pauta_topicos: `### Pauta do Alinhamento WBR\n1. **Cobrança de Ações:** Revisão das pendências pactuadas na semana anterior\n2. **Pedidos em Aberto:** Análise dos prazos de entrega vs capacidade de atração\n3. **Desistências e Ocorrências:** Casos críticos da semana e planos de contingência\n4. **Novas Regras e Tarefas:** Definição de responsáveis e prazos no sistema`,
+    pauta_topicos: `<h3>Pauta do Alinhamento WBR</h3><ul><li><strong>1. Cobrança de Ações:</strong> Revisão das pendências pactuadas na semana anterior</li><li><strong>2. Pedidos em Aberto:</strong> Análise dos prazos de entrega vs capacidade de atração</li><li><strong>3. Desistências e Ocorrências:</strong> Casos críticos da semana e planos de contingência</li><li><strong>4. Novas Regras e Tarefas:</strong> Definição de responsáveis e prazos no sistema</li></ul>`,
     departamentos_envolvidos: ['Comercial', 'Recursos Humanos'],
     participantesSelecionados: [] as string[]
   });
@@ -1564,24 +1564,22 @@ export const Reunioes: React.FC = () => {
                 </div>
               </div>
 
-              {/* 5. PAUTA & TÓPICOS COM RICH TEXT EDITOR */}
+              {/* 5. PAUTA & TÓPICOS COM VISUAL WYSIWYG EDITOR */}
               <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
                     <MessageSquare size={15} className="text-indigo-500" />
-                    5. Pauta & Tópicos de Discussão (Editor Completo)
+                    5. Pauta & Tópicos de Discussão (Editor Visual em Tempo Real)
                   </label>
-                  <span className="text-[11px] text-slate-400">Use formatação rica para organizar os itens de pauta</span>
+                  <span className="text-[11px] text-slate-400">Aplique negrito, títulos, cores e listas visuais diretamente no texto</span>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden p-1">
-                  <RichTextEditor
-                    value={newReuniao.pauta_topicos}
-                    onChange={(val) => setNewReuniao({ ...newReuniao, pauta_topicos: val })}
-                    placeholder="Estruture aqui os tópicos da pauta, pontos de atenção e metas do encontro..."
-                    minHeight="200px"
-                  />
-                </div>
+                <VisualWysiwygEditor
+                  value={newReuniao.pauta_topicos}
+                  onChange={(val) => setNewReuniao({ ...newReuniao, pauta_topicos: val })}
+                  placeholder="Estruture aqui os tópicos da pauta, pontos de atenção e metas do encontro..."
+                  minHeight="220px"
+                />
               </div>
 
               {/* 6. DISPARO E FORMATAÇÃO DE E-MAIL */}

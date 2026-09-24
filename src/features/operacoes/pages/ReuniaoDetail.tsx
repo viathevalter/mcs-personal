@@ -4,12 +4,14 @@ import {
   ArrowLeft, CheckCircle2, Clock, Calendar, Users, AlertTriangle,
   Play, Pause, RotateCcw, Sparkles, Send, Plus, Trash2, Check,
   ChevronRight, Save, Layers, Share2, FileText, Bot, ExternalLink,
-  ShieldCheck, RefreshCw, CheckSquare, AlertCircle
+  ShieldCheck, RefreshCw, CheckSquare, AlertCircle, ChevronDown,
+  ChevronUp, Edit3, ListOrdered
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
 import { listDepartments } from '../services/incidencias';
 import { supabase } from '../services/supabaseClient';
+import { VisualWysiwygEditor } from '../components/ui/VisualWysiwygEditor';
 import type { Reuniao, ReuniaoAcao } from '../types/reunioes';
 import { TIPOS_REUNIAO_MAP } from '../types/reunioes';
 
@@ -24,6 +26,11 @@ export const ReuniaoDetail: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
+
+  // Pauta Oficial do Encontro
+  const [pautaConteudo, setPautaConteudo] = useState('');
+  const [pautaEditando, setPautaEditando] = useState(false);
+  const [isPautaExpanded, setIsPautaExpanded] = useState(true);
 
   // Dados operacionais da semana (Bloco Plan/Data)
   const [dadosSemana, setDadosSemana] = useState<{
@@ -81,6 +88,7 @@ export const ReuniaoDetail: React.FC = () => {
       setReuniao(data);
       setAtaTexto(data.ata_conteudo || '');
       setDecisoesRegras(data.decisoes_regras || '');
+      setPautaConteudo(data.pauta_topicos || '');
       setTimerSeconds((data.duracao_minutos || 45) * 60);
 
       // Buscar reunião anterior do mesmo tipo para o bloco 1 (CHECK)
@@ -134,21 +142,91 @@ export const ReuniaoDetail: React.FC = () => {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  // Salvar Ata / Regras
+  // Salvar Ata / Regras / Pauta Geral
   const handleSaveAta = async () => {
     if (!reuniao) return;
     setSaving(true);
     try {
       await reunioesService.updateReuniao(reuniao.id, {
         ata_conteudo: ataTexto,
-        decisoes_regras: decisoesRegras
+        decisoes_regras: decisoesRegras,
+        pauta_topicos: pautaConteudo
       });
-      toast.success('Ata e Regras salvas com sucesso!');
+      setReuniao(prev => prev ? {
+        ...prev,
+        ata_conteudo: ataTexto,
+        decisoes_regras: decisoesRegras,
+        pauta_topicos: pautaConteudo
+      } : null);
+      toast.success('Ata, Regras e Pauta salvas com sucesso!');
     } catch (err) {
       toast.error('Erro ao salvar ata');
     } finally {
       setSaving(false);
     }
+  };
+
+  // Salvar Pauta Específica (ao editar o card de Pauta)
+  const handleSavePauta = async () => {
+    if (!reuniao) return;
+    setSaving(true);
+    try {
+      await reunioesService.updateReuniao(reuniao.id, {
+        pauta_topicos: pautaConteudo
+      });
+      setReuniao(prev => prev ? { ...prev, pauta_topicos: pautaConteudo } : null);
+      setPautaEditando(false);
+      toast.success('Pauta da reunião atualizada com sucesso!');
+    } catch (err) {
+      toast.error('Erro ao salvar pauta');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Renderizador de Pauta HTML (com fallback amigável a markdown)
+  const renderPautaHtml = (pauta?: string) => {
+    if (!pauta || !pauta.trim()) {
+      return (
+        <p className="text-xs text-slate-400 italic py-2">
+          Nenhuma pauta detalhada foi cadastrada previamente para este alinhamento.
+        </p>
+      );
+    }
+
+    if (
+      pauta.includes('<p>') ||
+      pauta.includes('<h3>') ||
+      pauta.includes('<h2>') ||
+      pauta.includes('<ul>') ||
+      pauta.includes('<strong>') ||
+      pauta.includes('<br>') ||
+      pauta.includes('<div>') ||
+      pauta.includes('<span')
+    ) {
+      return (
+        <div
+          className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 leading-relaxed font-sans [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-slate-900 dark:[&>h3]:text-white [&>h3]:mt-3 [&>h3]:mb-1 [&>ul]:list-disc [&>ul]:ml-5 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:ml-5 [&>ol]:space-y-1 [&>p]:mb-2"
+          dangerouslySetInnerHTML={{ __html: pauta }}
+        />
+      );
+    }
+
+    // Markdown / plain text fallback
+    const htmlConverted = pauta
+      .replace(/^### (.*$)/gim, '<h3 class="text-sm font-bold text-slate-900 dark:text-white mt-2 mb-1">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 class="text-base font-bold text-slate-900 dark:text-white mt-3 mb-1">$1</h2>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
+      .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
+      .replace(/\n/g, '<br />');
+
+    return (
+      <div
+        className="prose prose-sm dark:prose-invert max-w-none text-slate-700 dark:text-slate-200 leading-relaxed font-sans"
+        dangerouslySetInnerHTML={{ __html: htmlConverted }}
+      />
+    );
   };
 
   // Alternar Status de Ação (Concluir / Reabrir)
@@ -422,6 +500,114 @@ export const ReuniaoDetail: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Pauta Oficial do Encontro (Ordem do Dia / O que será tratado) */}
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-all">
+        <div className="p-5 md:p-6 bg-slate-50/70 dark:bg-slate-850/60 border-b border-slate-200/80 dark:border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shadow-inner">
+              <ListOrdered size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                  Pauta Oficial do Encontro (Ordem do Dia)
+                </h2>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300">
+                  {reuniao.duracao_minutos || 45} min
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Alinhamento prévio e tópicos essenciais a serem debatidos e resolvidos nesta reunião.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!pautaEditando ? (
+              <button
+                type="button"
+                onClick={() => setPautaEditando(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-all"
+                title="Editar Pauta"
+              >
+                <Edit3 size={14} className="text-slate-500" />
+                Editar Pauta
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPautaConteudo(reuniao.pauta_topicos || '');
+                    setPautaEditando(false);
+                  }}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSavePauta}
+                  disabled={saving}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow-md shadow-indigo-600/20 transition-all"
+                >
+                  <Save size={13} />
+                  {saving ? 'Salvando...' : 'Salvar Pauta'}
+                </button>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsPautaExpanded(!isPautaExpanded)}
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title={isPautaExpanded ? 'Recolher Pauta' : 'Expandir Pauta'}
+            >
+              {isPautaExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+        </div>
+
+        {isPautaExpanded && (
+          <div className="p-6 md:p-8 bg-white dark:bg-slate-900 transition-all">
+            {pautaEditando ? (
+              <div className="space-y-3">
+                <VisualWysiwygEditor
+                  value={pautaConteudo}
+                  onChange={(val) => setPautaConteudo(val)}
+                  placeholder="Estruture os tópicos da pauta, metas e regras a discutir..."
+                  minHeight="180px"
+                />
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPautaConteudo(reuniao.pauta_topicos || '');
+                      setPautaEditando(false);
+                    }}
+                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-400"
+                  >
+                    Descartar Edição
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSavePauta}
+                    disabled={saving}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/25"
+                  >
+                    <Save size={14} /> {saving ? 'Salvando...' : 'Atualizar Pauta'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-slate-50/60 dark:bg-slate-850/40 p-5 rounded-2xl border border-slate-200/70 dark:border-slate-800/70">
+                {renderPautaHtml(pautaConteudo)}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Stepper PDCA Interativo (A Condução da Reunião) */}
@@ -767,6 +953,25 @@ export const ReuniaoDetail: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Referência Rápida da Pauta no Passo 3 */}
+          <details className="group bg-slate-50 dark:bg-slate-850/60 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 p-4 transition-all">
+            <summary className="flex items-center justify-between cursor-pointer list-none select-none text-xs font-bold text-slate-700 dark:text-slate-300">
+              <span className="flex items-center gap-2">
+                <ListOrdered size={16} className="text-indigo-500" />
+                Consultar Pauta do Encontro enquanto preenche a Ata
+              </span>
+              <span className="text-[11px] text-blue-600 dark:text-blue-400 group-open:hidden">
+                Clique para expandir tópicos da pauta
+              </span>
+              <span className="text-[11px] text-slate-400 hidden group-open:inline">
+                Ocultar tópicos
+              </span>
+            </summary>
+            <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 p-4 rounded-xl">
+              {renderPautaHtml(pautaConteudo)}
+            </div>
+          </details>
 
           {/* Ata & Regras Pactuadas */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
