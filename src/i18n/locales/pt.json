@@ -336,7 +336,9 @@
       "statusTrabOptions": {
         "ativos": "Ativos",
         "inativos": "Inativos",
-        "pendentes_ingresso": "Pendentes Ingresso"
+        "pendentes_ingresso": "Pendentes Ingresso",
+        "disponiveis": "Disponíveis",
+        "desistiu": "Desistiu"
       },
       "securityOptions": {
         "alta": "Alta",
