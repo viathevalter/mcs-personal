@@ -362,48 +362,52 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
       };
     }
 
-    console.log(`Enviando solicitação OCR para o Gemini 1.5 Flash...`);
+    console.log(`Enviando solicitação OCR para o Google Gemini...`);
 
-    // 3. Chamar a API do Google Gemini
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${geminiApiKey}`;
-
-    const geminiPayload = {
-      system_instruction: {
-        parts: [{ text: systemInstruction }]
-      },
-      contents: [
-        {
-          parts: [
-            { text: isWorkerDoc ? "Extraia os dados do documento." : "Extraia as informações do documento anexado conforme as instruções do sistema." },
-            {
-              inlineData: {
-                mimeType: mime_type,
-                data: base64Data
-              }
-            }
-          ]
-        }
-      ],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: jsonSchema,
-        temperature: 0.1,
-        thinkingConfig: {
-          thinkingBudget: 0
-        }
-      }
-    };
+    // Modelos com suporte a multimodalidade ordenados por resiliência e disponibilidade
+    const candidateModels = [
+      "gemini-2.5-flash-lite",
+      "gemini-3.5-flash-lite",
+      "gemini-3.6-flash",
+      "gemini-3.1-flash-lite"
+    ];
 
     let response: Response | null = null;
-    const retries = 1; // Apenas 1 tentativa para evitar exceder o limite de 150s do Deno
-    let delay = 2000; // Início com 2 segundos
+    let lastErrorText = "";
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
+    for (const model of candidateModels) {
+      console.log(`[OCR] Tentando modelo Gemini: ${model}...`);
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+
+      const geminiPayload = {
+        system_instruction: {
+          parts: [{ text: systemInstruction }]
+        },
+        contents: [
+          {
+            parts: [
+              { text: isWorkerDoc ? "Extraia os dados do documento." : "Extraia as informações do documento anexado conforme as instruções do sistema." },
+              {
+                inlineData: {
+                  mimeType: mime_type,
+                  data: base64Data
+                }
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          responseMimeType: "application/json",
+          responseSchema: jsonSchema,
+          temperature: 0.1
+        }
+      };
+
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout por tentativa
 
-        response = await fetch(geminiUrl, {
+        const resp = await fetch(geminiUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -413,81 +417,35 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
         });
         clearTimeout(timeoutId);
 
-        if (response.ok) {
-          break; // Sucesso! Sai do loop.
+        if (resp.ok) {
+          response = resp;
+          console.log(`[OCR] Sucesso com o modelo: ${model}`);
+          break;
         }
 
-        const isTransientError = response.status === 503 || response.status === 429 || response.status === 500;
-        if (isTransientError && attempt < retries) {
-          let waitTime = delay;
+        lastErrorText = await resp.text();
+        console.warn(`[OCR] Modelo ${model} retornou status ${resp.status}: ${lastErrorText}`);
 
-          if (response.status === 429) {
-            let parsedWaitTime = 0;
-            try {
-              const clone = response.clone();
-              const errJson = await clone.json();
-              const details = errJson?.error?.details;
-              if (Array.isArray(details)) {
-                const retryInfo = details.find((d: any) => d["@type"]?.includes("RetryInfo"));
-                if (retryInfo && retryInfo.retryDelay) {
-                  const seconds = parseFloat(retryInfo.retryDelay);
-                  if (!isNaN(seconds) && seconds <= 5) {
-                    parsedWaitTime = (seconds * 1000) + 1500 + Math.floor(Math.random() * 1000);
-                  }
-                }
-              }
-            } catch (parseErr) {
-              console.warn("Falha ao analisar retryDelay da resposta do Gemini:", parseErr);
-            }
-
-            if (parsedWaitTime > 0 && attempt < retries) {
-              waitTime = parsedWaitTime;
-              console.log(`[429 Quota] Gemini sugeriu retry curto. Aguardando ${waitTime}ms...`);
-            } else {
-              const errText = await response.text();
-              throw new Error(`Erro na chamada da API do Gemini: 429 - Limite de cota excedido ou tempo de espera muito longo. Detalhes: ${errText}`);
-            }
-          }
-
-          if (waitTime === delay) {
-            const jitter = Math.floor(Math.random() * 600) - 300; // -300ms a +300ms
-            waitTime = Math.max(200, delay + jitter);
-          }
-
-          console.warn(`Tentativa ${attempt} falhou com status ${response.status}. Retentando em ${waitTime}ms...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime));
-          
-          if (response.status !== 429) {
-            delay *= 2; // Backoff exponencial (apenas se não for 429, pois 429 usa o tempo sugerido)
-          }
-          continue; // Pula para a próxima iteração
+        // Se for erro transitório de carga/cota (503 alta demanda, 429 cota, 500 erro interno), tenta o próximo modelo
+        const isTransient = resp.status === 503 || resp.status === 429 || resp.status === 500;
+        if (isTransient) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          continue;
+        } else {
+          throw new Error(`Erro na chamada da API do Gemini (${model}): ${resp.status} - ${lastErrorText}`);
         }
-
-        const errText = await response.text();
-        throw new Error(`Erro na chamada da API do Gemini: ${response.status} - ${errText}`);
       } catch (err: any) {
-        // Se for um erro lançado por nós indicando erro na chamada HTTP, não retente no catch
         if (err.message && err.message.startsWith("Erro na chamada da API")) {
           throw err;
         }
-
-        if (err.name === 'AbortError') {
-          err = new Error("Tempo limite de resposta do Gemini excedido (Timeout de 60s).");
-        }
-
-        if (attempt === retries) {
-          throw err; // Lança o erro se for a última tentativa
-        }
-        const jitter = Math.floor(Math.random() * 600) - 300; // -300ms a +300ms
-        const backoffDelay = Math.max(200, delay + jitter);
-        console.warn(`Tentativa ${attempt} falhou devido a erro de rede: ${err.message}. Retentando em ${backoffDelay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, backoffDelay));
-        delay *= 2;
+        console.warn(`[OCR] Exceção com modelo ${model}: ${err.message}. Tentando próximo modelo...`);
+        lastErrorText = err.message;
+        continue;
       }
     }
 
     if (!response || !response.ok) {
-      throw new Error("Não foi possível obter resposta da API do Gemini após as tentativas.");
+      throw new Error(`Não foi possível obter resposta de nenhum modelo Gemini após tentativas. Detalhes: ${lastErrorText}`);
     }
 
     const resJson = await response.json();
@@ -721,16 +679,19 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
           }
         }
 
-        // Atualizar o status da folha de horas para 'processado'
+        // Atualizar o status da folha de horas para 'processado' e limpar observações
         console.log(`[DB Sync] Atualizando status de worker_hours para 'processado'...`);
         const { error: updateStatusError } = await supabase
           .schema('core_personal')
           .from('worker_hours')
-          .update({ status: 'processado', updated_at: new Date().toISOString() })
+          .update({ 
+            status: 'processado', 
+            observacoes: null,
+            updated_at: new Date().toISOString() 
+          })
           .eq('worker_id', worker_id)
           .eq('period_year', year)
-          .eq('period_month', month)
-          .eq('status', 'enviado');
+          .eq('period_month', month);
 
         if (updateStatusError) {
           console.error("[DB Sync] Erro ao atualizar status de worker_hours:", updateStatusError);
