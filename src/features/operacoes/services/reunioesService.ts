@@ -143,6 +143,10 @@ export const reunioesService = {
       decisoes_regras: payload.decisoes_regras || '',
       duracao_minutos: payload.duracao_minutos || 45,
       recorrente: payload.recorrente !== undefined ? payload.recorrente : true,
+      modalidade: payload.modalidade || 'presencial',
+      local_presencial: payload.local_presencial || '',
+      link_online: payload.link_online || '',
+      plataforma_online: payload.plataforma_online || 'teams',
       created_by: userEmail
     };
 

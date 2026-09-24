@@ -9,6 +9,8 @@ export type TipoReuniao =
 
 export type StatusReuniao = 'agendada' | 'em_andamento' | 'concluida' | 'cancelada';
 
+export type ModalidadeReuniao = 'presencial' | 'online' | 'hibrido';
+
 export interface ReuniaoAcao {
   id: string;
   reuniao_id: string;
@@ -39,6 +41,10 @@ export interface Reuniao {
   incidencias_contexto?: string[];
   duracao_minutos?: number;
   recorrente?: boolean;
+  modalidade?: ModalidadeReuniao;
+  local_presencial?: string;
+  link_online?: string;
+  plataforma_online?: 'teams' | 'meet' | 'zoom' | 'outro';
   created_by?: string;
   created_at?: string;
   updated_at?: string;

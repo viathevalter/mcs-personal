@@ -6,14 +6,14 @@ import {
   ArrowUpRight, RefreshCw, X, MessageSquare, Repeat, Target, UserCheck,
   Building2, Briefcase, Mail, Send, Globe, AtSign, CheckSquare, Info,
   LayoutGrid, List, CalendarClock, Ban, Trash2, MoreVertical, AlertTriangle,
-  Eye, Edit3
+  Eye, Edit3, Video, MapPin, Monitor, ExternalLink
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
 import { listDepartments } from '../services/incidencias';
 import { supabase } from '../services/supabaseClient';
 import { VisualWysiwygEditor } from '../components/ui/VisualWysiwygEditor';
-import type { Reuniao, TipoReuniao, StatusReuniao } from '../types/reunioes';
+import type { Reuniao, TipoReuniao, StatusReuniao, ModalidadeReuniao } from '../types/reunioes';
 import { TIPOS_REUNIAO_MAP } from '../types/reunioes';
 
 interface EmployeeMember {
@@ -67,7 +67,11 @@ export const Reunioes: React.FC = () => {
     duracao_minutos: 45,
     pauta_topicos: `<h3>Pauta do Alinhamento WBR</h3><ul><li><strong>1. Cobrança de Ações:</strong> Revisão das pendências pactuadas na semana anterior</li><li><strong>2. Pedidos em Aberto:</strong> Análise dos prazos de entrega vs capacidade de atração</li><li><strong>3. Desistências e Ocorrências:</strong> Casos críticos da semana e planos de contingência</li><li><strong>4. Novas Regras e Tarefas:</strong> Definição de responsáveis e prazos no sistema</li></ul>`,
     departamentos_envolvidos: ['Comercial', 'Recursos Humanos'],
-    participantesSelecionados: [] as string[]
+    participantesSelecionados: [] as string[],
+    modalidade: 'hibrido' as ModalidadeReuniao,
+    local_presencial: 'Sala de Reuniões Principal (Sede Espanha)',
+    link_online: '',
+    plataforma_online: 'teams' as 'teams' | 'meet' | 'zoom' | 'outro'
   });
 
   // Estados da Notificação por E-mail
@@ -144,20 +148,51 @@ export const Reunioes: React.FC = () => {
     // Converte a pauta HTML em texto limpo com marcadores e SEM NENHUMA tag de código
     const pautaLimpa = htmlToCleanPlainText(dados.pauta_topicos);
 
+    // Formatação de Local e Modalidade Online
+    const modalidade = dados.modalidade || 'presencial';
+    const plataformaNome = dados.plataforma_online === 'meet' ? 'Google Meet' : dados.plataforma_online === 'zoom' ? 'Zoom' : 'Microsoft Teams';
+
+    let localLinhas = '';
+    if (lang === 'es') {
+      if (modalidade === 'presencial') {
+        localLinhas = `📍 LUGAR / SALA: ${dados.local_presencial || 'Sala de Reuniones Principal'}\n`;
+      } else if (modalidade === 'online') {
+        localLinhas = `💻 MODALIDAD: 100% Online (${plataformaNome})\n${dados.link_online ? `🔗 ENLACE DE ACCESO: ${dados.link_online}\n` : ''}`;
+      } else {
+        localLinhas = `📍 LUGAR PRESENCIAL: ${dados.local_presencial || 'Sala de Reuniones Principal'}\n🌐 CONEXIÓN ONLINE (Brasil, Dubai, Italia, España): ${plataformaNome}\n${dados.link_online ? `🔗 ENLACE DE ACCESO VIRTUAL: ${dados.link_online}\n` : ''}`;
+      }
+    } else if (lang === 'pt') {
+      if (modalidade === 'presencial') {
+        localLinhas = `📍 LOCAL / SALA: ${dados.local_presencial || 'Sala de Reuniões Principal'}\n`;
+      } else if (modalidade === 'online') {
+        localLinhas = `💻 MODALIDADE: 100% Online (${plataformaNome})\n${dados.link_online ? `🔗 LINK DE ACESSO: ${dados.link_online}\n` : ''}`;
+      } else {
+        localLinhas = `📍 LOCAL PRESENCIAL: ${dados.local_presencial || 'Sala de Reuniões Principal'}\n🌐 PARTICIPAÇÃO ONLINE (Brasil, Dubai, Itália, Espanha): ${plataformaNome}\n${dados.link_online ? `🔗 LINK DE ACESSO VIRTUAL: ${dados.link_online}\n` : ''}`;
+      }
+    } else {
+      if (modalidade === 'presencial') {
+        localLinhas = `📍 LOCATION / ROOM: ${dados.local_presencial || 'Main Meeting Room'}\n`;
+      } else if (modalidade === 'online') {
+        localLinhas = `💻 FORMAT: 100% Online (${plataformaNome})\n${dados.link_online ? `🔗 MEETING LINK: ${dados.link_online}\n` : ''}`;
+      } else {
+        localLinhas = `📍 PHYSICAL LOCATION: ${dados.local_presencial || 'Main Meeting Room'}\n🌐 ONLINE ACCESS (Brazil, Dubai, Italy, Spain): ${plataformaNome}\n${dados.link_online ? `🔗 ACCESS LINK: ${dados.link_online}\n` : ''}`;
+      }
+    }
+
     if (lang === 'es') {
       return {
         subject: `[Convocatoria] ${dados.titulo} - ${dateFormatted} a las ${timeFormatted}`,
-        body: `Estimado equipo,\n\nHan sido convocados a la reunión de alineación interdepartamental:\n\n📌 TÍTULO: ${dados.titulo}\n🏢 DEPARTAMENTOS: ${deptsStr}\n📅 FECHA: ${dateFormatted}\n⏰ HORA: ${timeFormatted}\n⏱️ DURACIÓN PREVISTA: ${dados.duracao_minutos} minutos\n👥 CONVOCADOS: ${participantsStr}\n\n📋 ORDEN DEL DÍA / TEMAS A TRATAR:\n${pautaLimpa}\n\nAgradecemos la puntualidad y el compromiso de todos para mantener nuestros procesos alineados y eficientes.\n\nAtentamente,\nMCS Personal - Gestión Operativa`
+        body: `Estimado equipo,\n\nHan sido convocados a la reunión de alineación interdepartamental:\n\n📌 TÍTULO: ${dados.titulo}\n🏢 DEPARTAMENTOS: ${deptsStr}\n📅 FECHA: ${dateFormatted}\n⏰ HORA: ${timeFormatted}\n⏱️ DURACIÓN PREVISTA: ${dados.duracao_minutos} minutos\n${localLinhas}👥 CONVOCADOS: ${participantsStr}\n\n📋 ORDEN DEL DÍA / TEMAS A TRATAR:\n${pautaLimpa}\n\nAgradecemos la puntualidad y el compromiso de todos para mantener nuestros procesos alineados y eficientes.\n\nAtentamente,\nMCS Personal - Gestión Operativa`
       };
     } else if (lang === 'pt') {
       return {
         subject: `[Convocação] ${dados.titulo} - ${dateFormatted} às ${timeFormatted}`,
-        body: `Prezada equipe,\n\nVocês foram convocados para a reunião de alinhamento interdepartamental:\n\n📌 TÍTULO: ${dados.titulo}\n🏢 DEPARTAMENTOS: ${deptsStr}\n📅 DATA: ${dateFormatted}\n⏰ HORÁRIO: ${timeFormatted}\n⏱️ DURAÇÃO PREVISTA: ${dados.duracao_minutos} minutos\n👥 CONVOCADOS: ${participantsStr}\n\n📋 PAUTA E PONTOS DE DISCUSSÃO:\n${pautaLimpa}\n\nContamos com a pontualidade e participação ativa de todos para alinhamento dos fluxos e resolução dos gargalos operacionais.\n\nAtenciosamente,\nMCS Personal - Gestão Operacional`
+        body: `Prezada equipe,\n\nVocês foram convocados para a reunião de alinhamento interdepartamental:\n\n📌 TÍTULO: ${dados.titulo}\n🏢 DEPARTAMENTOS: ${deptsStr}\n📅 DATA: ${dateFormatted}\n⏰ HORÁRIO: ${timeFormatted}\n⏱️ DURAÇÃO PREVISTA: ${dados.duracao_minutos} minutos\n${localLinhas}👥 CONVOCADOS: ${participantsStr}\n\n📋 PAUTA E PONTOS DE DISCUSSÃO:\n${pautaLimpa}\n\nContamos com a pontualidade e participação ativa de todos para alinhamento dos fluxos e resolução dos gargalos operacionais.\n\nAtenciosamente,\nMCS Personal - Gestão Operacional`
       };
     } else {
       return {
         subject: `[Meeting Invitation] ${dados.titulo} - ${dateFormatted} at ${timeFormatted}`,
-        body: `Dear team,\n\nYou are invited to the cross-departmental alignment meeting:\n\n📌 TITLE: ${dados.titulo}\n🏢 DEPARTMENTS: ${deptsStr}\n📅 DATE: ${dateFormatted}\n⏰ TIME: ${timeFormatted}\n⏱️ ESTIMATED DURATION: ${dados.duracao_minutos} minutes\n👥 INVITED PARTICIPANTS: ${participantsStr}\n\n📋 MEETING AGENDA:\n${pautaLimpa}\n\nPlease ensure punctuality as we review performance and resolve cross-functional bottlenecks.\n\nBest regards,\nMCS Personal - Operations Management`
+        body: `Dear team,\n\nYou are invited to the cross-departmental alignment meeting:\n\n📌 TITLE: ${dados.titulo}\n🏢 DEPARTMENTS: ${deptsStr}\n📅 DATE: ${dateFormatted}\n⏰ TIME: ${timeFormatted}\n⏱️ ESTIMATED DURATION: ${dados.duracao_minutos} minutes\n${localLinhas}👥 INVITED PARTICIPANTS: ${participantsStr}\n\n📋 MEETING AGENDA:\n${pautaLimpa}\n\nPlease ensure punctuality as we review performance and resolve cross-functional bottlenecks.\n\nBest regards,\nMCS Personal - Operations Management`
       };
     }
   };
@@ -269,7 +304,12 @@ export const Reunioes: React.FC = () => {
       setEmailSubject(generated.subject);
       setEmailBody(generated.body);
     }
-  }, [newReuniao.titulo, newReuniao.data_reuniao, newReuniao.duracao_minutos, newReuniao.departamentos_envolvidos, newReuniao.participantesSelecionados, newReuniao.pauta_topicos, emailLanguage]);
+  }, [
+    newReuniao.titulo, newReuniao.data_reuniao, newReuniao.duracao_minutos,
+    newReuniao.departamentos_envolvidos, newReuniao.participantesSelecionados,
+    newReuniao.pauta_topicos, newReuniao.modalidade, newReuniao.local_presencial,
+    newReuniao.link_online, newReuniao.plataforma_online, emailLanguage
+  ]);
 
   // Ao trocar o idioma do e-mail explicitamente
   const handleLanguageChange = (lang: 'es' | 'pt' | 'en') => {
@@ -438,6 +478,10 @@ export const Reunioes: React.FC = () => {
         pauta_topicos: newReuniao.pauta_topicos,
         departamentos_envolvidos: newReuniao.departamentos_envolvidos,
         participantes: newReuniao.participantesSelecionados,
+        modalidade: newReuniao.modalidade,
+        local_presencial: newReuniao.local_presencial,
+        link_online: newReuniao.link_online,
+        plataforma_online: newReuniao.plataforma_online,
         status: 'agendada'
       });
 
@@ -495,6 +539,26 @@ export const Reunioes: React.FC = () => {
                 ? 'Agradecemos la puntualidad y el compromiso de todos para mantener nuestros procesos alineados y eficientes.<br/><br/>Atentamente,<br/><strong>MCS Personal - Gestión Operativa</strong>'
                 : 'Please ensure punctuality as we review performance and resolve cross-functional bottlenecks.<br/><br/>Best regards,<br/><strong>MCS Personal - Operations Management</strong>';
 
+              // Local e Conexão Online
+              const modalidade = newReuniao.modalidade || 'presencial';
+              const plataformaNome = newReuniao.plataforma_online === 'meet' ? 'Google Meet' : newReuniao.plataforma_online === 'zoom' ? 'Zoom' : 'Microsoft Teams';
+              let localHtml = '';
+
+              if (modalidade === 'presencial') {
+                localHtml = `<p style="margin: 3px 0;"><strong>📍 ${emailLanguage === 'es' ? 'LUGAR / SALA' : emailLanguage === 'pt' ? 'LOCAL / SALA' : 'LOCATION / ROOM'}:</strong> ${newReuniao.local_presencial || 'Sala de Reuniones Principal'}</p>`;
+              } else if (modalidade === 'online') {
+                localHtml = `
+                  <p style="margin: 3px 0;"><strong>💻 ${emailLanguage === 'es' ? 'MODALIDAD' : emailLanguage === 'pt' ? 'MODALIDADE' : 'FORMAT'}:</strong> 100% Online (${plataformaNome})</p>
+                  ${newReuniao.link_online ? `<p style="margin: 10px 0;"><a href="${newReuniao.link_online}" target="_blank" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 8px 16px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 13px;">💻 ${emailLanguage === 'es' ? 'Entrar a la Sala Virtual' : emailLanguage === 'pt' ? 'Entrar na Sala Virtual' : 'Join Virtual Meeting'}</a></p>` : ''}
+                `;
+              } else {
+                localHtml = `
+                  <p style="margin: 3px 0;"><strong>📍 ${emailLanguage === 'es' ? 'LUGAR PRESENCIAL' : emailLanguage === 'pt' ? 'LOCAL PRESENCIAL' : 'PHYSICAL LOCATION'}:</strong> ${newReuniao.local_presencial || 'Sala de Reuniones Principal'}</p>
+                  <p style="margin: 3px 0;"><strong>🌐 ${emailLanguage === 'es' ? 'CONEXIÓN ONLINE (Brasil, Dubai, Italia, España)' : emailLanguage === 'pt' ? 'PARTICIPAÇÃO ONLINE (Brasil, Dubai, Itália, Espanha)' : 'ONLINE ACCESS (Brazil, Dubai, Italy, Spain)'}:</strong> ${plataformaNome}</p>
+                  ${newReuniao.link_online ? `<p style="margin: 10px 0;"><a href="${newReuniao.link_online}" target="_blank" style="display: inline-block; background-color: #2563eb; color: #ffffff; padding: 8px 16px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 13px;">💻 ${emailLanguage === 'es' ? 'Entrar a la Sala Virtual' : emailLanguage === 'pt' ? 'Entrar na Sala Virtual' : 'Join Virtual Meeting'}</a> <span style="font-size: 11px; color: #64748b;">(${emailLanguage === 'es' ? 'Equipos remotos' : emailLanguage === 'pt' ? 'Equipes remotas' : 'Remote teams'})</span></p>` : ''}
+                `;
+              }
+
               contentBodyHtml = `
                 <p style="margin: 0 0 16px 0;">${saudacao}</p>
                 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin: 16px 0; font-size: 13px; line-height: 1.6;">
@@ -503,6 +567,7 @@ export const Reunioes: React.FC = () => {
                   <p style="margin: 3px 0;"><strong>📅 ${dataLabel}:</strong> ${dateFormatted}</p>
                   <p style="margin: 3px 0;"><strong>⏰ ${horaLabel}:</strong> ${timeFormatted}</p>
                   <p style="margin: 3px 0;"><strong>⏱️ ${duracaoLabel}:</strong> ${newReuniao.duracao_minutos} min</p>
+                  ${localHtml}
                   <p style="margin: 3px 0;"><strong>👥 ${convocadosLabel}:</strong> ${participantsStr}</p>
                 </div>
                 <div style="background-color: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 6px; padding: 14px 18px; margin: 18px 0;">
@@ -934,6 +999,25 @@ export const Reunioes: React.FC = () => {
                           </span>
                         )}
 
+                        {reuniao.modalidade === 'presencial' && (
+                          <span className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            <Building2 size={11} />
+                            Presencial
+                          </span>
+                        )}
+                        {reuniao.modalidade === 'online' && (
+                          <span className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                            <Video size={11} />
+                            100% Online
+                          </span>
+                        )}
+                        {reuniao.modalidade === 'hibrido' && (
+                          <span className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                            <Globe size={11} />
+                            Híbrido
+                          </span>
+                        )}
+
                         <span className="text-xs text-slate-400">
                           {reuniao.duracao_minutos || 45} min
                         </span>
@@ -977,6 +1061,31 @@ export const Reunioes: React.FC = () => {
                               hour: '2-digit',
                               minute: '2-digit'
                             })}</span>
+                          </div>
+                        )}
+
+                        {/* Local Presencial & Sala Virtual (Teams / Meet) */}
+                        {(reuniao.local_presencial || reuniao.link_online) && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            {reuniao.local_presencial && (
+                              <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300 bg-amber-500/10 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded border border-amber-500/20">
+                                <MapPin size={12} className="text-amber-500 shrink-0" />
+                                <span className="font-medium truncate max-w-[260px]">{reuniao.local_presencial}</span>
+                              </div>
+                            )}
+                            {reuniao.link_online && (
+                              <a
+                                href={reuniao.link_online}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-semibold bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800 hover:underline transition-colors"
+                              >
+                                <Video size={12} className="text-blue-500 shrink-0" />
+                                <span>Sala Virtual ({reuniao.plataforma_online ? reuniao.plataforma_online.toUpperCase() : 'Teams/Meet'})</span>
+                                <ExternalLink size={10} />
+                              </a>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1087,6 +1196,7 @@ export const Reunioes: React.FC = () => {
                   <tr>
                     <th className="py-3.5 px-4">Status & Ciclo</th>
                     <th className="py-3.5 px-4">Reunião & Setores</th>
+                    <th className="py-3.5 px-4">Formato & Local</th>
                     <th className="py-3.5 px-4">Data do Encontro</th>
                     <th className="py-3.5 px-4">Criada em</th>
                     <th className="py-3.5 px-4">Convocados</th>
@@ -1157,6 +1267,50 @@ export const Reunioes: React.FC = () => {
                               {tipoConfig.label}
                             </span>
                             <span className="truncate max-w-[180px]">{reuniao.departamentos_envolvidos.join(' • ')}</span>
+                          </div>
+                        </td>
+
+                        {/* Formato & Local / Sala Online */}
+                        <td className="py-3 px-4">
+                          <div className="space-y-1">
+                            <div>
+                              {reuniao.modalidade === 'presencial' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                  <Building2 size={10} /> Presencial
+                                </span>
+                              )}
+                              {reuniao.modalidade === 'online' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                                  <Video size={10} /> Online
+                                </span>
+                              )}
+                              {reuniao.modalidade === 'hibrido' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                                  <Globe size={10} /> Híbrido
+                                </span>
+                              )}
+                            </div>
+                            {reuniao.local_presencial && (
+                              <div className="text-[11px] text-slate-600 dark:text-slate-400 flex items-center gap-1 truncate max-w-[180px]" title={reuniao.local_presencial}>
+                                <MapPin size={10} className="text-amber-500 shrink-0" />
+                                <span className="truncate">{reuniao.local_presencial}</span>
+                              </div>
+                            )}
+                            {reuniao.link_online && (
+                              <div>
+                                <a
+                                  href={reuniao.link_online}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                                >
+                                  <Video size={10} className="shrink-0" />
+                                  <span>Link {reuniao.plataforma_online ? reuniao.plataforma_online.toUpperCase() : 'Virtual'}</span>
+                                  <ExternalLink size={9} />
+                                </a>
+                              </div>
+                            )}
                           </div>
                         </td>
 
@@ -1662,6 +1816,138 @@ export const Reunioes: React.FC = () => {
                     </select>
                   </div>
                 </div>
+
+                {/* MODALIDADE & LOCAL DO ENCONTRO (PRESENCIAL / ONLINE / HÍBRIDO) */}
+                <div className="space-y-3 pt-3 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Building2 size={14} className="text-blue-500" />
+                      Modalidade & Formato da Reunião
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Conecte equipes no Brasil, Dubai, Itália e Espanha
+                    </span>
+                  </div>
+
+                  {/* 3 Opções de Modalidade */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setNewReuniao({ ...newReuniao, modalidade: 'presencial' })}
+                      className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                        newReuniao.modalidade === 'presencial'
+                          ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 font-bold ring-1 ring-blue-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/60 flex items-center justify-center flex-shrink-0 text-blue-600 dark:text-blue-400">
+                        <MapPin size={16} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">Presencial</div>
+                        <div className="text-[10px] text-slate-400">Sala de reunião física</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewReuniao({ ...newReuniao, modalidade: 'online' })}
+                      className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                        newReuniao.modalidade === 'online'
+                          ? 'border-purple-500 bg-purple-50/60 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 font-bold ring-1 ring-purple-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/60 flex items-center justify-center flex-shrink-0 text-purple-600 dark:text-purple-400">
+                        <Video size={16} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">100% Online</div>
+                        <div className="text-[10px] text-slate-400">Teams / Meet / Zoom</div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNewReuniao({ ...newReuniao, modalidade: 'hibrido' })}
+                      className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                        newReuniao.modalidade === 'hibrido'
+                          ? 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 font-bold ring-1 ring-emerald-500/20'
+                          : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/60 flex items-center justify-center flex-shrink-0 text-emerald-600 dark:text-emerald-400">
+                        <Globe size={16} />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">Híbrido</div>
+                        <div className="text-[10px] text-slate-400">Presencial + Remotos</div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Campos Dinâmicos: Local Físico e/ou Link Online */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    {(newReuniao.modalidade === 'presencial' || newReuniao.modalidade === 'hibrido') && (
+                      <div className={newReuniao.modalidade === 'presencial' ? 'sm:col-span-2 space-y-1' : 'space-y-1'}>
+                        <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <MapPin size={13} className="text-slate-400" />
+                          Sala / Local Físico da Reunião
+                        </label>
+                        <input
+                          type="text"
+                          value={newReuniao.local_presencial}
+                          onChange={e => setNewReuniao({ ...newReuniao, local_presencial: e.target.value })}
+                          placeholder="Ex: Sala de Reuniões Principal - Sede Espanha"
+                          className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {['Sala de Reuniões Principal', 'Sala de Operações', 'Sala da Diretoria', 'Auditório Central'].map(sugestao => (
+                            <button
+                              key={sugestao}
+                              type="button"
+                              onClick={() => setNewReuniao({ ...newReuniao, local_presencial: sugestao })}
+                              className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                              + {sugestao}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(newReuniao.modalidade === 'online' || newReuniao.modalidade === 'hibrido') && (
+                      <div className={newReuniao.modalidade === 'online' ? 'sm:col-span-2 space-y-1' : 'space-y-1'}>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <Video size={13} className="text-blue-500" />
+                            Link da Sala Virtual (Teams / Meet)
+                          </label>
+                          <select
+                            value={newReuniao.plataforma_online}
+                            onChange={e => setNewReuniao({ ...newReuniao, plataforma_online: e.target.value as any })}
+                            className="text-[10px] py-0.5 px-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          >
+                            <option value="teams">Microsoft Teams</option>
+                            <option value="meet">Google Meet</option>
+                            <option value="zoom">Zoom</option>
+                            <option value="outro">Outra Plataforma</option>
+                          </select>
+                        </div>
+                        <input
+                          type="url"
+                          value={newReuniao.link_online}
+                          onChange={e => setNewReuniao({ ...newReuniao, link_online: e.target.value })}
+                          placeholder="Cole o link da videochamada (ex: https://meet.google.com/xyz...)"
+                          className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <div className="text-[10px] text-slate-400 pt-0.5">
+                          Colaboradores remotos (Brasil, Dubai, Itália, Espanha) verão este link com botão direto no e-mail e no Cockpit.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* 5. PAUTA & TÓPICOS COM VISUAL WYSIWYG EDITOR */}
@@ -1929,6 +2215,47 @@ export const Reunioes: React.FC = () => {
                                 {new Date(newReuniao.data_reuniao).toLocaleTimeString(emailLanguage === 'pt' ? 'pt-BR' : emailLanguage === 'es' ? 'es-ES' : 'en-US', { hour: '2-digit', minute: '2-digit' })}{' '}
                                 ({newReuniao.duracao_minutos} min)
                               </div>
+                              {newReuniao.modalidade === 'presencial' && (
+                                <div>
+                                  <span className="font-bold text-slate-900 dark:text-white">📍 {emailLanguage === 'es' ? 'LUGAR / SALA' : emailLanguage === 'pt' ? 'LOCAL / SALA' : 'LOCATION'}:</span>{' '}
+                                  {newReuniao.local_presencial || 'Sala de Reuniones Principal'}
+                                </div>
+                              )}
+                              {newReuniao.modalidade === 'online' && (
+                                <div className="space-y-1">
+                                  <div>
+                                    <span className="font-bold text-slate-900 dark:text-white">💻 {emailLanguage === 'es' ? 'MODALIDAD' : emailLanguage === 'pt' ? 'MODALIDADE' : 'FORMAT'}:</span>{' '}
+                                    100% Online ({newReuniao.plataforma_online === 'meet' ? 'Google Meet' : newReuniao.plataforma_online === 'zoom' ? 'Zoom' : 'Microsoft Teams'})
+                                  </div>
+                                  {newReuniao.link_online && (
+                                    <div className="pt-1">
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs shadow-xs">
+                                        <Video size={13} /> {emailLanguage === 'es' ? 'Entrar a la Sala Virtual' : emailLanguage === 'pt' ? 'Entrar na Sala Virtual' : 'Join Virtual Meeting'}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {newReuniao.modalidade === 'hibrido' && (
+                                <div className="space-y-1">
+                                  <div>
+                                    <span className="font-bold text-slate-900 dark:text-white">📍 {emailLanguage === 'es' ? 'LUGAR PRESENCIAL' : emailLanguage === 'pt' ? 'LOCAL PRESENCIAL' : 'PHYSICAL LOCATION'}:</span>{' '}
+                                    {newReuniao.local_presencial || 'Sala de Reuniones Principal'}
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-900 dark:text-white">🌐 {emailLanguage === 'es' ? 'CONEXIÓN ONLINE (Brasil, Dubai, Italia, España)' : emailLanguage === 'pt' ? 'PARTICIPAÇÃO ONLINE (Brasil, Dubai, Itália, Espanha)' : 'ONLINE ACCESS (Brazil, Dubai, Italy, Spain)'}:</span>{' '}
+                                    {newReuniao.plataforma_online === 'meet' ? 'Google Meet' : newReuniao.plataforma_online === 'zoom' ? 'Zoom' : 'Microsoft Teams'}
+                                  </div>
+                                  {newReuniao.link_online && (
+                                    <div className="pt-1 flex items-center gap-2">
+                                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs shadow-xs">
+                                        <Video size={13} /> {emailLanguage === 'es' ? 'Entrar a la Sala Virtual' : emailLanguage === 'pt' ? 'Entrar na Sala Virtual' : 'Join Virtual Meeting'}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500">({emailLanguage === 'es' ? 'Equipos remotos' : emailLanguage === 'pt' ? 'Equipes remotas' : 'Remote teams'})</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                               <div>
                                 <span className="font-bold text-slate-900 dark:text-white">👥 {emailLanguage === 'es' ? 'CONVOCADOS' : emailLanguage === 'pt' ? 'CONVOCADOS' : 'INVITED'}:</span>{' '}
                                 {newReuniao.participantesSelecionados.length > 0 ? newReuniao.participantesSelecionados.join(', ') : 'Todos os convocados'}

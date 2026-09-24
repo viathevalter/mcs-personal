@@ -5,7 +5,7 @@ import {
   Play, Pause, RotateCcw, Sparkles, Send, Plus, Trash2, Check,
   ChevronRight, Save, Layers, Share2, FileText, Bot, ExternalLink,
   ShieldCheck, RefreshCw, CheckSquare, AlertCircle, ChevronDown,
-  ChevronUp, Edit3, ListOrdered
+  ChevronUp, Edit3, ListOrdered, Video, MapPin, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
@@ -418,6 +418,21 @@ export const ReuniaoDetail: React.FC = () => {
             </button>
           </div>
 
+          {/* Botão de Conexão Online Rápida */}
+          {reuniao.link_online && (
+            <a
+              href={reuniao.link_online}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/30 transition-all hover:scale-[1.02]"
+              title="Abrir sala de videochamada (Teams / Meet)"
+            >
+              <Video size={14} />
+              <span>Entrar na Sala Virtual</span>
+              <ExternalLink size={12} />
+            </a>
+          )}
+
           <button
             onClick={handleSaveAta}
             disabled={saving}
@@ -448,6 +463,21 @@ export const ReuniaoDetail: React.FC = () => {
               <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-mono">
                 Ciclo WBR #{reuniao.id.slice(0, 6)}
               </span>
+              {reuniao.modalidade === 'online' && (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-purple-950/80 border border-purple-700/60 text-purple-300 flex items-center gap-1">
+                  <Video size={12} /> 100% Online ({reuniao.plataforma_online || 'Teams'})
+                </span>
+              )}
+              {reuniao.modalidade === 'hibrido' && (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 flex items-center gap-1">
+                  <Globe size={12} /> Híbrido (Sala + Online)
+                </span>
+              )}
+              {reuniao.modalidade === 'presencial' && (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-slate-300 flex items-center gap-1">
+                  <MapPin size={12} /> Presencial
+                </span>
+              )}
               <span className="text-xs text-slate-400">
                 {new Date(reuniao.data_reuniao).toLocaleDateString('pt-BR', {
                   weekday: 'long',
@@ -469,6 +499,13 @@ export const ReuniaoDetail: React.FC = () => {
                 <span className="font-semibold text-white">Setores:</span>{' '}
                 {reuniao.departamentos_envolvidos.join(' • ')}
               </div>
+              {reuniao.local_presencial && (
+                <div className="flex items-center gap-1.5">
+                  <MapPin size={15} className="text-emerald-400" />
+                  <span className="font-semibold text-white">Local:</span>{' '}
+                  {reuniao.local_presencial}
+                </div>
+              )}
               {reuniao.participantes && reuniao.participantes.length > 0 && (
                 <div className="flex items-center gap-1.5">
                   <Users size={15} className="text-blue-400" />
