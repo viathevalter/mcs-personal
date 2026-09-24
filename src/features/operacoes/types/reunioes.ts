@@ -38,6 +38,7 @@ export interface Reuniao {
   pedidos_contexto?: string[];
   incidencias_contexto?: string[];
   duracao_minutos?: number;
+  recorrente?: boolean;
   created_by?: string;
   created_at?: string;
   updated_at?: string;

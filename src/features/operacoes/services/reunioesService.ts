@@ -142,6 +142,7 @@ export const reunioesService = {
       resumo_ia: payload.resumo_ia || '',
       decisoes_regras: payload.decisoes_regras || '',
       duracao_minutos: payload.duracao_minutos || 45,
+      recorrente: payload.recorrente !== undefined ? payload.recorrente : true,
       created_by: userEmail
     };
 

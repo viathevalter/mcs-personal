@@ -247,33 +247,45 @@ export const ReuniaoDetail: React.FC = () => {
     }
   };
 
-  // Concluir Reunião e Agendar Próxima
+  // Concluir Reunião e Agendar Próxima (ou Concluir Pontual)
   const handleConcluirReuniao = async () => {
     if (!reuniao) return;
-    if (!confirm('Deseja finalizar esta reunião e agendar o próximo alinhamento semanal?')) return;
+
+    const isRecorrente = reuniao.recorrente !== false;
+    const msgConfirm = isRecorrente
+      ? 'Deseja finalizar esta reunião e agendar o próximo alinhamento semanal?'
+      : 'Deseja finalizar esta reunião pontual?';
+
+    if (!confirm(msgConfirm)) return;
 
     try {
-      // 1. Criar próxima reunião
-      const proxima = await reunioesService.createReuniao({
-        titulo: `Alinhamento Semanal: ${TIPOS_REUNIAO_MAP[reuniao.tipo]?.label || reuniao.titulo}`,
-        tipo: reuniao.tipo,
-        data_reuniao: new Date(proximaData).toISOString(),
-        duracao_minutos: reuniao.duracao_minutos || 45,
-        departamentos_envolvidos: reuniao.departamentos_envolvidos,
-        participantes: reuniao.participantes,
-        status: 'agendada'
-      });
+      let proximaId: string | undefined = undefined;
 
-      // 2. Atualizar reunião atual para concluída e vincular próxima
+      // 1. Criar próxima reunião apenas se for recorrente
+      if (isRecorrente) {
+        const proxima = await reunioesService.createReuniao({
+          titulo: `Alinhamento Semanal: ${TIPOS_REUNIAO_MAP[reuniao.tipo]?.label || reuniao.titulo}`,
+          tipo: reuniao.tipo,
+          data_reuniao: new Date(proximaData).toISOString(),
+          duracao_minutos: reuniao.duracao_minutos || 45,
+          recorrente: true,
+          departamentos_envolvidos: reuniao.departamentos_envolvidos,
+          participantes: reuniao.participantes,
+          status: 'agendada'
+        });
+        proximaId = proxima?.id;
+      }
+
+      // 2. Atualizar reunião atual para concluída
       await reunioesService.updateReuniao(reuniao.id, {
         status: 'concluida',
         ata_conteudo: ataTexto,
         decisoes_regras: decisoesRegras,
-        proxima_reuniao_id: proxima?.id,
-        proxima_reuniao_data: new Date(proximaData).toISOString()
+        proxima_reuniao_id: proximaId,
+        proxima_reuniao_data: isRecorrente ? new Date(proximaData).toISOString() : undefined
       });
 
-      toast.success('Reunião concluída e próximo alinhamento agendado com sucesso!');
+      toast.success(isRecorrente ? 'Reunião concluída e próximo alinhamento agendado!' : 'Reunião concluída com sucesso!');
       navigate('/operacoes/reunioes');
     } catch (err) {
       toast.error('Erro ao finalizar reunião');
@@ -951,33 +963,42 @@ export const ReuniaoDetail: React.FC = () => {
               )}
             </div>
 
-            {/* Agendamento da Próxima Reunião */}
+            {/* Agendamento da Próxima Reunião / Conclusão */}
             <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 p-5 rounded-2xl space-y-3">
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <Calendar size={16} className="text-blue-500" />
-                    Fechar Ciclo & Agendar Próximo Alinhamento Semanal
+                    {reuniao.recorrente !== false
+                      ? 'Fechar Ciclo & Agendar Próximo Alinhamento Semanal'
+                      : 'Finalizar Encontro Pontual'}
                   </h4>
                   <p className="text-xs text-slate-500">
-                    O rito WBR exige que a próxima reunião já saia com data e hora marcada.
+                    {reuniao.recorrente !== false
+                      ? 'O rito WBR exige que a próxima reunião já saia com data e hora marcada para manter a continuidade.'
+                      : 'Esta reunião foi configurada como pontual. Ao concluir, as ações pactuadas continuam ativas no sistema.'}
                   </p>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row items-center gap-3">
-                <input
-                  type="datetime-local"
-                  value={proximaData}
-                  onChange={e => setProximaData(e.target.value)}
-                  className="w-full sm:w-auto px-3.5 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
-                />
+                {reuniao.recorrente !== false && (
+                  <input
+                    type="datetime-local"
+                    value={proximaData}
+                    onChange={e => setProximaData(e.target.value)}
+                    className="w-full sm:w-auto px-3.5 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                  />
+                )}
 
                 <button
                   onClick={handleConcluirReuniao}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/30 transition-all"
+                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/30 transition-all hover:scale-[1.02]"
                 >
-                  <CheckCircle2 size={15} /> Finalizar Reunião & Salvar Próxima
+                  <CheckCircle2 size={15} />
+                  {reuniao.recorrente !== false
+                    ? 'Finalizar Reunião & Salvar Próxima'
+                    : 'Concluir Reunião Pontual'}
                 </button>
               </div>
             </div>
