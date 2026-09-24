@@ -184,6 +184,26 @@ export const reunioesService = {
   },
 
   /**
+   * Exclui uma reunião e desvincula tarefas associadas
+   */
+  async deleteReuniao(id: string): Promise<void> {
+    await supabase
+      .from('mcs_incident_tasks')
+      .update({ reuniao_id: null })
+      .eq('reuniao_id', id);
+
+    const { error } = await supabase
+      .from('operacoes_reunioes')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Erro ao excluir reunião:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Adiciona uma nova ação gerada na reunião diretamente no motor de tarefas dos usuários
    */
   async addAcao(reuniaoId: string, acao: {

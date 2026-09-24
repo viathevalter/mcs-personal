@@ -4,7 +4,8 @@ import {
   Users, Calendar, Clock, CheckCircle2, AlertCircle, Plus, Search,
   Sparkles, TrendingUp, Layers, ChevronRight, Play, Check, ShieldAlert,
   ArrowUpRight, RefreshCw, X, MessageSquare, Repeat, Target, UserCheck,
-  Building2, Briefcase, Mail, Send, Globe, AtSign, CheckSquare, Info
+  Building2, Briefcase, Mail, Send, Globe, AtSign, CheckSquare, Info,
+  LayoutGrid, List, CalendarClock, Ban, Trash2, MoreVertical, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
@@ -31,10 +32,27 @@ export const Reunioes: React.FC = () => {
   const [allEmployees, setAllEmployees] = useState<EmployeeMember[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Modo de Visualização (Galeria / Cards vs Lista Compacta)
+  const [viewMode, setViewMode] = useState<'cards' | 'lista'>(() => {
+    return (localStorage.getItem('mcs_reunioes_view_mode') as 'cards' | 'lista') || 'cards';
+  });
+
+  const handleToggleViewMode = (mode: 'cards' | 'lista') => {
+    setViewMode(mode);
+    localStorage.setItem('mcs_reunioes_view_mode', mode);
+  };
+
   // Filtros de listagem
   const [selectedTipo, setSelectedTipo] = useState<string>('todos');
   const [selectedStatus, setSelectedStatus] = useState<string>('todos');
+  const [selectedRecorrencia, setSelectedRecorrencia] = useState<'todos' | 'recorrente' | 'pontual'>('todos');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // Modal de Adiar / Reagendar
+  const [isAdiarModalOpen, setIsAdiarModalOpen] = useState(false);
+  const [reuniaoParaAdiar, setReuniaoParaAdiar] = useState<Reuniao | null>(null);
+  const [novaDataAdiada, setNovaDataAdiada] = useState('');
+  const [adiando, setAdiando] = useState(false);
 
   // Modal de Criação / Agendamento
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,7 +98,6 @@ export const Reunioes: React.FC = () => {
       ? dados.participantesSelecionados.join(', ')
       : (lang === 'pt' ? 'Todos os convocados' : lang === 'es' ? 'Todos los convocados' : 'All participants');
 
-    // Limpar markdown da pauta para texto fluido de e-mail
     const pautaLimpa = dados.pauta_topicos
       .replace(/[#*`]/g, '')
       .trim();
@@ -203,7 +220,7 @@ export const Reunioes: React.FC = () => {
     setSelectedEmails(validEmails);
   }, [convocadosComEmail]);
 
-  // Atualizar Assunto e Corpo do E-mail quando os dados principais mudarem (a menos que o usuário tenha editado manualmente)
+  // Atualizar Assunto e Corpo do E-mail quando os dados principais mudarem
   useEffect(() => {
     if (!isManualEmailBodyEdit) {
       const generated = generateEmailContent(emailLanguage, newReuniao);
@@ -300,6 +317,61 @@ export const Reunioes: React.FC = () => {
     }));
   };
 
+  // --- AÇÕES CRUD DE GESTÃO DA REUNIÃO ---
+
+  // Cancelar reunião
+  const handleCancelarReuniao = async (reuniao: Reuniao) => {
+    if (!confirm(`Deseja realmente cancelar o alinhamento "${reuniao.titulo}"?`)) return;
+    try {
+      await reunioesService.updateReuniao(reuniao.id, { status: 'cancelada' });
+      toast.success('Reunião cancelada com sucesso!');
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao cancelar reunião');
+    }
+  };
+
+  // Excluir reunião
+  const handleExcluirReuniao = async (reuniao: Reuniao) => {
+    if (!confirm(`ATENÇÃO: Deseja apagar permanentemente a reunião "${reuniao.titulo}"? Esta ação removerá o registro do sistema.`)) return;
+    try {
+      await reunioesService.deleteReuniao(reuniao.id);
+      toast.success('Reunião excluída com sucesso!');
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao excluir reunião');
+    }
+  };
+
+  // Abrir Modal de Adiar
+  const handleAbrirAdiarModal = (reuniao: Reuniao) => {
+    setReuniaoParaAdiar(reuniao);
+    setNovaDataAdiada(new Date(reuniao.data_reuniao).toISOString().slice(0, 16));
+    setIsAdiarModalOpen(true);
+  };
+
+  // Confirmar Reagendamento / Adiar
+  const handleConfirmarAdiar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reuniaoParaAdiar || !novaDataAdiada) return;
+
+    setAdiando(true);
+    try {
+      await reunioesService.updateReuniao(reuniaoParaAdiar.id, {
+        data_reuniao: new Date(novaDataAdiada).toISOString(),
+        status: 'agendada'
+      });
+      toast.success('Reunião reagendada com sucesso!');
+      setIsAdiarModalOpen(false);
+      setReuniaoParaAdiar(null);
+      loadData();
+    } catch (err: any) {
+      toast.error('Erro ao reagendar reunião');
+    } finally {
+      setAdiando(false);
+    }
+  };
+
   // Criar / Agendar Reunião & Disparar E-mails
   const handleCreateReuniao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -315,7 +387,6 @@ export const Reunioes: React.FC = () => {
 
     setCreating(true);
     try {
-      // 1. Criar reunião no banco de dados
       const created = await reunioesService.createReuniao({
         titulo: newReuniao.titulo,
         tipo: newReuniao.tipo,
@@ -328,7 +399,6 @@ export const Reunioes: React.FC = () => {
         status: 'agendada'
       });
 
-      // 2. Disparar e-mails se a notificação estiver ativada
       if (sendEmailNotification) {
         const toEmails = [...selectedEmails];
         if (additionalEmails.trim()) {
@@ -342,7 +412,6 @@ export const Reunioes: React.FC = () => {
 
         if (toEmails.length > 0) {
           try {
-            // Formatar corpo em HTML corporativo elegante
             const linkRegex = /(https?:\/\/[^\s]+)/g;
             const htmlFormattedBody = emailBody
               .replace(linkRegex, (url) => `<a href="${url}" style="color: #2563eb; font-weight: bold; text-decoration: underline;">${url}</a>`)
@@ -404,14 +473,24 @@ export const Reunioes: React.FC = () => {
     }
   };
 
+  // Filtragem completa
   const filteredReunioes = reunioes.filter(r => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    return (
-      r.titulo.toLowerCase().includes(term) ||
-      (r.pauta_topicos || '').toLowerCase().includes(term) ||
-      r.departamentos_envolvidos.some(d => d.toLowerCase().includes(term))
-    );
+    // Busca por termo
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      const match = (
+        r.titulo.toLowerCase().includes(term) ||
+        (r.pauta_topicos || '').toLowerCase().includes(term) ||
+        r.departamentos_envolvidos.some(d => d.toLowerCase().includes(term))
+      );
+      if (!match) return false;
+    }
+
+    // Filtro por recorrência (contínua vs pontual)
+    if (selectedRecorrencia === 'recorrente' && r.recorrente === false) return false;
+    if (selectedRecorrencia === 'pontual' && r.recorrente !== false) return false;
+
+    return true;
   });
 
   return (
@@ -567,8 +646,10 @@ export const Reunioes: React.FC = () => {
         </div>
       </div>
 
-      {/* Barra de Filtros e Busca */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+      {/* Barra de Filtros, Alternância de Visualização e Busca */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        
+        {/* Campo de Busca & Atualizar */}
         <div className="flex items-center gap-3 flex-1">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
@@ -590,14 +671,27 @@ export const Reunioes: React.FC = () => {
           </button>
         </div>
 
+        {/* Filtros Dropdowns & Alternância de Visualização */}
         <div className="flex flex-wrap items-center gap-2">
+          
+          {/* Filtro de Recorrência / Ciclo */}
+          <select
+            value={selectedRecorrencia}
+            onChange={e => setSelectedRecorrencia(e.target.value as any)}
+            className="text-xs font-semibold py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="todos">Todos os Ciclos</option>
+            <option value="recorrente">🔁 Ciclos Contínuos (WBR)</option>
+            <option value="pontual">🎯 Reuniões Pontuais</option>
+          </select>
+
           {/* Filtro de Tipo */}
           <select
             value={selectedTipo}
             onChange={e => setSelectedTipo(e.target.value)}
             className="text-xs font-medium py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            <option value="todos">Todos os Tipos de Alinhamento</option>
+            <option value="todos">Todos os Alinhamentos</option>
             <option value="comercial_rh">Comercial × RH & Contratação</option>
             <option value="comercial_logistica">Comercial × Logística</option>
             <option value="contratacao_financeiro">Contratação × Financeiro</option>
@@ -617,12 +711,41 @@ export const Reunioes: React.FC = () => {
             <option value="agendada">Agendadas</option>
             <option value="em_andamento">Em Andamento</option>
             <option value="concluida">Concluídas</option>
+            <option value="cancelada">Canceladas</option>
           </select>
+
+          {/* Alternância Galeria / Cards vs Lista Compacta */}
+          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 ml-1">
+            <button
+              onClick={() => handleToggleViewMode('cards')}
+              title="Visualização em Cards / Galeria"
+              className={`p-1.5 rounded-md text-xs transition-colors flex items-center gap-1 ${
+                viewMode === 'cards'
+                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <LayoutGrid size={15} />
+              <span className="hidden sm:inline">Cards</span>
+            </button>
+            <button
+              onClick={() => handleToggleViewMode('lista')}
+              title="Visualização em Lista Compacta"
+              className={`p-1.5 rounded-md text-xs transition-colors flex items-center gap-1 ${
+                viewMode === 'lista'
+                  ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 font-bold shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <List size={15} />
+              <span className="hidden sm:inline">Lista</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Lista de Reuniões */}
-      <div className="space-y-4">
+      {/* Conteúdo: Listagem de Reuniões */}
+      <div>
         {loading ? (
           <div className="py-20 text-center text-slate-400">
             <RefreshCw size={32} className="animate-spin mx-auto mb-3 text-blue-500" />
@@ -632,19 +755,20 @@ export const Reunioes: React.FC = () => {
           <div className="py-16 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm">
             <Users size={48} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
             <h3 className="text-base font-bold text-slate-700 dark:text-slate-200">
-              Nenhuma reunião encontrada
+              Nenhuma reunião encontrada com os filtros selecionados
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-1">
-              Agende a primeira reunião semanal para iniciar o alinhamento entre departamentos e eliminar os gargalos operacionais.
+              Tente redefinir os filtros ou agende um novo alinhamento intersetorial.
             </p>
             <button
               onClick={() => setIsModalOpen(true)}
               className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium text-sm transition-all"
             >
-              <Plus size={16} /> Agendar 1ª Reunião
+              <Plus size={16} /> Agendar Novo Alinhamento
             </button>
           </div>
-        ) : (
+        ) : viewMode === 'cards' ? (
+          /* MODO 1: CARDS / GALERIA */
           <div className="grid grid-cols-1 gap-4">
             {filteredReunioes.map((reuniao) => {
               const tipoConfig = TIPOS_REUNIAO_MAP[reuniao.tipo] || TIPOS_REUNIAO_MAP.outro;
@@ -652,18 +776,21 @@ export const Reunioes: React.FC = () => {
               const concluidas = acoes.filter(a => a.status === 'Concluida').length;
               const pctAcoes = acoes.length > 0 ? Math.round((concluidas / acoes.length) * 100) : 0;
               const isAoVivo = reuniao.status === 'em_andamento';
+              const isCancelada = reuniao.status === 'cancelada';
 
               return (
                 <div
                   key={reuniao.id}
                   className={`group bg-white dark:bg-slate-900 rounded-2xl border transition-all duration-200 p-5 md:p-6 shadow-sm hover:shadow-md ${
-                    isAoVivo
+                    isCancelada
+                      ? 'border-slate-200 dark:border-slate-800 opacity-60 bg-slate-50/50'
+                      : isAoVivo
                       ? 'border-blue-500 ring-2 ring-blue-500/20'
                       : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Lado Esquerdo: Identificação e Pauta */}
+                    {/* Lado Esquerdo: Identificação, Ciclo e Datas */}
                     <div className="space-y-3 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         {/* Tag de Tipo */}
@@ -686,7 +813,7 @@ export const Reunioes: React.FC = () => {
                         {reuniao.status === 'em_andamento' && (
                           <span className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 animate-pulse">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-ping" />
-                            EM ANDAMENTO (AO VIVO)
+                            AO VIVO
                           </span>
                         )}
                         {reuniao.status === 'agendada' && (
@@ -698,6 +825,12 @@ export const Reunioes: React.FC = () => {
                           <span className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                             <CheckCircle2 size={12} />
                             Concluída
+                          </span>
+                        )}
+                        {reuniao.status === 'cancelada' && (
+                          <span className="flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                            <Ban size={12} />
+                            Cancelada
                           </span>
                         )}
 
@@ -717,7 +850,7 @@ export const Reunioes: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Departamentos e Participantes */}
+                      {/* Departamentos, Convocados e Data de Criação */}
                       <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
                         <div className="flex items-center gap-1.5">
                           <Layers size={14} className="text-slate-400" />
@@ -733,11 +866,25 @@ export const Reunioes: React.FC = () => {
                             <span>{reuniao.participantes.length} colaboradores convocados</span>
                           </div>
                         )}
+
+                        {/* DATA E HORA DE CRIAÇÃO (SOLICITAÇÃO DO USUÁRIO) */}
+                        {reuniao.created_at && (
+                          <div className="flex items-center gap-1.5 text-slate-400 bg-slate-50 dark:bg-slate-800/60 px-2 py-0.5 rounded-md border border-slate-100 dark:border-slate-800">
+                            <CalendarClock size={13} className="text-slate-400" />
+                            <span>Criada em: {new Date(reuniao.created_at).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
-                    {/* Lado Direito: Ações WBR e Botão do Cockpit */}
+                    {/* Lado Direito: Ações WBR e Botões de Gestão (Adiar, Cancelar, Excluir) */}
                     <div className="flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-end justify-between gap-4 border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 dark:border-slate-800">
+                      
                       {/* Progresso de Tarefas Pactuadas */}
                       <div className="text-left sm:text-right w-full sm:w-auto">
                         <div className="flex items-center sm:justify-end gap-2 text-xs text-slate-500 dark:text-slate-400">
@@ -756,10 +903,10 @@ export const Reunioes: React.FC = () => {
                         )}
                       </div>
 
-                      {/* Data e Botão de Ação */}
-                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                        <div className="text-right text-xs text-slate-500 dark:text-slate-400 hidden md:block">
-                          <div className="font-medium text-slate-700 dark:text-slate-300">
+                      {/* Data do Encontro & Botões de Ação */}
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                        <div className="text-right text-xs text-slate-500 dark:text-slate-400 hidden md:block mr-2">
+                          <div className="font-bold text-slate-800 dark:text-slate-200">
                             {new Date(reuniao.data_reuniao).toLocaleDateString('pt-BR', {
                               weekday: 'short',
                               day: '2-digit',
@@ -774,6 +921,39 @@ export const Reunioes: React.FC = () => {
                           </div>
                         </div>
 
+                        {/* Botão Adiar */}
+                        {reuniao.status !== 'concluida' && reuniao.status !== 'cancelada' && (
+                          <button
+                            onClick={() => handleAbrirAdiarModal(reuniao)}
+                            title="Adiar / Reagendar horário do encontro"
+                            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold transition-colors flex items-center gap-1"
+                          >
+                            <CalendarClock size={15} />
+                            <span className="hidden sm:inline">Adiar</span>
+                          </button>
+                        )}
+
+                        {/* Botão Cancelar */}
+                        {reuniao.status !== 'concluida' && reuniao.status !== 'cancelada' && (
+                          <button
+                            onClick={() => handleCancelarReuniao(reuniao)}
+                            title="Cancelar este alinhamento"
+                            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-600 text-xs font-semibold transition-colors"
+                          >
+                            <Ban size={15} />
+                          </button>
+                        )}
+
+                        {/* Botão Excluir */}
+                        <button
+                          onClick={() => handleExcluirReuniao(reuniao)}
+                          title="Excluir reunião permanentemente"
+                          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 text-xs transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+
+                        {/* Botão Principal: Abrir Cockpit / Ver Ata */}
                         <button
                           onClick={() => navigate(`/operacoes/reunioes/${reuniao.id}`)}
                           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98] ${
@@ -787,7 +967,7 @@ export const Reunioes: React.FC = () => {
                           ) : (
                             <>
                               <Play size={14} className="fill-current" />
-                              Abrir Cockpit da Reunião
+                              Abrir Cockpit
                             </>
                           )}
                         </button>
@@ -798,8 +978,255 @@ export const Reunioes: React.FC = () => {
               );
             })}
           </div>
+        ) : (
+          /* MODO 2: LISTA / TABELA COMPACTA (SOLICITAÇÃO DO USUÁRIO) */
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-700/60 text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="py-3.5 px-4">Status & Ciclo</th>
+                    <th className="py-3.5 px-4">Reunião & Setores</th>
+                    <th className="py-3.5 px-4">Data do Encontro</th>
+                    <th className="py-3.5 px-4">Criada em</th>
+                    <th className="py-3.5 px-4">Convocados</th>
+                    <th className="py-3.5 px-4">Ações WBR</th>
+                    <th className="py-3.5 px-4 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredReunioes.map((reuniao) => {
+                    const tipoConfig = TIPOS_REUNIAO_MAP[reuniao.tipo] || TIPOS_REUNIAO_MAP.outro;
+                    const acoes = reuniao.acoes || [];
+                    const concluidas = acoes.filter(a => a.status === 'Concluida').length;
+                    const isCancelada = reuniao.status === 'cancelada';
+
+                    return (
+                      <tr
+                        key={reuniao.id}
+                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
+                          isCancelada ? 'opacity-60 bg-slate-50/30' : ''
+                        }`}
+                      >
+                        {/* Status & Ciclo */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="space-y-1">
+                            {reuniao.status === 'em_andamento' && (
+                              <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 animate-pulse w-fit">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 dark:bg-blue-400 animate-ping" />
+                                AO VIVO
+                              </span>
+                            )}
+                            {reuniao.status === 'agendada' && (
+                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 block w-fit">
+                                Agendada
+                              </span>
+                            )}
+                            {reuniao.status === 'concluida' && (
+                              <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 w-fit">
+                                <CheckCircle2 size={10} /> Concluída
+                              </span>
+                            )}
+                            {reuniao.status === 'cancelada' && (
+                              <span className="flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 w-fit">
+                                <Ban size={10} /> Cancelada
+                              </span>
+                            )}
+                            
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1">
+                              {reuniao.recorrente ? (
+                                <span className="text-blue-600 dark:text-blue-400 flex items-center gap-0.5 font-medium">
+                                  <Repeat size={10} /> Contínuo
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 flex items-center gap-0.5">
+                                  <Target size={10} /> Pontual
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Título & Setores */}
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-slate-900 dark:text-slate-100 max-w-xs truncate" title={reuniao.titulo}>
+                            {reuniao.titulo}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                            <span className={`text-[10px] px-2 py-0.2 rounded-full border ${tipoConfig.color}`}>
+                              {tipoConfig.label}
+                            </span>
+                            <span className="truncate max-w-[180px]">{reuniao.departamentos_envolvidos.join(' • ')}</span>
+                          </div>
+                        </td>
+
+                        {/* Data do Encontro */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="font-semibold text-slate-800 dark:text-slate-200">
+                            {new Date(reuniao.data_reuniao).toLocaleDateString('pt-BR', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <Clock size={11} />
+                            {new Date(reuniao.data_reuniao).toLocaleTimeString('pt-BR', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })} ({reuniao.duracao_minutos || 45} min)
+                          </div>
+                        </td>
+
+                        {/* Data de Criação */}
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-500">
+                          {reuniao.created_at ? (
+                            <div>
+                              <div>{new Date(reuniao.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</div>
+                              <div className="text-[10px] text-slate-400">{new Date(reuniao.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                            </div>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+
+                        {/* Convocados */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px]">
+                            <Users size={12} className="text-slate-400" />
+                            {reuniao.participantes?.length || 0}
+                          </span>
+                        </td>
+
+                        {/* Ações WBR */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="font-semibold text-slate-700 dark:text-slate-300">
+                            {concluidas} / {acoes.length}
+                          </div>
+                          <div className="text-[10px] text-slate-400">resolvidas</div>
+                        </td>
+
+                        {/* Ações */}
+                        <td className="py-3 px-4 whitespace-nowrap text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {reuniao.status !== 'concluida' && reuniao.status !== 'cancelada' && (
+                              <button
+                                onClick={() => handleAbrirAdiarModal(reuniao)}
+                                title="Adiar / Reagendar horário"
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                              >
+                                <CalendarClock size={14} />
+                              </button>
+                            )}
+
+                            {reuniao.status !== 'concluida' && reuniao.status !== 'cancelada' && (
+                              <button
+                                onClick={() => handleCancelarReuniao(reuniao)}
+                                title="Cancelar reunião"
+                                className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-500 hover:text-rose-600 transition-colors"
+                              >
+                                <Ban size={14} />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleExcluirReuniao(reuniao)}
+                              title="Excluir reunião permanentemente"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-400 hover:text-rose-600 transition-colors"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+
+                            <button
+                              onClick={() => navigate(`/operacoes/reunioes/${reuniao.id}`)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs shadow-xs"
+                            >
+                              {reuniao.status === 'concluida' ? 'Ata' : 'Cockpit'}
+                              <ChevronRight size={13} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         )}
       </div>
+
+      {/* MODAL DE ADIAR / REAGENDAR REUNIÃO (SOLICITAÇÃO DO USUÁRIO) */}
+      {isAdiarModalOpen && reuniaoParaAdiar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-600/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <CalendarClock size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Adiar / Reagendar Reunião
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Defina a nova data e horário para este alinhamento.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAdiarModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmarAdiar} className="p-6 space-y-4">
+              <div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Reunião</span>
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                  {reuniaoParaAdiar.titulo}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Horário atual: {new Date(reuniaoParaAdiar.data_reuniao).toLocaleDateString('pt-BR')} às {new Date(reuniaoParaAdiar.data_reuniao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Nova Data e Hora
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={novaDataAdiada}
+                  onChange={e => setNovaDataAdiada(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsAdiarModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={adiando}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/30 flex items-center gap-1.5"
+                >
+                  {adiando ? <RefreshCw size={14} className="animate-spin" /> : <CalendarClock size={14} />}
+                  Salvar Novo Horário
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Amplo e Premium de Agendamento (max-w-5xl) */}
       {isModalOpen && (
@@ -1157,7 +1584,7 @@ export const Reunioes: React.FC = () => {
                 </div>
               </div>
 
-              {/* 6. DISPARO E FORMATAÇÃO DE E-MAIL (NOVO) */}
+              {/* 6. DISPARO E FORMATAÇÃO DE E-MAIL */}
               <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800">
                 {/* Trigger Checkbox Principal */}
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-blue-50/50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 transition-all">
@@ -1378,6 +1805,78 @@ export const Reunioes: React.FC = () => {
                       Confirmar e Abrir Cockpit da Reunião
                     </>
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE ADIAR / REAGENDAR REUNIÃO (SOLICITAÇÃO DO USUÁRIO) */}
+      {isAdiarModalOpen && reuniaoParaAdiar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-600/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
+                  <CalendarClock size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    Adiar / Reagendar Reunião
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Defina a nova data e horário para este alinhamento.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsAdiarModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmarAdiar} className="p-6 space-y-4">
+              <div>
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Reunião</span>
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                  {reuniaoParaAdiar.titulo}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Horário atual: {new Date(reuniaoParaAdiar.data_reuniao).toLocaleDateString('pt-BR')} às {new Date(reuniaoParaAdiar.data_reuniao).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Nova Data e Hora
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={novaDataAdiada}
+                  onChange={e => setNovaDataAdiada(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsAdiarModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={adiando}
+                  className="px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs shadow-md shadow-amber-600/30 flex items-center gap-1.5"
+                >
+                  {adiando ? <RefreshCw size={14} className="animate-spin" /> : <CalendarClock size={14} />}
+                  Salvar Novo Horário
                 </button>
               </div>
             </form>
