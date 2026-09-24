@@ -359,8 +359,9 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     monthsToFetch.push({ year: startY, month: startM + 1 });
   }
 
-  const [pedidosRes, allClientsRes, sitesRes, empresasRes, usersRes] = await Promise.all([
-    supabase.schema('core_comercial').from('pedidos').select('id, codigo, commercial_owner_id, responsible_id, client_id, client_site_id'),
+  const [pedidosRes, estimacionesRes, allClientsRes, sitesRes, empresasRes, usersRes] = await Promise.all([
+    supabase.schema('core_comercial').from('pedidos').select('id, codigo, created_by, commercial_owner_id, responsible_id, client_id, client_site_id, source_estimacion_id'),
+    supabase.schema('core_comercial').from('estimaciones').select('id, codigo, created_by, commercial_owner_id'),
     supabase.schema('core_common').from('clients').select('id, trade_name, legal_name, country_id, tax_id, province, city'),
     siteIds.length > 0
       ? supabase.schema('core_common').from('client_sites').select('id, name, country_id, province, city').in('id', siteIds)
@@ -368,14 +369,14 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     empresaIds.length > 0
       ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
       : Promise.resolve({ data: [] }),
-    supabase.schema('core_operacoes').from('users').select('id, email, display_name'),
+    supabase.schema('core_operacoes').from('mcs_users').select('id, email, display_name'),
   ]);
 
   const userMap = new Map<string, string>();
   const sellerMap = new Map<string, string>();
   ((usersRes as any)?.data || []).forEach((u: any) => {
-    const lowerEmail = (u.email || '').toLowerCase();
-    const lowerName = (u.display_name || '').toLowerCase();
+    const lowerEmail = (u.email || '').toLowerCase().trim();
+    const lowerName = (u.display_name || '').toLowerCase().trim();
     let standard = '';
     if (lowerEmail.includes('contratacao') || lowerName.includes('contratacao') || lowerName.includes('wolters') || lowerEmail.includes('wolters')) {
       standard = 'Contratação';
@@ -390,8 +391,14 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
       if (u.id) userMap.set(u.id, standard);
       if (u.email) userMap.set(u.email, standard);
     }
+    const cleanSellerName = u.display_name?.trim() || u.email?.split('@')[0]?.trim() || 'Comercial';
     if (u.id) {
-      sellerMap.set(u.id, u.display_name || u.email?.split('@')[0] || 'Comercial');
+      sellerMap.set(u.id, cleanSellerName);
+      sellerMap.set(u.id.toLowerCase(), cleanSellerName);
+    }
+    if (u.email) {
+      sellerMap.set(u.email, cleanSellerName);
+      sellerMap.set(lowerEmail, cleanSellerName);
     }
   });
 
@@ -424,8 +431,96 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
 
   const activeWorkers = Array.from(activeWorkersMap.values());
   const pedidosList = (pedidosRes.data || []) as any[];
-  const pedidosMapById = new Map(pedidosList.map(p => [p.id, p]));
-  const pedidosMapByCodigo = new Map(pedidosList.map(p => [p.codigo, p]));
+  const pedidosMapById = new Map<string, any>();
+  const pedidosMapByCodigo = new Map<string, any>();
+  const pedidosMapByNum = new Map<string, any>();
+
+  function extractNumericPart(str: string | null | undefined): string {
+    if (!str) return '';
+    const m = String(str).match(/(\d+)/g);
+    if (!m || m.length === 0) return '';
+    return m[m.length - 1].replace(/^0+/, '') || '0';
+  }
+
+  pedidosList.forEach(p => {
+    if (p.id) pedidosMapById.set(p.id, p);
+    if (p.codigo) {
+      const raw = String(p.codigo).toLowerCase().trim();
+      pedidosMapByCodigo.set(raw, p);
+      const num = extractNumericPart(raw);
+      if (num) pedidosMapByNum.set(num, p);
+    }
+  });
+
+  const estimacionesList = ((estimacionesRes as any)?.data || []) as any[];
+  const estimacionesMapById = new Map<string, any>();
+  const estimacionesMapByCodigo = new Map<string, any>();
+  const estimacionesMapByNum = new Map<string, any>();
+
+  estimacionesList.forEach(e => {
+    if (e.id) estimacionesMapById.set(e.id, e);
+    if (e.codigo) {
+      const raw = String(e.codigo).toLowerCase().trim();
+      estimacionesMapByCodigo.set(raw, e);
+      const num = extractNumericPart(raw);
+      if (num) estimacionesMapByNum.set(num, e);
+    }
+  });
+
+  function findPedido(codeOrId: string | null | undefined): any | null {
+    if (!codeOrId) return null;
+    const str = String(codeOrId).trim();
+    if (pedidosMapById.has(str)) return pedidosMapById.get(str);
+    const lower = str.toLowerCase();
+    if (pedidosMapByCodigo.has(lower)) return pedidosMapByCodigo.get(lower);
+    const num = extractNumericPart(str);
+    if (num && pedidosMapByNum.has(num)) return pedidosMapByNum.get(num);
+    return null;
+  }
+
+  function findEstimacion(codeOrId: string | null | undefined): any | null {
+    if (!codeOrId) return null;
+    const str = String(codeOrId).trim();
+    if (estimacionesMapById.has(str)) return estimacionesMapById.get(str);
+    const lower = str.toLowerCase();
+    if (estimacionesMapByCodigo.has(lower)) return estimacionesMapByCodigo.get(lower);
+    const num = extractNumericPart(str);
+    if (num && estimacionesMapByNum.has(num)) return estimacionesMapByNum.get(num);
+    return null;
+  }
+
+  function resolveSeller(
+    matchedPedido: any,
+    rawEntity: any,
+    fallbackContractor?: string | null
+  ): string {
+    const matchedEstimacion = matchedPedido?.source_estimacion_id
+      ? estimacionesMapById.get(matchedPedido.source_estimacion_id)
+      : (matchedPedido?.codigo ? findEstimacion(matchedPedido.codigo) : (findEstimacion(rawEntity?.pedido_id) || findEstimacion(rawEntity?.codpedido)));
+
+    // Usuário: "O comercial nós podemos pegar através do usuário que criou o pedido. Aí você vai ter todos os Alex, todos os Omar, pegando pelo usuário que criou o pedido daquela contratação."
+    const sellerId = matchedPedido?.created_by 
+      || matchedPedido?.commercial_owner_id 
+      || matchedPedido?.responsible_id
+      || matchedEstimacion?.created_by
+      || matchedEstimacion?.commercial_owner_id
+      || rawEntity?.created_by
+      || rawEntity?.sp_created_by;
+
+    if (sellerId) {
+      const strId = String(sellerId).trim();
+      if (sellerMap.has(strId)) return sellerMap.get(strId)!;
+      if (sellerMap.has(strId.toLowerCase())) return sellerMap.get(strId.toLowerCase())!;
+      if (userMap.has(strId)) return userMap.get(strId)!;
+    }
+
+    if (fallbackContractor) {
+      return formatStandardContratador(fallbackContractor, userMap);
+    }
+
+    return 'Comercial Geral';
+  }
+
   const clientsMap = new Map(((allClientsRes as any).data || []).map((c: any) => [c.id, c]));
   const sitesMap = new Map(((sitesRes as any).data || []).map((s: any) => [s.id, s]));
   const empresasMap = new Map(((empresasRes as any).data || []).map((e: any) => [e.id, e]));
@@ -437,12 +532,11 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
       ? a.worker.data_baixa
       : null;
 
-    const matchedPedido = pedidosMapById.get(a.pedido_id) || (a.pedido?.codigo ? pedidosMapByCodigo.get(a.pedido.codigo) : null);
-    const matchedClient = clientsMap.get(a.client_id) || null;
-    const matchedSite = sitesMap.get(a.client_site_id) || null;
+    const matchedPedido = findPedido(a.pedido_id) || (a.pedido?.codigo ? findPedido(a.pedido.codigo) : null);
+    const matchedClient = clientsMap.get(a.client_id) || (matchedPedido?.client_id ? clientsMap.get(matchedPedido.client_id) : null);
+    const matchedSite = sitesMap.get(a.client_site_id) || (matchedPedido?.client_site_id ? sitesMap.get(matchedPedido.client_site_id) : null);
     const countryInfo = resolveCountry(matchedClient, matchedSite);
-    const sellerId = matchedPedido?.commercial_owner_id || matchedPedido?.responsible_id;
-    const vendedor = (sellerId && sellerMap.get(sellerId)) || (a.worker?.contractor ? formatStandardContratador(a.worker.contractor, userMap) : 'Comercial Geral');
+    const vendedor = resolveSeller(matchedPedido, a, a.worker?.contractor);
 
     return {
       ...a,
@@ -488,17 +582,16 @@ async function fetchReportDataForEmpresa(empresaId: string | null, filters: Hiri
     .map((w: any) => {
       const cpp = cppMap.get(w.cod_colab);
 
+      const matchedPedido = cpp?.codpedido ? findPedido(cpp.codpedido) : null;
       const matchedClient = allClients.find((c: any) => {
         const tradeNorm = normalizeString(c.trade_name);
         const legalNorm = normalizeString(c.legal_name);
         const workerClientNorm = normalizeString(w.cliente_nombre || cpp?.cliente_nombre);
         return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
-      });
+      }) || (matchedPedido?.client_id ? clientsMap.get(matchedPedido.client_id) : null);
 
-      const matchedPedido = cpp?.codpedido ? pedidosMapByCodigo.get(cpp.codpedido) : null;
       const countryInfo = resolveCountry(matchedClient, null);
-      const sellerId = matchedPedido?.commercial_owner_id || matchedPedido?.responsible_id;
-      const vendedor = (sellerId && sellerMap.get(sellerId)) || (w.contractor ? formatStandardContratador(w.contractor, userMap) : 'Comercial Geral');
+      const vendedor = resolveSeller(matchedPedido, cpp, w.contractor);
 
       const rawWorkerStatus = (w.status_trabajador || '').toLowerCase();
       const isInactive = rawWorkerStatus.includes('baja') || rawWorkerStatus.includes('inativo') || rawWorkerStatus.includes('desligado') || !!w.data_baixa || !!cpp?.fechasalidatrabajador;
