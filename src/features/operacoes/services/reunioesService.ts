@@ -303,37 +303,55 @@ export const reunioesService = {
   },
 
   /**
-   * Busca dados operacionais da semana para o Raio-X do Cockpit (Bloco 2: Plan/Data)
+   * Busca dados operacionais da semana para o Diagnóstico do Cockpit (Bloco 2: PLAN - Contexto & Evidências)
    */
   async getDadosOperacionaisSemana(): Promise<{
     pedidosRecentes: any[];
     incidenciasRecentes: any[];
+    trabalhadoresRecentes: any[];
+    clientesRecentes: any[];
     totalPedidosAtivos: number;
     totalIncidenciasAbertas: number;
   }> {
     try {
-      const dataLimite = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
-
-      // Pedidos recentes
-      const { data: pedidos } = await supabase
-        .from('pedidos')
-        .select('id, codigo, estado, fecha_inicio_pedido, cantidad_personal, id_cliente')
-        .order('fecha_inicio_pedido', { ascending: false })
-        .limit(10);
-
-      // Incidências recentes
-      const { data: incidencias } = await supabase
-        .from('mcs_incidents')
-        .select('id, title, status, severity, impact_level, created_at, client_name')
-        .order('created_at', { ascending: false })
-        .limit(10);
+      const [
+        { data: pedidos },
+        { data: incidencias },
+        { data: workers },
+        { data: clients }
+      ] = await Promise.all([
+        supabase
+          .from('pedidos')
+          .select('id, codigo, estado, fecha_inicio_pedido, fecha_fin_pedido, cantidad_personal, id_cliente')
+          .order('fecha_inicio_pedido', { ascending: false })
+          .limit(25),
+        supabase
+          .from('mcs_incidents')
+          .select('id, title, status, severity, impact_level, created_at, client_name')
+          .order('created_at', { ascending: false })
+          .limit(25),
+        supabase
+          .from('workers')
+          .select('id, nome, status_trabajador, funcion, cliente, nie')
+          .order('created_at', { ascending: false })
+          .limit(25),
+        supabase
+          .from('clients')
+          .select('id, trade_name, legal_name, codigo, city, province')
+          .order('trade_name', { ascending: true })
+          .limit(30)
+      ]);
 
       const pedidosList = pedidos || [];
       const incidenciasList = incidencias || [];
+      const workersList = workers || [];
+      const clientsList = clients || [];
 
       return {
         pedidosRecentes: pedidosList,
         incidenciasRecentes: incidenciasList,
+        trabalhadoresRecentes: workersList,
+        clientesRecentes: clientsList,
         totalPedidosAtivos: pedidosList.filter((p: any) => p.estado !== 'Cancelado' && p.estado !== 'Finalizado').length,
         totalIncidenciasAbertas: incidenciasList.filter((i: any) => i.status !== 'resolved' && i.status !== 'closed').length
       };
@@ -342,6 +360,8 @@ export const reunioesService = {
       return {
         pedidosRecentes: [],
         incidenciasRecentes: [],
+        trabalhadoresRecentes: [],
+        clientesRecentes: [],
         totalPedidosAtivos: 0,
         totalIncidenciasAbertas: 0
       };

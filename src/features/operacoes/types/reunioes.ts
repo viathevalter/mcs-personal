@@ -23,6 +23,14 @@ export interface ReuniaoAcao {
   created_at?: string;
 }
 
+export interface TopicoLivreContexto {
+  id: string;
+  titulo: string;
+  categoria?: 'sistemas' | 'projeto' | 'processos' | 'comercial' | 'outro';
+  descricao?: string;
+  criado_em?: string;
+}
+
 export interface Reuniao {
   id: string;
   titulo: string;
@@ -39,6 +47,9 @@ export interface Reuniao {
   proxima_reuniao_data?: string;
   pedidos_contexto?: string[];
   incidencias_contexto?: string[];
+  trabalhadores_contexto?: string[];
+  clientes_contexto?: string[];
+  topicos_livres?: TopicoLivreContexto[];
   duracao_minutos?: number;
   recorrente?: boolean;
   modalidade?: ModalidadeReuniao;
