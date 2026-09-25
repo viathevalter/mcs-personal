@@ -677,20 +677,6 @@ export const Cobros = () => {
                         <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{t('financeiro.subtitle_cobros', 'Acompanhe faturas emitidas, controle recebimentos e gerencie o fluxo de caixa.')}</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <ExportCobrosDialog
-                            titulos={sortedData}
-                            activeKpiFilter={activeKpiFilter}
-                            filterEmpresas={filterEmpresas}
-                            filterBancos={filterBancos}
-                            filterPeriodosFat={filterPeriodosFat}
-                            searchTerm={searchTerm}
-                            trigger={
-                                <Button variant="outline" className="flex items-center gap-2 shadow-xs text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300 font-semibold">
-                                    <FileSpreadsheet size={17} className="text-emerald-600" />
-                                    <span>{t('financeiro.export.btn_export', 'Exportar Excel')}</span>
-                                </Button>
-                            }
-                        />
                         <Button onClick={openNewForm} className="flex items-center gap-2 shadow-sm font-semibold">
                             <Plus size={18} /> {t('financeiro.actions.btn_new_cobro', 'Novo Cobro')}
                         </Button>
@@ -996,7 +982,7 @@ export const Cobros = () => {
                                 trigger={
                                     <Button variant="outline" className="flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300">
                                         <FileSpreadsheet size={16} className="text-emerald-600" />
-                                        <span>{t('financeiro.export.btn_export', 'Exportar')}</span>
+                                        <span>{t('financeiro.export.btn_export', 'Exportar Excel')}</span>
                                     </Button>
                                 }
                             />
