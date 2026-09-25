@@ -163,6 +163,40 @@ export const ReuniaoDetail: React.FC = () => {
         }
       }
 
+      // Garantir que todos os pedidos vinculados à reunião estejam carregados com seus detalhes completos (Cliente, Datas, Empresa)
+      if (data.pedidos_contexto && data.pedidos_contexto.length > 0) {
+        try {
+          const { data: specificPedidos } = await supabase
+            .schema('core_operacoes')
+            .from('pedidos')
+            .select('id, codigo, empresa_id, client_id, client_site_id, expected_start_date, expected_end_date, created_at, commercial_status, operational_status, client_name, client_legal_name, site_name')
+            .in('codigo', data.pedidos_contexto);
+
+          if (specificPedidos && specificPedidos.length > 0) {
+            const { data: empresas } = await supabase
+              .schema('core_common')
+              .from('empresas')
+              .select('id, trade_name, legal_name');
+            const empresasMap = new Map((empresas || []).map((e: any) => [e.id, e.trade_name || e.legal_name]));
+
+            specificPedidos.forEach((sp: any) => {
+              const enriched = {
+                ...sp,
+                empresa_nome: empresasMap.get(sp.empresa_id) || 'MCS Geral'
+              };
+              const idx = opData.pedidosRecentes.findIndex((p: any) => p.id === sp.id || p.codigo === sp.codigo);
+              if (idx >= 0) {
+                opData.pedidosRecentes[idx] = { ...opData.pedidosRecentes[idx], ...enriched };
+              } else {
+                opData.pedidosRecentes.push(enriched);
+              }
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       setDadosSemana(opData);
 
       // Buscar departamentos e usuários atribuíveis unificados (Funcionários + Usuários Login)
@@ -533,12 +567,28 @@ export const ReuniaoDetail: React.FC = () => {
       const rhDept = departments.find(d => d.name?.toLowerCase().includes('recurso') || d.name?.toLowerCase() === 'rh');
       if (rhDept) targetDeptId = rhDept.id;
     } else if (refVal.startsWith('Pedido')) {
-      const code = refVal.replace(/^Pedido\s*#?/, '').replace(':', '').trim();
-      const pedido = dadosSemana.pedidosRecentes.find(x => x.id === code || x.codigo === code)
-        || (liveSearchResults.pedidos || []).find(x => x.id === code || x.codigo === code);
+      const clean = refVal.replace(/^Pedido\s*#?/, '').trim();
+      const code = clean.split('—')[0].split('•')[0].split('(')[0].replace(':', '').trim();
+      const pedido = dadosSemana.pedidosRecentes.find(x => x.id === code || x.codigo === code || (x.codigo && clean.includes(x.codigo)))
+        || (liveSearchResults.pedidos || []).find(x => x.id === code || x.codigo === code || (x.codigo && clean.includes(x.codigo)));
       const clientName = pedido?.client_name || pedido?.client_legal_name;
       autoTitle = `Tratar Pedido #${pedido?.codigo || code}${clientName ? ` (${clientName})` : ''}`;
-      autoDesc = `Pedido: #${pedido?.codigo || code}${clientName ? `\nCliente: ${clientName}` : ''}${pedido?.site_name ? `\nObra/Local: ${pedido.site_name}` : ''}${pedido?.expected_start_date ? `\nInício Previsto: ${formatDateBr(pedido.expected_start_date)}` : ''}${pedido?.created_at ? `\nData Cadastro: ${formatDateBr(pedido.created_at)}` : ''}${pedido?.empresa_nome ? `\nEmpresa: ${pedido.empresa_nome}` : ''}`;
+      
+      const partesDesc: string[] = [
+        `📦 Pedido: #${pedido?.codigo || code}`
+      ];
+      if (clientName) partesDesc.push(`🏢 Cliente: ${clientName}`);
+      if (pedido?.site_name) partesDesc.push(`📍 Obra/Local: ${pedido.site_name}`);
+      if (pedido?.expected_start_date) partesDesc.push(`⏱️ Início Previsto: ${formatDateBr(pedido.expected_start_date)}`);
+      if (pedido?.expected_end_date) partesDesc.push(`🏁 Término Previsto: ${formatDateBr(pedido.expected_end_date)}`);
+      if (pedido?.created_at) partesDesc.push(`📅 Data de Cadastro: ${formatDateBr(pedido.created_at)}`);
+      if (pedido?.empresa_nome) partesDesc.push(`🏷️ Empresa: ${pedido.empresa_nome}`);
+      if (pedido?.operational_status) {
+        const opStatusLabel = pedido.operational_status === 'fulfilled' ? 'Atendido' : pedido.operational_status === 'partially_fulfilled' ? 'Parcialmente Atendido' : 'Pendente Operações';
+        partesDesc.push(`⚙️ Status Operacional: ${opStatusLabel}`);
+      }
+
+      autoDesc = partesDesc.join('\n');
       
       const opDept = departments.find(d => d.name?.toLowerCase().includes('operaç') || d.name?.toLowerCase().includes('coord'));
       if (opDept) targetDeptId = opDept.id;
@@ -2461,6 +2511,7 @@ export const ReuniaoDetail: React.FC = () => {
                     {pedidosSelecionados.map(pId => {
                       const p = dadosSemana.pedidosRecentes.find(x => x.id === pId || x.codigo === pId);
                       const cod = p?.codigo || pId;
+                      const clientName = p?.client_name || p?.client_legal_name;
                       const refVal = `Pedido #${cod}`;
                       const isSelected = novaAcao.contexto_ref.includes(refVal);
                       return (
@@ -2468,19 +2519,29 @@ export const ReuniaoDetail: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleSelectContextoRef(refVal, 'replace')}
-                            className={`px-2.5 py-1 font-semibold flex items-center gap-1.5 transition-colors ${
+                            className={`px-3 py-1.5 font-semibold flex flex-wrap items-center gap-1.5 transition-colors ${
                               isSelected
                                 ? 'bg-amber-600 text-white border-amber-600'
-                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-slate-750'
+                                : 'bg-white dark:bg-slate-850 text-slate-700 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-slate-750'
                             }`}
                           >
-                            📦 Pedido #{cod} {p?.empresa_nome ? `(${p.empresa_nome})` : ''}
+                            <span>📦 Pedido #{cod}</span>
+                            {clientName && (
+                              <span className={`font-bold ${isSelected ? 'text-amber-100' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                                • {clientName}
+                              </span>
+                            )}
+                            {p?.empresa_nome && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${isSelected ? 'bg-amber-700/70 text-white' : 'bg-slate-100 dark:bg-slate-750 text-slate-500'}`}>
+                                {p.empresa_nome}
+                              </span>
+                            )}
                           </button>
                           <button
                             type="button"
-                            title="Anexar este pedido aos detalhes da tarefa atual"
+                            title="Anexar dados deste pedido (cliente, obra, datas) aos detalhes da tarefa atual"
                             onClick={() => handleSelectContextoRef(refVal, 'append')}
-                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold border-l border-slate-200 dark:border-slate-600"
+                            className="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold border-l border-slate-200 dark:border-slate-600"
                           >
                             +
                           </button>
@@ -2591,9 +2652,11 @@ export const ReuniaoDetail: React.FC = () => {
                       <optgroup label="📦 Pedidos em Pauta">
                         {pedidosSelecionados.map(pId => {
                           const p = dadosSemana.pedidosRecentes.find(x => x.id === pId || x.codigo === pId);
+                          const cod = p?.codigo || pId;
+                          const clientName = p?.client_name || p?.client_legal_name;
                           return (
-                            <option key={pId} value={`Pedido #${p?.codigo || pId}`}>
-                              📦 Pedido #{p?.codigo || pId}
+                            <option key={pId} value={`Pedido #${cod}`}>
+                              📦 Pedido #{cod}{clientName ? ` — Cliente: ${clientName}` : ''}{p?.empresa_nome ? ` (${p.empresa_nome})` : ''}
                             </option>
                           );
                         })}
@@ -2603,9 +2666,10 @@ export const ReuniaoDetail: React.FC = () => {
                       <optgroup label="👥 Trabalhadores / RH em Pauta">
                         {trabalhadoresSelecionados.map(wId => {
                           const w = dadosSemana.trabalhadoresRecentes.find(x => x.id === wId || x.nome === wId);
+                          const name = w?.nome || wId;
                           return (
-                            <option key={wId} value={`RH: ${w?.nome || wId}`}>
-                              👥 {w?.nome || wId} ({w?.funcion || 'Geral'})
+                            <option key={wId} value={`RH: ${name}`}>
+                              👥 {name} ({w?.funcion || 'Geral'}{w?.cliente ? ` • ${w.cliente}` : ''})
                             </option>
                           );
                         })}
