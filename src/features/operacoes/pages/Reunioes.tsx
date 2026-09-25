@@ -6,7 +6,8 @@ import {
   ArrowUpRight, RefreshCw, X, MessageSquare, Repeat, Target, UserCheck,
   Building2, Briefcase, Mail, Send, Globe, AtSign, CheckSquare, Info,
   LayoutGrid, List, CalendarClock, Ban, Trash2, MoreVertical, AlertTriangle,
-  Eye, Edit3, Video, MapPin, Monitor, ExternalLink
+  Eye, Edit3, Video, MapPin, Monitor, ExternalLink, ChevronDown, ChevronUp,
+  ListOrdered
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService } from '../services/reunioesService';
@@ -41,6 +42,12 @@ export const Reunioes: React.FC = () => {
   const handleToggleViewMode = (mode: 'cards' | 'lista') => {
     setViewMode(mode);
     localStorage.setItem('mcs_reunioes_view_mode', mode);
+  };
+
+  // Controle de expansão de pautas completas nos cards
+  const [expandedPautas, setExpandedPautas] = useState<Record<string, boolean>>({});
+  const togglePautaExpanded = (id: string) => {
+    setExpandedPautas(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   // Filtros de listagem
@@ -194,6 +201,78 @@ export const Reunioes: React.FC = () => {
       .trim();
 
     return str;
+  };
+
+  // Extrator e organizador dos tópicos da Pauta (Remove tags HTML e estrutura itens limpos)
+  const extractPautaTopics = (raw: string | undefined): { title?: string; topics: string[] } => {
+    if (!raw || !raw.trim()) return { topics: [] };
+
+    // 1. Caso haja marcações de lista <li>...</li> (geradas pelo editor visual ou template)
+    const liMatches = raw.match(/<li[^>]*>([\s\S]*?)<\/li>/gi);
+    if (liMatches && liMatches.length > 0) {
+      let title: string | undefined;
+      const hMatch = raw.match(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/i);
+      if (hMatch) {
+        title = hMatch[1].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+      }
+
+      const topics = liMatches
+        .map(li => {
+          return li
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/\s+/g, ' ')
+            .trim();
+        })
+        .filter(t => t.length > 0);
+
+      return { title, topics };
+    }
+
+    // 2. Limpeza profunda de tags HTML, quebras e entidades
+    let cleaned = raw
+      .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, '$1\n')
+      .replace(/<br\s*[\/]?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<[^>]+>/gi, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/[#*`]/g, '')
+      .trim();
+
+    // Se possui sequência enumerada como "1. ... 2. ... 3. ..." (mesmo corrida numa linha só)
+    if (/\b1[\.\)]\s+/.test(cleaned) && /\b2[\.\)]\s+/.test(cleaned)) {
+      const firstNumIdx = cleaned.search(/\b1[\.\)]\s+/);
+      let title: string | undefined;
+      let itemsPart = cleaned;
+      if (firstNumIdx > 0) {
+        title = cleaned.slice(0, firstNumIdx).trim();
+        itemsPart = cleaned.slice(firstNumIdx);
+      }
+      const parts = itemsPart
+        .split(/(?=\b\d+[\.\)]\s+)/)
+        .map(p => p.trim())
+        .filter(Boolean);
+      return { title, topics: parts };
+    }
+
+    // Se possui quebras de linhas explícitas
+    const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length > 1) {
+      return { topics: lines };
+    }
+
+    return { topics: [cleaned] };
   };
 
   // Gerador de Templates de E-mail nos 3 Idiomas
@@ -1102,11 +1181,127 @@ export const Reunioes: React.FC = () => {
                         <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                           {reuniao.titulo}
                         </h3>
-                        {reuniao.pauta_topicos && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">
-                            {reuniao.pauta_topicos.replace(/[#*`]/g, '')}
-                          </p>
-                        )}
+
+                        {/* Pauta / Ordem do Dia Organizada e Sem Tags HTML */}
+                        {reuniao.pauta_topicos && (() => {
+                          const { title, topics } = extractPautaTopics(reuniao.pauta_topicos);
+                          const isExpanded = !!expandedPautas[reuniao.id];
+                          if (topics.length === 0) return null;
+
+                          return (
+                            <div className="mt-2 space-y-1.5">
+                              {!isExpanded ? (
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-0.5">
+                                    <ListOrdered size={13} className="text-blue-500" />
+                                    Pauta:
+                                  </span>
+
+                                  {topics.slice(0, 3).map((item, idx) => {
+                                    const colonIdx = item.indexOf(':');
+                                    const hasColon = colonIdx > -1 && colonIdx < 45;
+                                    const itemLabel = hasColon ? item.slice(0, colonIdx) : item;
+                                    const itemDesc = hasColon ? item.slice(colonIdx + 1).trim() : '';
+
+                                    return (
+                                      <span
+                                        key={idx}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 text-xs font-medium border border-slate-200/90 dark:border-slate-700/80 max-w-[340px] truncate shadow-2xs hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors"
+                                        title={item}
+                                      >
+                                        <span className="font-bold text-blue-600 dark:text-blue-400 shrink-0">
+                                          {hasColon ? itemLabel : `${idx + 1}.`}
+                                        </span>
+                                        {itemDesc ? (
+                                          <span className="text-slate-500 dark:text-slate-400 truncate">
+                                            {itemDesc}
+                                          </span>
+                                        ) : (
+                                          !hasColon && <span className="truncate">{item}</span>
+                                        )}
+                                      </span>
+                                    );
+                                  })}
+
+                                  {topics.length > 3 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        togglePautaExpanded(reuniao.id);
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 text-xs font-semibold border border-blue-200/70 dark:border-blue-800/70 transition-colors shadow-2xs cursor-pointer"
+                                    >
+                                      +{topics.length - 3} tópicos <ChevronDown size={12} />
+                                    </button>
+                                  )}
+
+                                  {topics.length <= 3 && topics.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        togglePautaExpanded(reuniao.id);
+                                      }}
+                                      className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-1 inline-flex items-center gap-0.5 cursor-pointer"
+                                    >
+                                      Ver completa <ChevronDown size={11} />
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="p-3.5 rounded-xl bg-slate-50/90 dark:bg-slate-850/80 border border-slate-200/90 dark:border-slate-750 space-y-2.5 shadow-2xs">
+                                  <div className="flex items-center justify-between text-xs font-bold text-slate-800 dark:text-slate-200">
+                                    <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                                      <ListOrdered size={14} />
+                                      {title || 'Ordem do Dia / Pauta do Encontro'} ({topics.length} tópicos)
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        togglePautaExpanded(reuniao.id);
+                                      }}
+                                      className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold px-2 py-0.5 rounded hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
+                                    >
+                                      Recolher <ChevronUp size={12} />
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-0.5">
+                                    {topics.map((item, idx) => {
+                                      const colonIdx = item.indexOf(':');
+                                      const hasColon = colonIdx > -1 && colonIdx < 45;
+                                      const itemLabel = hasColon ? item.slice(0, colonIdx) : item;
+                                      const itemDesc = hasColon ? item.slice(colonIdx + 1).trim() : '';
+
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className="flex items-start gap-2 p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs shadow-2xs"
+                                        >
+                                          <span className="flex items-center justify-center w-5 h-5 rounded-md bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-bold text-[11px] shrink-0 mt-0.5">
+                                            {idx + 1}
+                                          </span>
+                                          <div className="leading-tight">
+                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                              {hasColon ? itemLabel.replace(/^\d+[\.\)]\s*/, '') : item}
+                                            </span>
+                                            {itemDesc && (
+                                              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
+                                                {itemDesc}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {/* Departamentos, Convocados e Data de Criação */}
@@ -1334,7 +1529,10 @@ export const Reunioes: React.FC = () => {
 
                         {/* Título & Setores */}
                         <td className="py-3 px-4">
-                          <div className="font-bold text-slate-900 dark:text-slate-100 max-w-xs truncate" title={reuniao.titulo}>
+                          <div
+                            className="font-bold text-slate-900 dark:text-slate-100 max-w-xs truncate"
+                            title={reuniao.pauta_topicos ? `${reuniao.titulo}\n\n📋 Pauta:\n${htmlToCleanPlainText(reuniao.pauta_topicos)}` : reuniao.titulo}
+                          >
                             {reuniao.titulo}
                           </div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
