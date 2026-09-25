@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail, RefreshCw, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, CheckCircle2, AlertTriangle, Activity, Building2 } from 'lucide-react';
+import { Search, Plus, Filter, Edit2, Trash2, DollarSign, Clock, Mail, RefreshCw, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, CheckCircle2, AlertTriangle, Activity, Building2, FileSpreadsheet } from 'lucide-react';
 import { formatCurrency, formatDate, formatCompactCurrency, normalizeEmpresaName } from '../lib/utils';
 import { fetchEnrichedData, createContaReceber, updateContaReceber, deleteContaReceber, saveObservacao, fetchModernEmpresas } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -13,6 +13,7 @@ import { ObservacoesModal } from '../components/ObservacoesModal';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CobroDetalhesSheet } from '../components/CobroDetalhesSheet';
 import { RichTextEditor } from '../components/RichTextEditor';
+import { ExportCobrosDialog } from '../components/ExportCobrosDialog';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -676,6 +677,20 @@ export const Cobros = () => {
                         <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{t('financeiro.subtitle_cobros', 'Acompanhe faturas emitidas, controle recebimentos e gerencie o fluxo de caixa.')}</p>
                     </div>
                     <div className="flex items-center gap-3">
+                        <ExportCobrosDialog
+                            titulos={sortedData}
+                            activeKpiFilter={activeKpiFilter}
+                            filterEmpresas={filterEmpresas}
+                            filterBancos={filterBancos}
+                            filterPeriodosFat={filterPeriodosFat}
+                            searchTerm={searchTerm}
+                            trigger={
+                                <Button variant="outline" className="flex items-center gap-2 shadow-xs text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300 font-semibold">
+                                    <FileSpreadsheet size={17} className="text-emerald-600" />
+                                    <span>{t('financeiro.export.btn_export', 'Exportar Excel')}</span>
+                                </Button>
+                            }
+                        />
                         <Button onClick={openNewForm} className="flex items-center gap-2 shadow-sm font-semibold">
                             <Plus size={18} /> {t('financeiro.actions.btn_new_cobro', 'Novo Cobro')}
                         </Button>
@@ -971,6 +986,20 @@ export const Cobros = () => {
                             />
                         </div>
                         <div className="flex items-center gap-2 w-full md:w-auto">
+                            <ExportCobrosDialog
+                                titulos={sortedData}
+                                activeKpiFilter={activeKpiFilter}
+                                filterEmpresas={filterEmpresas}
+                                filterBancos={filterBancos}
+                                filterPeriodosFat={filterPeriodosFat}
+                                searchTerm={searchTerm}
+                                trigger={
+                                    <Button variant="outline" className="flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300">
+                                        <FileSpreadsheet size={16} className="text-emerald-600" />
+                                        <span>{t('financeiro.export.btn_export', 'Exportar')}</span>
+                                    </Button>
+                                }
+                            />
                             <div className="relative">
                                 <Button 
                                     variant={activeFiltersCount > 0 ? "default" : "outline"} 

@@ -1769,6 +1769,23 @@
       "msg_email_sent": "¡Correo electrónico de cobro enviado con éxito!",
       "msg_email_log": "El registro del envío se guardó en la línea de tiempo del cobro.",
       "err_email_log": "Error al registrar el envío del correo: "
+    },
+    "export": {
+      "btn_export": "Exportar Excel",
+      "dialog_title": "Exportar Cobros y Recepciones (Excel)",
+      "dialog_desc": "Seleccione las columnas personalizadas que desea incluir en la hoja de cálculo. La exportación utilizará exactamente los datos y filtros activos en pantalla.",
+      "presets_label": "Modelos Rápidos de Columnas:",
+      "select_all": "Seleccionar Todas",
+      "deselect_all": "Deseleccionar Todas",
+      "search_columns_placeholder": "Buscar columna por nombre...",
+      "columns_selected": "columnas seleccionadas",
+      "btn_cancel": "Cancelar",
+      "btn_download": "Descargar Planilla",
+      "generating": "Generando Excel...",
+      "success": "¡Planilla Excel exportada con éxito!",
+      "err_no_data": "No se encontraron cobros con los filtros actuales para exportar.",
+      "err_no_columns": "Seleccione al menos una columna para exportar.",
+      "err_generic": "Error al generar planilla: "
     }
   },
   "masterData": {
