@@ -136,6 +136,27 @@ export const ReuniaoDetail: React.FC = () => {
 
       // Buscar dados da semana para o bloco 2 (PLAN)
       const opData = await reunioesService.getDadosOperacionaisSemana();
+
+      // Garantir que todos os trabalhadores vinculados à reunião estejam carregados com seus detalhes completos
+      if (data.trabalhadores_contexto && data.trabalhadores_contexto.length > 0) {
+        try {
+          const { data: specificWorkers } = await supabase
+            .schema('core_personal')
+            .from('workers')
+            .select('id, nome, status_trabajador, funcion, cliente, cod_cliente, nie, cod_colab')
+            .in('nome', data.trabalhadores_contexto);
+
+          if (specificWorkers && specificWorkers.length > 0) {
+            const existingIds = new Set(opData.trabalhadoresRecentes.map((w: any) => w.id));
+            specificWorkers.forEach((sw: any) => {
+              if (!existingIds.has(sw.id)) opData.trabalhadoresRecentes.push(sw);
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       setDadosSemana(opData);
 
       // Buscar departamentos e usuários atribuíveis unificados (Funcionários + Usuários Login)
@@ -473,14 +494,97 @@ export const ReuniaoDetail: React.FC = () => {
     return found ? `${found.name} (${found.email})` : email;
   };
 
+  // Seleção Inteligente de Contexto para a Nova Ação (Passo 4 - ACT)
+  const handleSelectContextoRef = (refVal: string, mode: 'replace' | 'append' = 'replace') => {
+    if (!refVal) {
+      setNovaAcao(prev => ({ ...prev, contexto_ref: '' }));
+      return;
+    }
+
+    let autoTitle = '';
+    let autoDesc = '';
+    let targetDeptId = novaAcao.department_id;
+
+    if (refVal.startsWith('RH:')) {
+      const nameOrId = refVal.replace(/^RH:\s*/, '').trim();
+      const worker = dadosSemana.trabalhadoresRecentes.find(x => x.id === nameOrId || x.nome === nameOrId)
+        || (liveSearchResults.trabalhadores || []).find(x => x.id === nameOrId || x.nome === nameOrId);
+      const name = worker?.nome || nameOrId;
+      autoTitle = `Tratar caso de ${name}`;
+      autoDesc = `Trabalhador: ${name}\nFunção: ${worker?.funcion || 'Trabalhador'}${worker?.cliente ? `\nObra/Cliente: ${worker.cliente}` : ''}${worker?.status_trabajador ? `\nStatus: ${worker.status_trabajador}` : ''}`;
+      
+      const rhDept = departments.find(d => d.name?.toLowerCase().includes('recurso') || d.name?.toLowerCase() === 'rh');
+      if (rhDept) targetDeptId = rhDept.id;
+    } else if (refVal.startsWith('Pedido')) {
+      const code = refVal.replace(/^Pedido\s*#?/, '').replace(':', '').trim();
+      const pedido = dadosSemana.pedidosRecentes.find(x => x.id === code || x.codigo === code)
+        || (liveSearchResults.pedidos || []).find(x => x.id === code || x.codigo === code);
+      autoTitle = `Tratar Pedido #${pedido?.codigo || code}`;
+      autoDesc = `Pedido: #${pedido?.codigo || code}${pedido?.empresa_nome ? `\nEmpresa: ${pedido.empresa_nome}` : ''}`;
+      
+      const opDept = departments.find(d => d.name?.toLowerCase().includes('operaç') || d.name?.toLowerCase().includes('coord'));
+      if (opDept) targetDeptId = opDept.id;
+    } else if (refVal.startsWith('Falha:')) {
+      const title = refVal.replace(/^Falha:\s*/, '').trim();
+      const inc = dadosSemana.incidenciasRecentes.find(x => x.id === title || x.title === title)
+        || (liveSearchResults.incidencias || []).find(x => x.id === title || x.title === title);
+      autoTitle = `Resolver: ${inc?.title || title}`;
+      autoDesc = `Ocorrência/Falha: ${inc?.title || title}${inc?.incident_type ? `\nTipo: ${inc.incident_type}` : ''}${inc?.description ? `\nDetalhes: ${inc.description}` : ''}`;
+    } else if (refVal.startsWith('Tópico:')) {
+      const title = refVal.replace(/^Tópico:\s*/, '').trim();
+      const topic = topicosLivres.find(x => x.id === title || x.titulo === title);
+      autoTitle = `[${topic?.categoria?.toUpperCase() || 'SISTEMAS'}] ${topic?.titulo || title}`;
+      autoDesc = `Tópico da Pauta: ${topic?.titulo || title}${topic?.categoria ? `\nCategoria: ${topic.categoria}` : ''}${topic?.descricao ? `\nInstruções/Detalhes: ${topic.descricao}` : ''}`;
+      
+      const sisDept = departments.find(d => d.name?.toLowerCase().includes('sistem'));
+      if (sisDept) targetDeptId = sisDept.id;
+    } else if (refVal.startsWith('Cliente:')) {
+      const name = refVal.replace(/^Cliente:\s*/, '').trim();
+      const cliente = dadosSemana.clientesRecentes.find(x => x.id === name || x.nombre_comercial === name || x.razon_social === name)
+        || (liveSearchResults.clientes || []).find(x => x.id === name || x.nombre_comercial === name || x.razon_social === name);
+      autoTitle = `Atendimento Cliente: ${cliente?.nombre_comercial || cliente?.razon_social || name}`;
+      autoDesc = `Cliente: ${cliente?.nombre_comercial || cliente?.razon_social || name}${cliente?.cod_cliente ? `\nCódigo: ${cliente.cod_cliente}` : ''}${cliente?.municipio ? `\nLocalidade: ${cliente.municipio}` : ''}`;
+    }
+
+    setNovaAcao(prev => {
+      if (mode === 'append') {
+        const separator = prev.description?.trim() ? '\n\n---\n' : '';
+        const newDesc = `${prev.description || ''}${separator}${autoDesc}`;
+        const newRef = prev.contexto_ref ? `${prev.contexto_ref}, ${refVal}` : refVal;
+        return {
+          ...prev,
+          contexto_ref: newRef,
+          description: newDesc,
+          department_id: prev.department_id || targetDeptId
+        };
+      }
+
+      return {
+        ...prev,
+        contexto_ref: refVal,
+        title: (!prev.title || prev.title.startsWith('Tratar') || prev.title.startsWith('Resolver') || prev.title.startsWith('Acompanhamento') || prev.title.startsWith('[')) ? autoTitle : prev.title,
+        description: (!prev.description || prev.description.startsWith('Trabalhador:') || prev.description.startsWith('Pedido:') || prev.description.startsWith('Ocorrência:') || prev.description.startsWith('Tópico:') || prev.description.startsWith('Cliente:')) ? autoDesc : prev.description,
+        department_id: targetDeptId || prev.department_id
+      };
+    });
+  };
+
   // Adicionar Nova Ação vinculada a Minhas Tarefas
   const handleAddAcao = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reuniao || !novaAcao.title.trim()) return;
+    if (!reuniao) return;
 
-    let tituloFinal = novaAcao.title;
-    if (novaAcao.contexto_ref) {
-      tituloFinal = `[${novaAcao.contexto_ref}] ${novaAcao.title}`;
+    const rawTitle = novaAcao.title.trim();
+    const tituloBase = rawTitle || (novaAcao.contexto_ref ? `Tratar ${novaAcao.contexto_ref}` : '');
+    if (!tituloBase) {
+      toast.error('Informe o que fazer ou selecione um item no contexto.');
+      return;
+    }
+
+    let tituloFinal = tituloBase;
+    const cleanRef = novaAcao.contexto_ref.replace(/^(RH|Pedido|Falha|Tópico|Cliente):\s*/i, '').trim();
+    if (novaAcao.contexto_ref && cleanRef && !tituloBase.toLowerCase().includes(cleanRef.toLowerCase())) {
+      tituloFinal = `[${novaAcao.contexto_ref}] ${tituloBase}`;
     }
 
     const deptObj = departments.find(d => d.id === novaAcao.department_id || d.name?.toLowerCase() === novaAcao.department_id?.toLowerCase());
@@ -2032,6 +2136,181 @@ export const ReuniaoDetail: React.FC = () => {
               </p>
             </div>
 
+            {/* Atalhos Rápidos dos Itens em Pauta no PLAN */}
+            {(() => {
+              const totalItensPlan = topicosLivres.length + trabalhadoresSelecionados.length + pedidosSelecionados.length + incidenciasSelecionadas.length + clientesSelecionados.length;
+              if (totalItensPlan === 0) return null;
+
+              return (
+                <div className="p-3.5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <div className="font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-indigo-600 dark:text-indigo-400" />
+                      Itens em Pauta no PLAN ({totalItensPlan}) — Clique para preencher a tarefa em 1 clique:
+                    </div>
+                    <span className="text-[11px] text-slate-500">
+                      Clique no item para preencher • Clique em <b className="text-indigo-600 dark:text-indigo-400">+</b> para anexar múltiplos itens
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {/* Tópicos Livres / Sistemas */}
+                    {topicosLivres.map(t => {
+                      const refVal = `Tópico: ${t.titulo}`;
+                      const isSelected = novaAcao.contexto_ref.includes(refVal);
+                      return (
+                        <div key={t.id} className="inline-flex items-center rounded-lg border text-xs overflow-hidden transition-all shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectContextoRef(refVal, 'replace')}
+                            className={`px-2.5 py-1 font-semibold flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-slate-750'
+                            }`}
+                          >
+                            💡 [{t.categoria.toUpperCase()}] {t.titulo}
+                          </button>
+                          <button
+                            type="button"
+                            title="Anexar este tópico aos detalhes da tarefa atual"
+                            onClick={() => handleSelectContextoRef(refVal, 'append')}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold border-l border-slate-200 dark:border-slate-600"
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Trabalhadores */}
+                    {trabalhadoresSelecionados.map(wId => {
+                      const w = dadosSemana.trabalhadoresRecentes.find(x => x.id === wId || x.nome === wId);
+                      const name = w?.nome || wId;
+                      const refVal = `RH: ${name}`;
+                      const isSelected = novaAcao.contexto_ref.includes(refVal);
+                      return (
+                        <div key={wId} className="inline-flex items-center rounded-lg border text-xs overflow-hidden transition-all shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectContextoRef(refVal, 'replace')}
+                            className={`px-2.5 py-1 font-semibold flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-slate-750'
+                            }`}
+                          >
+                            👥 {name} {w?.funcion ? `(${w.funcion})` : ''}
+                          </button>
+                          <button
+                            type="button"
+                            title="Anexar dados deste trabalhador aos detalhes da tarefa atual"
+                            onClick={() => handleSelectContextoRef(refVal, 'append')}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold border-l border-slate-200 dark:border-slate-600"
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Pedidos */}
+                    {pedidosSelecionados.map(pId => {
+                      const p = dadosSemana.pedidosRecentes.find(x => x.id === pId || x.codigo === pId);
+                      const cod = p?.codigo || pId;
+                      const refVal = `Pedido #${cod}`;
+                      const isSelected = novaAcao.contexto_ref.includes(refVal);
+                      return (
+                        <div key={pId} className="inline-flex items-center rounded-lg border text-xs overflow-hidden transition-all shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectContextoRef(refVal, 'replace')}
+                            className={`px-2.5 py-1 font-semibold flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-amber-600 text-white border-amber-600'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-amber-50 dark:hover:bg-slate-750'
+                            }`}
+                          >
+                            📦 Pedido #{cod} {p?.empresa_nome ? `(${p.empresa_nome})` : ''}
+                          </button>
+                          <button
+                            type="button"
+                            title="Anexar este pedido aos detalhes da tarefa atual"
+                            onClick={() => handleSelectContextoRef(refVal, 'append')}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold border-l border-slate-200 dark:border-slate-600"
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Incidências */}
+                    {incidenciasSelecionadas.map(iId => {
+                      const i = dadosSemana.incidenciasRecentes.find(x => x.id === iId || x.title === iId);
+                      const title = i?.title || iId;
+                      const refVal = `Falha: ${title}`;
+                      const isSelected = novaAcao.contexto_ref.includes(refVal);
+                      return (
+                        <div key={iId} className="inline-flex items-center rounded-lg border text-xs overflow-hidden transition-all shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectContextoRef(refVal, 'replace')}
+                            className={`px-2.5 py-1 font-semibold flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-rose-600 text-white border-rose-600'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-slate-750'
+                            }`}
+                          >
+                            ⚠️ {title}
+                          </button>
+                          <button
+                            type="button"
+                            title="Anexar esta falha aos detalhes da tarefa atual"
+                            onClick={() => handleSelectContextoRef(refVal, 'append')}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold border-l border-slate-200 dark:border-slate-600"
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {/* Clientes */}
+                    {clientesSelecionados.map(cId => {
+                      const c = dadosSemana.clientesRecentes.find(x => x.id === cId || x.nombre_comercial === cId || x.razon_social === cId || String(x.id) === String(cId));
+                      const name = c?.nombre_comercial || c?.razon_social || cId;
+                      const refVal = `Cliente: ${name}`;
+                      const isSelected = novaAcao.contexto_ref.includes(refVal);
+                      return (
+                        <div key={cId} className="inline-flex items-center rounded-lg border text-xs overflow-hidden transition-all shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectContextoRef(refVal, 'replace')}
+                            className={`px-2.5 py-1 font-semibold flex items-center gap-1.5 transition-colors ${
+                              isSelected
+                                ? 'bg-teal-600 text-white border-teal-600'
+                                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-teal-50 dark:hover:bg-slate-750'
+                            }`}
+                          >
+                            🏢 {name}
+                          </button>
+                          <button
+                            type="button"
+                            title="Anexar este cliente aos detalhes da tarefa atual"
+                            onClick={() => handleSelectContextoRef(refVal, 'append')}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold border-l border-slate-200 dark:border-slate-600"
+                          >
+                            +
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Formulário Rápido de Adição de Ação */}
             <form onSubmit={handleAddAcao} className="p-4 sm:p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
               <div className="flex items-center justify-between">
@@ -2052,7 +2331,7 @@ export const ReuniaoDetail: React.FC = () => {
                   </label>
                   <select
                     value={novaAcao.contexto_ref}
-                    onChange={e => setNovaAcao({ ...novaAcao, contexto_ref: e.target.value })}
+                    onChange={e => handleSelectContextoRef(e.target.value, 'replace')}
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                   >
                     <option value="">Nenhum vínculo direto (Geral / Administrativo)</option>
@@ -2138,11 +2417,10 @@ export const ReuniaoDetail: React.FC = () => {
                 <div className="md:col-span-5">
                   <input
                     type="text"
-                    required
-                    placeholder="O quê fazer (Ação clara)..."
+                    placeholder={novaAcao.contexto_ref ? `O quê fazer (deixe em branco para usar o título sugerido)...` : `O quê fazer (Ação clara)...`}
                     value={novaAcao.title}
                     onChange={e => setNovaAcao({ ...novaAcao, title: e.target.value })}
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 font-medium"
                   />
                 </div>
 
