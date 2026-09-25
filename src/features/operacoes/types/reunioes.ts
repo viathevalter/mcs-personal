@@ -15,6 +15,7 @@ export interface ReuniaoAcao {
   id: string;
   reuniao_id: string;
   title: string;
+  description?: string;
   status: 'Pendente' | 'Em Andamento' | 'Concluida' | 'Cancelada';
   assigned_to_email?: string;
   department_id?: string;

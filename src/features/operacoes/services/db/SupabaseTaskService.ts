@@ -42,6 +42,7 @@ export const supabaseTaskService = {
         if (patch.title !== undefined) dbPatch.title = patch.title;
         if (patch.due_at !== undefined) dbPatch.due_at = patch.due_at;
         if (patch.department_id !== undefined) dbPatch.department_id = patch.department_id;
+        if (patch.evidence !== undefined) dbPatch.evidence = patch.evidence;
 
         if (Object.keys(dbPatch).length === 0) return null;
 
@@ -76,7 +77,8 @@ export const supabaseTaskService = {
             sla_days: task.sla_days || 1,
             due_at: task.due_at,
             scheduled_for: task.scheduled_for,
-            assigned_to_email: task.assigned_to
+            assigned_to_email: task.assigned_to,
+            evidence: task.evidence
         };
 
         if (task.department_id) dbPayload.department_id = task.department_id;

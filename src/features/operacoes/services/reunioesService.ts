@@ -40,7 +40,7 @@ export const reunioesService = {
     const reuniaoIds = reunioes.map((r: any) => r.id);
     const { data: tarefas } = await supabase
       .from('mcs_incident_tasks')
-      .select('id, reuniao_id, title, status, assigned_to_email, department_id, due_at, priority, created_at')
+      .select('id, reuniao_id, title, evidence, status, assigned_to_email, department_id, due_at, priority, created_at')
       .in('reuniao_id', reuniaoIds);
 
     const tarefasPorReuniao: Record<string, ReuniaoAcao[]> = {};
@@ -48,10 +48,20 @@ export const reunioesService = {
       if (!tarefasPorReuniao[t.reuniao_id]) {
         tarefasPorReuniao[t.reuniao_id] = [];
       }
+      let parsedDesc = t.evidence || '';
+      if (t.evidence && typeof t.evidence === 'string' && t.evidence.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(t.evidence);
+          parsedDesc = parsed.description || '';
+        } catch {
+          parsedDesc = t.evidence;
+        }
+      }
       tarefasPorReuniao[t.reuniao_id].push({
         id: t.id,
         reuniao_id: t.reuniao_id,
         title: t.title,
+        description: parsedDesc || undefined,
         status: t.status === 'completed' || t.status === 'done' || t.status === 'Concluida' ? 'Concluida' : (t.status === 'in_progress' || t.status === 'Em Andamento' ? 'Em Andamento' : 'Pendente'),
         assigned_to_email: t.assigned_to_email,
         department_id: t.department_id,
@@ -85,21 +95,33 @@ export const reunioesService = {
     // Buscar tarefas vinculadas
     const { data: tarefas } = await supabase
       .from('mcs_incident_tasks')
-      .select('id, reuniao_id, title, status, assigned_to_email, department_id, due_at, priority, created_at')
+      .select('id, reuniao_id, title, evidence, status, assigned_to_email, department_id, due_at, priority, created_at')
       .eq('reuniao_id', id)
       .order('created_at', { ascending: true });
 
-    const acoes: ReuniaoAcao[] = (tarefas || []).map((t: any) => ({
-      id: t.id,
-      reuniao_id: t.reuniao_id,
-      title: t.title,
-      status: t.status === 'completed' || t.status === 'done' || t.status === 'Concluida' ? 'Concluida' : (t.status === 'in_progress' || t.status === 'Em Andamento' ? 'Em Andamento' : 'Pendente'),
-      assigned_to_email: t.assigned_to_email,
-      department_id: t.department_id,
-      due_at: t.due_at,
-      priority: t.priority || 'media',
-      created_at: t.created_at
-    }));
+    const acoes: ReuniaoAcao[] = (tarefas || []).map((t: any) => {
+      let parsedDesc = t.evidence || '';
+      if (t.evidence && typeof t.evidence === 'string' && t.evidence.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(t.evidence);
+          parsedDesc = parsed.description || '';
+        } catch {
+          parsedDesc = t.evidence;
+        }
+      }
+      return {
+        id: t.id,
+        reuniao_id: t.reuniao_id,
+        title: t.title,
+        description: parsedDesc || undefined,
+        status: t.status === 'completed' || t.status === 'done' || t.status === 'Concluida' ? 'Concluida' : (t.status === 'in_progress' || t.status === 'Em Andamento' ? 'Em Andamento' : 'Pendente'),
+        assigned_to_email: t.assigned_to_email,
+        department_id: t.department_id,
+        due_at: t.due_at,
+        priority: t.priority || 'media',
+        created_at: t.created_at
+      };
+    });
 
     return {
       ...reuniao,
@@ -221,6 +243,7 @@ export const reunioesService = {
    */
   async addAcao(reuniaoId: string, acao: {
     title: string;
+    description?: string;
     assigned_to_email?: string;
     department_id?: string;
     due_at?: string;
@@ -243,9 +266,18 @@ export const reunioesService = {
       }
     }
 
+    let evidencePayload: string | null = null;
+    if (acao.description && acao.description.trim()) {
+      evidencePayload = JSON.stringify({
+        description: acao.description.trim(),
+        attachments: []
+      });
+    }
+
     const taskPayload: any = {
       reuniao_id: reuniaoId,
       title: acao.title,
+      evidence: evidencePayload,
       status: 'open',
       assigned_to_email: acao.assigned_to_email || null,
       department_id: deptUuid,
@@ -282,6 +314,7 @@ export const reunioesService = {
       id: data.id,
       reuniao_id: data.reuniao_id,
       title: data.title,
+      description: acao.description,
       status: 'Pendente',
       assigned_to_email: data.assigned_to_email,
       department_id: data.department_id,

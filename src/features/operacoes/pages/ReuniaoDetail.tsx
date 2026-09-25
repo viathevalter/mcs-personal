@@ -92,6 +92,7 @@ export const ReuniaoDetail: React.FC = () => {
   // Nova Ação (Passo ACT)
   const [novaAcao, setNovaAcao] = useState({
     title: '',
+    description: '',
     department_id: '',
     assigned_to_email: '',
     due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
@@ -488,6 +489,7 @@ export const ReuniaoDetail: React.FC = () => {
     try {
       await reunioesService.addAcao(reuniao.id, {
         title: tituloFinal,
+        description: novaAcao.description.trim() || undefined,
         department_id: deptId,
         assigned_to_email: novaAcao.assigned_to_email || undefined,
         due_at: new Date(novaAcao.due_at).toISOString(),
@@ -495,7 +497,7 @@ export const ReuniaoDetail: React.FC = () => {
       });
 
       toast.success('Ação registrada! Ela já está visível em Minhas Tarefas do responsável.');
-      setNovaAcao(prev => ({ ...prev, title: '', contexto_ref: '' }));
+      setNovaAcao(prev => ({ ...prev, title: '', description: '', contexto_ref: '' }));
       loadReuniao();
     } catch (err) {
       toast.error('Erro ao registrar ação');
@@ -2227,6 +2229,17 @@ export const ReuniaoDetail: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* Linha 3: Descrição Detalhada / Instruções de Execução */}
+              <div className="pt-1.5">
+                <textarea
+                  rows={2}
+                  placeholder="Descrição detalhada / Instruções de execução (opcional: detalhe o que precisa ser feito, passos esperados, links ou orientações para a pessoa responsável)..."
+                  value={novaAcao.description}
+                  onChange={e => setNovaAcao({ ...novaAcao, description: e.target.value })}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 resize-y"
+                />
+              </div>
             </form>
 
             {/* Lista de Ações Pactuadas */}
@@ -2284,6 +2297,15 @@ export const ReuniaoDetail: React.FC = () => {
                             <span>Prazo: {new Date(acao.due_at).toLocaleDateString('pt-BR')}</span>
                           )}
                         </div>
+
+                        {acao.description && (
+                          <div className="mt-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-700/60 text-[11px] text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
+                            <span className="font-semibold text-slate-400 dark:text-slate-500 block text-[10px] uppercase mb-0.5">
+                              📝 Instruções / Descrição:
+                            </span>
+                            {acao.description}
+                          </div>
+                        )}
                       </div>
                     </div>
 
