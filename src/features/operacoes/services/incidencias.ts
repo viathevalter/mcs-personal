@@ -120,7 +120,7 @@ const toUiIncidencia = async (inc: any, tasks: any[]): Promise<Incidencia> => {
 
 const toUiTarefa = async (task: any): Promise<IncidenciaTarefa> => {
     const depts = await departmentService.list();
-    const dept = depts.find(d => d.id === task.department_id);
+    const dept = depts.find(d => d.id === task.department_id || d.name?.toLowerCase() === task.department_id?.toLowerCase());
     let parsedDesc = task.evidence || '';
     let parsedAtts: any[] = [];
     if (task.evidence && typeof task.evidence === 'string' && task.evidence.trim().startsWith('{')) {
@@ -138,13 +138,13 @@ const toUiTarefa = async (task: any): Promise<IncidenciaTarefa> => {
         titulo: task.title,
         status: task.status, // Service maps DB status to UI status
         ordem: task.step_order,
-        departamento: dept?.name || 'Geral',
+        departamento: dept?.name || (task.department_id && !task.department_id.includes('-') ? task.department_id : 'Geral'),
         prazo: task.due_at,
         scheduled_for: task.scheduled_for,
         descricao: parsedDesc,
         attachments: parsedAtts,
         evidencia: task.evidence,
-        responsavel_email: task.assigned_to,
+        responsavel_email: task.assigned_to || task.assigned_to_email,
 
         // New fields
         started_at: task.started_at,

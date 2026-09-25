@@ -2,6 +2,15 @@ import { supabase } from './supabaseClient';
 import type { Reuniao, ReuniaoAcao, TipoReuniao } from '../types/reunioes';
 import { notifyTaskCreated } from './incidencias';
 
+export interface UsuarioAtribuivel {
+  id: string;
+  name: string;
+  email: string;
+  department_id?: string;
+  department_name?: string;
+  active: boolean;
+}
+
 export const reunioesService = {
   /**
    * Lista todas as reuniões com dados de ações e ordenação cronológica
@@ -43,7 +52,7 @@ export const reunioesService = {
         id: t.id,
         reuniao_id: t.reuniao_id,
         title: t.title,
-        status: t.status === 'done' || t.status === 'Concluida' ? 'Concluida' : (t.status === 'in_progress' || t.status === 'Em Andamento' ? 'Em Andamento' : 'Pendente'),
+        status: t.status === 'completed' || t.status === 'done' || t.status === 'Concluida' ? 'Concluida' : (t.status === 'in_progress' || t.status === 'Em Andamento' ? 'Em Andamento' : 'Pendente'),
         assigned_to_email: t.assigned_to_email,
         department_id: t.department_id,
         due_at: t.due_at,
@@ -84,7 +93,7 @@ export const reunioesService = {
       id: t.id,
       reuniao_id: t.reuniao_id,
       title: t.title,
-      status: t.status === 'done' || t.status === 'Concluida' ? 'Concluida' : (t.status === 'in_progress' || t.status === 'Em Andamento' ? 'Em Andamento' : 'Pendente'),
+      status: t.status === 'completed' || t.status === 'done' || t.status === 'Concluida' ? 'Concluida' : (t.status === 'in_progress' || t.status === 'Em Andamento' ? 'Em Andamento' : 'Pendente'),
       assigned_to_email: t.assigned_to_email,
       department_id: t.department_id,
       due_at: t.due_at,
@@ -228,7 +237,7 @@ export const reunioesService = {
     const taskPayload = {
       reuniao_id: reuniaoId,
       title: acao.title,
-      status: 'pending',
+      status: 'open',
       assigned_to_email: acao.assigned_to_email,
       department_id: acao.department_id,
       due_at: acao.due_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -277,7 +286,7 @@ export const reunioesService = {
    * Atualiza status de uma ação (concluir, reabrir)
    */
   async updateStatusAcao(acaoId: string, status: 'Pendente' | 'Em Andamento' | 'Concluida'): Promise<void> {
-    const dbStatus = status === 'Concluida' ? 'done' : (status === 'Em Andamento' ? 'in_progress' : 'pending');
+    const dbStatus = status === 'Concluida' ? 'completed' : (status === 'Em Andamento' ? 'in_progress' : 'open');
     const { error } = await supabase
       .from('mcs_incident_tasks')
       .update({
@@ -300,6 +309,87 @@ export const reunioesService = {
       .eq('id', acaoId);
 
     if (error) throw error;
+  },
+
+  /**
+   * Busca lista unificada de membros de departamentos e usuários do sistema para atribuição de tarefas
+   */
+  async getUsuariosAtribuiveis(): Promise<UsuarioAtribuivel[]> {
+    try {
+      const [
+        { data: members },
+        { data: users },
+        { data: departments }
+      ] = await Promise.all([
+        supabase
+          .from('mcs_department_members')
+          .select('id, nombrecompleto, usuario, correoempresarial, department_id, user_id, active'),
+        supabase
+          .from('mcs_users')
+          .select('id, display_name, email, department_id, active'),
+        supabase
+          .from('mcs_departments')
+          .select('id, name')
+      ]);
+
+      const deptMap = new Map((departments || []).map((d: any) => [d.id, d.name]));
+      const userById = new Map((users || []).map((u: any) => [u.id, u]));
+      const mapByEmail = new Map<string, UsuarioAtribuivel>();
+
+      // 1. Processar membros dos departamentos (Funcionários)
+      (members || []).forEach((m: any) => {
+        let email = (m.correoempresarial || '').trim().toLowerCase();
+        if (!email && m.user_id && userById.has(m.user_id)) {
+          email = (userById.get(m.user_id)?.email || '').trim().toLowerCase();
+        }
+        const name = (m.nombrecompleto || m.usuario || (email ? email.split('@')[0] : '')).trim();
+        const deptName = deptMap.get(m.department_id) || '';
+
+        if (email && m.active !== false) {
+          mapByEmail.set(email, {
+            id: m.id,
+            name: name || email,
+            email: email,
+            department_id: m.department_id || undefined,
+            department_name: deptName,
+            active: m.active !== false
+          });
+        }
+      });
+
+      // 2. Unificar com usuários do sistema (Login / mcs_users)
+      (users || []).forEach((u: any) => {
+        const email = (u.email || '').trim().toLowerCase();
+        if (!email || u.active === false) return;
+
+        const existing = mapByEmail.get(email);
+        if (existing) {
+          if (u.display_name && (!existing.name || existing.name === email.split('@')[0])) {
+            existing.name = u.display_name;
+          }
+          if (!existing.department_id && u.department_id) {
+            existing.department_id = u.department_id;
+            existing.department_name = deptMap.get(u.department_id) || '';
+          }
+        } else {
+          mapByEmail.set(email, {
+            id: u.id,
+            name: u.display_name || email.split('@')[0],
+            email: email,
+            department_id: u.department_id || undefined,
+            department_name: deptMap.get(u.department_id) || '',
+            active: u.active !== false
+          });
+        }
+      });
+
+      return Array.from(mapByEmail.values())
+        .filter(u => u.active !== false)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (err) {
+      console.error('Erro ao buscar usuários atribuíveis:', err);
+      return [];
+    }
   },
 
   /**

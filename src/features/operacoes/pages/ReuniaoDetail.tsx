@@ -11,7 +11,7 @@ import {
   ClipboardList
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { reunioesService } from '../services/reunioesService';
+import { reunioesService, type UsuarioAtribuivel } from '../services/reunioesService';
 import { listDepartments } from '../services/incidencias';
 import { supabase } from '../services/supabaseClient';
 import { VisualWysiwygEditor } from '../components/ui/VisualWysiwygEditor';
@@ -28,7 +28,7 @@ export const ReuniaoDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [departments, setDepartments] = useState<any[]>([]);
-  const [systemUsers, setSystemUsers] = useState<any[]>([]);
+  const [systemUsers, setSystemUsers] = useState<UsuarioAtribuivel[]>([]);
 
   // Pauta Oficial do Encontro
   const [pautaConteudo, setPautaConteudo] = useState('');
@@ -137,16 +137,18 @@ export const ReuniaoDetail: React.FC = () => {
       const opData = await reunioesService.getDadosOperacionaisSemana();
       setDadosSemana(opData);
 
-      // Buscar departamentos e usuários do sistema
-      const [depts, { data: usersData }] = await Promise.all([
+      // Buscar departamentos e usuários atribuíveis unificados (Funcionários + Usuários Login)
+      const [depts, atribuiveis] = await Promise.all([
         listDepartments().catch(() => []),
-        supabase.from('mcs_users').select('id, email, full_name, department_id').limit(100)
+        reunioesService.getUsuariosAtribuiveis().catch(() => [])
       ]);
       setDepartments(depts);
-      setSystemUsers(usersData || []);
+      setSystemUsers(atribuiveis);
 
       if (data.departamentos_envolvidos && data.departamentos_envolvidos.length > 0) {
-        setNovaAcao(prev => ({ ...prev, department_id: data.departamentos_envolvidos[0] }));
+        const firstDept = data.departamentos_envolvidos[0];
+        const matchDept = (depts || []).find((d: any) => d.name === firstDept || d.id === firstDept);
+        setNovaAcao(prev => ({ ...prev, department_id: matchDept?.id || firstDept }));
       }
     } catch (err) {
       console.error(err);
@@ -457,6 +459,19 @@ export const ReuniaoDetail: React.FC = () => {
     }
   };
 
+  // Helpers para resolver nomes de departamento e usuário
+  const resolveDepartmentName = (deptIdOrName?: string) => {
+    if (!deptIdOrName) return '';
+    const found = departments.find(d => d.id === deptIdOrName || d.name?.toLowerCase() === deptIdOrName.toLowerCase());
+    return found?.name || deptIdOrName;
+  };
+
+  const resolveUserName = (email?: string) => {
+    if (!email) return 'Não atribuído';
+    const found = systemUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
+    return found ? `${found.name} (${found.email})` : email;
+  };
+
   // Adicionar Nova Ação vinculada a Minhas Tarefas
   const handleAddAcao = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -467,10 +482,13 @@ export const ReuniaoDetail: React.FC = () => {
       tituloFinal = `[${novaAcao.contexto_ref}] ${novaAcao.title}`;
     }
 
+    const deptObj = departments.find(d => d.id === novaAcao.department_id || d.name?.toLowerCase() === novaAcao.department_id?.toLowerCase());
+    const deptId = deptObj?.id || novaAcao.department_id || (reuniao.departamentos_envolvidos && reuniao.departamentos_envolvidos.length > 0 ? reuniao.departamentos_envolvidos[0] : undefined);
+
     try {
       await reunioesService.addAcao(reuniao.id, {
         title: tituloFinal,
-        department_id: novaAcao.department_id || reuniao.departamentos_envolvidos[0],
+        department_id: deptId,
         assigned_to_email: novaAcao.assigned_to_email || undefined,
         due_at: new Date(novaAcao.due_at).toISOString(),
         priority: novaAcao.priority
@@ -2134,10 +2152,7 @@ export const ReuniaoDetail: React.FC = () => {
                   >
                     <option value="">Setor Responsável</option>
                     {departments.map((d: any) => (
-                      <option key={d.id} value={d.name}>{d.name}</option>
-                    ))}
-                    {reuniao.departamentos_envolvidos.map((d: string) => (
-                      <option key={d} value={d}>{d}</option>
+                      <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
                 </div>
@@ -2145,13 +2160,51 @@ export const ReuniaoDetail: React.FC = () => {
                 <div className="md:col-span-2">
                   <select
                     value={novaAcao.assigned_to_email}
-                    onChange={e => setNovaAcao({ ...novaAcao, assigned_to_email: e.target.value })}
+                    onChange={e => {
+                      const selectedEmail = e.target.value;
+                      const userObj = systemUsers.find(u => u.email === selectedEmail);
+                      setNovaAcao(prev => ({
+                        ...prev,
+                        assigned_to_email: selectedEmail,
+                        department_id: (!prev.department_id && userObj?.department_id) ? userObj.department_id : prev.department_id
+                      }));
+                    }}
                     className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
                   >
-                    <option value="">Dono Único (Email)</option>
-                    {systemUsers.map((u: any) => (
-                      <option key={u.id} value={u.email}>{u.full_name || u.email}</option>
-                    ))}
+                    <option value="">Dono Único (Responsável)</option>
+                    {(() => {
+                      if (novaAcao.department_id) {
+                        const deptUsers = systemUsers.filter(u => u.department_id === novaAcao.department_id || u.department_name?.toLowerCase() === novaAcao.department_id.toLowerCase());
+                        const otherUsers = systemUsers.filter(u => u.department_id !== novaAcao.department_id && u.department_name?.toLowerCase() !== novaAcao.department_id.toLowerCase());
+
+                        return (
+                          <>
+                            {deptUsers.length > 0 && (
+                              <optgroup label="⭐ Membros do Setor Selecionado">
+                                {deptUsers.map(u => (
+                                  <option key={u.id || u.email} value={u.email}>
+                                    {u.name} ({u.email})
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            <optgroup label="Outros Usuários">
+                              {otherUsers.map(u => (
+                                <option key={u.id || u.email} value={u.email}>
+                                  {u.name} ({u.email}){u.department_name ? ` — ${u.department_name}` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          </>
+                        );
+                      }
+
+                      return systemUsers.map(u => (
+                        <option key={u.id || u.email} value={u.email}>
+                          {u.name} ({u.email}){u.department_name ? ` — ${u.department_name}` : ''}
+                        </option>
+                      ));
+                    })()}
                   </select>
                 </div>
 
@@ -2221,8 +2274,12 @@ export const ReuniaoDetail: React.FC = () => {
                           );
                         })()}
                         <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400 mt-0.5">
-                          {acao.department_id && <span>Setor: <b>{acao.department_id}</b></span>}
-                          {acao.assigned_to_email && <span>Dono: <b>{acao.assigned_to_email}</b></span>}
+                          {acao.department_id && (
+                            <span>Setor: <b className="text-slate-700 dark:text-slate-200">{resolveDepartmentName(acao.department_id)}</b></span>
+                          )}
+                          {acao.assigned_to_email && (
+                            <span>Dono: <b className="text-slate-700 dark:text-slate-200">{resolveUserName(acao.assigned_to_email)}</b></span>
+                          )}
                           {acao.due_at && (
                             <span>Prazo: {new Date(acao.due_at).toLocaleDateString('pt-BR')}</span>
                           )}
