@@ -3140,7 +3140,11 @@ MCS - Gestão Comercial`;
             // 1. All workers for the monthly grid (Aba 1)
             const allWorkers = f.workers.map(w => {
               const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-                if (!hasObraFilter || h.obra_id === selectedObraId) {
+                const belongsToActiveSession = f.activeFaturaId
+                  ? h.fatura_id === f.activeFaturaId
+                  : h.fatura_id === null;
+
+                if ((belongsToActiveSession || isAlreadyInvoiced) && (!hasObraFilter || h.obra_id === selectedObraId)) {
                   acc[date] = h;
                 }
                 return acc;
@@ -3157,7 +3161,7 @@ MCS - Gestão Comercial`;
                 totalHorasMes: wTotalHorasMes,
                 totalValorMes: wTotalValorMes
               };
-            }).filter(w => w.totalHorasMes > 0);
+            }).filter(w => w.totalHorasMes > 0 && (!w.isBilled || isAlreadyInvoiced));
 
             // 2. Active billing session workers (for invoicing, previews, and PDFs)
             const filteredWorkers = f.workers.map(w => {
