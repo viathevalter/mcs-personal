@@ -226,25 +226,34 @@ export const reunioesService = {
     due_at?: string;
     priority?: 'baixa' | 'media' | 'alta' | 'urgente';
   }): Promise<ReuniaoAcao> {
-    let userEmail = 'sistema@mcspersonal.com';
+    let userId: string | null = null;
     try {
       const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user?.email) userEmail = authData.user.email;
+      if (authData?.user?.id) userId = authData.user.id;
     } catch {
       // ignore
     }
 
-    const taskPayload = {
+    // Certificar que department_id é um UUID válido se fornecido
+    let deptUuid: string | null = null;
+    if (acao.department_id) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(acao.department_id);
+      if (isUuid) {
+        deptUuid = acao.department_id;
+      }
+    }
+
+    const taskPayload: any = {
       reuniao_id: reuniaoId,
       title: acao.title,
       status: 'open',
-      assigned_to_email: acao.assigned_to_email,
-      department_id: acao.department_id,
+      assigned_to_email: acao.assigned_to_email || null,
+      department_id: deptUuid,
       due_at: acao.due_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       priority: acao.priority || 'media',
       step_order: 1,
       sla_days: 7,
-      created_by: userEmail
+      created_by: userId
     };
 
     const { data, error } = await supabase
