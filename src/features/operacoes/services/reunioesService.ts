@@ -318,31 +318,43 @@ export const reunioesService = {
         { data: pedidos },
         { data: incidencias },
         { data: workers },
-        { data: clients }
+        { data: clients },
+        { data: empresas }
       ] = await Promise.all([
         supabase
+          .schema('core_operacoes')
           .from('pedidos')
-          .select('id, codigo, estado, fecha_inicio_pedido, fecha_fin_pedido, cantidad_personal, id_cliente')
-          .order('fecha_inicio_pedido', { ascending: false })
-          .limit(25),
+          .select('id, codigo, empresa_id')
+          .limit(100),
         supabase
           .from('mcs_incidents')
-          .select('id, title, status, severity, impact_level, created_at, client_name')
+          .select('id, title, status, incident_type, description, created_at, pedido_code')
           .order('created_at', { ascending: false })
-          .limit(25),
+          .limit(100),
         supabase
+          .schema('core_personal')
           .from('workers')
-          .select('id, nome, status_trabajador, funcion, cliente, nie')
+          .select('id, nome, status_trabajador, funcion, cliente, cod_cliente, nie, cod_colab')
           .order('created_at', { ascending: false })
-          .limit(25),
+          .limit(100),
         supabase
-          .from('clients')
-          .select('id, trade_name, legal_name, codigo, city, province')
-          .order('trade_name', { ascending: true })
-          .limit(30)
+          .from('clientes')
+          .select('id, cod_cliente, nombre_comercial, razon_social, municipio, provincia, cif_dni')
+          .order('nombre_comercial', { ascending: true })
+          .limit(100),
+        supabase
+          .schema('core_common')
+          .from('empresas')
+          .select('id, trade_name, legal_name')
       ]);
 
-      const pedidosList = pedidos || [];
+      const empresasMap = new Map((empresas || []).map((e: any) => [e.id, e.trade_name || e.legal_name]));
+
+      const pedidosList = (pedidos || []).map((p: any) => ({
+        ...p,
+        empresa_nome: empresasMap.get(p.empresa_id) || 'MCS Geral'
+      }));
+
       const incidenciasList = incidencias || [];
       const workersList = workers || [];
       const clientsList = clients || [];
@@ -352,7 +364,7 @@ export const reunioesService = {
         incidenciasRecentes: incidenciasList,
         trabalhadoresRecentes: workersList,
         clientesRecentes: clientsList,
-        totalPedidosAtivos: pedidosList.filter((p: any) => p.estado !== 'Cancelado' && p.estado !== 'Finalizado').length,
+        totalPedidosAtivos: pedidosList.length,
         totalIncidenciasAbertas: incidenciasList.filter((i: any) => i.status !== 'resolved' && i.status !== 'closed').length
       };
     } catch (err) {
@@ -365,6 +377,78 @@ export const reunioesService = {
         totalPedidosAtivos: 0,
         totalIncidenciasAbertas: 0
       };
+    }
+  },
+
+  /**
+   * Busca entidades em tempo real direto nas tabelas do banco de dados (Server-side Search)
+   */
+  async searchEntidades(
+    tipo: 'pedidos' | 'trabalhadores' | 'incidencias' | 'clientes' | 'topicos',
+    query: string
+  ): Promise<any[]> {
+    const q = query.trim();
+    if (!q) return [];
+    const term = `%${q}%`;
+
+    try {
+      if (tipo === 'trabalhadores') {
+        const { data, error } = await supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome, status_trabajador, funcion, cliente, cod_cliente, nie, cod_colab')
+          .or(`nome.ilike.${term},funcion.ilike.${term},cliente.ilike.${term},nie.ilike.${term},cod_colab.ilike.${term},cod_cliente.ilike.${term}`)
+          .limit(60);
+        if (error) throw error;
+        return data || [];
+      }
+
+      if (tipo === 'clientes') {
+        const { data, error } = await supabase
+          .from('clientes')
+          .select('id, cod_cliente, nombre_comercial, razon_social, municipio, provincia, cif_dni')
+          .or(`nombre_comercial.ilike.${term},razon_social.ilike.${term},cod_cliente.ilike.${term},cif_dni.ilike.${term},municipio.ilike.${term}`)
+          .limit(60);
+        if (error) throw error;
+        return data || [];
+      }
+
+      if (tipo === 'pedidos') {
+        const [{ data: pedidos, error }, { data: empresas }] = await Promise.all([
+          supabase
+            .schema('core_operacoes')
+            .from('pedidos')
+            .select('id, codigo, empresa_id')
+            .ilike('codigo', term)
+            .limit(60),
+          supabase
+            .schema('core_common')
+            .from('empresas')
+            .select('id, trade_name, legal_name')
+        ]);
+        if (error) throw error;
+
+        const empresasMap = new Map((empresas || []).map((e: any) => [e.id, e.trade_name || e.legal_name]));
+        return (pedidos || []).map((p: any) => ({
+          ...p,
+          empresa_nome: empresasMap.get(p.empresa_id) || 'MCS Geral'
+        }));
+      }
+
+      if (tipo === 'incidencias') {
+        const { data, error } = await supabase
+          .from('mcs_incidents')
+          .select('id, title, status, incident_type, description, created_at, pedido_code')
+          .or(`title.ilike.${term},description.ilike.${term},pedido_code.ilike.${term},incident_type.ilike.${term}`)
+          .limit(60);
+        if (error) throw error;
+        return data || [];
+      }
+
+      return [];
+    } catch (err) {
+      console.error(`Erro ao pesquisar ${tipo}:`, err);
+      return [];
     }
   },
 

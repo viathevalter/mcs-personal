@@ -62,6 +62,13 @@ export const ReuniaoDetail: React.FC = () => {
   // Aba ativa e busca no PLAN
   const [planTab, setPlanTab] = useState<'topicos' | 'pedidos' | 'trabalhadores' | 'incidencias' | 'clientes'>('topicos');
   const [searchTermPlan, setSearchTermPlan] = useState('');
+  const [isSearchingPlan, setIsSearchingPlan] = useState(false);
+  const [liveSearchResults, setLiveSearchResults] = useState<{
+    pedidos?: any[];
+    trabalhadores?: any[];
+    incidencias?: any[];
+    clientes?: any[];
+  }>({});
 
   // Formulário de Novo Tópico Livre (Sistemas, Novos Negócios, Funcionalidades)
   const [novoTopicoTitulo, setNovoTopicoTitulo] = useState('');
@@ -172,6 +179,29 @@ export const ReuniaoDetail: React.FC = () => {
     const secs = totalSeconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
+
+  // Busca em tempo real de entidades no banco de dados (Trabalhadores, Clientes, Pedidos, Incidências)
+  useEffect(() => {
+    if (planTab === 'topicos') return;
+    if (!searchTermPlan.trim() || searchTermPlan.trim().length < 2) {
+      setLiveSearchResults(prev => ({ ...prev, [planTab]: undefined }));
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingPlan(true);
+      try {
+        const results = await reunioesService.searchEntidades(planTab, searchTermPlan);
+        setLiveSearchResults(prev => ({ ...prev, [planTab]: results }));
+      } catch (err) {
+        console.error('Erro na pesquisa de entidades:', err);
+      } finally {
+        setIsSearchingPlan(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchTermPlan, planTab]);
 
   // Salvar Ata / Regras / Pauta Geral
   const handleSaveAta = async () => {
@@ -377,7 +407,7 @@ export const ReuniaoDetail: React.FC = () => {
       linhas.push('\n📦 **Pedidos em Análise:**');
       pedidosSelecionados.forEach(pId => {
         const p = dadosSemana.pedidosRecentes.find(x => x.id === pId || x.codigo === pId);
-        linhas.push(`- Pedido #${p?.codigo || pId}: ${p?.cantidad_personal || 0} trabalhadores • Início: ${p?.fecha_inicio_pedido ? new Date(p.fecha_inicio_pedido).toLocaleDateString('pt-BR') : 'A definir'}`);
+        linhas.push(`- Pedido #${p?.codigo || pId}${p?.empresa_nome ? ` (${p.empresa_nome})` : ''}`);
       });
     }
 
@@ -385,7 +415,7 @@ export const ReuniaoDetail: React.FC = () => {
       linhas.push('\n👥 **Trabalhadores / Casos de RH em Pauta:**');
       trabalhadoresSelecionados.forEach(wId => {
         const w = dadosSemana.trabalhadoresRecentes.find(x => x.id === wId || x.nome === wId);
-        linhas.push(`- ${w?.nome || wId} (${w?.funcion || 'Geral'} • Status: ${w?.status_trabajador || 'Ativo'})`);
+        linhas.push(`- ${w?.nome || wId} (${w?.funcion || 'Trabalhador'}${w?.cliente ? ` • Cliente: ${w.cliente}` : ''} • Status: ${w?.status_trabajador || 'Ativo'})`);
       });
     }
 
@@ -393,15 +423,15 @@ export const ReuniaoDetail: React.FC = () => {
       linhas.push('\n⚠️ **Ocorrências & Falhas Discutidas:**');
       incidenciasSelecionadas.forEach(iId => {
         const i = dadosSemana.incidenciasRecentes.find(x => x.id === iId || x.title === iId);
-        linhas.push(`- ${i?.title || iId} (Severidade: ${i?.severity || 'Normal'})`);
+        linhas.push(`- ${i?.title || iId} (Tipo: ${i?.incident_type || 'Operacional'} • Status: ${i?.status || 'Aberto'})`);
       });
     }
 
     if (clientesSelecionados.length > 0) {
       linhas.push('\n🏢 **Clientes / Obras em Questão:**');
       clientesSelecionados.forEach(cId => {
-        const c = dadosSemana.clientesRecentes.find(x => x.id === cId || x.trade_name === cId);
-        linhas.push(`- ${c?.trade_name || cId}`);
+        const c = dadosSemana.clientesRecentes.find(x => x.id === cId || x.nombre_comercial === cId || x.razon_social === cId || String(x.id) === String(cId));
+        linhas.push(`- ${c?.nombre_comercial || c?.razon_social || cId}${c?.municipio ? ` (${c.municipio})` : ''}`);
       });
     }
 
@@ -1305,15 +1335,35 @@ export const ReuniaoDetail: React.FC = () => {
 
               {/* Barra de Busca de Itens da aba ativa (se não for tópicos livres) */}
               {planTab !== 'topicos' && (
-                <div className="relative w-full sm:w-64">
+                <div className="relative w-full sm:w-80">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder={`Buscar em ${planTab}...`}
+                    placeholder={
+                      planTab === 'pedidos'
+                        ? 'Buscar por código do pedido (ex: 815, PED)...'
+                        : planTab === 'trabalhadores'
+                        ? 'Buscar por nome, função, cliente ou NIE...'
+                        : planTab === 'clientes'
+                        ? 'Buscar nome fantasia, razão ou código...'
+                        : 'Buscar por título, código ou tipo...'
+                    }
                     value={searchTermPlan}
                     onChange={e => setSearchTermPlan(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-8 pr-8 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                   />
+                  {isSearchingPlan ? (
+                    <RefreshCw size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-500 animate-spin" />
+                  ) : searchTermPlan ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTermPlan('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+                      title="Limpar busca"
+                    >
+                      <X size={13} />
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -1433,20 +1483,22 @@ export const ReuniaoDetail: React.FC = () => {
             {planTab === 'pedidos' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>{dadosSemana.totalPedidosAtivos} pedidos ativos identificados</span>
+                  <span>{dadosSemana.totalPedidosAtivos} pedidos cadastrados no sistema</span>
                   <span>Clique em Vincular para debater este pedido na reunião</span>
                 </div>
 
                 {(() => {
-                  const filtrados = dadosSemana.pedidosRecentes.filter(p => {
-                    if (!searchTermPlan.trim()) return true;
-                    const term = searchTermPlan.toLowerCase();
-                    return (
-                      (p.codigo || '').toLowerCase().includes(term) ||
-                      (p.estado || '').toLowerCase().includes(term) ||
-                      (p.id || '').toLowerCase().includes(term)
-                    );
-                  });
+                  const filtrados = liveSearchResults.pedidos !== undefined
+                    ? liveSearchResults.pedidos
+                    : dadosSemana.pedidosRecentes.filter(p => {
+                        if (!searchTermPlan.trim()) return true;
+                        const term = searchTermPlan.toLowerCase();
+                        return (
+                          (p.codigo || '').toLowerCase().includes(term) ||
+                          (p.empresa_nome || '').toLowerCase().includes(term) ||
+                          (p.id || '').toLowerCase().includes(term)
+                        );
+                      });
 
                   if (filtrados.length === 0) {
                     return <p className="text-xs text-slate-400 py-6 text-center">Nenhum pedido encontrado</p>;
@@ -1471,12 +1523,12 @@ export const ReuniaoDetail: React.FC = () => {
                                 <span className="font-bold text-slate-900 dark:text-white">
                                   Pedido #{pedido.codigo || pedido.id.slice(0, 8)}
                                 </span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
-                                  {pedido.estado || 'Em aberto'}
+                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">
+                                  {pedido.empresa_nome || 'Ativo'}
                                 </span>
                               </div>
                               <div className="text-slate-500 dark:text-slate-400 mt-1">
-                                Início: {pedido.fecha_inicio_pedido ? new Date(pedido.fecha_inicio_pedido).toLocaleDateString('pt-BR') : 'A definir'} • {pedido.cantidad_personal || 0} trabalhadores
+                                Código de Referência: <span className="font-mono font-semibold">{pedido.codigo}</span>
                               </div>
                             </div>
 
@@ -1504,20 +1556,26 @@ export const ReuniaoDetail: React.FC = () => {
             {planTab === 'trabalhadores' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Trabalhadores e candidatos recentes</span>
+                  <span>Trabalhadores e colaboradores da base (busca por nome, cliente, função, NIE ou código)</span>
                   <span>Vincule casos de provas, admissões ou desistências</span>
                 </div>
 
                 {(() => {
-                  const filtrados = dadosSemana.trabalhadoresRecentes.filter(w => {
-                    if (!searchTermPlan.trim()) return true;
-                    const term = searchTermPlan.toLowerCase();
-                    return (
-                      (w.nome || '').toLowerCase().includes(term) ||
-                      (w.funcion || '').toLowerCase().includes(term) ||
-                      (w.status_trabajador || '').toLowerCase().includes(term)
-                    );
-                  });
+                  const filtrados = liveSearchResults.trabalhadores !== undefined
+                    ? liveSearchResults.trabalhadores
+                    : dadosSemana.trabalhadoresRecentes.filter(w => {
+                        if (!searchTermPlan.trim()) return true;
+                        const term = searchTermPlan.toLowerCase();
+                        return (
+                          (w.nome || '').toLowerCase().includes(term) ||
+                          (w.funcion || '').toLowerCase().includes(term) ||
+                          (w.cliente || '').toLowerCase().includes(term) ||
+                          (w.status_trabajador || '').toLowerCase().includes(term) ||
+                          (w.nie || '').toLowerCase().includes(term) ||
+                          (w.cod_colab || '').toLowerCase().includes(term) ||
+                          (w.cod_cliente || '').toLowerCase().includes(term)
+                        );
+                      });
 
                   if (filtrados.length === 0) {
                     return <p className="text-xs text-slate-400 py-6 text-center">Nenhum trabalhador encontrado</p>;
@@ -1528,6 +1586,7 @@ export const ReuniaoDetail: React.FC = () => {
                       {filtrados.map((worker) => {
                         const identifier = worker.nome || worker.id;
                         const isVinculado = trabalhadoresSelecionados.includes(identifier);
+                        const isInativo = (worker.status_trabajador || '').toLowerCase().includes('inativ') || (worker.status_trabajador || '').toLowerCase().includes('desisti');
 
                         return (
                           <div
@@ -1538,12 +1597,30 @@ export const ReuniaoDetail: React.FC = () => {
                                 : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-750'
                             }`}
                           >
-                            <div className="pr-3">
-                              <div className="font-bold text-slate-900 dark:text-white">
-                                {worker.nome}
+                            <div className="pr-3 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900 dark:text-white">
+                                  {worker.nome}
+                                </span>
+                                {worker.cod_colab && (
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
+                                    {worker.cod_colab}
+                                  </span>
+                                )}
                               </div>
-                              <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                                {worker.funcion || 'Trabalhador'} • Status: <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.status_trabajador || 'Ativo'}</span>
+                              <div className="text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2">
+                                <span className="font-medium text-slate-700 dark:text-slate-300">
+                                  {worker.funcion || 'Trabalhador'}
+                                </span>
+                                {worker.cliente && (
+                                  <span className="text-blue-600 dark:text-blue-400 font-semibold">
+                                    • Obra/Cliente: {worker.cliente}
+                                  </span>
+                                )}
+                                <span>
+                                  • Status: <b className={isInativo ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>{worker.status_trabajador || 'Ativo'}</b>
+                                </span>
+                                {worker.nie && <span className="text-slate-400">• NIE: {worker.nie}</span>}
                               </div>
                             </div>
 
@@ -1571,23 +1648,27 @@ export const ReuniaoDetail: React.FC = () => {
             {planTab === 'incidencias' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>{dadosSemana.totalIncidenciasAbertas} ocorrências pendentes no sistema</span>
+                  <span>{dadosSemana.totalIncidenciasAbertas} ocorrências registradas no sistema</span>
                   <span>Vincule para tratar as causas raízes nesta reunião</span>
                 </div>
 
                 {(() => {
-                  const filtrados = dadosSemana.incidenciasRecentes.filter(i => {
-                    if (!searchTermPlan.trim()) return true;
-                    const term = searchTermPlan.toLowerCase();
-                    return (
-                      (i.title || '').toLowerCase().includes(term) ||
-                      (i.client_name || '').toLowerCase().includes(term) ||
-                      (i.severity || '').toLowerCase().includes(term)
-                    );
-                  });
+                  const filtrados = liveSearchResults.incidencias !== undefined
+                    ? liveSearchResults.incidencias
+                    : dadosSemana.incidenciasRecentes.filter(i => {
+                        if (!searchTermPlan.trim()) return true;
+                        const term = searchTermPlan.toLowerCase();
+                        return (
+                          (i.title || '').toLowerCase().includes(term) ||
+                          (i.description || '').toLowerCase().includes(term) ||
+                          (i.pedido_code || '').toLowerCase().includes(term) ||
+                          (i.incident_type || '').toLowerCase().includes(term) ||
+                          (i.status || '').toLowerCase().includes(term)
+                        );
+                      });
 
                   if (filtrados.length === 0) {
-                    return <p className="text-xs text-slate-400 py-6 text-center">Nenhuma incidência aberta encontrada</p>;
+                    return <p className="text-xs text-slate-400 py-6 text-center">Nenhuma incidência encontrada</p>;
                   }
 
                   return (
@@ -1610,8 +1691,8 @@ export const ReuniaoDetail: React.FC = () => {
                                 {inc.title}
                               </div>
                               <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                                {inc.client_name ? `Cliente: ${inc.client_name} • ` : ''}
-                                Severidade: <span className="font-semibold capitalize">{inc.severity || 'Normal'}</span>
+                                {inc.pedido_code ? `Pedido: ${inc.pedido_code} • ` : ''}
+                                Tipo: <span className="font-semibold">{inc.incident_type || 'Operacional'}</span> • Status: <span className="font-semibold uppercase">{inc.status || 'Aberto'}</span>
                               </div>
                             </div>
 
@@ -1639,21 +1720,24 @@ export const ReuniaoDetail: React.FC = () => {
             {planTab === 'clientes' && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Clientes e obras cadastradas</span>
+                  <span>Clientes cadastrados (busca em nome comercial, razão social ou código)</span>
                   <span>Vincule para debater prazos ou renovações específicas</span>
                 </div>
 
                 {(() => {
-                  const filtrados = dadosSemana.clientesRecentes.filter(c => {
-                    if (!searchTermPlan.trim()) return true;
-                    const term = searchTermPlan.toLowerCase();
-                    return (
-                      (c.trade_name || '').toLowerCase().includes(term) ||
-                      (c.legal_name || '').toLowerCase().includes(term) ||
-                      (c.codigo || '').toLowerCase().includes(term) ||
-                      (c.city || '').toLowerCase().includes(term)
-                    );
-                  });
+                  const filtrados = liveSearchResults.clientes !== undefined
+                    ? liveSearchResults.clientes
+                    : dadosSemana.clientesRecentes.filter(c => {
+                        if (!searchTermPlan.trim()) return true;
+                        const term = searchTermPlan.toLowerCase();
+                        return (
+                          (c.nombre_comercial || '').toLowerCase().includes(term) ||
+                          (c.razon_social || '').toLowerCase().includes(term) ||
+                          (c.cod_cliente || '').toLowerCase().includes(term) ||
+                          (c.cif_dni || '').toLowerCase().includes(term) ||
+                          (c.municipio || '').toLowerCase().includes(term)
+                        );
+                      });
 
                   if (filtrados.length === 0) {
                     return <p className="text-xs text-slate-400 py-6 text-center">Nenhum cliente encontrado</p>;
@@ -1662,7 +1746,7 @@ export const ReuniaoDetail: React.FC = () => {
                   return (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {filtrados.map((cliente) => {
-                        const identifier = cliente.trade_name || cliente.legal_name || cliente.id;
+                        const identifier = cliente.nombre_comercial || cliente.razon_social || String(cliente.id);
                         const isVinculado = clientesSelecionados.includes(identifier);
 
                         return (
@@ -1676,11 +1760,12 @@ export const ReuniaoDetail: React.FC = () => {
                           >
                             <div className="pr-3">
                               <div className="font-bold text-slate-900 dark:text-white">
-                                {cliente.trade_name || cliente.legal_name}
+                                {cliente.nombre_comercial || cliente.razon_social}
                               </div>
                               <div className="text-slate-500 dark:text-slate-400 mt-0.5">
-                                {cliente.codigo ? `Cód: ${cliente.codigo} • ` : ''}
-                                {cliente.city ? `${cliente.city}` : 'Espanha'}
+                                {cliente.cod_cliente ? `Cód: ${cliente.cod_cliente} • ` : ''}
+                                {cliente.razon_social && cliente.nombre_comercial && cliente.razon_social !== cliente.nombre_comercial ? `${cliente.razon_social} • ` : ''}
+                                {cliente.municipio ? `${cliente.municipio}${cliente.provincia ? ` (${cliente.provincia})` : ''}` : 'Espanha'}
                               </div>
                             </div>
 
@@ -1999,10 +2084,10 @@ export const ReuniaoDetail: React.FC = () => {
                     {clientesSelecionados.length > 0 && (
                       <optgroup label="🏢 Clientes & Obras">
                         {clientesSelecionados.map(cId => {
-                          const c = dadosSemana.clientesRecentes.find(x => x.id === cId || x.trade_name === cId);
+                          const c = dadosSemana.clientesRecentes.find(x => x.id === cId || x.nombre_comercial === cId || x.razon_social === cId || String(x.id) === String(cId));
                           return (
-                            <option key={cId} value={`Cliente: ${c?.trade_name || cId}`}>
-                              🏢 {c?.trade_name || cId}
+                            <option key={cId} value={`Cliente: ${c?.nombre_comercial || c?.razon_social || cId}`}>
+                              🏢 {c?.nombre_comercial || c?.razon_social || cId}
                             </option>
                           );
                         })}
