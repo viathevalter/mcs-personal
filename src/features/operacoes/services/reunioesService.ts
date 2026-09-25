@@ -456,8 +456,9 @@ export const reunioesService = {
         supabase
           .schema('core_operacoes')
           .from('pedidos')
-          .select('id, codigo, empresa_id')
-          .limit(100),
+          .select('id, codigo, empresa_id, client_id, client_site_id, expected_start_date, expected_end_date, created_at, commercial_status, operational_status, client_name, client_legal_name, site_name')
+          .order('created_at', { ascending: false })
+          .limit(300),
         supabase
           .from('mcs_incidents')
           .select('id, title, status, incident_type, description, created_at, pedido_code')
@@ -466,14 +467,14 @@ export const reunioesService = {
         supabase
           .schema('core_personal')
           .from('workers')
-          .select('id, nome, status_trabajador, funcion, cliente, cod_cliente, nie, cod_colab')
+          .select('id, nome, status_trabajador, funcion, cliente, cod_cliente, nie, cod_colab, created_at')
           .order('created_at', { ascending: false })
-          .limit(100),
+          .limit(300),
         supabase
           .from('clientes')
           .select('id, cod_cliente, nombre_comercial, razon_social, municipio, provincia, cif_dni')
           .order('nombre_comercial', { ascending: true })
-          .limit(100),
+          .limit(200),
         supabase
           .schema('core_common')
           .from('empresas')
@@ -550,9 +551,9 @@ export const reunioesService = {
           supabase
             .schema('core_operacoes')
             .from('pedidos')
-            .select('id, codigo, empresa_id')
-            .ilike('codigo', term)
-            .limit(60),
+            .select('id, codigo, empresa_id, client_id, client_site_id, expected_start_date, expected_end_date, created_at, commercial_status, operational_status, client_name, client_legal_name, site_name')
+            .or(`codigo.ilike.${term},client_name.ilike.${term},client_legal_name.ilike.${term},site_name.ilike.${term}`)
+            .limit(100),
           supabase
             .schema('core_common')
             .from('empresas')

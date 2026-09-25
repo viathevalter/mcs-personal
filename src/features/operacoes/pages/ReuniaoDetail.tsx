@@ -8,7 +8,7 @@ import {
   ChevronUp, Edit3, ListOrdered, Video, MapPin, Globe, Briefcase,
   Building2, UserCheck, FolderKanban, Search, Tag, X, Sparkle,
   Link2, PlusCircle, CheckCheck, Lightbulb, Package, MessageSquareText,
-  ClipboardList
+  ClipboardList, Filter
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { reunioesService, type UsuarioAtribuivel } from '../services/reunioesService';
@@ -69,6 +69,12 @@ export const ReuniaoDetail: React.FC = () => {
     incidencias?: any[];
     clientes?: any[];
   }>({});
+
+  // Filtros avançados para Pedidos e Trabalhadores no PLAN (Passo 2)
+  const [filtroClientePedido, setFiltroClientePedido] = useState('');
+  const [filtroEmpresaPedido, setFiltroEmpresaPedido] = useState('');
+  const [filtroStatusTrabalhador, setFiltroStatusTrabalhador] = useState('');
+  const [filtroClienteTrabalhador, setFiltroClienteTrabalhador] = useState('');
 
   // Formulário de Novo Tópico Livre (Sistemas, Novos Negócios, Funcionalidades)
   const [novoTopicoTitulo, setNovoTopicoTitulo] = useState('');
@@ -202,6 +208,17 @@ export const ReuniaoDetail: React.FC = () => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
+
+  const formatDateBr = (dateStr?: string) => {
+    if (!dateStr) return null;
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleDateString('pt-BR');
+    } catch {
+      return null;
+    }
   };
 
   // Busca em tempo real de entidades no banco de dados (Trabalhadores, Clientes, Pedidos, Incidências)
@@ -519,8 +536,9 @@ export const ReuniaoDetail: React.FC = () => {
       const code = refVal.replace(/^Pedido\s*#?/, '').replace(':', '').trim();
       const pedido = dadosSemana.pedidosRecentes.find(x => x.id === code || x.codigo === code)
         || (liveSearchResults.pedidos || []).find(x => x.id === code || x.codigo === code);
-      autoTitle = `Tratar Pedido #${pedido?.codigo || code}`;
-      autoDesc = `Pedido: #${pedido?.codigo || code}${pedido?.empresa_nome ? `\nEmpresa: ${pedido.empresa_nome}` : ''}`;
+      const clientName = pedido?.client_name || pedido?.client_legal_name;
+      autoTitle = `Tratar Pedido #${pedido?.codigo || code}${clientName ? ` (${clientName})` : ''}`;
+      autoDesc = `Pedido: #${pedido?.codigo || code}${clientName ? `\nCliente: ${clientName}` : ''}${pedido?.site_name ? `\nObra/Local: ${pedido.site_name}` : ''}${pedido?.expected_start_date ? `\nInício Previsto: ${formatDateBr(pedido.expected_start_date)}` : ''}${pedido?.created_at ? `\nData Cadastro: ${formatDateBr(pedido.created_at)}` : ''}${pedido?.empresa_nome ? `\nEmpresa: ${pedido.empresa_nome}` : ''}`;
       
       const opDept = departments.find(d => d.name?.toLowerCase().includes('operaç') || d.name?.toLowerCase().includes('coord'));
       if (opDept) targetDeptId = opDept.id;
@@ -1605,72 +1623,190 @@ export const ReuniaoDetail: React.FC = () => {
 
             {/* ABA 2: PEDIDOS & PRAZOS */}
             {planTab === 'pedidos' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>{dadosSemana.totalPedidosAtivos} pedidos cadastrados no sistema</span>
-                  <span>Clique em Vincular para debater este pedido na reunião</span>
-                </div>
-
+              <div className="space-y-4">
                 {(() => {
-                  const filtrados = liveSearchResults.pedidos !== undefined
+                  const basePedidos = liveSearchResults.pedidos !== undefined
                     ? liveSearchResults.pedidos
-                    : dadosSemana.pedidosRecentes.filter(p => {
-                        if (!searchTermPlan.trim()) return true;
-                        const term = searchTermPlan.toLowerCase();
-                        return (
-                          (p.codigo || '').toLowerCase().includes(term) ||
-                          (p.empresa_nome || '').toLowerCase().includes(term) ||
-                          (p.id || '').toLowerCase().includes(term)
-                        );
-                      });
+                    : dadosSemana.pedidosRecentes;
 
-                  if (filtrados.length === 0) {
-                    return <p className="text-xs text-slate-400 py-6 text-center">Nenhum pedido encontrado</p>;
-                  }
+                  const clientesPedidosOptions = Array.from(
+                    new Set(
+                      dadosSemana.pedidosRecentes
+                        .map(p => (p.client_name || p.client_legal_name)?.trim())
+                        .filter(Boolean)
+                    )
+                  ).sort((a, b) => a.localeCompare(b));
+
+                  const empresasPedidosOptions = Array.from(
+                    new Set(
+                      dadosSemana.pedidosRecentes
+                        .map(p => p.empresa_nome?.trim())
+                        .filter(Boolean)
+                    )
+                  ).sort((a, b) => a.localeCompare(b));
+
+                  const filtrados = basePedidos.filter(p => {
+                    if (filtroClientePedido) {
+                      const cName = (p.client_name || p.client_legal_name || '').toLowerCase();
+                      if (cName !== filtroClientePedido.toLowerCase()) return false;
+                    }
+                    if (filtroEmpresaPedido) {
+                      if ((p.empresa_nome || '').toLowerCase() !== filtroEmpresaPedido.toLowerCase()) return false;
+                    }
+                    if (searchTermPlan.trim()) {
+                      const term = searchTermPlan.toLowerCase();
+                      const matchCod = (p.codigo || '').toLowerCase().includes(term);
+                      const matchCli = (p.client_name || p.client_legal_name || '').toLowerCase().includes(term);
+                      const matchEmp = (p.empresa_nome || '').toLowerCase().includes(term);
+                      const matchSite = (p.site_name || '').toLowerCase().includes(term);
+                      if (!matchCod && !matchCli && !matchEmp && !matchSite) return false;
+                    }
+                    return true;
+                  });
 
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {filtrados.map((pedido) => {
-                        const isVinculado = pedidosSelecionados.includes(pedido.codigo || pedido.id);
+                    <>
+                      {/* Barra de Filtros de Pedidos */}
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex flex-wrap items-center gap-2 flex-1">
+                          <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300 mr-1">
+                            <Filter size={14} className="text-blue-500" />
+                            <span>Filtros:</span>
+                          </div>
 
-                        return (
-                          <div
-                            key={pedido.id}
-                            className={`p-3.5 rounded-xl border transition-all flex items-center justify-between text-xs ${
-                              isVinculado
-                                ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-700/60 shadow-xs'
-                                : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-750'
-                            }`}
-                          >
-                            <div className="pr-3">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 dark:text-white">
-                                  Pedido #{pedido.codigo || pedido.id.slice(0, 8)}
-                                </span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">
-                                  {pedido.empresa_nome || 'Ativo'}
-                                </span>
-                              </div>
-                              <div className="text-slate-500 dark:text-slate-400 mt-1">
-                                Código de Referência: <span className="font-mono font-semibold">{pedido.codigo}</span>
-                              </div>
-                            </div>
+                          {/* Filtro por Cliente */}
+                          <div className="min-w-[200px] flex-1 sm:flex-initial">
+                            <select
+                              value={filtroClientePedido}
+                              onChange={e => setFiltroClientePedido(e.target.value)}
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium shadow-2xs"
+                            >
+                              <option value="">🏢 Todos os Clientes ({clientesPedidosOptions.length})</option>
+                              {clientesPedidosOptions.map(cName => (
+                                <option key={cName} value={cName}>🏢 {cName}</option>
+                              ))}
+                            </select>
+                          </div>
 
+                          {/* Filtro por Empresa */}
+                          <div className="min-w-[150px]">
+                            <select
+                              value={filtroEmpresaPedido}
+                              onChange={e => setFiltroEmpresaPedido(e.target.value)}
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium shadow-2xs"
+                            >
+                              <option value="">Todas as Empresas</option>
+                              {empresasPedidosOptions.map(emp => (
+                                <option key={emp} value={emp}>{emp}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Botão Limpar Filtros */}
+                          {(filtroClientePedido || filtroEmpresaPedido || searchTermPlan) && (
                             <button
                               type="button"
-                              onClick={() => handleToggleContexto('pedidos', pedido.codigo || pedido.id)}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all shrink-0 flex items-center gap-1 ${
-                                isVinculado
-                                  ? 'bg-emerald-600 text-white shadow-xs'
-                                  : 'bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-700 text-slate-700 dark:text-slate-200'
-                              }`}
+                              onClick={() => {
+                                setFiltroClientePedido('');
+                                setFiltroEmpresaPedido('');
+                                setSearchTermPlan('');
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors font-semibold flex items-center gap-1"
                             >
-                              {isVinculado ? <><Check size={13} /> Vinculado</> : <><Plus size={13} /> Vincular</>}
+                              <X size={13} /> Limpar filtros
                             </button>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 shrink-0 font-medium">
+                          Exibindo <b>{filtrados.length}</b> de {dadosSemana.totalPedidosAtivos || dadosSemana.pedidosRecentes.length} pedidos
+                        </div>
+                      </div>
+
+                      {/* Grid de Cards de Pedidos Enriquecidos */}
+                      {filtrados.length === 0 ? (
+                        <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-400">
+                          Nenhum pedido encontrado para os filtros selecionados.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {filtrados.map((pedido) => {
+                            const isVinculado = pedidosSelecionados.includes(pedido.codigo || pedido.id);
+
+                            return (
+                              <div
+                                key={pedido.id}
+                                className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                                  isVinculado
+                                    ? 'bg-blue-50/60 dark:bg-blue-950/30 border-blue-300 dark:border-blue-700/60 shadow-xs'
+                                    : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-750 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className="space-y-1.5 flex-1 min-w-0 pr-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                      Pedido #{pedido.codigo || pedido.id.slice(0, 8)}
+                                    </span>
+                                    {pedido.empresa_nome && (
+                                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                                        {pedido.empresa_nome}
+                                      </span>
+                                    )}
+                                    {pedido.operational_status && (
+                                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                                        {pedido.operational_status === 'fulfilled' ? 'Atendido' : pedido.operational_status === 'partially_fulfilled' ? 'Parcial' : 'Pendente'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Nome do Cliente em Destaque */}
+                                  <div className="flex items-center gap-1.5 text-slate-800 dark:text-slate-200 font-semibold">
+                                    <Building2 size={14} className="text-indigo-500 shrink-0" />
+                                    <span className="truncate">
+                                      Cliente: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{pedido.client_name || pedido.client_legal_name || 'Cliente Geral'}</span>
+                                    </span>
+                                    {pedido.site_name && (
+                                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate">
+                                        • Obra: {pedido.site_name}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Datas de Cadastro e Previsão de Início */}
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
+                                    <span className="flex items-center gap-1">
+                                      <Calendar size={13} className="text-slate-400 shrink-0" />
+                                      Cadastrado: <b className="text-slate-700 dark:text-slate-300 font-semibold">{formatDateBr(pedido.created_at) || 'Recente'}</b>
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <Clock size={13} className="text-emerald-500 shrink-0" />
+                                      Início Previsto: <b className="text-emerald-600 dark:text-emerald-400 font-semibold">{formatDateBr(pedido.expected_start_date) || 'A definir'}</b>
+                                    </span>
+                                    {pedido.expected_end_date && (
+                                      <span className="flex items-center gap-1 text-slate-400">
+                                        Término: {formatDateBr(pedido.expected_end_date)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleContexto('pedidos', pedido.codigo || pedido.id)}
+                                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition-all shrink-0 flex items-center justify-center gap-1.5 shadow-2xs ${
+                                    isVinculado
+                                      ? 'bg-emerald-600 text-white shadow-xs hover:bg-emerald-700'
+                                      : 'bg-slate-100 hover:bg-blue-600 hover:text-white dark:bg-slate-750 text-slate-700 dark:text-slate-200'
+                                  }`}
+                                >
+                                  {isVinculado ? <><Check size={14} /> Vinculado</> : <><Plus size={14} /> Vincular</>}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   );
                 })()}
               </div>
@@ -1678,91 +1814,198 @@ export const ReuniaoDetail: React.FC = () => {
 
             {/* ABA 3: TRABALHADORES & RH */}
             {planTab === 'trabalhadores' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <span>Trabalhadores e colaboradores da base (busca por nome, cliente, função, NIE ou código)</span>
-                  <span>Vincule casos de provas, admissões ou desistências</span>
-                </div>
-
+              <div className="space-y-4">
                 {(() => {
-                  const filtrados = liveSearchResults.trabalhadores !== undefined
+                  const baseWorkers = liveSearchResults.trabalhadores !== undefined
                     ? liveSearchResults.trabalhadores
-                    : dadosSemana.trabalhadoresRecentes.filter(w => {
-                        if (!searchTermPlan.trim()) return true;
-                        const term = searchTermPlan.toLowerCase();
-                        return (
-                          (w.nome || '').toLowerCase().includes(term) ||
-                          (w.funcion || '').toLowerCase().includes(term) ||
-                          (w.cliente || '').toLowerCase().includes(term) ||
-                          (w.status_trabajador || '').toLowerCase().includes(term) ||
-                          (w.nie || '').toLowerCase().includes(term) ||
-                          (w.cod_colab || '').toLowerCase().includes(term) ||
-                          (w.cod_cliente || '').toLowerCase().includes(term)
-                        );
-                      });
+                    : dadosSemana.trabalhadoresRecentes;
 
-                  if (filtrados.length === 0) {
-                    return <p className="text-xs text-slate-400 py-6 text-center">Nenhum trabalhador encontrado</p>;
-                  }
+                  const clientesTrabalhadoresOptions = Array.from(
+                    new Set(
+                      dadosSemana.trabalhadoresRecentes
+                        .map(w => w.cliente?.trim())
+                        .filter(Boolean)
+                    )
+                  ).sort((a, b) => a.localeCompare(b));
+
+                  const filtrados = baseWorkers.filter(w => {
+                    // Filtro por Status
+                    if (filtroStatusTrabalhador) {
+                      const status = (w.status_trabajador || '').toLowerCase();
+                      const filter = filtroStatusTrabalhador.toLowerCase();
+                      if (filter === 'pendente') {
+                        if (!status.includes('pendente')) return false;
+                      } else if (filter === 'ativo') {
+                        if (status !== 'ativo') return false;
+                      } else if (filter === 'inativo') {
+                        if (!status.includes('inativ') && !status.includes('desisti') && !status.includes('desligad')) return false;
+                      } else if (filter === 'disponivel') {
+                        if (!status.includes('dispon')) return false;
+                      } else {
+                        if (status !== filter) return false;
+                      }
+                    }
+
+                    // Filtro por Cliente / Obra
+                    if (filtroClienteTrabalhador) {
+                      if ((w.cliente || '').toLowerCase() !== filtroClienteTrabalhador.toLowerCase()) return false;
+                    }
+
+                    // Busca por Texto
+                    if (searchTermPlan.trim()) {
+                      const term = searchTermPlan.toLowerCase();
+                      const nomeMatch = (w.nome || '').toLowerCase().includes(term);
+                      const funcMatch = (w.funcion || '').toLowerCase().includes(term);
+                      const clientMatch = (w.cliente || '').toLowerCase().includes(term);
+                      const statusMatch = (w.status_trabajador || '').toLowerCase().includes(term);
+                      const nieMatch = (w.nie || '').toLowerCase().includes(term);
+                      const codColabMatch = (w.cod_colab || '').toLowerCase().includes(term);
+                      if (!nomeMatch && !funcMatch && !clientMatch && !statusMatch && !nieMatch && !codColabMatch) return false;
+                    }
+                    return true;
+                  });
 
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {filtrados.map((worker) => {
-                        const identifier = worker.nome || worker.id;
-                        const isVinculado = trabalhadoresSelecionados.includes(identifier);
-                        const isInativo = (worker.status_trabajador || '').toLowerCase().includes('inativ') || (worker.status_trabajador || '').toLowerCase().includes('desisti');
+                    <>
+                      {/* Barra de Filtros de Trabalhadores */}
+                      <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex flex-wrap items-center gap-2 flex-1">
+                          <div className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300 mr-1">
+                            <Filter size={14} className="text-emerald-500" />
+                            <span>Filtros:</span>
+                          </div>
 
-                        return (
-                          <div
-                            key={worker.id}
-                            className={`p-3.5 rounded-xl border transition-all flex items-center justify-between text-xs ${
-                              isVinculado
-                                ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700/60 shadow-xs'
-                                : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-750'
-                            }`}
-                          >
-                            <div className="pr-3 space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-slate-900 dark:text-white">
-                                  {worker.nome}
-                                </span>
-                                {worker.cod_colab && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
-                                    {worker.cod_colab}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2">
-                                <span className="font-medium text-slate-700 dark:text-slate-300">
-                                  {worker.funcion || 'Trabalhador'}
-                                </span>
-                                {worker.cliente && (
-                                  <span className="text-blue-600 dark:text-blue-400 font-semibold">
-                                    • Obra/Cliente: {worker.cliente}
-                                  </span>
-                                )}
-                                <span>
-                                  • Status: <b className={isInativo ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>{worker.status_trabajador || 'Ativo'}</b>
-                                </span>
-                                {worker.nie && <span className="text-slate-400">• NIE: {worker.nie}</span>}
-                              </div>
-                            </div>
+                          {/* Filtro por Status do Trabalhador */}
+                          <div className="min-w-[170px]">
+                            <select
+                              value={filtroStatusTrabalhador}
+                              onChange={e => setFiltroStatusTrabalhador(e.target.value)}
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium shadow-2xs"
+                            >
+                              <option value="">Todos os Status</option>
+                              <option value="pendente">⏳ Pendente Ingresso</option>
+                              <option value="ativo">✅ Ativo</option>
+                              <option value="inativo">❌ Inativo / Desistiu</option>
+                              <option value="disponivel">🔵 Disponível</option>
+                            </select>
+                          </div>
 
+                          {/* Filtro por Cliente / Obra */}
+                          <div className="min-w-[200px] flex-1 sm:flex-initial">
+                            <select
+                              value={filtroClienteTrabalhador}
+                              onChange={e => setFiltroClienteTrabalhador(e.target.value)}
+                              className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-medium shadow-2xs"
+                            >
+                              <option value="">🏢 Todos os Clientes / Obras ({clientesTrabalhadoresOptions.length})</option>
+                              {clientesTrabalhadoresOptions.map(cName => (
+                                <option key={cName} value={cName}>🏢 {cName}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Botão Limpar Filtros */}
+                          {(filtroStatusTrabalhador || filtroClienteTrabalhador || searchTermPlan) && (
                             <button
                               type="button"
-                              onClick={() => handleToggleContexto('trabalhadores', identifier)}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all shrink-0 flex items-center gap-1 ${
-                                isVinculado
-                                  ? 'bg-emerald-600 text-white shadow-xs'
-                                  : 'bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-slate-700 text-slate-700 dark:text-slate-200'
-                              }`}
+                              onClick={() => {
+                                setFiltroStatusTrabalhador('');
+                                setFiltroClienteTrabalhador('');
+                                setSearchTermPlan('');
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors font-semibold flex items-center gap-1"
                             >
-                              {isVinculado ? <><Check size={13} /> Vinculado</> : <><Plus size={13} /> Vincular</>}
+                              <X size={13} /> Limpar filtros
                             </button>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 shrink-0 font-medium">
+                          Exibindo <b>{filtrados.length}</b> de {dadosSemana.trabalhadoresRecentes.length} colaboradores
+                        </div>
+                      </div>
+
+                      {/* Grid de Cards de Trabalhadores */}
+                      {filtrados.length === 0 ? (
+                        <div className="p-8 text-center rounded-xl border border-dashed border-slate-200 dark:border-slate-800 text-xs text-slate-400">
+                          Nenhum trabalhador encontrado para os filtros selecionados.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {filtrados.map((worker) => {
+                            const identifier = worker.nome || worker.id;
+                            const isVinculado = trabalhadoresSelecionados.includes(identifier);
+                            const statusLower = (worker.status_trabajador || '').toLowerCase();
+                            const isPendente = statusLower.includes('pendente');
+                            const isAtivo = statusLower === 'ativo';
+                            const isInativo = statusLower.includes('inativ') || statusLower.includes('desisti') || statusLower.includes('desligad');
+                            const isDisponivel = statusLower.includes('dispon');
+
+                            let statusBadgeClass = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-750';
+                            if (isPendente) {
+                              statusBadgeClass = 'bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-700/60 font-bold';
+                            } else if (isAtivo) {
+                              statusBadgeClass = 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/60 font-bold';
+                            } else if (isInativo) {
+                              statusBadgeClass = 'bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700/60 font-semibold';
+                            } else if (isDisponivel) {
+                              statusBadgeClass = 'bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700/60 font-semibold';
+                            }
+
+                            return (
+                              <div
+                                key={worker.id}
+                                className={`p-4 rounded-xl border transition-all flex items-center justify-between text-xs ${
+                                  isVinculado
+                                    ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700/60 shadow-xs'
+                                    : 'bg-white dark:bg-slate-850 border-slate-200 dark:border-slate-750 hover:border-slate-300'
+                                }`}
+                              >
+                                <div className="pr-3 space-y-1.5 flex-1 min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                      {worker.nome}
+                                    </span>
+                                    {worker.cod_colab && (
+                                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 font-mono">
+                                        {worker.cod_colab}
+                                      </span>
+                                    )}
+                                    <span className={`text-[10px] px-2 py-0.5 rounded-full border ${statusBadgeClass}`}>
+                                      {isPendente && '⏳ '}{isAtivo && '✅ '}{isInativo && '❌ '}{worker.status_trabajador || 'Ativo'}
+                                    </span>
+                                  </div>
+
+                                  <div className="text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                      {worker.funcion || 'Trabalhador'}
+                                    </span>
+                                    {worker.cliente && (
+                                      <span className="text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1">
+                                        <Building2 size={12} /> Obra/Cliente: {worker.cliente}
+                                      </span>
+                                    )}
+                                    {worker.nie && <span className="text-slate-400">• NIE: {worker.nie}</span>}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleContexto('trabalhadores', identifier)}
+                                  className={`px-3.5 py-2 rounded-xl font-bold text-xs transition-all shrink-0 flex items-center gap-1.5 ${
+                                    isVinculado
+                                      ? 'bg-emerald-600 text-white shadow-xs hover:bg-emerald-700'
+                                      : 'bg-slate-100 hover:bg-emerald-600 hover:text-white dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                                  }`}
+                                >
+                                  {isVinculado ? <><Check size={13} /> Vinculado</> : <><Plus size={13} /> Vincular</>}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
                   );
                 })()}
               </div>
