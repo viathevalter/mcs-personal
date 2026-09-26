@@ -15,7 +15,8 @@ import {
     Activity,
     LogOut,
     Lock,
-    Car
+    Car,
+    ShieldCheck
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -121,6 +122,15 @@ const MODULES: ModuleDef[] = [
         color: 'text-purple-600',
         bgHover: 'hover:bg-purple-50',
         allowedRoles: ['admin', 'rh', 'user', 'visualizador']
+    },
+    {
+        id: 'patrimonio',
+        title: 'MCS Patrimônio',
+        icon: ShieldCheck,
+        path: '/patrimonio',
+        color: 'text-cyan-600',
+        bgHover: 'hover:bg-cyan-50',
+        allowedRoles: ['admin', 'admin_rh', 'operacoes', 'rh', 'finance', 'commercial']
     }
 ];
 

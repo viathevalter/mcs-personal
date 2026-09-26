@@ -139,6 +139,8 @@ import { Cobranca as FinanceiroCobranca } from '../features/financeiro/pages/Cob
 import { TitleDetail as FinanceiroTitleDetail } from '../features/financeiro/pages/TitleDetail';
 import { Settings as FinanceiroSettings } from '../features/financeiro/pages/Settings';
 
+import { PatrimonioListPage, PatrimonioDetailPage } from '../features/patrimonio';
+
 import { useRouteError } from 'react-router-dom';
 
 function RootErrorBoundary() {
@@ -715,6 +717,14 @@ export const router = createBrowserRouter([
                     {
                         path: 'documentacion/tarefas',
                         element: <DocumentacionTasksPage />,
+                    },
+                    {
+                        path: 'patrimonio',
+                        element: <PatrimonioListPage />,
+                    },
+                    {
+                        path: 'patrimonio/:codigo',
+                        element: <PatrimonioDetailPage />,
                     },
                 ],
             }
