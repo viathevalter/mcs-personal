@@ -7,7 +7,8 @@ import {
     listarManutencoes,
     salvarDocumento,
     uploadArquivoPatrimonio,
-    concluirManutencao
+    concluirManutencao,
+    excluirAtivo
 } from '../api/patrimonioApi';
 import type { 
     AtivoPatrimonio, 
@@ -57,7 +58,9 @@ import {
     Plus,
     Loader2,
     Clock,
-    Camera
+    Camera,
+    Trash2,
+    AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -92,6 +95,25 @@ export function PatrimonioDetailPage() {
     const [solucaoManutencao, setSolucaoManutencao] = useState('');
     const [custoFinalManutencao, setCustoFinalManutencao] = useState<number>(0);
     const [submittingConclusao, setSubmittingConclusao] = useState(false);
+
+    // Modal de exclusão
+    const [modalExcluirOpen, setModalExcluirOpen] = useState(false);
+    const [excluindo, setExcluindo] = useState(false);
+
+    const handleExcluirPatrimonio = async () => {
+        if (!ativo) return;
+        setExcluindo(true);
+        try {
+            await excluirAtivo(ativo.id);
+            toast.success(`Patrimônio ${ativo.codigo_patrimonial} excluído com sucesso!`);
+            navigate('/patrimonio');
+        } catch (err: any) {
+            console.error('Erro ao excluir:', err);
+            toast.error('Falha ao excluir patrimônio.');
+        } finally {
+            setExcluindo(false);
+        }
+    };
 
     useEffect(() => {
         carregarDados();
@@ -303,6 +325,15 @@ export function PatrimonioDetailPage() {
                         className="h-9 text-xs gap-1.5"
                     >
                         <Edit className="h-3.5 w-3.5 text-slate-500" /> Editar
+                    </Button>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setModalExcluirOpen(true)}
+                        className="h-9 text-xs gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900"
+                    >
+                        <Trash2 className="h-3.5 w-3.5" /> Excluir
                     </Button>
                 </div>
             </div>
@@ -939,6 +970,66 @@ export function PatrimonioDetailPage() {
                             </Button>
                         </DialogFooter>
                     </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+            <Dialog open={modalExcluirOpen} onOpenChange={setModalExcluirOpen}>
+                <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-rose-600 text-base font-bold">
+                            <AlertTriangle className="h-5 w-5" /> Excluir Patrimônio
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                            Tem certeza que deseja excluir o patrimônio <strong>{ativo.codigo_patrimonial}</strong>? Esta ação é definitiva e removerá todo o histórico e documentos vinculados.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Equipamento:</span>
+                            <span className="font-semibold text-slate-800 dark:text-slate-200">{ativo.descricao}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <span className="text-slate-500">Status Atual:</span>
+                            <span>{STATUS_CONFIG[ativo.status]?.label || ativo.status}</span>
+                        </div>
+                        {ativo.responsavel_nome && (
+                            <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+                                ⚠️ <strong>Atenção:</strong> Ativo em posse de <strong>{ativo.responsavel_nome}</strong>.
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="gap-2 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={excluindo}
+                            onClick={() => setModalExcluirOpen(false)}
+                            className="text-xs"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={excluindo}
+                            onClick={handleExcluirPatrimonio}
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-xs gap-1.5"
+                        >
+                            {excluindo ? (
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Excluindo...
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="h-3.5 w-3.5" /> Confirmar Exclusão
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>

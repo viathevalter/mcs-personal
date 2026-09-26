@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listarAtivos } from '../api/patrimonioApi';
+import { listarAtivos, excluirAtivo } from '../api/patrimonioApi';
 import type { AtivoPatrimonio, PatrimonioFiltros, PatrimonioStatus } from '../types/patrimonio';
 import { CATEGORIAS_PATRIMONIO, STATUS_CONFIG } from '../types/patrimonio';
 import { exportarPatrimoniosExcel, exportarPatrimoniosCsv, exportarPatrimoniosPdf } from '../utils/exportPatrimonio';
@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
     Table,
@@ -46,7 +47,11 @@ import {
     ExternalLink,
     MoreVertical,
     Loader2,
-    ShieldCheck
+    ShieldCheck,
+    Edit,
+    Trash2,
+    AlertTriangle,
+    Eye
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -74,6 +79,9 @@ export function PatrimonioListPage() {
 
     // Modais de ação rápida para um item específico
     const [ativoSelecionadoAcao, setAtivoSelecionadoAcao] = useState<AtivoPatrimonio | null>(null);
+    const [ativoParaEditar, setAtivoParaEditar] = useState<AtivoPatrimonio | null>(null);
+    const [ativoParaExcluir, setAtivoParaExcluir] = useState<AtivoPatrimonio | null>(null);
+    const [excluindo, setExcluindo] = useState(false);
     const [entregaOpen, setEntregaOpen] = useState(false);
     const [devolucaoOpen, setDevolucaoOpen] = useState(false);
     const [transferenciaOpen, setTransferenciaOpen] = useState(false);
@@ -82,6 +90,22 @@ export function PatrimonioListPage() {
     useEffect(() => {
         carregarAtivos();
     }, [filtroStatus, filtroCategoria, filtroEmpresa, filtroProjeto]);
+
+    const handleConfirmarExclusao = async () => {
+        if (!ativoParaExcluir) return;
+        setExcluindo(true);
+        try {
+            await excluirAtivo(ativoParaExcluir.id);
+            toast.success(`Patrimônio ${ativoParaExcluir.codigo_patrimonial} excluído com sucesso!`);
+            setAtivoParaExcluir(null);
+            carregarAtivos();
+        } catch (err: any) {
+            console.error('Erro ao excluir:', err);
+            toast.error(err?.message || 'Falha ao excluir patrimônio.');
+        } finally {
+            setExcluindo(false);
+        }
+    };
 
     const carregarAtivos = async () => {
         setLoading(true);
@@ -226,7 +250,10 @@ export function PatrimonioListPage() {
 
                     {/* Botão Novo Patrimônio */}
                     <Button
-                        onClick={() => setNovoAtivoOpen(true)}
+                        onClick={() => {
+                            setAtivoParaEditar(null);
+                            setNovoAtivoOpen(true);
+                        }}
                         className="h-9 text-xs gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
                     >
                         <Plus className="h-4 w-4" /> Novo Patrimônio
@@ -509,7 +536,29 @@ export function PatrimonioListPage() {
                                                 <MoreVertical className="h-3.5 w-3.5" />
                                             </Button>
                                         </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="text-xs">
+                                        <DropdownMenuContent align="end" className="text-xs w-48">
+                                            <DropdownMenuItem
+                                                onClick={() => {
+                                                    setAtivoParaEditar(ativo);
+                                                    setNovoAtivoOpen(true);
+                                                }}
+                                                className="gap-2"
+                                            >
+                                                <Edit className="h-3.5 w-3.5 text-blue-600" /> Editar Cadastro
+                                            </DropdownMenuItem>
+
+                                            <DropdownMenuItem
+                                                onClick={() => {
+                                                    setAtivoSelecionadoAcao(ativo);
+                                                    setEtiquetasOpen(true);
+                                                }}
+                                                className="gap-2"
+                                            >
+                                                <Printer className="h-3.5 w-3.5 text-slate-500" /> Imprimir Etiqueta
+                                            </DropdownMenuItem>
+
+                                            <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+
                                             {ativo.status !== 'em_uso' && (
                                                 <DropdownMenuItem
                                                     onClick={() => {
@@ -550,9 +599,18 @@ export function PatrimonioListPage() {
                                                     setAtivoSelecionadoAcao(ativo);
                                                     setManutencaoOpen(true);
                                                 }}
-                                                className="gap-2 text-rose-600"
+                                                className="gap-2 text-amber-700 dark:text-amber-500"
                                             >
-                                                <Wrench className="h-3.5 w-3.5" /> Enviar para Manutenção
+                                                <Wrench className="h-3.5 w-3.5" /> Enviar Manutenção
+                                            </DropdownMenuItem>
+
+                                            <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+
+                                            <DropdownMenuItem
+                                                onClick={() => setAtivoParaExcluir(ativo)}
+                                                className="gap-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" /> Excluir Patrimônio
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -642,14 +700,106 @@ export function PatrimonioListPage() {
                                             {ativo.empresa_proprietaria || 'KR Industrial'}
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => navigate(`/patrimonio/${ativo.codigo_patrimonial}`)}
-                                                className="h-7 text-xs text-sky-600 hover:text-sky-700 px-2"
-                                            >
-                                                Ver
-                                            </Button>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => navigate(`/patrimonio/${ativo.codigo_patrimonial}`)}
+                                                    className="h-7 w-7 text-slate-500 hover:text-sky-600"
+                                                    title="Ver Detalhes"
+                                                >
+                                                    <Eye className="h-3.5 w-3.5" />
+                                                </Button>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => {
+                                                        setAtivoParaEditar(ativo);
+                                                        setNovoAtivoOpen(true);
+                                                    }}
+                                                    className="h-7 w-7 text-slate-500 hover:text-blue-600"
+                                                    title="Editar Cadastro"
+                                                >
+                                                    <Edit className="h-3.5 w-3.5" />
+                                                </Button>
+
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => setAtivoParaExcluir(ativo)}
+                                                    className="h-7 w-7 text-slate-500 hover:text-rose-600"
+                                                    title="Excluir Patrimônio"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-400">
+                                                            <MoreVertical className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="text-xs w-48">
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                setAtivoSelecionadoAcao(ativo);
+                                                                setEtiquetasOpen(true);
+                                                            }}
+                                                            className="gap-2"
+                                                        >
+                                                            <Printer className="h-3.5 w-3.5 text-slate-500" /> Imprimir Etiqueta
+                                                        </DropdownMenuItem>
+
+                                                        <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
+
+                                                        {ativo.status !== 'em_uso' && (
+                                                            <DropdownMenuItem
+                                                                onClick={() => {
+                                                                    setAtivoSelecionadoAcao(ativo);
+                                                                    setEntregaOpen(true);
+                                                                }}
+                                                                className="gap-2 text-emerald-600"
+                                                            >
+                                                                <UserCheck className="h-3.5 w-3.5" /> Entregar a Colaborador
+                                                            </DropdownMenuItem>
+                                                        )}
+
+                                                        {ativo.status === 'em_uso' && (
+                                                            <>
+                                                                <DropdownMenuItem
+                                                                    onClick={() => {
+                                                                        setAtivoSelecionadoAcao(ativo);
+                                                                        setDevolucaoOpen(true);
+                                                                    }}
+                                                                    className="gap-2 text-amber-600"
+                                                                >
+                                                                    <RotateCcw className="h-3.5 w-3.5" /> Registrar Devolução
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuItem
+                                                                    onClick={() => {
+                                                                        setAtivoSelecionadoAcao(ativo);
+                                                                        setTransferenciaOpen(true);
+                                                                    }}
+                                                                    className="gap-2 text-blue-600"
+                                                                >
+                                                                    <RefreshCw className="h-3.5 w-3.5" /> Transferir Projeto
+                                                                </DropdownMenuItem>
+                                                            </>
+                                                        )}
+
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                setAtivoSelecionadoAcao(ativo);
+                                                                setManutencaoOpen(true);
+                                                            }}
+                                                            className="gap-2 text-amber-700 dark:text-amber-500"
+                                                        >
+                                                            <Wrench className="h-3.5 w-3.5" /> Enviar Manutenção
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -671,8 +821,15 @@ export function PatrimonioListPage() {
             {novoAtivoOpen && (
                 <AtivoFormDialog
                     open={novoAtivoOpen}
-                    onOpenChange={setNovoAtivoOpen}
-                    onSuccess={carregarAtivos}
+                    onOpenChange={(op) => {
+                        setNovoAtivoOpen(op);
+                        if (!op) setAtivoParaEditar(null);
+                    }}
+                    ativoParaEditar={ativoParaEditar}
+                    onSuccess={() => {
+                        setAtivoParaEditar(null);
+                        carregarAtivos();
+                    }}
                 />
             )}
 
@@ -720,6 +877,72 @@ export function PatrimonioListPage() {
                     onSuccess={carregarAtivos}
                 />
             )}
+
+            {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
+            <Dialog open={Boolean(ativoParaExcluir)} onOpenChange={(open) => !open && setAtivoParaExcluir(null)}>
+                <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-rose-600 text-base font-bold">
+                            <AlertTriangle className="h-5 w-5" /> Excluir Patrimônio
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-slate-500">
+                            Esta ação é irreversível. O bem e todo o histórico de custódia e documentos serão excluídos permanentemente.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {ativoParaExcluir && (
+                        <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Código Patrimonial:</span>
+                                <span className="font-bold font-mono text-sky-600 text-sm">{ativoParaExcluir.codigo_patrimonial}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Equipamento:</span>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200">{ativoParaExcluir.descricao}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-slate-500">Categoria:</span>
+                                <span>{ativoParaExcluir.categoria}</span>
+                            </div>
+                            {ativoParaExcluir.responsavel_nome && (
+                                <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+                                    ⚠️ <strong>Atenção:</strong> Este equipamento está atualmente em uso por <strong>{ativoParaExcluir.responsavel_nome}</strong>.
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <DialogFooter className="gap-2 pt-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={excluindo}
+                            onClick={() => setAtivoParaExcluir(null)}
+                            className="text-xs"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={excluindo}
+                            onClick={handleConfirmarExclusao}
+                            className="bg-rose-600 hover:bg-rose-700 text-white text-xs gap-1.5"
+                        >
+                            {excluindo ? (
+                                <>
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Excluindo...
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="h-3.5 w-3.5" /> Confirmar Exclusão
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
