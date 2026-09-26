@@ -1135,6 +1135,52 @@ export function CampaignsPage() {
     if (isWiseowe) {
       return [
         {
+          id: 'aud_fr_omar_scraping_inedits',
+          name: '🚀 🇫🇷 Omar - Inédits Portais França / SCMF & Sous-Traiter (228 leads)',
+          leadCount: 228,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Omar - Inédits Web Scraping França',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
+          id: 'aud_fr_omar_scraping_total',
+          name: '🎯 🇫🇷 Omar - Mailing Completo Portais França (354 leads)',
+          leadCount: 354,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Omar - Web Scraping França 2026',
+            limit: '',
+            offset: '',
+          },
+          created_at: new Date().toISOString()
+        },
+        {
           id: 'aud_fr_base_total_france',
           name: '🎯 🇫🇷 França - Base Total Consolidada (10.245 leads)',
           leadCount: 10245,
