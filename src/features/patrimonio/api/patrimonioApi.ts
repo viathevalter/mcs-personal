@@ -8,15 +8,15 @@ import type {
     PatrimonioStatus,
 } from '../types/patrimonio';
 
-const TABLE_ATIVOS = 'ativos';
-const TABLE_HISTORICO = 'historico';
-const TABLE_DOCUMENTOS = 'documentos';
-const TABLE_MANUTENCOES = 'manutencoes';
+const TABLE_ATIVOS = 'patrimonio_ativos';
+const TABLE_HISTORICO = 'patrimonio_historico';
+const TABLE_DOCUMENTOS = 'patrimonio_documentos';
+const TABLE_MANUTENCOES = 'patrimonio_manutencoes';
 const BUCKET_NAME = 'patrimonio';
 
-// Obter schema core_patrimonio ou fallback public
+// Obter cliente do schema public
 const getClient = () => {
-    return supabase.schema('core_patrimonio' as any);
+    return supabase;
 };
 
 export async function listarAtivos(filtros?: PatrimonioFiltros): Promise<AtivoPatrimonio[]> {
@@ -103,7 +103,7 @@ export async function obterAtivoPorCodigo(codigo: string): Promise<AtivoPatrimon
 
 export async function gerarProximoCodigo(prefixo: string = 'PAT'): Promise<string> {
     try {
-        const { data, error } = await supabase.rpc('core_patrimonio.gerar_proximo_codigo' as any, {
+        const { data, error } = await supabase.rpc('gerar_proximo_codigo_patrimonio', {
             p_prefixo: prefixo,
         });
         if (!error && data) {

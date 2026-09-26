@@ -1,18 +1,16 @@
 -- ==============================================================================
--- MIGRATION: Módulo de Controle Patrimonial & Gestão de Ativos
--- Criação do schema core_patrimonio, tabelas, histórico, documentos e automações
+-- MIGRATION: Módulo de Controle Patrimonial & Gestão de Ativos (Schema Public)
+-- Tabelas criadas no schema public para acesso direto via API PostgREST do Supabase
 -- ==============================================================================
 
-CREATE SCHEMA IF NOT EXISTS core_patrimonio;
-
 -- 1. TABELA PRINCIPAL DE ATIVOS (PATRIMÔNIO)
-CREATE TABLE IF NOT EXISTS core_patrimonio.ativos (
+CREATE TABLE IF NOT EXISTS public.patrimonio_ativos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     empresa_id UUID REFERENCES core_common.empresas(id) ON DELETE SET NULL,
     
     -- Identificação
     codigo_patrimonial VARCHAR(50) NOT NULL,
-    categoria VARCHAR(100) NOT NULL, -- Informática, Celular, Veículo, Ferramenta Elétrica, Oficina, etc.
+    categoria VARCHAR(100) NOT NULL,
     subcategoria VARCHAR(100),
     descricao TEXT NOT NULL,
     marca VARCHAR(100),
@@ -21,12 +19,11 @@ CREATE TABLE IF NOT EXISTS core_patrimonio.ativos (
     imei VARCHAR(100), -- Para celulares
     matricula VARCHAR(50), -- Para veículos
     cor VARCHAR(50),
-    empresa_proprietaria VARCHAR(150) DEFAULT 'MCS Industrial',
+    empresa_proprietaria VARCHAR(150) DEFAULT 'KR Industrial',
     centro_custo VARCHAR(100),
     localizacao VARCHAR(150) DEFAULT 'Armazém Central',
     
     -- Status
-    -- disponivel, reservado, em_uso, em_transito, em_manutencao, aguardando_manutencao, danificado, perdido, roubado, baixado, vendido, descartado
     status VARCHAR(50) NOT NULL DEFAULT 'disponivel',
     
     -- Informações de Aquisição
@@ -42,7 +39,7 @@ CREATE TABLE IF NOT EXISTS core_patrimonio.ativos (
     
     -- Identificação Visual
     foto_principal_url TEXT,
-    fotos JSONB DEFAULT '[]'::jsonb, -- Array de { id, tipo: 'frontal'|'traseira'|'serial'|'estado'|'acessorios'|'outro', url, legenda }
+    fotos JSONB DEFAULT '[]'::jsonb,
     
     -- Responsável Atual (Custódia)
     worker_id UUID REFERENCES core_personal.workers(id) ON DELETE SET NULL,
@@ -63,20 +60,18 @@ CREATE TABLE IF NOT EXISTS core_patrimonio.ativos (
 );
 
 -- Índices para buscas rápidas
-CREATE UNIQUE INDEX IF NOT EXISTS idx_patrimonio_codigo_unique ON core_patrimonio.ativos(codigo_patrimonial);
-CREATE INDEX IF NOT EXISTS idx_patrimonio_empresa_id ON core_patrimonio.ativos(empresa_id);
-CREATE INDEX IF NOT EXISTS idx_patrimonio_categoria ON core_patrimonio.ativos(categoria);
-CREATE INDEX IF NOT EXISTS idx_patrimonio_status ON core_patrimonio.ativos(status);
-CREATE INDEX IF NOT EXISTS idx_patrimonio_worker_id ON core_patrimonio.ativos(worker_id);
-CREATE INDEX IF NOT EXISTS idx_patrimonio_projeto ON core_patrimonio.ativos(projeto);
-CREATE INDEX IF NOT EXISTS idx_patrimonio_numero_serie ON core_patrimonio.ativos(numero_serie);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_patrimonio_codigo_unique ON public.patrimonio_ativos(codigo_patrimonial);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_categoria ON public.patrimonio_ativos(categoria);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_status ON public.patrimonio_ativos(status);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_worker_id ON public.patrimonio_ativos(worker_id);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_projeto ON public.patrimonio_ativos(projeto);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_numero_serie ON public.patrimonio_ativos(numero_serie);
 
 -- 2. TABELA DE HISTÓRICO / TIMELINE (RASTREABILIDADE COMPLETA)
-CREATE TABLE IF NOT EXISTS core_patrimonio.historico (
+CREATE TABLE IF NOT EXISTS public.patrimonio_historico (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ativo_id UUID NOT NULL REFERENCES core_patrimonio.ativos(id) ON DELETE CASCADE,
+    ativo_id UUID NOT NULL REFERENCES public.patrimonio_ativos(id) ON DELETE CASCADE,
     tipo_evento VARCHAR(50) NOT NULL, 
-    -- aquisicao, entrada_armazem, entrega, devolucao, transferencia_projeto, envio_manutencao, retorno_manutencao, status_alterado, inventario, observacao, baixa
     titulo VARCHAR(255) NOT NULL,
     descricao TEXT,
     worker_id UUID REFERENCES core_personal.workers(id) ON DELETE SET NULL,
@@ -90,34 +85,33 @@ CREATE TABLE IF NOT EXISTS core_patrimonio.historico (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_patrimonio_historico_ativo_id ON core_patrimonio.historico(ativo_id);
-CREATE INDEX IF NOT EXISTS idx_patrimonio_historico_created_at ON core_patrimonio.historico(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_historico_ativo_id ON public.patrimonio_historico(ativo_id);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_historico_created_at ON public.patrimonio_historico(created_at DESC);
 
 -- 3. TABELA DE DOCUMENTOS E ANEXOS
-CREATE TABLE IF NOT EXISTS core_patrimonio.documentos (
+CREATE TABLE IF NOT EXISTS public.patrimonio_documentos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ativo_id UUID NOT NULL REFERENCES core_patrimonio.ativos(id) ON DELETE CASCADE,
+    ativo_id UUID NOT NULL REFERENCES public.patrimonio_ativos(id) ON DELETE CASCADE,
     tipo_documento VARCHAR(50) NOT NULL,
-    -- fatura, garantia, manual, certificado, termo_responsabilidade, termo_devolucao, manutencao, seguro, outro
     titulo VARCHAR(255) NOT NULL,
     arquivo_url TEXT NOT NULL,
     arquivo_nome VARCHAR(255),
     tamanho_bytes BIGINT,
     mime_type VARCHAR(100),
-    status_assinatura VARCHAR(50) DEFAULT 'nao_aplicavel', -- pendente, assinado, nao_aplicavel
+    status_assinatura VARCHAR(50) DEFAULT 'nao_aplicavel',
     assinado_em TIMESTAMPTZ,
     assinado_por VARCHAR(255),
     metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_patrimonio_documentos_ativo_id ON core_patrimonio.documentos(ativo_id);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_documentos_ativo_id ON public.patrimonio_documentos(ativo_id);
 
 -- 4. TABELA DE MANUTENÇÕES DO ATIVO
-CREATE TABLE IF NOT EXISTS core_patrimonio.manutencoes (
+CREATE TABLE IF NOT EXISTS public.patrimonio_manutencoes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ativo_id UUID NOT NULL REFERENCES core_patrimonio.ativos(id) ON DELETE CASCADE,
-    tipo VARCHAR(50) NOT NULL DEFAULT 'corretiva', -- preventiva, corretiva, calibracao, revisao
+    ativo_id UUID NOT NULL REFERENCES public.patrimonio_ativos(id) ON DELETE CASCADE,
+    tipo VARCHAR(50) NOT NULL DEFAULT 'corretiva',
     motivo VARCHAR(255) NOT NULL,
     descricao_problema TEXT,
     fornecedor_oficina VARCHAR(255),
@@ -126,16 +120,16 @@ CREATE TABLE IF NOT EXISTS core_patrimonio.manutencoes (
     previsao_retorno DATE,
     data_retorno DATE,
     solucao_aplicada TEXT,
-    status VARCHAR(50) NOT NULL DEFAULT 'em_andamento', -- aguardando_orcamento, em_andamento, concluida, cancelada
+    status VARCHAR(50) NOT NULL DEFAULT 'em_andamento',
     anexo_nf_url TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_patrimonio_manutencoes_ativo_id ON core_patrimonio.manutencoes(ativo_id);
+CREATE INDEX IF NOT EXISTS idx_patrimonio_manutencoes_ativo_id ON public.patrimonio_manutencoes(ativo_id);
 
 -- 5. FUNÇÃO PARA GERAR PRÓXIMO CÓDIGO PATRIMONIAL SEQUENCIAL AUTOMÁTICO
-CREATE OR REPLACE FUNCTION core_patrimonio.gerar_proximo_codigo(p_prefixo VARCHAR DEFAULT 'PAT')
+CREATE OR REPLACE FUNCTION public.gerar_proximo_codigo_patrimonio(p_prefixo VARCHAR DEFAULT 'PAT')
 RETURNS TEXT AS $$
 DECLARE
     v_prefix VARCHAR(10);
@@ -144,7 +138,6 @@ DECLARE
 BEGIN
     v_prefix := UPPER(COALESCE(NULLIF(TRIM(p_prefixo), ''), 'PAT'));
     
-    -- Busca o maior número já existente com o prefixo
     SELECT COALESCE(MAX(
         CASE 
             WHEN codigo_patrimonial ~ ('^' || v_prefix || '-[0-9]+$') 
@@ -152,7 +145,7 @@ BEGIN
             ELSE 0
         END
     ), 0) INTO v_ultimo_numero
-    FROM core_patrimonio.ativos
+    FROM public.patrimonio_ativos
     WHERE codigo_patrimonial LIKE (v_prefix || '-%');
     
     v_proximo_codigo := v_prefix || '-' || LPAD((v_ultimo_numero + 1)::TEXT, 6, '0');
@@ -165,58 +158,97 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('patrimonio', 'patrimonio', true) 
 ON CONFLICT (id) DO NOTHING;
 
--- Políticas de Storage para o bucket 'patrimonio'
-CREATE POLICY "Leitura pública de arquivos de patrimônio"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'patrimonio');
+-- Políticas de Storage
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE policyname = 'Leitura pública de arquivos de patrimônio'
+    ) THEN
+        CREATE POLICY "Leitura pública de arquivos de patrimônio"
+        ON storage.objects FOR SELECT
+        USING (bucket_id = 'patrimonio');
+    END IF;
 
-CREATE POLICY "Usuários autenticados podem enviar arquivos de patrimônio"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'patrimonio');
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE policyname = 'Usuários autenticados podem enviar arquivos de patrimônio'
+    ) THEN
+        CREATE POLICY "Usuários autenticados podem enviar arquivos de patrimônio"
+        ON storage.objects FOR INSERT
+        TO authenticated
+        WITH CHECK (bucket_id = 'patrimonio');
+    END IF;
 
-CREATE POLICY "Usuários autenticados podem atualizar arquivos de patrimônio"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (bucket_id = 'patrimonio');
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE policyname = 'Usuários autenticados podem atualizar arquivos de patrimônio'
+    ) THEN
+        CREATE POLICY "Usuários autenticados podem atualizar arquivos de patrimônio"
+        ON storage.objects FOR UPDATE
+        TO authenticated
+        USING (bucket_id = 'patrimonio');
+    END IF;
 
-CREATE POLICY "Usuários autenticados podem deletar arquivos de patrimônio"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (bucket_id = 'patrimonio');
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE policyname = 'Usuários autenticados podem deletar arquivos de patrimônio'
+    ) THEN
+        CREATE POLICY "Usuários autenticados podem deletar arquivos de patrimônio"
+        ON storage.objects FOR DELETE
+        TO authenticated
+        USING (bucket_id = 'patrimonio');
+    END IF;
+END $$;
 
 -- 7. RLS E PERMISSÕES NAS TABELAS
-ALTER TABLE core_patrimonio.ativos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE core_patrimonio.historico ENABLE ROW LEVEL SECURITY;
-ALTER TABLE core_patrimonio.documentos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE core_patrimonio.manutencoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.patrimonio_ativos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.patrimonio_historico ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.patrimonio_documentos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.patrimonio_manutencoes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Permitir leitura de ativos para autenticados" 
-ON core_patrimonio.ativos FOR SELECT TO authenticated USING (true);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir leitura de ativos para autenticados') THEN
+        CREATE POLICY "Permitir leitura de ativos para autenticados" 
+        ON public.patrimonio_ativos FOR SELECT TO authenticated USING (true);
+    END IF;
 
-CREATE POLICY "Permitir gravação de ativos para autenticados" 
-ON core_patrimonio.ativos FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir gravação de ativos para autenticados') THEN
+        CREATE POLICY "Permitir gravação de ativos para autenticados" 
+        ON public.patrimonio_ativos FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    END IF;
 
-CREATE POLICY "Permitir leitura de histórico para autenticados" 
-ON core_patrimonio.historico FOR SELECT TO authenticated USING (true);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir leitura de histórico para autenticados') THEN
+        CREATE POLICY "Permitir leitura de histórico para autenticados" 
+        ON public.patrimonio_historico FOR SELECT TO authenticated USING (true);
+    END IF;
 
-CREATE POLICY "Permitir gravação de histórico para autenticados" 
-ON core_patrimonio.historico FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir gravação de histórico para autenticados') THEN
+        CREATE POLICY "Permitir gravação de histórico para autenticados" 
+        ON public.patrimonio_historico FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    END IF;
 
-CREATE POLICY "Permitir leitura de documentos para autenticados" 
-ON core_patrimonio.documentos FOR SELECT TO authenticated USING (true);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir leitura de documentos para autenticados') THEN
+        CREATE POLICY "Permitir leitura de documentos para autenticados" 
+        ON public.patrimonio_documentos FOR SELECT TO authenticated USING (true);
+    END IF;
 
-CREATE POLICY "Permitir gravação de documentos para autenticados" 
-ON core_patrimonio.documentos FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir gravação de documentos para autenticados') THEN
+        CREATE POLICY "Permitir gravação de documentos para autenticados" 
+        ON public.patrimonio_documentos FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    END IF;
 
-CREATE POLICY "Permitir leitura de manutenções para autenticados" 
-ON core_patrimonio.manutencoes FOR SELECT TO authenticated USING (true);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir leitura de manutenções para autenticados') THEN
+        CREATE POLICY "Permitir leitura de manutenções para autenticados" 
+        ON public.patrimonio_manutencoes FOR SELECT TO authenticated USING (true);
+    END IF;
 
-CREATE POLICY "Permitir gravação de manutenções para autenticados" 
-ON core_patrimonio.manutencoes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Permitir gravação de manutenções para autenticados') THEN
+        CREATE POLICY "Permitir gravação de manutenções para autenticados" 
+        ON public.patrimonio_manutencoes FOR ALL TO authenticated USING (true) WITH CHECK (true);
+    END IF;
+END $$;
 
--- Permissões gerais para roles do Supabase
-GRANT USAGE ON SCHEMA core_patrimonio TO anon, authenticated, service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA core_patrimonio TO anon, authenticated, service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA core_patrimonio TO anon, authenticated, service_role;
-GRANT ALL ON ALL ROUTINES IN SCHEMA core_patrimonio TO anon, authenticated, service_role;
+-- Permissões gerais
+GRANT ALL ON TABLE public.patrimonio_ativos TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.patrimonio_historico TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.patrimonio_documentos TO anon, authenticated, service_role;
+GRANT ALL ON TABLE public.patrimonio_manutencoes TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.gerar_proximo_codigo_patrimonio(VARCHAR) TO anon, authenticated, service_role;
