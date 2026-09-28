@@ -1354,14 +1354,16 @@ MCS - Gestão Comercial`;
     const selectedObra = hasObraFilter ? f.obras.find(o => o.id === selectedObraId) : null;
     
     const filteredWorkers = f.workers.map(w => {
-      const filteredHorasDiarias = hasObraFilter
-        ? Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-            if (h.obra_id === selectedObraId) {
-              acc[date] = h;
-            }
-            return acc;
-          }, {} as Record<string, any>)
-        : w.horasDiarias;
+      const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+        const belongsToActiveSession = f.activeFaturaId
+          ? h.fatura_id === f.activeFaturaId
+          : h.fatura_id === null;
+
+        if (belongsToActiveSession && (!hasObraFilter || h.obra_id === selectedObraId)) {
+          acc[date] = h;
+        }
+        return acc;
+      }, {} as Record<string, any>);
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
       const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
@@ -2130,12 +2132,36 @@ MCS - Gestão Comercial`;
     ];
     const periodStr = `${months[f.month]} / ${f.year}`;
     
+    // Filter active workers and their hours (only unbilled / active session hours)
+    const activeWorkersCombined = f.workers.map(w => {
+      const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+        const belongsToActiveSession = f.activeFaturaId
+          ? h.fatura_id === f.activeFaturaId
+          : h.fatura_id === null;
+
+        if (belongsToActiveSession) {
+          acc[date] = h;
+        }
+        return acc;
+      }, {} as Record<string, any>);
+
+      const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
+      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+
+      return {
+        ...w,
+        horasDiarias: filteredHorasDiarias,
+        totalHoras: wTotalHoras,
+        totalValor: wTotalValor
+      };
+    }).filter(w => w.totalHoras > 0);
+
     // Render tables list
     // 1. First table: Combined (Todas as Obras)
     const tablesToRender = [
       {
         title: 'OBRA: TODAS AS OBRAS',
-        workers: f.workers,
+        workers: activeWorkersCombined,
         totalHoras: f.totalHoras,
         totalValor: f.totalValor
       }
@@ -2146,7 +2172,11 @@ MCS - Gestão Comercial`;
       f.obras.forEach(obra => {
         const oWorkers = f.workers.map(w => {
           const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-            if (h.obra_id === obra.id) {
+            const belongsToActiveSession = f.activeFaturaId
+              ? h.fatura_id === f.activeFaturaId
+              : h.fatura_id === null;
+
+            if (belongsToActiveSession && h.obra_id === obra.id) {
               acc[date] = h;
             }
             return acc;
