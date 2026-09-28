@@ -12,10 +12,12 @@ import {
     Phone, 
     ChevronRight, 
     UserCheck, 
-    AlertCircle,
+    UserX,
+    AlertCircle, 
     Download,
     ExternalLink,
-    Briefcase
+    Briefcase,
+    Power
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,7 +38,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { listarColaboradoresEscritorio } from '../api/escritorioApi';
+import { listarColaboradoresEscritorio, alternarStatusColaborador } from '../api/escritorioApi';
 import type { ColaboradorEscritorio } from '../types/escritorio';
 
 export const ColaboradoresPage: React.FC = () => {
@@ -46,6 +48,7 @@ export const ColaboradoresPage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedDepartment, setSelectedDepartment] = useState('todos');
     const [filterRelogio, setFilterRelogio] = useState('todos');
+    const [filterStatus, setFilterStatus] = useState<'ativos' | 'inativos' | 'todos'>('ativos');
 
     const carregarColaboradores = async () => {
         try {
@@ -62,6 +65,10 @@ export const ColaboradoresPage: React.FC = () => {
     useEffect(() => {
         carregarColaboradores();
     }, []);
+
+    // Estatísticas de Ativos e Inativos
+    const totalAtivos = useMemo(() => colaboradores.filter(c => c.active).length, [colaboradores]);
+    const totalInativos = useMemo(() => colaboradores.filter(c => !c.active).length, [colaboradores]);
 
     // Lista única de departamentos
     const departamentos = useMemo(() => {
@@ -90,9 +97,32 @@ export const ColaboradoresPage: React.FC = () => {
                 (filterRelogio === 'com_codigo' && !!c.timeclock_code) ||
                 (filterRelogio === 'sem_codigo' && !c.timeclock_code);
 
-            return matchesSearch && matchesDept && matchesRelogio;
+            const matchesStatus = 
+                filterStatus === 'todos' ||
+                (filterStatus === 'ativos' && c.active) ||
+                (filterStatus === 'inativos' && !c.active);
+
+            return matchesSearch && matchesDept && matchesRelogio && matchesStatus;
         });
-    }, [colaboradores, searchTerm, selectedDepartment, filterRelogio]);
+    }, [colaboradores, searchTerm, selectedDepartment, filterRelogio, filterStatus]);
+
+    const handleAlternarStatus = async (colaborador: ColaboradorEscritorio, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const novoStatus = !colaborador.active;
+        const confirmMsg = novoStatus
+            ? `Deseja reativar o colaborador ${colaborador.nombrecompleto}?`
+            : `Deseja inativar o colaborador ${colaborador.nombrecompleto}? Ele não aparecerá na lista de ativos padrão nem no ponto diário.`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            await alternarStatusColaborador(colaborador.id, novoStatus);
+            await carregarColaboradores();
+        } catch (error) {
+            console.error('Erro ao alternar status do colaborador:', error);
+            alert('Falha ao alterar status do colaborador.');
+        }
+    };
 
     return (
         <div className="space-y-6 pb-12">
@@ -116,8 +146,12 @@ export const ColaboradoresPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="outline" className="px-3 py-1.5 font-semibold text-xs border-slate-300 dark:border-slate-700">
-                        {colaboradores.length} Colaboradores Cadastrados
+                    <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 px-3 py-1.5 font-semibold text-xs gap-1.5">
+                        <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                        {totalAtivos} Ativos
+                    </Badge>
+                    <Badge variant="outline" className="px-3 py-1.5 font-semibold text-xs border-slate-300 dark:border-slate-700 text-slate-500">
+                        {totalInativos} Inativos
                     </Badge>
                 </div>
             </div>
@@ -125,8 +159,8 @@ export const ColaboradoresPage: React.FC = () => {
             {/* Filtros e Busca */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                 <CardContent className="p-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        <div className="relative">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                        <div className="relative lg:col-span-2">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input 
                                 placeholder="Buscar por nome, email ou ID ponto..." 
@@ -134,6 +168,19 @@ export const ColaboradoresPage: React.FC = () => {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-9 text-xs"
                             />
+                        </div>
+
+                        <div>
+                            <Select value={filterStatus} onValueChange={(val: any) => setFilterStatus(val)}>
+                                <SelectTrigger className="text-xs font-semibold">
+                                    <SelectValue placeholder="Status: Ativos" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="ativos">Status: Apenas Ativos ({totalAtivos})</SelectItem>
+                                    <SelectItem value="inativos">Status: Apenas Inativos ({totalInativos})</SelectItem>
+                                    <SelectItem value="todos">Status: Todos ({colaboradores.length})</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div>
@@ -162,21 +209,27 @@ export const ColaboradoresPage: React.FC = () => {
                                 </SelectContent>
                             </Select>
                         </div>
+                    </div>
 
-                        <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+                        <span>
+                            Exibindo <strong className="text-slate-900 dark:text-white">{colaboradoresFiltrados.length}</strong> de {colaboradores.length} colaboradores
+                        </span>
+                        {(searchTerm || selectedDepartment !== 'todos' || filterRelogio !== 'todos' || filterStatus !== 'ativos') && (
                             <Button 
-                                variant="outline" 
+                                variant="ghost" 
                                 size="sm" 
                                 onClick={() => {
                                     setSearchTerm('');
                                     setSelectedDepartment('todos');
                                     setFilterRelogio('todos');
+                                    setFilterStatus('ativos');
                                 }}
-                                className="text-xs font-semibold w-full sm:w-auto"
+                                className="text-xs font-semibold h-7 text-sky-600 hover:text-sky-700"
                             >
-                                Limpar Filtros
+                                Restaurar Padrão (Apenas Ativos)
                             </Button>
-                        </div>
+                        )}
                     </div>
                 </CardContent>
             </Card>
@@ -191,6 +244,7 @@ export const ColaboradoresPage: React.FC = () => {
                                     <TableHead className="font-bold text-xs">Colaborador / Contato</TableHead>
                                     <TableHead className="font-bold text-xs">Departamento</TableHead>
                                     <TableHead className="font-bold text-xs">Empresa Contratante</TableHead>
+                                    <TableHead className="font-bold text-xs">Status</TableHead>
                                     <TableHead className="font-bold text-xs">ID Relógio Ponto</TableHead>
                                     <TableHead className="font-bold text-xs">Saldo Férias {new Date().getFullYear()}</TableHead>
                                     <TableHead className="font-bold text-xs text-center">Ativos Alocados</TableHead>
@@ -200,13 +254,13 @@ export const ColaboradoresPage: React.FC = () => {
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-500">
+                                        <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500">
                                             Carregando colaboradores...
                                         </TableCell>
                                     </TableRow>
                                 ) : colaboradoresFiltrados.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-500">
+                                        <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500">
                                             Nenhum colaborador encontrado com os filtros aplicados.
                                         </TableCell>
                                     </TableRow>
@@ -215,12 +269,12 @@ export const ColaboradoresPage: React.FC = () => {
                                         return (
                                             <TableRow 
                                                 key={colaborador.id}
-                                                className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                                                className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${!colaborador.active ? 'opacity-60 bg-slate-50/30' : ''}`}
                                                 onClick={() => navigate(`/escritorio/colaboradores/${colaborador.id}`)}
                                             >
                                                 <TableCell>
                                                     <div className="flex items-center gap-3">
-                                                        <div className="h-9 w-9 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm">
+                                                        <div className={`h-9 w-9 rounded-full ${colaborador.active ? 'bg-gradient-to-br from-sky-500 to-indigo-600' : 'bg-slate-400'} text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-sm`}>
                                                             {colaborador.nombrecompleto?.slice(0, 2).toUpperCase() || 'MC'}
                                                         </div>
                                                         <div>
@@ -252,6 +306,19 @@ export const ColaboradoresPage: React.FC = () => {
                                                     <Badge variant="outline" className="text-[11px] font-medium bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                                                         {colaborador.empresa_nome || 'KR Industrial'}
                                                     </Badge>
+                                                </TableCell>
+
+                                                <TableCell>
+                                                    {colaborador.active ? (
+                                                        <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 text-[10px] font-semibold gap-1">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                                                            Ativo
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-300 text-[10px] font-semibold">
+                                                            Inativo
+                                                        </Badge>
+                                                    )}
                                                 </TableCell>
 
                                                 <TableCell>
@@ -287,18 +354,29 @@ export const ColaboradoresPage: React.FC = () => {
                                                 </TableCell>
 
                                                 <TableCell className="text-right">
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="sm"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            navigate(`/escritorio/colaboradores/${colaborador.id}`);
-                                                        }}
-                                                        className="h-8 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 gap-1"
-                                                    >
-                                                        Abrir Ficha
-                                                        <ChevronRight className="h-4 w-4" />
-                                                    </Button>
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="sm"
+                                                            onClick={(e) => handleAlternarStatus(colaborador, e)}
+                                                            className={`h-7 px-2 text-[11px] font-medium ${colaborador.active ? 'text-slate-400 hover:text-rose-600' : 'text-emerald-600 hover:text-emerald-700'}`}
+                                                            title={colaborador.active ? 'Inativar colaborador' : 'Reativar colaborador'}
+                                                        >
+                                                            {colaborador.active ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+                                                        </Button>
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="sm"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/escritorio/colaboradores/${colaborador.id}`);
+                                                            }}
+                                                            className="h-8 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 gap-1"
+                                                        >
+                                                            Abrir Ficha
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         );

@@ -19,6 +19,7 @@ export async function listarColaboradoresEscritorio(filtros?: {
     departamentoId?: string;
     empresaId?: string;
     search?: string;
+    apenasAtivos?: boolean;
 }): Promise<ColaboradorEscritorio[]> {
     let query = supabase
         .from('mcs_department_members')
@@ -29,6 +30,7 @@ export async function listarColaboradoresEscritorio(filtros?: {
             ubicaciontrabajo,
             telefonodirecto,
             active,
+            estadotrabajador,
             department_id,
             timeclock_code,
             mcs_departments (
@@ -52,7 +54,9 @@ export async function listarColaboradoresEscritorio(filtros?: {
         throw error;
     }
 
-    const memberIds = (members || []).map((m: any) => m.id);
+    // Filtra membros sem nome (registros vazios/órfãos)
+    const validMembers = (members || []).filter((m: any) => m.nombrecompleto && m.nombrecompleto.trim() !== '');
+    const memberIds = validMembers.map((m: any) => m.id);
 
     // Busca dados laborais complementares
     let laboraisMap = new Map<string, RhDadosLaborais>();
@@ -93,11 +97,12 @@ export async function listarColaboradoresEscritorio(filtros?: {
         }
     }
 
-    const formatados: ColaboradorEscritorio[] = (members || []).map((m: any) => {
+    const formatados: ColaboradorEscritorio[] = validMembers.map((m: any) => {
         const lab = laboraisMap.get(m.id);
         const ferias = feriasMap.get(m.id);
         const depNome = m.mcs_departments?.name || lab?.departamento_nome || 'Geral';
         const empNome = m.empresas?.nome_pbi || 'KR Industrial';
+        const isAtivo = (m.active !== false) && (m.estadotrabajador !== 'Inativo');
 
         return {
             id: m.id,
@@ -105,7 +110,8 @@ export async function listarColaboradoresEscritorio(filtros?: {
             correoempresarial: m.correoempresarial,
             ubicaciontrabajo: m.ubicaciontrabajo,
             telefonodirecto: m.telefonodirecto,
-            active: m.active !== false,
+            active: isAtivo,
+            estadotrabajador: m.estadotrabajador || (isAtivo ? 'Ativo' : 'Inativo'),
             department_id: m.department_id,
             department_name: depNome,
             empresa_nome: empNome,
@@ -116,6 +122,12 @@ export async function listarColaboradoresEscritorio(filtros?: {
             ativos_patrimonio_count: ativosCountMap.get(m.id) || 0,
         };
     });
+
+    let resultado = formatados;
+
+    if (filtros?.apenasAtivos) {
+        resultado = resultado.filter(c => c.active);
+    }
 
     if (filtros?.search?.trim()) {
         const term = filtros.search.toLowerCase();
@@ -149,6 +161,7 @@ export async function obterColaboradorEscritorio(id: string): Promise<Colaborado
             ubicaciontrabajo,
             telefonodirecto,
             active,
+            estadotrabajador,
             department_id,
             timeclock_code,
             mcs_departments (id, name),
@@ -170,13 +183,16 @@ export async function obterColaboradorEscritorio(id: string): Promise<Colaborado
         supabase.from('patrimonio_ativos').select('*').or(`worker_id.eq.${id},responsavel_nome.ilike.%${member.nombrecompleto}%`),
     ]);
 
+    const isAtivo = (member.active !== false) && ((member as any).estadotrabajador !== 'Inativo');
+
     return {
         id: member.id,
         nombrecompleto: member.nombrecompleto,
         correoempresarial: member.correoempresarial,
         ubicaciontrabajo: member.ubicaciontrabajo,
         telefonodirecto: member.telefonodirecto,
-        active: member.active !== false,
+        active: isAtivo,
+        estadotrabajador: (member as any).estadotrabajador || (isAtivo ? 'Ativo' : 'Inativo'),
         department_id: member.department_id,
         department_name: (member as any).mcs_departments?.name || labRes.data?.departamento_nome || 'Geral',
         empresa_nome: (member as any).empresas?.nome_pbi || 'KR Industrial',
@@ -190,6 +206,24 @@ export async function obterColaboradorEscritorio(id: string): Promise<Colaborado
         ausencias: (ausenciasRes.data || []) as RhAusencia[],
         ativosPatrimonio: ativosRes.data || [],
     };
+}
+
+/**
+ * Ativa ou inativa um colaborador na tabela mcs_department_members
+ */
+export async function alternarStatusColaborador(id: string, novoStatusAtivo: boolean): Promise<void> {
+    const { error } = await supabase
+        .from('mcs_department_members')
+        .update({
+            active: novoStatusAtivo,
+            estadotrabajador: novoStatusAtivo ? 'Ativo' : 'Inativo',
+        })
+        .eq('id', id);
+
+    if (error) {
+        console.error('Erro ao alternar status do colaborador:', error);
+        throw error;
+    }
 }
 
 /**

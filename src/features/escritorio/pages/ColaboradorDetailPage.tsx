@@ -47,7 +47,8 @@ import {
     adicionarHistoricoSalarial,
     solicitarFerias,
     registrarAusencia,
-    listarPontoMes
+    listarPontoMes,
+    alternarStatusColaborador
 } from '../api/escritorioApi';
 import type { 
     ColaboradorEscritorio, 
@@ -208,6 +209,24 @@ export const ColaboradorDetailPage: React.FC = () => {
         }
     };
 
+    const handleToggleStatus = async () => {
+        if (!colaborador) return;
+        const novoStatus = !colaborador.active;
+        const confirmMsg = novoStatus
+            ? `Deseja reativar o colaborador ${colaborador.nombrecompleto}?`
+            : `Deseja inativar o colaborador ${colaborador.nombrecompleto}? Ele não aparecerá na lista de colaboradores ativos.`;
+
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            await alternarStatusColaborador(colaborador.id, novoStatus);
+            await carregarDados();
+        } catch (error) {
+            console.error('Erro ao alternar status do colaborador:', error);
+            alert('Falha ao atualizar status.');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
@@ -256,7 +275,12 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
                                     {colaborador.nombrecompleto}
                                 </h1>
-                                <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 text-xs">
+                                <Badge 
+                                    onClick={handleToggleStatus}
+                                    className={`cursor-pointer transition-colors text-xs font-semibold ${colaborador.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border-slate-300'}`}
+                                    title="Clique para alternar entre Ativo e Inativo"
+                                >
+                                    <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${colaborador.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
                                     {colaborador.active ? 'Ativo' : 'Inativo'}
                                 </Badge>
                                 {colaborador.timeclock_code ? (
@@ -294,6 +318,14 @@ export const ColaboradorDetailPage: React.FC = () => {
 
                     {/* Resumo Rápido lateral */}
                     <div className="flex items-center gap-3 shrink-0">
+                        <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleToggleStatus}
+                            className={`h-9 text-xs font-semibold ${colaborador.active ? 'text-slate-600 hover:text-rose-600 border-slate-200 hover:bg-rose-50' : 'text-emerald-600 hover:text-emerald-700 border-emerald-300 bg-emerald-50/50'}`}
+                        >
+                            {colaborador.active ? 'Inativar Colaborador' : 'Reativar Colaborador'}
+                        </Button>
                         <div className="text-right border-l pl-4 border-slate-200 dark:border-slate-800 hidden sm:block">
                             <p className="text-[11px] text-slate-400 font-medium">Saldo Férias Anual</p>
                             <p className="text-lg font-bold text-emerald-600">

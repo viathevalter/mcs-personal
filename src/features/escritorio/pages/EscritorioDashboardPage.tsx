@@ -65,9 +65,9 @@ export const EscritorioDashboardPage: React.FC = () => {
     const feriasAtivas = ferias.filter(f => f.status === 'aprovado' || f.status === 'solicitado').length;
     const baixasMedicas = ausencias.filter(a => a.tipo === 'baixa_medica').length;
 
-    // Departamentos agrupados
+    // Departamentos agrupados (apenas colaboradores ativos)
     const departamentosMap: Record<string, number> = {};
-    colaboradores.forEach(c => {
+    colaboradores.filter(c => c.active).forEach(c => {
         const dep = c.department_name || 'Sem Departamento';
         departamentosMap[dep] = (departamentosMap[dep] || 0) + 1;
     });
@@ -237,7 +237,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                                 Equipe Interna por Departamento
                             </CardTitle>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                43 profissionais em escritórios centrais e oficinas
+                                {totalAtivos} profissionais ativos em escritórios centrais e oficinas
                             </p>
                         </div>
                         <Button 
