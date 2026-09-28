@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
     const isEdit = Boolean(ativoParaEditar);
     const [submitting, setSubmitting] = useState(false);
     const [uploadingFoto, setUploadingFoto] = useState(false);
+    const fotoInputRef = useRef<HTMLInputElement>(null);
 
     // Empresas do Grupo Mastercorp
     const { data: empresas = [], isLoading: loadingEmpresas } = useEmpresas();
@@ -618,8 +619,9 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                     </p>
                                 </div>
 
-                                <label className="cursor-pointer">
+                                <div>
                                     <input
+                                        ref={fotoInputRef}
                                         type="file"
                                         accept="image/*"
                                         onChange={(e) => handleUploadFoto(e, 'frontal')}
@@ -631,7 +633,8 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                         variant="outline"
                                         size="sm"
                                         disabled={uploadingFoto}
-                                        className="text-xs gap-1.5 pointer-events-none"
+                                        onClick={() => fotoInputRef.current?.click()}
+                                        className="text-xs gap-1.5"
                                     >
                                         {uploadingFoto ? (
                                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -640,7 +643,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                         )}
                                         Adicionar Imagem
                                     </Button>
-                                </label>
+                                </div>
                             </div>
 
                             {/* Foto Principal URL manual opcional */}
@@ -656,14 +659,29 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
                             {/* Grid de Fotos */}
                             {fotos.length === 0 ? (
-                                <div className="p-8 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-800/40">
-                                    <Camera className="h-8 w-8 text-slate-400 mx-auto mb-2" />
-                                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                                        Nenhuma fotografia anexada ainda
-                                    </p>
-                                    <p className="text-[11px] text-slate-400 mt-0.5">
-                                        Fotos ajudam na identificação rápida na hora da entrega e devolução.
-                                    </p>
+                                <div
+                                    onClick={() => fotoInputRef.current?.click()}
+                                    className="p-8 text-center border-2 border-dashed border-sky-300 dark:border-sky-800 hover:border-sky-500 bg-sky-50/40 dark:bg-sky-950/20 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-all rounded-xl cursor-pointer group"
+                                    title="Clique para selecionar uma foto"
+                                >
+                                    {uploadingFoto ? (
+                                        <div className="flex flex-col items-center gap-2">
+                                            <Loader2 className="h-8 w-8 animate-spin text-sky-600 mx-auto" />
+                                            <span className="text-xs font-medium text-sky-600">Enviando imagem...</span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className="h-12 w-12 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                                                <Camera className="h-6 w-6 text-sky-600" />
+                                            </div>
+                                            <p className="text-xs font-semibold text-sky-700 dark:text-sky-300">
+                                                Clique aqui para selecionar uma foto do patrimônio
+                                            </p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">
+                                                JPG, PNG, WEBP. Fotos ajudam na identificação do equipamento.
+                                            </p>
+                                        </>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-3 gap-3">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
     obterAtivoPorCodigo, 
@@ -7,6 +7,7 @@ import {
     listarManutencoes,
     salvarDocumento,
     uploadArquivoPatrimonio,
+    atualizarAtivo,
     concluirManutencao,
     excluirAtivo
 } from '../api/patrimonioApi';
@@ -15,6 +16,7 @@ import type {
     HistoricoPatrimonio, 
     DocumentoPatrimonio, 
     ManutencaoPatrimonio,
+    FotoPatrimonio,
     TipoDocumentoPatrimonio
 } from '../types/patrimonio';
 import { STATUS_CONFIG } from '../types/patrimonio';
@@ -59,6 +61,7 @@ import {
     Loader2,
     Clock,
     Camera,
+    Upload,
     Trash2,
     AlertTriangle
 } from 'lucide-react';
@@ -145,6 +148,47 @@ export function PatrimonioDetailPage() {
             toast.error('Falha ao carregar detalhes do patrimônio.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingFoto, setUploadingFoto] = useState(false);
+
+    const handleUploadFotoRapido = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !ativo) return;
+
+        setUploadingFoto(true);
+        try {
+            const url = await uploadArquivoPatrimonio(file, 'fotos');
+            const novaFoto: FotoPatrimonio = {
+                id: Math.random().toString(36).substring(2, 9),
+                tipo: 'frontal',
+                url,
+                legenda: 'Foto do Equipamento',
+                created_at: new Date().toISOString(),
+            };
+
+            const novasFotos = [...(ativo.fotos || []), novaFoto];
+            const novaFotoPrincipal = ativo.foto_principal_url || url;
+
+            await atualizarAtivo(
+                ativo.id,
+                {
+                    fotos: novasFotos,
+                    foto_principal_url: novaFotoPrincipal,
+                },
+                'Nova fotografia adicionada ao patrimônio.'
+            );
+
+            toast.success('Fotografia enviada e vinculada com sucesso!');
+            await carregarDados();
+        } catch (err: any) {
+            console.error('Erro no upload de foto:', err);
+            toast.error('Falha ao enviar fotografia. Verifique o arquivo.');
+        } finally {
+            setUploadingFoto(false);
+            if (e.target) e.target.value = '';
         }
     };
 
@@ -545,34 +589,98 @@ export function PatrimonioDetailPage() {
 
                         {/* Coluna 3: Fotos & Identificação Visual */}
                         <div className="space-y-4">
-                            <Card className="border-slate-200 dark:border-slate-800 overflow-hidden">
-                                <CardHeader className="py-3 px-5 border-b border-slate-100 dark:border-slate-800">
+                            <Card className="border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                                <CardHeader className="py-3 px-5 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
                                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                         <Camera className="h-4 w-4 text-sky-600" /> Foto Principal
                                     </CardTitle>
+                                    <div>
+                                        <input
+                                            ref={fileInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleUploadFotoRapido}
+                                            disabled={uploadingFoto}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={uploadingFoto}
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="h-7 text-xs gap-1.5 text-sky-600 hover:text-sky-700 font-medium"
+                                        >
+                                            {uploadingFoto ? (
+                                                <Loader2 className="h-3 w-3 animate-spin" />
+                                            ) : (
+                                                <Upload className="h-3 w-3" />
+                                            )}
+                                            {ativo.foto_principal_url ? 'Trocar Foto' : 'Adicionar Foto'}
+                                        </Button>
+                                    </div>
                                 </CardHeader>
                                 <CardContent className="p-4">
                                     {ativo.foto_principal_url ? (
-                                        <div className="rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-square bg-slate-950 flex items-center justify-center">
+                                        <div className="relative group rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-square bg-slate-950 flex items-center justify-center">
                                             <img
                                                 src={ativo.foto_principal_url}
                                                 alt={ativo.descricao}
                                                 className="w-full h-full object-cover"
                                             />
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="text-xs gap-1.5 shadow"
+                                                >
+                                                    <Camera className="h-3.5 w-3.5" /> Alterar Foto
+                                                </Button>
+                                            </div>
                                         </div>
                                     ) : (
-                                        <div className="aspect-square rounded-lg border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-slate-400 p-4 text-center">
-                                            <Camera className="h-10 w-10 mb-2 opacity-50" />
-                                            <span className="text-xs">Nenhuma foto cadastrada</span>
+                                        <div
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="aspect-square rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 hover:border-sky-500 bg-sky-50/40 dark:bg-sky-950/20 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-all cursor-pointer flex flex-col items-center justify-center text-slate-500 p-4 text-center group"
+                                            title="Clique para enviar fotografia deste patrimônio"
+                                        >
+                                            {uploadingFoto ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
+                                                    <span className="text-xs font-medium text-sky-600">Enviando foto...</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="h-12 w-12 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                                                        <Camera className="h-6 w-6 text-sky-600" />
+                                                    </div>
+                                                    <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">
+                                                        Clique aqui para adicionar foto
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-400 mt-1 max-w-[180px]">
+                                                        Envie foto frontal ou detalhes do equipamento
+                                                    </span>
+                                                </>
+                                            )}
                                         </div>
                                     )}
 
                                     {/* Miniaturas das outras fotos */}
                                     {ativo.fotos && ativo.fotos.length > 0 && (
                                         <div className="mt-3">
-                                            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">
-                                                Todas as Fotografias ({ativo.fotos.length})
-                                            </span>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                                                    Todas as Fotos ({ativo.fotos.length})
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => fileInputRef.current?.click()}
+                                                    className="text-[11px] text-sky-600 hover:underline flex items-center gap-0.5"
+                                                >
+                                                    <Plus className="h-3 w-3" /> Mais fotos
+                                                </button>
+                                            </div>
                                             <div className="grid grid-cols-3 gap-2">
                                                 {ativo.fotos.map((f) => (
                                                     <a
