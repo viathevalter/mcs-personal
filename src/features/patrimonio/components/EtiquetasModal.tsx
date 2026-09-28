@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { QRCodeSVG } from 'qrcode.react';
 import { gerarEtiquetasPdf } from '../utils/etiquetasPdf';
 import type { AtivoPatrimonio } from '../types/patrimonio';
+import { useEmpresas } from '@/shared/hooks/useEmpresas';
 import { Printer, Download, Tag, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -16,11 +17,40 @@ interface EtiquetasModalProps {
 }
 
 export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalProps) {
+    const { data: empresas = [], isLoading: loadingEmpresas } = useEmpresas();
     const [formato, setFormato] = useState<'termica_40x20' | 'termica_50x30' | 'a4_grade'>('termica_40x20');
-    const [empresaCabecalho, setEmpresaCabecalho] = useState('MCS / KR INDUSTRIAL');
+    const [empresaCabecalho, setEmpresaCabecalho] = useState('');
     const [gerandoPdf, setGerandoPdf] = useState(false);
 
     const ativoExemplo = ativos[0];
+
+    useEffect(() => {
+        if (!open) return;
+        const ativoPrincipal = ativos[0];
+        if (ativoPrincipal) {
+            // Se o ativo tem empresa_proprietaria definida
+            if (ativoPrincipal.empresa_proprietaria) {
+                // Tenta casar com uma empresa cadastrada no grupo
+                const emp = empresas.find(e => 
+                    e.nome.toLowerCase() === ativoPrincipal.empresa_proprietaria?.toLowerCase() ||
+                    e.codigo.toLowerCase() === ativoPrincipal.empresa_proprietaria?.toLowerCase() ||
+                    (ativoPrincipal.empresa_id && e.id === ativoPrincipal.empresa_id)
+                );
+                setEmpresaCabecalho(emp ? emp.nome.toUpperCase() : ativoPrincipal.empresa_proprietaria.toUpperCase());
+                return;
+            }
+            if (ativoPrincipal.empresa_id && empresas.length > 0) {
+                const emp = empresas.find(e => e.id === ativoPrincipal.empresa_id);
+                if (emp) {
+                    setEmpresaCabecalho(emp.nome.toUpperCase());
+                    return;
+                }
+            }
+        }
+        if (empresas.length > 0) {
+            setEmpresaCabecalho(empresas[0].nome.toUpperCase());
+        }
+    }, [open, ativos, empresas]);
 
     const handleImprimir = async () => {
         if (!ativos || ativos.length === 0) return;
@@ -114,8 +144,8 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                                         </span>
                                     </div>
                                 </div>
-                                <div className="text-[6px] text-slate-400 text-center tracking-wider uppercase">
-                                    Patrimônio Kotrik / MCS
+                                <div className="text-[6px] text-slate-400 text-center tracking-wider uppercase truncate">
+                                    Patrimônio • {empresaCabecalho || 'Mastercorp'}
                                 </div>
                             </div>
                         )}
@@ -137,16 +167,35 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Cabeçalho</Label>
+                            <Label className="text-xs font-medium">Cabeçalho (Empresa do Grupo)</Label>
                             <Select value={empresaCabecalho} onValueChange={setEmpresaCabecalho}>
                                 <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue />
+                                    <SelectValue placeholder={loadingEmpresas ? "Carregando..." : "Selecione a empresa..."} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="MCS / KR INDUSTRIAL">MCS / KR INDUSTRIAL</SelectItem>
-                                    <SelectItem value="KR INDUSTRIAL">KR INDUSTRIAL</SelectItem>
-                                    <SelectItem value="MCS INDUSTRIAL">MCS INDUSTRIAL</SelectItem>
-                                    <SelectItem value="KOTRIK SPAIN">KOTRIK SPAIN</SelectItem>
+                                    {empresas.map((emp) => {
+                                        const valorEmp = emp.nome.toUpperCase();
+                                        return (
+                                            <SelectItem key={emp.id} value={valorEmp}>
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="font-bold font-mono text-[10px] text-sky-600 dark:text-sky-400">
+                                                        [{emp.codigo}]
+                                                    </span>
+                                                    <span>{emp.nome}</span>
+                                                </div>
+                                            </SelectItem>
+                                        );
+                                    })}
+                                    <SelectItem value="GRUPO MASTERCORP">
+                                        <span className="font-semibold text-slate-700 dark:text-slate-300">GRUPO MASTERCORP</span>
+                                    </SelectItem>
+                                    {empresaCabecalho &&
+                                     empresaCabecalho !== 'GRUPO MASTERCORP' &&
+                                     !empresas.some(e => e.nome.toUpperCase() === empresaCabecalho.toUpperCase()) && (
+                                        <SelectItem value={empresaCabecalho}>
+                                            {empresaCabecalho}
+                                        </SelectItem>
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>
