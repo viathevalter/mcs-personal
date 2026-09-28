@@ -96,6 +96,7 @@ export const ReuniaoDetail: React.FC = () => {
   const [iaLoading, setIaLoading] = useState(false);
 
   // Nova Ação (Passo ACT)
+  const [isAddingAcao, setIsAddingAcao] = useState(false);
   const [novaAcao, setNovaAcao] = useState({
     title: '',
     description: '',
@@ -650,7 +651,7 @@ export const ReuniaoDetail: React.FC = () => {
     }
 
     let tituloFinal = tituloBase;
-    const cleanRef = novaAcao.contexto_ref.replace(/^(RH|Pedido|Falha|Tópico|Cliente):\s*/i, '').trim();
+    const cleanRef = (novaAcao.contexto_ref || '').replace(/^(RH|Pedido|Falha|Tópico|Cliente):\s*/i, '').trim();
     if (novaAcao.contexto_ref && cleanRef && !tituloBase.toLowerCase().includes(cleanRef.toLowerCase())) {
       tituloFinal = `[${novaAcao.contexto_ref}] ${tituloBase}`;
     }
@@ -658,21 +659,69 @@ export const ReuniaoDetail: React.FC = () => {
     const deptObj = departments.find(d => d.id === novaAcao.department_id || d.name?.toLowerCase() === novaAcao.department_id?.toLowerCase());
     const deptId = deptObj?.id || novaAcao.department_id || (reuniao.departamentos_envolvidos && reuniao.departamentos_envolvidos.length > 0 ? reuniao.departamentos_envolvidos[0] : undefined);
 
+    let dueAtIso: string;
     try {
-      await reunioesService.addAcao(reuniao.id, {
+      if (!novaAcao.due_at) {
+        dueAtIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (novaAcao.due_at.includes('/')) {
+        const parts = novaAcao.due_at.split('/');
+        if (parts.length === 3) {
+          const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+          dueAtIso = !isNaN(d.getTime()) ? d.toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        } else {
+          dueAtIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+        }
+      } else {
+        const d = new Date(novaAcao.due_at);
+        dueAtIso = !isNaN(d.getTime()) ? d.toISOString() : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      }
+    } catch {
+      dueAtIso = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    setIsAddingAcao(true);
+    try {
+      const novaAcaoCriada = await reunioesService.addAcao(reuniao.id, {
         title: tituloFinal,
         description: novaAcao.description.trim() || undefined,
         department_id: deptId,
         assigned_to_email: novaAcao.assigned_to_email || undefined,
-        due_at: new Date(novaAcao.due_at).toISOString(),
+        due_at: dueAtIso,
         priority: novaAcao.priority
       });
 
       toast.success('Ação registrada! Ela já está visível em Minhas Tarefas do responsável.');
-      setNovaAcao(prev => ({ ...prev, title: '', description: '', contexto_ref: '' }));
-      loadReuniao();
-    } catch (err) {
-      toast.error('Erro ao registrar ação');
+
+      // Limpar formulário para permitir cadastrar facilmente a próxima tarefa para outra pessoa
+      setNovaAcao({
+        title: '',
+        description: '',
+        contexto_ref: '',
+        department_id: '',
+        assigned_to_email: '',
+        due_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+        priority: 'media'
+      });
+
+      // Atualizar lista de ações da reunião imediatamente sem recarregar a tela inteira
+      setReuniao(prev => {
+        if (!prev) return prev;
+        const exists = (prev.acoes || []).some(a => a.id === novaAcaoCriada.id);
+        return {
+          ...prev,
+          acoes: exists ? prev.acoes : [...(prev.acoes || []), novaAcaoCriada]
+        };
+      });
+
+      // Recarregar os dados da reunião em segundo plano para manter tudo perfeitamente sincronizado
+      reunioesService.getReuniaoById(reuniao.id).then(updated => {
+        if (updated) setReuniao(updated);
+      });
+    } catch (err: any) {
+      console.error('Erro ao registrar ação:', err);
+      toast.error(err?.message ? `Erro ao registrar ação: ${err.message}` : 'Erro ao registrar ação');
+    } finally {
+      setIsAddingAcao(false);
     }
   };
 
@@ -682,8 +731,15 @@ export const ReuniaoDetail: React.FC = () => {
     try {
       await reunioesService.deleteAcao(acaoId);
       toast.success('Ação excluída');
-      loadReuniao();
+      setReuniao(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          acoes: (prev.acoes || []).filter(a => a.id !== acaoId)
+        };
+      });
     } catch (err) {
+      console.error('Erro ao excluir ação:', err);
       toast.error('Erro ao excluir ação');
     }
   };
@@ -2808,9 +2864,15 @@ export const ReuniaoDetail: React.FC = () => {
                 <div className="md:col-span-1">
                   <button
                     type="submit"
-                    className="w-full h-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm transition-all"
+                    disabled={isAddingAcao}
+                    className="w-full h-full py-2 px-1 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm transition-all"
                   >
-                    <Plus size={15} /> Adicionar
+                    {isAddingAcao ? (
+                      <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                      <Plus size={14} />
+                    )}
+                    <span>{isAddingAcao ? '...' : 'Adicionar'}</span>
                   </button>
                 </div>
               </div>

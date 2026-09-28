@@ -263,6 +263,17 @@ export const reunioesService = {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(acao.department_id);
       if (isUuid) {
         deptUuid = acao.department_id;
+      } else {
+        try {
+          const { data: deptMatch } = await supabase
+            .from('mcs_departments')
+            .select('id')
+            .ilike('name', acao.department_id)
+            .maybeSingle();
+          if (deptMatch?.id) deptUuid = deptMatch.id;
+        } catch {
+          // ignore
+        }
       }
     }
 
@@ -274,6 +285,18 @@ export const reunioesService = {
       });
     }
 
+    // Determinar step_order
+    let stepOrder = 1;
+    try {
+      const { count } = await supabase
+        .from('mcs_incident_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('reuniao_id', reuniaoId);
+      stepOrder = (count || 0) + 1;
+    } catch {
+      stepOrder = 1;
+    }
+
     const taskPayload: any = {
       reuniao_id: reuniaoId,
       title: acao.title,
@@ -283,20 +306,49 @@ export const reunioesService = {
       department_id: deptUuid,
       due_at: acao.due_at || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       priority: acao.priority || 'media',
-      step_order: 1,
+      step_order: stepOrder,
       sla_days: 7,
       created_by: userId
     };
 
+    // Inserção resiliente com fallback (se created_by falhar por foreign key)
+    let insertedData: any = null;
     const { data, error } = await supabase
       .from('mcs_incident_tasks')
       .insert(taskPayload)
       .select()
       .single();
 
-    if (error) {
-      console.error('Erro ao adicionar ação:', error);
-      throw error;
+    if (!error && data) {
+      insertedData = data;
+    } else {
+      console.warn('Erro ao inserir ação inicialmente, tentando fallback sem created_by:', error?.message);
+      const copyPayload = { ...taskPayload };
+      delete copyPayload.created_by;
+
+      const { data: retryData, error: retryError } = await supabase
+        .from('mcs_incident_tasks')
+        .insert(copyPayload)
+        .select()
+        .single();
+
+      if (!retryError && retryData) {
+        insertedData = retryData;
+      } else {
+        // Fallback secundário sem department_id
+        delete copyPayload.department_id;
+        const { data: finalData, error: finalError } = await supabase
+          .from('mcs_incident_tasks')
+          .insert(copyPayload)
+          .select()
+          .single();
+
+        if (finalError) {
+          console.error('Erro definitivo ao adicionar ação:', finalError);
+          throw finalError;
+        }
+        insertedData = finalData;
+      }
     }
 
     // Notificar usuário se tiver email ou departamento
@@ -311,16 +363,16 @@ export const reunioesService = {
     }
 
     return {
-      id: data.id,
-      reuniao_id: data.reuniao_id,
-      title: data.title,
+      id: insertedData.id,
+      reuniao_id: insertedData.reuniao_id,
+      title: insertedData.title,
       description: acao.description,
       status: 'Pendente',
-      assigned_to_email: data.assigned_to_email,
-      department_id: data.department_id,
-      due_at: data.due_at,
-      priority: data.priority || 'media',
-      created_at: data.created_at
+      assigned_to_email: insertedData.assigned_to_email,
+      department_id: insertedData.department_id,
+      due_at: insertedData.due_at,
+      priority: insertedData.priority || 'media',
+      created_at: insertedData.created_at
     };
   },
 
