@@ -272,6 +272,8 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           source_client_site_id,
           target_job_function_id,
           target_job_function_name,
+          target_assignment_id,
+          target_worker_id,
           status, 
           action_type, 
           requires_replacement, 
@@ -358,6 +360,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           pedido_id,
           pedido_item_id,
           job_function_name_snapshot,
+          replacement_of_assignment_id,
           worker:workers(
             id,
             nome,
@@ -387,8 +390,18 @@ LICENCIA DE CONDUCIR: ${cnh}`;
   const blendedPedidos = useMemo(() => {
     const list = [...activePedidos];
     const activePedidoIds = new Set(activePedidos.map(p => p.id));
+
+    // A solicitud is considered standalone/synthetic if it has at least one target not directly bound to an active commercial pedido item
+    const standaloneSolicitudIds = new Set<string>();
+    replacementTargets.forEach(t => {
+      if (!t.source_pedido_id || !activePedidoIds.has(t.source_pedido_id) || !t.source_pedido_item_id) {
+        if (t.solicitud_id) standaloneSolicitudIds.add(t.solicitud_id);
+      }
+    });
+
     const standaloneReplacements = replacementTargets.filter(t => 
-      !t.source_pedido_id || !activePedidoIds.has(t.source_pedido_id)
+      (t.solicitud_id && standaloneSolicitudIds.has(t.solicitud_id)) ||
+      (!t.source_pedido_id || !activePedidoIds.has(t.source_pedido_id))
     );
     
     standaloneReplacements.forEach(t => {
@@ -397,7 +410,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       
       const itemJobFunction = t.target_job_function_name || t.source_worker?.funcion || 'Perfil';
       const itemJobFunctionId = t.target_job_function_id || null;
-      const isTargetCompleted = t.status === 'completed' || !!t.target_assignment_id || allAllocations.some((a: any) => a.solicitud_id === (t.solicitud_id || t.id));
+      
+      // Check target completion strictly for THIS individual target
+      const isTargetCompleted = 
+        t.status === 'completed' || 
+        (!!t.target_assignment_id && allAllocations.some((a: any) => a.id === t.target_assignment_id && a.status !== 'cancelled')) ||
+        (!!t.source_assignment_id && allAllocations.some((a: any) => a.replacement_of_assignment_id === t.source_assignment_id && a.status !== 'cancelled'));
+
       const item = {
         id: `reemplazo-item-${t.id}`,
         pedido_id: existingId,
@@ -441,7 +460,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     });
     
     return list;
-  }, [activePedidos, replacementTargets]);
+  }, [activePedidos, replacementTargets, allAllocations]);
 
   // Selected Pedido helper
   const selectedPedido = useMemo(() => {
@@ -466,7 +485,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     if (pedido.isSynthetic) {
       reqQty = pedido.pedido_items.length;
       fulQty = pedido.pedido_items.filter((item: any) => item.quantity_fulfilled > 0).length;
-      hasReplacement = false;
+      hasReplacement = fulQty < reqQty;
     } else {
       pedido.pedido_items?.forEach((item: any) => {
         reqQty += item.quantity_requested || 0;
@@ -662,6 +681,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       pergunta_respuesta: repTarget?.solicitud?.pergunta_respuesta || selectedPedido.pergunta_respuesta,
       base_cost_hour_snapshot: item.base_cost_hour_snapshot,
       solicitud_id: selectedPedido.isSynthetic ? selectedPedido.solicitud_id : (repTarget?.solicitud_id || undefined),
+      solicitud_target_id: repTarget?.id || item.solicitud_target_id || undefined,
       replacement_due_date: repTarget?.solicitud?.due_date || undefined,
       isSynthetic: selectedPedido.isSynthetic || false,
       empresa_id: selectedPedido.empresa_id,
@@ -992,16 +1012,20 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedPedido.pedido_items?.map((item: any) => {
-                    const itemReplacements = replacementTargets
-                      .filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'))
-                      .sort((a, b) => {
-                        const dateA = a.solicitud?.due_date ? new Date(a.solicitud.due_date).getTime() : Infinity;
-                        const dateB = b.solicitud?.due_date ? new Date(b.solicitud.due_date).getTime() : Infinity;
-                        return dateA - dateB;
-                      });
+                    const itemReplacements = selectedPedido.isSynthetic
+                      ? replacementTargets.filter(t => t.id === item.solicitud_target_id && (t.status === 'pending' || t.status === 'in_progress'))
+                      : replacementTargets
+                          .filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'))
+                          .sort((a, b) => {
+                            const dateA = a.solicitud?.due_date ? new Date(a.solicitud.due_date).getTime() : Infinity;
+                            const dateB = b.solicitud?.due_date ? new Date(b.solicitud.due_date).getTime() : Infinity;
+                            return dateA - dateB;
+                          });
                     const repCount = itemReplacements.length;
-                    const firstRep = itemReplacements[0];
-                    const effectiveFulfilled = Math.max(0, (item.quantity_fulfilled || 0) - repCount);
+                    const firstRep = itemReplacements[0] || (selectedPedido.isSynthetic ? replacementTargets.find(t => t.id === item.solicitud_target_id) : undefined);
+                    const effectiveFulfilled = selectedPedido.isSynthetic 
+                      ? (item.quantity_fulfilled || 0)
+                      : Math.max(0, (item.quantity_fulfilled || 0) - repCount);
                     const isItemFulfilled = effectiveFulfilled >= (item.quantity_requested || 0);
                     const progress = item.quantity_requested > 0 
                       ? Math.min(100, Math.round((effectiveFulfilled / item.quantity_requested) * 100))
@@ -1079,7 +1103,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                                   : 'bg-amber-50 text-amber-700 border-amber-250 dark:bg-amber-950/40 dark:text-amber-400'
                             }`}>
                               {item.isReplacementItem 
-                                ? 'Reemplazo Pendente' 
+                                ? (isItemFulfilled ? 'Substituído' : 'Reemplazo Pendente') 
                                 : `${effectiveFulfilled} de ${item.quantity_requested} Contratados ${repCount > 0 ? `(${repCount} p. reimplacar)` : ''}`}
                             </span>
                           </div>
@@ -1169,7 +1193,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                             }`}
                           >
                             <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                            {isReplacement ? '+ Substituir' : '+ Contratar'}
+                            {isItemFulfilled ? 'Substituído' : isReplacement ? '+ Substituir' : '+ Contratar'}
                           </Button>
                         </div>
                       </div>

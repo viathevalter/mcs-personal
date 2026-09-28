@@ -12,6 +12,7 @@ interface AllocateWorkerPayload {
   planned_start_date: string;
   planned_end_date?: string;
   solicitud_id?: string;
+  solicitud_target_id?: string;
   notes?: string;
   camiseta?: string;
   pantalones?: string;

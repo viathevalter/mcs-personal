@@ -321,6 +321,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         movil: movil || undefined,
         tarifa_acordada: parseFloat(tarifaAcordada),
         solicitud_id: position.solicitud_id || undefined,
+        solicitud_target_id: position.solicitud_target_id || undefined,
         empresa_id: (position as any).empresa_id || selectedEmpresaId || undefined,
         job_function_id: position.job_function_id || undefined,
         job_function_name: position.job_function_name || undefined

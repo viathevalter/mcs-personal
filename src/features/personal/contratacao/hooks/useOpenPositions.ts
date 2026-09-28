@@ -22,6 +22,7 @@ export interface OpenPosition {
   pergunta_respuesta?: any;
   base_cost_hour_snapshot?: number | string;
   solicitud_id?: string;
+  solicitud_target_id?: string;
   replacement_due_date?: string;
   isReplacement?: boolean;
   replaced_worker_name?: string;
