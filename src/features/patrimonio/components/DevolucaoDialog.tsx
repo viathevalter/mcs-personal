@@ -19,8 +19,8 @@ interface DevolucaoDialogProps {
 
 export function DevolucaoDialog({ open, onOpenChange, ativo, onSuccess }: DevolucaoDialogProps) {
     const [submitting, setSubmitting] = useState(false);
-    const [localDevolucao, setLocalDevolucao] = useState('Armazém Central');
-    const [estadoEquipamento, setEstadoEquipamento] = useState('Bom estado / Em perfeito funcionamento');
+    const [localDevolucao, setLocalDevolucao] = useState('Almacén Central');
+    const [estadoEquipamento, setEstadoEquipamento] = useState('Buen estado / En perfecto funcionamiento');
     const [statusFinal, setStatusFinal] = useState<PatrimonioStatus>('disponivel');
     const [observacoes, setObservacoes] = useState('');
 
@@ -37,12 +37,12 @@ export function DevolucaoDialog({ open, onOpenChange, ativo, onSuccess }: Devolu
                 observacoes,
             });
 
-            toast.success(`Patrimônio ${ativo.codigo_patrimonial} devolvido com sucesso!`);
+            toast.success(`¡Activo ${ativo.codigo_patrimonial} devuelto con éxito!`);
             onSuccess();
             onOpenChange(false);
         } catch (err: any) {
             console.error('Erro na devolução:', err);
-            toast.error(err?.message || 'Falha ao registrar devolução.');
+            toast.error(err?.message || 'Error al registrar la devolución.');
         } finally {
             setSubmitting(false);
         }
@@ -54,19 +54,19 @@ export function DevolucaoDialog({ open, onOpenChange, ativo, onSuccess }: Devolu
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
                         <RotateCcw className="h-5 w-5 text-amber-600" />
-                        Registrar Devolução de Patrimônio
+                        Registrar Devolución de Activo
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                        Recebimento de <strong>{ativo?.codigo_patrimonial}</strong> ({ativo?.descricao}) devolvido por{' '}
-                        <strong>{ativo?.responsavel_nome || 'Colaborador'}</strong>.
+                        Recepción de <strong>{ativo?.codigo_patrimonial}</strong> ({ativo?.descricao}) devuelto por{' '}
+                        <strong>{ativo?.responsavel_nome || 'Empleado'}</strong>.
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4 py-1">
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Local de Armazenamento / Recebimento</Label>
+                        <Label className="text-xs font-medium">Lugar de Almacenamiento / Recepción</Label>
                         <Input
-                            placeholder="Ex: Armazém Barcelona, Oficina Central..."
+                            placeholder="Ej: Almacén Barcelona, Taller Central..."
                             value={localDevolucao}
                             onChange={(e) => setLocalDevolucao(e.target.value)}
                             className="h-9 text-xs"
@@ -75,9 +75,9 @@ export function DevolucaoDialog({ open, onOpenChange, ativo, onSuccess }: Devolu
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Checklist de Estado do Equipamento</Label>
+                        <Label className="text-xs font-medium">Checklist del Estado del Equipo</Label>
                         <Input
-                            placeholder="Ex: Em bom estado, tela sem riscos, todos acessórios conferidos"
+                            placeholder="Ej: En buen estado, pantalla sin rasguños, todos los accesorios verificados"
                             value={estadoEquipamento}
                             onChange={(e) => setEstadoEquipamento(e.target.value)}
                             className="h-9 text-xs"
@@ -86,24 +86,24 @@ export function DevolucaoDialog({ open, onOpenChange, ativo, onSuccess }: Devolu
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Status Pós-Devolução</Label>
+                        <Label className="text-xs font-medium">Estado Posterior a la Devolución</Label>
                         <Select value={statusFinal} onValueChange={(val: any) => setStatusFinal(val)}>
                             <SelectTrigger className="h-9 text-xs">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="disponivel">Disponível no Armazém</SelectItem>
-                                <SelectItem value="reservado">Reservado para outro projeto</SelectItem>
-                                <SelectItem value="aguardando_manutencao">Aguardando Manutenção / Limpeza</SelectItem>
-                                <SelectItem value="danificado">Danificado / Avariado</SelectItem>
+                                <SelectItem value="disponivel">Disponible en Almacén</SelectItem>
+                                <SelectItem value="reservado">Reservado para otro proyecto</SelectItem>
+                                <SelectItem value="aguardando_manutencao">Pendiente de Mantenimiento / Limpieza</SelectItem>
+                                <SelectItem value="danificado">Dañado / Avariado</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Observações da Devolução</Label>
+                        <Label className="text-xs font-medium">Observaciones de la Devolución</Label>
                         <Textarea
-                            placeholder="Acessórios faltantes, avarias ou notas do encarregado..."
+                            placeholder="Accesorios faltantes, desperfectos o notas del encargado..."
                             value={observacoes}
                             onChange={(e) => setObservacoes(e.target.value)}
                             className="text-xs min-h-[70px]"
@@ -128,11 +128,11 @@ export function DevolucaoDialog({ open, onOpenChange, ativo, onSuccess }: Devolu
                         >
                             {submitting ? (
                                 <>
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Concluindo...
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Finalizando...
                                 </>
                             ) : (
                                 <>
-                                    <RotateCcw className="h-3.5 w-3.5" /> Confirmar Devolução
+                                    <RotateCcw className="h-3.5 w-3.5" /> Confirmar Devolución
                                 </>
                             )}
                         </Button>

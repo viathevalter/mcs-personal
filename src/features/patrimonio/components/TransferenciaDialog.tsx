@@ -27,7 +27,7 @@ export function TransferenciaDialog({ open, onOpenChange, ativo, onSuccess }: Tr
         e.preventDefault();
         if (!ativo) return;
         if (!novoProjeto.trim()) {
-            toast.error('Informe o novo projeto ou obra.');
+            toast.error('Indique el nuevo proyecto u obra.');
             return;
         }
 
@@ -40,12 +40,12 @@ export function TransferenciaDialog({ open, onOpenChange, ativo, onSuccess }: Tr
                 observacoes,
             });
 
-            toast.success(`Patrimônio ${ativo.codigo_patrimonial} transferido com sucesso!`);
+            toast.success(`¡Activo ${ativo.codigo_patrimonial} transferido con éxito!`);
             onSuccess();
             onOpenChange(false);
         } catch (err: any) {
             console.error('Erro na transferência:', err);
-            toast.error(err?.message || 'Falha ao transferir patrimônio.');
+            toast.error(err?.message || 'Error al transferir el activo.');
         } finally {
             setSubmitting(false);
         }
@@ -57,20 +57,20 @@ export function TransferenciaDialog({ open, onOpenChange, ativo, onSuccess }: Tr
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
                         <RefreshCw className="h-5 w-5 text-blue-600" />
-                        Transferir Patrimônio
+                        Transferir Activo
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                        Alterar projeto e localização física de <strong>{ativo?.codigo_patrimonial}</strong>.
+                        Cambiar proyecto y ubicación física de <strong>{ativo?.codigo_patrimonial}</strong>.
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4 py-1">
                     <div className="space-y-1.5">
                         <Label className="text-xs font-medium">
-                            Novo Projeto / Obra <span className="text-rose-500">*</span>
+                            Nuevo Proyecto / Obra <span className="text-rose-500">*</span>
                         </Label>
                         <Input
-                            placeholder="Ex: Projeto Sagunto, Tarragona, Oficina Barcelona..."
+                            placeholder="Ej: Proyecto Sagunto, Tarragona, Taller Barcelona..."
                             value={novoProjeto}
                             onChange={(e) => setNovoProjeto(e.target.value)}
                             className="h-9 text-xs"
@@ -79,9 +79,9 @@ export function TransferenciaDialog({ open, onOpenChange, ativo, onSuccess }: Tr
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Nova Localização Física</Label>
+                        <Label className="text-xs font-medium">Nueva Ubicación Física</Label>
                         <Input
-                            placeholder="Ex: Canteiro de Obras 02, Escritório 3º Andar..."
+                            placeholder="Ej: Frente de Obra 02, Oficina Planta 3..."
                             value={novaLocalizacao}
                             onChange={(e) => setNovaLocalizacao(e.target.value)}
                             className="h-9 text-xs"
@@ -89,9 +89,9 @@ export function TransferenciaDialog({ open, onOpenChange, ativo, onSuccess }: Tr
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Novo Coordenador Responsável</Label>
+                        <Label className="text-xs font-medium">Nuevo Coordinador Responsable</Label>
                         <Input
-                            placeholder="Deixe em branco para manter o mesmo"
+                            placeholder="Dejar en blanco para mantener el actual"
                             value={coordenadorNome}
                             onChange={(e) => setCoordenadorNome(e.target.value)}
                             className="h-9 text-xs"
@@ -99,9 +99,9 @@ export function TransferenciaDialog({ open, onOpenChange, ativo, onSuccess }: Tr
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Motivo / Observações da Transferência</Label>
+                        <Label className="text-xs font-medium">Motivo / Observaciones del Traslado</Label>
                         <Textarea
-                            placeholder="Motivo da mudança de frente de trabalho..."
+                            placeholder="Motivo del cambio de centro de trabajo o proyecto..."
                             value={observacoes}
                             onChange={(e) => setObservacoes(e.target.value)}
                             className="text-xs min-h-[60px]"
@@ -126,11 +126,11 @@ export function TransferenciaDialog({ open, onOpenChange, ativo, onSuccess }: Tr
                         >
                             {submitting ? (
                                 <>
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Transferindo...
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Transfiriendo...
                                 </>
                             ) : (
                                 <>
-                                    <RefreshCw className="h-3.5 w-3.5" /> Confirmar Transferência
+                                    <RefreshCw className="h-3.5 w-3.5" /> Confirmar Traslado
                                 </>
                             )}
                         </Button>

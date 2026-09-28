@@ -80,7 +80,7 @@ export const PontoPage: React.FC = () => {
             setColaboradores(cols);
             setPontos(regPontos);
         } catch (error) {
-            console.error('Erro ao carregar dados de ponto:', error);
+            console.error('Error al cargar datos de control horario:', error);
         } finally {
             setLoading(false);
         }
@@ -137,7 +137,7 @@ export const PontoPage: React.FC = () => {
 
     const handleSalvarAjuste = async () => {
         if (!pontoParaAjustar || !ajusteForm.motivo.trim()) {
-            alert('Por favor, informe a justificativa do ajuste manual para fins de auditoria.');
+            alert('Por favor, indique la justificación de la rectificación por motivos de auditoría laboral.');
             return;
         }
 
@@ -150,7 +150,7 @@ export const PontoPage: React.FC = () => {
                 pontoParaAjustar.batidas?.join(', ') || '',
                 `${ajusteForm.entrada_1}-${ajusteForm.saida_1};${ajusteForm.entrada_2}-${ajusteForm.saida_2}`,
                 ajusteForm.motivo,
-                'RH Admin',
+                'RRHH',
                 {
                     entrada_1: ajusteForm.entrada_1 || null,
                     saida_1: ajusteForm.saida_1 || null,
@@ -163,10 +163,10 @@ export const PontoPage: React.FC = () => {
 
             setPontoParaAjustar(null);
             await carregarDados();
-            alert('Ajuste salvo com sucesso!');
+            alert('¡Rectificación guardada con éxito!');
         } catch (error) {
-            console.error('Erro ao ajustar ponto:', error);
-            alert('Falha ao salvar ajuste de ponto.');
+            console.error('Error al guardar rectificación:', error);
+            alert('Fallo al guardar la rectificación.');
         } finally {
             setSavingAjuste(false);
         }
@@ -179,17 +179,17 @@ export const PontoPage: React.FC = () => {
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 dark:bg-sky-950/60 dark:text-sky-400 px-2.5 py-1 rounded-md border border-sky-200 dark:border-sky-800">
-                            Ponto Biométrico
+                            Control Horario
                         </span>
                         <span className="text-xs text-slate-500">
-                            Escritório Central & Oficina
+                            Oficinas Centrales y Talleres
                         </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
-                        Espelho de Ponto & Relógio
+                        Control Horario y Fichajes
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Visualização mensal, importação de arquivos do relógio e auditoria de ajustes de ponto.
+                        Visualización mensual de marcajes, importación de fichajes biométricos y auditoría de rectificaciones.
                     </p>
                 </div>
 
@@ -202,7 +202,7 @@ export const PontoPage: React.FC = () => {
                         className="gap-2 text-xs font-semibold"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                        Atualizar
+                        Actualizar
                     </Button>
                     <Button 
                         onClick={() => setImportModalOpen(true)}
@@ -210,7 +210,7 @@ export const PontoPage: React.FC = () => {
                         size="sm"
                     >
                         <Upload className="h-3.5 w-3.5" />
-                        Importar Planilha do Relógio
+                        Importar Plantilla de Fichajes
                     </Button>
                 </div>
             </div>
@@ -219,25 +219,25 @@ export const PontoPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Total Batidas no Mês</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Total Fichajes del Mes</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-slate-900 dark:text-white">
                             {stats.totalRegistros}
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-1">Competência: {mesAno}</p>
+                        <p className="text-[11px] text-slate-500 mt-1">Período: {mesAno}</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Total Horas Computadas</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Horas Computadas</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-sky-600">
                             {stats.totalHoras}h
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-1">Horas trabalhadas líquidas</p>
+                        <p className="text-[11px] text-slate-500 mt-1">Horas ordinarias netas</p>
                     </CardContent>
                 </Card>
 
@@ -249,19 +249,19 @@ export const PontoPage: React.FC = () => {
                         <div className="text-2xl font-bold text-emerald-600">
                             +{stats.totalExtrasHoras}h
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-1">Excedentes a 8h/dia</p>
+                        <p className="text-[11px] text-slate-500 mt-1">Excedentes de jornada</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Batidas Incompletas</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Marcajes Incompletos</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-amber-600">
                             {stats.incompletos}
                         </div>
-                        <p className="text-[11px] text-slate-500 mt-1">Requerem ajuste ou justificativa</p>
+                        <p className="text-[11px] text-slate-500 mt-1">Requieren rectificación</p>
                     </CardContent>
                 </Card>
             </div>
@@ -282,10 +282,10 @@ export const PontoPage: React.FC = () => {
                         <div>
                             <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
                                 <SelectTrigger className="text-xs">
-                                    <SelectValue placeholder="Todos os Colaboradores" />
+                                    <SelectValue placeholder="Todos los Empleados" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="todos">Todos os Colaboradores</SelectItem>
+                                    <SelectItem value="todos">Todos los Empleados</SelectItem>
                                     {colaboradores.map(c => (
                                         <SelectItem key={c.id} value={c.id}>
                                             {c.nombrecompleto} {c.timeclock_code ? `(#${c.timeclock_code})` : ''}
@@ -298,42 +298,42 @@ export const PontoPage: React.FC = () => {
                         <div>
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
                                 <SelectTrigger className="text-xs">
-                                    <SelectValue placeholder="Filtrar por Status" />
+                                    <SelectValue placeholder="Filtrar por Estado" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="todos">Status: Todos</SelectItem>
-                                    <SelectItem value="ok">Apenas OK</SelectItem>
-                                    <SelectItem value="incompleto">Apenas Incompletos</SelectItem>
-                                    <SelectItem value="atraso">Apenas Atrasos</SelectItem>
+                                    <SelectItem value="todos">Estado: Todos</SelectItem>
+                                    <SelectItem value="ok">Solo Correctos</SelectItem>
+                                    <SelectItem value="incompleto">Solo Incompletos</SelectItem>
+                                    <SelectItem value="atraso">Solo Retrasos</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="flex items-center justify-end">
                             <Badge variant="outline" className="text-xs py-1.5 px-3 border-slate-300 dark:border-slate-700">
-                                {pontosFiltrados.length} Registros Exibidos
+                                {pontosFiltrados.length} Fichajes Mostrados
                             </Badge>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Tabela do Espelho */}
+            {/* Tabla de Fichajes */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
-                                <TableHead className="font-bold text-xs">Data</TableHead>
-                                <TableHead className="font-bold text-xs">Colaborador</TableHead>
+                                <TableHead className="font-bold text-xs">Fecha</TableHead>
+                                <TableHead className="font-bold text-xs">Empleado</TableHead>
                                 <TableHead className="font-bold text-xs">Entrada 1</TableHead>
-                                <TableHead className="font-bold text-xs">Saída 1</TableHead>
+                                <TableHead className="font-bold text-xs">Salida 1</TableHead>
                                 <TableHead className="font-bold text-xs">Entrada 2</TableHead>
-                                <TableHead className="font-bold text-xs">Saída 2</TableHead>
+                                <TableHead className="font-bold text-xs">Salida 2</TableHead>
                                 <TableHead className="font-bold text-xs">Horas Trab.</TableHead>
                                 <TableHead className="font-bold text-xs">Saldo / Extras</TableHead>
-                                <TableHead className="font-bold text-xs">Origem</TableHead>
-                                <TableHead className="font-bold text-xs">Status</TableHead>
+                                <TableHead className="font-bold text-xs">Origen</TableHead>
+                                <TableHead className="font-bold text-xs">Estado</TableHead>
                                 <TableHead className="font-bold text-xs text-right">Ajuste</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -341,13 +341,13 @@ export const PontoPage: React.FC = () => {
                             {loading ? (
                                 <TableRow>
                                     <TableCell colSpan={11} className="h-32 text-center text-xs text-slate-500">
-                                        Carregando espelho de ponto...
+                                        Cargando informe de control horario...
                                     </TableCell>
                                 </TableRow>
                             ) : pontosFiltrados.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={11} className="h-32 text-center text-xs text-slate-500">
-                                        Nenhum registro de ponto encontrado para os filtros selecionados. Clique em "Importar Planilha do Relógio" para carregar batidas.
+                                        No se han encontrado registros con los filtros seleccionados. Haga clic en "Importar Plantilla de Fichajes" para cargar marcajes.
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -361,10 +361,10 @@ export const PontoPage: React.FC = () => {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                                                    {colab?.nombrecompleto || 'Colaborador'}
+                                                    {colab?.nombrecompleto || 'Empleado'}
                                                 </div>
                                                 <div className="text-[10px] text-slate-400">
-                                                    {colab?.department_name || 'Geral'} {ponto.timeclock_code ? `• ID #${ponto.timeclock_code}` : ''}
+                                                    {colab?.department_name || 'General'} {ponto.timeclock_code ? `• ID #${ponto.timeclock_code}` : ''}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="font-mono text-xs">{ponto.entrada_1 || '-'}</TableCell>
@@ -385,7 +385,7 @@ export const PontoPage: React.FC = () => {
                                             </TableCell>
                                             <TableCell>
                                                 <span className="text-[10px] capitalize text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
-                                                    {ponto.origem || 'relogio'}
+                                                    {ponto.origem || 'biometrico'}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
@@ -401,7 +401,7 @@ export const PontoPage: React.FC = () => {
                                                     size="sm"
                                                     onClick={() => abrirAjusteModal(ponto)}
                                                     className="h-7 w-7 p-0 text-slate-500 hover:text-sky-600"
-                                                    title="Ajustar batida manualmente"
+                                                    title="Rectificar marcaje manualmente"
                                                 >
                                                     <Edit3 className="h-3.5 w-3.5" />
                                                 </Button>
@@ -423,15 +423,15 @@ export const PontoPage: React.FC = () => {
                 onSuccess={carregarDados}
             />
 
-            {/* Modal Ajuste Manual com Auditoria */}
+            {/* Modal Rectificación Manual con Auditoría */}
             <Dialog open={!!pontoParaAjustar} onOpenChange={(open) => !open && setPontoParaAjustar(null)}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-base font-bold text-slate-900 dark:text-white">
-                            Ajustar Batida de Ponto
+                            Rectificar Marcaje de Control Horario
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500">
-                            Corrija as batidas e registre a justificativa obrigatória para conformidade e auditoria.
+                            Corrija los horarios y registre la justificación obligatoria por motivos de conformidad y auditoría.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -439,9 +439,9 @@ export const PontoPage: React.FC = () => {
                         <div className="space-y-4 py-2">
                             <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg text-xs space-y-1">
                                 <p className="font-semibold text-slate-800 dark:text-slate-200">
-                                    Colaborador: {colabMap.get(pontoParaAjustar.member_id)?.nombrecompleto}
+                                    Empleado: {colabMap.get(pontoParaAjustar.member_id)?.nombrecompleto}
                                 </p>
-                                <p className="text-slate-500">Data: {pontoParaAjustar.data}</p>
+                                <p className="text-slate-500">Fecha: {pontoParaAjustar.data}</p>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
@@ -455,7 +455,7 @@ export const PontoPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold">Saída 1 (Almoço)</Label>
+                                    <Label className="text-xs font-semibold">Salida 1 (Comida)</Label>
                                     <Input 
                                         placeholder="13:00" 
                                         value={ajusteForm.saida_1}
@@ -464,7 +464,7 @@ export const PontoPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold">Entrada 2 (Retorno)</Label>
+                                    <Label className="text-xs font-semibold">Entrada 2 (Regreso)</Label>
                                     <Input 
                                         placeholder="14:00" 
                                         value={ajusteForm.entrada_2}
@@ -473,7 +473,7 @@ export const PontoPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold">Saída 2 (Fim)</Label>
+                                    <Label className="text-xs font-semibold">Salida 2 (Fin)</Label>
                                     <Input 
                                         placeholder="17:00" 
                                         value={ajusteForm.saida_2}
@@ -485,10 +485,10 @@ export const PontoPage: React.FC = () => {
 
                             <div>
                                 <Label className="text-xs font-semibold text-rose-600">
-                                    Justificativa do Ajuste (Obrigatória) *
+                                    Justificación de la Rectificación (Obligatoria) *
                                 </Label>
                                 <Input 
-                                    placeholder="Ex: Esquecimento de registro na saída / Falha biométrica" 
+                                    placeholder="Ej: Olvido de fichaje a la salida / Incidencia técnica biométrica" 
                                     value={ajusteForm.motivo}
                                     onChange={(e) => setAjusteForm({ ...ajusteForm, motivo: e.target.value })}
                                     className="text-xs mt-1"
@@ -508,7 +508,7 @@ export const PontoPage: React.FC = () => {
                             onClick={handleSalvarAjuste}
                             className="bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs"
                         >
-                            {savingAjuste ? 'Gravando...' : 'Salvar Ajuste'}
+                            {savingAjuste ? 'Guardando...' : 'Guardar Rectificación'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

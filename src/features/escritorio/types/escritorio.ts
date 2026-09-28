@@ -236,23 +236,23 @@ export interface RhPreFolhaItem {
 }
 
 export const CLASSIFICACOES_COLABORADOR = [
-    'Administrativo / Escritório',
-    'Oficina',
-    'Coordenador',
-    'Gestor',
-    'Direção',
-    'Operacional',
-    'Outros',
+    'Administrativo / Oficina',
+    'Taller / Mantenimiento',
+    'Coordinador/a',
+    'Responsable / Gestor/a',
+    'Dirección',
+    'Operativo / Terreno',
+    'Otros',
 ] as const;
 
 export const TIPOS_AUSENCIA = [
-    { id: 'baixa_medica', label: 'Baixa Médica (IT - Espanha)', remunerada: true, color: 'text-amber-600 bg-amber-50 border-amber-200' },
+    { id: 'baixa_medica', label: 'Baja Médica (IT - Incapacidad Temporal)', remunerada: true, color: 'text-amber-600 bg-amber-50 border-amber-200' },
     { id: 'consulta_medica', label: 'Consulta Médica', remunerada: true, color: 'text-blue-600 bg-blue-50 border-blue-200' },
     { id: 'falta_justificada', label: 'Falta Justificada', remunerada: true, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
     { id: 'falta_injustificada', label: 'Falta Injustificada', remunerada: false, color: 'text-rose-600 bg-rose-50 border-rose-200' },
-    { id: 'licenca', label: 'Licença Retribuída (Casamento, Óbito, Mudança)', remunerada: true, color: 'text-purple-600 bg-purple-50 border-purple-200' },
-    { id: 'formacao', label: 'Formação / Treinamento', remunerada: true, color: 'text-sky-600 bg-sky-50 border-sky-200' },
-    { id: 'trabalho_externo', label: 'Trabalho Externo / Viagem', remunerada: true, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
-    { id: 'acidente', label: 'Acidente de Trabalho', remunerada: true, color: 'text-red-700 bg-red-50 border-red-200' },
-    { id: 'outro', label: 'Outro Motivo', remunerada: false, color: 'text-slate-600 bg-slate-50 border-slate-200' },
+    { id: 'licenca', label: 'Permiso Retribuido (Matrimonio, Defunción, Mudanza)', remunerada: true, color: 'text-purple-600 bg-purple-50 border-purple-200' },
+    { id: 'formacao', label: 'Formación / Capacitación', remunerada: true, color: 'text-sky-600 bg-sky-50 border-sky-200' },
+    { id: 'trabalho_externo', label: 'Trabajo Externo / Desplazamiento', remunerada: true, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
+    { id: 'acidente', label: 'Accidente Laboral', remunerada: true, color: 'text-red-700 bg-red-50 border-red-200' },
+    { id: 'outro', label: 'Otro Motivo', remunerada: false, color: 'text-slate-600 bg-slate-50 border-slate-200' },
 ] as const;

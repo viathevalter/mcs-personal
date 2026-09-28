@@ -95,7 +95,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
         } catch (err: any) {
             console.error('Falha ao iniciar câmera:', err);
             setScannerAtivo(false);
-            setErroCamera(err?.message || 'Não foi possível acessar a câmera. Verifique as permissões do navegador.');
+            setErroCamera(err?.message || 'No fue posible acceder a la cámara. Compruebe los permisos del navegador.');
         }
     };
 
@@ -116,13 +116,13 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
             const ativo = await obterAtivoPorCodigo(codigo);
             if (ativo) {
                 setAtivoEncontrado(ativo);
-                toast.success(`Patrimônio ${ativo.codigo_patrimonial} identificado!`);
+                toast.success(`¡Activo ${ativo.codigo_patrimonial} identificado!`);
             } else {
-                toast.error(`Patrimônio com código "${codigo}" não encontrado no sistema.`);
-                setErroCamera(`Nenhum ativo localizado com o código: ${codigo}`);
+                toast.error(`Activo con código "${codigo}" no encontrado en el sistema.`);
+                setErroCamera(`Ningún activo localizado con el código: ${codigo}`);
             }
         } catch (e: any) {
-            toast.error('Erro ao buscar informações do ativo.');
+            toast.error('Error al consultar información del activo.');
         } finally {
             setLoadingAtivo(false);
         }
@@ -156,11 +156,11 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                     <div className="flex items-center justify-between">
                         <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
                             <Camera className="h-5 w-5 text-sky-600" />
-                            Leitor de QR Code Patrimonial
+                            Lector de Códigos QR de Activos
                         </DialogTitle>
                     </div>
                     <DialogDescription className="text-xs text-slate-500">
-                        Aponte a câmera para a etiqueta do equipamento para consulta ou ação rápida.
+                        Enfoque con la cámara la etiqueta del equipo para consulta o acción rápida.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -174,7 +174,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                 {loadingAtivo && (
                                     <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-white gap-2">
                                         <Loader2 className="h-8 w-8 animate-spin text-sky-400" />
-                                        <span className="text-sm font-medium">Buscando cadastro...</span>
+                                        <span className="text-sm font-medium">Buscando activo...</span>
                                     </div>
                                 )}
 
@@ -183,7 +183,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                         <AlertCircle className="h-10 w-10 text-rose-400" />
                                         <p className="text-sm font-medium text-rose-200">{erroCamera}</p>
                                         <Button size="sm" variant="outline" onClick={reiniciarLeitura} className="gap-2">
-                                            <RefreshCw className="h-4 w-4" /> Tentar Novamente
+                                            <RefreshCw className="h-4 w-4" /> Reintentar
                                         </Button>
                                     </div>
                                 )}
@@ -191,7 +191,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
 
                             {/* Digitação manual alternativa */}
                             <div className="mt-3 text-center">
-                                <p className="text-xs text-slate-500 mb-1.5">Ou digite o código manualmente:</p>
+                                <p className="text-xs text-slate-500 mb-1.5">O introduzca el código manualmente:</p>
                                 <form
                                     onSubmit={(e) => {
                                         e.preventDefault();
@@ -202,7 +202,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                 >
                                     <input
                                         name="manualCode"
-                                        placeholder="Ex: MOB-000245"
+                                        placeholder="Ej: MOB-000245"
                                         className="flex-1 uppercase text-sm px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent"
                                     />
                                     <Button type="submit" size="sm" className="bg-sky-600 hover:bg-sky-700 text-white">
@@ -246,8 +246,8 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                         {[ativoEncontrado.marca, ativoEncontrado.modelo].filter(Boolean).join(' ') || ativoEncontrado.categoria}
                                     </p>
                                     <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                                        👤 <strong>{ativoEncontrado.responsavel_nome || 'Disponível no Armazém'}</strong>
-                                        {ativoEncontrado.projeto && ` • Projeto ${ativoEncontrado.projeto}`}
+                                        👤 <strong>{ativoEncontrado.responsavel_nome || 'Disponible en Almacén'}</strong>
+                                        {ativoEncontrado.projeto && ` • Proyecto ${ativoEncontrado.projeto}`}
                                     </p>
                                 </div>
                             </div>
@@ -255,7 +255,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                             {/* Menu de Ações Rápidas */}
                             <div className="space-y-1.5">
                                 <p className="text-xs font-semibold uppercase text-slate-400 tracking-wider">
-                                    Ações Rápidas para este Equipamento:
+                                    Acciones Rápidas para este Equipo:
                                 </p>
 
                                 <Button
@@ -275,7 +275,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                         className="w-full justify-between text-sm h-10 bg-emerald-600 hover:bg-emerald-700 text-white"
                                     >
                                         <span className="flex items-center gap-2">
-                                            <UserCheck className="h-4 w-4" /> Entregar a Funcionário
+                                            <UserCheck className="h-4 w-4" /> Entregar a Empleado
                                         </span>
                                         <ArrowRight className="h-4 w-4 text-emerald-200" />
                                     </Button>
@@ -288,7 +288,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                             className="w-full justify-between text-sm h-10 bg-amber-600 hover:bg-amber-700 text-white"
                                         >
                                             <span className="flex items-center gap-2">
-                                                <RotateCcw className="h-4 w-4" /> Registrar Devolução
+                                                <RotateCcw className="h-4 w-4" /> Registrar Devolución
                                             </span>
                                             <ArrowRight className="h-4 w-4 text-amber-200" />
                                         </Button>
@@ -299,7 +299,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                             className="w-full justify-between text-sm h-10 border-slate-200 dark:border-slate-800"
                                         >
                                             <span className="flex items-center gap-2">
-                                                <RefreshCw className="h-4 w-4 text-blue-600" /> Transferir de Projeto / Local
+                                                <RefreshCw className="h-4 w-4 text-blue-600" /> Transferir de Proyecto / Ubicación
                                             </span>
                                             <ArrowRight className="h-4 w-4 text-slate-400" />
                                         </Button>
@@ -312,7 +312,7 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
                                     className="w-full justify-between text-sm h-10 border-slate-200 dark:border-slate-800 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
                                 >
                                     <span className="flex items-center gap-2">
-                                        <Wrench className="h-4 w-4" /> Enviar para Manutenção / Oficina
+                                        <Wrench className="h-4 w-4" /> Enviar a Mantenimiento / Taller
                                     </span>
                                     <ArrowRight className="h-4 w-4 text-slate-400" />
                                 </Button>
@@ -320,10 +320,10 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
 
                             <div className="pt-2 flex justify-between border-t border-slate-100 dark:border-slate-800">
                                 <Button size="sm" variant="ghost" onClick={reiniciarLeitura} className="gap-1.5 text-xs">
-                                    <Camera className="h-3.5 w-3.5" /> Escanear Outro
+                                    <Camera className="h-3.5 w-3.5" /> Escanear Otro
                                 </Button>
                                 <Button size="sm" variant="ghost" onClick={() => onOpenChange(false)} className="text-xs">
-                                    Fechar
+                                    Cerrar
                                 </Button>
                             </div>
                         </div>

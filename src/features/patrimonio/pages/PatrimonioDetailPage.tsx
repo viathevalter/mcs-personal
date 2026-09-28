@@ -108,11 +108,11 @@ export function PatrimonioDetailPage() {
         setExcluindo(true);
         try {
             await excluirAtivo(ativo.id);
-            toast.success(`Patrimônio ${ativo.codigo_patrimonial} excluído com sucesso!`);
+            toast.success(`¡Activo ${ativo.codigo_patrimonial} eliminado con éxito!`);
             navigate('/escritorio/patrimonio');
         } catch (err: any) {
             console.error('Erro ao excluir:', err);
-            toast.error('Falha ao excluir patrimônio.');
+            toast.error('Error al eliminar el activo.');
         } finally {
             setExcluindo(false);
         }
@@ -128,7 +128,7 @@ export function PatrimonioDetailPage() {
         try {
             const dataAtivo = await obterAtivoPorCodigo(codigo);
             if (!dataAtivo) {
-                toast.error('Patrimônio não localizado no sistema.');
+                toast.error('Activo no localizado en el sistema.');
                 navigate('/escritorio/patrimonio');
                 return;
             }
@@ -145,7 +145,7 @@ export function PatrimonioDetailPage() {
             setManutencoes(manuts);
         } catch (err: any) {
             console.error('Erro ao carregar ativo:', err);
-            toast.error('Falha ao carregar detalhes do patrimônio.');
+            toast.error('Error al cargar los detalles del activo.');
         } finally {
             setLoading(false);
         }
@@ -165,7 +165,7 @@ export function PatrimonioDetailPage() {
                 id: Math.random().toString(36).substring(2, 9),
                 tipo: 'frontal',
                 url,
-                legenda: 'Foto do Equipamento',
+                legenda: 'Foto del Equipo',
                 created_at: new Date().toISOString(),
             };
 
@@ -178,14 +178,14 @@ export function PatrimonioDetailPage() {
                     fotos: novasFotos,
                     foto_principal_url: novaFotoPrincipal,
                 },
-                'Nova fotografia adicionada ao patrimônio.'
+                'Nueva fotografía añadida al activo.'
             );
 
-            toast.success('Fotografia enviada e vinculada com sucesso!');
+            toast.success('¡Fotografía enviada y vinculada con éxito!');
             await carregarDados();
         } catch (err: any) {
             console.error('Erro no upload de foto:', err);
-            toast.error('Falha ao enviar fotografia. Verifique o arquivo.');
+            toast.error('Error al enviar fotografía. Compruebe el archivo.');
         } finally {
             setUploadingFoto(false);
             if (e.target) e.target.value = '';
@@ -209,14 +209,14 @@ export function PatrimonioDetailPage() {
                 status_assinatura: docTipo === 'termo_responsabilidade' ? 'pendente' : 'nao_aplicavel',
             });
 
-            toast.success('Documento anexado com sucesso!');
+            toast.success('¡Documento adjuntado con éxito!');
             setModalDocOpen(false);
             setDocFile(null);
             setDocTitulo('');
             carregarDados();
         } catch (err: any) {
             console.error(err);
-            toast.error('Falha ao anexar documento.');
+            toast.error('Error al adjuntar documento.');
         } finally {
             setUploadingDoc(false);
         }
@@ -226,17 +226,17 @@ export function PatrimonioDetailPage() {
         if (!ativo) return;
         const pdf = gerarTermoResponsabilidadePdf({
             ativo,
-            funcionarioNome: ativo.responsavel_nome || 'Colaborador',
+            funcionarioNome: ativo.responsavel_nome || 'Empleado',
             funcionarioDoc: ativo.responsavel_documento || '',
             coordenadorNome: ativo.coordenador_nome || '',
             projeto: ativo.projeto || '',
             localEntrega: ativo.local_entrega || '',
-            dataEntrega: ativo.data_entrega ? new Date(ativo.data_entrega).toLocaleDateString('pt-BR') : '',
+            dataEntrega: ativo.data_entrega ? new Date(ativo.data_entrega).toLocaleDateString('es-ES') : '',
             acessorios: ativo.acessorios_entregues || '',
             empresaNome: ativo.empresa_proprietaria || 'MCS INDUSTRIAL',
         });
-        pdf.save(`termo_${ativo.codigo_patrimonial}.pdf`);
-        toast.success('Termo de Responsabilidade gerado em PDF!');
+        pdf.save(`acta_responsabilidad_${ativo.codigo_patrimonial}.pdf`);
+        toast.success('¡Acta de Responsabilidad generada en PDF!');
     };
 
     const handleConcluirManutencaoSubmit = async (e: React.FormEvent) => {
@@ -251,12 +251,12 @@ export function PatrimonioDetailPage() {
                 dataRetorno: new Date().toISOString().slice(0, 10),
             });
 
-            toast.success('Manutenção concluída e equipamento retornado ao armazém!');
+            toast.success('¡Mantenimiento finalizado y equipo devuelto al almacén!');
             setModalConcluirManutencaoOpen(false);
             setManutencaoSelecionada(null);
             carregarDados();
         } catch (err: any) {
-            toast.error('Erro ao concluir manutenção.');
+            toast.error('Error al finalizar el mantenimiento.');
         } finally {
             setSubmittingConclusao(false);
         }
@@ -266,7 +266,7 @@ export function PatrimonioDetailPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
-                <span className="text-sm font-medium text-slate-500">Carregando ficha patrimonial...</span>
+                <span className="text-sm font-medium text-slate-500">Cargando ficha del activo...</span>
             </div>
         );
     }
@@ -328,7 +328,7 @@ export function PatrimonioDetailPage() {
                             onClick={() => setModalEntregaOpen(true)}
                             className="h-9 text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
-                            <UserCheck className="h-3.5 w-3.5" /> Entregar a Colaborador
+                            <UserCheck className="h-3.5 w-3.5" /> Entregar a Empleado
                         </Button>
                     )}
 
@@ -339,7 +339,7 @@ export function PatrimonioDetailPage() {
                                 onClick={() => setModalDevolucaoOpen(true)}
                                 className="h-9 text-xs gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
                             >
-                                <RotateCcw className="h-3.5 w-3.5" /> Registrar Devolução
+                                <RotateCcw className="h-3.5 w-3.5" /> Registrar Devolución
                             </Button>
 
                             <Button
@@ -348,7 +348,7 @@ export function PatrimonioDetailPage() {
                                 onClick={() => setModalTransferenciaOpen(true)}
                                 className="h-9 text-xs gap-1.5 text-blue-600 hover:text-blue-700"
                             >
-                                <RefreshCw className="h-3.5 w-3.5" /> Transferir Projeto
+                                <RefreshCw className="h-3.5 w-3.5" /> Transferir Proyecto
                             </Button>
                         </>
                     )}
@@ -359,7 +359,7 @@ export function PatrimonioDetailPage() {
                         onClick={() => setModalManutencaoOpen(true)}
                         className="h-9 text-xs gap-1.5 text-rose-600 hover:text-rose-700"
                     >
-                        <Wrench className="h-3.5 w-3.5" /> Manutenção
+                        <Wrench className="h-3.5 w-3.5" /> Mantenimiento
                     </Button>
 
                     <Button
@@ -377,7 +377,7 @@ export function PatrimonioDetailPage() {
                         onClick={() => setModalExcluirOpen(true)}
                         className="h-9 text-xs gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900"
                     >
-                        <Trash2 className="h-3.5 w-3.5" /> Excluir
+                        <Trash2 className="h-3.5 w-3.5" /> Eliminar
                     </Button>
                 </div>
             </div>
@@ -397,15 +397,15 @@ export function PatrimonioDetailPage() {
                         </div>
                         <div>
                             <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                {ativo.status === 'em_uso' ? 'Responsável Atual pela Custódia' : 'Localização do Equipamento'}
+                                {ativo.status === 'em_uso' ? 'Responsable Actual de la Custodia' : 'Ubicación del Equipo'}
                             </span>
                             <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                                {ativo.status === 'em_uso' ? ativo.responsavel_nome : ativo.localizacao || 'Armazém Central'}
+                                {ativo.status === 'em_uso' ? ativo.responsavel_nome : ativo.localizacao || 'Almacén Central'}
                             </h3>
                             {ativo.status === 'em_uso' && (
                                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    Projeto: <strong>{ativo.projeto || 'Geral'}</strong> • Coordenador: {ativo.coordenador_nome || 'Não informado'}
-                                    {ativo.data_entrega && ` • Desde ${new Date(ativo.data_entrega).toLocaleDateString('pt-BR')}`}
+                                    Proyecto: <strong>{ativo.projeto || 'General'}</strong> • Coordinador: {ativo.coordenador_nome || 'No informado'}
+                                    {ativo.data_entrega && ` • Desde ${new Date(ativo.data_entrega).toLocaleDateString('es-ES')}`}
                                 </p>
                             )}
                         </div>
@@ -419,7 +419,7 @@ export function PatrimonioDetailPage() {
                             className="h-8 text-xs gap-1.5 border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 bg-white dark:bg-slate-900 shrink-0"
                         >
                             <FileText className="h-3.5 w-3.5 text-blue-600" />
-                            Baixar Termo de Responsabilidade
+                            Descargar Acta de Responsabilidad
                         </Button>
                     )}
                 </div>
@@ -429,16 +429,16 @@ export function PatrimonioDetailPage() {
             <Tabs defaultValue="ficha" className="w-full">
                 <TabsList className="bg-slate-200 dark:bg-slate-800 p-1">
                     <TabsTrigger value="ficha" className="text-xs gap-1.5">
-                        <ShieldCheck className="h-3.5 w-3.5" /> Ficha Técnica & Fotos
+                        <ShieldCheck className="h-3.5 w-3.5" /> Ficha Técnica y Fotos
                     </TabsTrigger>
                     <TabsTrigger value="historico" className="text-xs gap-1.5">
-                        <History className="h-3.5 w-3.5 text-amber-500" /> Histórico & Timeline ({historico.length})
+                        <History className="h-3.5 w-3.5 text-amber-500" /> Historial y Cronología ({historico.length})
                     </TabsTrigger>
                     <TabsTrigger value="documentos" className="text-xs gap-1.5">
                         <FileText className="h-3.5 w-3.5 text-blue-500" /> Documentos ({documentos.length})
                     </TabsTrigger>
                     <TabsTrigger value="manutencoes" className="text-xs gap-1.5">
-                        <Wrench className="h-3.5 w-3.5 text-rose-500" /> Manutenções ({manutencoes.length})
+                        <Wrench className="h-3.5 w-3.5 text-rose-500" /> Mantenimientos ({manutencoes.length})
                     </TabsTrigger>
                 </TabsList>
 
@@ -451,24 +451,24 @@ export function PatrimonioDetailPage() {
                             <Card className="border-slate-200 dark:border-slate-800">
                                 <CardHeader className="py-3 px-5 border-b border-slate-100 dark:border-slate-800">
                                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                        <Tag className="h-4 w-4 text-sky-600" /> Identificação do Equipamento
+                                        <Tag className="h-4 w-4 text-sky-600" /> Identificación del Equipo
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Código Patrimonial</span>
+                                        <span className="text-slate-400 block mb-0.5">Código de Activo</span>
                                         <span className="font-bold text-sky-700 dark:text-sky-400 text-sm">
                                             {ativo.codigo_patrimonial}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Categoria</span>
+                                        <span className="text-slate-400 block mb-0.5">Categoría</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
                                             {ativo.categoria}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Subcategoria</span>
+                                        <span className="text-slate-400 block mb-0.5">Subcategoría</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
                                             {ativo.subcategoria || '-'}
                                         </span>
@@ -486,20 +486,20 @@ export function PatrimonioDetailPage() {
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Cor</span>
+                                        <span className="text-slate-400 block mb-0.5">Color</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
                                             {ativo.cor || '-'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Número de Série</span>
+                                        <span className="text-slate-400 block mb-0.5">Número de Serie</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200 font-mono">
-                                            {ativo.numero_serie || 'Não informado'}
+                                            {ativo.numero_serie || 'No informado'}
                                         </span>
                                     </div>
                                     {ativo.imei && (
                                         <div>
-                                            <span className="text-slate-400 block mb-0.5">IMEI (Celular)</span>
+                                            <span className="text-slate-400 block mb-0.5">IMEI (Móvil)</span>
                                             <span className="font-medium text-blue-600 dark:text-blue-400 font-mono">
                                                 {ativo.imei}
                                             </span>
@@ -507,28 +507,28 @@ export function PatrimonioDetailPage() {
                                     )}
                                     {ativo.matricula && (
                                         <div>
-                                            <span className="text-slate-400 block mb-0.5">Matrícula (Veículo)</span>
+                                            <span className="text-slate-400 block mb-0.5">Matrícula (Vehículo)</span>
                                             <span className="font-medium text-emerald-600 dark:text-emerald-400 font-mono">
                                                 {ativo.matricula}
                                             </span>
                                         </div>
                                     )}
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Empresa Proprietária</span>
+                                        <span className="text-slate-400 block mb-0.5">Empresa Propietaria</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
                                             {ativo.empresa_proprietaria || '—'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Centro de Custo</span>
+                                        <span className="text-slate-400 block mb-0.5">Centro de Costes</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
-                                            {ativo.centro_custo || 'Geral'}
+                                            {ativo.centro_custo || 'General'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Localização Física</span>
+                                        <span className="text-slate-400 block mb-0.5">Ubicación Física</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
-                                            {ativo.localizacao || 'Armazém Central'}
+                                            {ativo.localizacao || 'Almacén Central'}
                                         </span>
                                     </div>
                                 </CardContent>
@@ -538,44 +538,44 @@ export function PatrimonioDetailPage() {
                             <Card className="border-slate-200 dark:border-slate-800">
                                 <CardHeader className="py-3 px-5 border-b border-slate-100 dark:border-slate-800">
                                     <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                        <DollarSign className="h-4 w-4 text-emerald-600" /> Aquisição & Garantia
+                                        <DollarSign className="h-4 w-4 text-emerald-600" /> Adquisición y Garantía
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Data de Compra</span>
+                                        <span className="text-slate-400 block mb-0.5">Fecha de Compra</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
-                                            {ativo.data_compra ? new Date(ativo.data_compra).toLocaleDateString('pt-BR') : '-'}
+                                            {ativo.data_compra ? new Date(ativo.data_compra).toLocaleDateString('es-ES') : '-'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Fornecedor</span>
+                                        <span className="text-slate-400 block mb-0.5">Proveedor</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
                                             {ativo.fornecedor || '-'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Nº Fatura</span>
+                                        <span className="text-slate-400 block mb-0.5">N.º Factura</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200 font-mono">
                                             {ativo.numero_fatura || '-'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Valor de Aquisição</span>
+                                        <span className="text-slate-400 block mb-0.5">Valor de Adquisición</span>
                                         <span className="font-bold text-emerald-600 text-sm">
                                             € {(ativo.valor_aquisicao || 0).toFixed(2)}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Garantia</span>
+                                        <span className="text-slate-400 block mb-0.5">Garantía</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
-                                            {ativo.garantia_meses ? `${ativo.garantia_meses} meses` : 'Sem garantia'}
+                                            {ativo.garantia_meses ? `${ativo.garantia_meses} meses` : 'Sin garantía'}
                                         </span>
                                     </div>
                                     <div>
-                                        <span className="text-slate-400 block mb-0.5">Término da Garantia</span>
+                                        <span className="text-slate-400 block mb-0.5">Fin de Garantía</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
-                                            {ativo.data_fim_garantia ? new Date(ativo.data_fim_garantia).toLocaleDateString('pt-BR') : '-'}
+                                            {ativo.data_fim_garantia ? new Date(ativo.data_fim_garantia).toLocaleDateString('es-ES') : '-'}
                                         </span>
                                     </div>
                                     {ativo.observacoes_aquisicao && (
@@ -616,7 +616,7 @@ export function PatrimonioDetailPage() {
                                             ) : (
                                                 <Upload className="h-3 w-3" />
                                             )}
-                                            {ativo.foto_principal_url ? 'Trocar Foto' : 'Adicionar Foto'}
+                                            {ativo.foto_principal_url ? 'Cambiar Foto' : 'Añadir Foto'}
                                         </Button>
                                     </div>
                                 </CardHeader>
@@ -635,7 +635,7 @@ export function PatrimonioDetailPage() {
                                                     onClick={() => fileInputRef.current?.click()}
                                                     className="text-xs gap-1.5 shadow"
                                                 >
-                                                    <Camera className="h-3.5 w-3.5" /> Alterar Foto
+                                                    <Camera className="h-3.5 w-3.5" /> Cambiar Foto
                                                 </Button>
                                             </div>
                                         </div>
@@ -643,12 +643,12 @@ export function PatrimonioDetailPage() {
                                         <div
                                             onClick={() => fileInputRef.current?.click()}
                                             className="aspect-square rounded-lg border-2 border-dashed border-sky-300 dark:border-sky-800 hover:border-sky-500 bg-sky-50/40 dark:bg-sky-950/20 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-all cursor-pointer flex flex-col items-center justify-center text-slate-500 p-4 text-center group"
-                                            title="Clique para enviar fotografia deste patrimônio"
+                                            title="Haga clic para enviar fotografía de este activo"
                                         >
                                             {uploadingFoto ? (
                                                 <div className="flex flex-col items-center gap-2">
                                                     <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
-                                                    <span className="text-xs font-medium text-sky-600">Enviando foto...</span>
+                                                    <span className="text-xs font-medium text-sky-600">Subiendo foto...</span>
                                                 </div>
                                             ) : (
                                                 <>
@@ -656,10 +656,10 @@ export function PatrimonioDetailPage() {
                                                         <Camera className="h-6 w-6 text-sky-600" />
                                                     </div>
                                                     <span className="text-xs font-semibold text-sky-700 dark:text-sky-300">
-                                                        Clique aqui para adicionar foto
+                                                        Haga clic aquí para añadir foto
                                                     </span>
                                                     <span className="text-[11px] text-slate-400 mt-1 max-w-[180px]">
-                                                        Envie foto frontal ou detalhes do equipamento
+                                                        Envíe foto frontal o detalles del equipo
                                                     </span>
                                                 </>
                                             )}
@@ -671,14 +671,14 @@ export function PatrimonioDetailPage() {
                                         <div className="mt-3">
                                             <div className="flex items-center justify-between mb-2">
                                                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-                                                    Todas as Fotos ({ativo.fotos.length})
+                                                    Todas las Fotos ({ativo.fotos.length})
                                                 </span>
                                                 <button
                                                     type="button"
                                                     onClick={() => fileInputRef.current?.click()}
                                                     className="text-[11px] text-sky-600 hover:underline flex items-center gap-0.5"
                                                 >
-                                                    <Plus className="h-3 w-3" /> Mais fotos
+                                                    <Plus className="h-3 w-3" /> Más fotos
                                                 </button>
                                             </div>
                                             <div className="grid grid-cols-3 gap-2">
@@ -707,13 +707,13 @@ export function PatrimonioDetailPage() {
                     <Card className="border-slate-200 dark:border-slate-800">
                         <CardHeader className="py-4 px-6 border-b border-slate-100 dark:border-slate-800">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <History className="h-4 w-4 text-amber-500" /> Linha do Tempo e Rastreabilidade do Patrimônio
+                                <History className="h-4 w-4 text-amber-500" /> Línea de Tiempo y Trazabilidad del Activo
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-6">
                             {historico.length === 0 ? (
                                 <p className="text-xs text-slate-400 py-6 text-center">
-                                    Nenhum evento registrado no histórico deste bem ainda.
+                                    Ningún evento registrado en el historial de este bien todavía.
                                 </p>
                             ) : (
                                 <div className="relative pl-6 space-y-6 before:absolute before:inset-0 before:left-2.5 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
@@ -731,8 +731,8 @@ export function PatrimonioDetailPage() {
                                                     </span>
                                                     <span className="text-[11px] text-slate-400 flex items-center gap-1">
                                                         <Clock className="h-3 w-3" />
-                                                        {new Date(item.created_at).toLocaleDateString('pt-BR')} às{' '}
-                                                        {new Date(item.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                                        {new Date(item.created_at).toLocaleDateString('es-ES')} a las{' '}
+                                                        {new Date(item.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 </div>
 
@@ -770,21 +770,21 @@ export function PatrimonioDetailPage() {
                     <Card className="border-slate-200 dark:border-slate-800">
                         <CardHeader className="py-4 px-6 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <FileText className="h-4 w-4 text-blue-500" /> Documentos, Contratos e Termos Anexados
+                                <FileText className="h-4 w-4 text-blue-500" /> Documentos, Contratos y Actas Adjuntos
                             </CardTitle>
                             <Button
                                 size="sm"
                                 onClick={() => setModalDocOpen(true)}
                                 className="h-8 text-xs gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
                             >
-                                <Plus className="h-3.5 w-3.5" /> Anexar Documento
+                                <Plus className="h-3.5 w-3.5" /> Adjuntar Documento
                             </Button>
                         </CardHeader>
                         <CardContent className="p-6">
                             {documentos.length === 0 ? (
                                 <div className="text-center py-8">
                                     <FileText className="h-10 w-10 text-slate-300 mx-auto mb-2" />
-                                    <p className="text-xs text-slate-500">Nenhum documento anexado a este patrimônio.</p>
+                                    <p className="text-xs text-slate-500">Ningún documento adjunto a este activo.</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -805,7 +805,7 @@ export function PatrimonioDetailPage() {
                                                         {doc.titulo}
                                                     </h4>
                                                     <span className="text-[11px] text-slate-400">
-                                                        {new Date(doc.created_at).toLocaleDateString('pt-BR')}
+                                                        {new Date(doc.created_at).toLocaleDateString('es-ES')}
                                                     </span>
                                                 </div>
                                             </div>
@@ -821,7 +821,7 @@ export function PatrimonioDetailPage() {
                                                             : 'text-slate-500'
                                                     }`}
                                                 >
-                                                    {doc.status_assinatura === 'assinado' ? 'Assinado' : doc.status_assinatura === 'pendente' ? 'Pendente Assinatura' : 'Arquivo'}
+                                                    {doc.status_assinatura === 'assinado' ? 'Firmado' : doc.status_assinatura === 'pendente' ? 'Pendiente Firma' : 'Archivo'}
                                                 </Badge>
 
                                                 {doc.arquivo_url && doc.arquivo_url !== '#gerado_automaticamente' && (
@@ -831,7 +831,7 @@ export function PatrimonioDetailPage() {
                                                         rel="noreferrer"
                                                         className="text-xs text-sky-600 hover:text-sky-700 font-medium flex items-center gap-1"
                                                     >
-                                                        <Download className="h-3 w-3" /> Baixar
+                                                        <Download className="h-3 w-3" /> Descargar
                                                     </a>
                                                 )}
                                             </div>
@@ -848,20 +848,20 @@ export function PatrimonioDetailPage() {
                     <Card className="border-slate-200 dark:border-slate-800">
                         <CardHeader className="py-4 px-6 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <Wrench className="h-4 w-4 text-rose-500" /> Registro de Manutenções e Ordens de Serviço
+                                <Wrench className="h-4 w-4 text-rose-500" /> Registro de Mantenimientos y Órdenes de Servicio
                             </CardTitle>
                             <Button
                                 size="sm"
                                 onClick={() => setModalManutencaoOpen(true)}
                                 className="h-8 text-xs gap-1.5 bg-rose-600 hover:bg-rose-700 text-white"
                             >
-                                <Plus className="h-3.5 w-3.5" /> Nova Manutenção
+                                <Plus className="h-3.5 w-3.5" /> Nuevo Mantenimiento
                             </Button>
                         </CardHeader>
                         <CardContent className="p-6">
                             {manutencoes.length === 0 ? (
                                 <p className="text-xs text-slate-400 py-6 text-center">
-                                    Nenhuma manutenção realizada neste equipamento até o momento.
+                                    Ningún mantenimiento realizado en este equipo hasta el momento.
                                 </p>
                             ) : (
                                 <div className="space-y-3">
@@ -880,20 +880,20 @@ export function PatrimonioDetailPage() {
                                                                 : 'text-amber-700 bg-amber-50 border-amber-200'
                                                         }`}
                                                     >
-                                                        {m.status === 'concluida' ? 'Concluída' : 'Em Andamento'}
+                                                        {m.status === 'concluida' ? 'Finalizado' : 'En Curso'}
                                                     </Badge>
                                                     <span className="text-xs font-bold text-slate-900 dark:text-white">
                                                         {m.motivo}
                                                     </span>
                                                 </div>
                                                 <p className="text-xs text-slate-600 dark:text-slate-400">
-                                                    Oficina: <strong>{m.fornecedor_oficina || 'Não informada'}</strong> • Enviado em:{' '}
-                                                    {new Date(m.data_envio).toLocaleDateString('pt-BR')}
-                                                    {m.data_retorno && ` • Retorno: ${new Date(m.data_retorno).toLocaleDateString('pt-BR')}`}
+                                                    Taller: <strong>{m.fornecedor_oficina || 'No informado'}</strong> • Enviado el:{' '}
+                                                    {new Date(m.data_envio).toLocaleDateString('es-ES')}
+                                                    {m.data_retorno && ` • Retorno: ${new Date(m.data_retorno).toLocaleDateString('es-ES')}`}
                                                 </p>
                                                 {m.solucao_aplicada && (
                                                     <p className="text-xs text-slate-500 italic">
-                                                        Solução: {m.solucao_aplicada}
+                                                        Solución: {m.solucao_aplicada}
                                                     </p>
                                                 )}
                                             </div>
@@ -913,7 +913,7 @@ export function PatrimonioDetailPage() {
                                                         }}
                                                         className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                                                     >
-                                                        Finalizar Reparo
+                                                        Finalizar Reparación
                                                     </Button>
                                                 )}
                                             </div>
@@ -984,7 +984,7 @@ export function PatrimonioDetailPage() {
             <Dialog open={modalDocOpen} onOpenChange={setModalDocOpen}>
                 <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                     <DialogHeader>
-                        <DialogTitle className="text-base font-semibold">Anexar Documento ao Patrimônio</DialogTitle>
+                        <DialogTitle className="text-base font-semibold">Adjuntar Documento al Activo</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSalvarDocumento} className="space-y-4 py-1">
                         <div className="space-y-1.5">
@@ -994,31 +994,31 @@ export function PatrimonioDetailPage() {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="fatura">Fatura / Nota Fiscal</SelectItem>
-                                    <SelectItem value="garantia">Termo de Garantia</SelectItem>
-                                    <SelectItem value="manual">Manual do Usuário</SelectItem>
-                                    <SelectItem value="certificado">Certificado de Conformidade / Calibração</SelectItem>
-                                    <SelectItem value="termo_responsabilidade">Termo de Responsabilidade Assinado</SelectItem>
-                                    <SelectItem value="termo_devolucao">Termo de Devolução</SelectItem>
-                                    <SelectItem value="seguro">Apólice de Seguro</SelectItem>
-                                    <SelectItem value="outro">Outro Arquivo</SelectItem>
+                                    <SelectItem value="fatura">Factura / Justificante de Compra</SelectItem>
+                                    <SelectItem value="garantia">Documento de Garantía</SelectItem>
+                                    <SelectItem value="manual">Manual de Usuario</SelectItem>
+                                    <SelectItem value="certificado">Certificado de Conformidad / Calibración</SelectItem>
+                                    <SelectItem value="termo_responsabilidade">Acta de Responsabilidad Firmada</SelectItem>
+                                    <SelectItem value="termo_devolucao">Acta de Devolución</SelectItem>
+                                    <SelectItem value="seguro">Póliza de Seguro</SelectItem>
+                                    <SelectItem value="outro">Otro Archivo</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Título / Identificação do Documento</Label>
+                            <Label className="text-xs font-medium">Título / Identificación del Documento</Label>
                             <Input
                                 value={docTitulo}
                                 onChange={(e) => setDocTitulo(e.target.value)}
-                                placeholder="Ex: NF de Compra MediaMarkt"
+                                placeholder="Ej: Factura de Compra MediaMarkt"
                                 className="h-9 text-xs"
                                 required
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Arquivo (PDF ou Imagem)</Label>
+                            <Label className="text-xs font-medium">Archivo (PDF o Imagen)</Label>
                             <Input
                                 type="file"
                                 onChange={(e) => setDocFile(e.target.files?.[0] || null)}
@@ -1032,7 +1032,7 @@ export function PatrimonioDetailPage() {
                                 Cancelar
                             </Button>
                             <Button type="submit" size="sm" disabled={uploadingDoc} className="bg-sky-600 hover:bg-sky-700 text-white text-xs">
-                                {uploadingDoc ? 'Enviando...' : 'Anexar Arquivo'}
+                                {uploadingDoc ? 'Subiendo...' : 'Adjuntar Archivo'}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -1043,22 +1043,22 @@ export function PatrimonioDetailPage() {
             <Dialog open={modalConcluirManutencaoOpen} onOpenChange={setModalConcluirManutencaoOpen}>
                 <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                     <DialogHeader>
-                        <DialogTitle className="text-base font-semibold">Finalizar Manutenção</DialogTitle>
+                        <DialogTitle className="text-base font-semibold">Finalizar Mantenimiento</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleConcluirManutencaoSubmit} className="space-y-4 py-1">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Solução Aplicada pelo Reparador</Label>
+                            <Label className="text-xs font-medium">Solución Aplicada por el Taller / Reparador</Label>
                             <Input
                                 value={solucaoManutencao}
                                 onChange={(e) => setSolucaoManutencao(e.target.value)}
-                                placeholder="Ex: Troca de tela, substituição de rolamentos..."
+                                placeholder="Ej: Cambio de pantalla, sustitución de rodamientos..."
                                 className="h-9 text-xs"
                                 required
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Custo Final (€)</Label>
+                            <Label className="text-xs font-medium">Coste Final (€)</Label>
                             <Input
                                 type="number"
                                 step="0.01"
@@ -1074,7 +1074,7 @@ export function PatrimonioDetailPage() {
                                 Cancelar
                             </Button>
                             <Button type="submit" size="sm" disabled={submittingConclusao} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
-                                {submittingConclusao ? 'Concluindo...' : 'Concluir e Disponibilizar'}
+                                {submittingConclusao ? 'Finalizando...' : 'Finalizar y Poner Disponible'}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -1086,25 +1086,25 @@ export function PatrimonioDetailPage() {
                 <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-rose-600 text-base font-bold">
-                            <AlertTriangle className="h-5 w-5" /> Excluir Patrimônio
+                            <AlertTriangle className="h-5 w-5" /> Eliminar Activo
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500">
-                            Tem certeza que deseja excluir o patrimônio <strong>{ativo.codigo_patrimonial}</strong>? Esta ação é definitiva e removerá todo o histórico e documentos vinculados.
+                            ¿Está seguro de que desea eliminar el activo <strong>{ativo.codigo_patrimonial}</strong>? Esta acción es definitiva y eliminará todo el historial y documentos asociados.
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
                         <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Equipamento:</span>
+                            <span className="text-slate-500">Equipo:</span>
                             <span className="font-semibold text-slate-800 dark:text-slate-200">{ativo.descricao}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                            <span className="text-slate-500">Status Atual:</span>
+                            <span className="text-slate-500">Estado Actual:</span>
                             <span>{STATUS_CONFIG[ativo.status]?.label || ativo.status}</span>
                         </div>
                         {ativo.responsavel_nome && (
                             <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
-                                ⚠️ <strong>Atenção:</strong> Ativo em posse de <strong>{ativo.responsavel_nome}</strong>.
+                                ⚠️ <strong>Atención:</strong> Activo en custodia de <strong>{ativo.responsavel_nome}</strong>.
                             </div>
                         )}
                     </div>
@@ -1129,11 +1129,11 @@ export function PatrimonioDetailPage() {
                         >
                             {excluindo ? (
                                 <>
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Excluindo...
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Eliminando...
                                 </>
                             ) : (
                                 <>
-                                    <Trash2 className="h-3.5 w-3.5" /> Confirmar Exclusão
+                                    <Trash2 className="h-3.5 w-3.5" /> Confirmar Eliminación
                                 </>
                             )}
                         </Button>

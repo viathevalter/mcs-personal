@@ -68,7 +68,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
     const [previewRecords, setPreviewRecords] = useState<ParsedPontoPreview[]>([]);
     const [stats, setStats] = useState({ ok: 0, incompleto: 0, naoEncontrado: 0 });
 
-    // Maps para lookup rápido
+    // Maps para lookup rápido (priorizando ativos)
     const codeToMemberMap = new Map<string, ColaboradorEscritorio>();
     const nameToMemberMap = new Map<string, ColaboradorEscritorio>();
 
@@ -121,20 +121,20 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
             });
             setStats({ ok, incompleto: inc, naoEncontrado: ne });
         } catch (err) {
-            console.error('Erro ao processar planilha de ponto:', err);
-            alert('Falha ao ler planilha. Verifique se o arquivo está no formato suportado (.xls, .xlsx).');
+            console.error('Error al procesar archivo de control horario:', err);
+            alert('Error al leer el archivo. Compruebe que esté en formato compatible (.xls, .xlsx).');
         } finally {
             setParsing(false);
         }
     };
 
     /**
-     * Algoritmo de parsing para o relatório biométrico
+     * Algoritmo de parsing para el informe biométrico
      */
     const parseSheetData = (rows: any[][]): ParsedPontoPreview[] => {
         const results: ParsedPontoPreview[] = [];
 
-        // 1. Tenta extrair intervalo de datas (ex: 25.09.2026 ~ 28.09.2026)
+        // 1. Extrae intervalo de fechas (ej: 25.09.2026 ~ 28.09.2026)
         let baseYear = new Date().getFullYear();
         let baseMonth = new Date().getMonth() + 1;
 
@@ -154,14 +154,14 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
             const row = rows[r];
             if (!row || row.length === 0) continue;
 
-            // Detecta linha de dias do mês (ex: [25, 26, 27, 28] ou [1, 2, 3...])
+            // Detecta fila de días del mes
             const numCount = row.filter((cell: any) => typeof cell === 'number' && cell >= 1 && cell <= 31).length;
             if (numCount >= 2 && numCount <= 31) {
                 currentDaysHeader = row.map((c: any) => (typeof c === 'number' && c >= 1 && c <= 31 ? c : null));
                 continue;
             }
 
-            // Detecta linha de colaborador: "ID \t 1 \t Nombre \t Cristina Pena"
+            // Detecta fila de empleado: "ID \t 1 \t Nombre \t Cristina Pena"
             const rowJoined = row.map(c => String(c || '')).join(' ');
             if (rowJoined.includes('ID') && (rowJoined.includes('Nombre') || rowJoined.includes('Dept'))) {
                 let idStr = '';
@@ -184,23 +184,21 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
 
                 if (!idStr && !nomeStr) continue;
 
-                // Encontra o colaborador no banco
+                // Encuentra empleado
                 const member = codeToMemberMap.get(idStr) || 
                                nameToMemberMap.get(nomeStr.toLowerCase()) || 
                                colaboradores.find(c => c.nombrecompleto.toLowerCase().includes(nomeStr.toLowerCase().slice(0, 5)));
 
-                // A próxima linha com dados contém as batidas por coluna de dia!
+                // Siguiente fila con marcajes
                 let punchRowIndex = r + 1;
                 while (punchRowIndex < rows.length && punchRowIndex <= r + 3) {
                     const pRow = rows[punchRowIndex];
                     if (pRow && pRow.some((cell: any) => typeof cell === 'string' && cell.includes(':'))) {
-                        // Linha de batidas encontrada!
                         currentDaysHeader.forEach((dayNum, colIdx) => {
                             if (!dayNum) return;
                             const cellValue = pRow[colIdx];
                             if (!cellValue || typeof cellValue !== 'string') return;
 
-                            // Quebra os horários por linha (ex: "07:23\n10:33\n10:47\n15:03\n")
                             const punches = cellValue
                                 .split(/[\r\n]+/)
                                 .map(s => s.trim())
@@ -212,7 +210,6 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                             const diaFmt = String(dayNum).padStart(2, '0');
                             const dataFmt = `${baseYear}-${mesFmt}-${diaFmt}`;
 
-                            // Calcula horas aproximadas
                             const { horas, minutosExtras, status } = calcularHorasDia(punches);
 
                             let finalStatus: 'ok' | 'incompleto' | 'nao_encontrado' = 'ok';
@@ -246,7 +243,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
     };
 
     /**
-     * Calcula horas trabalhadas a partir dos pares de batidas
+     * Calcula horas trabajadas a partir de pares de fichajes
      */
     const calcularHorasDia = (punches: string[]) => {
         if (punches.length < 2) {
@@ -265,7 +262,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
         }
 
         const horas = Math.round((totalMinutos / 60) * 100) / 100;
-        const jornadaPrevistaMin = 480; // 8 horas diárias
+        const jornadaPrevistaMin = 480; // 8 horas diarias
         const minutosExtras = Math.max(0, totalMinutos - jornadaPrevistaMin);
 
         return {
@@ -278,7 +275,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
     const handleConfirmarGravacao = async () => {
         const validos = previewRecords.filter(p => p.colaboradorId);
         if (validos.length === 0) {
-            alert('Nenhum registro com colaborador identificado para salvar.');
+            alert('No hay registros con empleado identificado para guardar.');
             return;
         }
 
@@ -302,18 +299,18 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                     minutos_extras: p.minutosExtras,
                     status: p.status === 'incompleto' ? 'incompleto' : 'ok',
                     origem: 'importacao_relogio',
-                    observacoes: `Importado de planilha: ${fileName}`,
+                    observacoes: `Importado de archivo: ${fileName}`,
                 };
             });
 
             await salvarPontoBatch(batchPayload);
-            alert(`Sucesso! ${validos.length} registros de ponto importados e gravados com sucesso!`);
+            alert(`¡Éxito! Se han importado ${validos.length} registros de control horario.`);
             onOpenChange(false);
             resetState();
             onSuccess();
         } catch (error) {
-            console.error('Erro ao gravar lote de ponto:', error);
-            alert('Falha ao salvar registros no banco de dados.');
+            console.error('Error al guardar lote de fichajes:', error);
+            alert('Error al guardar registros en la base de datos.');
         } finally {
             setImporting(false);
         }
@@ -325,14 +322,14 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                 <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded">
-                            Relógio Ponto Biométrico
+                            Control Horario Biométrico
                         </span>
                     </div>
                     <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white mt-1">
-                        Importador da Planilha de Ponto
+                        Importador de Fichajes y Asistencia
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                        Carregue o arquivo extraído do relógio (ex: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">Todos los informes 1.xls</code>). O sistema cruza os códigos biométricos com os colaboradores.
+                        Cargue el archivo generado por el dispositivo de fichaje (ej: <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">Todos los informes 1.xls</code>). El sistema cruzará automáticamente los códigos con los empleados.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -352,15 +349,15 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                             />
                             <FileUp className="h-10 w-10 text-sky-600 mx-auto mb-3" />
                             <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                                Clique para selecionar a planilha de ponto
+                                Haga clic para seleccionar el archivo de fichajes
                             </h4>
                             <p className="text-xs text-slate-400 mt-1">
-                                Formatos aceitos: .xls (Excel 97-2004), .xlsx ou .csv
+                                Formatos compatibles: .xls, .xlsx o .csv
                             </p>
                         </div>
                     ) : (
                         <div className="space-y-4">
-                            {/* Resumo do Arquivo e Estatísticas Semáforo */}
+                            {/* Resumen del Archivo y Semáforo */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                                 <div className="flex items-center gap-3">
                                     <FileSpreadsheet className="h-8 w-8 text-emerald-600" />
@@ -369,7 +366,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                                             {fileName}
                                         </div>
                                         <div className="text-xs text-slate-500">
-                                            {previewRecords.length} batidas diárias identificadas
+                                            {previewRecords.length} marcajes diarios detectados
                                         </div>
                                     </div>
                                 </div>
@@ -377,31 +374,31 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                                 <div className="flex items-center gap-2">
                                     <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-xs font-semibold gap-1">
                                         <CheckCircle2 className="h-3 w-3" />
-                                        {stats.ok} Reconhecidos
+                                        {stats.ok} Reconocidos
                                     </Badge>
                                     <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-semibold gap-1">
                                         <AlertTriangle className="h-3 w-3" />
-                                        {stats.incompleto} Ímpares/Incompletos
+                                        {stats.incompleto} Incompletos
                                     </Badge>
                                     {stats.naoEncontrado > 0 && (
                                         <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs font-semibold gap-1">
                                             <XCircle className="h-3 w-3" />
-                                            {stats.naoEncontrado} Sem Vínculo
+                                            {stats.naoEncontrado} Sin Vincular
                                         </Badge>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Tabela de Prévia Semáforo */}
+                            {/* Tabla de Previsualización */}
                             <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-slate-50 dark:bg-slate-900">
-                                            <TableHead className="font-bold text-xs">Status</TableHead>
-                                            <TableHead className="font-bold text-xs">ID Relógio</TableHead>
-                                            <TableHead className="font-bold text-xs">Colaborador Vinculado</TableHead>
-                                            <TableHead className="font-bold text-xs">Data</TableHead>
-                                            <TableHead className="font-bold text-xs">Batidas Detectadas</TableHead>
+                                            <TableHead className="font-bold text-xs">Estado</TableHead>
+                                            <TableHead className="font-bold text-xs">ID Fichaje</TableHead>
+                                            <TableHead className="font-bold text-xs">Empleado Identificado</TableHead>
+                                            <TableHead className="font-bold text-xs">Fecha</TableHead>
+                                            <TableHead className="font-bold text-xs">Marcajes Detectados</TableHead>
                                             <TableHead className="font-bold text-xs text-right">Horas</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -424,7 +421,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                                                     {record.status === 'nao_encontrado' && (
                                                         <span className="flex items-center gap-1 text-[11px] font-semibold text-rose-600">
                                                             <span className="h-2 w-2 rounded-full bg-rose-500" />
-                                                            Não Mapeado
+                                                            No Mapeado
                                                         </span>
                                                     )}
                                                 </TableCell>
@@ -457,7 +454,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                                 </Table>
                                 {previewRecords.length > 50 && (
                                     <div className="p-2 text-center text-xs text-slate-400 bg-slate-50 dark:bg-slate-900">
-                                        Exibindo primeiras 50 de {previewRecords.length} batidas identificadas.
+                                        Mostrando los primeros 50 de {previewRecords.length} marcajes identificados.
                                     </div>
                                 )}
                             </div>
@@ -468,7 +465,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                 <DialogFooter className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between sm:justify-between w-full">
                     {fileName ? (
                         <Button variant="ghost" size="sm" onClick={resetState} className="text-xs">
-                            Trocar Arquivo
+                            Cambiar Archivo
                         </Button>
                     ) : <div />}
 
@@ -483,7 +480,7 @@ export const ImportarPontoModal: React.FC<ImportarPontoModalProps> = ({
                             className="bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs gap-1.5 shadow-sm"
                         >
                             <Check className="h-3.5 w-3.5" />
-                            {importing ? 'Gravando no Banco...' : `Confirmar e Gravar ${previewRecords.filter(p => p.colaboradorId).length} Registros`}
+                            {importing ? 'Guardando en Base de Datos...' : `Confirmar e Importar ${previewRecords.filter(p => p.colaboradorId).length} Fichajes`}
                         </Button>
                     </div>
                 </DialogFooter>

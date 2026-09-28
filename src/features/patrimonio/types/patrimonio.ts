@@ -157,14 +157,14 @@ export interface PatrimonioFiltros {
 }
 
 export const CATEGORIAS_PATRIMONIO = [
-    { id: 'TI', nome: 'Informática (Notebooks, Monitores, PCs)', prefixo: 'TI' },
-    { id: 'CEL', nome: 'Celular / Telefonia Móvel', prefixo: 'MOB' },
-    { id: 'FER_ELE', nome: 'Ferramentas Elétricas', prefixo: 'FER' },
-    { id: 'FER_MAN', nome: 'Ferramentas Manuais', prefixo: 'FER' },
-    { id: 'MAQ', nome: 'Máquinas e Equipamentos de Oficina', prefixo: 'MAQ' },
-    { id: 'VEI', nome: 'Veículos / Frotas', prefixo: 'VEI' },
-    { id: 'MOV', nome: 'Mobiliário e Escritório', prefixo: 'MOV' },
-    { id: 'OUT', nome: 'Outros Bens', prefixo: 'PAT' },
+    { id: 'TI', nome: 'Informática (Portátiles, Monitores, PCs)', prefixo: 'TI' },
+    { id: 'CEL', nome: 'Móvil / Telefonía Móvil', prefixo: 'MOB' },
+    { id: 'FER_ELE', nome: 'Herramientas Eléctricas', prefixo: 'FER' },
+    { id: 'FER_MAN', nome: 'Herramientas Manuales', prefixo: 'FER' },
+    { id: 'MAQ', nome: 'Máquinas y Equipos de Taller', prefixo: 'MAQ' },
+    { id: 'VEI', nome: 'Vehículos / Flotas', prefixo: 'VEI' },
+    { id: 'MOV', nome: 'Mobiliario y Oficina', prefixo: 'MOV' },
+    { id: 'OUT', nome: 'Otros Bienes', prefixo: 'PAT' },
 ] as const;
 
 export const STATUS_CONFIG: Record<
@@ -172,7 +172,7 @@ export const STATUS_CONFIG: Record<
     { label: string; labelEs: string; color: string; bg: string; border: string; dot: string }
 > = {
     disponivel: {
-        label: 'Disponível',
+        label: 'Disponible',
         labelEs: 'Disponible',
         color: 'text-emerald-700 dark:text-emerald-300',
         bg: 'bg-emerald-50 dark:bg-emerald-950/40',
@@ -180,7 +180,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-emerald-500',
     },
     em_uso: {
-        label: 'Em uso',
+        label: 'En uso',
         labelEs: 'En uso',
         color: 'text-blue-700 dark:text-blue-300',
         bg: 'bg-blue-50 dark:bg-blue-950/40',
@@ -196,7 +196,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-purple-500',
     },
     em_transito: {
-        label: 'Em trânsito',
+        label: 'En tránsito',
         labelEs: 'En tránsito',
         color: 'text-indigo-700 dark:text-indigo-300',
         bg: 'bg-indigo-50 dark:bg-indigo-950/40',
@@ -204,7 +204,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-indigo-500',
     },
     em_manutencao: {
-        label: 'Em manutenção',
+        label: 'En mantenimiento',
         labelEs: 'En mantenimiento',
         color: 'text-amber-700 dark:text-amber-300',
         bg: 'bg-amber-50 dark:bg-amber-950/40',
@@ -212,7 +212,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-amber-500',
     },
     aguardando_manutencao: {
-        label: 'Aguardando manutenção',
+        label: 'Esperando mantenimiento',
         labelEs: 'Esperando mantenimiento',
         color: 'text-orange-700 dark:text-orange-300',
         bg: 'bg-orange-50 dark:bg-orange-950/40',
@@ -220,7 +220,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-orange-500',
     },
     danificado: {
-        label: 'Danificado',
+        label: 'Dañado',
         labelEs: 'Dañado',
         color: 'text-rose-700 dark:text-rose-300',
         bg: 'bg-rose-50 dark:bg-rose-950/40',
@@ -236,7 +236,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-red-500',
     },
     roubado: {
-        label: 'Roubado',
+        label: 'Robado',
         labelEs: 'Robado',
         color: 'text-red-800 dark:text-red-200',
         bg: 'bg-red-100 dark:bg-red-950/60',
@@ -244,7 +244,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-red-600',
     },
     baixado: {
-        label: 'Baixado',
+        label: 'Dado de baja',
         labelEs: 'Dado de baja',
         color: 'text-slate-600 dark:text-slate-400',
         bg: 'bg-slate-100 dark:bg-slate-800',
@@ -260,7 +260,7 @@ export const STATUS_CONFIG: Record<
         dot: 'bg-cyan-500',
     },
     descartado: {
-        label: 'Descartado',
+        label: 'Desechado',
         labelEs: 'Desechado',
         color: 'text-zinc-600 dark:text-zinc-400',
         bg: 'bg-zinc-100 dark:bg-zinc-800',

@@ -37,14 +37,14 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     doc.rect(marginX, currentY - 5, 170, 1.5, 'F');
     
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text('TERMO DE RESPONSABILIDADE E ENTREGA DE EQUIPAMENTO', marginX, currentY + 5);
+    doc.text('ACTA DE ENTREGA, RESPONSABILIDAD Y CUSTODIA DE EQUIPO', marginX, currentY + 5);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
-    doc.text(`${empresa.toUpperCase()} • CONTROLE PATRIMONIAL`, marginX, currentY + 11);
+    doc.text(`${empresa.toUpperCase()} • CONTROL DE ACTIVOS Y PATRIMONIO`, marginX, currentY + 11);
 
     currentY += 20;
 
@@ -57,7 +57,7 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text('1. DADOS DO EQUIPAMENTO / BEM PATRIMONIAL', marginX + 4, currentY + 6);
+    doc.text('1. DATOS DEL EQUIPO / ACTIVO ASIGNADO', marginX + 4, currentY + 6);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -71,20 +71,20 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     doc.text(`${data.ativo.codigo_patrimonial}`, col1X + 32, currentY + 14);
     doc.setFont('helvetica', 'normal');
 
-    doc.text(`Categoria: ${data.ativo.categoria || '-'}`, col2X, currentY + 14);
+    doc.text(`Categoría: ${data.ativo.categoria || '-'}`, col2X, currentY + 14);
 
-    doc.text(`Descrição: ${data.ativo.descricao || '-'}`, col1X, currentY + 20);
+    doc.text(`Descripción: ${data.ativo.descricao || '-'}`, col1X, currentY + 20);
     doc.text(`Marca/Modelo: ${[data.ativo.marca, data.ativo.modelo].filter(Boolean).join(' ') || '-'}`, col2X, currentY + 20);
 
     const extraIdent = data.ativo.imei
         ? `IMEI: ${data.ativo.imei}`
         : data.ativo.matricula
         ? `Matrícula: ${data.ativo.matricula}`
-        : `Nº de Série: ${data.ativo.numero_serie || 'Não informado'}`;
+        : `Nº de Serie: ${data.ativo.numero_serie || 'No informado'}`;
     doc.text(extraIdent, col1X, currentY + 26);
-    doc.text(`Cor: ${data.ativo.cor || 'Padrão'}`, col2X, currentY + 26);
+    doc.text(`Color: ${data.ativo.cor || 'Estándar'}`, col2X, currentY + 26);
 
-    doc.text(`Estado no ato de entrega: ${data.estadoEquipamento || 'Excelente / Sem avarias'}`, col1X, currentY + 32);
+    doc.text(`Estado en el momento de entrega: ${data.estadoEquipamento || 'Excelente / Sin averías'}`, col1X, currentY + 32);
 
     currentY += 42;
 
@@ -97,24 +97,24 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text('2. BENEFICIÁRIO / RESPONSÁVEL PELA CUSTÓDIA', marginX + 4, currentY + 6);
+    doc.text('2. BENEFICIARIO / TRABAJADOR RESPONSABLE DE LA CUSTODIA', marginX + 4, currentY + 6);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.setTextColor(textColor[0], textColor[1], textColor[2]);
 
-    doc.text(`Colaborador: `, col1X, currentY + 14);
+    doc.text(`Trabajador: `, col1X, currentY + 14);
     doc.setFont('helvetica', 'bold');
     doc.text(`${data.funcionarioNome}`, col1X + 22, currentY + 14);
     doc.setFont('helvetica', 'normal');
 
-    doc.text(`Documento (DNI/NIE/Passaporte): ${data.funcionarioDoc || 'Registrado no RH'}`, col2X, currentY + 14);
+    doc.text(`Documento (DNI/NIE/Pasaporte): ${data.funcionarioDoc || 'Registrado en RRHH'}`, col2X, currentY + 14);
 
-    doc.text(`Projeto / Centro: ${data.projeto || data.ativo.projeto || 'Oficina Geral'}`, col1X, currentY + 20);
-    doc.text(`Coordenador Responsável: ${data.coordenadorNome || 'Coordenação Operacional'}`, col2X, currentY + 20);
+    doc.text(`Proyecto / Centro: ${data.projeto || data.ativo.projeto || 'Taller General'}`, col1X, currentY + 20);
+    doc.text(`Coordinador Responsable: ${data.coordenadorNome || 'Coordinación Operativa'}`, col2X, currentY + 20);
 
-    doc.text(`Local da Entrega: ${data.localEntrega || 'Armazém / Escritório'}`, col1X, currentY + 26);
-    doc.text(`Data: ${data.dataEntrega || new Date().toLocaleDateString('pt-BR')}`, col2X, currentY + 26);
+    doc.text(`Lugar de Entrega: ${data.localEntrega || 'Almacén / Oficina Central'}`, col1X, currentY + 26);
+    doc.text(`Fecha: ${data.dataEntrega || new Date().toLocaleDateString('es-ES')}`, col2X, currentY + 26);
 
     currentY += 38;
 
@@ -127,7 +127,7 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-        doc.text('3. ACESSÓRIOS E COMPONENTES ENTREGUES', marginX + 4, currentY + 5);
+        doc.text('3. ACCESORIOS Y COMPONENTES ENTREGADOS', marginX + 4, currentY + 5);
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8.5);
@@ -141,7 +141,7 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-    doc.text('CLÁUSULAS DE UTILIZAÇÃO E RESPONSABILIDADE', marginX, currentY);
+    doc.text('CLÁUSULAS DE USO Y RESPONSABILIDAD LABORAL', marginX, currentY);
 
     currentY += 5;
     doc.setFont('helvetica', 'normal');
@@ -149,11 +149,11 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     doc.setTextColor(textColor[0], textColor[1], textColor[2]);
 
     const clausulas = [
-        '1. O colaborador declara ter recebido em perfeito estado de conservação e funcionamento o bem patrimonial acima especificado, comprometendo-se a utilizá-lo estritamente para o desempenho de suas atividades profissionais.',
-        '2. O colaborador compromete-se a zelar pela integridade física do equipamento e seus respectivos acessórios, comunicando imediatamente à empresa qualquer dano, falha, extravio, furto ou roubo do mesmo.',
-        '3. Em caso de negligência, dolo, má utilização ou extravio injustificado, o colaborador poderá ser responsabilizado pelas despesas de conserto ou reposição do bem nos limites da legislação vigente.',
-        '4. É vedada a cessão, empréstimo, penhor ou transferência do equipamento a terceiros sem prévia autorização formal por escrito da diretoria ou coordenação.',
-        '5. O colaborador obriga-se a restituir o equipamento nas mesmas condições em que o recebeu (salvo desgaste natural do uso) por ocasião da rescisão contratual, alteração de função ou quando for expressamente solicitado pela empresa.',
+        '1. El trabajador declara haber recibido en perfecto estado de funcionamiento y conservación el bien especificado anteriormente, comprometiéndose a destinarlo exclusivamente al desempeño de sus funciones y actividades laborales para la empresa.',
+        '2. El trabajador se compromete a velar diligentemente por la integridad física del equipo y sus respectivos accesorios, obligándose a comunicar de forma inmediata a la empresa cualquier daño, avería técnica, extravío, hurto o robo del mismo.',
+        '3. En caso de negligencia grave, dolo, uso indebido, o extravío injustificado, el trabajador podrá responder de los gastos de reparación o reposición del bien dentro del marco legal establecido en el Estatuto de los Trabajadores y normativa laboral aplicable.',
+        '4. Queda expresamente prohibida la cesión, préstamo, empeño o traslado del equipo a terceros ajenos a la relación laboral sin la previa y expresa autorización por escrito de la dirección de la empresa o coordinador responsable.',
+        '5. El trabajador se obliga a restituir de inmediato el equipo en las mismas condiciones en que le fue entregado (salvo el desgaste normal y propio del uso profesional) con ocasión de la extinción o suspensión del contrato laboral, cambio de puesto o cuando la empresa lo requiera formalmente.',
     ];
 
     clausulas.forEach(c => {
@@ -167,12 +167,12 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     // Cidade e Data
     doc.setFontSize(9);
     doc.text(
-        `Declaro ter lido e concordado integralmente com todos os termos e condições deste termo.`,
+        `Declaro haber recibido el material reseñado, hallándose en perfecto estado de uso, y conforme con las condiciones expresadas.`,
         marginX,
         currentY
     );
     currentY += 5;
-    doc.text(`Data de assinatura: ______ / ______ / 20____`, marginX, currentY);
+    doc.text(`Fecha de firma: ______ / ______ / 20____`, marginX, currentY);
 
     currentY += 24;
 
@@ -187,10 +187,10 @@ export function gerarTermoResponsabilidadePdf(data: TermoResponsabilidadeData): 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.text(`${data.funcionarioNome}`, colAssinatura1 + 35, currentY + 5, { align: 'center' });
-    doc.text('RESPONSÁVEL / COLABORADOR', colAssinatura1 + 35, currentY + 9, { align: 'center' });
+    doc.text('TRABAJADOR / DEPOSITARIO', colAssinatura1 + 35, currentY + 9, { align: 'center' });
 
     doc.text(`${empresa.toUpperCase()}`, colAssinatura2 + 35, currentY + 5, { align: 'center' });
-    doc.text('EMPRESA / COORDENAÇÃO', colAssinatura2 + 35, currentY + 9, { align: 'center' });
+    doc.text('EMPRESA / COORDINACIÓN', colAssinatura2 + 35, currentY + 9, { align: 'center' });
 
     return doc;
 }

@@ -97,12 +97,12 @@ export function PatrimonioListPage() {
         setExcluindo(true);
         try {
             await excluirAtivo(ativoParaExcluir.id);
-            toast.success(`Patrimônio ${ativoParaExcluir.codigo_patrimonial} excluído com sucesso!`);
+            toast.success(`¡Activo ${ativoParaExcluir.codigo_patrimonial} eliminado con éxito!`);
             setAtivoParaExcluir(null);
             carregarAtivos();
         } catch (err: any) {
             console.error('Erro ao excluir:', err);
-            toast.error(err?.message || 'Falha ao excluir patrimônio.');
+            toast.error(err?.message || 'Error al eliminar el activo.');
         } finally {
             setExcluindo(false);
         }
@@ -122,7 +122,7 @@ export function PatrimonioListPage() {
             setAtivos(dados);
         } catch (err: any) {
             console.error('Erro ao listar patrimônios:', err);
-            toast.error('Falha ao carregar lista de patrimônio.');
+            toast.error('Error al cargar la lista de activos.');
         } finally {
             setLoading(false);
         }
@@ -202,11 +202,11 @@ export function PatrimonioListPage() {
                     <div className="flex items-center gap-2">
                         <ShieldCheck className="h-6 w-6 text-sky-600" />
                         <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                            Controle Patrimonial & Ativos
+                            Control de Activos y Patrimonio
                         </h1>
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
-                        Gestão de bens, etiquetas com QR Code, termos de custódia e histórico de ferramentas da empresa.
+                        Gestión de bienes, etiquetas con código QR, actas de custodia e historial de herramientas de la empresa.
                     </p>
                 </div>
 
@@ -218,7 +218,7 @@ export function PatrimonioListPage() {
                         variant="outline"
                         className="h-9 text-xs gap-1.5 border-sky-300 dark:border-sky-800 text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100"
                     >
-                        <Camera className="h-4 w-4 text-sky-600" /> Escanear QR Code
+                        <Camera className="h-4 w-4 text-sky-600" /> Escanear Código QR
                     </Button>
 
                     {/* Botão Imprimir Etiquetas */}
@@ -231,7 +231,7 @@ export function PatrimonioListPage() {
                         <Printer className="h-3.5 w-3.5 text-slate-600" />
                         {selecionados.length > 0
                             ? `Imprimir Etiquetas (${selecionados.length})`
-                            : 'Imprimir Etiquetas em Lote'}
+                            : 'Imprimir Etiquetas en Lote'}
                     </Button>
 
                     {/* Dropdown de Exportações */}
@@ -243,13 +243,13 @@ export function PatrimonioListPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => exportarPatrimoniosExcel(ativosFiltrados)} className="text-xs gap-2">
-                                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Exportar para Excel (.xlsx)
+                                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Exportar a Excel (.xlsx)
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => exportarPatrimoniosCsv(ativosFiltrados)} className="text-xs gap-2">
-                                <FileText className="h-3.5 w-3.5 text-blue-600" /> Exportar para CSV
+                                <FileText className="h-3.5 w-3.5 text-blue-600" /> Exportar a CSV
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => exportarPatrimoniosPdf(ativosFiltrados)} className="text-xs gap-2">
-                                <Printer className="h-3.5 w-3.5 text-rose-600" /> Exportar para Relatório PDF
+                                <Printer className="h-3.5 w-3.5 text-rose-600" /> Exportar Informe PDF
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
@@ -262,7 +262,7 @@ export function PatrimonioListPage() {
                         }}
                         className="h-9 text-xs gap-1.5 bg-sky-600 hover:bg-sky-700 text-white"
                     >
-                        <Plus className="h-4 w-4" /> Novo Patrimônio
+                        <Plus className="h-4 w-4" /> Nuevo Activo
                     </Button>
                 </div>
             </div>
@@ -274,7 +274,7 @@ export function PatrimonioListPage() {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <Input
-                                placeholder="Buscar por código, descrição, marca, responsável, IMEI ou nº de série..."
+                                placeholder="Buscar por código, descripción, marca, responsable, IMEI o n.º de serie..."
                                 value={busca}
                                 onChange={(e) => setBusca(e.target.value)}
                                 className="pl-9 h-9 text-xs"
@@ -295,7 +295,7 @@ export function PatrimonioListPage() {
                                     ? 'bg-white dark:bg-slate-700 text-sky-600 shadow-sm'
                                     : 'text-slate-400 hover:text-slate-600'
                             }`}
-                            title="Visualização em Galeria (Cards)"
+                            title="Vista en Galería (Tarjetas)"
                         >
                             <LayoutGrid className="h-4 w-4" />
                         </button>
@@ -307,7 +307,7 @@ export function PatrimonioListPage() {
                                     ? 'bg-white dark:bg-slate-700 text-sky-600 shadow-sm'
                                     : 'text-slate-400 hover:text-slate-600'
                             }`}
-                            title="Visualização em Tabela Detalhada"
+                            title="Vista en Tabla Detallada"
                         >
                             <List className="h-4 w-4" />
                         </button>
@@ -318,10 +318,10 @@ export function PatrimonioListPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 border-t border-slate-100 dark:border-slate-800">
                     <Select value={filtroStatus} onValueChange={setFiltroStatus}>
                         <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Status" />
+                            <SelectValue placeholder="Estado" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="todos">Todos os Status</SelectItem>
+                            <SelectItem value="todos">Todos los Estados</SelectItem>
                             {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
                                 <SelectItem key={key} value={key}>
                                     {cfg.label}
@@ -332,10 +332,10 @@ export function PatrimonioListPage() {
 
                     <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
                         <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Categoria" />
+                            <SelectValue placeholder="Categoría" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="todas">Todas as Categorias</SelectItem>
+                            <SelectItem value="todas">Todas las Categorías</SelectItem>
                             {CATEGORIAS_PATRIMONIO.map((c) => (
                                 <SelectItem key={c.id} value={c.nome}>
                                     {c.nome}
@@ -346,10 +346,10 @@ export function PatrimonioListPage() {
 
                     <Select value={filtroEmpresa} onValueChange={setFiltroEmpresa}>
                         <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Empresa Proprietária" />
+                            <SelectValue placeholder="Empresa Propietaria" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="todas">Todas as Empresas</SelectItem>
+                            <SelectItem value="todas">Todas las Empresas</SelectItem>
                             {empresas.map((emp) => (
                                 <SelectItem key={emp.id} value={emp.nome}>
                                     <div className="flex items-center gap-1.5">
@@ -370,10 +370,10 @@ export function PatrimonioListPage() {
 
                     <Select value={filtroProjeto} onValueChange={setFiltroProjeto}>
                         <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Projeto / Local" />
+                            <SelectValue placeholder="Proyecto / Centro" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="todos">Todos os Projetos</SelectItem>
+                            <SelectItem value="todos">Todos los Proyectos</SelectItem>
                             {projetosDisponiveis.map((proj) => (
                                 <SelectItem key={proj} value={proj}>
                                     {proj}
@@ -388,11 +388,11 @@ export function PatrimonioListPage() {
             <div className="flex items-center justify-between text-xs text-slate-500 px-1">
                 <div className="flex items-center gap-2">
                     <span>
-                        Exibindo <strong>{ativosFiltrados.length}</strong> patrimônio(s)
+                        Mostrando <strong>{ativosFiltrados.length}</strong> activo(s)
                     </span>
                     {selecionados.length > 0 && (
                         <span className="font-semibold text-sky-600">
-                            • {selecionados.length} selecionado(s)
+                            • {selecionados.length} seleccionado(s)
                         </span>
                     )}
                 </div>
@@ -402,7 +402,7 @@ export function PatrimonioListPage() {
                         onClick={toggleSelectAll}
                         className="text-xs text-slate-600 dark:text-slate-400 hover:text-sky-600 font-medium"
                     >
-                        {selecionados.length === ativosFiltrados.length ? 'Desmarcar todos' : 'Selecionar todos para etiquetas'}
+                        {selecionados.length === ativosFiltrados.length ? 'Deseleccionar todos' : 'Seleccionar todos para etiquetas'}
                     </button>
                 )}
             </div>
@@ -411,23 +411,23 @@ export function PatrimonioListPage() {
             {loading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3">
                     <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
-                    <span className="text-xs text-slate-500 font-medium">Carregando patrimônios...</span>
+                    <span className="text-xs text-slate-500 font-medium">Cargando activos...</span>
                 </div>
             ) : ativosFiltrados.length === 0 ? (
                 <div className="p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900/40">
                     <ShieldCheck className="h-12 w-12 text-slate-300 mx-auto mb-3" />
                     <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                        Nenhum patrimônio encontrado
+                        No se encontraron activos
                     </h3>
                     <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                        Tente ajustar os filtros acima ou cadastre um novo equipamento para iniciar o controle.
+                        Pruebe a ajustar los filtros anteriores o registre un nuevo equipo para iniciar el control.
                     </p>
                     <Button
                         onClick={() => setNovoAtivoOpen(true)}
                         size="sm"
                         className="mt-4 bg-sky-600 hover:bg-sky-700 text-white text-xs gap-1.5"
                     >
-                        <Plus className="h-3.5 w-3.5" /> Cadastrar Primeiro Ativo
+                        <Plus className="h-3.5 w-3.5" /> Registrar Primer Activo
                     </Button>
                 </div>
             ) : viewMode === 'cards' ? (
@@ -510,15 +510,15 @@ export function PatrimonioListPage() {
                                         {/* Informações de Custódia */}
                                         <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-xs space-y-1">
                                             <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                                                <span className="text-slate-400">Responsável:</span>
+                                                <span className="text-slate-400">Responsable:</span>
                                                 <span className="font-semibold truncate max-w-[140px]">
-                                                    {ativo.responsavel_nome || 'Armazém Central'}
+                                                    {ativo.responsavel_nome || 'Almacén Central'}
                                                 </span>
                                             </div>
 
                                             {ativo.projeto && (
                                                 <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                                                    <span className="text-slate-400">Projeto:</span>
+                                                    <span className="text-slate-400">Proyecto:</span>
                                                     <span className="font-medium truncate max-w-[140px] text-sky-600">
                                                         {ativo.projeto}
                                                     </span>
@@ -543,7 +543,7 @@ export function PatrimonioListPage() {
                                         onClick={() => navigate(`/escritorio/patrimonio/${ativo.codigo_patrimonial}`)}
                                         className="h-7 text-xs text-sky-600 hover:text-sky-700 px-2 gap-1 font-medium"
                                     >
-                                        <ExternalLink className="h-3.5 w-3.5" /> Detalhes
+                                        <ExternalLink className="h-3.5 w-3.5" /> Detalles
                                     </Button>
 
                                     <DropdownMenu>
@@ -560,7 +560,7 @@ export function PatrimonioListPage() {
                                                 }}
                                                 className="gap-2"
                                             >
-                                                <Edit className="h-3.5 w-3.5 text-blue-600" /> Editar Cadastro
+                                                <Edit className="h-3.5 w-3.5 text-blue-600" /> Editar Registro
                                             </DropdownMenuItem>
 
                                             <DropdownMenuItem
@@ -583,7 +583,7 @@ export function PatrimonioListPage() {
                                                     }}
                                                     className="gap-2 text-emerald-600"
                                                 >
-                                                    <UserCheck className="h-3.5 w-3.5" /> Entregar a Colaborador
+                                                    <UserCheck className="h-3.5 w-3.5" /> Entregar a Empleado
                                                 </DropdownMenuItem>
                                             )}
 
@@ -596,7 +596,7 @@ export function PatrimonioListPage() {
                                                         }}
                                                         className="gap-2 text-amber-600"
                                                     >
-                                                        <RotateCcw className="h-3.5 w-3.5" /> Registrar Devolução
+                                                        <RotateCcw className="h-3.5 w-3.5" /> Registrar Devolución
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         onClick={() => {
@@ -605,7 +605,7 @@ export function PatrimonioListPage() {
                                                         }}
                                                         className="gap-2 text-blue-600"
                                                     >
-                                                        <RefreshCw className="h-3.5 w-3.5" /> Transferir Projeto
+                                                        <RefreshCw className="h-3.5 w-3.5" /> Transferir Proyecto
                                                     </DropdownMenuItem>
                                                 </>
                                             )}
@@ -617,7 +617,7 @@ export function PatrimonioListPage() {
                                                 }}
                                                 className="gap-2 text-amber-700 dark:text-amber-500"
                                             >
-                                                <Wrench className="h-3.5 w-3.5" /> Enviar Manutenção
+                                                <Wrench className="h-3.5 w-3.5" /> Enviar a Mantenimiento
                                             </DropdownMenuItem>
 
                                             <div className="h-px bg-slate-100 dark:bg-slate-800 my-1" />
@@ -626,7 +626,7 @@ export function PatrimonioListPage() {
                                                 onClick={() => setAtivoParaExcluir(ativo)}
                                                 className="gap-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
                                             >
-                                                <Trash2 className="h-3.5 w-3.5" /> Excluir Patrimônio
+                                                <Trash2 className="h-3.5 w-3.5" /> Eliminar Activo
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
@@ -648,14 +648,14 @@ export function PatrimonioListPage() {
                                     />
                                 </TableHead>
                                 <TableHead className="text-xs">Código</TableHead>
-                                <TableHead className="text-xs">Descrição / Modelo</TableHead>
-                                <TableHead className="text-xs">Categoria</TableHead>
-                                <TableHead className="text-xs">Status</TableHead>
-                                <TableHead className="text-xs">Responsável Atual</TableHead>
-                                <TableHead className="text-xs">Projeto</TableHead>
-                                <TableHead className="text-xs">Nº Série / IMEI</TableHead>
+                                <TableHead className="text-xs">Descripción / Modelo</TableHead>
+                                <TableHead className="text-xs">Categoría</TableHead>
+                                <TableHead className="text-xs">Estado</TableHead>
+                                <TableHead className="text-xs">Responsable Actual</TableHead>
+                                <TableHead className="text-xs">Proyecto</TableHead>
+                                <TableHead className="text-xs">N.º Serie / IMEI</TableHead>
                                 <TableHead className="text-xs">Empresa</TableHead>
-                                <TableHead className="text-xs text-right">Ações</TableHead>
+                                <TableHead className="text-xs text-right">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -703,7 +703,7 @@ export function PatrimonioListPage() {
                                         </TableCell>
                                         <TableCell className="text-xs font-medium text-slate-800 dark:text-slate-200">
                                             {ativo.responsavel_nome || (
-                                                <span className="text-slate-400 italic">Disponível em Armazém</span>
+                                                <span className="text-slate-400 italic">Disponible en Almacén</span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-xs text-slate-600 dark:text-slate-400">
@@ -722,7 +722,7 @@ export function PatrimonioListPage() {
                                                     size="icon"
                                                     onClick={() => navigate(`/escritorio/patrimonio/${ativo.codigo_patrimonial}`)}
                                                     className="h-7 w-7 text-slate-500 hover:text-sky-600"
-                                                    title="Ver Detalhes"
+                                                    title="Ver Detalles"
                                                 >
                                                     <Eye className="h-3.5 w-3.5" />
                                                 </Button>
@@ -735,7 +735,7 @@ export function PatrimonioListPage() {
                                                         setNovoAtivoOpen(true);
                                                     }}
                                                     className="h-7 w-7 text-slate-500 hover:text-blue-600"
-                                                    title="Editar Cadastro"
+                                                    title="Editar Registro"
                                                 >
                                                     <Edit className="h-3.5 w-3.5" />
                                                 </Button>
@@ -745,7 +745,7 @@ export function PatrimonioListPage() {
                                                     size="icon"
                                                     onClick={() => setAtivoParaExcluir(ativo)}
                                                     className="h-7 w-7 text-slate-500 hover:text-rose-600"
-                                                    title="Excluir Patrimônio"
+                                                    title="Eliminar Activo"
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
@@ -777,7 +777,7 @@ export function PatrimonioListPage() {
                                                                 }}
                                                                 className="gap-2 text-emerald-600"
                                                             >
-                                                                <UserCheck className="h-3.5 w-3.5" /> Entregar a Colaborador
+                                                                <UserCheck className="h-3.5 w-3.5" /> Entregar a Empleado
                                                             </DropdownMenuItem>
                                                         )}
 
@@ -790,7 +790,7 @@ export function PatrimonioListPage() {
                                                                     }}
                                                                     className="gap-2 text-amber-600"
                                                                 >
-                                                                    <RotateCcw className="h-3.5 w-3.5" /> Registrar Devolução
+                                                                    <RotateCcw className="h-3.5 w-3.5" /> Registrar Devolución
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem
                                                                     onClick={() => {
@@ -799,7 +799,7 @@ export function PatrimonioListPage() {
                                                                     }}
                                                                     className="gap-2 text-blue-600"
                                                                 >
-                                                                    <RefreshCw className="h-3.5 w-3.5" /> Transferir Projeto
+                                                                    <RefreshCw className="h-3.5 w-3.5" /> Transferir Proyecto
                                                                 </DropdownMenuItem>
                                                             </>
                                                         )}
@@ -811,7 +811,7 @@ export function PatrimonioListPage() {
                                                             }}
                                                             className="gap-2 text-amber-700 dark:text-amber-500"
                                                         >
-                                                            <Wrench className="h-3.5 w-3.5" /> Enviar Manutenção
+                                                            <Wrench className="h-3.5 w-3.5" /> Enviar a Mantenimiento
                                                         </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
@@ -899,30 +899,30 @@ export function PatrimonioListPage() {
                 <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-rose-600 text-base font-bold">
-                            <AlertTriangle className="h-5 w-5" /> Excluir Patrimônio
+                            <AlertTriangle className="h-5 w-5" /> Eliminar Activo
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500">
-                            Esta ação é irreversível. O bem e todo o histórico de custódia e documentos serão excluídos permanentemente.
+                            Esta acción es irreversible. El bien y todo su historial de custodia y documentos se eliminarán de forma permanente.
                         </DialogDescription>
                     </DialogHeader>
 
                     {ativoParaExcluir && (
                         <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1.5">
                             <div className="flex items-center justify-between">
-                                <span className="text-slate-500">Código Patrimonial:</span>
+                                <span className="text-slate-500">Código de Activo:</span>
                                 <span className="font-bold font-mono text-sky-600 text-sm">{ativoParaExcluir.codigo_patrimonial}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-slate-500">Equipamento:</span>
+                                <span className="text-slate-500">Equipo:</span>
                                 <span className="font-semibold text-slate-800 dark:text-slate-200">{ativoParaExcluir.descricao}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                                <span className="text-slate-500">Categoria:</span>
+                                <span className="text-slate-500">Categoría:</span>
                                 <span>{ativoParaExcluir.categoria}</span>
                             </div>
                             {ativoParaExcluir.responsavel_nome && (
                                 <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
-                                    ⚠️ <strong>Atenção:</strong> Este equipamento está atualmente em uso por <strong>{ativoParaExcluir.responsavel_nome}</strong>.
+                                    ⚠️ <strong>Atención:</strong> Este equipo está actualmente en uso por <strong>{ativoParaExcluir.responsavel_nome}</strong>.
                                 </div>
                             )}
                         </div>
@@ -948,11 +948,11 @@ export function PatrimonioListPage() {
                         >
                             {excluindo ? (
                                 <>
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Excluindo...
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Eliminando...
                                 </>
                             ) : (
                                 <>
-                                    <Trash2 className="h-3.5 w-3.5" /> Confirmar Exclusão
+                                    <Trash2 className="h-3.5 w-3.5" /> Confirmar Eliminación
                                 </>
                             )}
                         </Button>

@@ -30,7 +30,7 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
         e.preventDefault();
         if (!ativo) return;
         if (!motivo.trim()) {
-            toast.error('Informe o motivo ou defeito do equipamento.');
+            toast.error('Indique el motivo o avería del equipo.');
             return;
         }
 
@@ -48,12 +48,12 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
                 status: 'em_andamento',
             });
 
-            toast.success(`Patrimônio ${ativo.codigo_patrimonial} enviado para manutenção!`);
+            toast.success(`¡Activo ${ativo.codigo_patrimonial} enviado a mantenimiento!`);
             onSuccess();
             onOpenChange(false);
         } catch (err: any) {
             console.error('Erro na manutenção:', err);
-            toast.error(err?.message || 'Falha ao registrar manutenção.');
+            toast.error(err?.message || 'Error al registrar el mantenimiento.');
         } finally {
             setSubmitting(false);
         }
@@ -65,32 +65,32 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
                         <Wrench className="h-5 w-5 text-rose-600" />
-                        Enviar para Manutenção
+                        Enviar a Mantenimiento
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                        Registrar abertura de ordem de serviço para <strong>{ativo?.codigo_patrimonial}</strong>.
+                        Registrar apertura de orden de reparación para <strong>{ativo?.codigo_patrimonial}</strong>.
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-4 py-1">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Tipo de Manutenção</Label>
+                            <Label className="text-xs font-medium">Tipo de Mantenimiento</Label>
                             <Select value={tipo} onValueChange={(val: any) => setTipo(val)}>
                                 <SelectTrigger className="h-9 text-xs">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="corretiva">Corretiva (Defeito/Avaria)</SelectItem>
-                                    <SelectItem value="preventiva">Preventiva (Revisão periódica)</SelectItem>
-                                    <SelectItem value="calibracao">Calibração Técnica</SelectItem>
-                                    <SelectItem value="revisao">Revisão Geral</SelectItem>
+                                    <SelectItem value="corretiva">Correctivo (Avería / Fallo)</SelectItem>
+                                    <SelectItem value="preventiva">Preventivo (Revisión periódica)</SelectItem>
+                                    <SelectItem value="calibracao">Calibración Técnica</SelectItem>
+                                    <SelectItem value="revisao">Revisión General</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Previsão de Retorno</Label>
+                            <Label className="text-xs font-medium">Previsión de Retorno</Label>
                             <Input
                                 type="date"
                                 value={previsaoRetorno}
@@ -102,10 +102,10 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
 
                     <div className="space-y-1.5">
                         <Label className="text-xs font-medium">
-                            Motivo / Falha Apresentada <span className="text-rose-500">*</span>
+                            Motivo / Fallo Detectado <span className="text-rose-500">*</span>
                         </Label>
                         <Input
-                            placeholder="Ex: Motor não liga, tela trincada, bateria viciada..."
+                            placeholder="Ej: El motor no arranca, pantalla rota, batería degradada..."
                             value={motivo}
                             onChange={(e) => setMotivo(e.target.value)}
                             className="h-9 text-xs"
@@ -115,9 +115,9 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Oficina / Fornecedor do Reparo</Label>
+                            <Label className="text-xs font-medium">Taller / Proveedor de Reparación</Label>
                             <Input
-                                placeholder="Ex: Assistência Autorizada Samsung, Oficina Bosch..."
+                                placeholder="Ej: Servicio Oficial Bosch, SAT Informática..."
                                 value={fornecedorOficina}
                                 onChange={(e) => setFornecedorOficina(e.target.value)}
                                 className="h-9 text-xs"
@@ -125,7 +125,7 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Orçamento Estimado (€)</Label>
+                            <Label className="text-xs font-medium">Presupuesto Estimado (€)</Label>
                             <Input
                                 type="number"
                                 step="0.01"
@@ -138,9 +138,9 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Detalhes Técnicos do Problema</Label>
+                        <Label className="text-xs font-medium">Detalles Técnicos del Problema</Label>
                         <Textarea
-                            placeholder="Descreva o que aconteceu, condições do envio ou orientações..."
+                            placeholder="Describa lo sucedido, condiciones del envío o instrucciones..."
                             value={descricaoProblema}
                             onChange={(e) => setDescricaoProblema(e.target.value)}
                             className="text-xs min-h-[70px]"
@@ -169,7 +169,7 @@ export function ManutencaoDialog({ open, onOpenChange, ativo, onSuccess }: Manut
                                 </>
                             ) : (
                                 <>
-                                    <Wrench className="h-3.5 w-3.5" /> Enviar para Reparo
+                                    <Wrench className="h-3.5 w-3.5" /> Enviar a Reparación
                                 </>
                             )}
                         </Button>

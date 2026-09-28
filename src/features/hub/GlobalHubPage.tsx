@@ -116,7 +116,7 @@ const MODULES: ModuleDef[] = [
     },
     {
         id: 'rrhh',
-        title: 'MCS RRHH (Trabalhadores)',
+        title: 'MCS RRHH (Trabajadores / Obra)',
         icon: Users,
         path: '/dashboard', // Módulo de RH operacional (trabalhadores)
         color: 'text-purple-600',
@@ -125,7 +125,7 @@ const MODULES: ModuleDef[] = [
     },
     {
         id: 'escritorio',
-        title: 'MCS RH Escritório & Ponto',
+        title: 'MCS RRHH Oficinas y Fichajes',
         icon: Clock,
         path: '/escritorio/dashboard',
         color: 'text-sky-600',
@@ -134,7 +134,7 @@ const MODULES: ModuleDef[] = [
     },
     {
         id: 'patrimonio',
-        title: 'MCS Patrimônio',
+        title: 'MCS Activos y Patrimonio',
         icon: ShieldCheck,
         path: '/escritorio/patrimonio',
         color: 'text-cyan-600',

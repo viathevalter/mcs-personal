@@ -56,7 +56,7 @@ export const ColaboradoresPage: React.FC = () => {
             const data = await listarColaboradoresEscritorio();
             setColaboradores(data);
         } catch (error) {
-            console.error('Erro ao carregar colaboradores de escritório:', error);
+            console.error('Error al cargar empleados:', error);
         } finally {
             setLoading(false);
         }
@@ -66,7 +66,7 @@ export const ColaboradoresPage: React.FC = () => {
         carregarColaboradores();
     }, []);
 
-    // Estatísticas de Ativos e Inativos
+    // Estadísticas de Activos e Inactivos
     const totalAtivos = useMemo(() => colaboradores.filter(c => c.active).length, [colaboradores]);
     const totalInativos = useMemo(() => colaboradores.filter(c => !c.active).length, [colaboradores]);
 
@@ -79,7 +79,7 @@ export const ColaboradoresPage: React.FC = () => {
         return Array.from(set).sort();
     }, [colaboradores]);
 
-    // Filtragem combinada
+    // Filtrado combinado
     const colaboradoresFiltrados = useMemo(() => {
         return colaboradores.filter(c => {
             const matchesSearch = 
@@ -110,8 +110,8 @@ export const ColaboradoresPage: React.FC = () => {
         e.stopPropagation();
         const novoStatus = !colaborador.active;
         const confirmMsg = novoStatus
-            ? `Deseja reativar o colaborador ${colaborador.nombrecompleto}?`
-            : `Deseja inativar o colaborador ${colaborador.nombrecompleto}? Ele não aparecerá na lista de ativos padrão nem no ponto diário.`;
+            ? `¿Desea reactivar al empleado ${colaborador.nombrecompleto}?`
+            : `¿Desea dar de baja/inactivar al empleado ${colaborador.nombrecompleto}? No aparecerá en la lista de activos predeterminada ni en el control horario diario.`;
 
         if (!window.confirm(confirmMsg)) return;
 
@@ -119,8 +119,8 @@ export const ColaboradoresPage: React.FC = () => {
             await alternarStatusColaborador(colaborador.id, novoStatus);
             await carregarColaboradores();
         } catch (error) {
-            console.error('Erro ao alternar status do colaborador:', error);
-            alert('Falha ao alterar status do colaborador.');
+            console.error('Error al cambiar estado del empleado:', error);
+            alert('Fallo al actualizar el estado del empleado.');
         }
     };
 
@@ -131,39 +131,39 @@ export const ColaboradoresPage: React.FC = () => {
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 dark:bg-sky-950/60 dark:text-sky-400 px-2.5 py-1 rounded-md border border-sky-200 dark:border-sky-800">
-                            Equipe Interna
+                            Equipo Interno
                         </span>
                         <span className="text-xs text-slate-500">
-                            Central do Colaborador
+                            Gestión de Personal
                         </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
-                        Colaboradores de Escritório & Oficina
+                        Empleados de Oficina y Taller
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Gestão de fichas laborais, vínculos ao relógio ponto, saldos de férias e patrimônio entregue.
+                        Gestión de expedientes laborales, códigos de control horario, saldos de vacaciones y activos asignados.
                     </p>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
                     <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 px-3 py-1.5 font-semibold text-xs gap-1.5">
                         <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                        {totalAtivos} Ativos
+                        {totalAtivos} Activos
                     </Badge>
                     <Badge variant="outline" className="px-3 py-1.5 font-semibold text-xs border-slate-300 dark:border-slate-700 text-slate-500">
-                        {totalInativos} Inativos
+                        {totalInativos} Inactivos
                     </Badge>
                 </div>
             </div>
 
-            {/* Filtros e Busca */}
+            {/* Filtros y Búsqueda */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                 <CardContent className="p-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                         <div className="relative lg:col-span-2">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input 
-                                placeholder="Buscar por nome, email ou ID ponto..." 
+                                placeholder="Buscar por nombre, correo o ID de fichaje..." 
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-9 text-xs"
@@ -173,12 +173,12 @@ export const ColaboradoresPage: React.FC = () => {
                         <div>
                             <Select value={filterStatus} onValueChange={(val: any) => setFilterStatus(val)}>
                                 <SelectTrigger className="text-xs font-semibold">
-                                    <SelectValue placeholder="Status: Ativos" />
+                                    <SelectValue placeholder="Estado: Activos" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="ativos">Status: Apenas Ativos ({totalAtivos})</SelectItem>
-                                    <SelectItem value="inativos">Status: Apenas Inativos ({totalInativos})</SelectItem>
-                                    <SelectItem value="todos">Status: Todos ({colaboradores.length})</SelectItem>
+                                    <SelectItem value="ativos">Estado: Solo Activos ({totalAtivos})</SelectItem>
+                                    <SelectItem value="inativos">Estado: Solo Inactivos ({totalInativos})</SelectItem>
+                                    <SelectItem value="todos">Estado: Todos ({colaboradores.length})</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -186,10 +186,10 @@ export const ColaboradoresPage: React.FC = () => {
                         <div>
                             <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
                                 <SelectTrigger className="text-xs">
-                                    <SelectValue placeholder="Todos os Departamentos" />
+                                    <SelectValue placeholder="Todos los Departamentos" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="todos">Todos os Departamentos</SelectItem>
+                                    <SelectItem value="todos">Todos los Departamentos</SelectItem>
                                     {departamentos.map(d => (
                                         <SelectItem key={d} value={d}>{d}</SelectItem>
                                     ))}
@@ -200,12 +200,12 @@ export const ColaboradoresPage: React.FC = () => {
                         <div>
                             <Select value={filterRelogio} onValueChange={setFilterRelogio}>
                                 <SelectTrigger className="text-xs">
-                                    <SelectValue placeholder="Vínculo de Relógio Ponto" />
+                                    <SelectValue placeholder="Control Horario" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="todos">Relógio: Todos</SelectItem>
-                                    <SelectItem value="com_codigo">Com ID Relógio Ponto</SelectItem>
-                                    <SelectItem value="sem_codigo">Sem ID Relógio Ponto</SelectItem>
+                                    <SelectItem value="todos">Control Horario: Todos</SelectItem>
+                                    <SelectItem value="com_codigo">Con ID de Fichaje</SelectItem>
+                                    <SelectItem value="sem_codigo">Sin ID de Fichaje</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -213,7 +213,7 @@ export const ColaboradoresPage: React.FC = () => {
 
                     <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
                         <span>
-                            Exibindo <strong className="text-slate-900 dark:text-white">{colaboradoresFiltrados.length}</strong> de {colaboradores.length} colaboradores
+                            Mostrando <strong className="text-slate-900 dark:text-white">{colaboradoresFiltrados.length}</strong> de {colaboradores.length} empleados
                         </span>
                         {(searchTerm || selectedDepartment !== 'todos' || filterRelogio !== 'todos' || filterStatus !== 'ativos') && (
                             <Button 
@@ -227,41 +227,41 @@ export const ColaboradoresPage: React.FC = () => {
                                 }}
                                 className="text-xs font-semibold h-7 text-sky-600 hover:text-sky-700"
                             >
-                                Restaurar Padrão (Apenas Ativos)
+                                Restaurar Predeterminado (Solo Activos)
                             </Button>
                         )}
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Tabela de Colaboradores */}
+            {/* Tabla de Empleados */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-slate-50/70 dark:bg-slate-900/50 hover:bg-transparent">
-                                    <TableHead className="font-bold text-xs">Colaborador / Contato</TableHead>
+                                    <TableHead className="font-bold text-xs">Empleado / Contacto</TableHead>
                                     <TableHead className="font-bold text-xs">Departamento</TableHead>
                                     <TableHead className="font-bold text-xs">Empresa Contratante</TableHead>
-                                    <TableHead className="font-bold text-xs">Status</TableHead>
-                                    <TableHead className="font-bold text-xs">ID Relógio Ponto</TableHead>
-                                    <TableHead className="font-bold text-xs">Saldo Férias {new Date().getFullYear()}</TableHead>
-                                    <TableHead className="font-bold text-xs text-center">Ativos Alocados</TableHead>
-                                    <TableHead className="font-bold text-xs text-right">Ações</TableHead>
+                                    <TableHead className="font-bold text-xs">Estado</TableHead>
+                                    <TableHead className="font-bold text-xs">ID Fichaje</TableHead>
+                                    <TableHead className="font-bold text-xs">Saldo Vacaciones {new Date().getFullYear()}</TableHead>
+                                    <TableHead className="font-bold text-xs text-center">Activos Asignados</TableHead>
+                                    <TableHead className="font-bold text-xs text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
                                         <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500">
-                                            Carregando colaboradores...
+                                            Cargando empleados...
                                         </TableCell>
                                     </TableRow>
                                 ) : colaboradoresFiltrados.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={8} className="h-32 text-center text-xs text-slate-500">
-                                            Nenhum colaborador encontrado com os filtros aplicados.
+                                            No se han encontrado empleados con los filtros aplicados.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -295,10 +295,10 @@ export const ColaboradoresPage: React.FC = () => {
 
                                                 <TableCell>
                                                     <div className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        {colaborador.department_name || 'Geral'}
+                                                        {colaborador.department_name || 'General'}
                                                     </div>
                                                     <div className="text-[11px] text-slate-400">
-                                                        {colaborador.laboral?.cargo || 'Colaborador Interno'}
+                                                        {colaborador.laboral?.cargo || 'Personal Interno'}
                                                     </div>
                                                 </TableCell>
 
@@ -312,11 +312,11 @@ export const ColaboradoresPage: React.FC = () => {
                                                     {colaborador.active ? (
                                                         <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 text-[10px] font-semibold gap-1">
                                                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                                                            Ativo
+                                                            Activo
                                                         </Badge>
                                                     ) : (
                                                         <Badge variant="outline" className="bg-slate-100 text-slate-500 border-slate-300 text-[10px] font-semibold">
-                                                            Inativo
+                                                            Inactivo
                                                         </Badge>
                                                     )}
                                                 </TableCell>
@@ -330,7 +330,7 @@ export const ColaboradoresPage: React.FC = () => {
                                                     ) : (
                                                         <span className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                                             <AlertCircle className="h-3 w-3" />
-                                                            Não vinculado
+                                                            No vinculado
                                                         </span>
                                                     )}
                                                 </TableCell>
@@ -338,15 +338,15 @@ export const ColaboradoresPage: React.FC = () => {
                                                 <TableCell>
                                                     <div className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                                         <Palmtree className="h-3.5 w-3.5 text-emerald-600" />
-                                                        <span>{colaborador.ferias_saldo?.dias_saldo ?? 30} dias</span>
-                                                        <span className="text-[10px] text-slate-400">/ 30 anuais</span>
+                                                        <span>{colaborador.ferias_saldo?.dias_saldo ?? 30} días</span>
+                                                        <span className="text-[10px] text-slate-400">/ 30 anuales</span>
                                                     </div>
                                                 </TableCell>
 
                                                 <TableCell className="text-center">
                                                     {(colaborador.ativos_patrimonio_count || 0) > 0 ? (
                                                         <Badge className="bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border-sky-200 dark:border-sky-800 text-[11px] font-bold">
-                                                            {colaborador.ativos_patrimonio_count} item(s)
+                                                            {colaborador.ativos_patrimonio_count} activo(s)
                                                         </Badge>
                                                     ) : (
                                                         <span className="text-xs text-slate-400">0</span>
@@ -360,7 +360,7 @@ export const ColaboradoresPage: React.FC = () => {
                                                             size="sm"
                                                             onClick={(e) => handleAlternarStatus(colaborador, e)}
                                                             className={`h-7 px-2 text-[11px] font-medium ${colaborador.active ? 'text-slate-400 hover:text-rose-600' : 'text-emerald-600 hover:text-emerald-700'}`}
-                                                            title={colaborador.active ? 'Inativar colaborador' : 'Reativar colaborador'}
+                                                            title={colaborador.active ? 'Dar de baja / inactivar empleado' : 'Reactivar empleado'}
                                                         >
                                                             {colaborador.active ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
                                                         </Button>
@@ -373,7 +373,7 @@ export const ColaboradoresPage: React.FC = () => {
                                                             }}
                                                             className="h-8 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-sky-950/40 gap-1"
                                                         >
-                                                            Abrir Ficha
+                                                            Ver Ficha
                                                             <ChevronRight className="h-4 w-4" />
                                                         </Button>
                                                     </div>

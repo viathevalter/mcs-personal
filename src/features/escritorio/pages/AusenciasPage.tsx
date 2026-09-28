@@ -76,7 +76,7 @@ export const AusenciasPage: React.FC = () => {
             setColaboradores(cols);
             setAusencias(ausList);
         } catch (error) {
-            console.error('Erro ao carregar ausências:', error);
+            console.error('Error al cargar ausencias:', error);
         } finally {
             setLoading(false);
         }
@@ -92,7 +92,7 @@ export const AusenciasPage: React.FC = () => {
         return map;
     }, [colaboradores]);
 
-    // Filtragem
+    // Filtrado
     const ausenciasFiltradas = useMemo(() => {
         return ausencias.filter(a => {
             const colab = colabMap.get(a.member_id);
@@ -103,7 +103,7 @@ export const AusenciasPage: React.FC = () => {
         });
     }, [ausencias, colabMap, searchTerm, tipoFilter]);
 
-    // Estatísticas
+    // Estadísticas
     const stats = useMemo(() => {
         const baixasMedicas = ausencias.filter(a => a.tipo === 'baixa_medica').length;
         const totalDias = ausencias.reduce((acc, a) => acc + (a.dias_total || 0), 0);
@@ -124,7 +124,7 @@ export const AusenciasPage: React.FC = () => {
     const handleSalvarAusencia = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!novaAusencia.member_id || diasCalculados <= 0) {
-            alert('Preencha o colaborador e o período corretamente.');
+            alert('Seleccione el empleado y el período correctamente.');
             return;
         }
 
@@ -144,10 +144,10 @@ export const AusenciasPage: React.FC = () => {
             setModalOpen(false);
             setNovaAusencia({ member_id: '', tipo: 'baixa_medica', data_inicio: '', data_fim: '', remunerada: true, observacoes: '' });
             await carregarDados();
-            alert('Ausência/Licença registrada com sucesso!');
+            alert('¡Ausencia / Permiso registrado con éxito!');
         } catch (error) {
-            console.error('Erro ao registrar ausência:', error);
-            alert('Falha ao gravar registro de ausência.');
+            console.error('Error al registrar ausencia:', error);
+            alert('Error al guardar el registro de ausencia.');
         } finally {
             setSubmitting(false);
         }
@@ -160,17 +160,17 @@ export const AusenciasPage: React.FC = () => {
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-400 px-2.5 py-1 rounded-md border border-amber-200 dark:border-amber-800">
-                            Seguridade Social & Estatuto
+                            Seguridad Social y Estatuto
                         </span>
                         <span className="text-xs text-slate-500">
-                            Baixas Médicas (IT) & Licenças Retribuídas
+                            Bajas Médicas (IT) y Permisos Retribuidos
                         </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
-                        Ausências, Licenças & Baixas
+                        Ausencias, Licencias y Bajas
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Controle de incapacidade temporária (IT), atestados médicos, licenças justificadas e impacto na folha.
+                        Control de incapacidad temporal (IT), justificantes médicos, permisos retribuidos e impacto en nómina.
                     </p>
                 </div>
 
@@ -183,7 +183,7 @@ export const AusenciasPage: React.FC = () => {
                         className="gap-2 text-xs font-semibold"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                        Atualizar
+                        Actualizar
                     </Button>
                     <Button 
                         onClick={() => setModalOpen(true)}
@@ -191,7 +191,7 @@ export const AusenciasPage: React.FC = () => {
                         size="sm"
                     >
                         <Plus className="h-3.5 w-3.5" />
-                        Registrar Nova Ausência
+                        Registrar Nueva Ausencia
                     </Button>
                 </div>
             </div>
@@ -200,25 +200,25 @@ export const AusenciasPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Baixas Médicas (IT)</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Bajas Médicas (IT)</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-amber-600">
                             {stats.baixasMedicas}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Comunicação Segurança Social</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Comunicación Seguridad Social</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Dias Acumulados de Afastamento</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Días Acumulados de Ausencia</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-sky-600">
-                            {stats.totalDias} dias
+                            {stats.totalDias} días
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Total geral registrado</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Total general registrado</p>
                     </CardContent>
                 </Card>
 
@@ -230,7 +230,7 @@ export const AusenciasPage: React.FC = () => {
                         <div className="text-2xl font-bold text-rose-600">
                             {stats.injustificadas}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Impactam com desconto em folha</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Impacto con descuento en nómina</p>
                     </CardContent>
                 </Card>
             </div>
@@ -242,7 +242,7 @@ export const AusenciasPage: React.FC = () => {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input 
-                                placeholder="Buscar colaborador..."
+                                placeholder="Buscar empleado..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-9 text-xs"
@@ -252,7 +252,7 @@ export const AusenciasPage: React.FC = () => {
                         <div>
                             <Select value={tipoFilter} onValueChange={setTipoFilter}>
                                 <SelectTrigger className="text-xs">
-                                    <SelectValue placeholder="Tipo de Ausência" />
+                                    <SelectValue placeholder="Tipo de Ausencia" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="todos">Tipo: Todos</SelectItem>
@@ -272,31 +272,31 @@ export const AusenciasPage: React.FC = () => {
                 </CardContent>
             </Card>
 
-            {/* Tabela de Ausências */}
+            {/* Tabla de Ausencias */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
-                                <TableHead className="font-bold text-xs">Colaborador</TableHead>
-                                <TableHead className="font-bold text-xs">Tipo de Licença / Motivo</TableHead>
+                                <TableHead className="font-bold text-xs">Empleado</TableHead>
+                                <TableHead className="font-bold text-xs">Tipo de Permiso / Motivo</TableHead>
                                 <TableHead className="font-bold text-xs">Período</TableHead>
-                                <TableHead className="font-bold text-xs text-center">Dias Totais</TableHead>
-                                <TableHead className="font-bold text-xs">Remunerada</TableHead>
-                                <TableHead className="font-bold text-xs">Observações</TableHead>
+                                <TableHead className="font-bold text-xs text-center">Días Totales</TableHead>
+                                <TableHead className="font-bold text-xs">Retribuida</TableHead>
+                                <TableHead className="font-bold text-xs">Observaciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-32 text-center text-xs text-slate-500">
-                                        Carregando ausências...
+                                        Cargando ausencias...
                                     </TableCell>
                                 </TableRow>
                             ) : ausenciasFiltradas.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="h-32 text-center text-xs text-slate-500">
-                                        Nenhuma ausência encontrada com os filtros selecionados.
+                                        No se han encontrado ausencias con los filtros seleccionados.
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -308,10 +308,10 @@ export const AusenciasPage: React.FC = () => {
                                         <TableRow key={aus.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                             <TableCell>
                                                 <div className="font-bold text-xs text-slate-900 dark:text-white">
-                                                    {colab?.nombrecompleto || 'Colaborador'}
+                                                    {colab?.nombrecompleto || 'Empleado'}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400">
-                                                    {colab?.department_name || 'Geral'}
+                                                    {colab?.department_name || 'General'}
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -320,16 +320,16 @@ export const AusenciasPage: React.FC = () => {
                                                 </span>
                                             </TableCell>
                                             <TableCell className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                                                {aus.data_inicio} até {aus.data_fim}
+                                                {aus.data_inicio} hasta {aus.data_fim}
                                             </TableCell>
                                             <TableCell className="text-center font-bold text-xs">
-                                                {aus.dias_total} dias
+                                                {aus.dias_total} días
                                             </TableCell>
                                             <TableCell>
                                                 {aus.remunerada ? (
-                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Sim</Badge>
+                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Sí</Badge>
                                                 ) : (
-                                                    <Badge variant="outline" className="text-rose-600 border-rose-300 text-[10px]">Desconto</Badge>
+                                                    <Badge variant="outline" className="text-rose-600 border-rose-300 text-[10px]">Descuento</Badge>
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-xs text-slate-500 max-w-[220px] truncate">
@@ -344,32 +344,32 @@ export const AusenciasPage: React.FC = () => {
                 </CardContent>
             </Card>
 
-            {/* Modal Novo Registro */}
+            {/* Modal Nuevo Registro */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-base font-bold text-slate-900 dark:text-white">
-                            Registrar Ausência / Licença Médica
+                            Registrar Ausencia / Baja Médica
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500">
-                            Informe o colaborador, o tipo de evento legal e as datas de início e término.
+                            Indique el empleado, la modalidad legal de ausencia y las fechas de inicio y fin.
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleSalvarAusencia} className="space-y-4 py-2">
                         <div>
-                            <Label className="text-xs font-semibold">Colaborador *</Label>
+                            <Label className="text-xs font-semibold">Empleado *</Label>
                             <Select 
                                 value={novaAusencia.member_id} 
                                 onValueChange={(val) => setNovaAusencia({ ...novaAusencia, member_id: val })}
                             >
                                 <SelectTrigger className="text-xs mt-1">
-                                    <SelectValue placeholder="Selecione o colaborador" />
+                                    <SelectValue placeholder="Seleccione el empleado" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {colaboradores.map(c => (
+                                    {colaboradores.filter(c => c.active).map(c => (
                                         <SelectItem key={c.id} value={c.id}>
-                                            {c.nombrecompleto} ({c.department_name || 'Geral'})
+                                            {c.nombrecompleto} ({c.department_name || 'General'})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -377,7 +377,7 @@ export const AusenciasPage: React.FC = () => {
                         </div>
 
                         <div>
-                            <Label className="text-xs font-semibold">Tipo de Ausência / Motivo Legal *</Label>
+                            <Label className="text-xs font-semibold">Tipo de Ausencia / Motivo Legal *</Label>
                             <Select 
                                 value={novaAusencia.tipo} 
                                 onValueChange={(val) => setNovaAusencia({ ...novaAusencia, tipo: val })}
@@ -395,7 +395,7 @@ export const AusenciasPage: React.FC = () => {
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <Label className="text-xs font-semibold">Data Início *</Label>
+                                <Label className="text-xs font-semibold">Fecha de Inicio *</Label>
                                 <Input 
                                     type="date"
                                     required
@@ -405,7 +405,7 @@ export const AusenciasPage: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs font-semibold">Data Fim *</Label>
+                                <Label className="text-xs font-semibold">Fecha de Fin *</Label>
                                 <Input 
                                     type="date"
                                     required
@@ -419,18 +419,18 @@ export const AusenciasPage: React.FC = () => {
                         {diasCalculados > 0 && (
                             <div className="bg-amber-50 dark:bg-amber-950/60 p-3 rounded-xl border border-amber-200 dark:border-amber-800 text-xs flex items-center justify-between">
                                 <span className="font-semibold text-amber-800 dark:text-amber-300">
-                                    Duração do afastamento:
+                                    Duración de la ausencia:
                                 </span>
                                 <Badge className="bg-amber-600 text-white font-bold">
-                                    {diasCalculados} dias
+                                    {diasCalculados} días
                                 </Badge>
                             </div>
                         )}
 
                         <div>
-                            <Label className="text-xs font-semibold">Observações / Número do Atestado</Label>
+                            <Label className="text-xs font-semibold">Observaciones / N.º de Justificante</Label>
                             <Input 
-                                placeholder="Ex: Baixa médica por IT emitida pelo médico de família..."
+                                placeholder="Ej: Baja médica por IT emitida por el médico de cabecera..."
                                 value={novaAusencia.observacoes}
                                 onChange={(e) => setNovaAusencia({ ...novaAusencia, observacoes: e.target.value })}
                                 className="text-xs mt-1"
@@ -447,7 +447,7 @@ export const AusenciasPage: React.FC = () => {
                                 disabled={submitting || diasCalculados <= 0}
                                 className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs"
                             >
-                                {submitting ? 'Gravando...' : 'Salvar Registro'}
+                                {submitting ? 'Guardando...' : 'Guardar Ausencia'}
                             </Button>
                         </DialogFooter>
                     </form>

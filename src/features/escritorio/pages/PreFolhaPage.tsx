@@ -66,7 +66,7 @@ export const PreFolhaPage: React.FC = () => {
         try {
             setLoading(true);
             const [cols, pontos, ferias, ausencias, pfData] = await Promise.all([
-                listarColaboradoresEscritorio(),
+                listarColaboradoresEscritorio({ apenasAtivos: true }),
                 listarPontoMes(competencia),
                 listarFerias(parseInt(competencia.slice(0, 4), 10)),
                 listarAusencias(),
@@ -75,19 +75,16 @@ export const PreFolhaPage: React.FC = () => {
 
             setPreFolha(pfData.preFolha);
 
-            // Consolidação dos dados por colaborador
+            // Consolidación de datos por empleado
             const dadosConsolidados: LinhaPreFolhaConsolidada[] = cols.map(c => {
-                // Horas e extras do ponto no mês
                 const pontosDoColab = pontos.filter(p => p.member_id === c.id);
                 const horasTrabalhadas = pontosDoColab.reduce((acc, p) => acc + (p.horas_trabalhadas || 0), 0);
                 const minutosExtras = pontosDoColab.reduce((acc, p) => acc + (p.minutos_extras || 0), 0);
                 const horasExtras = Math.round((minutosExtras / 60) * 10) / 10;
 
-                // Férias no mês
                 const feriasDoColab = ferias.filter(f => f.member_id === c.id && f.data_inicio.startsWith(competencia));
                 const diasFerias = feriasDoColab.reduce((acc, f) => acc + (f.dias_solicitados || 0), 0);
 
-                // Ausências e Baixas no mês
                 const ausDoColab = ausencias.filter(a => a.member_id === c.id && a.data_inicio.startsWith(competencia));
                 const diasBaixa = ausDoColab.filter(a => a.tipo === 'baixa_medica').reduce((acc, a) => acc + (a.dias_total || 0), 0);
                 const diasFalta = ausDoColab.filter(a => a.tipo === 'falta_injustificada').reduce((acc, a) => acc + (a.dias_total || 0), 0);
@@ -95,7 +92,7 @@ export const PreFolhaPage: React.FC = () => {
                 return {
                     memberId: c.id,
                     nome: c.nombrecompleto,
-                    departamento: c.department_name || 'Geral',
+                    departamento: c.department_name || 'General',
                     empresa: c.empresa_nome || 'KR Industrial',
                     salarioBase: c.salario_vigente || 0,
                     horasTrabalhadas: Math.round(horasTrabalhadas * 10) / 10,
@@ -110,7 +107,7 @@ export const PreFolhaPage: React.FC = () => {
 
             setLinhas(dadosConsolidados);
         } catch (error) {
-            console.error('Erro ao carregar pré-folha:', error);
+            console.error('Error al cargar pre-nómina:', error);
         } finally {
             setLoading(false);
         }
@@ -120,7 +117,7 @@ export const PreFolhaPage: React.FC = () => {
         carregarDados();
     }, [competencia]);
 
-    // Totais gerais
+    // Totales generales
     const totais = useMemo(() => {
         let salarios = 0;
         let horas = 0;
@@ -146,28 +143,28 @@ export const PreFolhaPage: React.FC = () => {
         };
     }, [linhas]);
 
-    // Exportação Excel para Contabilidade
+    // Exportación Excel para la Asesoría
     const exportarExcelContabilidade = () => {
         const dadosExport = linhas.map((l, idx) => ({
-            'Item': idx + 1,
-            'Colaborador': l.nome,
+            'N.º': idx + 1,
+            'Empleado': l.nome,
             'Departamento': l.departamento,
             'Empresa Contratante': l.empresa,
-            'Salário Base Mensal (€)': l.salarioBase,
-            'Horas Trabalhadas (Ponto)': l.horasTrabalhadas,
-            'Horas Extras (50%)': l.horasExtras,
-            'Dias de Férias': l.diasFerias,
-            'Dias Baixa Médica (IT)': l.diasBaixa,
-            'Dias Faltas Injustificadas': l.diasFalta,
-            'Prêmios / Bônus (€)': l.premios,
-            'Ajuda Custo / Deslocamento (€)': l.ajudaCusto,
+            'Salario Base Mensual (€)': l.salarioBase,
+            'Horas Ordinarias (Fichajes)': l.horasTrabalhadas,
+            'Horas Extras': l.horasExtras,
+            'Días de Vacaciones': l.diasFerias,
+            'Días Baja Médica (IT)': l.diasBaixa,
+            'Días Faltas Injustificadas': l.diasFalta,
+            'Primas / Bonificaciones (€)': l.premios,
+            'Dietas / Desplazamientos (€)': l.ajudaCusto,
         }));
 
         const ws = XLSX.utils.json_to_sheet(dadosExport);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, `PreFolha_${competencia}`);
+        XLSX.utils.book_append_sheet(wb, ws, `PreNomina_${competencia}`);
 
-        XLSX.writeFile(wb, `MCS_PreFolha_Contabilidade_${competencia}.xlsx`);
+        XLSX.writeFile(wb, `MCS_PreNomina_Asesoria_${competencia}.xlsx`);
     };
 
     return (
@@ -177,17 +174,17 @@ export const PreFolhaPage: React.FC = () => {
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 dark:bg-sky-950/60 dark:text-sky-400 px-2.5 py-1 rounded-md border border-sky-200 dark:border-sky-800">
-                            Fechamento Mensal
+                            Cierre Mensual
                         </span>
                         <span className="text-xs text-slate-500">
-                            Assessoria Laboral & Contabilidade
+                            Asesoría Laboral y Contabilidad
                         </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
-                        Pré-Folha de Pagamento
+                        Pre-Nómina y Cierre Mensual
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Consolidação de horas de relógio ponto, extras, dias de férias e baixas médicas para envio mensal.
+                        Consolidación de horas de control horario, horas extras, días de vacaciones y bajas médicas para el envío a la asesoría.
                     </p>
                 </div>
 
@@ -206,7 +203,7 @@ export const PreFolhaPage: React.FC = () => {
                         className="gap-2 text-xs font-semibold"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                        Atualizar
+                        Actualizar
                     </Button>
                     <Button 
                         onClick={exportarExcelContabilidade}
@@ -214,7 +211,7 @@ export const PreFolhaPage: React.FC = () => {
                         size="sm"
                     >
                         <Download className="h-3.5 w-3.5" />
-                        Exportar Planilha Contabilidade
+                        Exportar Plantilla Asesoría
                     </Button>
                 </div>
             </div>
@@ -223,92 +220,92 @@ export const PreFolhaPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Colaboradores na Folha</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Empleados en Nómina</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-slate-900 dark:text-white">
                             {totais.totalFuncionarios}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Escritórios & Oficinas</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Oficinas y Talleres</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Total Horas Trabalhadas</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Horas Trabajadas</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-sky-600">
                             {totais.totalHoras}h
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Horas regulares registradas</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Horas ordinarias netas</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Horas Extras Totais</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Horas Extras Totales</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-emerald-600">
                             +{totais.totalExtras}h
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Para remuneração variável</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Para retribución variable</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Dias de Férias no Mês</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Días de Vacaciones</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-amber-600">
-                            {totais.totalFerias} dias
+                            {totais.totalFerias} días
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Gozados no período</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Disfrutados en el período</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Dias Baixa Médica (IT)</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Días Baja Médica (IT)</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-rose-600">
-                            {totais.totalBaixas} dias
+                            {totais.totalBaixas} días
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Comunicação contábil</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Comunicación asesoría</p>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Tabela de Consolidação */}
+            {/* Tabla de Consolidación */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                 <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
                     <div>
                         <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                            Itens Consolidados da Competência ({competencia})
+                            Partidas Consolidadas del Período ({competencia})
                         </CardTitle>
                         <p className="text-xs text-slate-500">
-                            Resumo individualizado por colaborador pronto para transmissão contábil.
+                            Resumen individualizado por empleado listo para transmisión a la asesoría laboral.
                         </p>
                     </div>
                     <Badge className="bg-sky-50 text-sky-700 border-sky-200 text-xs">
-                        Status: Em Preparação
+                        Estado: En Preparación
                     </Badge>
                 </CardHeader>
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
-                                <TableHead className="font-bold text-xs">Colaborador</TableHead>
+                                <TableHead className="font-bold text-xs">Empleado</TableHead>
                                 <TableHead className="font-bold text-xs">Departamento</TableHead>
                                 <TableHead className="font-bold text-xs">Empresa</TableHead>
-                                <TableHead className="font-bold text-xs text-right">Salário Base</TableHead>
-                                <TableHead className="font-bold text-xs text-center">Horas Reg.</TableHead>
+                                <TableHead className="font-bold text-xs text-right">Salario Base</TableHead>
+                                <TableHead className="font-bold text-xs text-center">Horas Ord.</TableHead>
                                 <TableHead className="font-bold text-xs text-center">Horas Extras</TableHead>
-                                <TableHead className="font-bold text-xs text-center">Férias (dias)</TableHead>
-                                <TableHead className="font-bold text-xs text-center">Baixas (IT)</TableHead>
+                                <TableHead className="font-bold text-xs text-center">Vacaciones (días)</TableHead>
+                                <TableHead className="font-bold text-xs text-center">Bajas (IT)</TableHead>
                                 <TableHead className="font-bold text-xs text-center">Faltas</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -316,13 +313,13 @@ export const PreFolhaPage: React.FC = () => {
                             {loading ? (
                                 <TableRow>
                                     <TableCell colSpan={9} className="h-32 text-center text-xs text-slate-500">
-                                        Consolidando pré-folha...
+                                        Consolidando pre-nómina...
                                     </TableCell>
                                 </TableRow>
                             ) : linhas.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={9} className="h-32 text-center text-xs text-slate-500">
-                                        Nenhum registro para esta competência.
+                                        No hay registros para este período.
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -339,7 +336,7 @@ export const PreFolhaPage: React.FC = () => {
                                         </TableCell>
                                         <TableCell className="text-right font-mono text-xs font-semibold">
                                             {linha.salarioBase > 0 
-                                                ? `€ ${linha.salarioBase.toLocaleString('de-DE', { minimumFractionDigits: 2 })}` 
+                                                ? `€ ${linha.salarioBase.toLocaleString('es-ES', { minimumFractionDigits: 2 })}` 
                                                 : '-'}
                                         </TableCell>
                                         <TableCell className="text-center font-bold text-xs text-sky-600">

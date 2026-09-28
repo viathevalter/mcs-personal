@@ -33,7 +33,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
     // Identificação
     const [codigoPatrimonial, setCodigoPatrimonial] = useState('');
-    const [categoria, setCategoria] = useState<string>('Informática (Notebooks, Monitores, PCs)');
+    const [categoria, setCategoria] = useState<string>('Informática (Portátiles, Pantallas, PCs)');
     const [subcategoria, setSubcategoria] = useState('');
     const [descricao, setDescricao] = useState('');
     const [marca, setMarca] = useState('');
@@ -44,8 +44,8 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
     const [cor, setCor] = useState('');
     const [empresaId, setEmpresaId] = useState<string | null>(null);
     const [empresaProprietaria, setEmpresaProprietaria] = useState('');
-    const [centroCusto, setCentroCusto] = useState('Geral');
-    const [localizacao, setLocalizacao] = useState('Armazém Central');
+    const [centroCusto, setCentroCusto] = useState('General');
+    const [localizacao, setLocalizacao] = useState('Almacén Central');
     const [status, setStatus] = useState<PatrimonioStatus>('disponivel');
 
     // Aquisição
@@ -94,8 +94,8 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                 setEmpresaProprietaria(ativoParaEditar.empresa_proprietaria || '');
             }
 
-            setCentroCusto(ativoParaEditar.centro_custo || 'Geral');
-            setLocalizacao(ativoParaEditar.localizacao || 'Armazém Central');
+            setCentroCusto(ativoParaEditar.centro_custo || 'General');
+            setLocalizacao(ativoParaEditar.localizacao || 'Almacén Central');
             setStatus(ativoParaEditar.status);
 
             setDataCompra(ativoParaEditar.data_compra || '');
@@ -117,7 +117,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
     const limparFormulario = () => {
         setCodigoPatrimonial('');
-        setCategoria('Informática (Notebooks, Monitores, PCs)');
+        setCategoria('Informática (Portátiles, Pantallas, PCs)');
         setSubcategoria('');
         setDescricao('');
         setMarca('');
@@ -131,8 +131,8 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
         setEmpresaId(defaultEmp?.id || null);
         setEmpresaProprietaria(defaultEmp?.nome || '');
 
-        setCentroCusto('Geral');
-        setLocalizacao('Armazém Central');
+        setCentroCusto('General');
+        setLocalizacao('Almacén Central');
         setStatus('disponivel');
         setDataCompra(new Date().toISOString().slice(0, 10));
         setFornecedor('');
@@ -148,11 +148,11 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
     const handleGerarCodigo = async (catNome?: string) => {
         const cat = catNome || categoria;
         let prefixo = 'PAT';
-        if (cat.toLowerCase().includes('celular') || cat.toLowerCase().includes('telefonia')) prefixo = 'MOB';
-        else if (cat.toLowerCase().includes('informática') || cat.toLowerCase().includes('notebook')) prefixo = 'TI';
-        else if (cat.toLowerCase().includes('ferramenta')) prefixo = 'FER';
-        else if (cat.toLowerCase().includes('veículo') || cat.toLowerCase().includes('veiculo')) prefixo = 'VEI';
-        else if (cat.toLowerCase().includes('máquina') || cat.toLowerCase().includes('maquina')) prefixo = 'MAQ';
+        if (cat.toLowerCase().includes('celular') || cat.toLowerCase().includes('telefonia') || cat.toLowerCase().includes('móvil') || cat.toLowerCase().includes('movil')) prefixo = 'MOB';
+        else if (cat.toLowerCase().includes('informática') || cat.toLowerCase().includes('informatica') || cat.toLowerCase().includes('portátil') || cat.toLowerCase().includes('notebook')) prefixo = 'TI';
+        else if (cat.toLowerCase().includes('ferramenta') || cat.toLowerCase().includes('herramienta')) prefixo = 'FER';
+        else if (cat.toLowerCase().includes('veículo') || cat.toLowerCase().includes('veiculo') || cat.toLowerCase().includes('vehículo') || cat.toLowerCase().includes('vehiculo')) prefixo = 'VEI';
+        else if (cat.toLowerCase().includes('máquina') || cat.toLowerCase().includes('maquina') || cat.toLowerCase().includes('maquinaria')) prefixo = 'MAQ';
 
         try {
             const novoCod = await gerarProximoCodigo(prefixo);
@@ -188,10 +188,10 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
             if (!fotoPrincipalUrl) {
                 setFotoPrincipalUrl(url);
             }
-            toast.success('Foto enviada com sucesso!');
+            toast.success('¡Foto subida con éxito!');
         } catch (err: any) {
             console.error('Erro no upload da foto:', err);
-            toast.error('Falha ao enviar foto. Verifique a conexão.');
+            toast.error('Error al subir la foto. Verifique la conexión.');
         } finally {
             setUploadingFoto(false);
         }
@@ -208,11 +208,11 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!codigoPatrimonial.trim()) {
-            toast.error('Informe o código patrimonial.');
+            toast.error('Introduzca el código patrimonial.');
             return;
         }
         if (!descricao.trim()) {
-            toast.error('Informe a descrição do equipamento.');
+            toast.error('Introduzca la descripción del equipo.');
             return;
         }
 
@@ -232,7 +232,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                 empresa_id: empresaId || null,
                 empresa_proprietaria: empresaProprietaria || (empresas.find(e => e.id === empresaId)?.nome || null),
                 centro_custo: centroCusto || null,
-                localizacao: localizacao || 'Armazém Central',
+                localizacao: localizacao || 'Almacén Central',
                 status,
                 data_compra: dataCompra || null,
                 fornecedor: fornecedor || null,
@@ -247,25 +247,25 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
             };
 
             if (isEdit && ativoParaEditar) {
-                await atualizarAtivo(ativoParaEditar.id, payload, 'Dados cadastrais atualizados.');
-                toast.success(`Patrimônio ${codigoPatrimonial} atualizado com sucesso!`);
+                await atualizarAtivo(ativoParaEditar.id, payload, 'Datos de la ficha actualizados.');
+                toast.success(`¡Activo ${codigoPatrimonial} actualizado con éxito!`);
             } else {
                 await criarAtivo(payload as any);
-                toast.success(`Patrimônio ${codigoPatrimonial} cadastrado com sucesso!`);
+                toast.success(`¡Activo ${codigoPatrimonial} registrado con éxito!`);
             }
 
             onSuccess();
             onOpenChange(false);
         } catch (err: any) {
             console.error('Erro ao salvar ativo:', err);
-            toast.error(err?.message || 'Falha ao salvar dados do patrimônio.');
+            toast.error(err?.message || 'Error al guardar los datos del activo.');
         } finally {
             setSubmitting(false);
         }
     };
 
-    const ehCelular = categoria.toLowerCase().includes('celular') || categoria.toLowerCase().includes('telefonia');
-    const ehVeiculo = categoria.toLowerCase().includes('veículo') || categoria.toLowerCase().includes('veiculo');
+    const ehCelular = categoria.toLowerCase().includes('celular') || categoria.toLowerCase().includes('telefonia') || categoria.toLowerCase().includes('móvil') || categoria.toLowerCase().includes('movil');
+    const ehVeiculo = categoria.toLowerCase().includes('veículo') || categoria.toLowerCase().includes('veiculo') || categoria.toLowerCase().includes('vehículo') || categoria.toLowerCase().includes('vehiculo');
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -273,10 +273,10 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                 <DialogHeader className="p-5 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
                         <ShieldCheck className="h-5 w-5 text-sky-600" />
-                        {isEdit ? `Editar Patrimônio: ${ativoParaEditar?.codigo_patrimonial}` : 'Cadastrar Novo Patrimônio / Ativo'}
+                        {isEdit ? `Editar Activo: ${ativoParaEditar?.codigo_patrimonial}` : 'Registrar Nuevo Activo / Patrimonio'}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                        Preencha a identificação, dados de aquisição e fotos do bem.
+                        Rellene la identificación, datos de adquisición y fotos del bien.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -285,13 +285,13 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                         <div className="px-5 pt-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
                             <TabsList className="bg-slate-200 dark:bg-slate-800 h-8 p-0.5">
                                 <TabsTrigger value="identificacao" className="text-xs px-3 h-7">
-                                    Identificação
+                                    Identificación
                                 </TabsTrigger>
                                 <TabsTrigger value="aquisicao" className="text-xs px-3 h-7">
-                                    Aquisição & Garantia
+                                    Adquisición y Garantía
                                 </TabsTrigger>
                                 <TabsTrigger value="fotos" className="text-xs px-3 h-7">
-                                    Identificação Visual ({fotos.length})
+                                    Identificación Visual ({fotos.length})
                                 </TabsTrigger>
                             </TabsList>
                         </div>
@@ -307,17 +307,17 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                         <Input
                                             value={codigoPatrimonial}
                                             onChange={(e) => setCodigoPatrimonial(e.target.value.toUpperCase())}
-                                            placeholder="Ex: MOB-000245"
+                                            placeholder="Ej: MOB-000245"
                                             className="h-9 text-xs uppercase font-bold text-sky-700 dark:text-sky-400"
                                             required
                                         />
                                         {!isEdit && (
-                                            <Button
+                                             <Button
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
                                                 onClick={() => handleGerarCodigo()}
-                                                title="Gerar próximo código sequencial"
+                                                title="Generar siguiente código secuencial"
                                                 className="h-9 px-2 text-xs shrink-0"
                                             >
                                                 <Sparkles className="h-3.5 w-3.5 text-amber-500" />
@@ -328,7 +328,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
                                 <div className="space-y-1.5">
                                     <Label className="text-xs font-medium">
-                                        Categoria <span className="text-rose-500">*</span>
+                                        Categoría <span className="text-rose-500">*</span>
                                     </Label>
                                     <Select value={categoria} onValueChange={handleCategoriaChange}>
                                         <SelectTrigger className="h-9 text-xs">
@@ -348,23 +348,23 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="col-span-2 space-y-1.5">
                                     <Label className="text-xs font-medium">
-                                        Descrição / Nome do Equipamento <span className="text-rose-500">*</span>
+                                        Descripción / Nombre del Equipo <span className="text-rose-500">*</span>
                                     </Label>
                                     <Input
                                         value={descricao}
                                         onChange={(e) => setDescricao(e.target.value)}
-                                        placeholder="Ex: Samsung Galaxy A55, Furadeira de Impacto Bosch..."
+                                        placeholder="Ej: Samsung Galaxy A55, Taladro percutor Bosch..."
                                         className="h-9 text-xs"
                                         required
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Subcategoria</Label>
+                                    <Label className="text-xs font-medium">Subcategoría</Label>
                                     <Input
                                         value={subcategoria}
                                         onChange={(e) => setSubcategoria(e.target.value)}
-                                        placeholder="Ex: Smartphone, Perfuratriz"
+                                        placeholder="Ej: Smartphone, Perforadora..."
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -376,7 +376,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                     <Input
                                         value={marca}
                                         onChange={(e) => setMarca(e.target.value)}
-                                        placeholder="Ex: Apple, Samsung, Bosch, Dell..."
+                                        placeholder="Ej: Apple, Samsung, Bosch, Dell..."
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -386,17 +386,17 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                     <Input
                                         value={modelo}
                                         onChange={(e) => setModelo(e.target.value)}
-                                        placeholder="Ex: Latitude 5420, GSB 18V-50..."
+                                        placeholder="Ej: Latitude 5420, GSB 18V-50..."
                                         className="h-9 text-xs"
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Cor</Label>
+                                    <Label className="text-xs font-medium">Color</Label>
                                     <Input
                                         value={cor}
                                         onChange={(e) => setCor(e.target.value)}
-                                        placeholder="Ex: Preto, Azul, Prata..."
+                                        placeholder="Ej: Negro, Azul, Plata..."
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -404,11 +404,11 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Número de Série</Label>
+                                    <Label className="text-xs font-medium">Número de Serie</Label>
                                     <Input
                                         value={numeroSerie}
                                         onChange={(e) => setNumeroSerie(e.target.value)}
-                                        placeholder="S/N do fabricante"
+                                        placeholder="N/S del fabricante"
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -416,24 +416,24 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                 {ehCelular ? (
                                     <div className="space-y-1.5">
                                         <Label className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                                            IMEI (Celular)
+                                            IMEI (Móvil)
                                         </Label>
                                         <Input
                                             value={imei}
                                             onChange={(e) => setImei(e.target.value)}
-                                            placeholder="15 dígitos do IMEI"
+                                            placeholder="15 dígitos del IMEI"
                                             className="h-9 text-xs"
                                         />
                                     </div>
                                 ) : ehVeiculo ? (
                                     <div className="space-y-1.5">
                                         <Label className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                                            Matrícula / Placa (Veículo)
+                                            Matrícula (Vehículo)
                                         </Label>
                                         <Input
                                             value={matricula}
                                             onChange={(e) => setMatricula(e.target.value)}
-                                            placeholder="Ex: 1234-BBB"
+                                            placeholder="Ej: 1234-BBB"
                                             className="h-9 text-xs uppercase"
                                         />
                                     </div>
@@ -443,14 +443,14 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                         <Input
                                             value={imei || matricula}
                                             onChange={(e) => setImei(e.target.value)}
-                                            placeholder="Código interno ou tag"
+                                            placeholder="Código interno o etiqueta"
                                             className="h-9 text-xs"
                                         />
                                     </div>
                                 )}
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Status Atual</Label>
+                                    <Label className="text-xs font-medium">Estado Actual</Label>
                                     <Select value={status} onValueChange={(val: any) => setStatus(val)}>
                                         <SelectTrigger className="h-9 text-xs">
                                             <SelectValue />
@@ -468,7 +468,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Empresa Proprietária (Grupo)</Label>
+                                    <Label className="text-xs font-medium">Empresa Propietaria (Grupo)</Label>
                                     <Select
                                         value={empresaId || empresaProprietaria}
                                         onValueChange={(val) => {
@@ -483,7 +483,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                         }}
                                     >
                                         <SelectTrigger className="h-9 text-xs">
-                                            <SelectValue placeholder={loadingEmpresas ? "Carregando..." : "Selecione a empresa..."} />
+                                            <SelectValue placeholder={loadingEmpresas ? "Cargando..." : "Seleccione la empresa..."} />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {empresas.map((emp) => (
@@ -506,21 +506,21 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Centro de Custo</Label>
+                                    <Label className="text-xs font-medium">Centro de Coste</Label>
                                     <Input
                                         value={centroCusto}
                                         onChange={(e) => setCentroCusto(e.target.value)}
-                                        placeholder="Ex: Oficina, ADM, Operações..."
+                                        placeholder="Ej: Taller, Administración, Operaciones..."
                                         className="h-9 text-xs"
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Localização Inicial</Label>
+                                    <Label className="text-xs font-medium">Ubicación Inicial</Label>
                                     <Input
                                         value={localizacao}
                                         onChange={(e) => setLocalizacao(e.target.value)}
-                                        placeholder="Ex: Armazém Barcelona, Oficina Central..."
+                                        placeholder="Ej: Almacén Barcelona, Taller Central..."
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -531,7 +531,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                         <TabsContent value="aquisicao" className="p-5 space-y-4 m-0">
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Data de Compra</Label>
+                                    <Label className="text-xs font-medium">Fecha de Compra</Label>
                                     <Input
                                         type="date"
                                         value={dataCompra}
@@ -541,21 +541,21 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Fornecedor / Loja</Label>
+                                    <Label className="text-xs font-medium">Proveedor / Comercio</Label>
                                     <Input
                                         value={fornecedor}
                                         onChange={(e) => setFornecedor(e.target.value)}
-                                        placeholder="Ex: MediaMarkt, Leroy Merlin, Dell..."
+                                        placeholder="Ej: MediaMarkt, Leroy Merlin, Dell..."
                                         className="h-9 text-xs"
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Nº da Fatura / Ticket</Label>
+                                    <Label className="text-xs font-medium">Nº de Factura / Ticket</Label>
                                     <Input
                                         value={numeroFatura}
                                         onChange={(e) => setNumeroFatura(e.target.value)}
-                                        placeholder="Ex: FAC-2026-9812"
+                                        placeholder="Ej: FAC-2026-9812"
                                         className="h-9 text-xs"
                                     />
                                 </div>
@@ -563,7 +563,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Valor de Aquisição (€)</Label>
+                                    <Label className="text-xs font-medium">Valor de Adquisición (€)</Label>
                                     <Input
                                         type="number"
                                         step="0.01"
@@ -575,18 +575,18 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Garantia (Meses)</Label>
+                                    <Label className="text-xs font-medium">Garantía (Meses)</Label>
                                     <Input
                                         type="number"
                                         value={garantiaMeses || ''}
                                         onChange={(e) => setGarantiaMeses(parseInt(e.target.value, 10) || 0)}
-                                        placeholder="Ex: 24"
+                                        placeholder="Ej: 24"
                                         className="h-9 text-xs"
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Data Fim da Garantia</Label>
+                                    <Label className="text-xs font-medium">Fecha Fin de Garantía</Label>
                                     <Input
                                         type="date"
                                         value={dataFimGarantia}
@@ -597,11 +597,11 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-medium">Observações da Compra / Garantia</Label>
+                                <Label className="text-xs font-medium">Observaciones de Compra / Garantía</Label>
                                 <Textarea
                                     value={observacoesAquisicao}
                                     onChange={(e) => setObservacoesAquisicao(e.target.value)}
-                                    placeholder="Detalhes sobre a nota fiscal, garantia estendida, seguro..."
+                                    placeholder="Detalles sobre factura, garantía extendida, seguro..."
                                     className="text-xs min-h-[90px]"
                                 />
                             </div>
@@ -612,10 +612,10 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h4 className="text-xs font-semibold text-slate-900 dark:text-white">
-                                        Galeria de Imagens do Patrimônio
+                                        Galería de Imágenes del Activo
                                     </h4>
                                     <p className="text-[11px] text-slate-500">
-                                        Adicione foto frontal, traseira, número de série e estado geral do bem.
+                                        Añada foto frontal, trasera, número de serie y estado general del bien.
                                     </p>
                                 </div>
 
@@ -641,18 +641,18 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                         ) : (
                                             <Upload className="h-3.5 w-3.5" />
                                         )}
-                                        Adicionar Imagem
+                                        Añadir Imagen
                                     </Button>
                                 </div>
                             </div>
 
                             {/* Foto Principal URL manual opcional */}
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-medium">URL da Imagem Principal (ou selecione abaixo)</Label>
+                                <Label className="text-xs font-medium">URL de la Imagen Principal (o suba una foto abajo)</Label>
                                 <Input
                                     value={fotoPrincipalUrl}
                                     onChange={(e) => setFotoPrincipalUrl(e.target.value)}
-                                    placeholder="https://... ou faça upload acima"
+                                    placeholder="https://... o suba un archivo arriba"
                                     className="h-9 text-xs"
                                 />
                             </div>
@@ -662,12 +662,12 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                 <div
                                     onClick={() => fotoInputRef.current?.click()}
                                     className="p-8 text-center border-2 border-dashed border-sky-300 dark:border-sky-800 hover:border-sky-500 bg-sky-50/40 dark:bg-sky-950/20 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-all rounded-xl cursor-pointer group"
-                                    title="Clique para selecionar uma foto"
+                                    title="Haga clic para seleccionar una foto"
                                 >
                                     {uploadingFoto ? (
                                         <div className="flex flex-col items-center gap-2">
                                             <Loader2 className="h-8 w-8 animate-spin text-sky-600 mx-auto" />
-                                            <span className="text-xs font-medium text-sky-600">Enviando imagem...</span>
+                                            <span className="text-xs font-medium text-sky-600">Subiendo imagen...</span>
                                         </div>
                                     ) : (
                                         <>
@@ -675,10 +675,10 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                                 <Camera className="h-6 w-6 text-sky-600" />
                                             </div>
                                             <p className="text-xs font-semibold text-sky-700 dark:text-sky-300">
-                                                Clique aqui para selecionar uma foto do patrimônio
+                                                Haga clic aquí para seleccionar una foto del activo
                                             </p>
                                             <p className="text-[11px] text-slate-400 mt-0.5">
-                                                JPG, PNG, WEBP. Fotos ajudam na identificação do equipamento.
+                                                JPG, PNG, WEBP. Las fotos facilitan la identificación del equipo.
                                             </p>
                                         </>
                                     )}
@@ -696,7 +696,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                         >
                                             <img
                                                 src={f.url}
-                                                alt={f.legenda || 'Foto patrimônio'}
+                                                alt={f.legenda || 'Foto activo'}
                                                 className="h-28 w-full object-cover"
                                             />
                                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
@@ -705,7 +705,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                                                     onClick={() => setFotoPrincipalUrl(f.url)}
                                                     className="text-[10px] text-white bg-sky-600/90 hover:bg-sky-600 px-1.5 py-0.5 rounded self-start"
                                                 >
-                                                    {fotoPrincipalUrl === f.url ? 'Principal ⭐' : 'Tornar Principal'}
+                                                    {fotoPrincipalUrl === f.url ? 'Principal ⭐' : 'Marcar como Principal'}
                                                 </button>
                                                 <button
                                                     type="button"
@@ -743,11 +743,11 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                         >
                             {submitting ? (
                                 <>
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Salvando...
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando...
                                 </>
                             ) : (
                                 <>
-                                    <ShieldCheck className="h-3.5 w-3.5" /> {isEdit ? 'Salvar Alterações' : 'Cadastrar Patrimônio'}
+                                    <ShieldCheck className="h-3.5 w-3.5" /> {isEdit ? 'Guardar Cambios' : 'Registrar Activo'}
                                 </>
                             )}
                         </Button>

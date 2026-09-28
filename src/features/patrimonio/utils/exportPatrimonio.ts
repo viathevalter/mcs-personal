@@ -3,38 +3,38 @@ import { jsPDF } from 'jspdf';
 import type { AtivoPatrimonio } from '../types/patrimonio';
 import { STATUS_CONFIG } from '../types/patrimonio';
 
-export function exportarPatrimoniosExcel(ativos: AtivoPatrimonio[], nomeArquivo: string = 'patrimonios_mcs') {
+export function exportarPatrimoniosExcel(ativos: AtivoPatrimonio[], nomeArquivo: string = 'activos_patrimonio_mcs') {
     const dados = ativos.map(a => ({
         'Código Patrimonial': a.codigo_patrimonial,
-        'Descrição': a.descricao,
-        'Categoria': a.categoria,
-        'Subcategoria': a.subcategoria || '',
+        'Descripción': a.descricao,
+        'Categoría': a.categoria,
+        'Subcategoría': a.subcategoria || '',
         'Marca': a.marca || '',
         'Modelo': a.modelo || '',
-        'Status': STATUS_CONFIG[a.status]?.label || a.status,
-        'Responsável Atual': a.responsavel_nome || 'Disponível em Armazém',
-        'Coordenador': a.coordenador_nome || '',
-        'Projeto': a.projeto || '',
-        'Localização': a.localizacao || '',
-        'Data Entrega': a.data_entrega ? new Date(a.data_entrega).toLocaleDateString('pt-BR') : '',
-        'Previsão Devolução': a.previsao_devolucao || '',
-        'Número de Série': a.numero_serie || '',
+        'Estado': STATUS_CONFIG[a.status]?.label || a.status,
+        'Responsable Actual': a.responsavel_nome || 'Disponible en Almacén',
+        'Coordinador': a.coordenador_nome || '',
+        'Proyecto / Obra': a.projeto || '',
+        'Ubicación': a.localizacao || '',
+        'Fecha Entrega': a.data_entrega ? new Date(a.data_entrega).toLocaleDateString('es-ES') : '',
+        'Previsión Devolución': a.previsao_devolucao || '',
+        'Número de Serie': a.numero_serie || '',
         'IMEI': a.imei || '',
         'Matrícula': a.matricula || '',
-        'Cor': a.cor || '',
-        'Empresa Proprietária': a.empresa_proprietaria || '',
-        'Centro de Custo': a.centro_custo || '',
-        'Data Compra': a.data_compra || '',
-        'Fornecedor': a.fornecedor || '',
-        'Nº Fatura': a.numero_fatura || '',
-        'Valor Aquisição (€)': a.valor_aquisicao || 0,
-        'Garantia (Meses)': a.garantia_meses || 0,
-        'Data Fim Garantia': a.data_fim_garantia || '',
+        'Color': a.cor || '',
+        'Empresa Propietaria': a.empresa_proprietaria || '',
+        'Centro de Coste': a.centro_custo || '',
+        'Fecha Compra': a.data_compra || '',
+        'Proveedor': a.fornecedor || '',
+        'Nº Factura': a.numero_fatura || '',
+        'Valor Adquisición (€)': a.valor_aquisicao || 0,
+        'Garantía (Meses)': a.garantia_meses || 0,
+        'Fecha Fin Garantía': a.data_fim_garantia || '',
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dados);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Patrimônio');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Activos y Patrimonio');
 
     // Auto-ajustar largura das colunas
     const max_widths = Object.keys(dados[0] || {}).map(key => ({
@@ -45,18 +45,18 @@ export function exportarPatrimoniosExcel(ativos: AtivoPatrimonio[], nomeArquivo:
     XLSX.writeFile(workbook, `${nomeArquivo}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
-export function exportarPatrimoniosCsv(ativos: AtivoPatrimonio[], nomeArquivo: string = 'patrimonios_mcs') {
+export function exportarPatrimoniosCsv(ativos: AtivoPatrimonio[], nomeArquivo: string = 'activos_patrimonio_mcs') {
     const headers = [
         'Código',
-        'Descrição',
-        'Categoria',
+        'Descripción',
+        'Categoría',
         'Marca',
         'Modelo',
-        'Status',
-        'Responsável',
-        'Projeto',
-        'Localização',
-        'Nº Série/IMEI',
+        'Estado',
+        'Responsable',
+        'Proyecto',
+        'Ubicación',
+        'Nº Serie/IMEI',
         'Empresa',
         'Valor (€)',
     ];
@@ -68,7 +68,7 @@ export function exportarPatrimoniosCsv(ativos: AtivoPatrimonio[], nomeArquivo: s
         `"${a.marca || ''}"`,
         `"${a.modelo || ''}"`,
         `"${STATUS_CONFIG[a.status]?.label || a.status}"`,
-        `"${a.responsavel_nome || 'Disponível'}"`,
+        `"${a.responsavel_nome || 'Disponible'}"`,
         `"${a.projeto || ''}"`,
         `"${a.localizacao || ''}"`,
         `"${a.imei || a.numero_serie || a.matricula || ''}"`,
@@ -87,7 +87,7 @@ export function exportarPatrimoniosCsv(ativos: AtivoPatrimonio[], nomeArquivo: s
     document.body.removeChild(link);
 }
 
-export function exportarPatrimoniosPdf(ativos: AtivoPatrimonio[], titulo: string = 'Relatório Geral de Patrimônio') {
+export function exportarPatrimoniosPdf(ativos: AtivoPatrimonio[], titulo: string = 'Informe General de Activos y Patrimonio') {
     const doc = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -101,17 +101,17 @@ export function exportarPatrimoniosPdf(ativos: AtivoPatrimonio[], titulo: string
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
-    doc.text('MCS INDUSTRIAL • CONTROLE DE ATIVOS E PATRIMÔNIO', marginX, currentY);
+    doc.text('MCS INDUSTRIAL • CONTROL DE ACTIVOS Y PATRIMONIO', marginX, currentY);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 116, 139);
-    doc.text(`${titulo} • Emitido em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}`, marginX, currentY + 5);
+    doc.text(`${titulo} • Emitido el: ${new Date().toLocaleDateString('es-ES')} ${new Date().toLocaleTimeString('es-ES')}`, marginX, currentY + 5);
 
     currentY += 14;
 
     // Tabela
-    const headers = ['Código', 'Descrição / Modelo', 'Categoria', 'Status', 'Responsável Atual', 'Projeto', 'Nº Série / IMEI', 'Empresa'];
+    const headers = ['Código', 'Descripción / Modelo', 'Categoría', 'Estado', 'Responsable Actual', 'Proyecto', 'Nº Serie / IMEI', 'Empresa'];
     const colWidths = [26, 62, 32, 28, 44, 30, 32, 28];
 
     // Cabeçalho da tabela
@@ -168,7 +168,7 @@ export function exportarPatrimoniosPdf(ativos: AtivoPatrimonio[], titulo: string
             `${ativo.descricao} ${ativo.marca ? `(${ativo.marca} ${ativo.modelo || ''})` : ''}`.substring(0, 38),
             ativo.categoria.substring(0, 20),
             STATUS_CONFIG[ativo.status]?.label || ativo.status,
-            (ativo.responsavel_nome || 'Disponível').substring(0, 24),
+            (ativo.responsavel_nome || 'Disponible').substring(0, 24),
             (ativo.projeto || '-').substring(0, 18),
             serialOuImei.substring(0, 20),
             (ativo.empresa_proprietaria || 'MCS').substring(0, 16),
@@ -189,5 +189,5 @@ export function exportarPatrimoniosPdf(ativos: AtivoPatrimonio[], titulo: string
     doc.setTextColor(51, 65, 85);
     doc.text(`Total de registros: ${ativos.length}`, marginX, currentY);
 
-    doc.save(`patrimonios_relatorio_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`activos_informe_${new Date().toISOString().slice(0, 10)}.pdf`);
 }

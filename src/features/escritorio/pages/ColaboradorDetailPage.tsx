@@ -80,7 +80,7 @@ export const ColaboradorDetailPage: React.FC = () => {
     const [mesSelecionado, setMesSelecionado] = useState(new Date().toISOString().slice(0, 7));
 
     // Modal / Mini Forms state
-    const [novoSalario, setNovoSalario] = useState({ salario_base: '', motivo: 'Ajuste inicial' });
+    const [novoSalario, setNovoSalario] = useState({ salario_base: '', motivo: 'Revisión inicial' });
     const [novaAusencia, setNovaAusencia] = useState({ tipo: 'baixa_medica', data_inicio: '', data_fim: '', observacoes: '' });
     const [novaFerias, setNovaFerias] = useState({ data_inicio: '', data_fim: '', observacoes: '' });
 
@@ -96,7 +96,7 @@ export const ColaboradorDetailPage: React.FC = () => {
             const pontosMes = await listarPontoMes(mesSelecionado, id);
             setPontos(pontosMes);
         } catch (error) {
-            console.error('Erro ao carregar detalhes do colaborador:', error);
+            console.error('Error al cargar expediente del empleado:', error);
         } finally {
             setLoading(false);
         }
@@ -115,10 +115,10 @@ export const ColaboradorDetailPage: React.FC = () => {
                 timeclock_code: timeclockCode || null,
             });
             await carregarDados();
-            alert('Dados laborais atualizados com sucesso!');
+            alert('¡Datos laborales actualizados correctamente!');
         } catch (error) {
-            console.error('Erro ao salvar dados laborais:', error);
-            alert('Falha ao salvar dados laborais.');
+            console.error('Error al guardar datos laborales:', error);
+            alert('Error al guardar los datos laborales.');
         } finally {
             setSaving(false);
         }
@@ -140,14 +140,14 @@ export const ColaboradorDetailPage: React.FC = () => {
                 comissao_fixa: 0,
                 outros_valores: 0,
                 data_vigencia: new Date().toISOString().slice(0, 10),
-                motivo: novoSalario.motivo || 'Atualização salarial',
+                motivo: novoSalario.motivo || 'Actualización salarial',
             });
-            setNovoSalario({ salario_base: '', motivo: 'Reajuste' });
+            setNovoSalario({ salario_base: '', motivo: 'Revisión periódica' });
             await carregarDados();
-            alert('Novo salário registrado!');
+            alert('¡Nuevo salario registrado correctamente!');
         } catch (error) {
-            console.error('Erro ao salvar salário:', error);
-            alert('Erro ao registrar histórico salarial.');
+            console.error('Error al guardar salario:', error);
+            alert('Error al registrar el historial salarial.');
         }
     };
 
@@ -167,16 +167,16 @@ export const ColaboradorDetailPage: React.FC = () => {
                 data_fim: novaFerias.data_fim,
                 dias_solicitados: diffDays,
                 tipo_dias: 'naturais',
-                status: 'solicitado',
+                status: 'aprovado',
                 observacoes: novaFerias.observacoes || null,
             });
 
             setNovaFerias({ data_inicio: '', data_fim: '', observacoes: '' });
             await carregarDados();
-            alert(`Solicitação de férias de ${diffDays} dias enviada!`);
+            alert(`¡Período de vacaciones de ${diffDays} días registrado!`);
         } catch (error) {
-            console.error('Erro ao solicitar férias:', error);
-            alert('Erro ao registrar solicitação de férias.');
+            console.error('Error al solicitar vacaciones:', error);
+            alert('Error al registrar la solicitud de vacaciones.');
         }
     };
 
@@ -202,10 +202,10 @@ export const ColaboradorDetailPage: React.FC = () => {
 
             setNovaAusencia({ tipo: 'baixa_medica', data_inicio: '', data_fim: '', observacoes: '' });
             await carregarDados();
-            alert('Ausência/Baixa médica registrada com sucesso!');
+            alert('¡Ausencia / Baja médica registrada con éxito!');
         } catch (error) {
-            console.error('Erro ao registrar ausência:', error);
-            alert('Erro ao registrar ausência.');
+            console.error('Error al registrar ausencia:', error);
+            alert('Error al guardar la ausencia.');
         }
     };
 
@@ -213,8 +213,8 @@ export const ColaboradorDetailPage: React.FC = () => {
         if (!colaborador) return;
         const novoStatus = !colaborador.active;
         const confirmMsg = novoStatus
-            ? `Deseja reativar o colaborador ${colaborador.nombrecompleto}?`
-            : `Deseja inativar o colaborador ${colaborador.nombrecompleto}? Ele não aparecerá na lista de colaboradores ativos.`;
+            ? `¿Desea reactivar al empleado ${colaborador.nombrecompleto}?`
+            : `¿Desea dar de baja / inactivar al empleado ${colaborador.nombrecompleto}?`;
 
         if (!window.confirm(confirmMsg)) return;
 
@@ -222,8 +222,8 @@ export const ColaboradorDetailPage: React.FC = () => {
             await alternarStatusColaborador(colaborador.id, novoStatus);
             await carregarDados();
         } catch (error) {
-            console.error('Erro ao alternar status do colaborador:', error);
-            alert('Falha ao atualizar status.');
+            console.error('Error al alternar estado del empleado:', error);
+            alert('Error al actualizar el estado.');
         }
     };
 
@@ -231,7 +231,7 @@ export const ColaboradorDetailPage: React.FC = () => {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <div className="text-sm font-semibold text-slate-500">
-                    Carregando ficha do colaborador...
+                    Cargando expediente del empleado...
                 </div>
             </div>
         );
@@ -240,9 +240,9 @@ export const ColaboradorDetailPage: React.FC = () => {
     if (!colaborador) {
         return (
             <div className="p-8 text-center space-y-4">
-                <p className="text-slate-600">Colaborador não encontrado.</p>
+                <p className="text-slate-600">Empleado no encontrado.</p>
                 <Button onClick={() => navigate('/escritorio/colaboradores')}>
-                    Voltar para a lista
+                    Volver al listado
                 </Button>
             </div>
         );
@@ -250,7 +250,7 @@ export const ColaboradorDetailPage: React.FC = () => {
 
     return (
         <div className="space-y-6 pb-16">
-            {/* Botão Voltar */}
+            {/* Botón Volver */}
             <div>
                 <Button 
                     variant="ghost" 
@@ -259,15 +259,15 @@ export const ColaboradorDetailPage: React.FC = () => {
                     className="gap-2 text-xs font-semibold text-slate-600 hover:text-slate-900 dark:text-slate-400"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Voltar para Lista de Colaboradores
+                    Volver al Listado de Empleados
                 </Button>
             </div>
 
-            {/* Cabeçalho Perfil 360° */}
+            {/* Encabezado Perfil 360° */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-sky-600 to-indigo-700 text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0">
+                        <div className={`h-16 w-16 rounded-2xl ${colaborador.active ? 'bg-gradient-to-br from-sky-600 to-indigo-700' : 'bg-slate-400'} text-white flex items-center justify-center font-bold text-xl shadow-md shrink-0`}>
                             {colaborador.nombrecompleto?.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
@@ -278,19 +278,19 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 <Badge 
                                     onClick={handleToggleStatus}
                                     className={`cursor-pointer transition-colors text-xs font-semibold ${colaborador.active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border-slate-300'}`}
-                                    title="Clique para alternar entre Ativo e Inativo"
+                                    title="Haga clic para alternar entre Activo e Inactivo"
                                 >
                                     <span className={`h-1.5 w-1.5 rounded-full mr-1.5 ${colaborador.active ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-                                    {colaborador.active ? 'Ativo' : 'Inativo'}
+                                    {colaborador.active ? 'Activo' : 'Inactivo'}
                                 </Badge>
                                 {colaborador.timeclock_code ? (
                                     <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200 font-mono text-xs gap-1">
                                         <Clock className="h-3 w-3" />
-                                        Relógio ID: {colaborador.timeclock_code}
+                                        ID Control Horario: {colaborador.timeclock_code}
                                     </Badge>
                                 ) : (
                                     <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs">
-                                        Sem Código no Relógio
+                                        Sin ID de Fichaje
                                     </Badge>
                                 )}
                             </div>
@@ -316,7 +316,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Resumo Rápido lateral */}
+                    {/* Resumen Rápido Lateral y Botón de Estado */}
                     <div className="flex items-center gap-3 shrink-0">
                         <Button 
                             variant="outline" 
@@ -324,63 +324,63 @@ export const ColaboradorDetailPage: React.FC = () => {
                             onClick={handleToggleStatus}
                             className={`h-9 text-xs font-semibold ${colaborador.active ? 'text-slate-600 hover:text-rose-600 border-slate-200 hover:bg-rose-50' : 'text-emerald-600 hover:text-emerald-700 border-emerald-300 bg-emerald-50/50'}`}
                         >
-                            {colaborador.active ? 'Inativar Colaborador' : 'Reativar Colaborador'}
+                            {colaborador.active ? 'Dar de Baja / Inactivar' : 'Reactivar Empleado'}
                         </Button>
                         <div className="text-right border-l pl-4 border-slate-200 dark:border-slate-800 hidden sm:block">
-                            <p className="text-[11px] text-slate-400 font-medium">Saldo Férias Anual</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Saldo Vacaciones Anual</p>
                             <p className="text-lg font-bold text-emerald-600">
-                                {colaborador.ferias_saldo?.dias_saldo ?? 30} dias
+                                {colaborador.ferias_saldo?.dias_saldo ?? 30} días
                             </p>
                         </div>
                         <div className="text-right border-l pl-4 border-slate-200 dark:border-slate-800 hidden sm:block">
-                            <p className="text-[11px] text-slate-400 font-medium">Patrimônio Alocado</p>
+                            <p className="text-[11px] text-slate-400 font-medium">Activos Asignados</p>
                             <p className="text-lg font-bold text-sky-600">
-                                {colaborador.ativosPatrimonio.length} itens
+                                {colaborador.ativosPatrimonio.length} equipos
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Abas da Central do Colaborador */}
+            {/* Pestañas del Expediente 360° */}
             <Tabs defaultValue="laboral" className="w-full">
                 <TabsList className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 rounded-xl w-full justify-start overflow-x-auto h-auto">
                     <TabsTrigger value="laboral" className="text-xs font-semibold gap-1.5 py-2">
                         <Briefcase className="h-3.5 w-3.5" />
-                        Ficha Laboral & Contrato
+                        Expediente Laboral y Contrato
                     </TabsTrigger>
                     <TabsTrigger value="ponto" className="text-xs font-semibold gap-1.5 py-2">
                         <Clock className="h-3.5 w-3.5" />
-                        Espelho de Ponto
+                        Control Horario y Fichajes
                     </TabsTrigger>
                     <TabsTrigger value="ferias" className="text-xs font-semibold gap-1.5 py-2">
                         <Palmtree className="h-3.5 w-3.5" />
-                        Férias (Espanha)
+                        Vacaciones (España)
                     </TabsTrigger>
                     <TabsTrigger value="ausencias" className="text-xs font-semibold gap-1.5 py-2">
                         <Stethoscope className="h-3.5 w-3.5" />
-                        Ausências & Licenças
+                        Ausencias y Bajas
                     </TabsTrigger>
                     <TabsTrigger value="remuneracao" className="text-xs font-semibold gap-1.5 py-2">
                         <DollarSign className="h-3.5 w-3.5" />
-                        Remuneração & Salário
+                        Retribución y Salario
                     </TabsTrigger>
                     <TabsTrigger value="patrimonio" className="text-xs font-semibold gap-1.5 py-2">
                         <ShieldCheck className="h-3.5 w-3.5" />
-                        Patrimônio ({colaborador.ativosPatrimonio.length})
+                        Activos Asignados ({colaborador.ativosPatrimonio.length})
                     </TabsTrigger>
                 </TabsList>
 
-                {/* ABA 1: FICHA LABORAL */}
+                {/* PESTAÑA 1: EXPEDIENTE LABORAL */}
                 <TabsContent value="laboral" className="mt-4">
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-4 flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                                    Dados Contratuais e Laborais
+                                    Datos Contractuales y Laborales
                                 </CardTitle>
                                 <p className="text-xs text-slate-500">
-                                    Informações de enquadramento, jornada e código de integração com relógio ponto.
+                                    Información de encuadramiento, jornada y código de integración con el reloj de control horario.
                                 </p>
                             </div>
                             <Button 
@@ -390,28 +390,28 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 size="sm"
                             >
                                 <Save className="h-3.5 w-3.5" />
-                                {saving ? 'Salvando...' : 'Salvar Alterações'}
+                                {saving ? 'Guardando...' : 'Guardar Cambios'}
                             </Button>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div>
-                                    <Label className="text-xs font-semibold">Código do Relógio Ponto (timeclock_code)</Label>
+                                    <Label className="text-xs font-semibold">Código Control Horario (timeclock_code)</Label>
                                     <Input 
-                                        placeholder="Ex: 1, 2, 3..." 
+                                        placeholder="Ej: 1, 2, 3..." 
                                         value={timeclockCode}
                                         onChange={(e) => setTimeclockCode(e.target.value)}
                                         className="text-xs mt-1 font-mono font-bold"
                                     />
                                     <p className="text-[10px] text-slate-400 mt-1">
-                                        Número de identificação utilizado na planilha/dispositivo biométrico.
+                                        Número de identificación en el dispositivo biométrico / plantilla.
                                     </p>
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Cargo / Função</Label>
+                                    <Label className="text-xs font-semibold">Puesto / Cargo</Label>
                                     <Input 
-                                        placeholder="Ex: Assistente Administrativo" 
+                                        placeholder="Ej: Asistente Administrativo/a" 
                                         value={formData.cargo || ''}
                                         onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
                                         className="text-xs mt-1"
@@ -419,9 +419,9 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Classificação</Label>
+                                    <Label className="text-xs font-semibold">Clasificación Profesional</Label>
                                     <Select 
-                                        value={formData.classificacao || 'Administrativo / Escritório'} 
+                                        value={formData.classificacao || 'Administrativo / Oficina'} 
                                         onValueChange={(val) => setFormData({ ...formData, classificacao: val })}
                                     >
                                         <SelectTrigger className="text-xs mt-1">
@@ -436,26 +436,26 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Tipo de Contrato</Label>
+                                    <Label className="text-xs font-semibold">Modalidad de Contrato</Label>
                                     <Select 
-                                        value={formData.tipo_contrato || 'Indefinido (CLT/Espanhol)'} 
+                                        value={formData.tipo_contrato || 'Indefinido'} 
                                         onValueChange={(val) => setFormData({ ...formData, tipo_contrato: val })}
                                     >
                                         <SelectTrigger className="text-xs mt-1">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Indefinido (CLT/Espanhol)">Indefinido (Indefinido)</SelectItem>
-                                            <SelectItem value="Temporal / Determinado">Temporal / Determinado</SelectItem>
-                                            <SelectItem value="Prácticas / Estágio">Prácticas / Estágio</SelectItem>
-                                            <SelectItem value="Formação">Formação</SelectItem>
-                                            <SelectItem value="Fixo Descontínuo">Fixo Descontínuo</SelectItem>
+                                            <SelectItem value="Indefinido">Indefinido Ordinario</SelectItem>
+                                            <SelectItem value="Temporal / Por Circunstancias">Temporal / Por Circunstancias</SelectItem>
+                                            <SelectItem value="Prácticas / Formación">Prácticas / Formación</SelectItem>
+                                            <SelectItem value="Fijo Discontinuo">Fijo Discontinuo</SelectItem>
+                                            <SelectItem value="Obra o Servicio">Obra o Servicio</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Data de Admissão</Label>
+                                    <Label className="text-xs font-semibold">Fecha de Alta / Antigüedad</Label>
                                     <Input 
                                         type="date"
                                         value={formData.data_admissao || ''}
@@ -465,7 +465,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Carga Horária Semanal (Horas)</Label>
+                                    <Label className="text-xs font-semibold">Jornada Semanal (Horas)</Label>
                                     <Input 
                                         type="number"
                                         value={formData.jornada_semanal_horas || 40}
@@ -475,9 +475,9 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Horário de Trabalho Padrão</Label>
+                                    <Label className="text-xs font-semibold">Horario Habitual</Label>
                                     <Input 
-                                        placeholder="Ex: 08:00 - 13:00 / 14:00 - 17:00" 
+                                        placeholder="Ej: 08:00 - 13:00 / 14:00 - 17:00" 
                                         value={formData.horario_trabalho || '08:00 - 17:00'}
                                         onChange={(e) => setFormData({ ...formData, horario_trabalho: e.target.value })}
                                         className="text-xs mt-1"
@@ -485,9 +485,9 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Local de Trabalho</Label>
+                                    <Label className="text-xs font-semibold">Centro de Trabajo</Label>
                                     <Input 
-                                        placeholder="Ex: Escritório Central Madrid / Oficina" 
+                                        placeholder="Ej: Oficina Central Madrid / Taller" 
                                         value={formData.local_trabalho || colaborador.ubicaciontrabajo || ''}
                                         onChange={(e) => setFormData({ ...formData, local_trabalho: e.target.value })}
                                         className="text-xs mt-1"
@@ -495,9 +495,9 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                    <Label className="text-xs font-semibold">Convenção Coletiva (Espanha)</Label>
+                                    <Label className="text-xs font-semibold">Convenio Colectivo de Aplicación</Label>
                                     <Input 
-                                        placeholder="Ex: Metalurgia / Oficinas y Despachos" 
+                                        placeholder="Ej: Metalurgia / Oficinas y Despachos" 
                                         value={formData.convencao_coletiva || 'Convenio Colectivo General'}
                                         onChange={(e) => setFormData({ ...formData, convencao_coletiva: e.target.value })}
                                         className="text-xs mt-1"
@@ -508,16 +508,16 @@ export const ColaboradorDetailPage: React.FC = () => {
                     </Card>
                 </TabsContent>
 
-                {/* ABA 2: ESPELHO DE PONTO */}
+                {/* PESTAÑA 2: CONTROL HORARIO Y FICHAJES */}
                 <TabsContent value="ponto" className="mt-4 space-y-4">
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-4 flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                                    Espelho de Ponto Individual
+                                    Informe Individual de Fichajes
                                 </CardTitle>
                                 <p className="text-xs text-slate-500">
-                                    Batidas e horas computadas para a competência selecionada.
+                                    Marcajes de entrada/salida y horas computadas en el período seleccionado.
                                 </p>
                             </div>
                             <div className="flex items-center gap-2">
@@ -533,22 +533,22 @@ export const ColaboradorDetailPage: React.FC = () => {
                             <Table>
                                 <TableHeader>
                                     <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
-                                        <TableHead className="font-bold text-xs">Data</TableHead>
-                                        <TableHead className="font-bold text-xs">Batidas Registradas</TableHead>
+                                        <TableHead className="font-bold text-xs">Fecha</TableHead>
+                                        <TableHead className="font-bold text-xs">Marcajes Registrados</TableHead>
                                         <TableHead className="font-bold text-xs">Entrada 1</TableHead>
-                                        <TableHead className="font-bold text-xs">Saída 1</TableHead>
+                                        <TableHead className="font-bold text-xs">Salida 1</TableHead>
                                         <TableHead className="font-bold text-xs">Entrada 2</TableHead>
-                                        <TableHead className="font-bold text-xs">Saída 2</TableHead>
-                                        <TableHead className="font-bold text-xs">Horas Trabalhadas</TableHead>
+                                        <TableHead className="font-bold text-xs">Salida 2</TableHead>
+                                        <TableHead className="font-bold text-xs">Horas Trabajadas</TableHead>
                                         <TableHead className="font-bold text-xs">Saldo / Extras</TableHead>
-                                        <TableHead className="font-bold text-xs">Status</TableHead>
+                                        <TableHead className="font-bold text-xs">Estado</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {pontos.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={9} className="h-28 text-center text-xs text-slate-500">
-                                                Nenhum registro de ponto encontrado para {mesSelecionado}. Importe a planilha de ponto na tela de Ponto & Relógio.
+                                                No se han encontrado registros de control horario para {mesSelecionado}.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -586,57 +586,57 @@ export const ColaboradorDetailPage: React.FC = () => {
                     </Card>
                 </TabsContent>
 
-                {/* ABA 3: FÉRIAS */}
+                {/* PESTAÑA 3: VACACIONES */}
                 <TabsContent value="ferias" className="mt-4 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-xs font-medium text-slate-500">Direito Anual (Espanha)</CardTitle>
+                                <CardTitle className="text-xs font-medium text-slate-500">Derecho Anual (España)</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                                    {colaborador.ferias_saldo?.dias_direito ?? 30} dias
+                                    {colaborador.ferias_saldo?.dias_direito ?? 30} días
                                 </p>
-                                <p className="text-[11px] text-slate-400 mt-1">Estatuto de los Trabajadores (30 naturais)</p>
+                                <p className="text-[11px] text-slate-400 mt-1">Estatuto de los Trabajadores (30 naturales)</p>
                             </CardContent>
                         </Card>
 
                         <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-xs font-medium text-slate-500">Dias Gozados</CardTitle>
+                                <CardTitle className="text-xs font-medium text-slate-500">Días Disfrutados</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-2xl font-bold text-sky-600">
-                                    {colaborador.ferias_saldo?.dias_gozados ?? 0} dias
+                                    {colaborador.ferias_saldo?.dias_gozados ?? 0} días
                                 </p>
-                                <p className="text-[11px] text-slate-400 mt-1">Usufruídos no ano atual</p>
+                                <p className="text-[11px] text-slate-400 mt-1">Utilizados en el año actual</p>
                             </CardContent>
                         </Card>
 
                         <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                             <CardHeader className="pb-2">
-                                <CardTitle className="text-xs font-medium text-slate-500">Saldo Disponível</CardTitle>
+                                <CardTitle className="text-xs font-medium text-slate-500">Saldo Disponible</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-2xl font-bold text-emerald-600">
-                                    {colaborador.ferias_saldo?.dias_saldo ?? 30} dias
+                                    {colaborador.ferias_saldo?.dias_saldo ?? 30} días
                                 </p>
-                                <p className="text-[11px] text-slate-400 mt-1">Prontos para solicitar ou agendar</p>
+                                <p className="text-[11px] text-slate-400 mt-1">Disponibles para solicitar</p>
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Formulário Nova Solicitação de Férias */}
+                    {/* Formulario Registro de Vacaciones */}
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-4">
                             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                                Solicitar / Lançar Novo Período de Férias
+                                Registrar Período de Vacaciones Fraccionadas
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleSolicitarFerias} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                                 <div>
-                                    <Label className="text-xs font-semibold">Data Início</Label>
+                                    <Label className="text-xs font-semibold">Fecha de Inicio</Label>
                                     <Input 
                                         type="date"
                                         required
@@ -646,7 +646,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold">Data Fim</Label>
+                                    <Label className="text-xs font-semibold">Fecha de Fin</Label>
                                     <Input 
                                         type="date"
                                         required
@@ -657,18 +657,18 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold">
-                                        Lançar Solicitação
+                                        Registrar Vacaciones
                                     </Button>
                                 </div>
                             </form>
                         </CardContent>
                     </Card>
 
-                    {/* Tabela de Solicitações */}
+                    {/* Tabla de Vacaciones */}
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                                Histórico de Férias
+                                Historial de Vacaciones
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
@@ -676,26 +676,26 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 <TableHeader>
                                     <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
                                         <TableHead className="font-bold text-xs">Período</TableHead>
-                                        <TableHead className="font-bold text-xs">Dias</TableHead>
+                                        <TableHead className="font-bold text-xs">Días</TableHead>
                                         <TableHead className="font-bold text-xs">Tipo</TableHead>
-                                        <TableHead className="font-bold text-xs">Status</TableHead>
-                                        <TableHead className="font-bold text-xs">Observações</TableHead>
+                                        <TableHead className="font-bold text-xs">Estado</TableHead>
+                                        <TableHead className="font-bold text-xs">Observaciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {colaborador.solicitacoesFerias.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={5} className="h-20 text-center text-xs text-slate-500">
-                                                Nenhum período de férias solicitado até o momento.
+                                                No hay períodos de vacaciones registrados.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
                                         colaborador.solicitacoesFerias.map(sol => (
                                             <TableRow key={sol.id}>
                                                 <TableCell className="text-xs font-semibold">
-                                                    {sol.data_inicio} até {sol.data_fim}
+                                                    {sol.data_inicio} hasta {sol.data_fim}
                                                 </TableCell>
-                                                <TableCell className="text-xs font-bold">{sol.dias_solicitados} dias</TableCell>
+                                                <TableCell className="text-xs font-bold">{sol.dias_solicitados} días</TableCell>
                                                 <TableCell className="text-xs capitalize">{sol.tipo_dias}</TableCell>
                                                 <TableCell>
                                                     <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">
@@ -712,19 +712,19 @@ export const ColaboradorDetailPage: React.FC = () => {
                     </Card>
                 </TabsContent>
 
-                {/* ABA 4: AUSÊNCIAS & LICENÇAS */}
+                {/* PESTAÑA 4: AUSENCIAS Y BAJAS */}
                 <TabsContent value="ausencias" className="mt-4 space-y-6">
-                    {/* Formulário Nova Ausência */}
+                    {/* Formulario Registro de Ausencia */}
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-4">
                             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                                Registrar Ausência / Baixa Médica (Estatuto Espanhol)
+                                Registrar Ausencia / Baja Médica (Estatuto Trabajadores)
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleRegistrarAusencia} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
                                 <div>
-                                    <Label className="text-xs font-semibold">Tipo de Ausência</Label>
+                                    <Label className="text-xs font-semibold">Tipo de Ausencia</Label>
                                     <Select 
                                         value={novaAusencia.tipo} 
                                         onValueChange={(val) => setNovaAusencia({ ...novaAusencia, tipo: val })}
@@ -740,7 +740,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                     </Select>
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold">Data Início</Label>
+                                    <Label className="text-xs font-semibold">Fecha de Inicio</Label>
                                     <Input 
                                         type="date"
                                         required
@@ -750,7 +750,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold">Data Fim</Label>
+                                    <Label className="text-xs font-semibold">Fecha de Fin</Label>
                                     <Input 
                                         type="date"
                                         required
@@ -761,18 +761,18 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold">
-                                        Registrar Ausência
+                                        Registrar Ausencia
                                     </Button>
                                 </div>
                             </form>
                         </CardContent>
                     </Card>
 
-                    {/* Tabela de Ausências */}
+                    {/* Tabla de Ausencias */}
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                                Histórico de Ausências e Baixas
+                                Historial de Ausencias y Bajas
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
@@ -781,16 +781,16 @@ export const ColaboradorDetailPage: React.FC = () => {
                                     <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
                                         <TableHead className="font-bold text-xs">Tipo</TableHead>
                                         <TableHead className="font-bold text-xs">Período</TableHead>
-                                        <TableHead className="font-bold text-xs">Dias</TableHead>
-                                        <TableHead className="font-bold text-xs">Remunerada</TableHead>
-                                        <TableHead className="font-bold text-xs">Observações</TableHead>
+                                        <TableHead className="font-bold text-xs">Días</TableHead>
+                                        <TableHead className="font-bold text-xs">Retribuida</TableHead>
+                                        <TableHead className="font-bold text-xs">Observaciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {colaborador.ausencias.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={5} className="h-20 text-center text-xs text-slate-500">
-                                                Nenhuma ausência registrada para este colaborador.
+                                                No hay ausencias registradas para este empleado.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -800,14 +800,14 @@ export const ColaboradorDetailPage: React.FC = () => {
                                                     {TIPOS_AUSENCIA.find(t => t.id === aus.tipo)?.label || aus.tipo}
                                                 </TableCell>
                                                 <TableCell className="text-xs">
-                                                    {aus.data_inicio} até {aus.data_fim}
+                                                    {aus.data_inicio} hasta {aus.data_fim}
                                                 </TableCell>
-                                                <TableCell className="text-xs font-bold">{aus.dias_total} dias</TableCell>
+                                                <TableCell className="text-xs font-bold">{aus.dias_total} días</TableCell>
                                                 <TableCell>
                                                     {aus.remunerada ? (
-                                                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Sim</Badge>
+                                                        <Badge className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200">Sí</Badge>
                                                     ) : (
-                                                        <Badge variant="outline" className="text-[10px] text-rose-600 border-rose-300">Não</Badge>
+                                                        <Badge variant="outline" className="text-[10px] text-rose-600 border-rose-300">Descuento</Badge>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-xs text-slate-500">{aus.observacoes || '-'}</TableCell>
@@ -820,22 +820,22 @@ export const ColaboradorDetailPage: React.FC = () => {
                     </Card>
                 </TabsContent>
 
-                {/* ABA 5: REMUNERAÇÃO & SALÁRIO */}
+                {/* PESTAÑA 5: RETRIBUCIÓN Y SALARIO */}
                 <TabsContent value="remuneracao" className="mt-4 space-y-6">
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-4">
                             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                                Atualizar Salário Base
+                                Actualizar Salario Base
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handleAdicionarSalario} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
                                 <div>
-                                    <Label className="text-xs font-semibold">Salário Base Mensal (€)</Label>
+                                    <Label className="text-xs font-semibold">Salario Base Mensual (€)</Label>
                                     <Input 
                                         type="number"
                                         step="0.01"
-                                        placeholder="Ex: 2150.00"
+                                        placeholder="Ej: 2150.00"
                                         required
                                         value={novoSalario.salario_base}
                                         onChange={(e) => setNovoSalario({ ...novoSalario, salario_base: e.target.value })}
@@ -843,9 +843,9 @@ export const ColaboradorDetailPage: React.FC = () => {
                                     />
                                 </div>
                                 <div>
-                                    <Label className="text-xs font-semibold">Motivo da Alteração</Label>
+                                    <Label className="text-xs font-semibold">Motivo de la Modificación</Label>
                                     <Input 
-                                        placeholder="Ex: Reajuste anual, promoção..."
+                                        placeholder="Ej: Revisión anual, ascenso..."
                                         value={novoSalario.motivo}
                                         onChange={(e) => setNovoSalario({ ...novoSalario, motivo: e.target.value })}
                                         className="text-xs mt-1"
@@ -853,7 +853,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 </div>
                                 <div>
                                     <Button type="submit" className="w-full bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold">
-                                        Registrar Novo Salário
+                                        Registrar Nuevo Salario
                                     </Button>
                                 </div>
                             </form>
@@ -863,15 +863,15 @@ export const ColaboradorDetailPage: React.FC = () => {
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                                Histórico Salarial
+                                Historial Salarial
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-0">
                             <Table>
                                 <TableHeader>
                                     <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
-                                        <TableHead className="font-bold text-xs">Vigência</TableHead>
-                                        <TableHead className="font-bold text-xs">Salário Base</TableHead>
+                                        <TableHead className="font-bold text-xs">Vigencia</TableHead>
+                                        <TableHead className="font-bold text-xs">Salario Base</TableHead>
                                         <TableHead className="font-bold text-xs">Motivo</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -879,7 +879,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                     {colaborador.historicoSalarial.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={3} className="h-20 text-center text-xs text-slate-500">
-                                                Nenhum histórico salarial registrado.
+                                                No hay historial salarial registrado.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -887,7 +887,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                             <TableRow key={sal.id}>
                                                 <TableCell className="text-xs font-semibold">{sal.data_vigencia}</TableCell>
                                                 <TableCell className="text-xs font-bold text-slate-900 dark:text-white">
-                                                    € {sal.salario_base.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                                    € {sal.salario_base.toLocaleString('es-ES', { minimumFractionDigits: 2 })}
                                                 </TableCell>
                                                 <TableCell className="text-xs text-slate-500">{sal.motivo}</TableCell>
                                             </TableRow>
@@ -899,16 +899,16 @@ export const ColaboradorDetailPage: React.FC = () => {
                     </Card>
                 </TabsContent>
 
-                {/* ABA 6: ATIVOS & PATRIMÔNIO */}
+                {/* PESTAÑA 6: ACTIVOS Y PATRIMONIO */}
                 <TabsContent value="patrimonio" className="mt-4">
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-4 flex flex-row items-center justify-between">
                             <div>
                                 <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                                    Equipamentos e Ativos Sob Responsabilidade
+                                    Equipos y Activos Asignados
                                 </CardTitle>
                                 <p className="text-xs text-slate-500">
-                                    Notebooks, celulares, monitores e ferramentas vinculados a este colaborador.
+                                    Portátiles, teléfonos móviles, monitores y herramientas asignados a este empleado.
                                 </p>
                             </div>
                             <Button 
@@ -917,7 +917,7 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 size="sm"
                                 className="text-xs font-semibold gap-1.5"
                             >
-                                Gerenciar no Módulo Patrimônio
+                                Gestionar en Módulo de Activos
                                 <ExternalLink className="h-3.5 w-3.5" />
                             </Button>
                         </CardHeader>
@@ -926,17 +926,17 @@ export const ColaboradorDetailPage: React.FC = () => {
                                 <TableHeader>
                                     <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
                                         <TableHead className="font-bold text-xs">Código</TableHead>
-                                        <TableHead className="font-bold text-xs">Descrição / Modelo</TableHead>
-                                        <TableHead className="font-bold text-xs">Categoria</TableHead>
-                                        <TableHead className="font-bold text-xs">Nº Série</TableHead>
-                                        <TableHead className="font-bold text-xs">Status</TableHead>
+                                        <TableHead className="font-bold text-xs">Descripción / Modelo</TableHead>
+                                        <TableHead className="font-bold text-xs">Categoría</TableHead>
+                                        <TableHead className="font-bold text-xs">N.º Serie</TableHead>
+                                        <TableHead className="font-bold text-xs">Estado</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {colaborador.ativosPatrimonio.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={5} className="h-28 text-center text-xs text-slate-500">
-                                                Nenhum ativo de patrimônio alocado atualmente para este colaborador.
+                                                No hay activos asignados actualmente a este empleado.
                                             </TableCell>
                                         </TableRow>
                                     ) : (

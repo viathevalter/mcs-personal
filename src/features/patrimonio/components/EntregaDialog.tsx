@@ -48,11 +48,11 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
     const [workerDoc, setWorkerDoc] = useState('');
     const [coordenadorNome, setCoordenadorNome] = useState('');
     const [projeto, setProjeto] = useState('');
-    const [localEntrega, setLocalEntrega] = useState('Escritório Central / Oficina');
+    const [localEntrega, setLocalEntrega] = useState('Oficina Central / Almacén');
     const [dataEntrega, setDataEntrega] = useState(new Date().toISOString().slice(0, 16));
     const [previsaoDevolucao, setPrevisaoDevolucao] = useState('');
     const [acessoriosEntregues, setAcessoriosEntregues] = useState('');
-    const [estadoEquipamento, setEstadoEquipamento] = useState('Excelente / Novo');
+    const [estadoEquipamento, setEstadoEquipamento] = useState('Excelente / Nuevo');
     const [observacoes, setObservacoes] = useState('');
 
     useEffect(() => {
@@ -70,12 +70,12 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
 
         // Sugestão de acessórios conforme categoria do ativo
         if (ativo) {
-            if (ativo.categoria.toLowerCase().includes('celular') || ativo.codigo_patrimonial.startsWith('MOB')) {
-                setAcessoriosEntregues('Carregador original, Cabo USB-C, Capa de proteção');
-            } else if (ativo.categoria.toLowerCase().includes('informática') || ativo.codigo_patrimonial.startsWith('TI')) {
-                setAcessoriosEntregues('Fonte de alimentação, Carregador, Mouse, Mochila para notebook');
-            } else if (ativo.categoria.toLowerCase().includes('ferramenta')) {
-                setAcessoriosEntregues('Maleta plástica, 2 baterias, Carregador bivolt, Manual');
+            if (ativo.categoria.toLowerCase().includes('celular') || ativo.categoria.toLowerCase().includes('móvil') || ativo.codigo_patrimonial.startsWith('MOB')) {
+                setAcessoriosEntregues('Cargador original, Cable USB-C, Funda protectora');
+            } else if (ativo.categoria.toLowerCase().includes('informática') || ativo.categoria.toLowerCase().includes('portátil') || ativo.codigo_patrimonial.startsWith('TI')) {
+                setAcessoriosEntregues('Fuente de alimentación, Cargador, Ratón, Mochila para portátil');
+            } else if (ativo.categoria.toLowerCase().includes('ferramenta') || ativo.categoria.toLowerCase().includes('herramienta')) {
+                setAcessoriosEntregues('Maletín de transporte, 2 baterías, Cargador, Manual');
             }
         }
     }, [open, ativo]);
@@ -118,7 +118,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
             setProjeto(c.setor_projeto);
         }
         if (c.tipo.toLowerCase().includes('oficina')) {
-            setLocalEntrega('Oficina Central / Escritório');
+            setLocalEntrega('Oficina Central / Almacén');
         } else if (c.setor_projeto) {
             setLocalEntrega(c.setor_projeto);
         }
@@ -135,7 +135,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
         e.preventDefault();
         if (!ativo) return;
         if (!workerNome.trim()) {
-            toast.error('Selecione o funcionário responsável.');
+            toast.error('Seleccione el empleado responsable.');
             return;
         }
 
@@ -163,31 +163,31 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                     coordenadorNome,
                     projeto,
                     localEntrega,
-                    dataEntrega: new Date(dataEntrega).toLocaleDateString('pt-BR'),
+                    dataEntrega: new Date(dataEntrega).toLocaleDateString('es-ES'),
                     acessorios: acessoriosEntregues,
                     estadoEquipamento,
                     empresaNome: ativo.empresa_proprietaria || 'KR INDUSTRIAL',
                 });
 
-                pdfDoc.save(`termo_responsabilidade_${ativo.codigo_patrimonial}_${workerNome.replace(/\s+/g, '_')}.pdf`);
+                pdfDoc.save(`acta_responsabilidad_${ativo.codigo_patrimonial}_${workerNome.replace(/\s+/g, '_')}.pdf`);
 
                 // Registra o documento na ficha do ativo
                 await salvarDocumento({
                     ativo_id: ativo.id,
                     tipo_documento: 'termo_responsabilidade',
-                    titulo: `Termo de Entrega - ${workerNome}`,
+                    titulo: `Acta de Entrega y Responsabilidad - ${workerNome}`,
                     arquivo_url: '#gerado_automaticamente',
-                    arquivo_nome: `termo_${ativo.codigo_patrimonial}.pdf`,
+                    arquivo_nome: `acta_${ativo.codigo_patrimonial}.pdf`,
                     status_assinatura: 'pendente',
                 });
             }
 
-            toast.success(`Equipamento entregue a ${workerNome} com sucesso!`);
+            toast.success(`¡Equipo entregado a ${workerNome} con éxito!`);
             onSuccess();
             onOpenChange(false);
         } catch (err: any) {
             console.error('Erro na entrega:', err);
-            toast.error(err?.message || 'Falha ao registrar entrega.');
+            toast.error(err?.message || 'Error al registrar la entrega.');
         } finally {
             setSubmitting(false);
         }
@@ -199,10 +199,10 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                 <DialogHeader className="p-5 pb-3 border-b border-slate-100 dark:border-slate-800">
                     <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
                         <UserCheck className="h-5 w-5 text-emerald-600" />
-                        Entregar Patrimônio ao Colaborador
+                        Entregar Activo al Empleado
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
-                        Atribuir custódia de <strong>{ativo?.codigo_patrimonial}</strong> ({ativo?.descricao}) e gerar termo de entrega.
+                        Asignar custodia de <strong>{ativo?.codigo_patrimonial}</strong> ({ativo?.descricao}) y generar acta de entrega.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -210,14 +210,14 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                     {/* SELEÇÃO DO COLABORADOR */}
                     <div className="space-y-2">
                         <Label className="text-xs font-semibold text-slate-900 dark:text-white flex items-center justify-between">
-                            <span>Funcionário Beneficiário / Responsável <span className="text-rose-500">*</span></span>
+                            <span>Empleado Beneficiario / Responsable <span className="text-rose-500">*</span></span>
                             {colaboradorSelecionado && (
                                 <button
                                     type="button"
                                     onClick={handleLimparColaborador}
                                     className="text-xs text-sky-600 hover:text-sky-700 flex items-center gap-1 font-normal"
                                 >
-                                    <RefreshCw className="h-3 w-3" /> Trocar Funcionário
+                                    <RefreshCw className="h-3 w-3" /> Cambiar Empleado
                                 </button>
                             )}
                         </Label>
@@ -242,7 +242,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                                                         : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                                 }`}
                                             >
-                                                {colaboradorSelecionado.tipo}
+                                                {colaboradorSelecionado.tipo.includes('Oficina') ? 'Oficina' : 'Obra / Campo'}
                                             </Badge>
                                         </div>
                                         <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
@@ -255,7 +255,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                                     type="button"
                                     onClick={handleLimparColaborador}
                                     className="p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-slate-800 transition-colors"
-                                    title="Remover seleção"
+                                    title="Eliminar selección"
                                 >
                                     <X className="h-4 w-4" />
                                 </button>
@@ -267,7 +267,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                                 <div className="relative">
                                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                                     <Input
-                                        placeholder="Pesquise por nome do funcionário, NIE/DNI ou setor..."
+                                        placeholder="Buscar por nombre de empleado, NIE/DNI o sector..."
                                         value={buscaColaborador}
                                         onChange={(e) => setBuscaColaborador(e.target.value)}
                                         className="pl-9 h-9 text-xs bg-white dark:bg-slate-900"
@@ -297,7 +297,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                                                 : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                                         }`}
                                     >
-                                        🏢 Oficina & Escritório
+                                        🏢 Oficina / Estructura
                                     </button>
                                     <button
                                         type="button"
@@ -308,7 +308,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                                                 : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                                         }`}
                                     >
-                                        👷 Trabalhadores de Campo
+                                        👷 Trabajadores de Obra / Campo
                                     </button>
                                 </div>
 
@@ -317,11 +317,11 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                                     {loadingColaboradores ? (
                                         <div className="p-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
                                             <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
-                                            Carregando cadastro de funcionários...
+                                            Cargando lista de empleados...
                                         </div>
                                     ) : colaboradoresFiltrados.length === 0 ? (
                                         <div className="p-6 text-center text-xs text-slate-400">
-                                            Nenhum funcionário localizado com o filtro atual.
+                                            Ningún empleado encontrado con el filtro actual.
                                         </div>
                                     ) : (
                                         colaboradoresFiltrados.slice(0, 30).map((c) => (
@@ -357,7 +357,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                                                     </div>
                                                 </div>
                                                 <span className="text-xs font-medium text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                                                    Selecionar →
+                                                    Seleccionar →
                                                 </span>
                                             </button>
                                         ))
@@ -369,9 +369,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Documento (DNI / NIE / Passaporte)</Label>
+                            <Label className="text-xs font-medium">Documento (DNI / NIE / Pasaporte)</Label>
                             <Input
-                                placeholder="Ex: Y1234567X"
+                                placeholder="Ej: Y1234567X"
                                 value={workerDoc}
                                 onChange={(e) => setWorkerDoc(e.target.value)}
                                 className="h-9 text-xs"
@@ -379,9 +379,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Coordenador Responsável</Label>
+                            <Label className="text-xs font-medium">Coordinador Responsable</Label>
                             <Input
-                                placeholder="Nome do coordenador / supervisor"
+                                placeholder="Nombre del coordinador / supervisor"
                                 value={coordenadorNome}
                                 onChange={(e) => setCoordenadorNome(e.target.value)}
                                 className="h-9 text-xs"
@@ -391,9 +391,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Projeto / Setor / Oficina</Label>
+                            <Label className="text-xs font-medium">Proyecto / Obra / Sector</Label>
                             <Input
-                                placeholder="Ex: Oficina Central, Sagunto, Tarragona..."
+                                placeholder="Ej: Oficina Central, Sagunto, Tarragona..."
                                 value={projeto}
                                 onChange={(e) => setProjeto(e.target.value)}
                                 className="h-9 text-xs"
@@ -401,9 +401,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Local da Entrega</Label>
+                            <Label className="text-xs font-medium">Lugar de Entrega</Label>
                             <Input
-                                placeholder="Local físico"
+                                placeholder="Ubicación física"
                                 value={localEntrega}
                                 onChange={(e) => setLocalEntrega(e.target.value)}
                                 className="h-9 text-xs"
@@ -413,7 +413,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Data e Hora da Entrega</Label>
+                            <Label className="text-xs font-medium">Fecha y Hora de Entrega</Label>
                             <Input
                                 type="datetime-local"
                                 value={dataEntrega}
@@ -423,7 +423,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Previsão de Devolução (Opcional)</Label>
+                            <Label className="text-xs font-medium">Previsión de Devolución (Opcional)</Label>
                             <Input
                                 type="date"
                                 value={previsaoDevolucao}
@@ -434,9 +434,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Acessórios Entregues Junto</Label>
+                        <Label className="text-xs font-medium">Accesorios Entregados Conjuntamente</Label>
                         <Input
-                            placeholder="Cabos, carregador, adaptadores, capa, etc."
+                            placeholder="Cables, cargador, adaptadores, funda, etc."
                             value={acessoriosEntregues}
                             onChange={(e) => setAcessoriosEntregues(e.target.value)}
                             className="h-9 text-xs"
@@ -444,9 +444,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Estado do Equipamento na Entrega</Label>
+                        <Label className="text-xs font-medium">Estado del Equipo en la Entrega</Label>
                         <Input
-                            placeholder="Ex: Excelente estado, sem riscos ou avarias"
+                            placeholder="Ej: Excelente estado, sin rasguños ni averías"
                             value={estadoEquipamento}
                             onChange={(e) => setEstadoEquipamento(e.target.value)}
                             className="h-9 text-xs"
@@ -454,9 +454,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label className="text-xs font-medium">Observações Adicionais</Label>
+                        <Label className="text-xs font-medium">Observaciones Adicionales</Label>
                         <Textarea
-                            placeholder="Informações relevantes para registro..."
+                            placeholder="Información relevante para el registro..."
                             value={observacoes}
                             onChange={(e) => setObservacoes(e.target.value)}
                             className="text-xs min-h-[50px]"
@@ -471,7 +471,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                             onCheckedChange={(checked: boolean) => setGerarTermoAutomatico(checked)}
                         />
                         <label htmlFor="gerarTermo" className="text-xs text-emerald-900 dark:text-emerald-300 font-medium cursor-pointer">
-                            Gerar e baixar automaticamente o <strong>Termo de Responsabilidade em PDF</strong> para assinatura.
+                            Generar y descargar automáticamente el <strong>Acta de Responsabilidad en PDF</strong> para firma.
                         </label>
                     </div>
 

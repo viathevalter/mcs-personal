@@ -65,11 +65,11 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
             pdfDoc.autoPrint();
             const blobUrl = pdfDoc.output('bloburl');
             window.open(blobUrl, '_blank');
-            toast.success(`${ativos.length} etiqueta(s) gerada(s) com sucesso!`);
+            toast.success(`¡${ativos.length} etiqueta(s) generada(s) con éxito!`);
             onOpenChange(false);
         } catch (e: any) {
             console.error('Erro ao gerar PDF de etiquetas:', e);
-            toast.error('Erro ao gerar arquivo de etiquetas.');
+            toast.error('Error al generar archivo de etiquetas.');
         } finally {
             setGerandoPdf(false);
         }
@@ -83,12 +83,12 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                 formato,
                 empresaCabecalho,
             });
-            pdfDoc.save(`etiquetas_patrimonio_${ativos.length}_itens.pdf`);
-            toast.success(`Download concluído!`);
+            pdfDoc.save(`etiquetas_patrimonio_${ativos.length}_items.pdf`);
+            toast.success('¡Descarga completada!');
             onOpenChange(false);
         } catch (e: any) {
             console.error('Erro ao baixar PDF:', e);
-            toast.error('Falha ao baixar PDF das etiquetas.');
+            toast.error('Error al descargar el PDF de etiquetas.');
         } finally {
             setGerandoPdf(false);
         }
@@ -100,12 +100,12 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-base font-semibold">
                         <Tag className="h-5 w-5 text-sky-600" />
-                        Imprimir Etiquetas com QR Code
+                        Imprimir Etiquetas con Código QR
                     </DialogTitle>
                     <DialogDescription className="text-xs text-slate-500">
                         {ativos.length === 1
-                            ? `Gerando etiqueta para o item ${ativoExemplo?.codigo_patrimonial}`
-                            : `Gerando lote com ${ativos.length} etiquetas selecionadas`}
+                            ? `Generando etiqueta para el activo ${ativoExemplo?.codigo_patrimonial}`
+                            : `Generando lote con ${ativos.length} etiquetas seleccionadas`}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -113,7 +113,7 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                     {/* Pré-visualização da etiqueta 40x20 */}
                     <div className="flex flex-col items-center justify-center p-4 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700">
                         <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                            Prévia da Etiqueta ({formato === 'termica_40x20' ? '40 × 20 mm' : formato === 'termica_50x30' ? '50 × 30 mm' : 'Folha Grade A4'})
+                            Vista Previa de la Etiqueta ({formato === 'termica_40x20' ? '40 × 20 mm' : formato === 'termica_50x30' ? '50 × 30 mm' : 'Hoja Cuadrícula A4'})
                         </p>
 
                         {ativoExemplo && (
@@ -140,12 +140,12 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                                             {ativoExemplo.marca || ativoExemplo.categoria}
                                         </span>
                                         <span className="block text-[6.5px] text-slate-400 mt-0.5 truncate">
-                                            {ativoExemplo.imei || ativoExemplo.numero_serie || 'CONTROLE INTERNO'}
+                                            {ativoExemplo.imei || ativoExemplo.numero_serie || 'CONTROL INTERNO'}
                                         </span>
                                     </div>
                                 </div>
                                 <div className="text-[6px] text-slate-400 text-center tracking-wider uppercase truncate">
-                                    Patrimônio • {empresaCabecalho || 'Mastercorp'}
+                                    Activo / Patrimonio • {empresaCabecalho || 'Mastercorp'}
                                 </div>
                             </div>
                         )}
@@ -153,24 +153,24 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Formato de Saída</Label>
+                            <Label className="text-xs font-medium">Formato de Impresión</Label>
                             <Select value={formato} onValueChange={(val: any) => setFormato(val)}>
                                 <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue placeholder="Selecione o formato" />
+                                    <SelectValue placeholder="Seleccione el formato" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="termica_40x20">Térmica 40 × 20 mm (Padrão)</SelectItem>
+                                    <SelectItem value="termica_40x20">Térmica 40 × 20 mm (Estándar)</SelectItem>
                                     <SelectItem value="termica_50x30">Térmica 50 × 30 mm</SelectItem>
-                                    <SelectItem value="a4_grade">Grade em Folha A4 (Pimaco / Laser)</SelectItem>
+                                    <SelectItem value="a4_grade">Cuadrícula en Hoja A4 (Pimaco / Láser)</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Cabeçalho (Empresa do Grupo)</Label>
+                            <Label className="text-xs font-medium">Encabezado (Empresa del Grupo)</Label>
                             <Select value={empresaCabecalho} onValueChange={setEmpresaCabecalho}>
                                 <SelectTrigger className="h-9 text-xs">
-                                    <SelectValue placeholder={loadingEmpresas ? "Carregando..." : "Selecione a empresa..."} />
+                                    <SelectValue placeholder={loadingEmpresas ? "Cargando..." : "Seleccione la empresa..."} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {empresas.map((emp) => {
@@ -211,7 +211,7 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                         onClick={handleDownload}
                         className="gap-1.5 text-xs"
                     >
-                        <Download className="h-3.5 w-3.5" /> Baixar PDF
+                        <Download className="h-3.5 w-3.5" /> Descargar PDF
                     </Button>
                     <Button
                         type="button"
@@ -222,11 +222,11 @@ export function EtiquetasModal({ open, onOpenChange, ativos }: EtiquetasModalPro
                     >
                         {gerandoPdf ? (
                             <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando...
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Generando...
                             </>
                         ) : (
                             <>
-                                <Printer className="h-3.5 w-3.5" /> Imprimir Agora
+                                <Printer className="h-3.5 w-3.5" /> Imprimir Ahora
                             </>
                         )}
                     </Button>

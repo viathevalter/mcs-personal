@@ -306,8 +306,8 @@ export async function realizarEntrega(
     await adicionarEventoHistorico({
         ativo_id: ativoId,
         tipo_evento: 'entrega',
-        titulo: `Entregue para ${dados.workerNome}`,
-        descricao: `Equipamento entregue por ${dados.coordenadorNome || 'Coordenador'} no projeto ${dados.projeto || 'Geral'}. Acessórios: ${dados.acessoriosEntregues || 'Padrão'}.`,
+        titulo: `Entregado a ${dados.workerNome}`,
+        descricao: `Equipo entregado por ${dados.coordenadorNome || 'Coordinador'} en el proyecto ${dados.projeto || 'General'}. Accesorios: ${dados.acessoriosEntregues || 'Estándar'}.`,
         worker_id: dados.workerId,
         worker_nome: dados.workerNome,
         projeto: dados.projeto,
@@ -333,7 +333,7 @@ export async function realizarDevolucao(
     dados: DadosDevolucao
 ): Promise<AtivoPatrimonio> {
     const ativo = await obterAtivoPorId(ativoId);
-    if (!ativo) throw new Error('Ativo não encontrado');
+    if (!ativo) throw new Error('Activo no encontrado');
 
     const statusFinal: PatrimonioStatus = dados.statusNovo || 'disponivel';
     const workerAnterior = ativo.responsavel_nome;
@@ -348,7 +348,7 @@ export async function realizarDevolucao(
             coordenador_nome: null,
             data_entrega: null,
             previsao_devolucao: null,
-            localizacao: dados.localDevolucao || 'Armazém Central',
+            localizacao: dados.localDevolucao || 'Almacén Central',
             acessorios_entregues: null,
             observacoes_entrega: null,
             updated_at: new Date().toISOString(),
@@ -362,8 +362,8 @@ export async function realizarDevolucao(
     await adicionarEventoHistorico({
         ativo_id: ativoId,
         tipo_evento: 'devolucao',
-        titulo: `Devolvido ao armazém (${dados.localDevolucao || 'Central'})`,
-        descricao: `Devolução concluída por ${workerAnterior || 'Funcionário'}. Estado: ${dados.estadoEquipamento}. Observações: ${dados.observacoes || 'Nenhuma'}.`,
+        titulo: `Devuelto al almacén (${dados.localDevolucao || 'Central'})`,
+        descricao: `Devolución completada por ${workerAnterior || 'Empleado'}. Estado: ${dados.estadoEquipamento}. Observaciones: ${dados.observacoes || 'Ninguna'}.`,
         localizacao: dados.localDevolucao,
         status_anterior: ativo.status,
         status_novo: statusFinal,
@@ -405,8 +405,8 @@ export async function realizarTransferencia(
     await adicionarEventoHistorico({
         ativo_id: ativoId,
         tipo_evento: 'transferencia_projeto',
-        titulo: `Transferido para Projeto ${dados.novoProjeto}`,
-        descricao: `Transferência de localização para ${dados.novaLocalizacao}. Coordenador: ${dados.coordenadorNome || 'Mesmo'}. Obs: ${dados.observacoes || 'Nenhuma'}.`,
+        titulo: `Transferido al Proyecto ${dados.novoProjeto}`,
+        descricao: `Traslado de ubicación a ${dados.novaLocalizacao}. Coordinador: ${dados.coordenadorNome || 'Mismo'}. Obs: ${dados.observacoes || 'Ninguna'}.`,
         projeto: dados.novoProjeto,
         localizacao: dados.novaLocalizacao,
         worker_nome: ativo.responsavel_nome,
@@ -488,7 +488,7 @@ export async function registrarManutencao(
     await atualizarAtivo(
         manutencao.ativo_id,
         { status: 'em_manutencao' },
-        `Enviado para manutenção: ${manutencao.motivo}. Oficina: ${manutencao.fornecedor_oficina || 'Não informada'}.`,
+        `Enviado a mantenimiento: ${manutencao.motivo}. Taller: ${manutencao.fornecedor_oficina || 'No informado'}.`,
         usuarioNome
     );
 
@@ -524,7 +524,7 @@ export async function concluirManutencao(
     await atualizarAtivo(
         manut.ativo_id,
         { status: dadosConclusao.statusAtivoPosManutencao || 'disponivel' },
-        `Manutenção concluída. Solução: ${dadosConclusao.solucao}. Custo: €${dadosConclusao.custoFinal.toFixed(2)}.`,
+        `Mantenimiento completado. Solución: ${dadosConclusao.solucao}. Coste: €${dadosConclusao.custoFinal.toFixed(2)}.`,
         dadosConclusao.usuarioNome
     );
 }

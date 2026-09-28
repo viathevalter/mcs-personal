@@ -48,7 +48,7 @@ export const EscritorioDashboardPage: React.FC = () => {
             setAusencias(ausenciasList);
             setPontosHoje(pontosList.filter(p => p.data === hojeStr));
         } catch (err) {
-            console.error('Erro ao carregar dashboard de escritório:', err);
+            console.error('Error al cargar dashboard corporativo:', err);
         } finally {
             setLoading(false);
         }
@@ -58,17 +58,17 @@ export const EscritorioDashboardPage: React.FC = () => {
         carregarDados();
     }, []);
 
-    // Estatísticas calculadas
+    // Estadísticas calculadas
     const totalAtivos = colaboradores.filter(c => c.active).length;
-    const totalComRelogio = colaboradores.filter(c => c.timeclock_code).length;
+    const totalComRelogio = colaboradores.filter(c => c.active && c.timeclock_code).length;
     const totalPatrimonios = colaboradores.reduce((acc, c) => acc + (c.ativos_patrimonio_count || 0), 0);
     const feriasAtivas = ferias.filter(f => f.status === 'aprovado' || f.status === 'solicitado').length;
     const baixasMedicas = ausencias.filter(a => a.tipo === 'baixa_medica').length;
 
-    // Departamentos agrupados (apenas colaboradores ativos)
+    // Departamentos agrupados (empleados activos)
     const departamentosMap: Record<string, number> = {};
     colaboradores.filter(c => c.active).forEach(c => {
-        const dep = c.department_name || 'Sem Departamento';
+        const dep = c.department_name || 'Sin Departamento';
         departamentosMap[dep] = (departamentosMap[dep] || 0) + 1;
     });
 
@@ -79,17 +79,17 @@ export const EscritorioDashboardPage: React.FC = () => {
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-sky-600 bg-sky-50 dark:bg-sky-950/60 dark:text-sky-400 px-2.5 py-1 rounded-md border border-sky-200 dark:border-sky-800">
-                            Gestão Corporativa
+                            Gestión Corporativa
                         </span>
                         <span className="text-xs text-slate-500">
-                            Espanha & Portugal
+                            España y Portugal
                         </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
-                        RH Escritório, Oficina & Patrimônio
+                        RRHH Oficinas, Talleres y Patrimonio
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Painel central de colaboradores internos, relógio ponto biométrico, férias e controle de ativos.
+                        Panel central de empleados internos, control horario biométrico, vacaciones y gestión de activos.
                     </p>
                 </div>
 
@@ -102,7 +102,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                         className="gap-2 text-xs font-semibold"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                        Atualizar
+                        Actualizar
                     </Button>
                     <Button 
                         onClick={() => navigate('/escritorio/ponto')}
@@ -110,7 +110,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                         size="sm"
                     >
                         <Upload className="h-3.5 w-3.5" />
-                        Importar Ponto
+                        Importar Fichajes
                     </Button>
                     <Button 
                         variant="default"
@@ -119,7 +119,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                         size="sm"
                     >
                         <Palmtree className="h-3.5 w-3.5" />
-                        Gerenciar Férias
+                        Gestionar Vacaciones
                     </Button>
                 </div>
             </div>
@@ -132,7 +132,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                 >
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            Colaboradores Ativos
+                            Empleados Activos
                         </CardTitle>
                         <Users className="h-4 w-4 text-sky-600" />
                     </CardHeader>
@@ -141,7 +141,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                             {totalAtivos}
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                            <span className="text-sky-600 font-semibold">{totalComRelogio}</span> vinculados ao relógio
+                            <span className="text-sky-600 font-semibold">{totalComRelogio}</span> vinculados al control horario
                         </p>
                     </CardContent>
                 </Card>
@@ -152,7 +152,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                 >
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            Ponto Registrado Hoje
+                            Fichajes de Hoy
                         </CardTitle>
                         <Clock className="h-4 w-4 text-indigo-600" />
                     </CardHeader>
@@ -161,7 +161,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                             {pontosHoje.length}
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
-                            Data: {new Date().toLocaleDateString('pt-BR')}
+                            Fecha: {new Date().toLocaleDateString('es-ES')}
                         </p>
                     </CardContent>
                 </Card>
@@ -172,7 +172,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                 >
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            Férias / Solicitações
+                            Vacaciones / Solicitudes
                         </CardTitle>
                         <Palmtree className="h-4 w-4 text-emerald-600" />
                     </CardHeader>
@@ -181,7 +181,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                             {feriasAtivas}
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
-                            Estatuto Espanhol (30 dias)
+                            Estatuto Trabajadores (30 días)
                         </p>
                     </CardContent>
                 </Card>
@@ -192,7 +192,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                 >
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            Baixas Médicas (IT)
+                            Bajas Médicas (IT)
                         </CardTitle>
                         <Stethoscope className="h-4 w-4 text-amber-600" />
                     </CardHeader>
@@ -201,7 +201,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                             {baixasMedicas}
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
-                            Total geral: {ausencias.length} registros
+                            Total general: {ausencias.length} registros
                         </p>
                     </CardContent>
                 </Card>
@@ -212,7 +212,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                 >
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            Ativos em Uso
+                            Activos en Uso
                         </CardTitle>
                         <ShieldCheck className="h-4 w-4 text-cyan-600" />
                     </CardHeader>
@@ -221,23 +221,23 @@ export const EscritorioDashboardPage: React.FC = () => {
                             {totalPatrimonios}
                         </div>
                         <p className="text-[11px] text-slate-500 mt-1">
-                            Equipamentos com colaboradores
+                            Equipos asignados a empleados
                         </p>
                     </CardContent>
                 </Card>
             </div>
 
-            {/* Duas Colunas: Colaboradores por Setor & Ações Rápidas */}
+            {/* Dos Columnas: Empleados por Departamento y Acciones Rápidas */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Colaboradores por Departamento */}
+                {/* Empleados por Departamento */}
                 <Card className="lg:col-span-2 shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="flex flex-row items-center justify-between pb-4">
                         <div>
                             <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                                Equipe Interna por Departamento
+                                Equipo Interno por Departamento
                             </CardTitle>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                {totalAtivos} profissionais ativos em escritórios centrais e oficinas
+                                {totalAtivos} profesionales activos en oficinas centrales y talleres
                             </p>
                         </div>
                         <Button 
@@ -267,7 +267,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                                                 {dep}
                                             </p>
                                             <p className="text-[11px] text-slate-500">
-                                                Colaboradores alocados
+                                                Empleados asignados
                                             </p>
                                         </div>
                                     </div>
@@ -280,43 +280,43 @@ export const EscritorioDashboardPage: React.FC = () => {
                     </CardContent>
                 </Card>
 
-                {/* Card de Férias e Pré-Folha */}
+                {/* Pre-Nómina y Accesos Rápidos */}
                 <div className="space-y-6">
-                    {/* Pré-Folha Status Card */}
+                    {/* Pre-Nómina Card */}
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 text-white">
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
                                 <Badge className="bg-sky-500 text-white text-[10px] font-bold border-0">
-                                    Assessoria Contábil
+                                    Asesoría Laboral
                                 </Badge>
                                 <FileSpreadsheet className="h-5 w-5 text-sky-400" />
                             </div>
                             <CardTitle className="text-base font-bold text-white mt-2">
-                                Pré-Folha de Pagamento
+                                Pre-Nómina Mensual
                             </CardTitle>
                             <p className="text-xs text-slate-300">
-                                Competência: {mesAtualStr}
+                                Período: {mesAtualStr}
                             </p>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <p className="text-xs text-slate-300">
-                                Fechamento consolidado das horas normais, extras, dias de férias e baixas médicas para envio direto à contabilidade espanhola.
+                                Cierre consolidado de horas ordinarias, extras, días de vacaciones y bajas médicas para envío directo a la asesoría laboral.
                             </p>
                             <Button 
                                 onClick={() => navigate('/escritorio/pre-folha')}
                                 className="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs shadow"
                                 size="sm"
                             >
-                                Abrir Pré-Folha do Mês
+                                Abrir Pre-Nómina del Mes
                             </Button>
                         </CardContent>
                     </Card>
 
-                    {/* Atalhos Rápidos */}
+                    {/* Accesos Rápidos */}
                     <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
-                                Acessos Rápidos
+                                Accesos Rápidos
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-2">
@@ -326,7 +326,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                             >
                                 <span className="flex items-center gap-2">
                                     <Clock className="h-4 w-4 text-sky-600" />
-                                    Espelho de Ponto & Importação
+                                    Control Horario e Importación
                                 </span>
                                 <ArrowUpRight className="h-3 w-3 text-slate-400" />
                             </button>
@@ -337,7 +337,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                             >
                                 <span className="flex items-center gap-2">
                                     <Palmtree className="h-4 w-4 text-emerald-600" />
-                                    Calendário de Férias Anual
+                                    Calendario Anual de Vacaciones
                                 </span>
                                 <ArrowUpRight className="h-3 w-3 text-slate-400" />
                             </button>
@@ -348,7 +348,7 @@ export const EscritorioDashboardPage: React.FC = () => {
                             >
                                 <span className="flex items-center gap-2">
                                     <ShieldCheck className="h-4 w-4 text-cyan-600" />
-                                    Gestão de Ativos & Patrimônio
+                                    Gestión de Activos y Patrimonio
                                 </span>
                                 <ArrowUpRight className="h-3 w-3 text-slate-400" />
                             </button>

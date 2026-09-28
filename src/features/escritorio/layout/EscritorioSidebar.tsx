@@ -31,37 +31,37 @@ export const EscritorioSidebar: React.FC = () => {
     const links: EscritorioSidebarLink[] = [
         { 
             to: '/escritorio/dashboard', 
-            label: 'Visão Geral', 
+            label: 'Visión General', 
             icon: LayoutDashboard 
         },
         { 
             to: '/escritorio/colaboradores', 
-            label: 'Central de Colaboradores', 
+            label: 'Gestión de Empleados', 
             icon: Users 
         },
         { 
             to: '/escritorio/ponto', 
-            label: 'Ponto & Relógio', 
+            label: 'Control Horario y Fichajes', 
             icon: Clock 
         },
         { 
             to: '/escritorio/ferias', 
-            label: 'Férias (Espanha)', 
+            label: 'Vacaciones (España)', 
             icon: Palmtree 
         },
         { 
             to: '/escritorio/ausencias', 
-            label: 'Ausências & Licenças', 
+            label: 'Ausencias y Bajas', 
             icon: Stethoscope 
         },
         { 
             to: '/escritorio/pre-folha', 
-            label: 'Pré-Folha Contábil', 
+            label: 'Pre-Nómina y Cierre', 
             icon: FileSpreadsheet 
         },
         { 
             to: '/escritorio/patrimonio', 
-            label: 'Ativos & Patrimônio', 
+            label: 'Activos y Patrimonio', 
             icon: ShieldCheck 
         },
     ];
@@ -94,14 +94,14 @@ export const EscritorioSidebar: React.FC = () => {
                     {isExpanded && (
                         <div className="flex flex-col">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-200 dark:border-sky-800">
-                                RH & Patrimônio
+                                RRHH & Patrimonio
                             </span>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Voltar ao Hub */}
+            {/* Volver al Hub */}
             <div className="px-3 mt-4 mb-2">
                 <button 
                     onClick={() => navigate('/hub')}
@@ -109,10 +109,10 @@ export const EscritorioSidebar: React.FC = () => {
                         "flex items-center justify-center py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white transition-all text-xs font-semibold border border-slate-700 shadow-sm group",
                         isExpanded ? "w-full gap-2 px-3" : "w-12 mx-auto"
                     )}
-                    title={!isExpanded ? "Voltar ao Hub de Módulos" : undefined}
+                    title={!isExpanded ? "Volver al Hub de Módulos" : undefined}
                 >
                     <ArrowLeft size={16} className="shrink-0 transition-transform group-hover:-translate-x-0.5" />
-                    {isExpanded && <span>Voltar ao Hub</span>}
+                    {isExpanded && <span>Volver al Hub</span>}
                 </button>
             </div>
 
@@ -121,7 +121,7 @@ export const EscritorioSidebar: React.FC = () => {
                 <div>
                     {isExpanded && (
                         <div className="px-4 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                            Gestão Corporativa
+                            Gestión Corporativa
                         </div>
                     )}
                     <nav className="grid items-start px-2 text-sm font-medium gap-1">
@@ -163,7 +163,7 @@ export const EscritorioSidebar: React.FC = () => {
                             "flex items-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800",
                             isExpanded ? "justify-end w-full" : "justify-center w-full mx-auto"
                         )}
-                        title={isExpanded ? "Recolher menu" : "Expandir menu"}
+                        title={isExpanded ? "Plegar menú" : "Desplegar menú"}
                     >
                         {isExpanded ? <ChevronLeft className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
                     </button>

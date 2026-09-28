@@ -77,7 +77,7 @@ export const FeriasPage: React.FC = () => {
             setColaboradores(cols);
             setSolicitacoes(feriasList);
         } catch (error) {
-            console.error('Erro ao carregar férias:', error);
+            console.error('Error al cargar vacaciones:', error);
         } finally {
             setLoading(false);
         }
@@ -104,7 +104,7 @@ export const FeriasPage: React.FC = () => {
         });
     }, [solicitacoes, colabMap, searchTerm, statusFilter]);
 
-    // Resumo Estatístico
+    // Resumen Estadístico
     const stats = useMemo(() => {
         const pendentes = solicitacoes.filter(s => s.status === 'solicitado').length;
         const aprovadas = solicitacoes.filter(s => s.status === 'aprovado').length;
@@ -115,7 +115,7 @@ export const FeriasPage: React.FC = () => {
         return { pendentes, aprovadas, totalDiasGozados };
     }, [solicitacoes]);
 
-    // Dias calculados no formulário
+    // Días calculados en formulario
     const diasCalculados = useMemo(() => {
         if (!novaSolicitacao.data_inicio || !novaSolicitacao.data_fim) return 0;
         const d1 = new Date(novaSolicitacao.data_inicio);
@@ -128,7 +128,7 @@ export const FeriasPage: React.FC = () => {
     const handleCriarSolicitacao = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!novaSolicitacao.member_id || diasCalculados <= 0) {
-            alert('Preencha o colaborador e as datas válidas.');
+            alert('Seleccione el empleado y las fechas válidas.');
             return;
         }
 
@@ -141,17 +141,17 @@ export const FeriasPage: React.FC = () => {
                 data_fim: novaSolicitacao.data_fim,
                 dias_solicitados: diasCalculados,
                 tipo_dias: 'naturais',
-                status: 'aprovado', // RH corporativo já pode aprovar diretamente
+                status: 'aprovado',
                 observacoes: novaSolicitacao.observacoes || null,
             });
 
             setModalOpen(false);
             setNovaSolicitacao({ member_id: '', data_inicio: '', data_fim: '', observacoes: '' });
             await carregarDados();
-            alert(`Férias de ${diasCalculados} dias registradas com sucesso!`);
+            alert(`¡Vacaciones de ${diasCalculados} días registradas con éxito!`);
         } catch (error) {
-            console.error('Erro ao registrar férias:', error);
-            alert('Falha ao registrar período de férias.');
+            console.error('Error al registrar vacaciones:', error);
+            alert('Fallo al registrar período de vacaciones.');
         } finally {
             setSubmitting(false);
         }
@@ -159,11 +159,11 @@ export const FeriasPage: React.FC = () => {
 
     const handleAlterarStatus = async (id: string, novoStatus: 'aprovado' | 'rejeitado' | 'cancelado') => {
         try {
-            await atualizarStatusFerias(id, novoStatus, 'RH Escritório');
+            await atualizarStatusFerias(id, novoStatus, 'RRHH');
             await carregarDados();
         } catch (error) {
-            console.error('Erro ao atualizar status de férias:', error);
-            alert('Erro ao atualizar solicitação.');
+            console.error('Error al actualizar estado de vacaciones:', error);
+            alert('Error al actualizar solicitud.');
         }
     };
 
@@ -174,17 +174,17 @@ export const FeriasPage: React.FC = () => {
                 <div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400 px-2.5 py-1 rounded-md border border-emerald-200 dark:border-emerald-800">
-                            Estatuto de los Trabajadores (Espanha)
+                            Estatuto de los Trabajadores (España)
                         </span>
                         <span className="text-xs text-slate-500">
-                            30 Dias Naturais / Fracionamento Autorizado
+                            30 Días Naturales / Fraccionamiento Autorizado
                         </span>
                     </div>
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white mt-1">
-                        Gestão de Férias & Calendário
+                        Gestión de Vacaciones y Calendario
                     </h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        Controle anual de direito, gozo fracionado, aprovação e saldo de férias da equipe de escritório e oficina.
+                        Control anual de derecho, disfrute fraccionado, aprobación y saldo de vacaciones del equipo de oficina y taller.
                     </p>
                 </div>
 
@@ -197,7 +197,7 @@ export const FeriasPage: React.FC = () => {
                         className="gap-2 text-xs font-semibold"
                     >
                         <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                        Atualizar
+                        Actualizar
                     </Button>
                     <Button 
                         onClick={() => setModalOpen(true)}
@@ -205,7 +205,7 @@ export const FeriasPage: React.FC = () => {
                         size="sm"
                     >
                         <Plus className="h-3.5 w-3.5" />
-                        Lançar Período de Férias
+                        Registrar Período de Vacaciones
                     </Button>
                 </div>
             </div>
@@ -214,37 +214,37 @@ export const FeriasPage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Solicitações Pendentes</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Solicitudes Pendientes</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-amber-600">
                             {stats.pendentes}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Aguardando aprovação</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Pendientes de aprobación</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Períodos Aprovados</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Períodos Aprobados</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-emerald-600">
                             {stats.aprovadas}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Exercício de {ano}</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Ejercicio de {ano}</p>
                     </CardContent>
                 </Card>
 
                 <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs font-medium text-slate-500">Dias Marcados / Gozados</CardTitle>
+                        <CardTitle className="text-xs font-medium text-slate-500">Días Registrados / Disfrutados</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-sky-600">
-                            {stats.totalDiasGozados} dias
+                            {stats.totalDiasGozados} días
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1">Somatório de toda a equipe</p>
+                        <p className="text-[11px] text-slate-400 mt-1">Sumatorio de todo el equipo</p>
                     </CardContent>
                 </Card>
             </div>
@@ -256,7 +256,7 @@ export const FeriasPage: React.FC = () => {
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                             <Input 
-                                placeholder="Buscar colaborador..."
+                                placeholder="Buscar empleado..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="pl-9 text-xs"
@@ -266,52 +266,52 @@ export const FeriasPage: React.FC = () => {
                         <div>
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
                                 <SelectTrigger className="text-xs">
-                                    <SelectValue placeholder="Status" />
+                                    <SelectValue placeholder="Estado" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="todos">Status: Todos</SelectItem>
-                                    <SelectItem value="aprovado">Aprovado</SelectItem>
-                                    <SelectItem value="solicitado">Solicitado / Pendente</SelectItem>
-                                    <SelectItem value="rejeitado">Rejeitado</SelectItem>
+                                    <SelectItem value="todos">Estado: Todos</SelectItem>
+                                    <SelectItem value="aprovado">Aprobado</SelectItem>
+                                    <SelectItem value="solicitado">Pendiente</SelectItem>
+                                    <SelectItem value="rejeitado">Rechazado</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="flex items-center justify-end">
                             <Badge variant="outline" className="text-xs py-1.5 px-3 border-slate-300 dark:border-slate-700">
-                                {solicitacoesFiltradas.length} Férias Cadastradas
+                                {solicitacoesFiltradas.length} Períodos Registrados
                             </Badge>
                         </div>
                     </div>
                 </CardContent>
             </Card>
 
-            {/* Tabela de Férias */}
+            {/* Tabla de Vacaciones */}
             <Card className="shadow-sm border-slate-200 dark:border-slate-800">
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-slate-50/70 dark:bg-slate-900/50">
-                                <TableHead className="font-bold text-xs">Colaborador</TableHead>
+                                <TableHead className="font-bold text-xs">Empleado</TableHead>
                                 <TableHead className="font-bold text-xs">Departamento</TableHead>
-                                <TableHead className="font-bold text-xs">Período de Férias</TableHead>
-                                <TableHead className="font-bold text-xs text-center">Dias Fracionados</TableHead>
-                                <TableHead className="font-bold text-xs">Status</TableHead>
-                                <TableHead className="font-bold text-xs">Observações</TableHead>
-                                <TableHead className="font-bold text-xs text-right">Ações</TableHead>
+                                <TableHead className="font-bold text-xs">Período de Vacaciones</TableHead>
+                                <TableHead className="font-bold text-xs text-center">Días Fraccionados</TableHead>
+                                <TableHead className="font-bold text-xs">Estado</TableHead>
+                                <TableHead className="font-bold text-xs">Observaciones</TableHead>
+                                <TableHead className="font-bold text-xs text-right">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-500">
-                                        Carregando solicitações de férias...
+                                        Cargando solicitudes de vacaciones...
                                     </TableCell>
                                 </TableRow>
                             ) : solicitacoesFiltradas.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-32 text-center text-xs text-slate-500">
-                                        Nenhuma solicitação de férias cadastrada para o ano {ano}.
+                                        No hay períodos de vacaciones registrados para el año {ano}.
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -322,30 +322,30 @@ export const FeriasPage: React.FC = () => {
                                         <TableRow key={sol.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                             <TableCell>
                                                 <div className="font-bold text-xs text-slate-900 dark:text-white">
-                                                    {colab?.nombrecompleto || 'Colaborador'}
+                                                    {colab?.nombrecompleto || 'Empleado'}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400">
                                                     {colab?.empresa_nome || 'KR Industrial'}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-xs text-slate-600 dark:text-slate-400">
-                                                {colab?.department_name || 'Geral'}
+                                                {colab?.department_name || 'General'}
                                             </TableCell>
                                             <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200">
-                                                {sol.data_inicio} até {sol.data_fim}
+                                                {sol.data_inicio} hasta {sol.data_fim}
                                             </TableCell>
                                             <TableCell className="text-center font-bold text-xs text-emerald-600">
-                                                {sol.dias_solicitados} dias
+                                                {sol.dias_solicitados} días
                                             </TableCell>
                                             <TableCell>
                                                 {sol.status === 'aprovado' && (
-                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Aprovado</Badge>
+                                                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px]">Aprobado</Badge>
                                                 )}
                                                 {sol.status === 'solicitado' && (
-                                                    <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Pendente</Badge>
+                                                    <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px]">Pendiente</Badge>
                                                 )}
                                                 {sol.status === 'rejeitado' && (
-                                                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">Rejeitado</Badge>
+                                                    <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">Rechazado</Badge>
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-xs text-slate-500 max-w-[200px] truncate">
@@ -361,7 +361,7 @@ export const FeriasPage: React.FC = () => {
                                                                 onClick={() => handleAlterarStatus(sol.id, 'aprovado')}
                                                                 className="h-7 text-[11px] text-emerald-600 border-emerald-300 hover:bg-emerald-50 px-2"
                                                             >
-                                                                Aprovar
+                                                                Aprobar
                                                             </Button>
                                                             <Button 
                                                                 size="sm" 
@@ -369,7 +369,7 @@ export const FeriasPage: React.FC = () => {
                                                                 onClick={() => handleAlterarStatus(sol.id, 'rejeitado')}
                                                                 className="h-7 text-[11px] text-rose-600 border-rose-300 hover:bg-rose-50 px-2"
                                                             >
-                                                                Rejeitar
+                                                                Rechazar
                                                             </Button>
                                                         </>
                                                     )}
@@ -394,37 +394,37 @@ export const FeriasPage: React.FC = () => {
                 </CardContent>
             </Card>
 
-            {/* Modal Novo Lançamento de Férias */}
+            {/* Modal Registro de Vacaciones */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">
-                                Espanha • 30 Dias Naturais
+                                España • 30 Días Naturales
                             </span>
                         </div>
                         <DialogTitle className="text-base font-bold text-slate-900 dark:text-white mt-1">
-                            Lançar Período de Férias
+                            Registrar Período de Vacaciones
                         </DialogTitle>
                         <DialogDescription className="text-xs text-slate-500">
-                            Informe o colaborador e o período desejado. O Estatuto espanhol permite fracionamento de dias.
+                            Indique el empleado y el período deseado. La legislación española permite el fraccionamiento de las vacaciones.
                         </DialogDescription>
                     </DialogHeader>
 
                     <form onSubmit={handleCriarSolicitacao} className="space-y-4 py-2">
                         <div>
-                            <Label className="text-xs font-semibold">Colaborador *</Label>
+                            <Label className="text-xs font-semibold">Empleado *</Label>
                             <Select 
                                 value={novaSolicitacao.member_id} 
                                 onValueChange={(val) => setNovaSolicitacao({ ...novaSolicitacao, member_id: val })}
                             >
                                 <SelectTrigger className="text-xs mt-1">
-                                    <SelectValue placeholder="Selecione o colaborador" />
+                                    <SelectValue placeholder="Seleccione el empleado" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {colaboradores.map(c => (
+                                    {colaboradores.filter(c => c.active).map(c => (
                                         <SelectItem key={c.id} value={c.id}>
-                                            {c.nombrecompleto} ({c.department_name || 'Geral'})
+                                            {c.nombrecompleto} ({c.department_name || 'General'})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -433,7 +433,7 @@ export const FeriasPage: React.FC = () => {
 
                         <div className="grid grid-cols-2 gap-3">
                             <div>
-                                <Label className="text-xs font-semibold">Data Início *</Label>
+                                <Label className="text-xs font-semibold">Fecha de Inicio *</Label>
                                 <Input 
                                     type="date"
                                     required
@@ -443,7 +443,7 @@ export const FeriasPage: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <Label className="text-xs font-semibold">Data Fim *</Label>
+                                <Label className="text-xs font-semibold">Fecha de Fin *</Label>
                                 <Input 
                                     type="date"
                                     required
@@ -457,18 +457,18 @@ export const FeriasPage: React.FC = () => {
                         {diasCalculados > 0 && (
                             <div className="bg-emerald-50 dark:bg-emerald-950/60 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800 text-xs flex items-center justify-between">
                                 <span className="font-semibold text-emerald-800 dark:text-emerald-300">
-                                    Total de dias naturais computados:
+                                    Total de días naturales computados:
                                 </span>
                                 <Badge className="bg-emerald-600 text-white font-bold">
-                                    {diasCalculados} dias
+                                    {diasCalculados} días
                                 </Badge>
                             </div>
                         )}
 
                         <div>
-                            <Label className="text-xs font-semibold">Observações / Detalhes</Label>
+                            <Label className="text-xs font-semibold">Observaciones / Detalles</Label>
                             <Input 
-                                placeholder="Ex: Primeiro período de verão, aprovado com a gerência..."
+                                placeholder="Ej: Primer período estival acordado..."
                                 value={novaSolicitacao.observacoes}
                                 onChange={(e) => setNovaSolicitacao({ ...novaSolicitacao, observacoes: e.target.value })}
                                 className="text-xs mt-1"
@@ -485,7 +485,7 @@ export const FeriasPage: React.FC = () => {
                                 disabled={submitting || diasCalculados <= 0}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
                             >
-                                {submitting ? 'Gravando...' : 'Confirmar Férias'}
+                                {submitting ? 'Guardando...' : 'Confirmar Vacaciones'}
                             </Button>
                         </DialogFooter>
                     </form>
