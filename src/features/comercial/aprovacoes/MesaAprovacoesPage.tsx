@@ -83,6 +83,46 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { parseEuroNumber } from '@/features/financeiro/lib/utils';
 
+const SPANISH_MONTHS: Record<string, string> = {
+  enero: '01',
+  febrero: '02',
+  marzo: '03',
+  abril: '04',
+  mayo: '05',
+  junio: '06',
+  julio: '07',
+  agosto: '08',
+  septiembre: '09',
+  setiembre: '09',
+  octubre: '10',
+  noviembre: '11',
+  diciembre: '12',
+};
+
+function parseAnyDate(dateStr?: string | null): Date | null {
+  if (!dateStr) return null;
+  const trimmed = String(dateStr).trim();
+  let d = new Date(trimmed);
+  if (!isNaN(d.getTime())) return d;
+  const parts = trimmed.toLowerCase().split(/\s+(?:de\s+)?/);
+  if (parts.length >= 3) {
+    const day = parts[0].padStart(2, '0');
+    const month = SPANISH_MONTHS[parts[1]] || parts[1];
+    const year = parts[2];
+    d = new Date(`${year}-${month}-${day}T00:00:00`);
+    if (!isNaN(d.getTime())) return d;
+  }
+  const slashParts = trimmed.split('/');
+  if (slashParts.length === 3) {
+    const day = slashParts[0].padStart(2, '0');
+    const month = slashParts[1].padStart(2, '0');
+    const year = slashParts[2];
+    d = new Date(`${year}-${month}-${day}T00:00:00`);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
 export function MesaAprovacoesPage() {
   const navigate = useNavigate();
   const { selectedEmpresaId, role, empresas = [] } = useEmpresa();
@@ -212,8 +252,8 @@ export function MesaAprovacoesPage() {
 
                   const isPago = row.status === 'Pago' || (!['Vencido', 'A Vencer', 'Pendente'].includes(row.status) && saldo <= 0);
                   if (!isPago && row.dt_venc) {
-                    const vencDate = new Date(row.dt_venc);
-                    if (row.status === 'Vencido' || (!isNaN(vencDate.getTime()) && vencDate < now)) {
+                    const vencDate = parseAnyDate(row.dt_venc);
+                    if (row.status === 'Vencido' || (vencDate && vencDate < now)) {
                       totalVencido += saldo;
                       faturasVencidas++;
                     }
@@ -363,8 +403,8 @@ export function MesaAprovacoesPage() {
   const formatDateShort = (isoString?: string | null) => {
     if (!isoString) return '-';
     try {
-      const date = new Date(isoString);
-      if (isNaN(date.getTime())) return isoString;
+      const date = parseAnyDate(isoString);
+      if (!date || isNaN(date.getTime())) return isoString;
       return format(date, "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return isoString;
@@ -1730,8 +1770,11 @@ export function MesaAprovacoesPage() {
                   <TableBody>
                     {financialModalData.financial.invoices.map((inv: any) => {
                       const total = parseEuroNumber(inv.valot_total);
-                      const saldo = parseEuroNumber(inv.saldo_a_pagar);
-                      const isPago = inv.status === 'Pago' || saldo <= 0;
+                      const hasExplicitSaldo = inv.saldo_a_pagar !== null && inv.saldo_a_pagar !== undefined && String(inv.saldo_a_pagar).trim() !== '';
+                      const saldo = hasExplicitSaldo 
+                        ? parseEuroNumber(inv.saldo_a_pagar) 
+                        : (inv.status === 'Pago' ? 0 : total);
+                      const isPago = inv.status === 'Pago' || (!['Vencido', 'A Vencer', 'Pendente'].includes(inv.status) && saldo <= 0);
 
                       // Status dinâmico inteligente e cálculo de dias em atraso
                       let statusBadge = null;
@@ -1746,14 +1789,14 @@ export function MesaAprovacoesPage() {
                       } else if (inv.dt_venc) {
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
-                        const vDate = new Date(inv.dt_venc);
-                        vDate.setHours(0, 0, 0, 0);
-                        daysOverdue = Math.floor((today.getTime() - vDate.getTime()) / (1000 * 60 * 60 * 24));
+                        const vDate = parseAnyDate(inv.dt_venc);
+                        if (vDate) vDate.setHours(0, 0, 0, 0);
+                        daysOverdue = vDate ? Math.floor((today.getTime() - vDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
-                        if (daysOverdue > 0) {
+                        if (inv.status === 'Vencido' || daysOverdue > 0) {
                           statusBadge = (
                             <Badge className="text-[10px] font-bold bg-red-600 hover:bg-red-700 text-white shadow-sm">
-                              Vencido ({daysOverdue}d)
+                              Vencido {daysOverdue > 0 ? `(${daysOverdue}d)` : ''}
                             </Badge>
                           );
                         } else if (daysOverdue === 0) {
@@ -1771,7 +1814,7 @@ export function MesaAprovacoesPage() {
                         }
                       } else {
                         statusBadge = (
-                          <Badge variant="outline" className="text-[10px] font-bold text-slate-600">
+                          <Badge variant="outline" className={`text-[10px] font-bold ${inv.status === 'Vencido' ? 'bg-red-600 text-white' : 'text-slate-600'}`}>
                             {inv.status || 'Pendente'}
                           </Badge>
                         );

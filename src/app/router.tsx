@@ -138,8 +138,22 @@ import { Cobros as FinanceiroCobros } from '../features/financeiro/pages/Cobros'
 import { Cobranca as FinanceiroCobranca } from '../features/financeiro/pages/Cobranca';
 import { TitleDetail as FinanceiroTitleDetail } from '../features/financeiro/pages/TitleDetail';
 import { Settings as FinanceiroSettings } from '../features/financeiro/pages/Settings';
-
 import { PatrimonioListPage, PatrimonioDetailPage } from '../features/patrimonio';
+import { 
+    EscritorioLayout, 
+    EscritorioDashboardPage, 
+    ColaboradoresPage, 
+    ColaboradorDetailPage, 
+    PontoPage, 
+    FeriasPage, 
+    AusenciasPage, 
+    PreFolhaPage 
+} from '../features/escritorio';
+
+const RedirectPatrimonioDetail = () => {
+    const { codigo } = useParams();
+    return <Navigate to={`/escritorio/patrimonio/${codigo}`} replace />;
+};
 
 import { useRouteError } from 'react-router-dom';
 
@@ -261,6 +275,30 @@ export const router = createBrowserRouter([
             {
                 path: '/hub',
                 element: <GlobalHubPage />,
+            },
+            {
+                path: '/escritorio',
+                element: <EscritorioLayout />,
+                children: [
+                    { index: true, element: <Navigate to="/escritorio/dashboard" replace /> },
+                    { path: 'dashboard', element: <EscritorioDashboardPage /> },
+                    { path: 'colaboradores', element: <ColaboradoresPage /> },
+                    { path: 'colaboradores/:id', element: <ColaboradorDetailPage /> },
+                    { path: 'ponto', element: <PontoPage /> },
+                    { path: 'ferias', element: <FeriasPage /> },
+                    { path: 'ausencias', element: <AusenciasPage /> },
+                    { path: 'pre-folha', element: <PreFolhaPage /> },
+                    { path: 'patrimonio', element: <PatrimonioListPage /> },
+                    { path: 'patrimonio/:codigo', element: <PatrimonioDetailPage /> },
+                ],
+            },
+            {
+                path: '/patrimonio',
+                element: <Navigate to="/escritorio/patrimonio" replace />,
+            },
+            {
+                path: '/patrimonio/:codigo',
+                element: <RedirectPatrimonioDetail />,
             },
             {
                 path: '/incidencias',
@@ -717,14 +755,6 @@ export const router = createBrowserRouter([
                     {
                         path: 'documentacion/tarefas',
                         element: <DocumentacionTasksPage />,
-                    },
-                    {
-                        path: 'patrimonio',
-                        element: <PatrimonioListPage />,
-                    },
-                    {
-                        path: 'patrimonio/:codigo',
-                        element: <PatrimonioDetailPage />,
                     },
                 ],
             }

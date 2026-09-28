@@ -496,7 +496,7 @@ export function PatrimonioListPage() {
                                     <div className="p-3.5 space-y-2">
                                         <div>
                                             <h3
-                                                onClick={() => navigate(`/patrimonio/${ativo.codigo_patrimonial}`)}
+                                                onClick={() => navigate(`/escritorio/patrimonio/${ativo.codigo_patrimonial}`)}
                                                 className="font-bold text-sm text-slate-900 dark:text-white hover:text-sky-600 transition-colors line-clamp-1 cursor-pointer"
                                                 title={ativo.descricao}
                                             >
@@ -540,7 +540,7 @@ export function PatrimonioListPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        onClick={() => navigate(`/patrimonio/${ativo.codigo_patrimonial}`)}
+                                        onClick={() => navigate(`/escritorio/patrimonio/${ativo.codigo_patrimonial}`)}
                                         className="h-7 text-xs text-sky-600 hover:text-sky-700 px-2 gap-1 font-medium"
                                     >
                                         <ExternalLink className="h-3.5 w-3.5" /> Detalhes
@@ -679,7 +679,7 @@ export function PatrimonioListPage() {
                                         </TableCell>
                                         <TableCell>
                                             <div
-                                                onClick={() => navigate(`/patrimonio/${ativo.codigo_patrimonial}`)}
+                                                onClick={() => navigate(`/escritorio/patrimonio/${ativo.codigo_patrimonial}`)}
                                                 className="cursor-pointer hover:text-sky-600"
                                             >
                                                 <span className="text-xs font-semibold text-slate-900 dark:text-white block">
@@ -720,7 +720,7 @@ export function PatrimonioListPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    onClick={() => navigate(`/patrimonio/${ativo.codigo_patrimonial}`)}
+                                                    onClick={() => navigate(`/escritorio/patrimonio/${ativo.codigo_patrimonial}`)}
                                                     className="h-7 w-7 text-slate-500 hover:text-sky-600"
                                                     title="Ver Detalhes"
                                                 >

@@ -34,7 +34,6 @@ export function Sidebar() {
         { to: '/discounts', tKey: 'Gestão de Descontos', icon: BadgeDollarSign, roles: ['admin', 'rh', 'finance'] },
         { to: '/taxes', tKey: 'Configuração de Impostos', icon: Calculator, roles: ['admin', 'finance'] },
         { to: '/bank-accounts', tKey: 'navigation.bankAccounts', icon: Wallet, roles: ['admin', 'rh', 'finance'] },
-        { to: '/patrimonio', tKey: 'navigation.patrimonio', icon: PackageCheck, roles: ['admin', 'rh', 'finance', 'commercial', 'user'] },
         { to: '/documents', tKey: 'Conformidade CAE', icon: ShieldCheck, roles: ['cae_compliance'] },
     ];
 

@@ -116,18 +116,27 @@ const MODULES: ModuleDef[] = [
     },
     {
         id: 'rrhh',
-        title: 'MCS RRHH',
+        title: 'MCS RRHH (Trabalhadores)',
         icon: Users,
-        path: '/dashboard', // Módulo de RH atual do sistema
+        path: '/dashboard', // Módulo de RH operacional (trabalhadores)
         color: 'text-purple-600',
         bgHover: 'hover:bg-purple-50',
         allowedRoles: ['admin', 'rh', 'user', 'visualizador']
     },
     {
+        id: 'escritorio',
+        title: 'MCS RH Escritório & Ponto',
+        icon: Clock,
+        path: '/escritorio/dashboard',
+        color: 'text-sky-600',
+        bgHover: 'hover:bg-sky-50',
+        allowedRoles: ['admin', 'admin_rh', 'rh', 'operacoes', 'finance', 'commercial']
+    },
+    {
         id: 'patrimonio',
         title: 'MCS Patrimônio',
         icon: ShieldCheck,
-        path: '/patrimonio',
+        path: '/escritorio/patrimonio',
         color: 'text-cyan-600',
         bgHover: 'hover:bg-cyan-50',
         allowedRoles: ['admin', 'admin_rh', 'operacoes', 'rh', 'finance', 'commercial']

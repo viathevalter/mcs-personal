@@ -109,7 +109,7 @@ export function PatrimonioDetailPage() {
         try {
             await excluirAtivo(ativo.id);
             toast.success(`Patrimônio ${ativo.codigo_patrimonial} excluído com sucesso!`);
-            navigate('/patrimonio');
+            navigate('/escritorio/patrimonio');
         } catch (err: any) {
             console.error('Erro ao excluir:', err);
             toast.error('Falha ao excluir patrimônio.');
@@ -129,7 +129,7 @@ export function PatrimonioDetailPage() {
             const dataAtivo = await obterAtivoPorCodigo(codigo);
             if (!dataAtivo) {
                 toast.error('Patrimônio não localizado no sistema.');
-                navigate('/patrimonio');
+                navigate('/escritorio/patrimonio');
                 return;
             }
             setAtivo(dataAtivo);
@@ -283,7 +283,7 @@ export function PatrimonioDetailPage() {
                     <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => navigate('/patrimonio')}
+                        onClick={() => navigate('/escritorio/patrimonio')}
                         className="h-9 w-9 border-slate-300 dark:border-slate-700"
                     >
                         <ArrowLeft className="h-4 w-4" />

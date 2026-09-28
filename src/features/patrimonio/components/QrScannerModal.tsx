@@ -133,12 +133,12 @@ export function QrScannerModal({ open, onOpenChange, onSelectAtivoParaAcao }: Qr
         
         if (acao === 'consultar') {
             onOpenChange(false);
-            navigate(`/patrimonio/${ativoEncontrado.codigo_patrimonial}`);
+            navigate(`/escritorio/patrimonio/${ativoEncontrado.codigo_patrimonial}`);
         } else if (onSelectAtivoParaAcao) {
             onSelectAtivoParaAcao(ativoEncontrado, acao);
             onOpenChange(false);
         } else {
-            navigate(`/patrimonio/${ativoEncontrado.codigo_patrimonial}?acao=${acao}`);
+            navigate(`/escritorio/patrimonio/${ativoEncontrado.codigo_patrimonial}?acao=${acao}`);
             onOpenChange(false);
         }
     };
