@@ -5,6 +5,7 @@ export interface ColaboradorEscritorio {
     ubicaciontrabajo?: string | null;
     telefonodirecto?: string | null;
     active: boolean;
+    estadotrabajador?: string | null;
     department_id?: string | null;
     department_name?: string | null;
     empresa_id?: string | null;

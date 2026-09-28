@@ -12,7 +12,16 @@ export function WhatsAppRedirectPage() {
 
   const [isLoadingLead, setIsLoadingLead] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [resolvedUrl, setResolvedUrl] = useState('https://wa.me/34937374830');
+  const [resolvedUrl, setResolvedUrl] = useState(() => {
+    if (destParam) {
+      try {
+        return decodeURIComponent(destParam);
+      } catch {
+        return destParam;
+      }
+    }
+    return 'https://wa.me/34937374830';
+  });
   const [targetStageId, setTargetStageId] = useState<string | null>(null);
   const [currentOrderIndex, setCurrentOrderIndex] = useState(0);
   const [isOptedOut, setIsOptedOut] = useState(false);
@@ -34,6 +43,7 @@ export function WhatsAppRedirectPage() {
       let currentLang: 'fr' | 'es' | 'it' = 'es';
       let currentSalesperson = 'Michelle';
       let currentCompany = 'Triângulo Servicios Industriales';
+      let hasExplicitSeller = false;
 
       // 2. Análise Imediata do Destino Explicito (dest) se informado
       let explicitDest = '';
@@ -45,27 +55,31 @@ export function WhatsAppRedirectPage() {
         }
         currentWaUrl = explicitDest;
 
-        if (explicitDest.includes('351936447734') || explicitDest.toLowerCase().includes('wiseowe')) {
+        if (explicitDest.includes('351936447734') || explicitDest.toLowerCase().includes('wiseowe') || explicitDest.toLowerCase().includes('omar')) {
           currentLang = 'fr';
           currentSalesperson = 'Omar';
           currentCompany = 'Wiseowe Industrie';
-        } else if (explicitDest.includes('34937374180') || explicitDest.toLowerCase().includes('luminous')) {
+          hasExplicitSeller = true;
+        } else if (explicitDest.includes('34937374180') || explicitDest.toLowerCase().includes('luminous') || explicitDest.toLowerCase().includes('alex')) {
           currentLang = 'es';
           currentSalesperson = 'Alex';
           currentCompany = 'Luminous Alley';
-        } else if (explicitDest.includes('393000000000') || explicitDest.includes('+39') || explicitDest.includes('it.triangulolda')) {
+          hasExplicitSeller = true;
+        } else if (explicitDest.includes('393000000000') || explicitDest.includes('+39') || explicitDest.includes('it.triangulolda') || explicitDest.toLowerCase().includes('giada')) {
           currentLang = 'it';
           currentSalesperson = 'Giada';
           currentCompany = 'Triangolo Servizi Industriali';
-        } else if (explicitDest.includes('34937374830') || explicitDest.toLowerCase().includes('triangulo')) {
+          hasExplicitSeller = true;
+        } else if (explicitDest.includes('34937374830') || explicitDest.toLowerCase().includes('triangulo') || explicitDest.toLowerCase().includes('michelle')) {
           currentLang = 'es';
           currentSalesperson = 'Michelle';
           currentCompany = 'Triângulo Servicios Industriales';
+          hasExplicitSeller = true;
         }
       }
 
       // 3. Análise Imediata da Empresa (empresa_id) se informada
-      if (empresaParam) {
+      if (!hasExplicitSeller && empresaParam) {
         const emp = empresaParam.toLowerCase();
         if (emp === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
           // Wiseowe
@@ -73,18 +87,21 @@ export function WhatsAppRedirectPage() {
           currentSalesperson = 'Omar';
           currentCompany = 'Wiseowe Industrie';
           if (!destParam) currentWaUrl = waOmarDefault;
+          hasExplicitSeller = true;
         } else if (emp === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
           // Luminous
           currentLang = 'es';
           currentSalesperson = 'Alex';
           currentCompany = 'Luminous Alley';
           if (!destParam) currentWaUrl = waAlexDefault;
+          hasExplicitSeller = true;
         } else if (emp === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
           // Triângulo
           currentLang = 'es';
           currentSalesperson = 'Michelle';
           currentCompany = 'Triângulo Servicios Industriales';
           if (!destParam) currentWaUrl = waMichelleDefault;
+          hasExplicitSeller = true;
         }
       }
 
@@ -148,26 +165,28 @@ export function WhatsAppRedirectPage() {
 
             const assignedUserId = lead.assigned_to;
 
-            if (assignedUserId === GIADA_ID || isItalyLead) {
-              currentLang = 'it';
-              currentSalesperson = 'Giada';
-              currentCompany = 'Triangolo Servizi Industriali';
-              if (!destParam) currentWaUrl = waGiadaDefault;
-            } else if (assignedUserId === OMAR_ID || isFranceLead || isWiseowe) {
-              currentLang = 'fr';
-              currentSalesperson = 'Omar';
-              currentCompany = 'Wiseowe Industrie';
-              if (!destParam) currentWaUrl = waOmarDefault;
-            } else if (assignedUserId === ALEX_ID || isLuminous) {
-              currentLang = 'es';
-              currentSalesperson = 'Alex';
-              currentCompany = 'Luminous Alley';
-              if (!destParam) currentWaUrl = waAlexDefault;
-            } else {
-              currentLang = 'es';
-              currentSalesperson = 'Michelle';
-              currentCompany = isTriangulo ? 'Triángulo Servicios Industriales' : 'Atención Comercial';
-              if (!destParam) currentWaUrl = waMichelleDefault;
+            if (!hasExplicitSeller) {
+              if (assignedUserId === GIADA_ID || isItalyLead) {
+                currentLang = 'it';
+                currentSalesperson = 'Giada';
+                currentCompany = 'Triangolo Servizi Industriali';
+                if (!destParam) currentWaUrl = waGiadaDefault;
+              } else if (assignedUserId === OMAR_ID || isFranceLead || isWiseowe) {
+                currentLang = 'fr';
+                currentSalesperson = 'Omar';
+                currentCompany = 'Wiseowe Industrie';
+                if (!destParam) currentWaUrl = waOmarDefault;
+              } else if (assignedUserId === ALEX_ID || isLuminous) {
+                currentLang = 'es';
+                currentSalesperson = 'Alex';
+                currentCompany = 'Luminous Alley';
+                if (!destParam) currentWaUrl = waAlexDefault;
+              } else {
+                currentLang = 'es';
+                currentSalesperson = 'Michelle';
+                currentCompany = isTriangulo ? 'Triângulo Servicios Industriales' : 'Atención Comercial';
+                if (!destParam) currentWaUrl = waMichelleDefault;
+              }
             }
 
             // Buscar order_index do estágio atual

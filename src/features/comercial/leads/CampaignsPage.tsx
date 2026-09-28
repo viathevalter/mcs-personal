@@ -4751,12 +4751,25 @@ export function CampaignsPage() {
                       .replace(/\{\{\s*opt_out_url\s*\}\}/g, testOptOutUrl)
                       .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, testOptOutUrl)
                       .replace(/\*\|UNSUB\|\*/gi, testOptOutUrl)
-                      .replace(/\*\|UNSUBSCRIBE\|\*/gi, testOptOutUrl)
-                      .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${window.location.origin}/public/whatsapp`)
-                      .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${window.location.origin}/public/whatsapp`)
-                      .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${window.location.origin}/public/whatsapp`)
-                      .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${window.location.origin}/public/whatsapp`)
-                      .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${window.location.origin}/public/whatsapp`)
+                    const waOmarUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour Omar, je souhaite plus d'informations sur vos services")}`;
+                    const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Michelle, quisiera más información sobre sus servicios")}`;
+                    const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
+                    const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
+
+                    let defaultWaUrl = waMichelleUrl;
+                    if (isWiseowe) defaultWaUrl = waOmarUrl;
+                    else if (isLuminous) defaultWaUrl = waAlexUrl;
+                    else if (isTriangulo) defaultWaUrl = waMichelleUrl;
+
+                    html = html
+                      .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(defaultWaUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, (match) => {
+                        return `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(match)}&empresa_id=${selectedEmpresaId || ''}`;
+                      })
                       .replace(/https:\/\/mcs\.gestaologinpro\.com/g, window.location.origin)
                       .replace(/(src=["'])assets\/images\//gi, `$1${window.location.origin}/assets/images/`);
                     return html;
