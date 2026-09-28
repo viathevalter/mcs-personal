@@ -326,13 +326,16 @@ export function NewEstimacionPage() {
         if (data?.codigo) {
           const { data: overdueData } = await supabase
             .from('contas_receber')
-            .select('id, saldo_a_pagar')
+            .select('id, saldo_a_pagar, valot_total')
             .eq('cod_cliente', data.codigo)
             .eq('status', 'Vencido');
 
           if (overdueData && overdueData.length > 0) {
             const totalOverdue = overdueData.reduce((acc: number, row: any) => {
-              const cleaned = (row.saldo_a_pagar || '').toString().replace(/\./g, '').replace(',', '.');
+              const raw = (row.saldo_a_pagar !== null && row.saldo_a_pagar !== undefined && String(row.saldo_a_pagar).trim() !== '')
+                ? row.saldo_a_pagar
+                : row.valot_total;
+              const cleaned = (raw || '').toString().replace(/\./g, '').replace(',', '.');
               const num = parseFloat(cleaned);
               return acc + (isNaN(num) ? 0 : num);
             }, 0);

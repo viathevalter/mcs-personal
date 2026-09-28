@@ -202,17 +202,24 @@ export function MesaAprovacoesPage() {
 
                 for (const row of crRows) {
                   const total = parseEuroNumber(row.valot_total);
-                  const saldo = parseEuroNumber(row.saldo_a_pagar);
+                  const hasExplicitSaldo = row.saldo_a_pagar !== null && row.saldo_a_pagar !== undefined && String(row.saldo_a_pagar).trim() !== '';
+                  const saldo = hasExplicitSaldo 
+                    ? parseEuroNumber(row.saldo_a_pagar) 
+                    : (row.status === 'Pago' ? 0 : total);
+
                   totalFaturado += total;
                   totalSaldoAberto += saldo;
 
-                  const isPago = row.status === 'Pago' || saldo <= 0;
+                  const isPago = row.status === 'Pago' || (!['Vencido', 'A Vencer', 'Pendente'].includes(row.status) && saldo <= 0);
                   if (!isPago && row.dt_venc) {
                     const vencDate = new Date(row.dt_venc);
-                    if (vencDate < now) {
+                    if (row.status === 'Vencido' || (!isNaN(vencDate.getTime()) && vencDate < now)) {
                       totalVencido += saldo;
                       faturasVencidas++;
                     }
+                  } else if (row.status === 'Vencido') {
+                    totalVencido += saldo;
+                    faturasVencidas++;
                   }
                 }
 
