@@ -1,15 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { realizarEntrega, salvarDocumento } from '../api/patrimonioApi';
+import { Badge } from '@/components/ui/badge';
+import { realizarEntrega, salvarDocumento, listarColaboradores, type ColaboradorPatrimonio } from '../api/patrimonioApi';
 import { gerarTermoResponsabilidadePdf } from '../utils/termoResponsabilidadePdf';
 import type { AtivoPatrimonio } from '../types/patrimonio';
-import { supabase } from '@/shared/supabase/client';
-import { UserCheck, FileText, Loader2 } from 'lucide-react';
+import { 
+    UserCheck, 
+    Search, 
+    Building2, 
+    Briefcase, 
+    FileText, 
+    Loader2, 
+    Check, 
+    X, 
+    Users, 
+    MapPin, 
+    RefreshCw 
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface EntregaDialogProps {
@@ -23,6 +35,14 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
     const [submitting, setSubmitting] = useState(false);
     const [gerarTermoAutomatico, setGerarTermoAutomatico] = useState(true);
 
+    // Lista de colaboradores do sistema
+    const [colaboradores, setColaboradores] = useState<ColaboradorPatrimonio[]>([]);
+    const [loadingColaboradores, setLoadingColaboradores] = useState(false);
+    const [buscaColaborador, setBuscaColaborador] = useState('');
+    const [filtroTipo, setFiltroTipo] = useState<'todos' | 'oficina' | 'campo'>('todos');
+    const [colaboradorSelecionado, setColaboradorSelecionado] = useState<ColaboradorPatrimonio | null>(null);
+
+    // Dados do formulário
     const [workerId, setWorkerId] = useState('');
     const [workerNome, setWorkerNome] = useState('');
     const [workerDoc, setWorkerDoc] = useState('');
@@ -35,19 +55,18 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
     const [estadoEquipamento, setEstadoEquipamento] = useState('Excelente / Novo');
     const [observacoes, setObservacoes] = useState('');
 
-    // Busca de trabalhadores para autocomplete
-    const [buscaWorker, setBuscaWorker] = useState('');
-    const [workersOptions, setWorkersOptions] = useState<{ id: string; nome: string; documento?: string }[]>([]);
-    const [loadingWorkers, setLoadingWorkers] = useState(false);
-
     useEffect(() => {
         if (!open) {
+            setColaboradorSelecionado(null);
             setWorkerId('');
             setWorkerNome('');
             setWorkerDoc('');
-            setBuscaWorker('');
+            setBuscaColaborador('');
             return;
         }
+
+        // Carrega a lista completa de colaboradores cadastrados
+        carregarListaColaboradores();
 
         // Sugestão de acessórios conforme categoria do ativo
         if (ativo) {
@@ -61,55 +80,62 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
         }
     }, [open, ativo]);
 
-    // Buscar trabalhadores no Supabase
-    useEffect(() => {
-        if (!buscaWorker || buscaWorker.length < 2) {
-            setWorkersOptions([]);
-            return;
+    const carregarListaColaboradores = async () => {
+        setLoadingColaboradores(true);
+        try {
+            const lista = await listarColaboradores();
+            setColaboradores(lista);
+        } catch (err) {
+            console.error('Erro ao carregar colaboradores:', err);
+        } finally {
+            setLoadingColaboradores(false);
         }
+    };
 
-        const timer = setTimeout(async () => {
-            setLoadingWorkers(true);
-            try {
-                const { data } = await supabase
-                    .schema('core_personal')
-                    .from('workers')
-                    .select('id, nome, nie, dni, passaporte')
-                    .ilike('nome', `%${buscaWorker}%`)
-                    .limit(6);
+    // Filtragem em memória
+    const colaboradoresFiltrados = useMemo(() => {
+        return colaboradores.filter((c) => {
+            if (filtroTipo === 'oficina' && !c.tipo.toLowerCase().includes('oficina')) return false;
+            if (filtroTipo === 'campo' && !c.tipo.toLowerCase().includes('campo')) return false;
 
-                if (data) {
-                    setWorkersOptions(
-                        data.map((w: any) => ({
-                            id: w.id,
-                            nome: w.nome,
-                            documento: w.nie || w.dni || w.passaporte || '',
-                        }))
-                    );
-                }
-            } catch {
-                // Silencioso se não tiver permissão
-            } finally {
-                setLoadingWorkers(false);
-            }
-        }, 250);
+            if (!buscaColaborador.trim()) return true;
+            const b = buscaColaborador.toLowerCase();
+            return (
+                c.nome.toLowerCase().includes(b) ||
+                (c.documento && c.documento.toLowerCase().includes(b)) ||
+                (c.setor_projeto && c.setor_projeto.toLowerCase().includes(b)) ||
+                (c.empresa && c.empresa.toLowerCase().includes(b))
+            );
+        });
+    }, [colaboradores, buscaColaborador, filtroTipo]);
 
-        return () => clearTimeout(timer);
-    }, [buscaWorker]);
+    const handleSelecionarColaborador = (c: ColaboradorPatrimonio) => {
+        setColaboradorSelecionado(c);
+        setWorkerId(c.id);
+        setWorkerNome(c.nome);
+        setWorkerDoc(c.documento || '');
+        if (c.setor_projeto && c.setor_projeto !== 'Operacional') {
+            setProjeto(c.setor_projeto);
+        }
+        if (c.tipo.toLowerCase().includes('oficina')) {
+            setLocalEntrega('Oficina Central / Escritório');
+        } else if (c.setor_projeto) {
+            setLocalEntrega(c.setor_projeto);
+        }
+    };
 
-    const handleSelectWorker = (w: { id: string; nome: string; documento?: string }) => {
-        setWorkerId(w.id);
-        setWorkerNome(w.nome);
-        setWorkerDoc(w.documento || '');
-        setBuscaWorker(w.nome);
-        setWorkersOptions([]);
+    const handleLimparColaborador = () => {
+        setColaboradorSelecionado(null);
+        setWorkerId('');
+        setWorkerNome('');
+        setWorkerDoc('');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!ativo) return;
         if (!workerNome.trim()) {
-            toast.error('Informe o nome do funcionário responsável.');
+            toast.error('Selecione o funcionário responsável.');
             return;
         }
 
@@ -140,7 +166,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                     dataEntrega: new Date(dataEntrega).toLocaleDateString('pt-BR'),
                     acessorios: acessoriosEntregues,
                     estadoEquipamento,
-                    empresaNome: ativo.empresa_proprietaria || 'MCS INDUSTRIAL',
+                    empresaNome: ativo.empresa_proprietaria || 'KR INDUSTRIAL',
                 });
 
                 pdfDoc.save(`termo_responsabilidade_${ativo.codigo_patrimonial}_${workerNome.replace(/\s+/g, '_')}.pdf`);
@@ -169,9 +195,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-white">
+            <DialogContent className="sm:max-w-xl max-h-[92vh] overflow-y-auto bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 p-0">
+                <DialogHeader className="p-5 pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
                         <UserCheck className="h-5 w-5 text-emerald-600" />
                         Entregar Patrimônio ao Colaborador
                     </DialogTitle>
@@ -180,39 +206,163 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4 py-1">
-                    {/* Seleção do Trabalhador */}
-                    <div className="space-y-1.5 relative">
-                        <Label className="text-xs font-medium">
-                            Funcionário Beneficiário / Responsável <span className="text-rose-500">*</span>
+                <form onSubmit={handleSubmit} className="p-5 space-y-4">
+                    {/* SELEÇÃO DO COLABORADOR */}
+                    <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-900 dark:text-white flex items-center justify-between">
+                            <span>Funcionário Beneficiário / Responsável <span className="text-rose-500">*</span></span>
+                            {colaboradorSelecionado && (
+                                <button
+                                    type="button"
+                                    onClick={handleLimparColaborador}
+                                    className="text-xs text-sky-600 hover:text-sky-700 flex items-center gap-1 font-normal"
+                                >
+                                    <RefreshCw className="h-3 w-3" /> Trocar Funcionário
+                                </button>
+                            )}
                         </Label>
-                        <Input
-                            placeholder="Digite para buscar pelo nome no sistema ou digite um novo..."
-                            value={buscaWorker}
-                            onChange={(e) => {
-                                setBuscaWorker(e.target.value);
-                                setWorkerNome(e.target.value);
-                            }}
-                            className="h-9 text-xs"
-                            required
-                        />
 
-                        {/* Dropdown de sugestões */}
-                        {workersOptions.length > 0 && (
-                            <div className="absolute z-20 left-0 right-0 mt-1 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 py-1 max-h-48 overflow-y-auto">
-                                {workersOptions.map((w) => (
+                        {/* Se já selecionou um colaborador, exibe o Card de confirmação */}
+                        {colaboradorSelecionado ? (
+                            <div className="p-3.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="h-10 w-10 rounded-full bg-emerald-600 text-white font-bold text-sm flex items-center justify-center shrink-0">
+                                        {colaboradorSelecionado.nome.substring(0, 2).toUpperCase()}
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-bold text-slate-900 dark:text-white text-sm">
+                                                {colaboradorSelecionado.nome}
+                                            </span>
+                                            <Badge
+                                                variant="outline"
+                                                className={`text-[10px] px-1.5 py-0 ${
+                                                    colaboradorSelecionado.tipo.includes('Oficina')
+                                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                }`}
+                                            >
+                                                {colaboradorSelecionado.tipo}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                                            {colaboradorSelecionado.documento ? `Doc: ${colaboradorSelecionado.documento} • ` : ''}
+                                            {colaboradorSelecionado.setor_projeto} • {colaboradorSelecionado.empresa}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleLimparColaborador}
+                                    className="p-1 rounded-full text-slate-400 hover:text-rose-600 hover:bg-white dark:hover:bg-slate-800 transition-colors"
+                                    title="Remover seleção"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                        ) : (
+                            /* Painel de Busca e Seleção dos Colaboradores Cadastrados */
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850 p-3 space-y-2.5">
+                                {/* Campo de Busca */}
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="Pesquise por nome do funcionário, NIE/DNI ou setor..."
+                                        value={buscaColaborador}
+                                        onChange={(e) => setBuscaColaborador(e.target.value)}
+                                        className="pl-9 h-9 text-xs bg-white dark:bg-slate-900"
+                                        autoFocus
+                                    />
+                                </div>
+
+                                {/* Filtros Rápidos por Categoria de Funcionário */}
+                                <div className="flex items-center gap-1.5 pt-0.5">
                                     <button
-                                        key={w.id}
                                         type="button"
-                                        onClick={() => handleSelectWorker(w)}
-                                        className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 dark:hover:bg-slate-700 flex justify-between items-center"
+                                        onClick={() => setFiltroTipo('todos')}
+                                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                                            filtroTipo === 'todos'
+                                                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                        }`}
                                     >
-                                        <span className="font-medium text-slate-800 dark:text-slate-200">{w.nome}</span>
-                                        {w.documento && (
-                                            <span className="text-[11px] text-slate-400">Doc: {w.documento}</span>
-                                        )}
+                                        Todos ({colaboradores.length})
                                     </button>
-                                ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiltroTipo('oficina')}
+                                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                                            filtroTipo === 'oficina'
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                        }`}
+                                    >
+                                        🏢 Oficina & Escritório
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setFiltroTipo('campo')}
+                                        className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                                            filtroTipo === 'campo'
+                                                ? 'bg-emerald-600 text-white'
+                                                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                        }`}
+                                    >
+                                        👷 Trabalhadores de Campo
+                                    </button>
+                                </div>
+
+                                {/* Lista de Colaboradores */}
+                                <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
+                                    {loadingColaboradores ? (
+                                        <div className="p-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                                            <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
+                                            Carregando cadastro de funcionários...
+                                        </div>
+                                    ) : colaboradoresFiltrados.length === 0 ? (
+                                        <div className="p-6 text-center text-xs text-slate-400">
+                                            Nenhum funcionário localizado com o filtro atual.
+                                        </div>
+                                    ) : (
+                                        colaboradoresFiltrados.slice(0, 30).map((c) => (
+                                            <button
+                                                key={c.id}
+                                                type="button"
+                                                onClick={() => handleSelecionarColaborador(c)}
+                                                className="w-full p-2.5 text-left hover:bg-sky-50 dark:hover:bg-slate-800/80 transition-colors flex items-center justify-between group"
+                                            >
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                    <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${
+                                                        c.tipo.includes('Oficina') ? 'bg-blue-600' : 'bg-emerald-600'
+                                                    }`}>
+                                                        {c.nome.trim().substring(0, 1).toUpperCase()}
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-xs text-slate-900 dark:text-white truncate group-hover:text-sky-600">
+                                                                {c.nome}
+                                                            </span>
+                                                            <span className={`text-[10px] px-1 py-0 rounded border font-medium ${
+                                                                c.tipo.includes('Oficina')
+                                                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800'
+                                                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800'
+                                                            }`}>
+                                                                {c.tipo.includes('Oficina') ? 'Oficina' : 'Campo'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-400 truncate">
+                                                            {c.documento ? `Doc: ${c.documento} • ` : ''}
+                                                            {c.setor_projeto} • {c.empresa}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-xs font-medium text-sky-600 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                                    Selecionar →
+                                                </span>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -241,9 +391,9 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
 
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label className="text-xs font-medium">Projeto / Obra / Centro</Label>
+                            <Label className="text-xs font-medium">Projeto / Setor / Oficina</Label>
                             <Input
-                                placeholder="Ex: Tarragona, Sagunto, Oficina..."
+                                placeholder="Ex: Oficina Central, Sagunto, Tarragona..."
                                 value={projeto}
                                 onChange={(e) => setProjeto(e.target.value)}
                                 className="h-9 text-xs"
@@ -309,7 +459,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                             placeholder="Informações relevantes para registro..."
                             value={observacoes}
                             onChange={(e) => setObservacoes(e.target.value)}
-                            className="text-xs min-h-[60px]"
+                            className="text-xs min-h-[50px]"
                         />
                     </div>
 
@@ -321,7 +471,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                             onCheckedChange={(checked: boolean) => setGerarTermoAutomatico(checked)}
                         />
                         <label htmlFor="gerarTermo" className="text-xs text-emerald-900 dark:text-emerald-300 font-medium cursor-pointer">
-                            Gerar e baixar automaticamente o <strong>Termo de Responsabilidade em PDF</strong> com dados completos para assinatura.
+                            Gerar e baixar automaticamente o <strong>Termo de Responsabilidade em PDF</strong> para assinatura.
                         </label>
                     </div>
 
@@ -338,7 +488,7 @@ export function EntregaDialog({ open, onOpenChange, ativo, onSuccess }: EntregaD
                         <Button
                             type="submit"
                             size="sm"
-                            disabled={submitting}
+                            disabled={submitting || !workerNome}
                             className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
                         >
                             {submitting ? (

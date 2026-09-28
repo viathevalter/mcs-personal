@@ -552,3 +552,50 @@ export async function uploadArquivoPatrimonio(
     const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(fileName);
     return data.publicUrl;
 }
+
+// ----------------- COLABORADORES DO SISTEMA -----------------
+export interface ColaboradorPatrimonio {
+    id: string;
+    nome: string;
+    tipo: string;
+    email?: string;
+    documento?: string;
+    setor_projeto?: string;
+    empresa?: string;
+}
+
+export async function listarColaboradores(): Promise<ColaboradorPatrimonio[]> {
+    try {
+        const { data, error } = await supabase.rpc('listar_colaboradores_patrimonio');
+        if (!error && data) {
+            return data as ColaboradorPatrimonio[];
+        }
+    } catch (err) {
+        console.warn('Erro ao chamar RPC listar_colaboradores_patrimonio:', err);
+    }
+
+    // Fallback caso a RPC falhe: busca de workers
+    try {
+        const { data: workers } = await supabase
+            .schema('core_personal')
+            .from('workers')
+            .select('id, nome, nie, dni, pasaporte, contratante, cliente, funcion')
+            .order('nome', { ascending: true })
+            .limit(100);
+
+        if (workers) {
+            return workers.map((w: any) => ({
+                id: w.id,
+                nome: w.nome,
+                tipo: 'Trabalhador de Campo',
+                documento: w.nie || w.dni || w.pasaporte || '',
+                setor_projeto: w.cliente || w.funcion || 'Operações',
+                empresa: w.contratante || 'KR Industrial',
+            }));
+        }
+    } catch {
+        // Silencioso
+    }
+
+    return [];
+}
