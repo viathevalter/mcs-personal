@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { criarAtivo, atualizarAtivo, gerarProximoCodigo, uploadArquivoPatrimonio } from '../api/patrimonioApi';
 import type { AtivoPatrimonio, PatrimonioStatus, FotoPatrimonio } from '../types/patrimonio';
 import { CATEGORIAS_PATRIMONIO, STATUS_CONFIG } from '../types/patrimonio';
+import { useEmpresas } from '@/shared/hooks/useEmpresas';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Plus, Sparkles, Upload, Trash2, Camera, Image, ShieldCheck, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -24,6 +26,10 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
     const [submitting, setSubmitting] = useState(false);
     const [uploadingFoto, setUploadingFoto] = useState(false);
 
+    // Empresas do Grupo Mastercorp
+    const { data: empresas = [], isLoading: loadingEmpresas } = useEmpresas();
+    const { selectedEmpresaId } = useEmpresa();
+
     // Identificação
     const [codigoPatrimonial, setCodigoPatrimonial] = useState('');
     const [categoria, setCategoria] = useState<string>('Informática (Notebooks, Monitores, PCs)');
@@ -35,7 +41,8 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
     const [imei, setImei] = useState('');
     const [matricula, setMatricula] = useState('');
     const [cor, setCor] = useState('');
-    const [empresaProprietaria, setEmpresaProprietaria] = useState('KR Industrial');
+    const [empresaId, setEmpresaId] = useState<string | null>(null);
+    const [empresaProprietaria, setEmpresaProprietaria] = useState('');
     const [centroCusto, setCentroCusto] = useState('Geral');
     const [localizacao, setLocalizacao] = useState('Armazém Central');
     const [status, setStatus] = useState<PatrimonioStatus>('disponivel');
@@ -67,7 +74,25 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
             setImei(ativoParaEditar.imei || '');
             setMatricula(ativoParaEditar.matricula || '');
             setCor(ativoParaEditar.cor || '');
-            setEmpresaProprietaria(ativoParaEditar.empresa_proprietaria || 'KR Industrial');
+
+            // Vinculação com empresas do grupo
+            const matchedEmp = empresas.find(e => 
+                (ativoParaEditar.empresa_id && e.id === ativoParaEditar.empresa_id) ||
+                (ativoParaEditar.empresa_proprietaria && (
+                    e.nome.toLowerCase() === ativoParaEditar.empresa_proprietaria.toLowerCase() ||
+                    e.codigo.toLowerCase() === ativoParaEditar.empresa_proprietaria.toLowerCase() ||
+                    (ativoParaEditar.empresa_proprietaria.toLowerCase().includes('kotrik') && e.codigo === 'KOR')
+                ))
+            );
+
+            if (matchedEmp) {
+                setEmpresaId(matchedEmp.id);
+                setEmpresaProprietaria(matchedEmp.nome);
+            } else {
+                setEmpresaId(ativoParaEditar.empresa_id || null);
+                setEmpresaProprietaria(ativoParaEditar.empresa_proprietaria || '');
+            }
+
             setCentroCusto(ativoParaEditar.centro_custo || 'Geral');
             setLocalizacao(ativoParaEditar.localizacao || 'Armazém Central');
             setStatus(ativoParaEditar.status);
@@ -87,7 +112,7 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
             limparFormulario();
             handleGerarCodigo('TI');
         }
-    }, [open, ativoParaEditar]);
+    }, [open, ativoParaEditar, empresas]);
 
     const limparFormulario = () => {
         setCodigoPatrimonial('');
@@ -100,7 +125,11 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
         setImei('');
         setMatricula('');
         setCor('');
-        setEmpresaProprietaria('KR Industrial');
+
+        const defaultEmp = empresas.find(e => e.id === selectedEmpresaId) || empresas[0];
+        setEmpresaId(defaultEmp?.id || null);
+        setEmpresaProprietaria(defaultEmp?.nome || '');
+
         setCentroCusto('Geral');
         setLocalizacao('Armazém Central');
         setStatus('disponivel');
@@ -199,7 +228,8 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
                 imei: imei || null,
                 matricula: matricula || null,
                 cor: cor || null,
-                empresa_proprietaria: empresaProprietaria || 'KR Industrial',
+                empresa_id: empresaId || null,
+                empresa_proprietaria: empresaProprietaria || (empresas.find(e => e.id === empresaId)?.nome || null),
                 centro_custo: centroCusto || null,
                 localizacao: localizacao || 'Armazém Central',
                 status,
@@ -437,16 +467,39 @@ export function AtivoFormDialog({ open, onOpenChange, ativoParaEditar, onSuccess
 
                             <div className="grid grid-cols-3 gap-3">
                                 <div className="space-y-1.5">
-                                    <Label className="text-xs font-medium">Empresa Proprietária</Label>
-                                    <Select value={empresaProprietaria} onValueChange={setEmpresaProprietaria}>
+                                    <Label className="text-xs font-medium">Empresa Proprietária (Grupo)</Label>
+                                    <Select
+                                        value={empresaId || empresaProprietaria}
+                                        onValueChange={(val) => {
+                                            const emp = empresas.find(e => e.id === val || e.nome === val);
+                                            if (emp) {
+                                                setEmpresaId(emp.id);
+                                                setEmpresaProprietaria(emp.nome);
+                                            } else {
+                                                setEmpresaId(null);
+                                                setEmpresaProprietaria(val);
+                                            }
+                                        }}
+                                    >
                                         <SelectTrigger className="h-9 text-xs">
-                                            <SelectValue />
+                                            <SelectValue placeholder={loadingEmpresas ? "Carregando..." : "Selecione a empresa..."} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="KR Industrial">KR Industrial</SelectItem>
-                                            <SelectItem value="MCS Industrial">MCS Industrial</SelectItem>
-                                            <SelectItem value="Kotrik Spain">Kotrik Spain</SelectItem>
-                                            <SelectItem value="Holdings">Holdings</SelectItem>
+                                            {empresas.map((emp) => (
+                                                <SelectItem key={emp.id} value={emp.id}>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-sky-700 dark:text-sky-400 font-mono text-[10px] px-1.5 py-0.5 bg-sky-50 dark:bg-sky-950/70 rounded border border-sky-200 dark:border-sky-800">
+                                                            {emp.codigo}
+                                                        </span>
+                                                        <span>{emp.nome}</span>
+                                                    </div>
+                                                </SelectItem>
+                                            ))}
+                                            {empresaProprietaria && !empresas.some(e => e.id === empresaId || e.nome.toLowerCase() === empresaProprietaria.toLowerCase()) && (
+                                                <SelectItem value={empresaProprietaria}>
+                                                    {empresaProprietaria}
+                                                </SelectItem>
+                                            )}
                                         </SelectContent>
                                     </Select>
                                 </div>

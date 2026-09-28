@@ -11,6 +11,7 @@ import { EntregaDialog } from '../components/EntregaDialog';
 import { DevolucaoDialog } from '../components/DevolucaoDialog';
 import { TransferenciaDialog } from '../components/TransferenciaDialog';
 import { ManutencaoDialog } from '../components/ManutencaoDialog';
+import { useEmpresas } from '@/shared/hooks/useEmpresas';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -149,11 +150,16 @@ export function PatrimonioListPage() {
         );
     }, [ativos, busca]);
 
+    // Empresas do Grupo Mastercorp
+    const { data: empresas = [] } = useEmpresas();
+
     // Opções únicas para dropdowns de filtros
     const empresasDisponiveis = useMemo(() => {
-        const set = new Set(ativos.map((a) => a.empresa_proprietaria).filter(Boolean));
-        return Array.from(set) as string[];
-    }, [ativos]);
+        const nomesFromAtivos = ativos.map((a) => a.empresa_proprietaria).filter(Boolean) as string[];
+        const nomesFromDb = empresas.map((e) => e.nome).filter(Boolean);
+        const set = new Set([...nomesFromDb, ...nomesFromAtivos]);
+        return Array.from(set);
+    }, [ativos, empresas]);
 
     const projetosDisponiveis = useMemo(() => {
         const set = new Set(ativos.map((a) => a.projeto).filter(Boolean));
@@ -344,11 +350,21 @@ export function PatrimonioListPage() {
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="todas">Todas as Empresas</SelectItem>
-                            {empresasDisponiveis.map((emp) => (
-                                <SelectItem key={emp} value={emp}>
-                                    {emp}
+                            {empresas.map((emp) => (
+                                <SelectItem key={emp.id} value={emp.nome}>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="font-bold font-mono text-[10px] text-sky-600 dark:text-sky-400">[{emp.codigo}]</span>
+                                        <span>{emp.nome}</span>
+                                    </div>
                                 </SelectItem>
                             ))}
+                            {empresasDisponiveis
+                                .filter((nome) => !empresas.some((e) => e.nome === nome))
+                                .map((nome) => (
+                                    <SelectItem key={nome} value={nome}>
+                                        {nome}
+                                    </SelectItem>
+                                ))}
                         </SelectContent>
                     </Select>
 
@@ -696,8 +712,8 @@ export function PatrimonioListPage() {
                                         <TableCell className="text-xs font-mono text-slate-500">
                                             {ativo.imei || ativo.numero_serie || ativo.matricula || '-'}
                                         </TableCell>
-                                        <TableCell className="text-xs text-slate-500">
-                                            {ativo.empresa_proprietaria || 'KR Industrial'}
+                                        <TableCell className="text-xs text-slate-500 font-medium">
+                                            {ativo.empresa_proprietaria || '—'}
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-1">

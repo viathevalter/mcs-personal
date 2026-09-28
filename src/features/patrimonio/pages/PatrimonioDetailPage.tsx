@@ -262,7 +262,7 @@ export function PatrimonioDetailPage() {
                         </h1>
                         <p className="text-xs text-slate-500">
                             {[ativo.marca, ativo.modelo].filter(Boolean).join(' • ') || ativo.categoria} •{' '}
-                            {ativo.empresa_proprietaria || 'KR Industrial'}
+                            {ativo.empresa_proprietaria || '—'}
                         </p>
                     </div>
                 </div>
@@ -472,7 +472,7 @@ export function PatrimonioDetailPage() {
                                     <div>
                                         <span className="text-slate-400 block mb-0.5">Empresa Proprietária</span>
                                         <span className="font-medium text-slate-800 dark:text-slate-200">
-                                            {ativo.empresa_proprietaria || 'KR Industrial'}
+                                            {ativo.empresa_proprietaria || '—'}
                                         </span>
                                     </div>
                                     <div>
