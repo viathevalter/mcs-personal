@@ -1600,6 +1600,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_sevilla',
+        name: '🚀 Mailing Alex - Inéditos Sevilla (216 leads)',
+        leadCount: 216,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Sevilla',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
+        id: 'aud_mailing_alex_sevilla_completo',
+        name: '🎯 Mailing Alex - Sevilla Completo (272 leads)',
+        leadCount: 272,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Sevilla',
+          limit: '',
+          offset: '',
+        },
+        created_at: new Date().toISOString()
+      },
+      {
         id: 'aud_mailing_alex_ineditos_cadiz',
         name: '🚀 Mailing Alex - Inéditos Cádiz (296 leads)',
         leadCount: 296,
