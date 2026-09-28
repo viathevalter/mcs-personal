@@ -569,6 +569,10 @@ export function CampaignsPage() {
 
   // Saved Audiences feature
   const [savedAudiences, setSavedAudiences] = useState<any[]>([]);
+  const [audienceViewMode, setAudienceViewMode] = useState<'cards' | 'table'>(() => {
+    return (localStorage.getItem('mcs_audience_view_mode') as 'cards' | 'table') || 'cards';
+  });
+  const [audienceSearchTerm, setAudienceSearchTerm] = useState('');
   const [audienceSaveName, setAudienceSaveName] = useState('');
   const [shouldSaveAsPreset, setShouldSaveAsPreset] = useState(false);
   const [isNewAudienceDialogOpen, setIsNewAudienceDialogOpen] = useState(false); // To build and save an audience directly in the audiences tab
@@ -2307,6 +2311,40 @@ export function CampaignsPage() {
     }
   };
 
+  const handleSetAudienceViewMode = (mode: 'cards' | 'table') => {
+    setAudienceViewMode(mode);
+    localStorage.setItem('mcs_audience_view_mode', mode);
+  };
+
+  const formatAudienceDate = (dateString?: string) => {
+    if (!dateString) return 'Data não informada';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      return date.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  const filteredAudiences = useMemo(() => {
+    if (!audienceSearchTerm.trim()) return savedAudiences;
+    const term = audienceSearchTerm.toLowerCase().trim();
+    return savedAudiences.filter((aud: any) => {
+      const nameMatch = (aud.name || '').toLowerCase().includes(term);
+      const tagMatch = (aud.filters?.tagKeyword || '').toLowerCase().includes(term);
+      const sectorMatch = (aud.filters?.sectorKeyword || '').toLowerCase().includes(term);
+      const provMatch = (aud.filters?.provinceKeyword || '').toLowerCase().includes(term);
+      const countMatch = String(aud.leadCount || '').includes(term);
+      const dateMatch = formatAudienceDate(aud.created_at).toLowerCase().includes(term);
+      return nameMatch || tagMatch || sectorMatch || provMatch || countMatch || dateMatch;
+    });
+  }, [savedAudiences, audienceSearchTerm]);
+
   // Form states - Templates
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -3907,15 +3945,20 @@ export function CampaignsPage() {
         </TabsContent>
 
         {/* Tab PÚBLICOS / SEGMENTOS */}
-        <TabsContent value="audiences" className="mt-4">
-          <div className="flex justify-between items-center mb-4 bg-slate-50 dark:bg-slate-900 border rounded-xl p-4">
+        <TabsContent value="audiences" className="mt-4 space-y-4">
+          {/* Header & Descrição */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50 dark:bg-slate-900 border rounded-xl p-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">Segmentos e Públicos Reutilizáveis</h2>
-              <p className="text-xs text-muted-foreground">Crie e gerencie públicos filtrados para disparos rápidos e organizados em lotes.</p>
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                <Users className="h-5 w-5 text-yellow-500" />
+                <span>Segmentos e Públicos Reutilizáveis</span>
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Crie e gerencie públicos filtrados para disparos rápidos e organizados em lotes com rastreamento por data de criação.
+              </p>
             </div>
             <Button 
               onClick={async () => {
-                // Fetch leads to preview
                 userModifiedSelection.current = false;
                 setLoadingAudienceLeads(true);
                 setIsNewAudienceDialogOpen(true);
@@ -3940,10 +3983,64 @@ export function CampaignsPage() {
                 });
                 await fetchAudienceLeads();
               }} 
-              className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
+              className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold shadow-xs shrink-0"
             >
               <Plus className="mr-1.5 h-4 w-4" /> Novo Público Salvo
             </Button>
+          </div>
+
+          {/* Barra de Ferramentas: Busca + Alternador de Visualização (Galeria / Lista) */}
+          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card border p-3 rounded-xl shadow-xs">
+            {/* Campo de Busca Rápida */}
+            <div className="flex flex-wrap items-center gap-2.5 flex-1">
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar público por nome, setor, cidade ou tag..."
+                  value={audienceSearchTerm}
+                  onChange={(e) => setAudienceSearchTerm(e.target.value)}
+                  className="pl-8 pr-8 h-9 text-xs"
+                />
+                {audienceSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={() => setAudienceSearchTerm('')}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <span className="text-xs text-muted-foreground font-medium">
+                {filteredAudiences.length} {filteredAudiences.length === 1 ? 'público' : 'públicos'}
+              </span>
+            </div>
+
+            {/* Alternador Galeria / Cards vs Lista */}
+            <div className="flex items-center gap-1 border rounded-lg p-0.5 bg-background shrink-0">
+              <Button
+                type="button"
+                variant={audienceViewMode === 'cards' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => handleSetAudienceViewMode('cards')}
+                className="h-8 px-3 text-xs font-semibold gap-1.5"
+                title="Visualização em Galeria de Cards"
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                <span>Galeria</span>
+              </Button>
+              <Button
+                type="button"
+                variant={audienceViewMode === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => handleSetAudienceViewMode('table')}
+                className="h-8 px-3 text-xs font-semibold gap-1.5"
+                title="Visualização em Lista / Tabela"
+              >
+                <List className="h-3.5 w-3.5" />
+                <span>Lista</span>
+              </Button>
+            </div>
           </div>
 
           {savedAudiences.length === 0 ? (
@@ -3952,11 +4049,26 @@ export function CampaignsPage() {
               <p className="font-semibold text-slate-900 dark:text-slate-100">Nenhum público salvo</p>
               <p className="text-xs text-slate-550 max-w-[320px] text-center mt-1">Crie públicos reutilizáveis filtrando setores (ex: Caldeirarias), cidades (ex: Sevilha), ou limitando a quantidade para disparos fracionados.</p>
             </div>
-          ) : (
+          ) : filteredAudiences.length === 0 ? (
+            <div className="flex flex-col justify-center items-center py-16 text-muted-foreground border border-dashed rounded-xl bg-card">
+              <Filter className="h-10 w-10 text-slate-400 mb-2" />
+              <p className="font-semibold text-slate-900 dark:text-slate-100">Nenhum público encontrado</p>
+              <p className="text-xs text-muted-foreground mb-3">Nenhum resultado corresponde ao termo "{audienceSearchTerm}".</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAudienceSearchTerm('')}
+                className="text-xs"
+              >
+                Limpar Busca
+              </Button>
+            </div>
+          ) : audienceViewMode === 'cards' ? (
+            /* VISUALIZAÇÃO EM GALERIA DE CARDS */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {savedAudiences.map((aud) => {
+              {filteredAudiences.map((aud) => {
                 return (
-                  <div key={aud.id} className="bg-card border p-5 rounded-xl shadow-sm hover:shadow transition-all flex flex-col justify-between min-h-[200px]">
+                  <div key={aud.id} className="bg-card border p-5 rounded-xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between min-h-[220px]">
                     <div>
                       <div className="flex justify-between items-start mb-2.5">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -3966,24 +4078,31 @@ export function CampaignsPage() {
                           <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[11px] px-2.5 py-0.5 rounded-full font-bold">
                             {aud.leadCount !== undefined ? `${aud.leadCount} leads` : (aud.leadIds ? `${aud.leadIds.length} leads` : 'Leads Ativos')}
                           </span>
+                          {aud.created_at && (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md font-medium">
+                              <Calendar size={11} className="text-slate-400 shrink-0" />
+                              <span>{formatAudienceDate(aud.created_at)}</span>
+                            </span>
+                          )}
                         </div>
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                          className="h-8 w-8 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 shrink-0"
                           onClick={(e) => handleDeleteAudiencePreset(aud.id, e)}
+                          title="Excluir público"
                         >
                           <Trash2 size={14} />
                         </Button>
                       </div>
-                      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base truncate mb-1">
+                      <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base truncate mb-1" title={aud.name}>
                         {aud.name}
                       </h3>
                       
                       <div className="text-[11px] text-slate-500 space-y-1 mt-2.5 border-t pt-2">
                         {aud.filters?.selectedSectors && aud.filters.selectedSectors.length > 0 && (
                           <div className="flex items-center gap-1 flex-wrap">
-                            <span className="font-semibold text-slate-600">Setores:</span>
+                            <span className="font-semibold text-slate-600 dark:text-slate-400">Setores:</span>
                             {aud.filters.selectedSectors.map((s: string) => (
                               <span key={s} className="bg-amber-500/10 text-amber-800 dark:text-amber-300 px-1.5 py-0.2 rounded text-[10px] font-bold border border-amber-500/20">
                                 {s}
@@ -3993,7 +4112,7 @@ export function CampaignsPage() {
                         )}
                         {aud.filters?.selectedServices && aud.filters.selectedServices.length > 0 && (
                           <div className="flex items-center gap-1 flex-wrap">
-                            <span className="font-semibold text-slate-600">Serviços:</span>
+                            <span className="font-semibold text-slate-600 dark:text-slate-400">Serviços:</span>
                             {aud.filters.selectedServices.map((s: string) => (
                               <span key={s} className="bg-blue-500/10 text-blue-800 dark:text-blue-300 px-1.5 py-0.2 rounded text-[10px] font-bold border border-blue-500/20">
                                 {s}
@@ -4001,20 +4120,23 @@ export function CampaignsPage() {
                             ))}
                           </div>
                         )}
+                        {aud.filters?.tagKeyword && (
+                          <div>Tag Principal: <strong className="text-slate-700 dark:text-slate-300 font-mono">"{aud.filters.tagKeyword}"</strong></div>
+                        )}
                         {aud.filters?.sectorKeyword && (
-                          <div>Busca Livre: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.sectorKeyword}"</strong></div>
+                          <div>Busca Livre: <strong className="text-slate-700 dark:text-slate-300">"{aud.filters.sectorKeyword}"</strong></div>
                         )}
                         {aud.filters?.stageId && (
-                          <div>Estágio Kanban: <strong className="text-slate-700 dark:text-slate-350">Filtrado por Etapa</strong></div>
+                          <div>Estágio Kanban: <strong className="text-slate-700 dark:text-slate-300">Filtrado por Etapa</strong></div>
                         )}
                         {aud.filters?.provinceKeyword && (
-                          <div>Cidade/Província: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.provinceKeyword}"</strong></div>
+                          <div>Cidade/Província: <strong className="text-slate-700 dark:text-slate-300">"{aud.filters.provinceKeyword}"</strong></div>
                         )}
                         {aud.filters?.origin && (
-                          <div>Origem: <strong className="text-slate-700 dark:text-slate-350">"{aud.filters.origin}"</strong></div>
+                          <div>Origem: <strong className="text-slate-700 dark:text-slate-300">"{aud.filters.origin}"</strong></div>
                         )}
                         {(aud.filters?.limit || aud.filters?.offset) && (
-                          <div>Loteamento: <strong className="text-slate-700 dark:text-slate-350">Qtd: {aud.filters.limit || 'Sem Limite'} / Pular: {aud.filters.offset || '0'}</strong></div>
+                          <div>Loteamento: <strong className="text-slate-700 dark:text-slate-300">Qtd: {aud.filters.limit || 'Sem Limite'} / Pular: {aud.filters.offset || '0'}</strong></div>
                         )}
                       </div>
                     </div>
@@ -4054,14 +4176,136 @@ export function CampaignsPage() {
                           }
                           toast.success(`Defina o template. O público "${aud.name}" foi pré-carregado!`);
                         }}
-                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 text-xs font-bold"
+                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 text-xs font-bold flex items-center gap-1"
                       >
-                        Nova Campanha
+                        <Send size={14} /> Nova Campanha
                       </Button>
                     </div>
                   </div>
                 );
               })}
+            </div>
+          ) : (
+            /* VISUALIZAÇÃO EM LISTA / TABELA */
+            <div className="bg-card border rounded-xl shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
+                      <th className="py-3 px-4">Público / Segmento</th>
+                      <th className="py-3 px-4">Volume de Leads</th>
+                      <th className="py-3 px-4">Filtros & Critérios</th>
+                      <th className="py-3 px-4">Data de Criação</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {filteredAudiences.map((aud) => {
+                      return (
+                        <tr key={aud.id} className="hover:bg-slate-50/70 dark:hover:bg-slate-900/40 transition-colors">
+                          <td className="py-3.5 px-4 font-semibold text-slate-900 dark:text-slate-100">
+                            <div className="flex items-center gap-2">
+                              <span className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-600 dark:text-yellow-500 text-[10px] px-2 py-0.5 rounded font-mono font-bold shrink-0">
+                                SEGMENTO
+                              </span>
+                              <span className="truncate max-w-[280px] sm:max-w-md" title={aud.name}>
+                                {aud.name}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap">
+                            <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs px-2.5 py-1 rounded-full font-bold">
+                              {aud.leadCount !== undefined ? `${aud.leadCount} leads` : (aud.leadIds ? `${aud.leadIds.length} leads` : 'Leads Ativos')}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 text-[11px]">
+                            <div className="flex flex-wrap items-center gap-1.5 max-w-md">
+                              {aud.filters?.tagKeyword && (
+                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded text-[10px] font-medium border truncate max-w-[220px]" title={aud.filters.tagKeyword}>
+                                  Tag: {aud.filters.tagKeyword}
+                                </span>
+                              )}
+                              {aud.filters?.selectedCountries && aud.filters.selectedCountries.length > 0 && (
+                                <span className="bg-blue-500/10 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-blue-500/20">
+                                  {aud.filters.selectedCountries.join(', ')}
+                                </span>
+                              )}
+                              {aud.filters?.provinceKeyword && (
+                                <span className="bg-purple-500/10 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-purple-500/20">
+                                  {aud.filters.provinceKeyword}
+                                </span>
+                              )}
+                              {aud.filters?.selectedSectors && aud.filters.selectedSectors.length > 0 && (
+                                <span className="bg-amber-500/10 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded text-[10px] font-semibold border border-amber-500/20">
+                                  {aud.filters.selectedSectors[0]}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 whitespace-nowrap text-slate-600 dark:text-slate-300 font-mono text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <Calendar size={13} className="text-amber-500 shrink-0" />
+                              <span>{formatAudienceDate(aud.created_at)}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async () => {
+                                  setViewLeadsSearch('');
+                                  if (aud.filters) {
+                                    setAudienceFilters({ ...aud.filters });
+                                  }
+                                  setViewLeadsAudience(aud);
+                                  if (allLeads.length === 0) {
+                                    setLoadingAudienceLeads(true);
+                                    await fetchAudienceLeads();
+                                  }
+                                }}
+                                className="h-8 px-2.5 text-xs font-semibold gap-1 text-slate-700 dark:text-slate-300 hover:text-slate-900"
+                              >
+                                <Eye size={13} />
+                                <span>Ver Leads</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  setCampaignForm({ title: `Campanha - ${aud.name}`, template_id: '' });
+                                  if (aud.filters) {
+                                    setAudienceFilters({ ...aud.filters });
+                                  }
+                                  setPendingAudienceForCampaign(aud);
+                                  setSelectedAudienceIdsForCampaign([aud.id]);
+                                  setIsCampaignModalOpen(true);
+                                  if (allLeads.length === 0) {
+                                    await fetchAudienceLeads();
+                                  }
+                                  toast.success(`Defina o template. O público "${aud.name}" foi pré-carregado!`);
+                                }}
+                                className="h-8 px-2.5 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-slate-950 gap-1"
+                              >
+                                <Send size={13} />
+                                <span>Nova Campanha</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                onClick={(e) => handleDeleteAudiencePreset(aud.id, e)}
+                                title="Excluir público"
+                              >
+                                <Trash2 size={13} />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </TabsContent>
