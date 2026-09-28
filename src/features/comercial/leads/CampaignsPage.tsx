@@ -73,9 +73,20 @@ const countryLabels: Record<string, { name: string; flag: string }> = {
   OTHER: { name: 'Outros', flag: '🌍' },
 };
 
+const COUNTRY_UUID_MAP: Record<string, string> = {
+  'a6a47427-89f2-4e6b-b4ee-e645381a9cfd': 'FR',
+  'a61e8503-bbf4-4e1e-a0b3-14de34639317': 'BE',
+  '3623ec00-42ae-4673-a842-c20b47da0e5e': 'IT',
+  '2f487ab4-c7f5-4b70-9c37-995dc4cda125': 'ES',
+  'ed088451-cfb1-4fec-84ef-1115ce2af4c7': 'PT',
+  '85657fd0-0053-474f-91c9-7c69c03386a6': 'BR',
+};
+
 const detectLeadCountry = (lead: any): string => {
   if (lead.country_id) {
-    const c = String(lead.country_id).toUpperCase();
+    const rawId = String(lead.country_id).toLowerCase().trim();
+    if (COUNTRY_UUID_MAP[rawId]) return COUNTRY_UUID_MAP[rawId];
+    const c = rawId.toUpperCase();
     if (['ES', 'PT', 'FR', 'DE', 'IT', 'NL', 'BE', 'GB'].includes(c)) return c;
   }
   if (lead.region) {
@@ -2284,6 +2295,11 @@ export function CampaignsPage() {
     }
   }, [selectedEmpresaId, defaultStrategicAudiences, isTriangulo, isWiseowe]);
 
+  // Sempre que a empresa selecionada mudar, limpa a base de leads em memória para evitar filtros obsoletos
+  useEffect(() => {
+    setAllLeads([]);
+  }, [selectedEmpresaId]);
+
   const saveAudiencesToLocalStorage = (newAudiences: any[]) => {
     setSavedAudiences(newAudiences);
     if (selectedEmpresaId) {
@@ -2664,7 +2680,7 @@ export function CampaignsPage() {
         let query = supabase
           .schema('core_comercial')
           .from('leads')
-          .select('*')
+          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes')
           .order('name', { ascending: true });
 
         if (selectedEmpresaId) {
@@ -3346,7 +3362,14 @@ export function CampaignsPage() {
         <TabsList className="bg-slate-100 dark:bg-slate-950 border p-1 rounded-xl w-fit">
           <TabsTrigger value="campaigns" className="rounded-lg">Campanhas</TabsTrigger>
           <TabsTrigger value="templates" className="rounded-lg">Templates de E-mail</TabsTrigger>
-          <TabsTrigger value="audiences" className="rounded-lg font-medium">Públicos / Segmentos</TabsTrigger>
+          <TabsTrigger value="audiences" className="rounded-lg font-medium flex items-center gap-1.5">
+            <span>Públicos / Segmentos</span>
+            {savedAudiences.length > 0 && (
+              <span className="text-[10px] bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.2 rounded-full font-bold">
+                {savedAudiences.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab CAMPANHAS */}
@@ -4007,6 +4030,7 @@ export function CampaignsPage() {
                           }
                           setViewLeadsAudience(aud);
                           if (allLeads.length === 0) {
+                            setLoadingAudienceLeads(true);
                             await fetchAudienceLeads();
                           }
                         }}
