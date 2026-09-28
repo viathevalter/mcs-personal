@@ -1201,7 +1201,7 @@ MCS - Gestão Comercial`;
                 <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td style="text-align: right; padding: 6px 8px; color: #1e293b;">0,00</td>
                 <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace; color: #0f172a;">${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px; color: #0f172a;">${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>
               ${Number(adj.incrementos) > 0 ? `
               <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3); color: #047857;">
@@ -1210,7 +1210,7 @@ MCS - Gestão Comercial`;
                 <td style="text-align: right; padding: 6px 8px;">${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td style="text-align: right; padding: 6px 8px;">0,00</td>
                 <td style="text-align: right; padding: 6px 8px;">${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace;">${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px;">${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>` : ''}
               ${Number(adj.reducoes) > 0 ? `
               <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3); color: #be123c;">
@@ -1219,7 +1219,7 @@ MCS - Gestão Comercial`;
                 <td style="text-align: right; padding: 6px 8px;">-${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td style="text-align: right; padding: 6px 8px;">0,00</td>
                 <td style="text-align: right; padding: 6px 8px;">${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                <td style="text-align: right; font-weight: 700; padding: 6px 12px; font-family: monospace;">-${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; font-weight: 700; padding: 6px 12px;">-${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               </tr>` : ''}
             </tbody>
           </table>
@@ -1232,15 +1232,15 @@ MCS - Gestão Comercial`;
             <tbody>
               <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
                 <td style="padding: 6px 12px; color: #1e293b;">Subtotal da Factura</td>
-                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; font-family: monospace; color: #1e293b;">${(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; color: #1e293b;">${(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
               </tr>
               <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
                 <td style="padding: 6px 12px; color: #1e293b;">IVA ${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: ${(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })})</td>
-                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; font-family: monospace; color: #1e293b;">${((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+                <td style="text-align: right; font-weight: 600; width: 160px; padding: 6px 12px; color: #1e293b;">${((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
               </tr>
               <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.4); background-color: #fff7ed;">
                 <td style="font-weight: 800; color: #0f172a; padding: 8px 12px; font-size: 12px;">Total da Factura</td>
-                <td style="text-align: right; font-weight: 800; color: #0f172a; font-size: 13px; padding: 8px 12px; font-family: monospace;">
+                <td style="text-align: right; font-weight: 800; color: #0f172a; font-size: 13px; padding: 8px 12px;">
                   ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €
                 </td>
               </tr>
@@ -1268,7 +1268,7 @@ MCS - Gestão Comercial`;
             ${adj.iban ? `
             <div style="text-align: center;">
               <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Informações de Pagamento</p>
-              <div style="font-family: monospace; font-size: 9px; white-space: pre-line; line-height: 1.2;">${adj.iban}</div>
+              <div style="font-size: 9px; white-space: pre-line; line-height: 1.2;">${adj.iban}</div>
             </div>` : '<div></div>'}
             <div style="text-align: right;">
               <p style="font-weight: 700; text-transform: uppercase; color: #475569; margin: 0 0 2px 0;">Local de Descarga</p>
@@ -1480,14 +1480,14 @@ MCS - Gestão Comercial`;
                 <td style="padding: 6px 10px; font-weight: 600; color: #1e293b;">Importe total</td>
                 <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
                 <td style="padding: 6px 10px; color: #64748b;">${adj.descricaoServico}</td>
-                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
               ${Number(adj.incrementos) > 0 ? `
               <tr style="border-bottom: 1px solid #e2e8f0; color: #059669;">
                 <td style="padding: 6px 10px; font-weight: 600;">Incrementos</td>
                 <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
                 <td style="padding: 6px 10px; color: #059669;">${adj.incrementosDesc || 'Adicional'}</td>
-                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
               ` : ''}
               ${Number(adj.reducoes) > 0 ? `
@@ -1495,12 +1495,12 @@ MCS - Gestão Comercial`;
                 <td style="padding: 6px 10px; font-weight: 600;">Reducciones</td>
                 <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
                 <td style="padding: 6px 10px; color: #e11d48;">${adj.reducoesDesc || 'Desconto'}</td>
-                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
               ` : ''}
               <tr style="background-color: #f8fafc; font-weight: 750;">
                 <td style="padding: 8px 10px; font-weight: 700; color: #1e293b;" colSpan="3">Total a facturar</td>
-                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-size: 13px; font-family: monospace; color: #0f172a;">€ ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-size: 13px; color: #0f172a;">€ ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
             </tbody>
           </table>
@@ -1546,7 +1546,7 @@ MCS - Gestão Comercial`;
             </td>
             <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
             <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
-            <td style="padding: 7px 12px; text-align: right; font-weight: 700; font-family: monospace;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
           </tr>
         `;
       });
@@ -1560,7 +1560,7 @@ MCS - Gestão Comercial`;
             <td style="padding: 8px 12px; font-weight: 700; color: #1e293b;">Totales</td>
             <td style="padding: 8px 12px; text-align: right; font-weight: 700;">${displayTotalHoras.toFixed(2)}h</td>
             <td style="padding: 8px 12px; text-align: right;">-</td>
-            <td style="padding: 8px 12px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 800; color: #0f172a;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
           </tr>
         `;
       }
@@ -2571,14 +2571,14 @@ MCS - Gestão Comercial`;
                 <td style="padding: 6px 10px; font-weight: 600; color: #1e293b;">Importe total</td>
                 <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
                 <td style="padding: 6px 10px; color: #64748b;">${adj.descricaoServico}</td>
-                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
               ${Number(adj.incrementos) > 0 ? `
               <tr style="border-bottom: 1px solid #e2e8f0; color: #059669;">
                 <td style="padding: 6px 10px; font-weight: 600;">Incrementos</td>
                 <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
                 <td style="padding: 6px 10px; color: #059669;">${adj.incrementosDesc || 'Adicional'}</td>
-                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ ${Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
               ` : ''}
               ${Number(adj.reducoes) > 0 ? `
@@ -2586,12 +2586,12 @@ MCS - Gestão Comercial`;
                 <td style="padding: 6px 10px; font-weight: 600;">Reducciones</td>
                 <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
                 <td style="padding: 6px 10px; color: #e11d48;">${adj.reducoesDesc || 'Desconto'}</td>
-                <td style="padding: 6px 10px; text-align: right; font-weight: 600; font-family: monospace;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 600;">€ -${Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
               ` : ''}
               <tr style="background-color: #f8fafc; font-weight: 750;">
                 <td style="padding: 8px 10px; font-weight: 700; color: #1e293b;" colSpan="3">Total a facturar</td>
-                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-size: 13px; font-family: monospace; color: #0f172a;">€ ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                <td style="padding: 8px 10px; text-align: right; font-weight: 800; font-size: 13px; color: #0f172a;">€ ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
               </tr>
             </tbody>
           </table>
@@ -2637,7 +2637,7 @@ MCS - Gestão Comercial`;
             </td>
             <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
             <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
-            <td style="padding: 7px 12px; text-align: right; font-weight: 700; font-family: monospace;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
           </tr>
         `;
       });
@@ -2651,7 +2651,7 @@ MCS - Gestão Comercial`;
             <td style="padding: 8px 12px; font-weight: 700; color: #1e293b;">Totales</td>
             <td style="padding: 8px 12px; text-align: right; font-weight: 700;">${displayTotalHoras.toFixed(2)}h</td>
             <td style="padding: 8px 12px; text-align: right;">-</td>
-            <td style="padding: 8px 12px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 8px 12px; text-align: right; font-weight: 800; color: #0f172a;">€ ${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
           </tr>
         `;
       }
@@ -4220,14 +4220,14 @@ MCS - Gestão Comercial`;
                                   <TableCell className="font-medium">Importe total</TableCell>
                                   <TableCell className="text-right font-semibold">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                   <TableCell className="text-muted-foreground">{adj.descricaoServico}</TableCell>
-                                  <TableCell className="text-right font-semibold font-mono">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  <TableCell className="text-right font-semibold">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                 </TableRow>
                                 {Number(adj.incrementos) > 0 && (
                                   <TableRow>
                                     <TableCell className="font-medium text-emerald-600 dark:text-emerald-400">Incrementos</TableCell>
                                     <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400">€ {Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                     <TableCell className="text-muted-foreground">{adj.incrementosDesc || 'Adicional'}</TableCell>
-                                    <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 font-mono">€ {Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400">€ {Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                   </TableRow>
                                 )}
                                 {Number(adj.reducoes) > 0 && (
@@ -4235,12 +4235,12 @@ MCS - Gestão Comercial`;
                                     <TableCell className="font-medium text-rose-600 dark:text-rose-400">Reducciones</TableCell>
                                     <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">€ -{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                     <TableCell className="text-muted-foreground">{adj.reducoesDesc || 'Desconto'}</TableCell>
-                                    <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400 font-mono">€ -{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="text-right font-semibold text-rose-600 dark:text-rose-400">€ -{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                   </TableRow>
                                 )}
                                 <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                                   <TableCell className="font-bold text-slate-800 dark:text-slate-200" colSpan={3}>Total a facturar</TableCell>
-                                  <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 text-sm font-mono">
+                                  <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 text-sm">
                                     € {finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
                                   </TableCell>
                                 </TableRow>
@@ -4282,14 +4282,14 @@ MCS - Gestão Comercial`;
                                     <TableCell className={`text-right font-medium ${w.isException ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
                                       € {w.tarifa.toFixed(2)}
                                     </TableCell>
-                                    <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    <TableCell className="text-right font-bold pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                   </TableRow>
                                 ))}
                                 <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                                   <TableCell className="font-bold pl-4">Totales</TableCell>
                                   <TableCell className="text-right font-bold">{displayTotalHoras.toFixed(2)}h</TableCell>
                                   <TableCell className="text-right">-</TableCell>
-                                  <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  <TableCell className="text-right font-extrabold pr-4">€ {totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
@@ -4419,7 +4419,7 @@ MCS - Gestão Comercial`;
                                     <td className="text-right py-1 text-slate-800">{(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     <td className="text-right py-1 text-slate-800">0,00</td>
                                     <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                    <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                   </tr>
                                   {Number(adj.incrementos) > 0 && (
                                     <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
@@ -4428,7 +4428,7 @@ MCS - Gestão Comercial`;
                                       <td className="text-right py-1">{Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                       <td className="text-right py-1">0,00</td>
                                       <td className="text-right py-1">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                      <td className="text-right font-bold pr-3 font-mono py-1">{Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      <td className="text-right font-bold pr-3 py-1">{Number(adj.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
                                   )}
                                   {Number(adj.reducoes) > 0 && (
@@ -4438,7 +4438,7 @@ MCS - Gestão Comercial`;
                                       <td className="text-right py-1">-{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                       <td className="text-right py-1">0,00</td>
                                       <td className="text-right py-1">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                      <td className="text-right font-bold pr-3 font-mono py-1">-{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      <td className="text-right font-bold pr-3 py-1">-{Number(adj.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     </tr>
                                   )}
                                 </tbody>
@@ -4452,15 +4452,15 @@ MCS - Gestão Comercial`;
                                 <tbody>
                                   <tr className="border-b border-[#ec8a5e]/30">
                                     <td className="pl-3 py-1 text-slate-800" colSpan={3}>Subtotal da Factura</td>
-                                    <td className="text-right font-medium w-40 pr-3 font-mono py-1 text-slate-800">{(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+                                    <td className="text-right font-semibold w-40 pr-3 py-1 text-slate-800">{(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
                                   </tr>
                                   <tr className="border-b border-[#ec8a5e]/30">
                                     <td className="pl-3 py-1 text-slate-800" colSpan={3}>IVA {Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: {(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })})</td>
-                                    <td className="text-right font-medium w-40 pr-3 font-mono py-1 text-slate-800">{((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
+                                    <td className="text-right font-semibold w-40 pr-3 py-1 text-slate-800">{((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
                                   </tr>
                                   <tr className="border-b border-[#ec8a5e]/40">
                                     <td className="font-extrabold text-slate-900 pl-3 py-1.5 text-xs" colSpan={3}>Total da Factura</td>
-                                    <td className="text-right font-extrabold text-slate-900 text-xs pr-3 font-mono py-1.5">
+                                    <td className="text-right font-extrabold text-slate-900 text-xs pr-3 py-1.5">
                                       {finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €
                                     </td>
                                   </tr>
@@ -4491,7 +4491,7 @@ MCS - Gestão Comercial`;
                                 {adj.iban && (
                                   <div className="text-center">
                                     <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
-                                    <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{adj.iban}</div>
+                                    <div className="text-[9px] whitespace-pre-line leading-tight">{adj.iban}</div>
                                   </div>
                                 )}
                                 <div className="text-right">
@@ -4668,7 +4668,7 @@ MCS - Gestão Comercial`;
                           )}
                           <tr className="bg-slate-50 dark:bg-slate-950 font-extrabold border-t dark:border-slate-800">
                             <td className="p-2.5 text-slate-800 dark:text-slate-200">Total a Faturar (IVA {currentAdj.ivaPct}%)</td>
-                            <td className="p-2.5 text-right text-blue-600 font-mono text-[12px]">€ {currentFinalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                            <td className="p-2.5 text-right text-blue-600 font-bold text-[12px]">€ {currentFinalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -5178,14 +5178,14 @@ MCS - Gestão Comercial`;
                               <TableCell className="font-semibold">Importe total</TableCell>
                               <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                               <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                              <TableCell className="text-right font-semibold font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                             </TableRow>
                             {Number(adjustments.incrementos) > 0 && (
                               <TableRow>
                                 <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
                                 <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                 <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
-                                <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                               </TableRow>
                             )}
                             {Number(adjustments.reducoes) > 0 && (
@@ -5193,12 +5193,12 @@ MCS - Gestão Comercial`;
                                 <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
                                 <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                                 <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
-                                <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                               </TableRow>
                             )}
                             <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                               <TableCell className="font-bold text-slate-800 dark:text-slate-200" colSpan={3}>Total a facturar</TableCell>
-                              <TableCell className="text-right font-extrabold text-slate-900 dark:text-white font-mono">
+                              <TableCell className="text-right font-extrabold text-slate-900 dark:text-white">
                                 € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
                               </TableCell>
                             </TableRow>
@@ -5226,14 +5226,14 @@ MCS - Gestão Comercial`;
                                 <TableCell className="font-semibold text-slate-800 dark:text-slate-250 pl-4">{w.workerName}</TableCell>
                                 <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
                                 <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
-                                <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                <TableCell className="text-right font-bold pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                               </TableRow>
                             ))}
                             <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                               <TableCell className="font-bold pl-4">Totales</TableCell>
                               <TableCell className="text-right font-bold">{totalHorasCalculadas.toFixed(2)}h</TableCell>
                               <TableCell className="text-right">-</TableCell>
-                              <TableCell className="text-right font-extrabold pr-4 font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right font-extrabold pr-4">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -5241,7 +5241,7 @@ MCS - Gestão Comercial`;
                         {/* Informações Bancárias */}
                         <div className="border-t border-slate-100 dark:border-slate-900 pt-3 text-muted-foreground space-y-0.5 font-medium leading-relaxed text-[9px]">
                           <span className="font-bold uppercase text-slate-400 text-[7px] block mb-0.5">Dados de Depósito / IBAN</span>
-                          <p className="whitespace-pre-line font-mono">{adjustments.iban}</p>
+                          <p className="whitespace-pre-line">{adjustments.iban}</p>
                         </div>
                       </div>
                     </div>
@@ -5360,7 +5360,7 @@ MCS - Gestão Comercial`;
                                   <td className="text-right py-1 text-slate-800">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                   <td className="text-right py-1 text-slate-800">0,00</td>
                                   <td className="text-right py-1 text-slate-800">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                  <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
                                 {Number(adjustments.incrementos) > 0 && (
                                   <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
@@ -5369,7 +5369,7 @@ MCS - Gestão Comercial`;
                                     <td className="text-right py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     <td className="text-right py-1">0,00</td>
                                     <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                    <td className="text-right font-bold pr-3 font-mono py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="text-right font-bold pr-3 py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                   </tr>
                                 )}
                                 {Number(adjustments.reducoes) > 0 && (
@@ -5379,7 +5379,7 @@ MCS - Gestão Comercial`;
                                     <td className="text-right py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     <td className="text-right py-1">0,00</td>
                                     <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                    <td className="text-right font-bold pr-3 font-mono py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="text-right font-bold pr-3 py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                   </tr>
                                 )}
                               </tbody>
@@ -5393,15 +5393,15 @@ MCS - Gestão Comercial`;
                               <tbody>
                                 <tr className="border-b border-[#ec8a5e]/30">
                                   <td className="pl-3 py-1 font-semibold text-slate-800">Subtotal da Factura</td>
-                                  <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td className="text-right font-bold pr-3 py-1 text-slate-900">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
                                 <tr className="border-b border-[#ec8a5e]/30">
                                   <td className="pl-3 py-1 font-semibold text-slate-800">IVA {Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: € {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
-                                  <td className="text-right font-bold pr-3 font-mono py-1 text-slate-900">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td className="text-right font-bold pr-3 py-1 text-slate-900">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
                                 <tr className="bg-[#fdf3ee] text-[#ec8a5e]">
                                   <td className="pl-3 py-1 font-extrabold text-sm">Total da Factura</td>
-                                  <td className="text-right font-extrabold pr-3 font-mono py-1 text-sm">
+                                  <td className="text-right font-extrabold pr-3 py-1 text-sm">
                                     € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                 </tr>
@@ -5432,7 +5432,7 @@ MCS - Gestão Comercial`;
                               {adjustments.iban && (
                                 <div className="text-center">
                                   <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
-                                  <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{adjustments.iban}</div>
+                                  <div className="text-[9px] whitespace-pre-line leading-tight">{adjustments.iban}</div>
                                 </div>
                               )}
                               <div className="text-right">

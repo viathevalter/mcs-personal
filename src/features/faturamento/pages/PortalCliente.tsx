@@ -423,7 +423,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
           });
 
           tableHtml += `
-                <td style="padding: 6px 10px; text-align: right; font-weight: 800; font-family: monospace; color: #0f172a;">${obra.totalHoras.toFixed(1)}h</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #0f172a;">${obra.totalHoras.toFixed(1)}h</td>
               </tr>
             </tfoot>
           `;
@@ -1038,7 +1038,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                           Horas Obra: <strong className="text-slate-900 dark:text-white font-bold">{obra.totalHoras.toFixed(2)}h</strong>
                         </span>
                         <span className="text-slate-600 dark:text-slate-300 font-semibold">
-                          Subtotal: <strong className="text-blue-600 dark:text-blue-400 font-bold font-mono">€ {obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong>
+                          Subtotal: <strong className="text-blue-600 dark:text-blue-400 font-bold">€ {obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong>
                         </span>
                       </div>
                     </div>
@@ -1176,7 +1176,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                               </TableCell>
                             );
                           })}
-                          <TableCell className="text-right font-black pr-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-mono">
+                          <TableCell className="text-right font-black pr-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-bold">
                             {obra.totalHoras.toFixed(1)}h
                           </TableCell>
                         </TableRow>
@@ -1195,8 +1195,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                       </span>
                     </div>
                     <div className="flex items-center gap-6 text-sm">
-                      <span>Total Horas: <strong className="font-mono text-base font-black text-white">{totalHorasCalculadas.toFixed(2)}h</strong></span>
-                      <span>Importe Base: <strong className="font-mono text-base font-black text-blue-400">€ {totalBaseVal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong></span>
+                      <span>Total Horas: <strong className="text-base font-black text-white">{totalHorasCalculadas.toFixed(2)}h</strong></span>
+                      <span>Importe Base: <strong className="text-base font-black text-blue-400">€ {totalBaseVal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong></span>
                     </div>
                   </div>
                 )}
@@ -1270,14 +1270,14 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                         <TableCell className="font-medium">Importe total</TableCell>
                         <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                         <TableCell className="text-muted-foreground">{adjustments.descricaoServico}</TableCell>
-                        <TableCell className="text-right font-semibold font-mono">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                        <TableCell className="text-right font-semibold">€ {totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                       </TableRow>
                       {Number(adjustments.incrementos) > 0 && (
                         <TableRow>
                           <TableCell className="font-medium text-emerald-600">Incrementos</TableCell>
                           <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                           <TableCell className="text-muted-foreground">{adjustments.incrementosDesc || 'Adicional'}</TableCell>
-                          <TableCell className="text-right font-semibold text-emerald-600 font-mono">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right font-semibold text-emerald-600">€ {Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                         </TableRow>
                       )}
                       {Number(adjustments.reducoes) > 0 && (
@@ -1285,12 +1285,12 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                           <TableCell className="font-medium text-rose-600">Reducciones</TableCell>
                           <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                           <TableCell className="text-muted-foreground">{adjustments.reducoesDesc || 'Desconto'}</TableCell>
-                          <TableCell className="text-right font-semibold text-rose-600 font-mono">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-right font-semibold text-rose-600">€ -{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                         </TableRow>
                       )}
                       <TableRow className="bg-slate-50">
                         <TableCell className="font-bold text-slate-800" colSpan={3}>Total a facturar</TableCell>
-                        <TableCell className="text-right font-extrabold text-slate-900 font-mono">
+                        <TableCell className="text-right font-extrabold text-slate-900">
                           € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
                         </TableCell>
                       </TableRow>
@@ -1324,14 +1324,14 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                               <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
                               <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
                               <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
-                              <TableCell className="text-right font-bold pr-4 font-mono">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="text-right font-bold pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                             </TableRow>
                           ))}
                           <TableRow className="bg-slate-50 font-bold border-t border-slate-200">
                             <TableCell className="font-bold pl-4">Subtotal {obra.obraName}</TableCell>
                             <TableCell className="text-right font-bold">{obra.totalHoras.toFixed(2)}h</TableCell>
                             <TableCell className="text-right">-</TableCell>
-                            <TableCell className="text-right font-extrabold pr-4 font-mono">€ {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                            <TableCell className="text-right font-extrabold pr-4">€ {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                           </TableRow>
                         </TableBody>
                       </Table>
@@ -1469,7 +1469,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                           <td className="text-right py-1">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="text-right py-1">0,00</td>
                           <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                          <td className="text-right font-bold pr-3 font-mono py-1">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="text-right font-bold pr-3 py-1">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                         {Number(adjustments.incrementos) > 0 && (
                           <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
@@ -1478,7 +1478,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                             <td className="text-right py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             <td className="text-right py-1">0,00</td>
                             <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                            <td className="text-right font-bold pr-3 font-mono py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="text-right font-bold pr-3 py-1">{Number(adjustments.incrementos).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           </tr>
                         )}
                         {Number(adjustments.reducoes) > 0 && (
@@ -1488,7 +1488,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                             <td className="text-right py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             <td className="text-right py-1">0,00</td>
                             <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                            <td className="text-right font-bold pr-3 font-mono py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="text-right font-bold pr-3 py-1">-{Number(adjustments.reducoes).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           </tr>
                         )}
                       </tbody>
@@ -1502,15 +1502,15 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                       <tbody>
                         <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
                           <td className="font-bold pl-3 py-1" colSpan={3}>Subtotal da Obra</td>
-                          <td className="text-right font-bold w-40 pr-3 font-mono py-1">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="text-right font-bold w-40 pr-3 py-1">€ {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                         <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
                           <td className="font-bold pl-3 py-1" colSpan={3}>IVA {adjustments.ivaPct}%</td>
-                          <td className="text-right font-bold w-40 pr-3 font-mono py-1">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="text-right font-bold w-40 pr-3 py-1">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
                         <tr className="bg-[#fef7f2] text-slate-900">
                           <td className="font-extrabold text-[#ec8a5e] pl-3 py-1.5" colSpan={3}>Total da Fatura</td>
-                          <td className="text-right font-extrabold text-[#9c4d28] text-xs pr-3 font-mono py-1.5">
+                          <td className="text-right font-extrabold text-[#9c4d28] text-xs pr-3 py-1.5">
                             € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         </tr>
@@ -1540,7 +1540,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                       {adjustments.iban && (
                         <div className="text-center">
                           <p className="font-bold uppercase mb-0.5">Informações de Pagamento</p>
-                          <div className="font-mono text-[9px] whitespace-pre-line leading-tight">{adjustments.iban}</div>
+                          <div className="text-[9px] whitespace-pre-line leading-tight">{adjustments.iban}</div>
                         </div>
                       )}
                       <div className="text-right">
