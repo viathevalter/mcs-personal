@@ -71,7 +71,48 @@ serve(async (req) => {
     }
 
     // Validar se o trabalhador possui ao menos um documento de identificação cadastrado para emissão do contrato
-    const hasDocument = [worker.pasaporte, worker.dni, worker.nie, worker.nif].some(doc => doc && doc.trim() !== "");
+    let hasDocument = [worker.pasaporte, worker.dni, worker.nie, worker.nif].some(doc => doc && doc.trim() !== "");
+    if (!hasDocument) {
+      // Tentar auto-sincronizar a partir de solicitações de documentos existentes
+      const { data: docReq } = await supabase
+        .schema("core_personal")
+        .from("document_requests")
+        .select("extracted_data, selfie_url")
+        .eq("worker_id", worker_id)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (docReq?.extracted_data) {
+        const ed = docReq.extracted_data;
+        const updates: any = {};
+        if (ed.pasaporte && !worker.pasaporte) updates.pasaporte = ed.pasaporte;
+        if (ed.dni && !worker.dni) updates.dni = ed.dni;
+        if (ed.nie && !worker.nie) updates.nie = ed.nie;
+        if (ed.nif && !worker.nif) updates.nif = ed.nif;
+        if (ed.niss && !worker.niss) updates.niss = ed.niss;
+        if (ed.email && !worker.email) updates.email = ed.email;
+        if ((ed.movil || ed.telefono) && !worker.movil) updates.movil = ed.movil || ed.telefono;
+        if (ed.nacionalidade && !worker.nacionalidade) updates.nacionalidade = ed.nacionalidade;
+        if (ed.fecha_nacimiento && !worker.fecha_nacimiento) updates.fecha_nacimiento = ed.fecha_nacimiento;
+        if (ed.direccion_actual && !worker.address_line) updates.address_line = ed.direccion_actual;
+        if (ed.ubicacion_actual && !worker.location) updates.location = ed.ubicacion_actual;
+        if (ed.morada_contrato && !worker.morada_contrato) updates.morada_contrato = ed.morada_contrato;
+        if (docReq.selfie_url && !worker.foto) updates.foto = docReq.selfie_url;
+
+        if (Object.keys(updates).length > 0) {
+          await supabase
+            .schema("core_personal")
+            .from("workers")
+            .update(updates)
+            .eq("id", worker_id);
+
+          Object.assign(worker, updates);
+          hasDocument = [worker.pasaporte, worker.dni, worker.nie, worker.nif].some(doc => doc && doc.trim() !== "");
+        }
+      }
+    }
+
     if (!hasDocument) {
       return new Response(
         JSON.stringify({ error: "O trabalhador deve ter pelo menos um documento de identificação (Passaporte, DNI, NIE ou NIF) cadastrado para gerar o contrato." }),

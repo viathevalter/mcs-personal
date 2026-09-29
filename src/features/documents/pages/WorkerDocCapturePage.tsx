@@ -411,17 +411,33 @@ export function WorkerDocCapturePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="space-y-3">
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Correo Electrónico (E-mail)</label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
-                                        <Input 
-                                            type="email"
-                                            placeholder="ejemplo@correo.com"
-                                            value={formData.email}
-                                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                            className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
-                                        />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-300 block mb-1">Correo Electrónico (E-mail)</label>
+                                        <div className="relative">
+                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                            <Input 
+                                                type="email"
+                                                placeholder="ejemplo@correo.com"
+                                                value={formData.email}
+                                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                                className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-300 block mb-1">Teléfono / Móvil Personal (con prefijo)</label>
+                                        <div className="relative">
+                                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+                                            <Input 
+                                                type="tel"
+                                                placeholder="Ej: +34 600 000 000 / +55 ..."
+                                                value={formData.movil}
+                                                onChange={(e) => setFormData({ ...formData, movil: e.target.value })}
+                                                className="pl-9 bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 

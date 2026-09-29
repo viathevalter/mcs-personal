@@ -179,6 +179,7 @@ export function DocumentacionTasksPage() {
     const [verifyFormData, setVerifyFormData] = useState({
         nome: '',
         email: '',
+        movil: '',
         direccion_actual: '',
         morada_contrato: '',
         ubicacion_actual: '',
@@ -1235,6 +1236,7 @@ Muchas gracias.`;
         setVerifyFormData({
             nome: data.nome || req.worker?.nome || '',
             email: data.email || req.worker?.email || '',
+            movil: data.movil || (data as any).telefono || req.worker?.movil || '',
             direccion_actual: data.direccion_actual || req.worker?.address_line || '',
             morada_contrato: data.morada_contrato || req.worker?.morada_contrato || '',
             ubicacion_actual: data.ubicacion_actual || req.worker?.location || '',
@@ -1496,19 +1498,20 @@ Muchas gracias.`;
             const approvedPayload = {
                 nome: verifyFormData.nome,
                 email: verifyFormData.email || undefined,
+                movil: verifyFormData.movil || undefined,
                 location: verifyFormData.ubicacion_actual || undefined,
                 address_line: verifyFormData.direccion_actual || undefined,
                 morada_contrato: verifyFormData.morada_contrato || undefined,
                 notes: emergencyNotes || undefined,
                 iban: verifyFormData.iban || undefined,
-                nif: verifyFormData.nif,
-                niss: verifyFormData.niss,
-                nie: verifyFormData.nie,
-                dni: verifyFormData.dni,
-                pasaporte: verifyFormData.pasaporte,
-                licencia_conducir: verifyFormData.licencia_conducir,
-                nacionalidade: verifyFormData.nacionalidade,
-                fecha_nacimiento: cleanBirthDate,
+                nif: verifyFormData.nif || undefined,
+                niss: verifyFormData.niss || undefined,
+                nie: verifyFormData.nie || undefined,
+                dni: verifyFormData.dni || undefined,
+                pasaporte: verifyFormData.pasaporte || undefined,
+                licencia_conducir: verifyFormData.licencia_conducir || undefined,
+                nacionalidade: verifyFormData.nacionalidade || undefined,
+                fecha_nacimiento: cleanBirthDate || undefined,
                 camiseta: verifyFormData.talla_camisa || undefined,
                 pantalones: verifyFormData.talla_pantalon || undefined,
                 foto: selectedRequest.selfie_url || undefined
@@ -2972,9 +2975,15 @@ Muchas gracias.`;
 
                                         <div className="border-t pt-3 space-y-3">
                                             <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto & Moradas</h5>
-                                            <div>
-                                                <Label className="text-xs">Correo Electrónico (E-mail)</Label>
-                                                <Input type="email" value={verifyFormData.email} onChange={(e) => setVerifyFormData({ ...verifyFormData, email: e.target.value })} placeholder="email@exemplo.com" />
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <Label className="text-xs">Correo Electrónico (E-mail)</Label>
+                                                    <Input type="email" value={verifyFormData.email} onChange={(e) => setVerifyFormData({ ...verifyFormData, email: e.target.value })} placeholder="email@exemplo.com" />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs">Telefone / Telemóvel (Móvil)</Label>
+                                                    <Input type="tel" value={verifyFormData.movil} onChange={(e) => setVerifyFormData({ ...verifyFormData, movil: e.target.value })} placeholder="+34 600... / +55..." />
+                                                </div>
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>

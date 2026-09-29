@@ -558,6 +558,7 @@ export async function approveDocumentRequest(
     approvedData: {
         nome?: string;
         email?: string;
+        movil?: string;
         location?: string;
         address_line?: string;
         morada_contrato?: string;
@@ -599,6 +600,7 @@ export async function approveDocumentRequest(
         if (approvedData.dni) colabSync.dni = approvedData.dni;
         if (approvedData.pasaporte) colabSync.pasaporte = approvedData.pasaporte;
         if (approvedData.email) colabSync.email = approvedData.email;
+        if (approvedData.movil) colabSync.movil = approvedData.movil;
         if (approvedData.fecha_nacimiento) colabSync.fecha_nacimiento = approvedData.fecha_nacimiento;
         if (approvedData.nacionalidade) colabSync.nacionalidade = approvedData.nacionalidade;
         if (approvedData.licencia_conducir) colabSync.licencia_conducir = approvedData.licencia_conducir;
