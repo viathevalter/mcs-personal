@@ -10,6 +10,7 @@ export interface Cliente {
   Provincia: string;
   Municipio: string;
   Domicilio: string;
+  cif?: string;
 }
 
 export interface ContasReceber {

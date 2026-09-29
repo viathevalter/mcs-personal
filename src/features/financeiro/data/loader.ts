@@ -28,18 +28,19 @@ export async function fetchClientes(): Promise<Cliente[]> {
   }
 
   return (data || []).map((row: any) => ({
-    CodCliente: row.codigo || '',
+    CodCliente: row.codigo || (row.id ? String(row.id) : ''),
     RazonSocial: row.legal_name || '',
-    NombreComercial: row.trade_name || '',
+    NombreComercial: row.trade_name || row.legal_name || '',
     EmailCobros: row.billing_email || row.email || '',
     TelefonoCobros: row.phone || '',
     RespCobros: '',
     TpPrazosPg: '',
-    Pais: '',
-    Provincia: '',
-    Municipio: '',
-    Domicilio: '',
-  })).filter((c: Cliente) => c.CodCliente);
+    Pais: row.country || '',
+    Provincia: row.province || '',
+    Municipio: row.city || '',
+    Domicilio: row.address || '',
+    cif: row.tax_id || row.cif || row.nif_cif || row.cif_dni || '',
+  })).filter((c: Cliente) => c.CodCliente && (c.NombreComercial || c.RazonSocial));
 }
 
 export async function fetchModernEmpresas(): Promise<{ id: string; nome: string; codigo: string; trade_name?: string | null; billing_email?: string | null; cobranca_email?: string | null; email?: string | null }[]> {
