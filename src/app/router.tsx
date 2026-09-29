@@ -57,6 +57,11 @@ const RedirectIncidenciaDetail = () => {
     return <Navigate to={`/operacoes/incidencias/${id}`} replace />;
 };
 
+const RedirectClienteDetail = () => {
+    const { id } = useParams();
+    return <Navigate to={`/operacoes/clientes/${id}`} replace />;
+};
+
 import { OperacoesLayout } from '../features/operacoes/layout/OperacoesLayout';
 import { Dashboard as OperacoesDashboard } from '../features/operacoes/pages/Dashboard';
 import { Estimaciones as OperacoesEstimaciones } from '../features/operacoes/pages/Estimaciones';
@@ -307,6 +312,14 @@ export const router = createBrowserRouter([
             {
                 path: '/incidencias/:id',
                 element: <RedirectIncidenciaDetail />,
+            },
+            {
+                path: '/clientes',
+                element: <Navigate to="/operacoes/clientes" replace />,
+            },
+            {
+                path: '/clientes/:id',
+                element: <RedirectClienteDetail />,
             },
             {
                 path: '/cadastro',

@@ -746,93 +746,456 @@ export const fetchOperacao = async (_filters: Filters) => {
   return { kpis: [], eventos };
 };
 
+export const updateClienteComentarios = async (id: number | string, comentarios: string): Promise<boolean> => {
+  if (!isConnected) return false;
+  try {
+    const isNumeric = typeof id === 'number' || /^\d+$/.test(String(id));
+    if (isNumeric) {
+      const { error } = await supabase!
+        .from('clientes')
+        .update({ comentarios })
+        .eq('id', Number(id));
+      return !error;
+    }
+    return false;
+  } catch (err) {
+    console.error("Erro ao atualizar comentários do cliente:", err);
+    return false;
+  }
+};
+
 export const fetchCliente360 = async (id: string) => {
   if (!isConnected) return null;
 
   try {
-    // 1. Fetch Client Details
-    const { data: client, error: clientError } = await supabase!
-      .from('clientes')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const isNumeric = /^\d+$/.test(id);
+    let client: any = null;
+    let commonClient: any = null;
 
-    if (clientError || !client) {
-      console.error("Error fetching client 360:", clientError);
-      return null;
+    // 1. Fetch Client Details from public.clientes or core_common.clients
+    if (isNumeric) {
+      const { data: pubClient, error: clientError } = await supabase!
+        .from('clientes')
+        .select('*')
+        .eq('id', Number(id))
+        .maybeSingle();
+
+      if (clientError || !pubClient) {
+        console.error("Error fetching client 360:", clientError);
+        return null;
+      }
+      client = pubClient;
+
+      // Find matching record in core_common.clients
+      if (client.cif_dni) {
+        const { data: c1 } = await supabase!
+          .schema('core_common')
+          .from('clients')
+          .select('*')
+          .eq('tax_id', client.cif_dni)
+          .maybeSingle();
+        commonClient = c1;
+      }
+      if (!commonClient && client.nombre_comercial) {
+        const { data: c2 } = await supabase!
+          .schema('core_common')
+          .from('clients')
+          .select('*')
+          .ilike('trade_name', client.nombre_comercial)
+          .maybeSingle();
+        commonClient = c2;
+      }
+    } else {
+      // UUID was provided
+      const { data: cUuid } = await supabase!
+        .schema('core_common')
+        .from('clients')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (!cUuid) {
+        return null;
+      }
+      commonClient = cUuid;
+
+      // Find matching public.clientes
+      let pubQuery = supabase!.from('clientes').select('*');
+      if (commonClient.tax_id) {
+        pubQuery = pubQuery.eq('cif_dni', commonClient.tax_id);
+      } else {
+        pubQuery = pubQuery.ilike('nombre_comercial', commonClient.trade_name);
+      }
+      const { data: pubMatch } = await pubQuery.limit(1).maybeSingle();
+
+      client = pubMatch || {
+        id: commonClient.id,
+        nombre_comercial: commonClient.trade_name,
+        razon_social: commonClient.legal_name,
+        cif_dni: commonClient.tax_id,
+        pais: 'España',
+        domicilio: commonClient.address_line,
+        telefono: commonClient.phone,
+        email: commonClient.email,
+        comentarios: ''
+      };
     }
 
-    // 2. Fetch Pedidos associated with this client (using sp_id)
-    const { data: pedidos } = await supabase!
-      .from('pedidos')
-      .select('*')
-      .eq('id_cliente', client.sp_id)
-      .order('fecha_inicio_pedido', { ascending: false });
+    const commonClientId = commonClient?.id;
+    const clientName = client.nombre_comercial || client.razon_social || '';
+    const codCliente = client.cod_cliente || commonClient?.codigo || `C${client.sp_id || client.id}`;
 
-    const orders = pedidos || [];
-    const activeOrders = orders.filter((o: any) => o.status_pedido && String(o.status_pedido).includes('Abierto')); // Ensure string check
+    // 2. Fetch all linked modules in parallel
+    const queries: Promise<any>[] = [];
 
-    // 3. Fetch Active Workers (Contratados linked to these orders)
-    let activeWorkersCount = 0;
-    const codPedidos = orders.map((o: any) => o.cod_pedido).filter(Boolean);
-
-    if (codPedidos.length > 0) {
-      const { count, error: countError } = await supabase!
-        .from('contratados')
-        .select('*', { count: 'exact', head: true })
-        .in('cod_servico', codPedidos)
-        .eq('status', 'Ativo'); // Assuming there's a status or we count all
-
-      if (!countError) activeWorkersCount = count || 0;
+    // Faturas (core_finance.faturas)
+    if (commonClientId) {
+      queries.push(
+        supabase!
+          .schema('core_finance')
+          .from('faturas')
+          .select('*')
+          .eq('client_id', commonClientId)
+          .order('data_emissao', { ascending: false })
+      );
+    } else {
+      queries.push(Promise.resolve({ data: [] }));
     }
 
-    // 4. Construct Data Object
+    // Contas a Receber (public.contas_receber)
+    queries.push(
+      supabase!
+        .from('contas_receber')
+        .select('*')
+        .or(`cod_cliente.eq.${codCliente},cliente.ilike.%${clientName}%`)
+        .order('dt_venc', { ascending: false })
+        .limit(100)
+    );
+
+    // Pedidos (core_operacoes.pedidos)
+    if (commonClientId) {
+      queries.push(
+        supabase!
+          .schema('core_operacoes')
+          .from('pedidos')
+          .select('*')
+          .eq('client_id', commonClientId)
+          .order('expected_start_date', { ascending: false })
+      );
+    } else {
+      queries.push(Promise.resolve({ data: [] }));
+    }
+
+    // Legacy Pedidos (public.pedidos)
+    if (client.sp_id) {
+      queries.push(
+        supabase!
+          .from('pedidos')
+          .select('*')
+          .eq('id_cliente', client.sp_id)
+          .order('fecha_inicio_pedido', { ascending: false })
+      );
+    } else {
+      queries.push(Promise.resolve({ data: [] }));
+    }
+
+    // Client Sites / Obras (core_common.client_sites)
+    if (commonClientId) {
+      queries.push(
+        supabase!
+          .schema('core_common')
+          .from('client_sites')
+          .select('*')
+          .eq('client_id', commonClientId)
+          .order('name', { ascending: true })
+      );
+    } else {
+      queries.push(Promise.resolve({ data: [] }));
+    }
+
+    // Horas Trabalhadas (core_finance.horas_trabalhadas)
+    if (commonClientId) {
+      queries.push(
+        supabase!
+          .schema('core_finance')
+          .from('horas_trabalhadas')
+          .select('id, data_trabalho, horas_totais, tarifa_faturada, worker_id, site_id')
+          .eq('client_id', commonClientId)
+          .order('data_trabalho', { ascending: false })
+          .limit(300)
+      );
+    } else {
+      queries.push(Promise.resolve({ data: [] }));
+    }
+
+    // Estimaciones (core_comercial.estimaciones)
+    if (commonClientId) {
+      queries.push(
+        supabase!
+          .schema('core_comercial')
+          .from('estimaciones')
+          .select('id, codigo, status, created_at, validity_date, expected_start_date, expected_end_date')
+          .eq('client_id', commonClientId)
+          .order('created_at', { ascending: false })
+      );
+    } else {
+      queries.push(Promise.resolve({ data: [] }));
+    }
+
+    // Reuniões Operacionais (public.operacoes_reunioes)
+    queries.push(
+      supabase!
+        .from('operacoes_reunioes')
+        .select('id, titulo, tipo, data_reuniao, status, modalidade, resumo_ia')
+        .or(`clientes_contexto.ilike.%${clientName}%,clientes_contexto.ilike.%${client.id}%`)
+        .order('data_reuniao', { ascending: false })
+        .limit(20)
+    );
+
+    // Incidências (public.mcs_incidents)
+    queries.push(
+      supabase!
+        .from('mcs_incidents')
+        .select('*')
+        .or(`client_id.eq.${client.id},client_id.eq.${client.sp_id || 0}`)
+        .order('created_at', { ascending: false })
+        .limit(20)
+    );
+
+    const [
+      faturasRes,
+      contasRes,
+      pedidosRes,
+      legacyPedidosRes,
+      sitesRes,
+      horasRes,
+      estimacionesRes,
+      reunioesRes,
+      incidenciasRes
+    ] = await Promise.all(queries);
+
+    const rawFaturas = faturasRes.data || [];
+    const rawContas = contasRes.data || [];
+    const rawPedidos = pedidosRes.data || [];
+    const rawLegacyPedidos = legacyPedidosRes.data || [];
+    const rawSites = sitesRes.data || [];
+    const rawHoras = horasRes.data || [];
+    const rawEstimaciones = estimacionesRes.data || [];
+    const rawReunioes = reunioesRes.data || [];
+    const rawIncidencias = incidenciasRes.data || [];
+
+    // Process workers from horas_trabalhadas
+    let workersList: any[] = [];
+    const workerIds = Array.from(new Set(rawHoras.map((h: any) => h.worker_id).filter(Boolean)));
+    if (workerIds.length > 0) {
+      const { data: workersData } = await supabase!
+        .schema('core_personal')
+        .from('workers')
+        .select('id, nome, funcion, status_trabajador')
+        .in('id', workerIds);
+
+      const workerMap = new Map((workersData || []).map((w: any) => [w.id, w]));
+
+      // Aggregate hours per worker
+      const workerHoursMap = new Map<string, { totalHours: number; lastDate: string }>();
+      rawHoras.forEach((h: any) => {
+        if (!h.worker_id) return;
+        const current = workerHoursMap.get(h.worker_id) || { totalHours: 0, lastDate: h.data_trabalho };
+        current.totalHours += Number(h.horas_totais) || 0;
+        if (h.data_trabalho && (!current.lastDate || h.data_trabalho > current.lastDate)) {
+          current.lastDate = h.data_trabalho;
+        }
+        workerHoursMap.set(h.worker_id, current);
+      });
+
+      workersList = workerIds.map((wid: any) => {
+        const info = workerMap.get(wid);
+        const stats = workerHoursMap.get(wid) || { totalHours: 0, lastDate: '' };
+        return {
+          id: wid,
+          nome: info?.nome || 'Colaborador',
+          funcion: info?.funcion || 'Operador',
+          status: info?.status_trabajador || 'Ativo',
+          totalHoras: stats.totalHours,
+          ultimaAtividade: stats.lastDate
+        };
+      }).sort((a, b) => b.totalHoras - a.totalHoras);
+    }
+
+    // Unified Pedidos
+    const unifiedPedidos = [
+      ...rawPedidos.map((p: any) => ({
+        id: p.id,
+        CodPedido: p.codigo || `PED-${p.id}`,
+        SiteName: p.site_name || 'Obra Padrão',
+        DataInicio: p.expected_start_date || p.created_at?.split('T')[0],
+        DataFim: p.expected_end_date,
+        StatusComercial: p.commercial_status || 'active',
+        StatusOperacional: p.operational_status || 'pending',
+        Status: p.commercial_status === 'active' ? 'Ativo' : (p.commercial_status || 'Ativo'),
+        Origem: 'Operações'
+      })),
+      ...rawLegacyPedidos.map((p: any) => ({
+        id: p.id,
+        CodPedido: p.cod_pedido || `PED-${p.id}`,
+        SiteName: 'Obra Registrada',
+        DataInicio: p.fecha_inicio_pedido,
+        DataFim: p.fecha_fin_pedido,
+        StatusComercial: 'ativo',
+        StatusOperacional: parseSharePointDisplay(p.status_pedido) || 'Em andamento',
+        Status: parseSharePointDisplay(p.status_pedido) || 'Ativo',
+        Origem: 'SharePoint / Legado'
+      }))
+    ];
+
+    // Compute KPIs
+    const totalHorasGerais = rawHoras.reduce((acc: number, h: any) => acc + (Number(h.horas_totais) || 0), 0);
+    const totalContasValor = rawContas.reduce((acc: number, c: any) => acc + (Number(c.valot_total) || 0), 0);
+    const pedidosAtivosCount = unifiedPedidos.filter((p: any) =>
+      p.Status === 'Ativo' || p.StatusComercial === 'active' || String(p.StatusOperacional).toLowerCase().includes('abierto')
+    ).length;
+
     return {
       id: client.id,
-      nome: client.nombre_comercial || client.razon_social,
+      sp_id: client.sp_id,
+      cod_cliente: codCliente,
+      nome: clientName,
+      nombre_comercial: client.nombre_comercial,
+      razon_social: client.razon_social,
+      cif_dni: client.cif_dni || commonClient?.tax_id,
+      cif_europeo: client.cif_europeo,
+      pais: client.pais || 'España',
+      provincia: client.provincia || commonClient?.province,
+      municipio: client.municipio || commonClient?.city,
+      domicilio: client.domicilio || commonClient?.address_line,
+      codigo_postal: client.codigo_postal || commonClient?.postal_code,
+      telefono: client.telefono || client.movil || commonClient?.phone,
+      movil: client.movil,
+      email: client.email || client.email_envio_factura || commonClient?.email,
+      email_envio_factura: client.email_envio_factura,
+      email_cobros: client.email_cobros,
+      resp_cobros: client.resp_cobros,
+      telefono_cobros: client.telefono_cobros,
+      nombre_resp_empresa: client.nombre_resp_empresa,
+      telefono_resp_empresa: client.telefono_resp_empresa,
+      nombre_resp_documentacion: client.nombre_resp_documentacion,
+      telefono_resp_documentacion: client.telefono_resp_documentacion,
+      nombre_resp_facturacion: client.nombre_resp_facturacion,
+      telefono_facturacion: client.telefono_facturacion,
+      prazo_pagamento: client.tp_prazos_pg,
+      iban: client.iban,
+      comentarios: client.comentarios || '',
+      commonClientId,
+
       kpis: [
-        { label: 'Pedidos Totais', value: orders.length },
-        { label: 'Pedidos Ativos', value: activeOrders.length },
-        { label: 'Trabalhadores', value: activeWorkersCount },
-        { label: 'Projetos', value: 'N/A' } // Placeholder if no projects table
+        { label: 'Faturas Emitidas', value: rawFaturas.length },
+        { label: 'Total Financeiro', value: `€ ${totalContasValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+        { label: 'Pedidos Ativos', value: `${pedidosAtivosCount} / ${unifiedPedidos.length}` },
+        { label: 'Horas Totais', value: `${Math.round(totalHorasGerais)}h` },
+        { label: 'Colaboradores', value: workersList.length },
+        { label: 'Obras / Locais', value: rawSites.length }
       ],
-      pedidos: orders.map((p: any) => ({
-        id: p.id,
-        CodPedido: p.cod_pedido,
-        DataInicio: p.fecha_inicio_pedido,
-        Status: parseSharePointDisplay(p.status_pedido) || 'Indefinido'
-      }))
+
+      pedidos: unifiedPedidos,
+      faturas: rawFaturas.map((f: any) => ({
+        id: f.id,
+        fatura_numero: f.fatura_numero || 'Fatura Sem Nº',
+        atcud: f.atcud,
+        status: f.status,
+        data_emissao: f.data_emissao,
+        data_vencimento: f.ajustes_json?.data_vencimento,
+        obra: f.ajustes_json?.obra || 'Não especificada',
+        descricao: f.ajustes_json?.descricao_servico,
+        magic_link_token: f.magic_link_token,
+        ajustes: f.ajustes_json
+      })),
+      contasReceber: rawContas.map((c: any) => ({
+        id: c.id,
+        num_doc: c.num_doc || `#${c.id}`,
+        cliente: c.cliente,
+        valor_total: Number(c.valot_total) || 0,
+        status: c.status || 'Pendente',
+        data_emissao: c.data_emissao,
+        dt_venc: c.dt_venc,
+        dt_recebimento: c.dt_recebimento,
+        periodo_fat: c.periodo_fat,
+        anexo_url: c.anexo_url,
+        banco: c.banco,
+        form_receb: c.form_receb
+      })),
+      obras: rawSites.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        site_code: s.site_code,
+        status: s.status,
+        province: s.province,
+        address: s.address_line
+      })),
+      trabalhadores: workersList,
+      horas: rawHoras,
+      estimaciones: rawEstimaciones.map((e: any) => ({
+        id: e.id,
+        codigo: e.codigo,
+        status: e.status,
+        data: e.created_at,
+        validade: e.validity_date,
+        inicioPrevisto: e.expected_start_date,
+        fimPrevisto: e.expected_end_date
+      })),
+      reunioes: rawReunioes,
+      incidencias: rawIncidencias
     };
 
   } catch (err) {
     console.error("System error fetching client 360:", err);
     return null;
   }
-}
+};
 
 export const fetchComercial360 = async (_id: string) => {
   if (!isConnected) return null;
   // TODO: Implement real 360 view
   return null;
-}
+};
 
-export const fetchClientes = async (): Promise<any[]> => {
+export const fetchClientes = async (): Promise<Cliente[]> => {
   if (!isConnected) return [];
 
   const { data, error } = await supabase!
     .from('clientes')
     .select('*')
+    .order('nombre_comercial', { ascending: true })
     .limit(1000);
 
   if (error || !data) return [];
 
   return data.map((c: any) => ({
     id: c.id,
-    nome: c.nombre_comercial || c.razon_social, // Fallback to razon if nome is empty
+    sp_id: c.sp_id,
+    cod_cliente: c.cod_cliente || `C${c.sp_id || c.id}`,
+    nome: c.nombre_comercial || c.razon_social || `Cliente #${c.id}`,
+    nombre_comercial: c.nombre_comercial,
+    razon_social: c.razon_social,
+    cif_dni: c.cif_dni,
+    cif_europeo: c.cif_europeo,
+    pais: c.pais || 'España',
+    provincia: c.provincia,
+    municipio: c.municipio,
+    domicilio: c.domicilio,
+    codigo_postal: c.codigo_postal,
+    telefono: c.telefono || c.movil,
+    movil: c.movil,
+    email: c.email || c.email_envio_factura,
+    email_envio_factura: c.email_envio_factura,
+    email_cobros: c.email_cobros,
+    resp_cobros: c.resp_cobros,
+    telefono_cobros: c.telefono_cobros,
+    prazo_pagamento: c.tp_prazos_pg,
+    comentarios: c.comentarios,
     status: 'Ativo',
     projetos: 0
   }));
-}
+};
 
 export const fetchContratadosPorEstimacion = async (estimacionIds: string[]): Promise<any[]> => {
   if (!isConnected || estimacionIds.length === 0) return [];

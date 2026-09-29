@@ -3,9 +3,29 @@ export type { IncidentContext, OriginType };
 
 export interface Cliente {
   id: number | string;
+  sp_id?: number | null;
+  cod_cliente?: string;
   nome: string;
+  nombre_comercial?: string;
+  razon_social?: string;
+  cif_dni?: string;
+  cif_europeo?: string;
+  pais?: string;
+  provincia?: string;
+  municipio?: string;
+  domicilio?: string;
+  codigo_postal?: string;
+  telefono?: string;
+  movil?: string;
+  email?: string;
+  email_envio_factura?: string;
+  email_cobros?: string;
+  resp_cobros?: string;
+  telefono_cobros?: string;
+  prazo_pagamento?: string;
+  comentarios?: string;
   status: string;
-  projetos: number;
+  projetos?: number;
 }
 
 export interface KpiData {
