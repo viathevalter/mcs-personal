@@ -233,7 +233,7 @@ export interface TrabalhadorAlojado {
   motivo_status?: string;
 }
 
-const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v2';
+const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v4';
 
 function getWeekDayEs(dateStr: string): string {
   try {
