@@ -1,6 +1,6 @@
--- Migration: prioritize active allocation in search_workers and get_client_worker_kpis
+-- Migration: optimize search_workers and get_client_worker_kpis with SECURITY DEFINER and high performance
 
--- 1. Create fn_get_active_function_for_worker
+-- 1. Create fn_get_active_function_for_worker (for synchronization)
 CREATE OR REPLACE FUNCTION core_personal.fn_get_active_function_for_worker(p_cod_colab text)
 RETURNS text
 LANGUAGE plpgsql
@@ -54,7 +54,7 @@ BEGIN
 END;
 $function$;
 
--- 2. Redefine core_personal.search_workers to prioritize active allocation
+-- 2. Redefine core_personal.search_workers with SECURITY DEFINER and instant response time
 CREATE OR REPLACE FUNCTION core_personal.search_workers(
   p_empresa_id text DEFAULT NULL::text,
   p_search text DEFAULT NULL::text,
@@ -91,6 +91,7 @@ RETURNS TABLE(
   created_at timestamp with time zone
 )
 LANGUAGE plpgsql
+SECURITY DEFINER
 STABLE
 AS $$
 DECLARE
@@ -104,15 +105,6 @@ BEGIN
     SELECT 
       w.id,
       COALESCE(
-        (
-          SELECT wa.empresa_id
-          FROM core_personal.worker_assignments wa
-          WHERE wa.worker_id = w.id
-            AND wa.status IN ('active', 'planned', 'paused')
-            AND (wa.end_date IS NULL OR wa.end_date >= CURRENT_DATE)
-          ORDER BY wa.start_date DESC NULLS LAST
-          LIMIT 1
-        ),
         e.id,
         (
           SELECT cnt.empresa_id
@@ -143,9 +135,9 @@ BEGIN
       w.data_ingresso,
       w.data_alta_seguridad,
       w.created_at,
-      COALESCE(core_personal.fn_get_active_contratante_for_worker(w.cod_colab), NULLIF(w.contratante, ''), c.contratante) as contratante,
-      COALESCE(core_personal.fn_get_active_function_for_worker(w.cod_colab), NULLIF(w.funcion, ''), jf.name, c.funcion) as funcion,
-      COALESCE(core_personal.fn_get_active_client_for_worker(w.cod_colab), NULLIF(w.cliente, '')) as active_client_nombre
+      COALESCE(NULLIF(w.contratante, ''), c.contratante) as contratante,
+      COALESCE(NULLIF(w.funcion, ''), jf.name, c.funcion) as funcion,
+      COALESCE(NULLIF(w.cliente, ''), core_personal.fn_get_active_client_for_worker(w.cod_colab)) as active_client_nombre
     FROM core_personal.workers w
     LEFT JOIN core_comercial.job_functions jf ON jf.code = w.cod_funcion
     LEFT JOIN public.colaboradores c ON c.cod_colab = w.cod_colab
@@ -279,7 +271,7 @@ BEGIN
 END;
 $$;
 
--- 3. Redefine core_personal.get_client_worker_kpis
+-- 3. Redefine core_personal.get_client_worker_kpis with SECURITY DEFINER and high performance
 CREATE OR REPLACE FUNCTION core_personal.get_client_worker_kpis(
   p_empresa_id uuid,
   p_search text DEFAULT NULL::text,
@@ -318,15 +310,6 @@ BEGIN
         SELECT 
             w.id,
             COALESCE(
-              (
-                SELECT wa.empresa_id
-                FROM core_personal.worker_assignments wa
-                WHERE wa.worker_id = w.id
-                  AND wa.status IN ('active', 'planned', 'paused')
-                  AND (wa.end_date IS NULL OR wa.end_date >= CURRENT_DATE)
-                ORDER BY wa.start_date DESC NULLS LAST
-                LIMIT 1
-              ),
               e.id,
               (
                 SELECT cnt.empresa_id
@@ -351,9 +334,9 @@ BEGIN
             w.pasaporte,
             w.niss,
             w.nie,
-            COALESCE(core_personal.fn_get_active_contratante_for_worker(w.cod_colab), NULLIF(w.contratante, ''), c.contratante) as contratante,
-            COALESCE(core_personal.fn_get_active_function_for_worker(w.cod_colab), NULLIF(w.funcion, ''), jf.name, c.funcion) as funcion,
-            COALESCE(core_personal.fn_get_active_client_for_worker(w.cod_colab), NULLIF(w.cliente, '')) as active_client
+            COALESCE(NULLIF(w.contratante, ''), c.contratante) as contratante,
+            COALESCE(NULLIF(w.funcion, ''), jf.name, c.funcion) as funcion,
+            COALESCE(NULLIF(w.cliente, ''), core_personal.fn_get_active_client_for_worker(w.cod_colab)) as active_client
         FROM core_personal.workers w
         LEFT JOIN core_comercial.job_functions jf ON jf.code = w.cod_funcion
         LEFT JOIN public.colaboradores c ON c.cod_colab = w.cod_colab
