@@ -1508,9 +1508,9 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                           <td className="font-bold pl-3 py-1" colSpan={3}>IVA {adjustments.ivaPct}%</td>
                           <td className="text-right font-bold w-40 pr-3 py-1">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         </tr>
-                        <tr className="bg-[#fef7f2] text-slate-900">
-                          <td className="font-extrabold text-[#ec8a5e] pl-3 py-1.5" colSpan={3}>Total da Fatura</td>
-                          <td className="text-right font-extrabold text-[#9c4d28] text-xs pr-3 py-1.5">
+                        <tr className="bg-[#fff7ed] text-slate-900 border-b border-[#ec8a5e]/40">
+                          <td className="font-extrabold text-slate-900 pl-3 py-1.5 text-xs" colSpan={3}>Total da Fatura</td>
+                          <td className="text-right font-extrabold text-slate-900 text-xs pr-3 py-1.5">
                             € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                         </tr>

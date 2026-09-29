@@ -4458,7 +4458,7 @@ MCS - Gestão Comercial`;
                                     <td className="pl-3 py-1 text-slate-800" colSpan={3}>IVA {Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: {(totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })})</td>
                                     <td className="text-right font-semibold w-40 pr-3 py-1 text-slate-800">{((totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * Number(adj.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €</td>
                                   </tr>
-                                  <tr className="border-b border-[#ec8a5e]/40">
+                                  <tr className="border-b border-[#ec8a5e]/40 bg-[#fff7ed]">
                                     <td className="font-extrabold text-slate-900 pl-3 py-1.5 text-xs" colSpan={3}>Total da Factura</td>
                                     <td className="text-right font-extrabold text-slate-900 text-xs pr-3 py-1.5">
                                       {finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} €
@@ -5399,9 +5399,9 @@ MCS - Gestão Comercial`;
                                   <td className="pl-3 py-1 font-semibold text-slate-800">IVA {Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}% (Incidência: € {(totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</td>
                                   <td className="text-right font-bold pr-3 py-1 text-slate-900">€ {((totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * Number(adjustments.ivaPct || 0)/100).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                 </tr>
-                                <tr className="bg-[#fdf3ee] text-[#ec8a5e]">
-                                  <td className="pl-3 py-1 font-extrabold text-sm">Total da Factura</td>
-                                  <td className="text-right font-extrabold pr-3 py-1 text-sm">
+                                <tr className="bg-[#fff7ed] text-slate-900 border-b border-[#ec8a5e]/40">
+                                  <td className="pl-3 py-1.5 font-extrabold text-xs text-slate-900">Total da Factura</td>
+                                  <td className="text-right font-extrabold pr-3 py-1.5 text-xs text-slate-900">
                                     € {finalTotalVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                 </tr>
