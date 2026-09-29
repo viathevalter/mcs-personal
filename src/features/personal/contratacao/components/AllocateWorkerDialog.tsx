@@ -74,7 +74,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       let queryBuilder = supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, nif, dni, email, movil, funcion, cod_colab, status_trabajador, camiseta, pantalones, licencia_conducir');
+        .select('id, nome, nif, dni, nie, pasaporte, email, movil, funcion, cod_colab, status_trabajador, camiseta, pantalones, licencia_conducir');
         
       const { data, error } = await queryBuilder.or('status_trabajador.is.null,status_trabajador.not.in.(Ativo,Activo,ATIVO,ACTIVO)');
       if (error) throw error;
@@ -172,6 +172,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       setPantalones(selectedWorker.pantalones || '');
       setLicenciaConducir(selectedWorker.licencia_conducir || '');
       setMovil(selectedWorker.movil || '');
+      setWorkerDocument(selectedWorker.pasaporte || selectedWorker.dni || selectedWorker.nie || selectedWorker.nif || '');
     }
   }, [selectedWorker]);
 
@@ -311,7 +312,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         pedido_item_id: (position.isSynthetic || (position.id && position.id.startsWith('reemplazo-'))) ? undefined : position.id,
         worker_id: mode === 'existing' ? selectedWorkerId : undefined,
         worker_name: mode === 'new' ? workerName : undefined,
-        worker_document: mode === 'new' ? workerDocument : undefined,
+        worker_document: workerDocument || undefined,
         planned_start_date: plannedStartDate,
         planned_end_date: plannedEndDate || undefined,
         notes: notes || undefined,

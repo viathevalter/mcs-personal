@@ -417,9 +417,35 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
 }
 
 export async function createDocumentRequest(empresaId: string, workerId: string, clientId?: string, startDate?: string): Promise<DocumentRequest> {
-    const extractedData: any = {};
-    if (clientId) extractedData.client_id = clientId;
-    if (startDate) extractedData.start_date = startDate;
+    // Buscar dados pré-existentes do trabalhador (cadastrados na contratação inicial)
+    const { data: worker } = await supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('*')
+        .eq('id', workerId)
+        .maybeSingle();
+
+    const extractedData: any = {
+        nome: worker?.nome || '',
+        pasaporte: worker?.pasaporte || '',
+        dni: worker?.dni || '',
+        nie: worker?.nie || '',
+        nif: worker?.nif || '',
+        niss: worker?.niss || '',
+        movil: worker?.movil || '',
+        email: worker?.email || '',
+        talla_camisa: worker?.camiseta || '',
+        talla_pantalon: worker?.pantalones || '',
+        licencia_conducir: worker?.licencia_conducir || '',
+        nacionalidade: worker?.nacionalidade || '',
+        fecha_nacimiento: worker?.fecha_nacimiento || '',
+        direccion_actual: worker?.address_line || '',
+        ubicacion_actual: worker?.location || '',
+        morada_contrato: worker?.morada_contrato || '',
+        iban: worker?.iban || '',
+        client_id: clientId || null,
+        start_date: startDate || null
+    };
 
     const { data, error } = await supabase
         .schema('core_personal')

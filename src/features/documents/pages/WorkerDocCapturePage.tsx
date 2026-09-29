@@ -96,23 +96,26 @@ export function WorkerDocCapturePage() {
                 if (reqData.worker) {
                     setFormData(prev => ({
                         ...prev,
-                        nome: reqData.worker?.nome || existingData.nome || '',
-                        email: reqData.worker?.email || existingData.email || '',
-                        movil: reqData.worker?.movil || existingData.movil || '',
-                        direccion_actual: existingData.direccion_actual || '',
-                        ubicacion_actual: existingData.ubicacion_actual || '',
+                        nome: existingData.nome || reqData.worker?.nome || '',
+                        email: existingData.email || reqData.worker?.email || '',
+                        movil: existingData.movil || reqData.worker?.movil || '',
+                        direccion_actual: existingData.direccion_actual || (reqData.worker as any)?.address_line || '',
+                        ubicacion_actual: existingData.ubicacion_actual || (reqData.worker as any)?.location || '',
                         contacto_emergencia_nombre: existingData.contacto_emergencia_nombre || '',
                         contacto_emergencia_parentesco: existingData.contacto_emergencia_parentesco || '',
                         contacto_emergencia_telefono: existingData.contacto_emergencia_telefono || '',
-                        talla_camisa: existingData.talla_camisa || '',
-                        talla_pantalon: existingData.talla_pantalon || '',
+                        talla_camisa: existingData.talla_camisa || (reqData.worker as any)?.camiseta || '',
+                        talla_pantalon: existingData.talla_pantalon || (reqData.worker as any)?.pantalones || '',
                         banco: existingData.banco || '',
                         iban: existingData.iban || reqData.worker?.iban || '',
-                        nif: existingData.nif || '',
-                        niss: existingData.niss || '',
-                        pasaporte: existingData.pasaporte || '',
-                        nie: existingData.nie || '',
-                        dni: existingData.dni || ''
+                        nif: existingData.nif || reqData.worker?.nif || '',
+                        niss: existingData.niss || reqData.worker?.niss || '',
+                        pasaporte: existingData.pasaporte || reqData.worker?.pasaporte || '',
+                        nie: existingData.nie || reqData.worker?.nie || '',
+                        dni: existingData.dni || reqData.worker?.dni || '',
+                        licencia_conducir: existingData.licencia_conducir || (reqData.worker as any)?.licencia_conducir || '',
+                        nacionalidade: existingData.nacionalidade || (reqData.worker as any)?.nacionalidade || '',
+                        fecha_nacimiento: existingData.fecha_nacimiento || (reqData.worker as any)?.fecha_nacimiento || ''
                     }));
                 }
             } catch (err) {

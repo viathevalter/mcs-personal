@@ -57,6 +57,32 @@ export function OverviewTab({ worker }: OverviewTabProps) {
                                 <p className="text-sm font-medium">{worker.fecha_nacimiento || 'Não informada'}</p>
                             </div>
                         </div>
+
+                        {worker.notes && worker.notes.includes('Contacto Emergência') && (
+                            <div className="pt-4 border-t">
+                                <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-1">Contato de Ajuda / Recado (Emergência)</p>
+                                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
+                                    {worker.notes.split('|')[0]?.trim()}
+                                </p>
+                            </div>
+                        )}
+
+                        {(worker.address_line || worker.morada_contrato) && (
+                            <div className="pt-4 border-t space-y-2">
+                                {worker.address_line && (
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-0.5">Endereço de Origem</p>
+                                        <p className="text-sm font-medium">{worker.address_line} {worker.location ? `(${worker.location})` : ''}</p>
+                                    </div>
+                                )}
+                                {worker.morada_contrato && (
+                                    <div>
+                                        <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-0.5">Endereço do Contrato (Portugal)</p>
+                                        <p className="text-sm font-medium text-indigo-700 dark:text-indigo-400">{worker.morada_contrato}</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
