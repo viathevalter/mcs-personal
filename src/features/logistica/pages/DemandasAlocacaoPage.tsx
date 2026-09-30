@@ -1598,29 +1598,50 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
                           <MapPin size={12} className="text-rose-500 flex-shrink-0" />
-                          <span className="truncate">{pedido.obra_nome} • {pedido.cidade}</span>
+                          <span className="truncate">
+                            {pedido.obra_nome}{pedido.cidade ? ` • ${pedido.cidade}` : ''}
+                          </span>
                         </p>
                       </div>
 
-                      {/* Data de Início e Dias Restantes */}
+                      {/* Data de Início com Destaque e Dias Restantes */}
                       <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                          <Calendar size={13} className="text-blue-500" />
-                          <span>Inicio: <strong>{pedido.data_inicio}</strong></span>
+                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold border border-blue-200 dark:border-blue-900/40">
+                          <Calendar size={13} className="text-blue-600" />
+                          <span>Inicio: <strong className="font-bold">{pedido.data_inicio_formatada || pedido.data_inicio}</strong></span>
                         </div>
 
                         <span className={`text-[11px] font-bold ${
-                          pedido.dias_restantes <= 5 ? 'text-red-600' : 'text-slate-500'
+                          pedido.dias_restantes <= 5 && pedido.dias_restantes > 0 ? 'text-red-600' : 'text-slate-500'
                         }`}>
-                          {pedido.dias_restantes > 0 ? `Faltan ${pedido.dias_restantes}d` : 'Iniciado'}
+                          {pedido.dias_restantes > 0 ? `Faltan ${pedido.dias_restantes}d` : 'En curso'}
                         </span>
+                      </div>
+
+                      {/* Resumo de Vagas do Pedido vs Contratados vs Faltantes */}
+                      <div className="grid grid-cols-2 gap-1.5 py-1 text-[11px] bg-slate-50 dark:bg-slate-800/40 px-2.5 py-1.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Vagas Pedido:</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{pedido.total_vagas_pedido} plazas</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-slate-400 block text-[10px]">Contratados:</span>
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                            {pedido.total_contratados}
+                            {pedido.total_faltam_contratar > 0 && (
+                              <span className="text-amber-600 dark:text-amber-400 font-normal text-[10px] ml-1">
+                                (faltan {pedido.total_faltam_contratar})
+                              </span>
+                            )}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Barra de Progresso de Alojamento */}
                       <div className="space-y-1">
                         <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
-                          <span>Plazas asignadas</span>
-                          <span>{totalAloj} de {totalContr} trabajadores</span>
+                          <span>Alojados del Pedido</span>
+                          <span>{totalAloj} de {pedido.total_contratados} contratados</span>
                         </div>
                         <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
                           <div
@@ -1628,7 +1649,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                               isComplete ? 'bg-emerald-500' : 'bg-blue-600'
                             }`}
                             style={{
-                              width: `${totalContr > 0 ? (totalAloj / totalContr) * 100 : 0}%`
+                              width: `${pedido.total_contratados > 0 ? (totalAloj / pedido.total_contratados) * 100 : 0}%`
                             }}
                           />
                         </div>
@@ -1677,11 +1698,18 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         {selectedPedido.cliente_nome}
                       </h2>
 
-                      <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                      <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
                         <MapPin size={14} className="text-rose-500 flex-shrink-0" />
                         <strong className="text-slate-800 dark:text-slate-200">{selectedPedido.obra_nome}</strong>
-                        <span>•</span>
-                        <span>{selectedPedido.endereco_completo} ({selectedPedido.cidade}{selectedPedido.codigo_postal ? `, ${selectedPedido.codigo_postal}` : ''})</span>
+                        {selectedPedido.endereco_completo && selectedPedido.endereco_completo !== 'Dirección no informada' && (
+                          <>
+                            <span>•</span>
+                            <span>{selectedPedido.endereco_completo}</span>
+                          </>
+                        )}
+                        {selectedPedido.cidade && (
+                          <span>({selectedPedido.cidade}{selectedPedido.codigo_postal ? `, ${selectedPedido.codigo_postal}` : ''})</span>
+                        )}
                       </p>
                     </div>
 
@@ -1723,7 +1751,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Linha Inferior: Banner Timeline Pastel */}
+                  {/* Linha Inferior: Banner Timeline Pastel com Datas Destacadas */}
                   <div className="bg-slate-50/90 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     
                     {/* Início Previsto */}
@@ -1735,10 +1763,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
                           Inicio Previsto
                         </span>
-                        <p className="text-base font-black text-slate-900 dark:text-white">
-                          {selectedPedido.data_inicio}
+                        <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>{selectedPedido.data_inicio_formatada || selectedPedido.data_inicio}</span>
+                          {selectedPedido.data_inicio_formatada && (
+                            <span className="text-[11px] font-mono font-normal text-slate-400">({selectedPedido.data_inicio})</span>
+                          )}
                         </p>
-                        <p className="text-xs text-slate-500 font-medium">
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-bold capitalize">
                           {selectedPedido.data_inicio_diasemana || 'Fecha de inicio'}
                         </p>
                       </div>
@@ -1762,10 +1793,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">
                           Fin Previsto
                         </span>
-                        <p className="text-base font-black text-slate-900 dark:text-white">
-                          {selectedPedido.data_fim || 'No definido'}
+                        <p className="text-base sm:text-lg font-black text-slate-900 dark:text-white flex items-center justify-end gap-1.5">
+                          <span>{selectedPedido.data_fim_formatada || selectedPedido.data_fim || 'No definido'}</span>
+                          {selectedPedido.data_fim && selectedPedido.data_fim_formatada && (
+                            <span className="text-[11px] font-mono font-normal text-slate-400">({selectedPedido.data_fim})</span>
+                          )}
                         </p>
-                        <p className="text-xs text-slate-500 font-medium">
+                        <p className="text-xs text-slate-500 font-medium capitalize">
                           {selectedPedido.data_fim_diasemana || 'Sin fecha de cierre'}
                         </p>
                       </div>
@@ -1774,6 +1808,87 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       </div>
                     </div>
 
+                  </div>
+
+                  {/* Resumen de Plazas del Pedido Comercial (Total Vagas vs Contratados vs Faltantes) */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-indigo-600" />
+                        <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                          Resumen de Plazas y Capacidad del Pedido
+                        </h4>
+                      </div>
+                      <span className="text-xs font-bold text-slate-500">
+                        Capacidad Total: <strong className="text-indigo-600 dark:text-indigo-400 font-black">{selectedPedido.total_vagas_pedido} trabajadores</strong>
+                      </span>
+                    </div>
+
+                    {/* 4 Cards de Métricas de Vagas */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/40">
+                        <span className="text-[10px] uppercase font-bold text-indigo-500 block">Vagas Pedido</span>
+                        <p className="text-xl font-black text-indigo-700 dark:text-indigo-300 mt-0.5">
+                          {selectedPedido.total_vagas_pedido}
+                        </p>
+                        <span className="text-[10px] text-slate-400">solicitadas por cliente</span>
+                      </div>
+
+                      <div className="p-3 bg-blue-50/70 dark:bg-blue-950/30 rounded-2xl border border-blue-100 dark:border-blue-900/40">
+                        <span className="text-[10px] uppercase font-bold text-blue-500 block">Contratados</span>
+                        <p className="text-xl font-black text-blue-700 dark:text-blue-300 mt-0.5">
+                          {selectedPedido.total_contratados}
+                        </p>
+                        <span className="text-[10px] text-slate-400">activos en el pedido</span>
+                      </div>
+
+                      <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 rounded-2xl border border-amber-100 dark:border-amber-900/40">
+                        <span className="text-[10px] uppercase font-bold text-amber-600 block">Faltan Contratar</span>
+                        <p className="text-xl font-black text-amber-700 dark:text-amber-400 mt-0.5">
+                          {selectedPedido.total_faltam_contratar}
+                        </p>
+                        <span className="text-[10px] text-slate-400">vagas aún abiertas</span>
+                      </div>
+
+                      <div className="p-3 bg-rose-50/70 dark:bg-rose-950/30 rounded-2xl border border-rose-100 dark:border-rose-900/40">
+                        <span className="text-[10px] uppercase font-bold text-rose-500 block">Sin Alojamiento</span>
+                        <p className="text-xl font-black text-rose-700 dark:text-rose-400 mt-0.5">
+                          {selectedPedido.total_pendentes_alojamento}
+                        </p>
+                        <span className="text-[10px] text-slate-400">requieren cama</span>
+                      </div>
+                    </div>
+
+                    {/* Vagas por Perfil / Função do Pedido */}
+                    {selectedPedido.vagas_perfil && selectedPedido.vagas_perfil.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                          Vagas por Perfil / Función Solicitada:
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedPedido.vagas_perfil.map((vp, idx) => (
+                            <div
+                              key={idx}
+                              className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs shadow-2xs"
+                            >
+                              <span className="font-bold text-slate-800 dark:text-slate-100">{vp.funcao}:</span>
+                              <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                                {vp.contratados} de {vp.total_solicitado} Contratados
+                              </span>
+                              {vp.faltam_contratar > 0 ? (
+                                <span className="px-1.5 py-0.5 bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 rounded-md text-[10px] font-bold">
+                                  Faltan {vp.faltam_contratar}
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 rounded-md text-[10px] font-bold">
+                                  Completo
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                 </div>
@@ -1795,22 +1910,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         title="Seleccionar todos los pendientes"
                       />
                       <div>
-                        {(() => {
-                          const selTotalContr = selectedPedido.trabalhadores.length > 0 ? selectedPedido.trabalhadores.length : (selectedPedido.total_contratados || selectedPedido.total_vagas_pedido);
-                          const selTotalAloj = selectedPedido.trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
-                          const selTotalPend = selectedPedido.trabalhadores.length > 0 ? selectedPedido.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, selTotalContr - selTotalAloj);
-
-                          return (
-                            <>
-                              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                                Trabajadores Vinculados al Pedido ({selTotalContr})
-                              </h2>
-                              <p className="text-[11px] text-slate-400">
-                                {selTotalPend} pendientes de alojamiento • {selTotalAloj} asignados
-                              </p>
-                            </>
-                          );
-                        })()}
+                        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                          Trabajadores Contratados Vinculados ({selectedPedido.total_contratados} de {selectedPedido.total_vagas_pedido} plazas)
+                        </h2>
+                        <p className="text-[11px] text-slate-400">
+                          {selectedPedido.total_pendentes_alojamento} pendientes de alojamiento • {selectedPedido.total_alojados} asignados • {selectedPedido.total_faltam_contratar} aún por contratar
+                        </p>
                       </div>
                     </div>
 

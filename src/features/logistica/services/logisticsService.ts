@@ -150,6 +150,14 @@ export interface TrabalhadorDemandaItem {
   };
 }
 
+export interface VagaPerfilItem {
+  item_id: string;
+  funcao: string;
+  total_solicitado: number;
+  contratados: number;
+  faltam_contratar: number;
+}
+
 export interface PedidoDemandaLogistica {
   pedido_id: string;
   pedido_codigo: string;
@@ -168,8 +176,10 @@ export interface PedidoDemandaLogistica {
   encarregado_telefone?: string;
   encarregado_email?: string;
   data_inicio: string;
+  data_inicio_formatada?: string;
   data_inicio_diasemana?: string;
   data_fim?: string;
+  data_fim_formatada?: string;
   data_fim_diasemana?: string;
   dias_restantes: number;
   duracao_texto: string;
@@ -179,8 +189,10 @@ export interface PedidoDemandaLogistica {
   observacoes?: string;
   total_vagas_pedido: number;
   total_contratados: number;
+  total_faltam_contratar: number;
   total_alojados: number;
   total_pendentes_alojamento: number;
+  vagas_perfil?: VagaPerfilItem[];
   trabalhadores: TrabalhadorDemandaItem[];
 }
 
@@ -234,6 +246,41 @@ export interface TrabalhadorAlojado {
 }
 
 const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v4';
+
+function formatToLocalDate(val?: string | Date | null): string {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return String(val).split('T')[0];
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/Madrid',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(d);
+  } catch (e) {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+}
+
+function formatDisplayDate(val?: string | Date | null): string {
+  if (!val) return '';
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return String(val);
+  try {
+    return d.toLocaleDateString('pt-PT', {
+      timeZone: 'Europe/Madrid',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch (e) {
+    return d.toLocaleDateString('pt-PT');
+  }
+}
 
 function getWeekDayEs(dateStr: string): string {
   try {
@@ -736,18 +783,19 @@ export const logisticsService = {
       const siteIds = [...new Set(pedidos.map(p => p.client_site_id).filter(Boolean))];
       const empresaIds = [...new Set(pedidos.map(p => p.empresa_id).filter(Boolean))];
 
-      // 2. Buscar Clientes, Obras (Sites), Empresas e Itens dos Pedidos
-      const [clientsRes, sitesRes, empresasRes, itemsRes, assignmentsRes, alocacoesAtivas, alojamentos] = await Promise.all([
+      // 2. Buscar Clientes, Obras (Sites), Empresas, Itens e Funções dos Pedidos
+      const [clientsRes, sitesRes, empresasRes, itemsRes, jobsRes, assignmentsRes, alocacoesAtivas, alojamentos] = await Promise.all([
         clientIds.length > 0
           ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name, phone, email').in('id', clientIds)
           : Promise.resolve({ data: [] }),
         siteIds.length > 0
-          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code, contact_name, contact_phone, contact_mobile, contact_email').in('id', siteIds)
+          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code, contact_name, contact_phone, contact_email, notes').in('id', siteIds)
           : Promise.resolve({ data: [] }),
         empresaIds.length > 0
           ? supabase.schema('core_common').from('empresas').select('id, name, trade_name').in('id', empresaIds)
           : Promise.resolve({ data: [] }),
         supabase.schema('core_comercial').from('pedido_items').select('*').in('pedido_id', pedidoIds),
+        supabase.schema('core_comercial').from('job_functions').select('id, name'),
         supabase
           .schema('core_personal')
           .from('worker_assignments')
@@ -776,6 +824,7 @@ export const logisticsService = {
       const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
       const sitesMap = new Map((sitesRes.data || []).map((s: any) => [s.id, s]));
       const empresasMap = new Map((empresasRes.data || []).map((e: any) => [e.id, e]));
+      const jobsMap = new Map((jobsRes.data || []).map((j: any) => [j.id, j.name]));
       const alojMap = new Map(alojamentos.map(a => [a.id, a]));
 
       // Agrupar alocações ativas da logística por worker_id, codigo_colab e nome normalizado
@@ -813,17 +862,24 @@ export const logisticsService = {
         const clienteNome = client?.trade_name || client?.legal_name || 'Cliente';
         const clienteTelefone = client?.phone || client?.mobile || '';
         const empresaNome = empresa?.trade_name || empresa?.name || ped.empresa_nome || 'LUMINOUS';
-        const obraNome = site?.name || 'Obra Principal';
-        const enderecoCompleto = site?.address_line || 'Dirección no informada';
-        const cidade = site?.city || 'San Sebastián';
-        const codigoPostal = site?.postal_code || '';
-        const encarregadoNome = site?.contact_name || '';
-        const encarregadoTelefone = site?.contact_phone || site?.contact_mobile || '';
-        const encarregadoEmail = site?.contact_email || '';
+        const obraNome = site?.name?.trim() || 'Obra Principal';
+        const enderecoCompleto = site?.address_line?.trim() || 'Dirección no informada';
+        const cidade = site?.city?.trim() || '';
+        const codigoPostal = site?.postal_code?.trim() || '';
+        const encarregadoNome = site?.contact_name?.trim() || '';
+        const encarregadoTelefone = site?.contact_phone?.trim() || '';
+        const encarregadoEmail = site?.contact_email?.trim() || '';
 
-        // Calcular dias restantes para início
-        const dataInicioStr = ped.planned_start_date || new Date().toISOString().split('T')[0];
-        const dataFimStr = ped.planned_end_date || '';
+        // Datas do Pedido no Fuso Horário Correto
+        const rawInicio = ped.expected_start_date || ped.planned_start_date || ped.start_date;
+        const rawFim = ped.expected_end_date || ped.planned_end_date || ped.end_date;
+
+        const dataInicioStr = formatToLocalDate(rawInicio) || new Date().toISOString().split('T')[0];
+        const dataInicioFormatada = formatDisplayDate(rawInicio) || dataInicioStr;
+
+        const dataFimStr = formatToLocalDate(rawFim);
+        const dataFimFormatada = formatDisplayDate(rawFim);
+
         const dataInicio = new Date(dataInicioStr);
         const hoje = new Date();
         const diffMs = dataInicio.getTime() - hoje.getTime();
@@ -841,7 +897,20 @@ export const logisticsService = {
 
         // Itens e Vagas solicitadas no pedido
         const pedidoItems = (itemsRes.data || []).filter((it: any) => it.pedido_id === ped.id);
-        const totalVagas = pedidoItems.reduce((acc: number, it: any) => acc + (it.quantity_requested || 1), 0);
+        const totalVagasPedido = pedidoItems.reduce((acc: number, it: any) => acc + Number(it.quantity_requested || 0), 0);
+
+        const vagasPerfil: VagaPerfilItem[] = pedidoItems.map((it: any) => {
+          const funcaoNome = it.job_function_name_snapshot || jobsMap.get(it.job_function_id) || 'Función / Perfil';
+          const solicitado = Number(it.quantity_requested || 0);
+          const cumprido = Number(it.quantity_fulfilled || 0);
+          return {
+            item_id: it.id,
+            funcao: funcaoNome,
+            total_solicitado: solicitado,
+            contratados: cumprido,
+            faltam_contratar: Math.max(0, solicitado - cumprido)
+          };
+        });
 
         // Trabalhadores contratados vinculados estritamente a este pedido
         const pedAssignments = (assignmentsRes.data || []).filter(
@@ -896,7 +965,7 @@ export const logisticsService = {
             nif: rawWorker.nif,
             movil: rawWorker.movil,
             funcao: ass.job_function_name_snapshot || 'Operador Especialista',
-            data_inicio: ass.planned_start_date || ass.start_date || dataInicioStr,
+            data_inicio: formatToLocalDate(ass.planned_start_date || ass.start_date) || dataInicioStr,
             data_fim: dataFimStr,
             status_alocacao: alocLog ? 'alocado' : 'pendente',
             alocacao_detalhe: alocLog ? {
@@ -914,6 +983,8 @@ export const logisticsService = {
 
         const totalAlojados = trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
         const totalPendentes = trabalhadores.filter(t => t.status_alocacao === 'pendente').length;
+        const totalVagasFinal = Math.max(totalVagasPedido || 0, trabalhadores.length, 1);
+        const totalFaltamContratar = Math.max(0, totalVagasFinal - trabalhadores.length);
 
         return {
           pedido_id: ped.id,
@@ -932,8 +1003,10 @@ export const logisticsService = {
           encarregado_telefone: encarregadoTelefone,
           encarregado_email: encarregadoEmail,
           data_inicio: dataInicioStr,
+          data_inicio_formatada: dataInicioFormatada,
           data_inicio_diasemana: diaSemanaInicio,
           data_fim: dataFimStr,
+          data_fim_formatada: dataFimFormatada,
           data_fim_diasemana: diaSemanaFim,
           dias_restantes: diasRestantes,
           duracao_texto: duracaoTexto,
@@ -941,10 +1014,12 @@ export const logisticsService = {
           tipo_solicitacao: 'Nuevo Pedido',
           status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
           observacoes: ped.notes || 'Sin observaciones generales.',
-          total_vagas_pedido: Math.max(totalVagas || 0, trabalhadores.length, 1),
+          total_vagas_pedido: totalVagasFinal,
           total_contratados: trabalhadores.length,
+          total_faltam_contratar: totalFaltamContratar,
           total_alojados: totalAlojados,
           total_pendentes_alojamento: totalPendentes,
+          vagas_perfil: vagasPerfil,
           trabalhadores: trabalhadores
         };
       });
