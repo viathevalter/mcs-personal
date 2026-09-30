@@ -97,8 +97,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [selectedAlojadosIds, setSelectedAlojadosIds] = useState<string[]>([]);
 
   // Filtros, Mês de Referência e Ordenação para Alojamiento Propio (Aba 3)
-  const [propioYear, setPropioYear] = useState<number>(2026);
-  const [propioMonth, setPropioMonth] = useState<number>(8); // Agosto (1-12)
+  const [propioYear, setPropioYear] = useState<number>(new Date().getFullYear());
+  const [propioMonth, setPropioMonth] = useState<number>(new Date().getMonth() + 1);
   const [propioSearch, setPropioSearch] = useState('');
   const [propioEmpresaFilter, setPropioEmpresaFilter] = useState('todas');
   const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('todos');
@@ -406,20 +406,30 @@ export const DemandasAlocacaoPage: React.FC = () => {
     });
   }, [empresaAlojadosRaw, alojadosSearch, alojadosEmpresaFilter, alojadosAlojamentoFilter, alojadosClienteFilter, alojadosObraFilter, alojadosPedidoFilter, alojadosTipoSubFilter]);
 
-  // Função para Cálculo Proporcional Mensal de Alojamento Próprio (€ 300 base)
-  const calculateProporcionalPropio = (checkinStr?: string, checkoutStr?: string, year: number = 2026, month: number = 8) => {
+  // Função para Cálculo Proporcional Mensal de Alojamento Próprio (€ 300 base comercial de 30 dias)
+  const calculateProporcionalPropio = (
+    checkinStr?: string,
+    checkoutStr?: string,
+    year: number = new Date().getFullYear(),
+    month: number = new Date().getMonth() + 1,
+    status?: string,
+    motivoCheckout?: string
+  ) => {
     const daysInMonth = new Date(year, month, 0).getDate();
     const mStart = new Date(year, month - 1, 1);
     const mEnd = new Date(year, month - 1, daysInMonth, 23, 59, 59);
 
-    const wStart = checkinStr ? new Date(checkinStr + 'T00:00:00') : new Date('2026-01-01T00:00:00');
-    const wEnd = checkoutStr ? new Date(checkoutStr + 'T23:59:59') : null;
+    const wStart = checkinStr ? new Date(checkinStr + 'T00:00:00') : new Date('2025-01-01T00:00:00');
+
+    // Considera saída efetiva apenas se o status for Checkout ou houver motivo registrado
+    const isCheckedOut = status === 'Checkout' || Boolean(motivoCheckout);
+    const wEnd = isCheckedOut && checkoutStr ? new Date(checkoutStr + 'T23:59:59') : null;
 
     // Se trabalhador começou depois do fim do mês ou terminou antes do início do mês
     if (wStart > mEnd || (wEnd && wEnd < mStart)) {
       return {
         diasAtivos: 0,
-        totalDiasMes: daysInMonth,
+        totalDiasMes: 30,
         valorBase: 300,
         valorProporcional: 0,
         isAtivoNoMes: false,
@@ -430,28 +440,49 @@ export const DemandasAlocacaoPage: React.FC = () => {
     const effStart = wStart < mStart ? mStart : wStart;
     const effEnd = (!wEnd || wEnd > mEnd) ? mEnd : wEnd;
 
-    const diffMs = effEnd.getTime() - effStart.getTime();
-    const diasAtivos = Math.min(daysInMonth, Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1));
+    // Se esteve ativo durante todo o mês civil (desde o dia 1 ou antes até o último dia do mês ou em curso)
+    const isFullMonth = wStart <= mStart && (!wEnd || wEnd >= mEnd);
 
-    let valorProporcional = 300;
-    if (diasAtivos < daysInMonth) {
-      valorProporcional = Math.round((diasAtivos / daysInMonth) * 300 * 100) / 100;
+    if (isFullMonth) {
+      return {
+        diasAtivos: 30, // Sempre 30 dias comerciais para mês completo (€ 300 base, nunca 310)
+        totalDiasMes: 30,
+        valorBase: 300,
+        valorProporcional: 300,
+        isAtivoNoMes: true,
+        periodoTexto: 'Mes Completo (30 d)'
+      };
     }
+
+    // Caso proporcional (início após o 1º dia ou saída antes do fim do mês)
+    const diffMs = effEnd.getTime() - effStart.getTime();
+    const diasReais = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
+
+    // Regra comercial: € 10,00 por dia com teto de 30 dias (€ 300,00)
+    const diasAtivos = Math.min(30, diasReais);
+    const valorProporcional = Math.min(300, Math.round(diasAtivos * 10 * 100) / 100);
 
     return {
       diasAtivos,
-      totalDiasMes: daysInMonth,
+      totalDiasMes: 30,
       valorBase: 300,
       valorProporcional,
       isAtivoNoMes: true,
-      periodoTexto: diasAtivos === daysInMonth ? `Mes Completo (${daysInMonth} d)` : `${diasAtivos} / ${daysInMonth} días`
+      periodoTexto: `${diasAtivos} / 30 días`
     };
   };
 
   // Trabalhadores com Alojamento Próprio com Cálculo Mensal (Aba 3)
   const filteredPropriosCalculated = useMemo(() => {
     return propioAlojadosRaw.map(a => {
-      const calc = calculateProporcionalPropio(a.data_checkin, a.data_checkout_prevista, propioYear, propioMonth);
+      const calc = calculateProporcionalPropio(
+        a.data_checkin,
+        a.data_checkout_prevista,
+        propioYear,
+        propioMonth,
+        a.status,
+        a.motivo_checkout
+      );
       return { ...a, calc };
     }).filter(a => {
       const q = propioSearch.toLowerCase().trim();
@@ -2921,7 +2952,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   € 300,00 <span className="text-xs font-normal text-slate-400">/ mes</span>
                 </p>
                 <span className="text-[10px] text-amber-600 font-semibold block">
-                  Día = € {(300 / new Date(propioYear, propioMonth, 0).getDate()).toFixed(2)}/día ({new Date(propioYear, propioMonth, 0).getDate()} d)
+                  Base fija comercial: € 10,00 / día (30 días = € 300)
                 </span>
               </div>
 
@@ -2933,7 +2964,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   € {propiosMonthTotals.totalAPagar.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 <span className="text-[10px] text-purple-100 font-medium block">
-                  Cálculo proporcional mensual
+                  Base 30 días (€ 10/día, máx. € 300/mes)
                 </span>
               </div>
             </div>
@@ -3162,8 +3193,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
                             <p className="font-medium">Desde: {a.data_checkin || '2026-01-01'}</p>
-                            {a.data_checkout_prevista ? (
-                              <p className="text-[10px] text-slate-400">Hasta: {a.data_checkout_prevista}</p>
+                            {(a.status === 'Checkout' || a.motivo_checkout) && (a.data_checkout_prevista || a.data_fim) ? (
+                              <p className="text-[10px] text-rose-500 font-semibold">Salida: {a.data_checkout_prevista || a.data_fim}</p>
                             ) : (
                               <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
                             )}
