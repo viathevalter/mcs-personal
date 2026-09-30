@@ -101,7 +101,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [propioMonth, setPropioMonth] = useState<number>(new Date().getMonth() + 1);
   const [propioSearch, setPropioSearch] = useState('');
   const [propioEmpresaFilter, setPropioEmpresaFilter] = useState('todas');
-  const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('todos');
+  const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('activos');
   const [propioSortField, setPropioSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'municipio' | 'periodo' | 'dias' | 'valor'>('cliente');
   const [propioSortOrder, setPropioSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -317,6 +317,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
     return alojados.filter(a => a.tipo_alojamento === 'Cliente' || a.status === 'Alojamiento Cliente');
   }, [alojados]);
 
+  const inactivosRHEmpresa = useMemo(() => {
+    return empresaAlojadosRaw.filter(a => a.is_inativo_rh);
+  }, [empresaAlojadosRaw]);
+
   // Listas Únicas para Filtros Avançados da Aba 2 (Alojamientos Empresa)
   const empresasList = useMemo(() => {
     const set = new Set<string>();
@@ -515,6 +519,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
     const totalAPagar = filteredPropriosCalculated.reduce((acc, p) => acc + p.calc.valorProporcional, 0);
     return { totalRegistrados, activosNoMes, totalAPagar };
   }, [propioAlojadosRaw, filteredPropriosCalculated]);
+
+  const inactivosRHPropio = useMemo(() => {
+    return filteredPropriosCalculated.filter(a => a.is_inativo_rh && a.calc.isAtivoNoMes);
+  }, [filteredPropriosCalculated]);
 
   // Trabalhadores em Alojamento por Cliente Filtrados (Aba 4)
   const filteredClienteAlojados = useMemo(() => {
@@ -2143,7 +2151,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                 <tr
                                   key={worker.assignment_id || `${selectedPedido.pedido_id}-${worker.worker_id}`}
                                   className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
-                                    isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                                    isSelected 
+                                      ? 'bg-blue-50/40 dark:bg-blue-950/20' 
+                                      : worker.is_inativo_rh 
+                                      ? 'bg-rose-50/50 dark:bg-rose-950/20 border-l-4 border-l-rose-500' 
+                                      : ''
                                   }`}
                                 >
                                   <td className="px-4 py-3.5">
@@ -2159,9 +2171,20 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                                   <td className="px-4 py-3.5">
                                     <div className="space-y-1">
-                                      <p className="font-bold text-slate-800 dark:text-slate-100">
-                                        {worker.worker_nome}
-                                      </p>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <p className="font-bold text-slate-800 dark:text-slate-100">
+                                          {worker.worker_nome}
+                                        </p>
+                                        {worker.is_inativo_rh && (
+                                          <span
+                                            title={`⚠️ ATENCIÓN: El trabajador figura como inactivo o con baja en Personal/Seguridad Social (${worker.alerta_inativo_rh}). Compruebe si corresponde realizar el check-out.`}
+                                            className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                                          >
+                                            <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                            Inactivo en Personal ({worker.alerta_inativo_rh || 'Baja'})
+                                          </span>
+                                        )}
+                                      </div>
                                       
                                       <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded">
@@ -2302,6 +2325,15 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                             <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
                                               Sustituido / Histórico
                                             </span>
+                                            {worker.is_inativo_rh && (
+                                              <span
+                                                title={`⚠️ ATENCIÓN: Trabajador dado de baja o inactivo en Personal/Seguridad Social (${worker.alerta_inativo_rh}).`}
+                                                className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                                              >
+                                                <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                                Inactivo en Personal ({worker.alerta_inativo_rh || 'Baja'})
+                                              </span>
+                                            )}
                                             {worker.solicitud_codigo && (
                                               <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
                                                 {worker.solicitud_codigo}
@@ -2583,6 +2615,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
             )}
           </div>
 
+          {/* Alerta de Inactivos en Personal / Baja de Seguridad Social */}
+          {inactivosRHEmpresa.length > 0 && (
+            <div className="mx-4 my-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-rose-100 dark:bg-rose-900/60 rounded-xl text-rose-600 dark:text-rose-300">
+                  <AlertTriangle size={16} />
+                </div>
+                <div>
+                  <span className="font-bold text-rose-800 dark:text-rose-200">
+                    Alerta de Personal: {inactivosRHEmpresa.length} {inactivosRHEmpresa.length === 1 ? 'trabajador figura' : 'trabajadores figuran'} como Inactivo / Baja en RRHH
+                  </span>
+                  <p className="text-[11px] text-rose-700 dark:text-rose-300">
+                    Siguen ocupando plazas en alojamientos de la empresa. Revise las filas resaltadas en rojo para tramitar el check-out y liberar las camas.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
             <table className="w-full text-xs text-left">
               <thead className="bg-slate-50 dark:bg-slate-800/80 sticky top-0 z-10 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
@@ -2719,8 +2770,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     return (
                       <tr
                         key={aloc.id}
-                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
-                          isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                        className={`transition-colors ${
+                          isSelected 
+                            ? 'bg-blue-50/40 dark:bg-blue-950/20' 
+                            : aloc.is_inativo_rh 
+                            ? 'bg-rose-50/60 dark:bg-rose-950/25 border-l-4 border-l-rose-500 hover:bg-rose-100/50' 
+                            : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
                         }`}
                       >
                         <td className="px-4 py-3.5">
@@ -2733,7 +2788,18 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         </td>
 
                         <td className="px-4 py-3.5">
-                          <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                            {aloc.is_inativo_rh && (
+                              <span
+                                title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${aloc.alerta_inativo_rh}). Se recomienda tramitar el check-out para liberar la cama.`}
+                                className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                              >
+                                <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                Inactivo en Personal ({aloc.alerta_inativo_rh || 'Baja'})
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
                             {aloc.worker_movil && (
@@ -3010,6 +3076,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
           </div>
 
+          {/* Alerta de Inactivos en Personal / Baja de Seguridad Social con Alojamiento Propio */}
+          {inactivosRHPropio.length > 0 && (
+            <div className="mx-4 my-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-rose-100 dark:bg-rose-900/60 rounded-xl text-rose-600 dark:text-rose-300">
+                  <AlertTriangle size={16} />
+                </div>
+                <div>
+                  <span className="font-bold text-rose-800 dark:text-rose-200">
+                    Alerta de Personal: {inactivosRHPropio.length} {inactivosRHPropio.length === 1 ? 'colaborador figura' : 'colaboradores figuran'} como Inactivo / Baja en RRHH
+                  </span>
+                  <p className="text-[11px] text-rose-700 dark:text-rose-300">
+                    Tienen asignación de Alojamiento Propio activa en este mes. Compruebe si corresponde finalizar el registro para evitar el abono de moradía indebida.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TABELA DETALHADA COM CÁLCULO PROPORCIONAL */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
             <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
@@ -3153,9 +3238,27 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       const isZero = a.calc.diasAtivos === 0;
 
                       return (
-                        <tr key={a.id} className="hover:bg-purple-50/20 dark:hover:bg-slate-800/40 transition-colors">
+                        <tr 
+                          key={a.id} 
+                          className={`transition-colors ${
+                            a.is_inativo_rh 
+                              ? 'bg-rose-50/60 dark:bg-rose-950/25 border-l-4 border-l-rose-500 hover:bg-rose-100/50' 
+                              : 'hover:bg-purple-50/20 dark:hover:bg-slate-800/40'
+                          }`}
+                        >
                           <td className="px-4 py-3.5">
-                            <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
+                              {a.is_inativo_rh && (
+                                <span
+                                  title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${a.alerta_inativo_rh}). Compruebe si corresponde finalizar el registro de moradía propia.`}
+                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                                >
+                                  <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                  Inactivo en Personal ({a.alerta_inativo_rh || 'Baja'})
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[10px] font-mono text-slate-500">{a.codigo_colab}</span>
                               {a.worker_movil && (
@@ -3426,9 +3529,27 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   </tr>
                 ) : (
                   sortedClienteAlojados.map(aloc => (
-                    <tr key={aloc.id} className="hover:bg-amber-50/20 dark:hover:bg-slate-800/40 transition-colors">
+                    <tr 
+                      key={aloc.id} 
+                      className={`transition-colors ${
+                        aloc.is_inativo_rh 
+                          ? 'bg-rose-50/60 dark:bg-rose-950/25 border-l-4 border-l-rose-500 hover:bg-rose-100/50' 
+                          : 'hover:bg-amber-50/20 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
                       <td className="px-4 py-3.5">
-                        <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                          {aloc.is_inativo_rh && (
+                            <span
+                              title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${aloc.alerta_inativo_rh}).`}
+                              className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                            >
+                              <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                              Inactivo en Personal ({aloc.alerta_inativo_rh || 'Baja'})
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[10px] font-mono text-slate-500">{aloc.codigo_colab}</span>
                           {aloc.worker_movil && (

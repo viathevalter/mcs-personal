@@ -102,20 +102,52 @@ export interface Cama {
   alocacao_atual?: Alocacao;
 }
 
+export const checkWorkerInativoRH = (statusTrabajador?: string, statusSeguridad?: string) => {
+  const st = (statusTrabajador || '').toUpperCase();
+  const ss = (statusSeguridad || '').toUpperCase();
+
+  const isBaja = ss.includes('BAIX') || ss.includes('BAJA');
+  const isInactive = st.includes('INATIV') || st.includes('DESIST') || st.includes('DESLIG');
+
+  if (isInactive || isBaja) {
+    let motivo = 'Inactivo en Personal';
+    if (isBaja && isInactive) motivo = 'Dado de Baja / Inactivo';
+    else if (isBaja) motivo = `Baja Seguridad Social (${statusSeguridad})`;
+    else if (isInactive) motivo = `Inactivo Personal (${statusTrabajador})`;
+
+    return {
+      isInativo: true,
+      motivo
+    };
+  }
+
+  return {
+    isInativo: false,
+    motivo: ''
+  };
+};
+
 export interface Alocacao {
   id: string;
   cama_id: string;
+  cama_identificador?: string;
   alojamento_id?: string;
+  alojamento_nome?: string;
+  alojamento_codigo?: string;
   worker_id: string;
   worker_nome: string;
   codigo_colab?: string;
   cliente_nome?: string;
   obra_nome?: string;
+  municipio?: string;
+  endereco?: string;
   pedido_id?: string;
   pedido_codigo?: string;
   data_inicio: string;
   data_fim?: string;
-  status: 'Programada' | 'En Curso' | 'Checkout' | 'Ativo' | 'Baixa Notificada' | 'Alojamiento Propio';
+  data_checkin?: string;
+  data_checkout_prevista?: string;
+  status: 'Programada' | 'En Curso' | 'Checkout' | 'Ativo' | 'Baixa Notificada' | 'Alojamiento Propio' | 'Alojamiento Cliente' | 'checkin_feito';
   motivo_checkout?: string;
   observacoes?: string;
   tipo_alojamento?: string;
@@ -125,6 +157,10 @@ export interface Alocacao {
   worker_movil?: string;
   cama?: Cama;
   alojamento?: Alojamento;
+  status_trabajador?: string;
+  status_seguridad?: string;
+  is_inativo_rh?: boolean;
+  alerta_inativo_rh?: string;
 }
 
 export interface TrabalhadorDemandaItem {
@@ -155,6 +191,10 @@ export interface TrabalhadorDemandaItem {
     data_inicio: string;
     data_fim?: string;
   };
+  status_trabajador?: string;
+  status_seguridad?: string;
+  is_inativo_rh?: boolean;
+  alerta_inativo_rh?: string;
 }
 
 export interface VagaPerfilItem {
@@ -254,12 +294,16 @@ export interface TrabalhadorAlojado {
   longitude?: number | string | null;
   data_checkin: string;
   data_checkout_prevista?: string;
-  status: 'Ativo' | 'Baixa Notificada' | 'Reemplazo em Andamento' | 'Checkout Pendente' | 'Alojamiento Propio';
+  status: 'Ativo' | 'Baixa Notificada' | 'Reemplazo em Andamento' | 'Checkout Pendente' | 'Alojamiento Propio' | 'Alojamiento Cliente';
   tipo_alojamento?: string;
   custo_alojamento?: number;
   contacto_hospedaje?: string;
   worker_movil?: string;
   motivo_status?: string;
+  status_trabajador?: string;
+  status_seguridad?: string;
+  is_inativo_rh?: boolean;
+  alerta_inativo_rh?: string;
 }
 
 const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v4';
@@ -514,19 +558,21 @@ export const logisticsService = {
         if (a.id) importedMap.set(a.id, a);
       });
 
-      // Buscar no banco core_personal.workers quaisquer colaboradores novos não presentes no arquivo estático
-      const missingWorkerIds = dbAlocs
-        .map((r: any) => r.worker_id)
-        .filter((wId: string) => isUuid(wId) && !importedMap.has(wId));
+      // Buscar no banco core_personal.workers TODOS os colaboradores para enriquecimento com status_trabajador e status_seguridad em tempo real
+      const allWorkerIds = Array.from(new Set(
+        dbAlocs
+          .map((r: any) => r.worker_id)
+          .filter((wId: string) => isUuid(wId))
+      ));
 
       const dbWorkersMap = new Map<string, any>();
-      if (missingWorkerIds.length > 0) {
+      if (allWorkerIds.length > 0) {
         try {
           const { data: workersData } = await supabase
             .schema('core_personal')
             .from('workers')
-            .select('id, cod_colab, nome, movil, nif')
-            .in('id', missingWorkerIds);
+            .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad')
+            .in('id', allWorkerIds);
           if (workersData) {
             workersData.forEach((w: any) => dbWorkersMap.set(w.id, w));
           }
@@ -547,6 +593,10 @@ export const logisticsService = {
         if (String(statusNormalized).toLowerCase() === 'checkout') {
           statusNormalized = 'Checkout';
         }
+
+        const statusTrabajador = workerInfo.status_trabajador || base.status_trabajador;
+        const statusSeguridad = workerInfo.status_seguridad || base.status_seguridad;
+        const rhCheck = checkWorkerInativoRH(statusTrabajador, statusSeguridad);
 
         return {
           id: row.id,
@@ -575,7 +625,11 @@ export const logisticsService = {
           observacoes: row.observacoes || base.observacoes || '',
           tipo_alojamento: row.tipo_alojamento || base.tipo_alojamento || 'FIJO',
           custo_alojamento: Number(row.valor_ajuda_moradia || base.custo_alojamento || 0),
-          alojamento: base.alojamento
+          alojamento: base.alojamento,
+          status_trabajador: statusTrabajador,
+          status_seguridad: statusSeguridad,
+          is_inativo_rh: rhCheck.isInativo,
+          alerta_inativo_rh: rhCheck.motivo
         };
       });
 
@@ -1264,6 +1318,8 @@ export const logisticsService = {
 
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
 
+          const rhCheck = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
+
           trabalhadores.push({
             assignment_id: ass.id,
             worker_id: workerId,
@@ -1289,7 +1345,11 @@ export const logisticsService = {
               cama_identificador: alocLog.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble',
               data_inicio: alocLog.data_inicio,
               data_fim: alocLog.data_fim
-            } : undefined
+            } : undefined,
+            status_trabajador: rawWorker.status_trabajador,
+            status_seguridad: rawWorker.status_seguridad,
+            is_inativo_rh: rhCheck.isInativo,
+            alerta_inativo_rh: rhCheck.motivo
           });
         }
 
@@ -1330,6 +1390,7 @@ export const logisticsService = {
           const solId = incomingReplacement?.solicitud_id || ass.solicitud_id;
           const solCodigo = solId ? solicitudesMap.get(solId)?.codigo : undefined;
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
+          const rhCheckHist = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
 
           trabalhadores.push({
             assignment_id: ass.id,
@@ -1356,7 +1417,11 @@ export const logisticsService = {
               cama_identificador: alocLog.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble',
               data_inicio: alocLog.data_inicio,
               data_fim: alocLog.data_fim
-            } : undefined
+            } : undefined,
+            status_trabajador: rawWorker.status_trabajador,
+            status_seguridad: rawWorker.status_seguridad,
+            is_inativo_rh: rhCheckHist.isInativo,
+            alerta_inativo_rh: rhCheckHist.motivo
           });
         }
 
@@ -1506,7 +1571,11 @@ export const logisticsService = {
           tipo_alojamento: resolvedTipo,
           custo_alojamento: a.custo_alojamento,
           contacto_hospedaje: a.contacto_hospedaje || aloj?.provedor?.telefone || '',
-          worker_movil: a.worker_movil || ''
+          worker_movil: a.worker_movil || '',
+          status_trabajador: a.status_trabajador,
+          status_seguridad: a.status_seguridad,
+          is_inativo_rh: a.is_inativo_rh,
+          alerta_inativo_rh: a.alerta_inativo_rh
         };
       });
   }
