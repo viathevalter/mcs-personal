@@ -494,20 +494,100 @@ export const logisticsService = {
   },
 
   async fetchAlocacoesAtivas(): Promise<Alocacao[]> {
+    const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
     try {
-      const stored = localStorage.getItem(ALOCACOES_STORAGE_KEY);
-      let localAlocs: Alocacao[] = [];
-      if (stored) {
-        localAlocs = JSON.parse(stored);
+      const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+      const { data: dbAlocs, error } = await client
+        .from('alocacoes')
+        .select('*');
+
+      if (error || !dbAlocs || dbAlocs.length === 0) {
+        const stored = localStorage.getItem(ALOCACOES_STORAGE_KEY);
+        if (stored) return JSON.parse(stored);
+        return (importedAllocations as any[]) || [];
       }
 
-      const localWorkerIds = new Set(localAlocs.map(a => a.worker_id));
-      const initialFromSheet: Alocacao[] = (importedAllocations as any[]).filter(
-        a => !localWorkerIds.has(a.worker_id)
-      );
+      // Mapear dados estáticos importados para metadados ricos (nomes, códigos, cliente, obra)
+      const importedMap = new Map<string, any>();
+      (importedAllocations as any[]).forEach(a => {
+        if (a.worker_id) importedMap.set(a.worker_id, a);
+        if (a.id) importedMap.set(a.id, a);
+      });
 
-      return [...localAlocs, ...initialFromSheet];
+      // Buscar no banco core_personal.workers quaisquer colaboradores novos não presentes no arquivo estático
+      const missingWorkerIds = dbAlocs
+        .map((r: any) => r.worker_id)
+        .filter((wId: string) => isUuid(wId) && !importedMap.has(wId));
+
+      const dbWorkersMap = new Map<string, any>();
+      if (missingWorkerIds.length > 0) {
+        try {
+          const { data: workersData } = await supabase
+            .schema('core_personal')
+            .from('workers')
+            .select('id, cod_colab, nome, movil, nif')
+            .in('id', missingWorkerIds);
+          if (workersData) {
+            workersData.forEach((w: any) => dbWorkersMap.set(w.id, w));
+          }
+        } catch (e) {
+          console.warn('Erro ao enriquecer trabalhadores de alocações:', e);
+        }
+      }
+
+      // Formatar cada linha do banco em Alocacao unificada
+      const merged: Alocacao[] = dbAlocs.map((row: any) => {
+        const base = importedMap.get(row.worker_id) || importedMap.get(row.id) || {};
+        const workerInfo = dbWorkersMap.get(row.worker_id) || {};
+
+        const workerNome = base.worker_nome || workerInfo.nome || row.observacoes || 'Trabalhador';
+        const codColab = base.codigo_colab || workerInfo.cod_colab || 'E-XXXX';
+
+        let statusNormalized: any = row.status || base.status || 'En Curso';
+        if (String(statusNormalized).toLowerCase() === 'checkout') {
+          statusNormalized = 'Checkout';
+        }
+
+        return {
+          id: row.id,
+          cama_id: row.cama_id || base.cama_id || `cama-${row.id}`,
+          cama_identificador: base.cama_identificador || (row.cama_id ? 'Cama Alojamiento' : 'Habitación'),
+          alojamento_id: row.alojamento_id || base.alojamento_id,
+          alojamento_codigo: base.alojamento_codigo,
+          alojamento_nome: base.alojamento_nome || row.cliente_obra_nome || 'Alojamiento',
+          worker_id: row.worker_id || base.worker_id,
+          worker_nome: workerNome,
+          codigo_colab: codColab,
+          worker_movil: base.worker_movil || workerInfo.movil || '',
+          empresa_contratante: base.empresa_contratante || row.empresa_id || 'LUMINOUS',
+          cliente_nome: base.cliente_nome || row.cliente_obra_nome || row.project_name || 'Cliente Obra',
+          obra_nome: base.obra_nome || row.cliente_obra_nome || row.project_name || 'Obra Principal',
+          municipio: base.municipio || 'España',
+          endereco: base.endereco || '',
+          pedido_id: row.pedido_id || base.pedido_id,
+          pedido_codigo: base.pedido_codigo,
+          data_inicio: row.data_inicio ? (String(row.data_inicio).split('T')[0]) : (base.data_inicio || new Date().toISOString().split('T')[0]),
+          data_fim: row.data_fim ? (String(row.data_fim).split('T')[0]) : base.data_fim,
+          data_checkin: row.data_inicio ? (String(row.data_inicio).split('T')[0]) : base.data_checkin,
+          data_checkout_prevista: row.data_fim ? (String(row.data_fim).split('T')[0]) : base.data_checkout_prevista,
+          status: statusNormalized,
+          motivo_checkout: row.motivo_checkout || base.motivo_checkout,
+          observacoes: row.observacoes || base.observacoes || '',
+          tipo_alojamento: row.tipo_alojamento || base.tipo_alojamento || 'FIJO',
+          custo_alojamento: Number(row.valor_ajuda_moradia || base.custo_alojamento || 0),
+          alojamento: base.alojamento
+        };
+      });
+
+      try {
+        localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(merged));
+      } catch (e) {}
+
+      return merged;
     } catch (e) {
+      console.warn('Erro em fetchAlocacoesAtivas:', e);
+      const stored = localStorage.getItem(ALOCACOES_STORAGE_KEY);
+      if (stored) return JSON.parse(stored);
       return (importedAllocations as any[]) || [];
     }
   },
@@ -526,9 +606,40 @@ export const logisticsService = {
     empresa_contratante?: string;
     custo_alojamento?: number;
   }): Promise<Alocacao> {
+    const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+    let newId = `propio-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+
+    try {
+      const { data: inserted, error } = await client
+        .from('alocacoes')
+        .insert({
+          cama_id: null,
+          alojamento_id: null,
+          worker_id: isUuid(payload.worker_id) ? payload.worker_id : null,
+          pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
+          data_inicio: payload.data_inicio,
+          data_fim: payload.data_fim || null,
+          status: 'Alojamiento Propio',
+          tipo_alojamento: 'Propio',
+          observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
+          cliente_obra_nome: payload.cliente_nome || payload.obra_nome || null,
+          project_name: payload.obra_nome || payload.cliente_nome || null,
+          valor_ajuda_moradia: payload.custo_alojamento || 0
+        })
+        .select()
+        .single();
+
+      if (!error && inserted?.id) {
+        newId = inserted.id;
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir alojamento próprio no Supabase:', e);
+    }
+
     const alocacoes = await this.fetchAlocacoesAtivas();
     const newAloc: Alocacao = {
-      id: `propio-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId,
       cama_id: `propio-cama-${payload.worker_id}`,
       alojamento_id: 'propio',
       worker_id: payload.worker_id,
@@ -584,9 +695,40 @@ export const logisticsService = {
     alojamento_nome?: string;
     municipio?: string;
   }): Promise<Alocacao> {
+    const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+    let newId = `cliente-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+
+    try {
+      const { data: inserted, error } = await client
+        .from('alocacoes')
+        .insert({
+          cama_id: null,
+          alojamento_id: null,
+          worker_id: isUuid(payload.worker_id) ? payload.worker_id : null,
+          pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
+          data_inicio: payload.data_inicio,
+          data_fim: payload.data_fim || null,
+          status: 'Alojamiento Cliente',
+          tipo_alojamento: 'Cliente',
+          observacoes: payload.observacoes || `Alojamiento Cedido por ${payload.cliente_nome || 'el Cliente'}`,
+          cliente_obra_nome: payload.cliente_nome || payload.obra_nome || null,
+          project_name: payload.obra_nome || payload.cliente_nome || null,
+          valor_ajuda_moradia: 0
+        })
+        .select()
+        .single();
+
+      if (!error && inserted?.id) {
+        newId = inserted.id;
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir alojamento por cliente no Supabase:', e);
+    }
+
     const alocacoes = await this.fetchAlocacoesAtivas();
     const newAloc: Alocacao = {
-      id: `cliente-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId,
       cama_id: `cliente-cama-${payload.worker_id}`,
       alojamento_id: 'cliente',
       alojamento_codigo: 'CLI-ALOJ',
@@ -646,12 +788,61 @@ export const logisticsService = {
     data_fim?: string;
     observacoes?: string;
   }): Promise<Alocacao> {
+    const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+    let newId = `aloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+
+    try {
+      // 1. Atualizar alocação anterior do trabalhador para Checkout se houver
+      if (isUuid(payload.worker_id)) {
+        await client
+          .from('alocacoes')
+          .update({
+            status: 'Checkout',
+            data_fim: payload.data_inicio,
+            motivo_checkout: 'Reasignación a otro alojamiento'
+          })
+          .eq('worker_id', payload.worker_id)
+          .neq('status', 'Checkout');
+      }
+
+      // 2. Inserir no Supabase
+      const { data: inserted, error } = await client
+        .from('alocacoes')
+        .insert({
+          cama_id: isUuid(payload.cama_id) ? payload.cama_id : null,
+          alojamento_id: isUuid(payload.alojamento_id) ? payload.alojamento_id : null,
+          worker_id: isUuid(payload.worker_id) ? payload.worker_id : null,
+          pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
+          data_inicio: payload.data_inicio,
+          data_fim: payload.data_fim || null,
+          status: 'checkin_feito',
+          observacoes: payload.observacoes || null,
+          cliente_obra_nome: payload.cliente_nome || payload.obra_nome || null,
+          project_name: payload.obra_nome || payload.cliente_nome || null,
+          tipo_alojamento: 'TEMPORAL'
+        })
+        .select()
+        .single();
+
+      if (!error && inserted?.id) {
+        newId = inserted.id;
+      }
+
+      // 3. Atualizar status da cama para ocupada se cama_id for UUID
+      if (isUuid(payload.cama_id)) {
+        await client.from('camas').update({ status: 'ocupada', disponivel: false }).eq('id', payload.cama_id);
+      }
+    } catch (e) {
+      console.warn('Erro ao persistir alocação no Supabase:', e);
+    }
+
     const alocacoes = await this.fetchAlocacoesAtivas();
     const alojamentos = await this.fetchAlojamentos();
     const aloj = alojamentos.find(a => a.id === payload.alojamento_id);
 
     const newAloc: Alocacao = {
-      id: `aloc-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newId,
       cama_id: payload.cama_id,
       alojamento_id: payload.alojamento_id,
       worker_id: payload.worker_id,
@@ -698,6 +889,34 @@ export const logisticsService = {
       observacoes?: string;
     }
   ): Promise<Alocacao[]> {
+    const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+
+    try {
+      const rowsToInsert = items.map(item => ({
+        cama_id: isUuid(item.cama_id) ? item.cama_id : null,
+        alojamento_id: isUuid(alojamento_id) ? alojamento_id : null,
+        worker_id: isUuid(item.worker_id) ? item.worker_id : null,
+        pedido_id: isUuid(pedidoContext.pedido_id) ? pedidoContext.pedido_id : null,
+        data_inicio: pedidoContext.data_inicio,
+        data_fim: pedidoContext.data_fim || null,
+        status: 'checkin_feito',
+        observacoes: pedidoContext.observacoes || null,
+        cliente_obra_nome: pedidoContext.cliente_nome || pedidoContext.obra_nome || null,
+        project_name: pedidoContext.obra_nome || pedidoContext.cliente_nome || null,
+        tipo_alojamento: 'TEMPORAL'
+      }));
+
+      await client.from('alocacoes').insert(rowsToInsert);
+
+      const validCamaIds = items.map(i => i.cama_id).filter(isUuid);
+      if (validCamaIds.length > 0) {
+        await client.from('camas').update({ status: 'ocupada', disponivel: false }).in('id', validCamaIds);
+      }
+    } catch (e) {
+      console.warn('Erro ao inserir grupo no Supabase:', e);
+    }
+
     const alocacoes = await this.fetchAlocacoesAtivas();
     const alojamentos = await this.fetchAlojamentos();
     const aloj = alojamentos.find(a => a.id === alojamento_id);
@@ -747,10 +966,49 @@ export const logisticsService = {
     dataSaida?: string,
     desativarAlojamentoId?: string
   ): Promise<void> {
+    const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
     const idsSet = new Set(alocacaoIds);
     const alocacoes = await this.fetchAlocacoesAtivas();
     const effectiveDate = dataSaida || new Date().toISOString().split('T')[0];
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
 
+    // 1. Atualizar no Supabase
+    try {
+      const validUuids = alocacaoIds.filter(isUuid);
+      const matchingWorkerIds = alocacoes
+        .filter(a => idsSet.has(a.id) && isUuid(a.worker_id))
+        .map(a => a.worker_id);
+
+      const allTargetIds = [...new Set([...validUuids, ...matchingWorkerIds])];
+
+      if (allTargetIds.length > 0) {
+        await client
+          .from('alocacoes')
+          .update({
+            status: 'Checkout',
+            data_fim: effectiveDate,
+            motivo_checkout: motivo || 'Fin de Pedido / Obra',
+            updated_at: new Date().toISOString()
+          })
+          .or(`id.in.(${allTargetIds.join(',')}),worker_id.in.(${allTargetIds.join(',')})`);
+      }
+
+      // Liberar camas no core_logistics.camas
+      const targetCamaIds = alocacoes
+        .filter(a => idsSet.has(a.id) && isUuid(a.cama_id))
+        .map(a => a.cama_id);
+
+      if (targetCamaIds.length > 0) {
+        await client
+          .from('camas')
+          .update({ status: 'livre', disponivel: true, updated_at: new Date().toISOString() })
+          .in('id', targetCamaIds);
+      }
+    } catch (e) {
+      console.warn('Erro ao registrar checkout no Supabase:', e);
+    }
+
+    // 2. Atualizar no cache local
     const updated = alocacoes.map(a => {
       if (idsSet.has(a.id)) {
         return {
@@ -767,7 +1025,7 @@ export const logisticsService = {
       localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
     } catch (e) {}
 
-    // Se solicitado desativar / inativar o alojamento
+    // 3. Se solicitado desativar / inativar o alojamento
     if (desativarAlojamentoId && desativarAlojamentoId !== 'propio' && desativarAlojamentoId !== 'cliente') {
       try {
         await registrosService.updateAlojamento(desativarAlojamentoId, {
