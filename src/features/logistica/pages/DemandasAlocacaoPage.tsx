@@ -180,6 +180,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [observacoesCheckout, setObservacoesCheckout] = useState<string>('');
   const [desativarAlojamento, setDesativarAlojamento] = useState<boolean>(false);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [isUpdatingPedidoStatus, setIsUpdatingPedidoStatus] = useState(false);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -290,12 +291,15 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       if (!matchesSearch) return false;
 
+      const isFinalizado = p.is_finalizado || p.commercial_status === 'completed';
       const totalContr = p.trabalhadores.length > 0 ? p.trabalhadores.length : (p.total_contratados || p.total_vagas_pedido);
       const totalAloj = p.trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
-      const totalPend = p.trabalhadores.length > 0 ? p.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, totalContr - totalAloj);
+      const totalPend = isFinalizado 
+        ? 0 
+        : (p.trabalhadores.length > 0 ? p.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, totalContr - totalAloj));
 
-      if (filterStatus === 'pendentes') return totalPend > 0;
-      if (filterStatus === 'alojados') return totalPend === 0 && totalAloj > 0;
+      if (filterStatus === 'pendentes') return !isFinalizado && totalPend > 0;
+      if (filterStatus === 'alojados') return isFinalizado || (totalPend === 0 && totalAloj > 0);
       return true;
     });
   }, [pedidos, searchTerm, filterStatus]);
@@ -539,8 +543,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
         case 'obra': return compareValues(a.obra_nome, b.obra_nome, pedidosSortOrder);
         case 'cidade': return compareValues(a.cidade, b.cidade, pedidosSortOrder);
         case 'pendentes': {
-          const pendA = a.trabalhadores.length > 0 ? a.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : a.total_pendentes_alojamento;
-          const pendB = b.trabalhadores.length > 0 ? b.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : b.total_pendentes_alojamento;
+          const isFinA = a.is_finalizado || a.commercial_status === 'completed';
+          const isFinB = b.is_finalizado || b.commercial_status === 'completed';
+          const pendA = isFinA ? 0 : (a.trabalhadores.length > 0 ? a.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : a.total_pendentes_alojamento);
+          const pendB = isFinB ? 0 : (b.trabalhadores.length > 0 ? b.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : b.total_pendentes_alojamento);
           return compareValues(pendA, pendB, pedidosSortOrder);
         }
         case 'data': return compareValues(a.data_inicio, b.data_inicio, pedidosSortOrder);
@@ -566,6 +572,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
   // Contadores globais
   const totalPedidosPendentes = useMemo(() => {
     return pedidos.filter(p => {
+      const isFinalizado = p.is_finalizado || p.commercial_status === 'completed';
+      if (isFinalizado) return false;
       const pend = p.trabalhadores.length > 0 
         ? p.trabalhadores.filter(t => t.status_alocacao === 'pendente').length 
         : p.total_pendentes_alojamento;
@@ -575,6 +583,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
   const totalTrabalhadoresPendentes = useMemo(() => {
     return pedidos.reduce((acc, p) => {
+      const isFinalizado = p.is_finalizado || p.commercial_status === 'completed';
+      if (isFinalizado) return acc;
       const pend = p.trabalhadores.length > 0 
         ? p.trabalhadores.filter(t => t.status_alocacao === 'pendente').length 
         : p.total_pendentes_alojamento;
@@ -1212,6 +1222,38 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }
   };
 
+  const handleFinalizarPedido = async () => {
+    if (!selectedPedido) return;
+    if (!window.confirm(`¿Desea marcar el pedido ${selectedPedido.pedido_codigo} como COMPLETADO? Ya no aparecerá en la lista de pendientes.`)) {
+      return;
+    }
+    try {
+      setIsUpdatingPedidoStatus(true);
+      await logisticsService.finalizarPedido(selectedPedido.pedido_id);
+      await loadData();
+    } catch (err: any) {
+      alert('Error al finalizar el pedido: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsUpdatingPedidoStatus(false);
+    }
+  };
+
+  const handleReabrirPedido = async () => {
+    if (!selectedPedido) return;
+    if (!window.confirm(`¿Desea reabrir el pedido ${selectedPedido.pedido_codigo}? Volverá a aparecer en pendientes si tiene plazas sin cubrir.`)) {
+      return;
+    }
+    try {
+      setIsUpdatingPedidoStatus(true);
+      await logisticsService.reabrirPedido(selectedPedido.pedido_id);
+      await loadData();
+    } catch (err: any) {
+      alert('Error al reabrir el pedido: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsUpdatingPedidoStatus(false);
+    }
+  };
+
   // Alternar seleção de trabalhador para lote no Check-out (Aba 2)
   const toggleSelectAlojado = (id: string) => {
     setSelectedAlojadosIds(prev =>
@@ -1552,10 +1594,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
               ) : (
                 sortedPedidos.map(pedido => {
                   const isSelected = selectedPedido?.pedido_id === pedido.pedido_id;
+                  const isFinalizado = pedido.is_finalizado || pedido.commercial_status === 'completed';
                   const totalContr = pedido.trabalhadores.length > 0 ? pedido.trabalhadores.length : (pedido.total_contratados || pedido.total_vagas_pedido);
                   const totalAloj = pedido.trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
-                  const totalPend = pedido.trabalhadores.length > 0 ? pedido.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, totalContr - totalAloj);
-                  const isComplete = totalPend === 0 && totalAloj > 0;
+                  const totalPend = isFinalizado ? 0 : (pedido.trabalhadores.length > 0 ? pedido.trabalhadores.filter(t => t.status_alocacao === 'pendente').length : Math.max(0, totalContr - totalAloj));
+                  const isComplete = isFinalizado || (totalPend === 0 && totalAloj > 0);
 
                   return (
                     <div
@@ -1582,12 +1625,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         </div>
 
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                          isComplete
+                          isFinalizado
+                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
+                            : isComplete
                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
                             : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                         }`}>
-                          {isComplete ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
-                          {isComplete ? '100% Alojado' : `${totalPend} sin alojar`}
+                          {isFinalizado ? <CheckCircle2 size={11} /> : isComplete ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+                          {isFinalizado ? 'Completo' : isComplete ? '100% Alojado' : `${totalPend} sin alojar`}
                         </span>
                       </div>
 
@@ -1681,7 +1726,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           Empresa: {selectedPedido.empresa_contratante}
                         </span>
 
-                        {selectedPedido.dias_restantes > 0 ? (
+                        {(selectedPedido.is_finalizado || selectedPedido.commercial_status === 'completed') ? (
+                          <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-300 flex items-center gap-1 border border-purple-200 dark:border-purple-800/60">
+                            <CheckCircle2 size={12} />
+                            Pedido Completado
+                          </span>
+                        ) : selectedPedido.dias_restantes > 0 ? (
                           <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 flex items-center gap-1">
                             <Clock size={12} />
                             Faltan {selectedPedido.dias_restantes} días
@@ -1713,8 +1763,34 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       </p>
                     </div>
 
-                    {/* Contatos do Encarregado e Cliente */}
+                    {/* Ações e Contatos do Encarregado e Cliente */}
                     <div className="flex flex-wrap md:flex-col items-start md:items-end gap-2 text-xs">
+                      {/* Botão Finalizar / Reabrir Pedido */}
+                      <div>
+                        {selectedPedido.is_finalizado || selectedPedido.commercial_status === 'completed' ? (
+                          <button
+                            type="button"
+                            onClick={handleReabrirPedido}
+                            disabled={isUpdatingPedidoStatus}
+                            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-xl flex items-center gap-1.5 transition-all text-xs border border-slate-300 dark:border-slate-600 disabled:opacity-50 cursor-pointer"
+                            title="Reabrir pedido para que vuelva a figurar como pendiente"
+                          >
+                            <RefreshCw size={13} className={isUpdatingPedidoStatus ? 'animate-spin' : ''} />
+                            <span>Reabrir Pedido</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={handleFinalizarPedido}
+                            disabled={isUpdatingPedidoStatus}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl flex items-center gap-1.5 transition-all text-xs shadow-xs disabled:opacity-50 cursor-pointer"
+                            title="Marcar como completo y retirar de la lista de pendientes"
+                          >
+                            <CheckCircle2 size={13} className={isUpdatingPedidoStatus ? 'animate-spin' : ''} />
+                            <span>Marcar como Completo</span>
+                          </button>
+                        )}
+                      </div>
                       {selectedPedido.encarregado_nome && (
                         <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
                           <User size={13} className="text-blue-600" />

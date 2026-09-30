@@ -186,6 +186,8 @@ export interface PedidoDemandaLogistica {
   duracao_dias?: number;
   tipo_solicitacao: 'Nuevo Pedido' | 'Reemplazo';
   status_operacional?: string;
+  commercial_status?: string;
+  is_finalizado?: boolean;
   observacoes?: string;
   total_vagas_pedido: number;
   total_contratados: number;
@@ -1013,6 +1015,8 @@ export const logisticsService = {
           duracao_dias: duracaoDias,
           tipo_solicitacao: 'Nuevo Pedido',
           status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
+          commercial_status: ped.commercial_status || 'active',
+          is_finalizado: (ped.commercial_status || '').toLowerCase() === 'completed',
           observacoes: ped.notes || 'Sin observaciones generales.',
           total_vagas_pedido: totalVagasFinal,
           total_contratados: trabalhadores.length,
@@ -1029,6 +1033,24 @@ export const logisticsService = {
       console.error('Error fetching pedidos demanda logistica:', err);
       return [];
     }
+  },
+
+  async finalizarPedido(pedidoId: string): Promise<void> {
+    const { error } = await supabase
+      .schema('core_comercial')
+      .from('pedidos')
+      .update({ commercial_status: 'completed', updated_at: new Date().toISOString() })
+      .eq('id', pedidoId);
+    if (error) throw error;
+  },
+
+  async reabrirPedido(pedidoId: string): Promise<void> {
+    const { error } = await supabase
+      .schema('core_comercial')
+      .from('pedidos')
+      .update({ commercial_status: 'active', updated_at: new Date().toISOString() })
+      .eq('id', pedidoId);
+    if (error) throw error;
   },
 
   async fetchDemandas(): Promise<DemandaTrabalhador[]> {
