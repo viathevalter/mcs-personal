@@ -1280,7 +1280,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const selectAllPendingInPedido = () => {
     if (!selectedPedido) return;
     const pendingIds = selectedPedido.trabalhadores
-      .filter(t => t.status_alocacao === 'pendente')
+      .filter(t => !t.is_substituido && t.status_alocacao === 'pendente')
       .map(t => t.worker_id);
 
     if (selectedWorkerIds.length === pendingIds.length) {
@@ -1886,6 +1886,37 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                   </div>
 
+                  {/* Banner de Solicitud de Reemplazo Operativo */}
+                  {selectedPedido.solicitudes_reemplazo && selectedPedido.solicitudes_reemplazo.length > 0 && (
+                    <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-950/40 dark:to-indigo-950/40 border border-purple-200 dark:border-purple-800/60 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-start sm:items-center gap-3">
+                        <div className="p-2.5 bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 rounded-xl shrink-0">
+                          <Sparkles size={18} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-purple-600 dark:text-purple-400">
+                              Solicitud de Reemplazo Operativa
+                            </span>
+                            {selectedPedido.solicitudes_reemplazo.map(sol => (
+                              <span key={sol.id} className="font-mono text-xs font-black px-2 py-0.5 rounded bg-purple-200/80 dark:bg-purple-900 text-purple-900 dark:text-purple-200 border border-purple-300 dark:border-purple-700">
+                                {sol.codigo}
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-100 mt-0.5">
+                            {selectedPedido.solicitudes_reemplazo[0]?.title || 'Reemplazo operativo en curso'}
+                          </p>
+                          {selectedPedido.solicitudes_reemplazo[0]?.motivo && (
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+                              "{selectedPedido.solicitudes_reemplazo[0].motivo}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Resumen de Plazas del Pedido Comercial (Total Vagas vs Contratados vs Faltantes) */}
                   <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -2071,115 +2102,255 @@ export const DemandasAlocacaoPage: React.FC = () => {
                             </td>
                           </tr>
                         ) : (
-                          sortedPedidoWorkers.map(worker => {
-                            const isSelected = selectedWorkerIds.includes(worker.worker_id);
-                            const isAllocated = worker.status_alocacao === 'alocado';
+                          <>
+                            {/* 1. Trabajadores Activos del Pedido */}
+                            {sortedPedidoWorkers.filter(w => !w.is_substituido).map(worker => {
+                              const isSelected = selectedWorkerIds.includes(worker.worker_id);
+                              const isAllocated = worker.status_alocacao === 'alocado';
 
-                            return (
-                              <tr
-                                key={worker.assignment_id || `${selectedPedido.pedido_id}-${worker.worker_id}`}
-                                className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
-                                  isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
-                                }`}
-                              >
-                                <td className="px-4 py-3.5">
-                                  {!isAllocated && (
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={() => toggleSelectWorker(worker.worker_id)}
-                                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
-                                    />
-                                  )}
-                                </td>
+                              return (
+                                <tr
+                                  key={worker.assignment_id || `${selectedPedido.pedido_id}-${worker.worker_id}`}
+                                  className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${
+                                    isSelected ? 'bg-blue-50/40 dark:bg-blue-950/20' : ''
+                                  }`}
+                                >
+                                  <td className="px-4 py-3.5">
+                                    {!isAllocated && (
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleSelectWorker(worker.worker_id)}
+                                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
+                                      />
+                                    )}
+                                  </td>
 
-                                <td className="px-4 py-3.5">
-                                  <div className="space-y-0.5">
-                                    <p className="font-bold text-slate-800 dark:text-slate-100">
-                                      {worker.worker_nome}
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded">
-                                        {worker.codigo_colab}
-                                      </span>
-                                      {worker.movil && (
-                                        <a
-                                          href={`https://wa.me/${worker.movil.replace(/\D/g, '')}`}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
-                                        >
-                                          <Phone size={10} />
-                                          {worker.movil}
-                                        </a>
+                                  <td className="px-4 py-3.5">
+                                    <div className="space-y-1">
+                                      <p className="font-bold text-slate-800 dark:text-slate-100">
+                                        {worker.worker_nome}
+                                      </p>
+                                      
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded">
+                                          {worker.codigo_colab}
+                                        </span>
+
+                                        {worker.solicitud_codigo && (
+                                          <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                                            <Sparkles size={10} /> Reemplazo ({worker.solicitud_codigo})
+                                          </span>
+                                        )}
+
+                                        {worker.movil && (
+                                          <a
+                                            href={`https://wa.me/${worker.movil.replace(/\D/g, '')}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[10px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                                          >
+                                            <Phone size={10} />
+                                            {worker.movil}
+                                          </a>
+                                        )}
+                                      </div>
+
+                                      {worker.substituto_de_nome && (
+                                        <p className="text-[10px] text-purple-700 dark:text-purple-300 font-medium">
+                                          Entra en lugar de: <strong>{worker.substituto_de_nome}</strong>
+                                        </p>
                                       )}
                                     </div>
-                                  </div>
-                                </td>
+                                  </td>
 
-                                <td className="px-4 py-3.5">
-                                  <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px]">
-                                    {worker.funcao}
-                                  </span>
-                                </td>
-
-                                <td className="px-4 py-3.5">
-                                  {isAllocated ? (
-                                    <div className="space-y-0.5">
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                                        <CheckCircle2 size={11} />
-                                        {worker.alocacao_detalhe?.alojamento_nome}
-                                      </span>
-                                      <p className="text-[10px] text-slate-400">
-                                        {worker.alocacao_detalhe?.cama_identificador}
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                                      <AlertTriangle size={11} />
-                                      Sin Alojamiento
+                                  <td className="px-4 py-3.5">
+                                    <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px]">
+                                      {worker.funcao}
                                     </span>
-                                  )}
-                                </td>
+                                  </td>
 
-                                <td className="px-4 py-3.5 text-right">
-                                  {isAllocated ? (
-                                    <button
-                                      onClick={() => {
-                                        setCheckingOutData({
-                                          alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
-                                          workers: [{
-                                            id: worker.alocacao_detalhe!.alocacao_id,
-                                            nome: worker.worker_nome,
-                                            alojamento: worker.alocacao_detalhe!.alojamento_nome,
-                                            alojamentoId: worker.alocacao_detalhe!.alojamento_id
-                                          }],
-                                          alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
-                                          alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
-                                        });
-                                        setMotivoCheckout('Fin de Pedido / Obra');
-                                        setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
-                                        setObservacoesCheckout('');
-                                        setDesativarAlojamento(false);
-                                      }}
-                                      className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1"
+                                  <td className="px-4 py-3.5">
+                                    {isAllocated ? (
+                                      <div className="space-y-0.5">
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                          <CheckCircle2 size={11} />
+                                          {worker.alocacao_detalhe?.alojamento_nome}
+                                        </span>
+                                        <p className="text-[10px] text-slate-400">
+                                          {worker.alocacao_detalhe?.cama_identificador}
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                                        <AlertTriangle size={11} />
+                                        Sin Alojamiento
+                                      </span>
+                                    )}
+                                  </td>
+
+                                  <td className="px-4 py-3.5 text-right">
+                                    {isAllocated ? (
+                                      <button
+                                        onClick={() => {
+                                          setCheckingOutData({
+                                            alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
+                                            workers: [{
+                                              id: worker.alocacao_detalhe!.alocacao_id,
+                                              nome: worker.worker_nome,
+                                              alojamento: worker.alocacao_detalhe!.alojamento_nome,
+                                              alojamentoId: worker.alocacao_detalhe!.alojamento_id
+                                            }],
+                                            alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
+                                            alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
+                                          });
+                                          setMotivoCheckout('Fin de Pedido / Obra');
+                                          setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+                                          setObservacoesCheckout('');
+                                          setDesativarAlojamento(false);
+                                        }}
+                                        className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <LogOut size={12} />
+                                        Check-out
+                                      </button>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleOpenSingleAlloc(worker, selectedPedido)}
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1 cursor-pointer"
+                                      >
+                                        <Bed size={13} />
+                                        Asignar Cama
+                                      </button>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+
+                            {/* 2. Sección de Trabajadores Sustituidos / Salientes que requieren Check-out */}
+                            {sortedPedidoWorkers.filter(w => w.is_substituido).length > 0 && (
+                              <>
+                                <tr className="bg-amber-50/80 dark:bg-amber-950/40 border-y border-amber-200 dark:border-amber-800/60">
+                                  <td colSpan={5} className="px-4 py-2.5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-amber-900 dark:text-amber-200">
+                                      <div className="flex items-center gap-2">
+                                        <LogOut size={14} className="text-amber-600 dark:text-amber-400" />
+                                        <span className="font-bold">
+                                          Trabajadores Sustituidos / Pendientes de Check-out ({sortedPedidoWorkers.filter(w => w.is_substituido).length})
+                                        </span>
+                                        <span className="text-[11px] font-normal text-amber-700 dark:text-amber-300">
+                                          — Colaboradores salientes que requieren desocupar el alojamiento
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 font-mono">
+                                        Salida de Alojamiento
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {sortedPedidoWorkers.filter(w => w.is_substituido).map(worker => {
+                                  const isAllocated = worker.status_alocacao === 'alocado';
+
+                                  return (
+                                    <tr
+                                      key={worker.assignment_id || `subst-${worker.worker_id}`}
+                                      className="bg-amber-50/20 dark:bg-amber-950/10 hover:bg-amber-50/50 dark:hover:bg-amber-950/20 transition-colors border-b border-amber-100 dark:border-amber-900/30"
                                     >
-                                      <LogOut size={12} />
-                                      Check-out
-                                    </button>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleOpenSingleAlloc(worker, selectedPedido)}
-                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1"
-                                    >
-                                      <Bed size={13} />
-                                      Asignar Cama
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })
+                                      <td className="px-4 py-3.5">
+                                        {/* Sem seleção em lote para alocação de novos */}
+                                      </td>
+
+                                      <td className="px-4 py-3.5">
+                                        <div className="space-y-1">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <p className="font-bold text-slate-800 dark:text-slate-100">
+                                              {worker.worker_nome}
+                                            </p>
+                                            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+                                              Sustituido / Histórico
+                                            </span>
+                                            {worker.solicitud_codigo && (
+                                              <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                                                {worker.solicitud_codigo}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded">
+                                              {worker.codigo_colab}
+                                            </span>
+                                            {worker.substituido_por_nome && (
+                                              <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                                                Reemplazado por: <strong className="text-slate-700 dark:text-slate-200">{worker.substituido_por_nome}</strong>
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </td>
+
+                                      <td className="px-4 py-3.5">
+                                        <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-[11px]">
+                                          {worker.funcao}
+                                        </span>
+                                      </td>
+
+                                      <td className="px-4 py-3.5">
+                                        {isAllocated ? (
+                                          <div className="space-y-0.5">
+                                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950/70 dark:text-amber-200 border border-amber-300 dark:border-amber-700">
+                                              <Bed size={11} />
+                                              {worker.alocacao_detalhe?.alojamento_nome}
+                                            </span>
+                                            <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
+                                              {worker.alocacao_detalhe?.cama_identificador} • Cama a desocupar
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800">
+                                            Sin alojamiento / Ya desocupado
+                                          </span>
+                                        )}
+                                      </td>
+
+                                      <td className="px-4 py-3.5 text-right">
+                                        {isAllocated ? (
+                                          <button
+                                            onClick={() => {
+                                              setCheckingOutData({
+                                                alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
+                                                workers: [{
+                                                  id: worker.alocacao_detalhe!.alocacao_id,
+                                                  nome: worker.worker_nome,
+                                                  alojamento: worker.alocacao_detalhe!.alojamento_nome,
+                                                  alojamentoId: worker.alocacao_detalhe!.alojamento_id
+                                                }],
+                                                alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
+                                                alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
+                                              });
+                                              setMotivoCheckout('Sustitución / Reemplazo de Colaborador');
+                                              setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+                                              setObservacoesCheckout(`Check-out por solicitud de reemplazo ${worker.solicitud_codigo || ''}`);
+                                              setDesativarAlojamento(false);
+                                            }}
+                                            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
+                                            title="Realizar check-out de este trabajador sustituido"
+                                          >
+                                            <LogOut size={13} />
+                                            Check-out
+                                          </button>
+                                        ) : (
+                                          <span className="text-slate-400 text-xs">—</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </>
+                            )}
+                          </>
                         )}
                       </tbody>
                     </table>

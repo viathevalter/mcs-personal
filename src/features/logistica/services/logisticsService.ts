@@ -138,6 +138,13 @@ export interface TrabalhadorDemandaItem {
   data_inicio: string;
   data_fim?: string;
   status_alocacao: 'pendente' | 'alocado';
+  // Reemplazo e histórico
+  assignment_status?: string;
+  is_substituido?: boolean;
+  substituido_por_nome?: string;
+  substituto_de_nome?: string;
+  solicitud_id?: string;
+  solicitud_codigo?: string;
   alocacao_detalhe?: {
     alocacao_id: string;
     alojamento_id: string;
@@ -156,6 +163,13 @@ export interface VagaPerfilItem {
   total_solicitado: number;
   contratados: number;
   faltam_contratar: number;
+}
+
+export interface SolicitudReemplazoResumo {
+  id: string;
+  codigo: string;
+  title?: string;
+  motivo?: string;
 }
 
 export interface PedidoDemandaLogistica {
@@ -185,6 +199,7 @@ export interface PedidoDemandaLogistica {
   duracao_texto: string;
   duracao_dias?: number;
   tipo_solicitacao: 'Nuevo Pedido' | 'Reemplazo';
+  solicitudes_reemplazo?: SolicitudReemplazoResumo[];
   status_operacional?: string;
   commercial_status?: string;
   is_finalizado?: boolean;
@@ -786,7 +801,7 @@ export const logisticsService = {
       const empresaIds = [...new Set(pedidos.map(p => p.empresa_id).filter(Boolean))];
 
       // 2. Buscar Clientes, Obras (Sites), Empresas, Itens e Funções dos Pedidos
-      const [clientsRes, sitesRes, empresasRes, itemsRes, jobsRes, assignmentsRes, alocacoesAtivas, alojamentos] = await Promise.all([
+      const [clientsRes, sitesRes, empresasRes, itemsRes, jobsRes, assignmentsRes, solicitudesRes, alocacoesAtivas, alojamentos] = await Promise.all([
         clientIds.length > 0
           ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name, phone, email').in('id', clientIds)
           : Promise.resolve({ data: [] }),
@@ -804,6 +819,8 @@ export const logisticsService = {
           .select(`
             id,
             pedido_id,
+            solicitud_id,
+            replacement_of_assignment_id,
             status,
             planned_start_date,
             start_date,
@@ -818,7 +835,11 @@ export const logisticsService = {
               status_seguridad
             )
           `)
-          .in('status', ['planned', 'active']),
+          .in('status', ['planned', 'active', 'replaced', 'relocated', 'terminated']),
+        supabase
+          .schema('core_operacoes')
+          .from('solicitudes_operativas')
+          .select('id, codigo, title, description, tipo, status'),
         this.fetchAlocacoesAtivas(),
         this.fetchAlojamentos()
       ]);
@@ -828,6 +849,8 @@ export const logisticsService = {
       const empresasMap = new Map((empresasRes.data || []).map((e: any) => [e.id, e]));
       const jobsMap = new Map((jobsRes.data || []).map((j: any) => [j.id, j.name]));
       const alojMap = new Map(alojamentos.map(a => [a.id, a]));
+      const allAssignmentsMap = new Map((assignmentsRes.data || []).map((a: any) => [a.id, a]));
+      const solicitudesMap = new Map((solicitudesRes.data || []).map((s: any) => [s.id, s]));
 
       // Agrupar alocações ativas da logística por worker_id, codigo_colab e nome normalizado
       const alocacoesLogisticaMap = new Map<string, Alocacao>();
@@ -918,12 +941,32 @@ export const logisticsService = {
         const pedAssignments = (assignmentsRes.data || []).filter(
           (ass: any) => Boolean(ass.pedido_id) && Boolean(ped.id) && String(ass.pedido_id).trim() === String(ped.id).trim()
         );
+
+        // Identificar todas as solicitações de reemplazo que afetam este pedido
+        const solSet = new Set<string>();
+        pedAssignments.forEach((ass: any) => {
+          if (ass.solicitud_id) solSet.add(ass.solicitud_id);
+          if (ass.replacement_of_assignment_id) {
+            const prevAss = allAssignmentsMap.get(ass.replacement_of_assignment_id);
+            if (prevAss?.solicitud_id) solSet.add(prevAss.solicitud_id);
+          }
+        });
+
+        const solicitudesReemplazo: SolicitudReemplazoResumo[] = Array.from(solSet)
+          .map(id => solicitudesMap.get(id))
+          .filter(Boolean)
+          .map((s: any) => ({
+            id: s.id,
+            codigo: s.codigo,
+            title: s.title,
+            motivo: s.description
+          }));
         
         const seenWorkerIds = new Set<string>();
         const trabalhadores: TrabalhadorDemandaItem[] = [];
 
+        // 1. Processar primeiro as atribuições ATIVAS ou PLANEJADAS
         for (const ass of pedAssignments) {
-          // Filtrar atribuições inativas
           const assStatus = (ass.status || '').toLowerCase().trim();
           if (assStatus !== 'active' && assStatus !== 'planned') {
             continue;
@@ -936,19 +979,23 @@ export const logisticsService = {
             continue;
           }
 
-          // Filtrar trabalhadores inativos ou desligados (Baixa)
-          const wStatus = (rawWorker.status_trabajador || '').toUpperCase().trim();
-          const isInactive = wStatus === 'INATIVO' || 
-                             wStatus === 'INACTIVO' || 
-                             wStatus === 'BAIXA' || 
-                             wStatus === 'BAJA' || 
-                             wStatus === 'DESLIGADO';
+          seenWorkerIds.add(workerId);
 
-          if (isInactive) {
-            continue;
+          // Verificar se este trabalhador é um reemplazo de alguém
+          let substitutoDeNome: string | undefined;
+          let solCodigo: string | undefined;
+
+          if (ass.replacement_of_assignment_id) {
+            const replacedAss = allAssignmentsMap.get(ass.replacement_of_assignment_id);
+            if (replacedAss) {
+              const repW = Array.isArray(replacedAss.worker) ? replacedAss.worker[0] : replacedAss.worker;
+              substitutoDeNome = repW?.nome;
+            }
           }
 
-          seenWorkerIds.add(workerId);
+          if (ass.solicitud_id) {
+            solCodigo = solicitudesMap.get(ass.solicitud_id)?.codigo;
+          }
 
           const normName = normalizeWName(rawWorker.nome);
           const wCode = (rawWorker.cod_colab || '').toUpperCase().trim();
@@ -970,6 +1017,11 @@ export const logisticsService = {
             data_inicio: formatToLocalDate(ass.planned_start_date || ass.start_date) || dataInicioStr,
             data_fim: dataFimStr,
             status_alocacao: alocLog ? 'alocado' : 'pendente',
+            assignment_status: ass.status,
+            is_substituido: false,
+            substituto_de_nome: substitutoDeNome,
+            solicitud_id: ass.solicitud_id,
+            solicitud_codigo: solCodigo,
             alocacao_detalhe: alocLog ? {
               alocacao_id: alocLog.id,
               alojamento_id: alocLog.alojamento_id || '',
@@ -983,10 +1035,78 @@ export const logisticsService = {
           });
         }
 
-        const totalAlojados = trabalhadores.filter(t => t.status_alocacao === 'alocado').length;
-        const totalPendentes = trabalhadores.filter(t => t.status_alocacao === 'pendente').length;
-        const totalVagasFinal = Math.max(totalVagasPedido || 0, trabalhadores.length, 1);
-        const totalFaltamContratar = Math.max(0, totalVagasFinal - trabalhadores.length);
+        // 2. Processar atribuições SUBSTITUÍDAS / HISTÓRICAS deste pedido
+        for (const ass of pedAssignments) {
+          const assStatus = (ass.status || '').toLowerCase().trim();
+          if (assStatus !== 'replaced' && assStatus !== 'relocated' && assStatus !== 'terminated') {
+            continue;
+          }
+
+          const rawWorker = Array.isArray(ass.worker) ? ass.worker[0] : (ass.worker || {});
+          const workerId = rawWorker.id || ass.worker_id || ass.id;
+          if (!workerId || seenWorkerIds.has(workerId)) continue;
+
+          const normName = normalizeWName(rawWorker.nome);
+          const wCode = (rawWorker.cod_colab || '').toUpperCase().trim();
+
+          const alocLog = alocacoesLogisticaMap.get(workerId) ||
+                          (wCode ? alocacoesByCodeMap.get(wCode) : undefined) ||
+                          (normName ? alocacoesByNameMap.get(normName) : undefined);
+
+          // Verificar se foi substituído por alguém neste pedido
+          const incomingReplacement = pedAssignments.find((other: any) => other.replacement_of_assignment_id === ass.id);
+          
+          // Se não estiver alojado E não tiver relação de substituição ativa neste pedido, ignora
+          if (!alocLog && !incomingReplacement) {
+            continue;
+          }
+
+          seenWorkerIds.add(workerId);
+
+          let substituidoPorNome: string | undefined;
+          if (incomingReplacement) {
+            const incW = Array.isArray(incomingReplacement.worker) ? incomingReplacement.worker[0] : incomingReplacement.worker;
+            substituidoPorNome = incW?.nome;
+          }
+
+          const solId = incomingReplacement?.solicitud_id || ass.solicitud_id;
+          const solCodigo = solId ? solicitudesMap.get(solId)?.codigo : undefined;
+          const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
+
+          trabalhadores.push({
+            assignment_id: ass.id,
+            worker_id: workerId,
+            worker_nome: rawWorker.nome || 'Trabalhador',
+            codigo_colab: rawWorker.cod_colab || 'E-XXXX',
+            nif: rawWorker.nif,
+            movil: rawWorker.movil,
+            funcao: ass.job_function_name_snapshot || 'Operador Especialista',
+            data_inicio: formatToLocalDate(ass.planned_start_date || ass.start_date) || dataInicioStr,
+            data_fim: dataFimStr,
+            status_alocacao: alocLog ? 'alocado' : 'pendente',
+            assignment_status: ass.status,
+            is_substituido: true,
+            substituido_por_nome: substituidoPorNome,
+            solicitud_id: solId,
+            solicitud_codigo: solCodigo,
+            alocacao_detalhe: alocLog ? {
+              alocacao_id: alocLog.id,
+              alojamento_id: alocLog.alojamento_id || '',
+              alojamento_nome: aloj?.nome || alocLog.obra_nome || 'Alojamiento',
+              alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+              cama_id: alocLog.cama_id,
+              cama_identificador: alocLog.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble',
+              data_inicio: alocLog.data_inicio,
+              data_fim: alocLog.data_fim
+            } : undefined
+          });
+        }
+
+        const trabalhadoresAtivos = trabalhadores.filter(t => !t.is_substituido);
+        const totalAlojados = trabalhadoresAtivos.filter(t => t.status_alocacao === 'alocado').length;
+        const totalPendentes = trabalhadoresAtivos.filter(t => t.status_alocacao === 'pendente').length;
+        const totalVagasFinal = Math.max(totalVagasPedido || 0, trabalhadoresAtivos.length, 1);
+        const totalFaltamContratar = Math.max(0, totalVagasFinal - trabalhadoresAtivos.length);
 
         return {
           pedido_id: ped.id,
@@ -1013,13 +1133,14 @@ export const logisticsService = {
           dias_restantes: diasRestantes,
           duracao_texto: duracaoTexto,
           duracao_dias: duracaoDias,
-          tipo_solicitacao: 'Nuevo Pedido',
+          tipo_solicitacao: solicitudesReemplazo.length > 0 ? 'Reemplazo' : 'Nuevo Pedido',
+          solicitudes_reemplazo: solicitudesReemplazo,
           status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
           commercial_status: ped.commercial_status || 'active',
           is_finalizado: (ped.commercial_status || '').toLowerCase() === 'completed',
           observacoes: ped.notes || 'Sin observaciones generales.',
           total_vagas_pedido: totalVagasFinal,
-          total_contratados: trabalhadores.length,
+          total_contratados: trabalhadoresAtivos.length,
           total_faltam_contratar: totalFaltamContratar,
           total_alojados: totalAlojados,
           total_pendentes_alojamento: totalPendentes,
