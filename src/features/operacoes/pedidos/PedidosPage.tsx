@@ -106,6 +106,7 @@ export function PedidosPage() {
               <SelectItem value="pending_operations">Pendente</SelectItem>
               <SelectItem value="partially_fulfilled">Parcialmente Atendido</SelectItem>
               <SelectItem value="fulfilled">Atendido</SelectItem>
+              <SelectItem value="paused">Pausado</SelectItem>
               <SelectItem value="cancelled">Cancelado</SelectItem>
             </SelectContent>
           </Select>

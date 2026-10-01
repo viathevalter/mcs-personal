@@ -8,7 +8,7 @@ export interface Pedido {
   client_site_id: string;
   order_type: 'new_allocation' | 'expansion' | 'direct';
   commercial_status: 'draft' | 'active' | 'suspended' | 'cancelled' | 'completed';
-  operational_status: 'pending_operations' | 'partially_fulfilled' | 'fulfilled';
+  operational_status: 'pending_operations' | 'partially_fulfilled' | 'fulfilled' | 'cancelled' | 'paused';
   commercial_owner_id?: string;
   responsible_id?: string;
   approved_at?: string;

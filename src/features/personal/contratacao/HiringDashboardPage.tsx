@@ -25,7 +25,8 @@ import {
   HelpCircle,
   AlertTriangle,
   X,
-  Copy
+  Copy,
+  PauseCircle
 } from 'lucide-react';
 import type { OpenPosition } from './hooks/useOpenPositions';
 import { toast } from 'sonner';
@@ -954,10 +955,22 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                   <div className="text-right">
                     <span className="font-mono text-sm font-bold text-indigo-650 dark:text-indigo-400">{selectedPedido.codigo}</span>
                     <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mt-0.5">
-                      Status Operacional: <strong className="text-slate-700 dark:text-slate-350">{selectedPedido.operational_status}</strong>
+                      Status Operacional: <strong className={selectedPedido.operational_status === 'paused' ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-700 dark:text-slate-350'}>
+                        {selectedPedido.operational_status === 'paused' ? 'PAUSADO' : selectedPedido.operational_status}
+                      </strong>
                     </p>
                   </div>
                 </div>
+
+                {selectedPedido.operational_status === 'paused' && (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-lg p-3 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2.5">
+                    <PauseCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <div>
+                      <strong className="block font-semibold">Contratações Congeladas Temporariamente:</strong>
+                      Este pedido foi pausado a pedido do cliente. O processo de contratação e novas alocações está suspenso até que a obra seja reanudada na Torre de Controle.
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                   <div className="flex items-start space-x-2">
@@ -1180,21 +1193,38 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                             )}
                           </div>
 
-                          <Button
-                            size="sm"
-                            disabled={isItemFulfilled}
-                            onClick={() => handleOpenAllocateDialog(item)}
-                            className={`h-8 text-xs font-semibold ${
-                              isItemFulfilled 
-                                ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
-                                : isReplacement
-                                  ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
-                                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
-                            }`}
-                          >
-                            <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                            {isItemFulfilled ? 'Substituído' : isReplacement ? '+ Substituir' : '+ Contratar'}
-                          </Button>
+                          {(() => {
+                            const isPaused = selectedPedido.operational_status === 'paused';
+                            return (
+                              <Button
+                                size="sm"
+                                disabled={isItemFulfilled || isPaused}
+                                onClick={() => handleOpenAllocateDialog(item)}
+                                title={isPaused ? "Pedido pausado. Reanude o pedido na Torre de Controle para contratar." : undefined}
+                                className={`h-8 text-xs font-semibold ${
+                                  isPaused
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 cursor-not-allowed'
+                                    : isItemFulfilled 
+                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
+                                      : isReplacement
+                                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
+                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                                }`}
+                              >
+                                {isPaused ? (
+                                  <>
+                                    <PauseCircle className="mr-1.5 h-3.5 w-3.5" />
+                                    Pausado
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                                    {isItemFulfilled ? 'Substituído' : isReplacement ? '+ Substituir' : '+ Contratar'}
+                                  </>
+                                )}
+                              </Button>
+                            );
+                          })()}
                         </div>
                       </div>
                     );

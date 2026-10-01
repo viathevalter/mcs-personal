@@ -13,9 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus, Pencil, Loader2, Mail, XCircle } from 'lucide-react';
+import { ArrowLeft, UserPlus, ArrowRightLeft, FileCheck, UserMinus, Pencil, Loader2, Mail, XCircle, PauseCircle, PlayCircle } from 'lucide-react';
 import { PedidoStatusBadge } from './components/PedidoStatusBadge';
 import { ResendPedidoNotificationModal } from './components/ResendPedidoNotificationModal';
+import { ReanudarPedidoModal } from './components/ReanudarPedidoModal';
 
 import { PedidoOverviewTab } from './components/tabs/PedidoOverviewTab';
 import { PedidoItemsTab } from './components/tabs/PedidoItemsTab';
@@ -43,6 +44,7 @@ export function PedidoDetailPage() {
   const [editNotes, setEditNotes] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [isResendModalOpen, setIsResendModalOpen] = useState(false);
+  const [isReanudarModalOpen, setIsReanudarModalOpen] = useState(false);
 
   const handleOpenEdit = () => {
     setEditStartDate(pedido?.expected_start_date || '');
@@ -134,6 +136,24 @@ export function PedidoDetailPage() {
         </div>
         
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {pedido.operational_status === 'paused' ? (
+            <Button 
+              onClick={() => setIsReanudarModalOpen(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-md shadow-emerald-600/20"
+            >
+              <PlayCircle className="mr-2 h-4 w-4" /> Reanudar Pedido / Nova Data
+            </Button>
+          ) : (
+            pedido.commercial_status !== 'cancelled' && (
+              <Button 
+                variant="outline" 
+                onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_pause&pedido_id=${pedido.id}`)}
+                className="border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-amber-600 dark:text-amber-400 font-semibold"
+              >
+                <PauseCircle className="mr-2 h-4 w-4" /> Pausar Pedido
+              </Button>
+            )
+          )}
           {pedido.commercial_status !== 'cancelled' && (
             <Button 
               variant="outline" 
@@ -187,6 +207,28 @@ export function PedidoDetailPage() {
           </Button>
         </div>
       </div>
+
+      {/* Banner de Pedido Pausado */}
+      {pedido.operational_status === 'paused' && (
+        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-lg p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-3">
+            <PauseCircle className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-300">Este pedido está temporariamente PAUSADO</h3>
+              <p className="text-xs text-amber-800/80 dark:text-amber-400/80 mt-0.5">
+                Novas contratações e altas na Seguridade Social estão suspensas aguardando definição da nova data de início pelo cliente.
+              </p>
+            </div>
+          </div>
+          <Button 
+            size="sm"
+            onClick={() => setIsReanudarModalOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shrink-0 shadow-sm"
+          >
+            <PlayCircle className="mr-2 h-4 w-4" /> Reanudar Pedido Agora
+          </Button>
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
@@ -344,6 +386,14 @@ export function PedidoDetailPage() {
         <ResendPedidoNotificationModal
           isOpen={isResendModalOpen}
           onClose={() => setIsResendModalOpen(false)}
+          pedido={pedido}
+        />
+      )}
+
+      {pedido && (
+        <ReanudarPedidoModal
+          isOpen={isReanudarModalOpen}
+          onClose={() => setIsReanudarModalOpen(false)}
           pedido={pedido}
         />
       )}

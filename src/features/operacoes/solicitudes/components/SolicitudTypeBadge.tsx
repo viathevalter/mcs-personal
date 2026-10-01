@@ -1,9 +1,9 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { FilePlus, RefreshCw, MapPin, Wrench, Microscope, UserMinus, FileEdit, AlertTriangle, CalendarDays, ClipboardCheck, XCircle } from 'lucide-react';
+import { FilePlus, RefreshCw, MapPin, Wrench, Microscope, UserMinus, FileEdit, AlertTriangle, CalendarDays, ClipboardCheck, XCircle, PauseCircle, PlayCircle } from 'lucide-react';
 
 interface Props {
-  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination' | 'order_postponement' | 'order_cancellation' | 'cancellation';
+  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination' | 'order_postponement' | 'order_cancellation' | 'cancellation' | 'order_pause' | 'order_resume';
   className?: string;
 }
 
@@ -22,6 +22,8 @@ export function SolicitudTypeBadge({ tipo, className }: Props) {
     order_postponement: { label: 'Adiamento de Início', color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400', icon: CalendarDays },
     order_cancellation: { label: 'Cancelamento de Pedido', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-450', icon: XCircle },
     cancellation: { label: 'Cancelamento', color: 'bg-rose-500/10 text-rose-600 dark:text-rose-450', icon: XCircle },
+    order_pause: { label: 'Pausa de Pedido', color: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold', icon: PauseCircle },
+    order_resume: { label: 'Retomada de Pedido', color: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold', icon: PlayCircle },
   };
 
   const { label, color, icon: Icon } = config[tipo] || config.new_order;
