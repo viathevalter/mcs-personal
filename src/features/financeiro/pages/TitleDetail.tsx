@@ -6,7 +6,7 @@ import {
     ChevronLeft, Calendar, DollarSign, FileText, CheckCircle, XCircle, 
     AlertCircle, RefreshCw, Send, ArrowRight, Link2, Users, Bed, Home, 
     UserCheck, AlertTriangle, CheckCircle2, Wallet, Landmark, Download, 
-    Upload, Edit3, Clock, ArrowUpRight
+    Upload, Edit3, Clock, ArrowUpRight, Copy, Check, CreditCard
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -107,6 +107,60 @@ export const TitleDetail = () => {
             if (title.comprovante_geral) setComprovanteUrl(title.comprovante_geral);
         }
     }, [title]);
+
+    const [copiedField, setCopiedField] = useState<string | null>(null);
+
+    const handleCopy = (text: string, fieldName: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        setCopiedField(fieldName);
+        toast.success(`${fieldName} copiado para a área de transferência!`);
+        setTimeout(() => {
+            setCopiedField(null);
+        }, 2500);
+    };
+
+    const extractBankDetails = () => {
+        const text = title?.observaciones || '';
+        
+        // Extract IBAN
+        const ibanMatch = text.match(/(?:IBAN:?\s*)?([A-Z]{2}[0-9]{2}(?:[\s\-]?[0-9]{4}){4,6}(?:[\s\-]?[0-9]{1,4})?)/i);
+        const iban = ibanMatch ? ibanMatch[1].replace(/[\t\r\n]+/g, ' ').trim() : null;
+
+        // Extract Banco
+        const bancoMatch = text.match(/(?:BANCO:?\s*|BANCO\s+)([A-Z0-9\s\.\-]{2,30}?)(?=\s+IBAN|\s+TITULAR|\n|$)/i);
+        const banco = bancoMatch ? bancoMatch[1].trim() : null;
+
+        // Extract Titular / Favorecido
+        const titularMatch = text.match(/(?:TITULAR:?\s*)([^\n\r]+)/i);
+        let titular = titularMatch ? titularMatch[1].trim() : null;
+        if (!titular) {
+            if (title?.cod_provedor && title.cod_provedor !== 'Identificado nos itens') {
+                titular = title.cod_provedor;
+            } else if (title?.departamento_origem && !['Logística', 'Financeiro', 'Geral'].includes(title.departamento_origem)) {
+                titular = title.departamento_origem;
+            } else if (title?.itens?.[0]?.cod_provedor) {
+                titular = title.itens[0].cod_provedor;
+            } else {
+                titular = title?.cod_provedor || 'Fornecedor da Ordem';
+            }
+        }
+
+        return { iban, banco, titular, rawObs: text };
+    };
+
+    const handleCopyAll = (details: { iban: string | null; titular: string; banco: string | null }) => {
+        if (!title) return;
+        const summary = [
+            `Favorecido: ${details.titular}`,
+            details.iban ? `IBAN: ${details.iban}` : null,
+            details.banco ? `Banco: ${details.banco}` : null,
+            `Valor: ${formatCurrency(title.valor)}`,
+            `Referência: ${title.cod_orden_pago || title.descricao}`
+        ].filter(Boolean).join('\n');
+
+        handleCopy(summary, 'todos');
+    };
 
     const isLodgingOrder = Boolean(
         title?.departamento_origem?.toLowerCase().includes('log') ||
@@ -237,6 +291,7 @@ export const TitleDetail = () => {
     const canSubmit = title.status === 'rascunho' || title.status === 'rejeitado' || isNeedsCorrection;
     const isApproved = title.status === 'aprovado';
     const isPaid = title.status === 'pago';
+    const bankDetails = extractBankDetails();
 
     return (
         <Tooltip.Provider delayDuration={200}>
@@ -347,13 +402,141 @@ export const TitleDetail = () => {
                                     </div>
                                 </div>
 
-                                {title.observaciones && (
-                                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-xs">
-                                        <span className="text-slate-400 font-bold uppercase tracking-wider block mb-1">Observações do Solicitante</span>
-                                        <p className="text-slate-600 dark:text-slate-300">{title.observaciones}</p>
-                                    </div>
-                                )}
-                            </Card>
+                                 {/* Card de Dados Bancários para Pagamento com Cópia Rápida em 1 Clique */}
+                                 <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                                     <div className="p-5 rounded-3xl bg-gradient-to-br from-blue-50/70 via-indigo-50/20 to-slate-50 dark:from-slate-900 dark:via-blue-950/20 dark:to-slate-900 border-2 border-blue-200/90 dark:border-blue-800/60 shadow-xs space-y-4">
+                                         <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-blue-100 dark:border-blue-900/40">
+                                             <div className="flex items-center gap-2.5">
+                                                 <div className="p-2 rounded-xl bg-blue-600 text-white shadow-xs">
+                                                     <CreditCard size={18} />
+                                                 </div>
+                                                 <div>
+                                                     <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                                                         Dados para Transferência Bancária
+                                                     </h3>
+                                                     <p className="text-xs text-slate-500">
+                                                         Copie com 1 clique para colar diretamente no seu aplicativo ou Internet Banking
+                                                     </p>
+                                                 </div>
+                                             </div>
+                                             
+                                             <Button
+                                                 type="button"
+                                                 size="sm"
+                                                 variant="outline"
+                                                 onClick={() => handleCopyAll(bankDetails)}
+                                                 className="rounded-xl border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 text-xs font-bold gap-1.5 shadow-2xs"
+                                             >
+                                                 {copiedField === 'todos' ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
+                                                 {copiedField === 'todos' ? 'Todos Copiados!' : 'Copiar Todos os Dados'}
+                                             </Button>
+                                         </div>
+
+                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                                             {/* Campo IBAN */}
+                                             <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between shadow-2xs">
+                                                 <div>
+                                                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                                         IBAN / Conta de Destino
+                                                     </span>
+                                                     <span className="font-mono text-sm font-black text-slate-900 dark:text-slate-100 select-all block break-all">
+                                                         {bankDetails.iban || 'IBAN não identificado'}
+                                                     </span>
+                                                 </div>
+                                                 {bankDetails.iban ? (
+                                                     <Button
+                                                         type="button"
+                                                         size="sm"
+                                                         onClick={() => handleCopy(bankDetails.iban!, 'IBAN')}
+                                                         className={`mt-3 w-full rounded-xl text-xs font-bold gap-1.5 transition-all ${
+                                                             copiedField === 'IBAN' 
+                                                                 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                                                                 : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                                                         }`}
+                                                     >
+                                                         {copiedField === 'IBAN' ? <Check size={14} /> : <Copy size={14} />}
+                                                         {copiedField === 'IBAN' ? 'IBAN Copiado!' : 'Copiar IBAN'}
+                                                     </Button>
+                                                 ) : (
+                                                     <span className="text-[11px] text-slate-400 italic mt-2">Sem IBAN nas notas</span>
+                                                 )}
+                                             </div>
+
+                                             {/* Campo Favorecido / Titular */}
+                                             <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between shadow-2xs">
+                                                 <div>
+                                                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                                         Favorecido / Titular
+                                                     </span>
+                                                     <span className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate block" title={bankDetails.titular}>
+                                                         {bankDetails.titular}
+                                                     </span>
+                                                     {bankDetails.banco && (
+                                                         <span className="text-[11px] text-slate-500 block mt-1">
+                                                             Banco: <strong className="text-slate-700 dark:text-slate-300">{bankDetails.banco}</strong>
+                                                         </span>
+                                                     )}
+                                                 </div>
+                                                 <Button
+                                                     type="button"
+                                                     size="sm"
+                                                     variant="outline"
+                                                     onClick={() => handleCopy(bankDetails.titular, 'Favorecido')}
+                                                     className={`mt-3 w-full rounded-xl text-xs font-bold gap-1.5 border-slate-200 dark:border-slate-800 transition-all ${
+                                                         copiedField === 'Favorecido' 
+                                                             ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                                                             : 'hover:bg-slate-50 text-slate-700 dark:text-slate-200'
+                                                     }`}
+                                                 >
+                                                     {copiedField === 'Favorecido' ? <Check size={14} /> : <Copy size={14} />}
+                                                     {copiedField === 'Favorecido' ? 'Nome Copiado!' : 'Copiar Nome Favorecido'}
+                                                 </Button>
+                                             </div>
+
+                                             {/* Campo Valor a Transferir */}
+                                             <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between shadow-2xs">
+                                                 <div>
+                                                     <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                                                         Valor a Pagar
+                                                     </span>
+                                                     <span className="text-lg font-black text-slate-900 dark:text-slate-100 block">
+                                                         {formatCurrency(title.valor)}
+                                                     </span>
+                                                     <span className="text-[10px] text-slate-400 font-mono">
+                                                         Numérico: {Number(title.valor).toFixed(2)}
+                                                     </span>
+                                                 </div>
+                                                 <Button
+                                                     type="button"
+                                                     size="sm"
+                                                     variant="outline"
+                                                     onClick={() => handleCopy(Number(title.valor).toFixed(2).replace('.', ','), 'Valor')}
+                                                     className={`mt-3 w-full rounded-xl text-xs font-bold gap-1.5 border-slate-200 dark:border-slate-800 transition-all ${
+                                                         copiedField === 'Valor' 
+                                                             ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                                                             : 'hover:bg-slate-50 text-slate-700 dark:text-slate-200'
+                                                     }`}
+                                                 >
+                                                     {copiedField === 'Valor' ? <Check size={14} /> : <Copy size={14} />}
+                                                     {copiedField === 'Valor' ? 'Valor Copiado!' : 'Copiar Valor'}
+                                                 </Button>
+                                             </div>
+                                         </div>
+
+                                         {/* Observações Originais se houver */}
+                                         {title.observaciones && (
+                                             <div className="pt-2 text-xs border-t border-blue-100/70 dark:border-blue-900/30">
+                                                 <span className="text-slate-400 font-bold uppercase tracking-wider block mb-1">
+                                                     Observações Originais do Solicitante:
+                                                 </span>
+                                                 <p className="text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-950/70 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 font-mono text-[11px] break-all leading-relaxed">
+                                                     {title.observaciones}
+                                                 </p>
+                                             </div>
+                                         )}
+                                     </div>
+                                 </div>
+                             </Card>
 
                             {/* Card de Ocupantes Dinâmicos do Imóvel / Alojamento */}
                             {isLodgingOrder && (
@@ -610,12 +793,23 @@ export const TitleDetail = () => {
                                     {/* Ações do Aprovador (Maker-Checker) */}
                                     {canApprove && (
                                         <div className="space-y-3">
+                                            {/* Opção 1: Pagar Agora (Aprovação + Liquidação imediata) */}
+                                            <Button 
+                                                onClick={() => setIsLiquidateOpen(true)}
+                                                disabled={liquidateMutation.isPending}
+                                                className="w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/15 transition-all cursor-pointer"
+                                            >
+                                                <Wallet size={16} /> Pagar e Liquidar Agora
+                                            </Button>
+
+                                            {/* Opção 2: Apenas Aprovar (Sem pagar agora) */}
                                             <Button 
                                                 onClick={() => setIsApproveOpen(true)}
                                                 disabled={actionMutation.isPending}
-                                                className="w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/10 transition-all cursor-pointer"
+                                                variant="outline"
+                                                className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 font-bold border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
                                             >
-                                                <CheckCircle size={16} /> Aprovar Ordem
+                                                <CheckCircle size={16} /> Apenas Aprovar (Pagar Depois)
                                             </Button>
 
                                             {/* Botão Solicitar Correção / Ajuste */}
@@ -877,6 +1071,31 @@ export const TitleDetail = () => {
                                     <span className="font-mono font-bold text-blue-600">{title.cod_orden_pago || 'OP'}</span>
                                 </div>
                             </div>
+
+                            {bankDetails.iban && (
+                                <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-900/60 text-xs flex items-center justify-between gap-3 shadow-2xs">
+                                    <div className="min-w-0">
+                                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider block">
+                                            Conta de Destino / Favorecido
+                                        </span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-100 truncate block">
+                                            {bankDetails.titular} {bankDetails.banco ? `• ${bankDetails.banco}` : ''}
+                                        </span>
+                                        <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300 block select-all">
+                                            {bankDetails.iban}
+                                        </span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleCopy(bankDetails.iban!, 'IBAN')}
+                                        className="flex-shrink-0 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100/60 rounded-xl text-xs gap-1.5 font-bold"
+                                    >
+                                        <Copy size={13} /> Copiar IBAN
+                                    </Button>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div className="space-y-1.5">

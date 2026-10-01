@@ -512,12 +512,22 @@ export const Titulos = () => {
                                 const isExpanded = expandedRowId === item.id;
 
                                 // Extrair dados bancários se presentes nas observações
-                                const ibanMatch = item.observaciones?.match(/IBAN:\s*([A-Z0-9\s]+)/i);
-                                const extractedIban = ibanMatch ? ibanMatch[1].trim() : null;
-                                const bancoMatch = item.observaciones?.match(/Banco:\s*([^\n\r]+)/i);
+                                const textObs = item.observaciones || '';
+                                const ibanMatch = textObs.match(/(?:IBAN:?\s*)?([A-Z]{2}[0-9]{2}(?:[\s\-]?[0-9]{4}){4,6}(?:[\s\-]?[0-9]{1,4})?)/i);
+                                const extractedIban = ibanMatch ? ibanMatch[1].replace(/[\t\r\n]+/g, ' ').trim() : null;
+                                const bancoMatch = textObs.match(/(?:BANCO:?\s*|BANCO\s+)([A-Z0-9\s\.\-]{2,30}?)(?=\s+IBAN|\s+TITULAR|\n|$)/i);
                                 const extractedBanco = bancoMatch ? bancoMatch[1].trim() : null;
-                                const titularMatch = item.observaciones?.match(/Titular:\s*([^\n\r]+)/i);
-                                const extractedTitular = titularMatch ? titularMatch[1].trim() : null;
+                                const titularMatch = textObs.match(/(?:TITULAR:?\s*)([^\n\r]+)/i);
+                                let extractedTitular = titularMatch ? titularMatch[1].trim() : null;
+                                if (!extractedTitular) {
+                                    if (supplierName && supplierName !== 'Não informado') {
+                                        extractedTitular = supplierName;
+                                    } else if (item.departamento_origem && !['Logística', 'Financeiro', 'Geral'].includes(item.departamento_origem)) {
+                                        extractedTitular = item.departamento_origem;
+                                    } else {
+                                        extractedTitular = item.descricao;
+                                    }
+                                }
 
                                 return (
                                     <React.Fragment key={item.id}>
@@ -691,16 +701,46 @@ export const Titulos = () => {
                                                             {/* Card Dados de Pagamento / IBAN */}
                                                             <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
                                                                 <div>
-                                                                    <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 mb-2">
-                                                                        <CreditCard size={15} className="text-blue-600" />
-                                                                        <span>Dados para Transferência</span>
+                                                                    <div className="flex items-center justify-between gap-2 font-bold text-slate-700 dark:text-slate-200 mb-2">
+                                                                        <div className="flex items-center gap-1.5">
+                                                                            <CreditCard size={15} className="text-blue-600" />
+                                                                            <span>Dados para Transferência</span>
+                                                                        </div>
+                                                                        <Button
+                                                                            type="button"
+                                                                            size="sm"
+                                                                            variant="ghost"
+                                                                            className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded-lg gap-1"
+                                                                            onClick={() => {
+                                                                                const summary = [
+                                                                                    `Favorecido: ${extractedTitular || supplierName}`,
+                                                                                    extractedIban ? `IBAN: ${extractedIban}` : null,
+                                                                                    extractedBanco ? `Banco: ${extractedBanco}` : null,
+                                                                                    `Valor: ${formatCurrency(item.valor)}`,
+                                                                                    `Referência: ${item.cod_orden_pago || item.descricao}`
+                                                                                ].filter(Boolean).join('\n');
+                                                                                copyToClipboard(summary, 'Dados completos');
+                                                                            }}
+                                                                            title="Copiar resumo completo"
+                                                                        >
+                                                                            <Copy size={11} /> Copiar Todos
+                                                                        </Button>
                                                                     </div>
                                                                     {extractedIban ? (
-                                                                        <div className="space-y-1.5 mt-1">
+                                                                        <div className="space-y-2 mt-1">
                                                                             {extractedTitular && (
-                                                                                <p className="text-slate-600 dark:text-slate-400">
-                                                                                    <span className="text-slate-400">Titular:</span> <strong className="text-slate-800 dark:text-slate-200">{extractedTitular}</strong>
-                                                                                </p>
+                                                                                <div className="flex items-center justify-between gap-1 text-slate-600 dark:text-slate-400">
+                                                                                    <span className="truncate max-w-[150px]">
+                                                                                        <span className="text-slate-400">Titular:</span> <strong className="text-slate-800 dark:text-slate-200">{extractedTitular}</strong>
+                                                                                    </span>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => copyToClipboard(extractedTitular!, 'Nome do Favorecido')}
+                                                                                        className="text-[10px] font-semibold text-blue-600 hover:underline inline-flex items-center gap-0.5 flex-shrink-0"
+                                                                                    >
+                                                                                        <Copy size={10} /> Copiar
+                                                                                    </button>
+                                                                                </div>
                                                                             )}
                                                                             {extractedBanco && (
                                                                                 <p className="text-slate-600 dark:text-slate-400">
@@ -708,28 +748,52 @@ export const Titulos = () => {
                                                                                 </p>
                                                                             )}
                                                                             <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700">
-                                                                                <span className="font-mono font-bold text-slate-800 dark:text-slate-100 select-all truncate">
+                                                                                <span className="font-mono font-bold text-slate-800 dark:text-slate-100 select-all truncate text-[11px]">
                                                                                     {extractedIban}
                                                                                 </span>
                                                                                 <Button
                                                                                     type="button"
-                                                                                    size="icon"
+                                                                                    size="sm"
                                                                                     variant="ghost"
-                                                                                    className="h-6 w-6 text-slate-400 hover:text-blue-600 rounded-md"
+                                                                                    className="h-6 px-2 text-[10px] font-bold text-blue-600 hover:bg-blue-100/60 rounded-md gap-1 flex-shrink-0"
                                                                                     onClick={() => copyToClipboard(extractedIban, 'IBAN')}
                                                                                     title="Copiar IBAN"
                                                                                 >
-                                                                                    <Copy size={12} />
+                                                                                    <Copy size={11} /> Copiar
                                                                                 </Button>
                                                                             </div>
                                                                         </div>
                                                                     ) : (
-                                                                        <p className="text-slate-400 italic">Fornecedor: {supplierName}</p>
+                                                                        <div className="space-y-1 mt-1">
+                                                                            <div className="flex items-center justify-between gap-1">
+                                                                                <span className="text-slate-700 dark:text-slate-300 font-semibold truncate">
+                                                                                    {supplierName}
+                                                                                </span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => copyToClipboard(supplierName, 'Nome do Fornecedor')}
+                                                                                    className="text-[10px] font-semibold text-blue-600 hover:underline inline-flex items-center gap-0.5"
+                                                                                >
+                                                                                    <Copy size={10} /> Copiar
+                                                                                </button>
+                                                                            </div>
+                                                                            <span className="text-slate-400 italic text-[11px] block">IBAN não detectado nas observações</span>
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                                 <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[11px]">
                                                                     <span className="text-slate-400">Valor Total:</span>
-                                                                    <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</span>
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</span>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => copyToClipboard(Number(item.valor).toFixed(2).replace('.', ','), 'Valor')}
+                                                                            className="text-[10px] font-semibold text-slate-400 hover:text-blue-600 p-1"
+                                                                            title="Copiar valor"
+                                                                        >
+                                                                            <Copy size={11} />
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             </div>
 
@@ -816,13 +880,25 @@ export const Titulos = () => {
                                                                             size="sm"
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
+                                                                                navigate(`/financeiro/titulos/${item.id}`);
+                                                                            }}
+                                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold gap-1.5 shadow-xs"
+                                                                        >
+                                                                            <CreditCard size={14} />
+                                                                            Pagar Agora
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
                                                                                 handleQuickAprovar(item.id);
                                                                             }}
                                                                             disabled={isQuickActionLoading}
-                                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold gap-1.5 shadow-xs"
+                                                                            className="border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl text-xs font-semibold gap-1.5"
                                                                         >
                                                                             <CheckCircle2 size={14} />
-                                                                            Aprovar Ordem
+                                                                            Apenas Aprovar
                                                                         </Button>
                                                                     </>
                                                                 )}
