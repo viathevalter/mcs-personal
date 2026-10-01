@@ -9,7 +9,8 @@ import {
   CreditCard,
   Calendar,
   FileCheck,
-  Download
+  Download,
+  Users
 } from 'lucide-react';
 import type { PagoAlojamento } from '../services/financeLogisticsService';
 
@@ -170,6 +171,55 @@ export const ReciboPagoModal: React.FC<ReciboPagoModalProps> = ({ op, onClose })
               </div>
             </div>
           </div>
+
+          {/* Personal Alojado / Ocupantes Dinámicos */}
+          {op.ocupantes && op.ocupantes.length > 0 && (
+            <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                  <Users size={14} className="text-blue-500" />
+                  Personal Alojado en el Inmueble ({op.ocupantes.length} personas)
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  Sincronizado en tiempo real
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[11px] text-left">
+                  <thead>
+                    <tr className="text-slate-400 font-bold border-b border-slate-100 dark:border-slate-800 text-[10px]">
+                      <th className="py-1">Colaborador</th>
+                      <th className="py-1">Código</th>
+                      <th className="py-1">Cliente / Obra</th>
+                      <th className="py-1">Cama / Habitación</th>
+                      <th className="py-1 text-right">Desde</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {op.ocupantes.map((oc, i) => (
+                      <tr key={oc.worker_id || i}>
+                        <td className="py-1.5 font-semibold text-slate-800 dark:text-slate-200">
+                          {oc.worker_nome}
+                        </td>
+                        <td className="py-1.5 font-mono text-slate-500">
+                          {oc.codigo_colab || 'S/C'}
+                        </td>
+                        <td className="py-1.5 text-slate-600 dark:text-slate-400">
+                          {oc.cliente_nome || '-'} / {oc.obra_nome || '-'}
+                        </td>
+                        <td className="py-1.5 text-slate-600 dark:text-slate-400">
+                          {oc.cama_identificador || 'Cama Estándar'}
+                        </td>
+                        <td className="py-1.5 text-right font-mono text-slate-500">
+                          {oc.data_inicio ? oc.data_inicio.split('T')[0] : '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Observações */}
           {op.observacoes && (

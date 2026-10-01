@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { formatCurrency, formatDate, formatCompactCurrency } from '../lib/utils';
-import { Search, ChevronLeft, ChevronRight, Filter, Eye, CheckSquare, Square, Plus, Trash2, X, PlusCircle } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Filter, Eye, CheckSquare, Square, Plus, Trash2, X, PlusCircle, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { createOrdemPagamento } from '../data/loader';
+import { logisticsService } from '@/features/logistica/services/logisticsService';
 import { toast } from 'sonner';
 
 const ALL_STATUSES = ['rascunho', 'aguardando_aprovacao', 'aprovado', 'pago', 'rejeitado', 'cancelado'];
@@ -116,6 +117,13 @@ export const Titulos = () => {
             if (error) throw error;
             return ordensData || [];
         }
+    });
+
+    // Fetch alocações ativas para sincronizar ocupantes dinâmicos
+    const { data: alocacoes = [] } = useQuery({
+        queryKey: ['alocacoes_ativas'],
+        queryFn: () => logisticsService.fetchAlocacoesAtivas(),
+        staleTime: 1000 * 60 * 2
     });
 
     const toggleStatus = (status: string) => {
@@ -390,6 +398,25 @@ export const Titulos = () => {
                                 </TableRow>
                             ) : paginatedData.length > 0 ? paginatedData.map((item) => {
                                 const supplierName = suppliers?.find(s => s.codigo === item.cod_provedor || s.id === item.fornecedor_id)?.trade_name || item.cod_provedor || 'Não informado';
+                                const isLodging = Boolean(
+                                    item.departamento_origem?.toLowerCase().includes('log') ||
+                                    item.cod_alojamiento ||
+                                    item.descricao?.toLowerCase().includes('aluguel') ||
+                                    item.descricao?.toLowerCase().includes('alquiler') ||
+                                    item.descricao?.toLowerCase().includes('alojamiento')
+                                );
+                                const matchingOccupants = isLodging
+                                    ? alocacoes.filter(a =>
+                                        a.status !== 'Checkout' &&
+                                        (
+                                            (item.cod_alojamiento && (a.alojamento_codigo === item.cod_alojamiento || a.alojamento_id === item.cod_alojamiento)) ||
+                                            (a.alojamento_nome && (
+                                                item.descricao?.toLowerCase().includes(a.alojamento_nome.toLowerCase()) ||
+                                                a.alojamento_nome.toLowerCase().includes(item.descricao?.toLowerCase())
+                                            ))
+                                        )
+                                      )
+                                    : [];
                                 return (
                                     <TableRow key={item.id} className="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/30">
                                         <TableCell className="px-6">
@@ -417,11 +444,21 @@ export const Titulos = () => {
                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
                                             <div>
                                                 <span>{item.descricao}</span>
-                                                {item.cod_alojamiento && (
-                                                    <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
-                                                        Inmueble: {item.cod_alojamiento}
-                                                    </span>
-                                                )}
+                                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                    {item.cod_alojamiento && (
+                                                        <span className="text-[10px] font-mono text-slate-400">
+                                                            Inmueble: {item.cod_alojamiento}
+                                                        </span>
+                                                    )}
+                                                    {matchingOccupants.length > 0 && (
+                                                        <span
+                                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
+                                                            title={matchingOccupants.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
+                                                        >
+                                                            <Users size={10} /> {matchingOccupants.length} ocupante(s)
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-slate-600 dark:text-slate-400">{supplierName}</TableCell>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
-import { ChevronLeft, Calendar, DollarSign, FileText, CheckCircle, XCircle, AlertCircle, RefreshCw, Send, ArrowRight, Link2 } from 'lucide-react';
+import { ChevronLeft, Calendar, DollarSign, FileText, CheckCircle, XCircle, AlertCircle, RefreshCw, Send, ArrowRight, Link2, Users, Bed, Home, UserCheck } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { fetchOrdemPagamentoDetails, updateOrdemPagamentoStatus } from '../data/loader';
+import { financeLogisticsService, type OcupanteInfo } from '@/features/logistica/services/financeLogisticsService';
 import { toast } from 'sonner';
 import * as Tooltip from '@radix-ui/react-tooltip';
 
@@ -56,6 +57,24 @@ export const TitleDetail = () => {
             return fetchOrdemPagamentoDetails(id);
         },
         enabled: !!id
+    });
+
+    const isLodgingOrder = Boolean(
+        title?.departamento_origem?.toLowerCase().includes('log') ||
+        title?.cod_alojamiento ||
+        title?.descricao?.toLowerCase().includes('aluguel') ||
+        title?.descricao?.toLowerCase().includes('alquiler') ||
+        title?.descricao?.toLowerCase().includes('alojamiento')
+    );
+
+    const { data: ocupantes = [], isLoading: isLoadingOcupantes } = useQuery({
+        queryKey: ['ocupantes_alojamento_ordem', title?.cod_alojamiento, title?.descricao, title?.observaciones],
+        queryFn: () => financeLogisticsService.fetchOcupantesAlojamento(
+            title?.cod_alojamiento || undefined,
+            title?.descricao,
+            title?.observaciones
+        ),
+        enabled: !!title && isLodgingOrder
     });
 
     const actionMutation = useMutation({
@@ -140,6 +159,100 @@ export const TitleDetail = () => {
                                     </div>
                                 </div>
                             </Card>
+
+                            {/* Card de Ocupantes Dinâmicos do Imóvel / Alojamento */}
+                            {isLodgingOrder && (
+                                <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 overflow-hidden">
+                                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-4 px-6 flex flex-row items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
+                                                <Users size={20} />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-sm font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
+                                                    Pessoas Alojadas no Imóvel
+                                                    <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                                                        {isLoadingOcupantes ? 'Carregando...' : `${ocupantes.length} ocupante(s)`}
+                                                    </Badge>
+                                                </CardTitle>
+                                                <p className="text-xs text-slate-400 mt-0.5">
+                                                    Ocupação dinâmica em tempo real vinculada ao imóvel / alocações ativas da logística
+                                                </p>
+                                            </div>
+                                        </div>
+                                        {title?.cod_alojamiento && (
+                                            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700">
+                                                <Home size={14} className="text-slate-400" />
+                                                <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                                                    {title.cod_alojamiento}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </CardHeader>
+                                    <CardContent className="p-0 overflow-auto">
+                                        {isLoadingOcupantes ? (
+                                            <div className="py-8 text-center text-slate-400 text-sm flex items-center justify-center gap-2">
+                                                <RefreshCw className="animate-spin text-blue-600" size={16} /> Carregando ocupantes do imóvel...
+                                            </div>
+                                        ) : ocupantes.length > 0 ? (
+                                            <Table>
+                                                <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+                                                    <TableRow>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider px-6">Colaborador</TableHead>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Código</TableHead>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Cliente / Centro de Custo</TableHead>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Obra</TableHead>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Acomodação / Cama</TableHead>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Entrada</TableHead>
+                                                        <TableHead className="text-center text-slate-500 font-bold text-xs uppercase tracking-wider">Status</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {ocupantes.map((oc: OcupanteInfo, idx: number) => (
+                                                        <TableRow key={oc.worker_id || idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/30">
+                                                            <TableCell className="px-6 font-bold text-slate-800 dark:text-slate-200">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-xs font-black">
+                                                                        {oc.worker_nome?.charAt(0) || 'W'}
+                                                                    </div>
+                                                                    <span>{oc.worker_nome}</span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="font-mono text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                                                {oc.codigo_colab || 'S/C'}
+                                                            </TableCell>
+                                                            <TableCell className="text-sm text-slate-700 dark:text-slate-300">
+                                                                {oc.cliente_nome || 'N/A'}
+                                                            </TableCell>
+                                                            <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                                                                {oc.obra_nome || 'Principal'}
+                                                            </TableCell>
+                                                            <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Bed size={14} className="text-slate-400" />
+                                                                    <span>{oc.cama_identificador || 'Acomodação Padrão'}</span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="text-sm text-slate-600 dark:text-slate-400">
+                                                                {formatDate(oc.data_inicio)}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <Badge variant="outline" className="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200">
+                                                                    {oc.status || 'Ativo'}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        ) : (
+                                            <div className="py-8 text-center text-slate-400 text-sm">
+                                                Nenhum colaborador alocado neste imóvel no momento.
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            )}
 
                             {/* Card de Itens */}
                             <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 overflow-hidden">

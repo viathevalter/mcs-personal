@@ -558,36 +558,50 @@ export const logisticsService = {
         if (a.id) importedMap.set(a.id, a);
       });
 
-      // Buscar no banco core_personal.workers TODOS os colaboradores para enriquecimento com status_trabajador e status_seguridad em tempo real
+      // Buscar em paralelo no banco core_personal.workers e core_logistics.alojamentos
       const allWorkerIds = Array.from(new Set(
         dbAlocs
           .map((r: any) => r.worker_id)
           .filter((wId: string) => isUuid(wId))
       ));
 
+      const [workersRes, alojamentosRes] = await Promise.all([
+        allWorkerIds.length > 0
+          ? supabase
+              .schema('core_personal')
+              .from('workers')
+              .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad')
+              .in('id', allWorkerIds)
+          : Promise.resolve({ data: [] }),
+        supabase
+          .schema('core_logistics')
+          .from('alojamentos')
+          .select('id, codigo, nome')
+      ]);
+
       const dbWorkersMap = new Map<string, any>();
-      if (allWorkerIds.length > 0) {
-        try {
-          const { data: workersData } = await supabase
-            .schema('core_personal')
-            .from('workers')
-            .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad')
-            .in('id', allWorkerIds);
-          if (workersData) {
-            workersData.forEach((w: any) => dbWorkersMap.set(w.id, w));
-          }
-        } catch (e) {
-          console.warn('Erro ao enriquecer trabalhadores de alocações:', e);
-        }
+      if (workersRes.data) {
+        workersRes.data.forEach((w: any) => dbWorkersMap.set(w.id, w));
+      }
+
+      const dbAlojMap = new Map<string, any>();
+      if (alojamentosRes.data) {
+        alojamentosRes.data.forEach((al: any) => {
+          dbAlojMap.set(al.id, al);
+          if (al.codigo) dbAlojMap.set(al.codigo, al);
+        });
       }
 
       // Formatar cada linha do banco em Alocacao unificada
       const merged: Alocacao[] = dbAlocs.map((row: any) => {
         const base = importedMap.get(row.worker_id) || importedMap.get(row.id) || {};
         const workerInfo = dbWorkersMap.get(row.worker_id) || {};
+        const alojInfo = dbAlojMap.get(row.alojamento_id) || {};
 
         const workerNome = base.worker_nome || workerInfo.nome || row.observacoes || 'Trabalhador';
         const codColab = base.codigo_colab || workerInfo.cod_colab || 'E-XXXX';
+        const alojCodigo = alojInfo.codigo || base.alojamento_codigo;
+        const alojNome = alojInfo.nome || base.alojamento_nome || row.cliente_obra_nome || 'Alojamiento';
 
         let statusNormalized: any = row.status || base.status || 'En Curso';
         if (String(statusNormalized).toLowerCase() === 'checkout') {
@@ -603,8 +617,8 @@ export const logisticsService = {
           cama_id: row.cama_id || base.cama_id || `cama-${row.id}`,
           cama_identificador: base.cama_identificador || (row.cama_id ? 'Cama Alojamiento' : 'Habitación'),
           alojamento_id: row.alojamento_id || base.alojamento_id,
-          alojamento_codigo: base.alojamento_codigo,
-          alojamento_nome: base.alojamento_nome || row.cliente_obra_nome || 'Alojamiento',
+          alojamento_codigo: alojCodigo,
+          alojamento_nome: alojNome,
           worker_id: row.worker_id || base.worker_id,
           worker_nome: workerNome,
           codigo_colab: codColab,

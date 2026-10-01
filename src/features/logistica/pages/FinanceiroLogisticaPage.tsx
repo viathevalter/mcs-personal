@@ -29,7 +29,8 @@ import {
   Ban,
   FileCheck,
   ExternalLink,
-  Filter
+  Filter,
+  Users
 } from 'lucide-react';
 import { financeLogisticsService } from '../services/financeLogisticsService';
 import type { PagoAlojamento } from '../services/financeLogisticsService';
@@ -693,9 +694,19 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                           <span className="font-bold text-slate-800 dark:text-slate-200 block">
                             {op.alojamento_nome}
                           </span>
-                          <span className="font-mono text-[10px] text-slate-400">
-                            {op.alojamento_codigo || '-'} {op.contrato_id ? `• ${op.contrato_id}` : ''}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className="font-mono text-[10px] text-slate-400">
+                              {op.alojamento_codigo || '-'} {op.contrato_id ? `• ${op.contrato_id}` : ''}
+                            </span>
+                            {op.ocupantes && op.ocupantes.length > 0 && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
+                                title={op.ocupantes.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
+                              >
+                                <Users size={10} /> {op.ocupantes.length} ocupante(s)
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>

@@ -1,4 +1,16 @@
 import { supabase } from '@/shared/supabase/client';
+import { logisticsService } from './logisticsService';
+
+export interface OcupanteInfo {
+  worker_id: string;
+  worker_nome: string;
+  codigo_colab?: string;
+  cliente_nome?: string;
+  obra_nome?: string;
+  cama_identificador?: string;
+  data_inicio?: string;
+  status?: string;
+}
 
 export interface PagoAlojamento {
   id: string;
@@ -28,6 +40,7 @@ export interface PagoAlojamento {
   comprovante_url?: string;
   pago_por?: string;
   forma_pagamento?: string;
+  ocupantes?: OcupanteInfo[];
 }
 
 const DEFAULT_USER_FALLBACK = 'e39b47da-0aa3-464e-a901-8e22ac2ca2a6';
@@ -99,19 +112,26 @@ export const financeLogisticsService = {
   // 1. Busca todas as Ordens de Pagamento vinculadas à Logística diretamente do banco
   async fetchPagos(): Promise<PagoAlojamento[]> {
     try {
-      const { data: ordens, error } = await supabase
-        .schema('core_finance')
-        .from('ordens_pagamento')
-        .select('*')
-        .or('departamento_origem.eq.Logística,departamento_origem.eq.Logistica,cod_alojamiento.not.is.null')
-        .order('created_at', { ascending: false });
+      const [ordensRes, alocsAtivas] = await Promise.all([
+        supabase
+          .schema('core_finance')
+          .from('ordens_pagamento')
+          .select('*')
+          .or('departamento_origem.eq.Logística,departamento_origem.eq.Logistica,cod_alojamiento.not.is.null')
+          .order('created_at', { ascending: false }),
+        logisticsService.fetchAlocacoesAtivas().catch(e => {
+          console.warn('Erro ao carregar alocações ativas:', e);
+          return [];
+        })
+      ]);
 
-      if (error) {
-        console.error('Erro ao buscar ordens de pagamento no Supabase:', error);
-        throw error;
+      const ordens = ordensRes.data || [];
+      if (ordensRes.error) {
+        console.error('Erro ao buscar ordens de pagamento no Supabase:', ordensRes.error);
+        throw ordensRes.error;
       }
 
-      if (!ordens || ordens.length === 0) {
+      if (ordens.length === 0) {
         return [];
       }
 
@@ -160,6 +180,30 @@ export const financeLogisticsService = {
           if (compMatch) comp = compMatch[1];
         }
 
+        // Mapeamento dinâmico dos ocupantes que estão alojados neste imóvel
+        const ocupantesImovel: OcupanteInfo[] = alocsAtivas
+          .filter((a: any) =>
+            a.status !== 'Checkout' &&
+            (
+              (op.cod_alojamiento && (a.alojamento_codigo === op.cod_alojamiento || a.alojamento_id === op.cod_alojamiento)) ||
+              (op.cod_contrato && (a.pedido_codigo === op.cod_contrato || a.solicitud_id === op.cod_contrato)) ||
+              (a.alojamento_nome && (
+                (op.descricao && op.descricao.toLowerCase().includes(a.alojamento_nome.toLowerCase())) ||
+                (meta.alojamento_nome && meta.alojamento_nome.toLowerCase().includes(a.alojamento_nome.toLowerCase()))
+              ))
+            )
+          )
+          .map((a: any) => ({
+            worker_id: a.worker_id,
+            worker_nome: a.worker_nome,
+            codigo_colab: a.codigo_colab,
+            cliente_nome: a.cliente_nome,
+            obra_nome: a.obra_nome,
+            cama_identificador: a.cama_identificador,
+            data_inicio: a.data_inicio,
+            status: a.status
+          }));
+
         return {
           id: op.id,
           codigo_pago: op.cod_orden_pago || `OP-${op.id.substring(0, 8)}`,
@@ -186,7 +230,8 @@ export const financeLogisticsService = {
           anexo_fatura_url: op.anexos || undefined,
           comprovante_url: op.comprovante_geral || cp?.anexo_url || undefined,
           pago_por: op.pago_por || undefined,
-          forma_pagamento: cp?.obs_pagamento || undefined
+          forma_pagamento: cp?.obs_pagamento || undefined,
+          ocupantes: ocupantesImovel
         };
       });
     } catch (err) {
@@ -195,7 +240,65 @@ export const financeLogisticsService = {
     }
   },
 
-  // 2. Geração Individual de Ordem de Pagamento (NASCENDO COMO RASCUNHO)
+  // 2. Busca dinâmica de ocupantes para qualquer ordem de pagamento ou alojamento
+  async fetchOcupantesAlojamento(alojamentoCodigoOrId?: string, alojamentoNome?: string, observacoes?: string): Promise<OcupanteInfo[]> {
+    if (!alojamentoCodigoOrId && !alojamentoNome && !observacoes) return [];
+    try {
+      const alocs = await logisticsService.fetchAlocacoesAtivas();
+
+      // Extrair Alojamiento das observações se houver metadados gravados
+      let parsedAlojamentoNome = '';
+      if (observacoes) {
+        const match = observacoes.match(/Alojamiento:\s*([^\n\r]+)/i);
+        if (match) parsedAlojamentoNome = match[1].trim();
+      }
+
+      // Limpar prefixos e sufixos de competência do nome do imóvel
+      const cleanTargetNome = (alojamentoNome || '')
+        .replace(/^(Alquiler|Aluguel|Fianza|Suministro)\s*-\s*/i, '')
+        .replace(/\s*\(\d{2}\/\d{4}\)$/, '')
+        .trim();
+
+      const filtered = alocs.filter(a =>
+        a.status !== 'Checkout' &&
+        (
+          (alojamentoCodigoOrId && (
+            a.alojamento_codigo === alojamentoCodigoOrId ||
+            a.alojamento_id === alojamentoCodigoOrId ||
+            (a.cama_id && a.cama_id.includes(alojamentoCodigoOrId))
+          )) ||
+          (cleanTargetNome && cleanTargetNome.length > 3 && a.alojamento_nome && (
+            a.alojamento_nome.toLowerCase().includes(cleanTargetNome.toLowerCase()) ||
+            cleanTargetNome.toLowerCase().includes(a.alojamento_nome.toLowerCase())
+          )) ||
+          (parsedAlojamentoNome && parsedAlojamentoNome.length > 3 && a.alojamento_nome && (
+            a.alojamento_nome.toLowerCase().includes(parsedAlojamentoNome.toLowerCase()) ||
+            parsedAlojamentoNome.toLowerCase().includes(a.alojamento_nome.toLowerCase())
+          )) ||
+          (alojamentoNome && alojamentoNome.length > 3 && a.alojamento_nome && (
+            a.alojamento_nome.toLowerCase().includes(alojamentoNome.toLowerCase()) ||
+            alojamentoNome.toLowerCase().includes(a.alojamento_nome.toLowerCase())
+          ))
+        )
+      );
+
+      return filtered.map(a => ({
+        worker_id: a.worker_id,
+        worker_nome: a.worker_nome,
+        codigo_colab: a.codigo_colab,
+        cliente_nome: a.cliente_nome,
+        obra_nome: a.obra_nome,
+        cama_identificador: a.cama_identificador,
+        data_inicio: a.data_inicio,
+        status: a.status
+      }));
+    } catch (e) {
+      console.warn('Erro ao buscar ocupantes dinâmicos:', e);
+      return [];
+    }
+  },
+
+  // 3. Geração Individual de Ordem de Pagamento (levando dados de ocupantes)
   async gerarOrdemPagamento(payload: {
     contrato_id?: string;
     alojamento_id?: string;
@@ -217,12 +320,17 @@ export const financeLogisticsService = {
     const { id: userId, email: userEmail } = await getCurrentUserId();
     const codOrdenPago = await getNextCodOrdenPago(0);
 
+    // Buscar ocupantes ativos atuais do imóvel
+    const ocupantes = await this.fetchOcupantesAlojamento(payload.alojamento_codigo || payload.alojamento_id, payload.alojamento_nome);
+    const ocupantesNomes = ocupantes.map(o => `${o.worker_nome}${o.codigo_colab ? ` [${o.codigo_colab}]` : ''}`).join(', ');
+
     const compStr = payload.periodo_competencia ? ` (${payload.periodo_competencia})` : '';
     const descricao = `${payload.tipo_pago} - ${payload.alojamento_nome || 'Alojamiento'}${compStr}`;
     const centroCustos = `${payload.centro_custo_cliente || 'Centro de Coste General'} / ${payload.centro_custo_obra || 'Obra Principal'}`;
 
     const obsCompletas = [
       `Alojamiento: ${payload.alojamento_nome || ''}`,
+      ocupantes.length > 0 ? `Personas Alojadas (${ocupantes.length}): ${ocupantesNomes}` : null,
       payload.iban_cobranca ? `IBAN: ${payload.iban_cobranca}` : null,
       payload.banco ? `Banco: ${payload.banco}` : null,
       payload.titular ? `Titular: ${payload.titular}` : null,
@@ -249,7 +357,7 @@ export const financeLogisticsService = {
         tipo_orden: payload.tipo_pago,
         centro_custos: centroCustos,
         observaciones: obsCompletas,
-        qtde_itens: 1
+        qtde_itens: ocupantes.length > 0 ? ocupantes.length : 1
       }])
       .select()
       .single();
@@ -259,29 +367,54 @@ export const financeLogisticsService = {
       throw new Error(`Falha ao gerar Ordem de Pagamento: ${insertErr.message}`);
     }
 
-    // Inserir Item em core_finance.ordens_pagamento_itens
+    // Inserir Itens detalhados por ocupante ou item geral
     try {
-      await supabase
-        .schema('core_finance')
-        .from('ordens_pagamento_itens')
-        .insert([{
-          ordem_pagamento_id: newOrdem.id,
-          cod_orden_pago: codOrdenPago,
-          cod_orden_pago_item: `${codOrdenPago}-IT-001`,
-          cod_contrato: payload.contrato_id || null,
-          cod_provedor: payload.provedor_nome || null,
-          cod_alojamiento: payload.alojamento_codigo || null,
-          categoria_orden: payload.tipo_pago,
-          valor_orden: payload.valor,
-          vencimento_orden: payload.data_vencimento,
-          centro_custo: centroCustos,
-          status_item: 'Rascunho'
-        }]);
+      if (ocupantes.length > 0) {
+        const valorPorOcupante = Number((payload.valor / ocupantes.length).toFixed(2));
+        for (let i = 0; i < ocupantes.length; i++) {
+          const oc = ocupantes[i];
+          await supabase
+            .schema('core_finance')
+            .from('ordens_pagamento_itens')
+            .insert([{
+              ordem_pagamento_id: newOrdem.id,
+              cod_orden_pago: codOrdenPago,
+              cod_orden_pago_item: `${codOrdenPago}-IT-${String(i + 1).padStart(3, '0')}`,
+              cod_contrato: payload.contrato_id || null,
+              cod_provedor: payload.provedor_nome || null,
+              cod_alojamiento: payload.alojamento_codigo || null,
+              cod_colab: oc.codigo_colab || null,
+              observacion_item: `Alojado: ${oc.worker_nome} - Cliente: ${oc.cliente_nome || 'General'}`,
+              categoria_orden: payload.tipo_pago,
+              valor_orden: valorPorOcupante,
+              vencimento_orden: payload.data_vencimento,
+              centro_custo: `${oc.cliente_nome || payload.centro_custo_cliente || ''} / ${oc.obra_nome || payload.centro_custo_obra || ''}`,
+              status_item: 'Rascunho'
+            }]);
+        }
+      } else {
+        await supabase
+          .schema('core_finance')
+          .from('ordens_pagamento_itens')
+          .insert([{
+            ordem_pagamento_id: newOrdem.id,
+            cod_orden_pago: codOrdenPago,
+            cod_orden_pago_item: `${codOrdenPago}-IT-001`,
+            cod_contrato: payload.contrato_id || null,
+            cod_provedor: payload.provedor_nome || null,
+            cod_alojamiento: payload.alojamento_codigo || null,
+            categoria_orden: payload.tipo_pago,
+            valor_orden: payload.valor,
+            vencimento_orden: payload.data_vencimento,
+            centro_custo: centroCustos,
+            status_item: 'Rascunho'
+          }]);
+      }
     } catch (itemErr) {
-      console.warn('Erro não-bloqueante ao registrar item da OP:', itemErr);
+      console.warn('Erro não-bloqueante ao registrar itens da OP:', itemErr);
     }
 
-    // Registrar histórico inicial em core_finance.movimentos_pagos
+    // Registrar log
     try {
       await supabase
         .schema('core_finance')
@@ -292,12 +425,10 @@ export const financeLogisticsService = {
           tipo_mov: 'Orden Generada',
           estado_mov: 'Rascunho',
           valor_pago: payload.valor,
-          observaciones: `Orden de Pago generada en Logística como Rascunho por ${userEmail}`,
+          observaciones: `Orden de Pago generada en Logística con ${ocupantes.length} ocupantes por ${userEmail}`,
           criado_por: userEmail
         }]);
-    } catch (movErr) {
-      console.warn('Erro não-bloqueante ao registrar log de movimento:', movErr);
-    }
+    } catch (movErr) {}
 
     return {
       id: newOrdem.id,
@@ -320,11 +451,12 @@ export const financeLogisticsService = {
       data_vencimento: payload.data_vencimento,
       valor_previsto: payload.valor,
       moeda: 'EUR',
-      observacoes: obsCompletas
+      observacoes: obsCompletas,
+      ocupantes
     };
   },
 
-  // 3. Geração em Lote a partir dos Contratos Selecionados (NASCENDO COMO RASCUNHO)
+  // 4. Geração em Lote a partir dos Contratos Selecionados (levando dados de ocupantes)
   async gerarOrdensPagamentoEmLote(
     payloads: Array<{
       contrato_id?: string;
@@ -348,9 +480,35 @@ export const financeLogisticsService = {
     const { id: userId, email: userEmail } = await getCurrentUserId();
     const createdList: PagoAlojamento[] = [];
 
+    // Carregar todas as alocações de uma só vez para velocidade no lote
+    const allAlocs = await logisticsService.fetchAlocacoesAtivas().catch(() => []);
+
     for (let i = 0; i < payloads.length; i++) {
       const payload = payloads[i];
       const codOrdenPago = await getNextCodOrdenPago(i);
+
+      // Filtrar ocupantes deste imóvel
+      const ocupantes: OcupanteInfo[] = allAlocs
+        .filter((a: any) =>
+          a.status !== 'Checkout' &&
+          (
+            (payload.alojamento_codigo && (a.alojamento_codigo === payload.alojamento_codigo || a.alojamento_id === payload.alojamento_codigo)) ||
+            (payload.contrato_id && a.pedido_codigo === payload.contrato_id) ||
+            (a.alojamento_nome && payload.alojamento_nome && a.alojamento_nome.toLowerCase().includes(payload.alojamento_nome.toLowerCase()))
+          )
+        )
+        .map((a: any) => ({
+          worker_id: a.worker_id,
+          worker_nome: a.worker_nome,
+          codigo_colab: a.codigo_colab,
+          cliente_nome: a.cliente_nome,
+          obra_nome: a.obra_nome,
+          cama_identificador: a.cama_identificador,
+          data_inicio: a.data_inicio,
+          status: a.status
+        }));
+
+      const ocupantesNomes = ocupantes.map(o => `${o.worker_nome}${o.codigo_colab ? ` [${o.codigo_colab}]` : ''}`).join(', ');
 
       const compStr = payload.periodo_competencia ? ` (${payload.periodo_competencia})` : '';
       const descricao = `${payload.tipo_pago} - ${payload.alojamento_nome || 'Alojamiento'}${compStr}`;
@@ -358,6 +516,7 @@ export const financeLogisticsService = {
 
       const obsCompletas = [
         `Alojamiento: ${payload.alojamento_nome || ''}`,
+        ocupantes.length > 0 ? `Personas Alojadas (${ocupantes.length}): ${ocupantesNomes}` : null,
         payload.iban_cobranca ? `IBAN: ${payload.iban_cobranca}` : null,
         payload.banco ? `Banco: ${payload.banco}` : null,
         payload.titular ? `Titular: ${payload.titular}` : null,
@@ -383,7 +542,7 @@ export const financeLogisticsService = {
           tipo_orden: payload.tipo_pago,
           centro_custos: centroCustos,
           observaciones: obsCompletas,
-          qtde_itens: 1
+          qtde_itens: ocupantes.length > 0 ? ocupantes.length : 1
         }])
         .select()
         .single();
@@ -394,22 +553,47 @@ export const financeLogisticsService = {
       }
 
       try {
-        await supabase
-          .schema('core_finance')
-          .from('ordens_pagamento_itens')
-          .insert([{
-            ordem_pagamento_id: newOrdem.id,
-            cod_orden_pago: codOrdenPago,
-            cod_orden_pago_item: `${codOrdenPago}-IT-001`,
-            cod_contrato: payload.contrato_id || null,
-            cod_provedor: payload.provedor_nome || null,
-            cod_alojamiento: payload.alojamento_codigo || null,
-            categoria_orden: payload.tipo_pago,
-            valor_orden: payload.valor,
-            vencimento_orden: payload.data_vencimento,
-            centro_custo: centroCustos,
-            status_item: 'Rascunho'
-          }]);
+        if (ocupantes.length > 0) {
+          const valorPorOcupante = Number((payload.valor / ocupantes.length).toFixed(2));
+          for (let j = 0; j < ocupantes.length; j++) {
+            const oc = ocupantes[j];
+            await supabase
+              .schema('core_finance')
+              .from('ordens_pagamento_itens')
+              .insert([{
+                ordem_pagamento_id: newOrdem.id,
+                cod_orden_pago: codOrdenPago,
+                cod_orden_pago_item: `${codOrdenPago}-IT-${String(j + 1).padStart(3, '0')}`,
+                cod_contrato: payload.contrato_id || null,
+                cod_provedor: payload.provedor_nome || null,
+                cod_alojamiento: payload.alojamento_codigo || null,
+                cod_colab: oc.codigo_colab || null,
+                observacion_item: `Alojado: ${oc.worker_nome} - Cliente: ${oc.cliente_nome || 'General'}`,
+                categoria_orden: payload.tipo_pago,
+                valor_orden: valorPorOcupante,
+                vencimento_orden: payload.data_vencimento,
+                centro_custo: `${oc.cliente_nome || payload.centro_custo_cliente || ''} / ${oc.obra_nome || payload.centro_custo_obra || ''}`,
+                status_item: 'Rascunho'
+              }]);
+          }
+        } else {
+          await supabase
+            .schema('core_finance')
+            .from('ordens_pagamento_itens')
+            .insert([{
+              ordem_pagamento_id: newOrdem.id,
+              cod_orden_pago: codOrdenPago,
+              cod_orden_pago_item: `${codOrdenPago}-IT-001`,
+              cod_contrato: payload.contrato_id || null,
+              cod_provedor: payload.provedor_nome || null,
+              cod_alojamiento: payload.alojamento_codigo || null,
+              categoria_orden: payload.tipo_pago,
+              valor_orden: payload.valor,
+              vencimento_orden: payload.data_vencimento,
+              centro_custo: centroCustos,
+              status_item: 'Rascunho'
+            }]);
+        }
       } catch (e) {}
 
       createdList.push({
@@ -433,14 +617,15 @@ export const financeLogisticsService = {
         data_vencimento: payload.data_vencimento,
         valor_previsto: payload.valor,
         moeda: 'EUR',
-        observacoes: obsCompletas
+        observacoes: obsCompletas,
+        ocupantes
       });
     }
 
     return createdList;
   },
 
-  // 4. Edição / Alteração de Ordem de Pagamento
+  // 5. Edição / Alteração de Ordem de Pagamento
   async atualizarOrdemPagamento(
     id: string,
     updates: {
@@ -523,7 +708,7 @@ export const financeLogisticsService = {
     } catch (e) {}
   },
 
-  // 5. Exclusão de Ordem de Pagamento (somente em rascunho)
+  // 6. Exclusão de Ordem de Pagamento (somente em rascunho)
   async excluirOrdemPagamento(id: string): Promise<void> {
     const { error } = await supabase
       .schema('core_finance')
@@ -536,7 +721,7 @@ export const financeLogisticsService = {
     }
   },
 
-  // 6. Cancelamento de Ordem de Pagamento
+  // 7. Cancelamento de Ordem de Pagamento
   async cancelarOrdemPagamento(id: string, motivo?: string): Promise<void> {
     const { email: userEmail } = await getCurrentUserId();
 
@@ -570,7 +755,7 @@ export const financeLogisticsService = {
     } catch (e) {}
   },
 
-  // 7. Envio para Aprovação (Individual ou Lote)
+  // 8. Envio para Aprovação (Individual ou Lote)
   async enviarParaAprovacao(ids: string | string[]): Promise<void> {
     const idList = Array.isArray(ids) ? ids : [ids];
     if (idList.length === 0) return;
@@ -607,9 +792,9 @@ export const financeLogisticsService = {
     }
   },
 
-  // 8. Aprovação direta (para quem possui papel de aprovador/gestor)
+  // 9. Aprovação direta (para quem possui papel de aprovador/gestor)
   async aprovarOrdemPagamento(id: string): Promise<void> {
-    const { id: userId, email: userEmail } = await getCurrentUserId();
+    const { id: userId } = await getCurrentUserId();
 
     const { error } = await supabase
       .schema('core_finance')
@@ -627,7 +812,7 @@ export const financeLogisticsService = {
     }
   },
 
-  // 9. Devolução de Fiança
+  // 10. Devolução de Fiança
   async registrarDevolucaoFianza(params: {
     contrato_id?: string;
     alojamento_id?: string;
