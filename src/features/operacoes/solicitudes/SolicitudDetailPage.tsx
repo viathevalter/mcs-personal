@@ -6,7 +6,7 @@ import { useSolicitudTimeline } from './hooks/useSolicitudTimeline';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, RefreshCw, Printer, Mail } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Printer, Mail, UserPlus, CheckCircle2 } from 'lucide-react';
 import { SolicitudOverviewTab } from './components/SolicitudOverviewTab';
 import { SolicitudTasksTab } from './components/SolicitudTasksTab';
 import { SolicitudTimelineTab } from './components/SolicitudTimelineTab';
@@ -16,12 +16,14 @@ import { SolicitudTypeBadge } from './components/SolicitudTypeBadge';
 import { useSolicitudTargets } from './hooks/useSolicitudTargets';
 import { printReplacementDoc } from './utils/printReplacement';
 import { ResendNotificationModal } from './components/ResendNotificationModal';
+import { RequestReplacementFromBajaModal } from './components/RequestReplacementFromBajaModal';
 
 export function SolicitudDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [isResendModalOpen, setIsResendModalOpen] = useState(false);
+  const [isRequestReplacementOpen, setIsRequestReplacementOpen] = useState(false);
   const { data: solicitud, isLoading: loadingSolicitud, refetch: refetchSolicitud } = useSolicitudDetail(id);
   const { data: tasks = [], isLoading: loadingTasks, refetch: refetchTasks } = useSolicitudTasks(id);
   const { data: timeline = [], isLoading: loadingTimeline, refetch: refetchTimeline } = useSolicitudTimeline(id);
@@ -111,6 +113,23 @@ export function SolicitudDetailPage() {
                   Imprimir PDF
                 </Button>
               )}
+              {solicitud.tipo === 'offboarding' && targets.some((t: any) => !t.requires_replacement) && (
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={() => setIsRequestReplacementOpen(true)} 
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 font-semibold"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Solicitar Reemplazo (Repor Vaga)
+                </Button>
+              )}
+              {solicitud.tipo === 'offboarding' && targets.some((t: any) => t.requires_replacement) && (
+                <div className="bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 shadow-xs">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Reemplazo Ativo no RH
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -168,6 +187,16 @@ export function SolicitudDetailPage() {
           isOpen={isResendModalOpen}
           onClose={() => setIsResendModalOpen(false)}
           solicitud={solicitud}
+          onSuccess={handleRefresh}
+        />
+      )}
+
+      {solicitud && targets.find((t: any) => t.action_type === 'offboard' && !t.requires_replacement) && (
+        <RequestReplacementFromBajaModal
+          isOpen={isRequestReplacementOpen}
+          onClose={() => setIsRequestReplacementOpen(false)}
+          solicitud={solicitud}
+          target={targets.find((t: any) => t.action_type === 'offboard' && !t.requires_replacement)}
           onSuccess={handleRefresh}
         />
       )}

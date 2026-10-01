@@ -82,7 +82,14 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
                   />
                 </TableCell>
                 <TableCell className="whitespace-nowrap px-1.5 py-1.5 text-xs md:text-sm">
-                  <div className="font-semibold text-slate-900 dark:text-slate-100 leading-tight">{workerName}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-slate-900 dark:text-slate-100 leading-tight">{workerName}</span>
+                    {assignment.is_baja_recente && (
+                      <span className="text-[10px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 px-1.5 py-0.2 rounded font-medium">
+                        Saída: {assignment.data_baixa ? format(new Date(assignment.data_baixa), 'dd/MM/yy') : 'Recente'}
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[10px] text-muted-foreground">ID: {assignment.worker?.cod_colab || 'N/A'}</div>
                 </TableCell>
                 {!isCompact && (
@@ -115,7 +122,11 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
                 )}
                 {!isCompact && (
                   <TableCell className="whitespace-nowrap px-1.5 py-1.5">
-                    {isReplacement ? (
+                    {assignment.is_baja_recente ? (
+                      <Badge variant="secondary" className="bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 px-1.5 py-0 text-[10px] font-bold">
+                        Baixa Recente
+                      </Badge>
+                    ) : isReplacement ? (
                       <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 px-1.5 py-0 text-[10px]">
                         Substituto
                       </Badge>

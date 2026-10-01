@@ -171,12 +171,14 @@ export function NewSolicitudPage() {
     const isDraftLoadedRef = useRef(false);
     const isRestoringDraftRef = useRef(false);
     const [isDraftRestored, setIsDraftRestored] = useState(false);
+    const [includeRecentBajas, setIncludeRecentBajas] = useState(false);
 
     const { data: assignments = [] } = useWorkerAssignments({
         empresa_id: selectedEmpresaId,
         client_id: null,
         client_site_id: null,
-        pedido_id: null
+        pedido_id: null,
+        include_recent_bajas: includeRecentBajas && actionType === 'replacement'
     });
 
     const { createSolicitudWithTargets } = useCreateSolicitud();
@@ -1004,7 +1006,7 @@ export function NewSolicitudPage() {
 
         // Map the selected assignments to the payload target structure
         const targets = selectedList.map(a => ({
-            source_assignment_id: a.id.startsWith('virtual-') ? null : a.id,
+            source_assignment_id: a.id.startsWith('virtual-') || a.id.startsWith('baja-') ? null : a.id,
             source_worker_id: a.worker_id,
             source_pedido_id: a.pedido_id,
             source_pedido_item_id: a.pedido_item_id,
@@ -1649,6 +1651,29 @@ export function NewSolicitudPage() {
                                         className="h-10 text-sm w-full"
                                     />
                                 </div>
+
+                                {actionType === 'replacement' && (
+                                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-50/70 dark:bg-amber-955/20 border border-amber-200 dark:border-amber-900/40 animate-fade-in shadow-xs">
+                                        <div className="flex items-center space-x-2.5">
+                                            <input
+                                                type="checkbox"
+                                                id="includeRecentBajas"
+                                                checked={includeRecentBajas}
+                                                onChange={e => setIncludeRecentBajas(e.target.checked)}
+                                                className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                            />
+                                            <label htmlFor="includeRecentBajas" className="text-xs font-semibold text-amber-900 dark:text-amber-300 cursor-pointer flex items-center gap-1.5">
+                                                <span>Incluir baixas recentes do cliente (desligados nos últimos 60 dias)</span>
+                                                <span className="text-[10px] bg-amber-200/60 dark:bg-amber-900/60 px-1.5 py-0.5 rounded font-mono font-bold">
+                                                    Reemplazo Tardio
+                                                </span>
+                                            </label>
+                                        </div>
+                                        <span className="text-[11px] text-amber-700/80 dark:text-amber-400/80 hidden sm:inline">
+                                            Permite substituir trabalhadores cuja saída já foi processada
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         )}
 
