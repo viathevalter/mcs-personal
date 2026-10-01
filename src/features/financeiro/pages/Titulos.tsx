@@ -2,15 +2,21 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { formatCurrency, formatDate, formatCompactCurrency } from '../lib/utils';
-import { Search, ChevronLeft, ChevronRight, Filter, Eye, CheckSquare, Square, Plus, Trash2, X, PlusCircle, Users } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { 
+    Search, ChevronLeft, ChevronRight, Filter, Eye, CheckSquare, Square, 
+    Plus, Trash2, X, PlusCircle, Users, ChevronDown, ArrowUpRight, 
+    CheckCircle2, AlertTriangle, Copy, CreditCard, Building2, User, 
+    Calendar, FileText, ExternalLink, HelpCircle
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { createOrdemPagamento } from '../data/loader';
+import { createOrdemPagamento, updateOrdemPagamentoStatus } from '../data/loader';
 import { logisticsService } from '@/features/logistica/services/logisticsService';
+import { useAuth } from '@/app/providers/AuthProvider';
 import { toast } from 'sonner';
 
 const ALL_STATUSES = ['rascunho', 'aguardando_aprovacao', 'correcao_solicitada', 'aprovado', 'pago', 'rejeitado', 'cancelado'];
@@ -58,6 +64,65 @@ export const Titulos = () => {
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
+    const navigate = useNavigate();
+    const { user } = useAuth();
+    const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+    const [isQuickActionLoading, setIsQuickActionLoading] = useState(false);
+
+    // Quick correction dialog state
+    const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+    const [targetOrdemId, setTargetOrdemId] = useState<string | null>(null);
+    const [motivoCorrecao, setMotivoCorrecao] = useState('');
+
+    const toggleExpand = (id: string) => {
+        setExpandedRowId(prev => prev === id ? null : id);
+    };
+
+    const handleQuickAprovar = async (id: string) => {
+        try {
+            setIsQuickActionLoading(true);
+            const res = await updateOrdemPagamentoStatus(id, 'aprovado', 'Aprovado via painel de ordens', user?.id);
+            if (res.success) {
+                toast.success("Ordem de pagamento aprovada com sucesso!");
+                queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
+            } else {
+                toast.error(`Falha ao aprovar: ${res.error?.message || 'Erro desconhecido'}`);
+            }
+        } catch (err: any) {
+            toast.error(`Erro ao aprovar ordem: ${err.message}`);
+        } finally {
+            setIsQuickActionLoading(false);
+        }
+    };
+
+    const handleQuickSolicitarCorrecao = async () => {
+        if (!targetOrdemId || !motivoCorrecao.trim()) {
+            toast.warning("Por favor, descreva o que precisa ser corrigido.");
+            return;
+        }
+        try {
+            setIsQuickActionLoading(true);
+            const res = await updateOrdemPagamentoStatus(targetOrdemId, 'correcao_solicitada', motivoCorrecao.trim(), user?.id);
+            if (res.success) {
+                toast.success("Correção solicitada ao responsável!");
+                setCorrectionModalOpen(false);
+                setMotivoCorrecao('');
+                setTargetOrdemId(null);
+                queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
+            } else {
+                toast.error(`Falha ao solicitar correção: ${res.error?.message || 'Erro desconhecido'}`);
+            }
+        } catch (err: any) {
+            toast.error(`Erro ao solicitar correção: ${err.message}`);
+        } finally {
+            setIsQuickActionLoading(false);
+        }
+    };
+
+    const copyToClipboard = (text: string, label: string) => {
+        navigator.clipboard.writeText(text);
+        toast.success(`${label} copiado!`);
+    };
 
     // Form Modal State
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -383,18 +448,30 @@ export const Titulos = () => {
                 </div>
             </div>
 
+            {/* Dica de Navegação Rápida */}
+            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-3 py-1.5 bg-slate-50/80 dark:bg-slate-850/60 border border-slate-200/60 dark:border-slate-800 rounded-xl">
+                <div className="flex items-center gap-2">
+                    <HelpCircle size={15} className="text-blue-500 flex-shrink-0" />
+                    <span><strong>Navegação ágil:</strong> Dê <strong>1 clique</strong> em qualquer linha para abrir a gaveta de ações rápidas inline, ou <strong>duplo clique</strong> para abrir os detalhes completos.</span>
+                </div>
+            </div>
+
             <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 rounded-2xl">
                 <CardContent className="p-0 overflow-auto flex-1">
                     <Table>
                         <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
                             <TableRow>
-                                <TableHead className="px-6 w-12">
-                                    <input 
-                                        type="checkbox" 
-                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-600/20"
-                                        checked={paginatedData.length > 0 && selectedItems.length === paginatedData.length}
-                                        onChange={toggleAll}
-                                    />
+                                <TableHead className="px-4 w-16">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-5" />
+                                        <input 
+                                            type="checkbox" 
+                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-600/20"
+                                            checked={paginatedData.length > 0 && selectedItems.length === paginatedData.length}
+                                            onChange={toggleAll}
+                                            title="Selecionar todos"
+                                        />
+                                    </div>
                                 </TableHead>
                                 <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Código</TableHead>
                                 <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Descrição</TableHead>
@@ -432,107 +509,349 @@ export const Titulos = () => {
                                         )
                                       )
                                     : [];
+                                const isExpanded = expandedRowId === item.id;
+
+                                // Extrair dados bancários se presentes nas observações
+                                const ibanMatch = item.observaciones?.match(/IBAN:\s*([A-Z0-9\s]+)/i);
+                                const extractedIban = ibanMatch ? ibanMatch[1].trim() : null;
+                                const bancoMatch = item.observaciones?.match(/Banco:\s*([^\n\r]+)/i);
+                                const extractedBanco = bancoMatch ? bancoMatch[1].trim() : null;
+                                const titularMatch = item.observaciones?.match(/Titular:\s*([^\n\r]+)/i);
+                                const extractedTitular = titularMatch ? titularMatch[1].trim() : null;
+
                                 return (
-                                    <TableRow key={item.id} className="group border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/30">
-                                        <TableCell className="px-6">
-                                            <input 
-                                                type="checkbox" 
-                                                className="rounded border-slate-300 text-blue-600 focus:ring-blue-600/20"
-                                                checked={selectedItems.includes(item.id)}
-                                                onChange={() => toggleSelection(item.id)}
-                                            />
-                                        </TableCell>
-                                        <TableCell className="font-bold text-slate-700 dark:text-slate-300">
-                                            <div className="flex flex-col gap-1 items-start">
-                                                <span>{item.cod_orden_pago || 'Pendente'}</span>
-                                                {item.departamento_origem && (
-                                                    <span className={`text-[9px] px-1.5 py-0.2 rounded-md font-bold uppercase tracking-wider ${
-                                                        item.departamento_origem.toLowerCase().includes('log')
-                                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                                                            : 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-                                                    }`}>
-                                                        {item.departamento_origem}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                                            <div>
-                                                <span>{item.descricao}</span>
-                                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                                                    {item.cod_alojamiento && (
-                                                        <span className="text-[10px] font-mono text-slate-400">
-                                                            Inmueble: {item.cod_alojamiento}
-                                                        </span>
-                                                    )}
-                                                    {matchingOccupants.length > 0 && (
-                                                        <span
-                                                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
-                                                            title={matchingOccupants.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
-                                                        >
-                                                            <Users size={10} /> {matchingOccupants.length} ocupante(s)
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-slate-600 dark:text-slate-400">{supplierName}</TableCell>
-                                        <TableCell className="text-slate-700 dark:text-slate-300">
-                                            <div className="flex items-center gap-2" title={`Usuário Solicitante: ${item.criador_email || 'Não informado'}`}>
-                                                <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center text-[10px] font-bold border border-blue-200 dark:border-blue-900/40 flex-shrink-0">
-                                                    {item.criador_email ? item.criador_email.charAt(0).toUpperCase() : 'U'}
-                                                </div>
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[130px]">
-                                                        {item.criador_email ? item.criador_email.split('@')[0] : 'Sistema'}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
-                                                        {item.departamento_origem || 'Geral'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-slate-600 dark:text-slate-400">{formatDate(item.data_vencimento)}</TableCell>
-                                        <TableCell className="text-right font-bold text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</TableCell>
-                                        <TableCell className="text-center">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                                                item.status === 'pago' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200' :
-                                                item.status === 'aguardando_aprovacao' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200' :
-                                                item.status === 'correcao_solicitada' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 animate-pulse' :
-                                                item.status === 'aprovado' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200' :
-                                                (item.status === 'rejeitado' || item.status === 'cancelado') ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200' :
-                                                'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200'
-                                            }`}>
-                                                {getStatusLabel(item.status)}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-center px-6">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <Button variant="ghost" size="icon" asChild className="rounded-xl hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800 transition-colors">
-                                                    <Link to={`/financeiro/titulos/${item.id}`} className="text-slate-400 hover:text-blue-600" title="Ver detalles">
-                                                        <Eye size={18} />
-                                                    </Link>
-                                                </Button>
-                                                {item.status === 'rascunho' && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={async () => {
-                                                            if (confirm(`¿Eliminar orden borrador ${item.cod_orden_pago}?`)) {
-                                                                await supabase.schema('core_finance').from('ordens_pagamento').delete().eq('id', item.id);
-                                                                toast.success('Orden borrador eliminada.');
-                                                                queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
-                                                            }
+                                    <React.Fragment key={item.id}>
+                                        <TableRow 
+                                            onClick={(e) => {
+                                                if ((e.target as HTMLElement).closest('input, button, a')) return;
+                                                toggleExpand(item.id);
+                                            }}
+                                            onDoubleClick={(e) => {
+                                                if ((e.target as HTMLElement).closest('input, button, a')) return;
+                                                navigate(`/financeiro/titulos/${item.id}`);
+                                            }}
+                                            className={`group border-b border-slate-100 dark:border-slate-800 cursor-pointer select-none transition-colors ${
+                                                isExpanded 
+                                                    ? 'bg-blue-50/50 dark:bg-blue-950/25 border-b-transparent' 
+                                                    : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                                            }`}
+                                        >
+                                            <TableCell className="px-4">
+                                                <div className="flex items-center gap-1.5">
+                                                    <button 
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleExpand(item.id);
                                                         }}
-                                                        className="rounded-xl hover:bg-red-50 hover:text-red-600 dark:hover:bg-slate-800 text-slate-400 hover:text-red-600 transition-colors"
-                                                        title="Eliminar borrador"
+                                                        className={`p-1 rounded-lg transition-all ${
+                                                            isExpanded 
+                                                                ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300' 
+                                                                : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                        }`}
+                                                        title={isExpanded ? "Recolher informações" : "Expandir informações inline"}
                                                     >
-                                                        <Trash2 size={16} />
+                                                        <ChevronDown size={14} className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                                                    </button>
+                                                    <input 
+                                                        type="checkbox" 
+                                                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-600/20"
+                                                        checked={selectedItems.includes(item.id)}
+                                                        onChange={() => toggleSelection(item.id)}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="font-bold text-slate-700 dark:text-slate-300">
+                                                <div className="flex flex-col gap-1 items-start">
+                                                    <span className="font-mono text-xs">{item.cod_orden_pago || 'Pendente'}</span>
+                                                    {item.departamento_origem && (
+                                                        <span className={`text-[9px] px-1.5 py-0.2 rounded-md font-bold uppercase tracking-wider ${
+                                                            item.departamento_origem.toLowerCase().includes('log')
+                                                                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                                : 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                                        }`}>
+                                                            {item.departamento_origem}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="font-medium text-slate-800 dark:text-slate-200">
+                                                <div>
+                                                    <span className="font-semibold">{item.descricao}</span>
+                                                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                        {item.cod_alojamiento && (
+                                                            <span className="text-[10px] font-mono text-slate-400">
+                                                                Inmueble: {item.cod_alojamiento}
+                                                            </span>
+                                                        )}
+                                                        {matchingOccupants.length > 0 && (
+                                                            <span
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
+                                                                title={matchingOccupants.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
+                                                            >
+                                                                <Users size={10} /> {matchingOccupants.length} ocupante(s)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-slate-600 dark:text-slate-400">{supplierName}</TableCell>
+                                            <TableCell className="text-slate-700 dark:text-slate-300">
+                                                <div className="flex items-center gap-2" title={`Usuário Solicitante: ${item.criador_email || 'Não informado'}`}>
+                                                    <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center text-[10px] font-bold border border-blue-200 dark:border-blue-900/40 flex-shrink-0">
+                                                        {item.criador_email ? item.criador_email.charAt(0).toUpperCase() : 'U'}
+                                                    </div>
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[130px]">
+                                                            {item.criador_email ? item.criador_email.split('@')[0] : 'Sistema'}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
+                                                            {item.departamento_origem || 'Geral'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-slate-600 dark:text-slate-400">{formatDate(item.data_vencimento)}</TableCell>
+                                            <TableCell className="text-right font-bold text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</TableCell>
+                                            <TableCell className="text-center">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                                    item.status === 'pago' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200' :
+                                                    item.status === 'aguardando_aprovacao' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200' :
+                                                    item.status === 'correcao_solicitada' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 animate-pulse' :
+                                                    item.status === 'aprovado' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200' :
+                                                    (item.status === 'rejeitado' || item.status === 'cancelado') ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200' :
+                                                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200'
+                                                }`}>
+                                                    {getStatusLabel(item.status)}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell className="text-center px-6">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <Button variant="ghost" size="icon" asChild className="rounded-xl hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800 transition-colors">
+                                                        <Link to={`/financeiro/titulos/${item.id}`} className="text-slate-400 hover:text-blue-600" title="Ver detalhes completos">
+                                                            <Eye size={18} />
+                                                        </Link>
                                                     </Button>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
+                                                    {item.status === 'rascunho' && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                if (confirm(`¿Eliminar orden borrador ${item.cod_orden_pago}?`)) {
+                                                                    await supabase.schema('core_finance').from('ordens_pagamento').delete().eq('id', item.id);
+                                                                    toast.success('Orden borrador eliminada.');
+                                                                    queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
+                                                                }
+                                                            }}
+                                                            className="rounded-xl hover:bg-red-50 hover:text-red-600 dark:hover:bg-slate-800 text-slate-400 hover:text-red-600 transition-colors"
+                                                            title="Eliminar borrador"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+
+                                        {/* Gaveta Inline Expansível */}
+                                        {isExpanded && (
+                                            <TableRow className="bg-slate-50/70 dark:bg-slate-900/60 border-b-2 border-b-blue-200 dark:border-b-blue-900/40">
+                                                <TableCell colSpan={9} className="p-0">
+                                                    <div className="p-5 pl-12 pr-6 border-l-4 border-l-blue-600 bg-gradient-to-r from-blue-50/40 via-transparent to-transparent space-y-4">
+                                                        {/* Header do Resumo Rápido */}
+                                                        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80 dark:border-slate-800">
+                                                            <div className="flex items-center gap-3">
+                                                                <span className="font-mono text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-100/70 dark:bg-blue-950/70 px-2.5 py-1 rounded-lg">
+                                                                    {item.cod_orden_pago || 'Sem Código'}
+                                                                </span>
+                                                                <div>
+                                                                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">{item.descricao}</h4>
+                                                                    <p className="text-xs text-slate-500">
+                                                                        Solicitante: <strong className="text-slate-700 dark:text-slate-300">{item.criador_email || 'Sistema'}</strong> ({item.departamento_origem || 'Geral'}) • Vencimento: <strong>{formatDate(item.data_vencimento)}</strong>
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="default"
+                                                                    onClick={() => navigate(`/financeiro/titulos/${item.id}`)}
+                                                                    className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs gap-1.5 shadow-sm font-semibold"
+                                                                >
+                                                                    <ArrowUpRight size={15} />
+                                                                    Abrir Detalhe Completo
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Grid de Informações: Dados Bancários, Centro de Custo, Observações */}
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                                            {/* Card Dados de Pagamento / IBAN */}
+                                                            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 mb-2">
+                                                                        <CreditCard size={15} className="text-blue-600" />
+                                                                        <span>Dados para Transferência</span>
+                                                                    </div>
+                                                                    {extractedIban ? (
+                                                                        <div className="space-y-1.5 mt-1">
+                                                                            {extractedTitular && (
+                                                                                <p className="text-slate-600 dark:text-slate-400">
+                                                                                    <span className="text-slate-400">Titular:</span> <strong className="text-slate-800 dark:text-slate-200">{extractedTitular}</strong>
+                                                                                </p>
+                                                                            )}
+                                                                            {extractedBanco && (
+                                                                                <p className="text-slate-600 dark:text-slate-400">
+                                                                                    <span className="text-slate-400">Banco:</span> <strong className="text-slate-800 dark:text-slate-200">{extractedBanco}</strong>
+                                                                                </p>
+                                                                            )}
+                                                                            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700">
+                                                                                <span className="font-mono font-bold text-slate-800 dark:text-slate-100 select-all truncate">
+                                                                                    {extractedIban}
+                                                                                </span>
+                                                                                <Button
+                                                                                    type="button"
+                                                                                    size="icon"
+                                                                                    variant="ghost"
+                                                                                    className="h-6 w-6 text-slate-400 hover:text-blue-600 rounded-md"
+                                                                                    onClick={() => copyToClipboard(extractedIban, 'IBAN')}
+                                                                                    title="Copiar IBAN"
+                                                                                >
+                                                                                    <Copy size={12} />
+                                                                                </Button>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="text-slate-400 italic">Fornecedor: {supplierName}</p>
+                                                                    )}
+                                                                </div>
+                                                                <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[11px]">
+                                                                    <span className="text-slate-400">Valor Total:</span>
+                                                                    <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Card Centro de Custos / Obra */}
+                                                            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                                                                <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 mb-2">
+                                                                    <Building2 size={15} className="text-emerald-600" />
+                                                                    <span>Classificação & Centro de Custo</span>
+                                                                </div>
+                                                                <div className="space-y-1 mt-1 text-slate-600 dark:text-slate-300">
+                                                                    <p><span className="text-slate-400">Setor Origem:</span> <strong className="text-slate-700 dark:text-slate-200">{item.departamento_origem || 'Geral'}</strong></p>
+                                                                    <p><span className="text-slate-400">Centro:</span> <strong className="text-slate-700 dark:text-slate-200">{item.centro_custos || 'Não especificado'}</strong></p>
+                                                                    {item.cod_alojamiento && (
+                                                                        <p><span className="text-slate-400">Imóvel:</span> <span className="font-mono font-semibold text-blue-600">{item.cod_alojamiento}</span></p>
+                                                                    )}
+                                                                    {item.tipo_orden && (
+                                                                        <p><span className="text-slate-400">Tipo:</span> <span className="font-semibold text-slate-700 dark:text-slate-200">{item.tipo_orden}</span></p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Card Observações / Motivo Correção */}
+                                                            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 mb-2">
+                                                                        <FileText size={15} className="text-amber-600" />
+                                                                        <span>Observações</span>
+                                                                    </div>
+                                                                    {item.motivo_correcao && (
+                                                                        <div className="p-2 mb-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 text-amber-800 dark:text-amber-200 text-[11px]">
+                                                                            <strong>Correção Solicitada:</strong> {item.motivo_correcao}
+                                                                        </div>
+                                                                    )}
+                                                                    <p className="text-slate-600 dark:text-slate-300 whitespace-pre-line max-h-24 overflow-y-auto text-[11px] leading-relaxed">
+                                                                        {item.observaciones || 'Sem observações adicionais.'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Ocupantes da Obra / Imóvel (se houver) */}
+                                                        {matchingOccupants.length > 0 && (
+                                                            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
+                                                                <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-2">
+                                                                    <Users size={15} />
+                                                                    <span>Ocupantes Vinculados ao Aluguel ({matchingOccupants.length})</span>
+                                                                </div>
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {matchingOccupants.map((occ: any, idx: number) => (
+                                                                        <div key={idx} className="bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800/60 shadow-2xs text-[11px] flex items-center gap-2">
+                                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{occ.worker_nome}</span>
+                                                                            {occ.codigo_colab && <span className="font-mono text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{occ.codigo_colab}</span>}
+                                                                            {occ.obra_nome && <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">({occ.obra_nome})</span>}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Barra de Ações Rápidas */}
+                                                        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/70 dark:border-slate-800">
+                                                            <span className="text-xs text-slate-400 italic">
+                                                                💡 Dica: Dê duplo clique em qualquer linha para navegar direto aos detalhes completos
+                                                            </span>
+                                                            <div className="flex items-center gap-2">
+                                                                {item.status === 'aguardando_aprovacao' && (
+                                                                    <>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            variant="outline"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setTargetOrdemId(item.id);
+                                                                                setMotivoCorrecao('');
+                                                                                setCorrectionModalOpen(true);
+                                                                            }}
+                                                                            disabled={isQuickActionLoading}
+                                                                            className="rounded-xl border-amber-300 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs font-semibold gap-1.5"
+                                                                        >
+                                                                            <AlertTriangle size={14} />
+                                                                            Pedir Correção
+                                                                        </Button>
+                                                                        <Button
+                                                                            size="sm"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                handleQuickAprovar(item.id);
+                                                                            }}
+                                                                            disabled={isQuickActionLoading}
+                                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold gap-1.5 shadow-xs"
+                                                                        >
+                                                                            <CheckCircle2 size={14} />
+                                                                            Aprovar Ordem
+                                                                        </Button>
+                                                                    </>
+                                                                )}
+                                                                {item.status === 'aprovado' && (
+                                                                    <Button
+                                                                        size="sm"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            navigate(`/financeiro/titulos/${item.id}`);
+                                                                        }}
+                                                                        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold gap-1.5 shadow-xs"
+                                                                    >
+                                                                        <CreditCard size={14} />
+                                                                        Ir para Pagamento
+                                                                    </Button>
+                                                                )}
+                                                                {item.status === 'pago' && (
+                                                                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800">
+                                                                        <CheckCircle2 size={15} />
+                                                                        Ordem Liquidada e Paga
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </React.Fragment>
                                 );
                             }) : (
                                 <TableRow>
@@ -756,6 +1075,42 @@ export const Titulos = () => {
                             </Button>
                         </DialogFooter>
                     </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Solicitação Rápida de Correção */}
+            <Dialog open={correctionModalOpen} onOpenChange={setCorrectionModalOpen}>
+                <DialogContent className="max-w-md rounded-3xl p-6">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <AlertTriangle className="text-amber-500" size={20} />
+                            Solicitar Correção na Ordem
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-3 py-2 text-sm">
+                        <p className="text-slate-600 dark:text-slate-300">
+                            Descreva claramente o motivo da correção para que o responsável (Logística ou solicitante) possa revisar e ajustar os dados da ordem.
+                        </p>
+                        <textarea
+                            value={motivoCorrecao}
+                            onChange={(e) => setMotivoCorrecao(e.target.value)}
+                            placeholder="Ex: Valor divergente da fatura, falta anexo do comprovante, alterar centro de custo..."
+                            rows={4}
+                            className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 p-3 text-sm focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none resize-none bg-slate-50/50 dark:bg-slate-900"
+                        />
+                    </div>
+                    <DialogFooter className="gap-2">
+                        <Button variant="ghost" onClick={() => setCorrectionModalOpen(false)} className="rounded-xl">
+                            Cancelar
+                        </Button>
+                        <Button 
+                            onClick={handleQuickSolicitarCorrecao} 
+                            disabled={isQuickActionLoading || !motivoCorrecao.trim()}
+                            className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold gap-1.5"
+                        >
+                            Confirmar e Devolver
+                        </Button>
+                    </DialogFooter>
                 </DialogContent>
             </Dialog>
         </div>
