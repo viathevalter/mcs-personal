@@ -50,6 +50,8 @@ import { contratosLogisticsService } from '../../services/contratosLogisticsServ
 import type { ContratoAlojamento, OcupanteContrato, FianzaDetalhes } from '../../services/contratosLogisticsService';
 import { financeLogisticsService } from '../../services/financeLogisticsService';
 import { uploadDocumentoVistoria, downloadFile, type DocumentoVistoria } from '../../services/storageService';
+import { GenerarOrdemPagoModal } from '../../components/GenerarOrdemPagoModal';
+import { GenerarLoteModal } from '../../components/GenerarLoteModal';
 
 export const ContratosList: React.FC = () => {
   const navigate = useNavigate();
@@ -63,8 +65,21 @@ export const ContratosList: React.FC = () => {
   
   // Seleção múltipla para geração de OP em lote
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [competenciaLote, setCompetenciaLote] = useState<string>('09/2026');
+  const nowInit = new Date();
+  const initCompMonth = nowInit.getDate() <= 15
+    ? (nowInit.getMonth() === 0 ? 12 : nowInit.getMonth())
+    : nowInit.getMonth() + 1;
+  const initCompYear = (nowInit.getDate() <= 15 && nowInit.getMonth() === 0)
+    ? nowInit.getFullYear() - 1
+    : nowInit.getFullYear();
+  const [competenciaLote, setCompetenciaLote] = useState<string>(
+    `${String(initCompMonth).padStart(2, '0')}/${initCompYear}`
+  );
   const [isGeneratingBatch, setIsGeneratingBatch] = useState(false);
+
+  // Modais de Geração de OP com Pré-visualização e Regra de Vencimento
+  const [opModalContrato, setOpModalContrato] = useState<ContratoAlojamento | null>(null);
+  const [isLoteModalOpen, setIsLoteModalOpen] = useState(false);
 
   // Galeria alinhada / Accordion de ocupantes expandidos
   const [expandedContractIds, setExpandedContractIds] = useState<Set<string>>(new Set());
@@ -253,102 +268,17 @@ export const ContratosList: React.FC = () => {
     }
   };
 
-  // Gerar OP Individual de Aluguel
-  const handleGerarOP = async (contrato: ContratoAlojamento, e?: React.MouseEvent) => {
+  // Abrir Modal para Geração Individual de OP
+  const handleOpenGerarOPModal = (contrato: ContratoAlojamento, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    try {
-      setGeneratingOpId(contrato.id);
-
-      const dia = String(contrato.dia_vencimento || 5).padStart(2, '0');
-      let anoComp = '2026';
-      let mesComp = '10';
-      if (competenciaLote && competenciaLote.includes('/')) {
-        const parts = competenciaLote.split('/');
-        mesComp = parts[0].padStart(2, '0');
-        anoComp = parts[1] || '2026';
-      }
-      const vencimento = `${anoComp}-${mesComp}-${dia}`;
-
-      const opCriada = await financeLogisticsService.gerarOrdemPagamento({
-        contrato_id: contrato.codigo,
-        alojamento_id: contrato.alojamento_id,
-        alojamento_nome: contrato.alojamento_nome,
-        alojamento_codigo: contrato.alojamento?.codigo,
-        provedor_id: contrato.provedor_id,
-        provedor_nome: contrato.provedor_nome,
-        iban_cobranca: contrato.iban_cobranca,
-        banco: contrato.banco,
-        titular: contrato.titular,
-        centro_custo_cliente: contrato.cliente_nome || 'Centro de Coste General',
-        centro_custo_obra: contrato.centro_custo_obra || `Obra ${contrato.alojamento?.municipio || 'Principal'}`,
-        tipo_pago: 'Aluguel',
-        valor: Number(contrato.valor_mensal) || 0,
-        data_vencimento: vencimento,
-        periodo_competencia: competenciaLote,
-        observacoes: `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome}) - ${contrato.tipo_contrato} - ${contrato.total_ocupantes || 0} ocupantes`
-      });
-
-      alert(`✅ ¡Orden de Pago ${opCriada.codigo_pago} generada con éxito como BORRADOR (Rascunho) para ${contrato.alojamento_nome}!\nPuede revisarla, modificar importes y enviarla a aprobación en "Órdenes de Pago".`);
-    } catch (err: any) {
-      console.error('Error al generar OP:', err);
-      alert(`Aviso: ${err?.message || 'No fue posible generar la Orden de Pago. Compruebe los datos del contrato.'}`);
-    } finally {
-      setGeneratingOpId(null);
-    }
+    setOpModalContrato(contrato);
   };
 
-  // Gerar OPs em Lote para os contratos selecionados
-  const handleGerarOPsEmLote = async () => {
+  // Abrir Modal para Geração em Lote de OPs
+  const handleOpenGerarLoteModal = () => {
     const selecionados = contratos.filter(c => selectedIds.has(c.id));
     if (selecionados.length === 0) return;
-
-    const confirmMsg = `¿Desea generar ${selecionados.length} Órdenes de Pago como Borrador para la competencia ${competenciaLote} por un importe total de € ${selecionados.reduce((acc, c) => acc + (Number(c.valor_mensal) || 0), 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}?`;
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      setIsGeneratingBatch(true);
-
-      let anoComp = '2026';
-      let mesComp = '10';
-      if (competenciaLote && competenciaLote.includes('/')) {
-        const parts = competenciaLote.split('/');
-        mesComp = parts[0].padStart(2, '0');
-        anoComp = parts[1] || '2026';
-      }
-
-      const payloads = selecionados.map(contrato => {
-        const dia = String(contrato.dia_vencimento || 5).padStart(2, '0');
-        const vencimento = `${anoComp}-${mesComp}-${dia}`;
-        return {
-          contrato_id: contrato.codigo,
-          alojamento_id: contrato.alojamento_id,
-          alojamento_nome: contrato.alojamento_nome,
-          alojamento_codigo: contrato.alojamento?.codigo,
-          provedor_id: contrato.provedor_id,
-          provedor_nome: contrato.provedor_nome,
-          iban_cobranca: contrato.iban_cobranca,
-          banco: contrato.banco,
-          titular: contrato.titular,
-          centro_custo_cliente: contrato.cliente_nome || 'Centro de Coste General',
-          centro_custo_obra: contrato.centro_custo_obra || `Obra ${contrato.alojamento?.municipio || 'Principal'}`,
-          tipo_pago: 'Aluguel' as const,
-          valor: Number(contrato.valor_mensal) || 0,
-          data_vencimento: vencimento,
-          periodo_competencia: competenciaLote,
-          observacoes: `Alquiler mensual lote ${competenciaLote} - ${contrato.alojamento_nome}`
-        };
-      });
-
-      const ops = await financeLogisticsService.gerarOrdensPagamentoEmLote(payloads);
-      
-      alert(`🎉 ¡Se generaron con éxito ${ops.length} Órdenes de Pago como BORRADOR (Rascunho) en Finanzas!\nPuede revisarlas, editarlas y enviarlas a aprobación en la pestaña "Órdenes de Pago".`);
-      setSelectedIds(new Set());
-    } catch (err: any) {
-      console.error('Error al generar OPs em lote:', err);
-      alert(`Error al generar lote: ${err?.message || 'Compruebe la conexión.'}`);
-    } finally {
-      setIsGeneratingBatch(false);
-    }
+    setIsLoteModalOpen(true);
   };
 
   // Contagens e Métricas
@@ -608,12 +538,11 @@ export const ContratosList: React.FC = () => {
             </div>
 
             <button
-              onClick={handleGerarOPsEmLote}
-              disabled={isGeneratingBatch}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5 disabled:opacity-50"
+              onClick={handleOpenGerarLoteModal}
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-black transition-all shadow-md flex items-center gap-1.5"
             >
               <Zap size={14} />
-              {isGeneratingBatch ? 'Generando Lote...' : `Generar ${selectedIds.size} Órdenes de Pago`}
+              Generar {selectedIds.size} Órdenes de Pago
             </button>
 
             <button
@@ -1032,13 +961,12 @@ export const ContratosList: React.FC = () => {
                             )}
 
                             <button
-                              onClick={e => handleGerarOP(c, e)}
-                              disabled={generatingOpId === c.id}
-                              className="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 shadow-xs disabled:opacity-50"
+                              onClick={e => handleOpenGerarOPModal(c, e)}
+                              className="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
                               title="Generar Orden de Pago en Finanzas"
                             >
                               <DollarSign size={13} />
-                              {generatingOpId === c.id ? 'Generando...' : 'Generar OP'}
+                              Generar OP
                             </button>
 
                             <button
@@ -1696,8 +1624,9 @@ export const ContratosList: React.FC = () => {
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    handleGerarOP(viewingContrato);
+                    const c = viewingContrato;
                     setViewingContrato(null);
+                    handleOpenGerarOPModal(c);
                   }}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm"
                 >
@@ -1709,6 +1638,29 @@ export const ContratosList: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Geração Individual de OP com Controle de Competência, Vencimento e Ocupantes */}
+      <GenerarOrdemPagoModal
+        contrato={opModalContrato}
+        isOpen={Boolean(opModalContrato)}
+        onClose={() => setOpModalContrato(null)}
+        competenciaSugerida={competenciaLote}
+        onSuccess={() => {
+          loadContratos();
+        }}
+      />
+
+      {/* Modal de Geração em Lote de OPs */}
+      <GenerarLoteModal
+        contratos={contratos.filter(c => selectedIds.has(c.id))}
+        isOpen={isLoteModalOpen}
+        onClose={() => setIsLoteModalOpen(false)}
+        competenciaInicial={competenciaLote}
+        onSuccess={() => {
+          setSelectedIds(new Set());
+          loadContratos();
+        }}
+      />
     </div>
   );
 };
