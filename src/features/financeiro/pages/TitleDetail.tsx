@@ -601,31 +601,13 @@ export const TitleDetail = () => {
                                     {/* Ações do Aprovador (Maker-Checker) */}
                                     {canApprove && (
                                         <div className="space-y-3">
-                                            <Tooltip.Root>
-                                                <Tooltip.Trigger asChild>
-                                                    <span className="block w-full">
-                                                        <Button 
-                                                            onClick={() => setIsApproveOpen(true)}
-                                                            disabled={isMaker || actionMutation.isPending}
-                                                            className={`w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold transition-all ${
-                                                                isMaker 
-                                                                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-900 dark:text-slate-700' 
-                                                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/10'
-                                                            }`}
-                                                        >
-                                                            <CheckCircle size={16} /> Aprovar Ordem
-                                                        </Button>
-                                                    </span>
-                                                </Tooltip.Trigger>
-                                                {isMaker && (
-                                                    <Tooltip.Portal>
-                                                        <Tooltip.Content className="bg-slate-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl max-w-xs z-50" side="bottom" sideOffset={5}>
-                                                            Segregação de Funções (Maker-Checker): Você não pode aprovar uma ordem de pagamento que você mesmo criou.
-                                                            <Tooltip.Arrow className="fill-slate-900" />
-                                                        </Tooltip.Content>
-                                                    </Tooltip.Portal>
-                                                )}
-                                            </Tooltip.Root>
+                                            <Button 
+                                                onClick={() => setIsApproveOpen(true)}
+                                                disabled={actionMutation.isPending}
+                                                className="w-full flex items-center justify-center gap-2 rounded-xl py-3 font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/10 transition-all cursor-pointer"
+                                            >
+                                                <CheckCircle size={16} /> Aprovar Ordem
+                                            </Button>
 
                                             {/* Botão Solicitar Correção / Ajuste */}
                                             <Button 
