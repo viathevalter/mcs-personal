@@ -30,7 +30,10 @@ import {
   FileCheck,
   ExternalLink,
   Filter,
-  Users
+  Users,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { financeLogisticsService } from '../services/financeLogisticsService';
 import type { PagoAlojamento } from '../services/financeLogisticsService';
@@ -54,6 +57,19 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   // Seleção Múltipla para Envio em Lote
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSendingBatch, setIsSendingBatch] = useState(false);
+
+  // Ordenação de Colunas
+  const [sortField, setSortField] = useState<string>('data_vencimento');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   // Modais de Edição e Recibo
   const [editingOp, setEditingOp] = useState<PagoAlojamento | null>(null);
@@ -307,6 +323,60 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     if (competenciaFilter !== 'todos' && p.periodo_competencia !== competenciaFilter) return false;
     return true;
   });
+
+  // Dados Ordenados
+  const sortedPagos = React.useMemo(() => {
+    return [...filtered].sort((a: any, b: any) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === 'valor_previsto') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
+      }
+
+      if (sortField === 'data_vencimento') {
+        const timeA = valA ? new Date(valA).getTime() : 0;
+        const timeB = valB ? new Date(valB).getTime() : 0;
+        return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
+      }
+
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+
+      if (valA === undefined || valA === null) return sortDirection === 'asc' ? 1 : -1;
+      if (valB === undefined || valB === null) return sortDirection === 'asc' ? -1 : 1;
+
+      return sortDirection === 'asc'
+        ? (valA < valB ? -1 : valA > valB ? 1 : 0)
+        : (valA > valB ? -1 : valA < valB ? 1 : 0);
+    });
+  }, [filtered, sortField, sortDirection]);
+
+  const renderSortHeader = (label: string, field: string, align: 'left' | 'center' | 'right' = 'left') => {
+    const isCurrent = sortField === field;
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(field)}
+        className={`flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer select-none font-bold uppercase tracking-wider text-[10px] ${
+          align === 'right' ? 'ml-auto justify-end' : align === 'center' ? 'mx-auto justify-center' : 'justify-start'
+        }`}
+      >
+        <span>{label}</span>
+        {isCurrent ? (
+          sortDirection === 'asc' ? (
+            <ArrowUp size={12} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+          ) : (
+            <ArrowDown size={12} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+          )
+        ) : (
+          <ArrowUpDown size={12} className="text-slate-400/50 hover:text-slate-500 shrink-0" />
+        )}
+      </button>
+    );
+  };
 
   const getTipoIcon = (tipo: string) => {
     switch (tipo) {
@@ -616,8 +686,8 @@ export const FinanceiroLogisticaPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabela de Dados */}
-        <div className="overflow-x-auto">
+        {/* Tabela de Dados com Cabeçalho Fixo e Scroll Interno da Galeria */}
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[380px] rounded-b-2xl border-t border-slate-100 dark:border-slate-800">
           {isLoading ? (
             <div className="p-16 text-center text-slate-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-3"></div>
@@ -639,29 +709,45 @@ export const FinanceiroLogisticaPage: React.FC = () => {
               </button>
             </div>
           ) : (
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-xs uppercase font-bold text-[10px] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 shadow-xs">
                 <tr>
-                  <th className="px-3 py-3 w-10 text-center">
+                  <th className="px-3 py-3 w-10 text-center sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
                     <input
                       type="checkbox"
-                      checked={selectedIds.size === filtered.length && filtered.length > 0}
+                      checked={selectedIds.size === sortedPagos.length && sortedPagos.length > 0}
                       onChange={toggleSelectAll}
                       className="rounded border-slate-300 text-blue-600 focus:ring-blue-600/20"
                     />
                   </th>
-                  <th className="px-3 py-3">Código OP & Categoría</th>
-                  <th className="px-4 py-3">Alojamiento Vinculado</th>
-                  <th className="px-4 py-3">Proveedor / IBAN</th>
-                  <th className="px-4 py-3">Centro de Coste (Cliente/Obra)</th>
-                  <th className="px-4 py-3">Competencia & Vencimiento</th>
-                  <th className="px-4 py-3">Importe Previsto</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3 text-right">Acciones & Comprobantes</th>
+                  <th className="px-3 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Código OP & Categoría', 'codigo_pago')}
+                  </th>
+                  <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Alojamiento Vinculado', 'alojamento_nome')}
+                  </th>
+                  <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Proveedor / IBAN', 'provedor_nome')}
+                  </th>
+                  <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Centro de Coste', 'centro_custo_cliente')}
+                  </th>
+                  <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Competencia & Vencimiento', 'data_vencimento')}
+                  </th>
+                  <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20 text-right">
+                    {renderSortHeader('Importe Previsto', 'valor_previsto', 'right')}
+                  </th>
+                  <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20 text-center">
+                    {renderSortHeader('Estado', 'status_pago', 'center')}
+                  </th>
+                  <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20 text-right">
+                    Acciones & Comprobantes
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {filtered.map(op => (
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                {sortedPagos.map(op => (
                   <tr key={op.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
                     {/* Checkbox Seleção */}
                     <td className="px-3 py-3.5 text-center">

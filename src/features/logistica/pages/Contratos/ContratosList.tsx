@@ -44,7 +44,10 @@ import {
   Image as ImageIcon,
   Trash2,
   Maximize2,
-  X
+  X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { contratosLogisticsService } from '../../services/contratosLogisticsService';
 import type { ContratoAlojamento, OcupanteContrato, FianzaDetalhes } from '../../services/contratosLogisticsService';
@@ -80,6 +83,19 @@ export const ContratosList: React.FC = () => {
   // Modais de Geração de OP com Pré-visualização e Regra de Vencimento
   const [opModalContrato, setOpModalContrato] = useState<ContratoAlojamento | null>(null);
   const [isLoteModalOpen, setIsLoteModalOpen] = useState(false);
+
+  // Ordenação de Colunas
+  const [sortField, setSortField] = useState<string>('dia_vencimento');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   // Galeria alinhada / Accordion de ocupantes expandidos
   const [expandedContractIds, setExpandedContractIds] = useState<Set<string>>(new Set());
@@ -367,6 +383,54 @@ export const ContratosList: React.FC = () => {
       return true;
     });
   }, [contratos, searchTerm, statusFilter, vencimentoRange]);
+
+  // Dados Ordenados
+  const sortedContratos = useMemo(() => {
+    return [...filtered].sort((a: any, b: any) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === 'valor_mensal' || sortField === 'fianza_valor' || sortField === 'dia_vencimento' || sortField === 'total_ocupantes') {
+        valA = Number(valA) || 0;
+        valB = Number(valB) || 0;
+        return sortDirection === 'asc' ? valA - valB : valB - valA;
+      }
+
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
+
+      if (valA === undefined || valA === null) return sortDirection === 'asc' ? 1 : -1;
+      if (valB === undefined || valB === null) return sortDirection === 'asc' ? -1 : 1;
+
+      return sortDirection === 'asc'
+        ? (valA < valB ? -1 : valA > valB ? 1 : 0)
+        : (valA > valB ? -1 : valA < valB ? 1 : 0);
+    });
+  }, [filtered, sortField, sortDirection]);
+
+  const renderSortHeader = (label: string, field: string, align: 'left' | 'center' | 'right' = 'left') => {
+    const isCurrent = sortField === field;
+    return (
+      <button
+        type="button"
+        onClick={() => handleSort(field)}
+        className={`flex items-center gap-1.5 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer select-none font-bold uppercase tracking-wider text-[10px] ${
+          align === 'right' ? 'ml-auto justify-end' : align === 'center' ? 'mx-auto justify-center' : 'justify-start'
+        }`}
+      >
+        <span>{label}</span>
+        {isCurrent ? (
+          sortDirection === 'asc' ? (
+            <ArrowUp size={12} className="text-blue-600 dark:text-blue-400 shrink-0" />
+          ) : (
+            <ArrowDown size={12} className="text-blue-600 dark:text-blue-400 shrink-0" />
+          )
+        ) : (
+          <ArrowUpDown size={12} className="text-slate-400/50 hover:text-slate-500 shrink-0" />
+        )}
+      </button>
+    );
+  };
 
   // Gestão de Seleção
   const isAllSelected = filtered.length > 0 && filtered.every(c => selectedIds.has(c.id));
@@ -699,8 +763,8 @@ export const ContratosList: React.FC = () => {
           </div>
         </div>
 
-        {/* Table with Expandable Aligned Occupants Gallery */}
-        <div className="overflow-x-auto">
+        {/* Table with Expandable Aligned Occupants Gallery, Sticky Header and Internal Scroll */}
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[400px]">
           {isLoading ? (
             <div className="p-16 text-center text-slate-500">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
@@ -713,10 +777,10 @@ export const ContratosList: React.FC = () => {
               <p className="text-xs text-slate-400">Pruebe a cambiar el rango de vencimiento o el estado del contrato.</p>
             </div>
           ) : (
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 dark:bg-slate-800/60 uppercase font-bold text-[10px] text-slate-400 border-b border-slate-200 dark:border-slate-800">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead className="sticky top-0 z-20 bg-slate-100/95 dark:bg-slate-800/95 backdrop-blur-xs uppercase font-bold text-[10px] text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 shadow-xs">
                 <tr>
-                  <th className="px-3 py-3 w-10 text-center">
+                  <th className="px-3 py-3 w-10 text-center sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
                     <button
                       onClick={toggleSelectAll}
                       className="text-slate-400 hover:text-blue-600 transition-colors"
@@ -725,20 +789,38 @@ export const ContratosList: React.FC = () => {
                       {isAllSelected ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />}
                     </button>
                   </th>
-                  <th className="w-8 py-3 px-1 text-center"></th>
-                  <th className="px-3 py-3">Contrato & Inmueble</th>
-                  <th className="px-3 py-3">Ocupación & Plazas</th>
-                  <th className="px-3 py-3">Proveedor & Pago</th>
-                  <th className="px-3 py-3">Modalidad</th>
-                  <th className="px-3 py-3">Día Vencimiento</th>
-                  <th className="px-3 py-3">Alquiler Mensual</th>
-                  <th className="px-3 py-3">Fianza & Vistoria</th>
-                  <th className="px-3 py-3">Estado</th>
-                  <th className="px-4 py-3 text-right">Acciones</th>
+                  <th className="w-8 py-3 px-1 text-center sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20"></th>
+                  <th className="px-3 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Contrato & Inmueble', 'alojamento_nome')}
+                  </th>
+                  <th className="px-3 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Ocupación & Plazas', 'total_ocupantes')}
+                  </th>
+                  <th className="px-3 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Proveedor & Pago', 'provedor_nome')}
+                  </th>
+                  <th className="px-3 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Modalidad', 'tipo_contrato')}
+                  </th>
+                  <th className="px-3 py-3 text-center sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Día Vcto', 'dia_vencimento', 'center')}
+                  </th>
+                  <th className="px-3 py-3 text-right sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Alquiler Mensual', 'valor_mensal', 'right')}
+                  </th>
+                  <th className="px-3 py-3 text-right sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Fianza & Vistoria', 'fianza_valor', 'right')}
+                  </th>
+                  <th className="px-3 py-3 text-center sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    {renderSortHeader('Estado', 'status', 'center')}
+                  </th>
+                  <th className="px-4 py-3 text-right sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
+                    Acciones
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {filtered.map(c => {
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                {sortedContratos.map(c => {
                   const isSelected = selectedIds.has(c.id);
                   const isExpanded = expandedContractIds.has(c.id);
                   const dia = Number(c.dia_vencimento || 5);
