@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { createOrdemPagamento } from '../data/loader';
 import { toast } from 'sonner';
 
-const ALL_STATUSES = ['rascunho', 'aguardando_aprovacao', 'aprovado', 'pago', 'rejeitado'];
+const ALL_STATUSES = ['rascunho', 'aguardando_aprovacao', 'aprovado', 'pago', 'rejeitado', 'cancelado'];
 
 const getStatusLabel = (status: string) => {
     switch(status) {
@@ -21,6 +21,7 @@ const getStatusLabel = (status: string) => {
         case 'aprovado': return 'Aprovado';
         case 'pago': return 'Pago';
         case 'rejeitado': return 'Rejeitado';
+        case 'cancelado': return 'Cancelado';
         default: return status;
     }
 };
@@ -28,7 +29,8 @@ const getStatusLabel = (status: string) => {
 const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" | "success" => {
     switch (status) {
         case 'pago': return 'default'; // Success green in standard config
-        case 'rejeitado': return 'destructive';
+        case 'rejeitado':
+        case 'cancelado': return 'destructive';
         case 'aguardando_aprovacao': return 'secondary';
         case 'aprovado': return 'outline';
         case 'rascunho': return 'secondary';
@@ -398,8 +400,30 @@ export const Titulos = () => {
                                                 onChange={() => toggleSelection(item.id)}
                                             />
                                         </TableCell>
-                                        <TableCell className="font-bold text-slate-700 dark:text-slate-300">{item.cod_orden_pago || 'Pendente'}</TableCell>
-                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">{item.descricao}</TableCell>
+                                        <TableCell className="font-bold text-slate-700 dark:text-slate-300">
+                                            <div className="flex flex-col gap-1 items-start">
+                                                <span>{item.cod_orden_pago || 'Pendente'}</span>
+                                                {item.departamento_origem && (
+                                                    <span className={`text-[9px] px-1.5 py-0.2 rounded-md font-bold uppercase tracking-wider ${
+                                                        item.departamento_origem.toLowerCase().includes('log')
+                                                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                                            : 'bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                                                    }`}>
+                                                        {item.departamento_origem}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
+                                            <div>
+                                                <span>{item.descricao}</span>
+                                                {item.cod_alojamiento && (
+                                                    <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                                                        Inmueble: {item.cod_alojamiento}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </TableCell>
                                         <TableCell className="text-slate-600 dark:text-slate-400">{supplierName}</TableCell>
                                         <TableCell className="text-slate-600 dark:text-slate-400">{formatDate(item.data_vencimento)}</TableCell>
                                         <TableCell className="text-right font-bold text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</TableCell>
@@ -409,11 +433,30 @@ export const Titulos = () => {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-center px-6">
-                                            <Button variant="ghost" size="icon" asChild className="rounded-xl hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800 transition-colors">
-                                                <Link to={`/financeiro/titulos/${item.id}`} className="text-slate-400 hover:text-blue-600">
-                                                    <Eye size={18} />
-                                                </Link>
-                                            </Button>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <Button variant="ghost" size="icon" asChild className="rounded-xl hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-slate-800 transition-colors">
+                                                    <Link to={`/financeiro/titulos/${item.id}`} className="text-slate-400 hover:text-blue-600" title="Ver detalles">
+                                                        <Eye size={18} />
+                                                    </Link>
+                                                </Button>
+                                                {item.status === 'rascunho' && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={async () => {
+                                                            if (confirm(`¿Eliminar orden borrador ${item.cod_orden_pago}?`)) {
+                                                                await supabase.schema('core_finance').from('ordens_pagamento').delete().eq('id', item.id);
+                                                                toast.success('Orden borrador eliminada.');
+                                                                queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
+                                                            }
+                                                        }}
+                                                        className="rounded-xl hover:bg-red-50 hover:text-red-600 dark:hover:bg-slate-800 text-slate-400 hover:text-red-600 transition-colors"
+                                                        title="Eliminar borrador"
+                                                    >
+                                                        <Trash2 size={16} />
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 );

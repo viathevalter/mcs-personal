@@ -241,7 +241,7 @@ export interface OrdemPagamento {
   fornecedor_id?: string | null;
   valor: number;
   data_vencimento: string;
-  status: 'rascunho' | 'aguardando_aprovacao' | 'aprovado' | 'pago' | 'rejeitado';
+  status: 'rascunho' | 'aguardando_aprovacao' | 'aprovado' | 'pago' | 'rejeitado' | 'cancelado';
   criador_id: string;
   aprovador_id?: string | null;
   created_at: string;

@@ -260,7 +260,14 @@ export const ContratosList: React.FC = () => {
       setGeneratingOpId(contrato.id);
 
       const dia = String(contrato.dia_vencimento || 5).padStart(2, '0');
-      const vencimento = `2026-09-${dia}`;
+      let anoComp = '2026';
+      let mesComp = '10';
+      if (competenciaLote && competenciaLote.includes('/')) {
+        const parts = competenciaLote.split('/');
+        mesComp = parts[0].padStart(2, '0');
+        anoComp = parts[1] || '2026';
+      }
+      const vencimento = `${anoComp}-${mesComp}-${dia}`;
 
       const opCriada = await financeLogisticsService.gerarOrdemPagamento({
         contrato_id: contrato.codigo,
@@ -281,7 +288,7 @@ export const ContratosList: React.FC = () => {
         observacoes: `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome}) - ${contrato.tipo_contrato} - ${contrato.total_ocupantes || 0} ocupantes`
       });
 
-      alert(`✅ ¡Orden de Pago ${opCriada.codigo_pago} generada con éxito para el inmueble ${contrato.alojamento_nome} (Cliente: ${contrato.cliente_nome || 'General'})!\nPuede visualizarla y aprobarla en Finanzas.`);
+      alert(`✅ ¡Orden de Pago ${opCriada.codigo_pago} generada con éxito como BORRADOR (Rascunho) para ${contrato.alojamento_nome}!\nPuede revisarla, modificar importes y enviarla a aprobación en "Órdenes de Pago".`);
     } catch (err: any) {
       console.error('Error al generar OP:', err);
       alert(`Aviso: ${err?.message || 'No fue posible generar la Orden de Pago. Compruebe los datos del contrato.'}`);
@@ -295,15 +302,23 @@ export const ContratosList: React.FC = () => {
     const selecionados = contratos.filter(c => selectedIds.has(c.id));
     if (selecionados.length === 0) return;
 
-    const confirmMsg = `¿Desea generar ${selecionados.length} Órdenes de Pago para la competencia ${competenciaLote} por un importe total de € ${selecionados.reduce((acc, c) => acc + (Number(c.valor_mensal) || 0), 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}?`;
+    const confirmMsg = `¿Desea generar ${selecionados.length} Órdenes de Pago como Borrador para la competencia ${competenciaLote} por un importe total de € ${selecionados.reduce((acc, c) => acc + (Number(c.valor_mensal) || 0), 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}?`;
     if (!window.confirm(confirmMsg)) return;
 
     try {
       setIsGeneratingBatch(true);
 
+      let anoComp = '2026';
+      let mesComp = '10';
+      if (competenciaLote && competenciaLote.includes('/')) {
+        const parts = competenciaLote.split('/');
+        mesComp = parts[0].padStart(2, '0');
+        anoComp = parts[1] || '2026';
+      }
+
       const payloads = selecionados.map(contrato => {
         const dia = String(contrato.dia_vencimento || 5).padStart(2, '0');
-        const vencimento = `2026-09-${dia}`;
+        const vencimento = `${anoComp}-${mesComp}-${dia}`;
         return {
           contrato_id: contrato.codigo,
           alojamento_id: contrato.alojamento_id,
@@ -326,7 +341,7 @@ export const ContratosList: React.FC = () => {
 
       const ops = await financeLogisticsService.gerarOrdensPagamentoEmLote(payloads);
       
-      alert(`🎉 ¡Se generaron con éxito ${ops.length} Órdenes de Pago en Finanzas!`);
+      alert(`🎉 ¡Se generaron con éxito ${ops.length} Órdenes de Pago como BORRADOR (Rascunho) en Finanzas!\nPuede revisarlas, editarlas y enviarlas a aprobación en la pestaña "Órdenes de Pago".`);
       setSelectedIds(new Set());
     } catch (err: any) {
       console.error('Error al generar OPs em lote:', err);
