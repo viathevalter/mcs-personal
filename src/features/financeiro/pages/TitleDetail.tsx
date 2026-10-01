@@ -317,7 +317,7 @@ export const TitleDetail = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 dark:border-slate-800 pt-6 text-sm">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 border-t border-slate-100 dark:border-slate-800 pt-6 text-sm">
                                     <div>
                                         <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Vencimento</span>
                                         <span className="font-bold text-slate-800 dark:text-slate-200">{formatDate(title.data_vencimento)}</span>
@@ -325,6 +325,15 @@ export const TitleDetail = () => {
                                     <div>
                                         <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Criado Em</span>
                                         <span className="font-semibold text-slate-600 dark:text-slate-400">{formatDate(title.created_at)}</span>
+                                    </div>
+                                    <div>
+                                        <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Solicitante</span>
+                                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block text-xs" title={title.criador_email || ''}>
+                                            {title.criador_email || 'Não informado'}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium">
+                                            Setor: {title.departamento_origem || 'Geral'}
+                                        </span>
                                     </div>
                                     <div>
                                         <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Qtd Itens</span>

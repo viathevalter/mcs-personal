@@ -243,6 +243,8 @@ export interface OrdemPagamento {
   data_vencimento: string;
   status: 'rascunho' | 'aguardando_aprovacao' | 'aprovado' | 'pago' | 'rejeitado' | 'cancelado' | 'correcao_solicitada';
   criador_id: string;
+  criador_email?: string | null;
+  criador_nome?: string | null;
   aprovador_id?: string | null;
   created_at: string;
   updated_at: string;

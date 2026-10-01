@@ -536,6 +536,7 @@ export const financeLogisticsService = {
           data_vencimento: payload.data_vencimento,
           status: 'rascunho', // OPÇÃO B: Rascunho
           criador_id: userId,
+          criador_email: userEmail,
           departamento_origem: 'Logística',
           cod_alojamiento: payload.alojamento_codigo || null,
           cod_contrato: payload.contrato_id || null,

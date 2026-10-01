@@ -150,7 +150,10 @@ export const Titulos = () => {
             const lowerTerm = searchTerm.toLowerCase();
             const desc = (item.descricao || '').toLowerCase();
             const code = (item.cod_orden_pago || '').toLowerCase();
-            if (!desc.includes(lowerTerm) && !code.includes(lowerTerm)) return false;
+            const creator = (item.criador_email || '').toLowerCase();
+            const dept = (item.departamento_origem || '').toLowerCase();
+            const supplier = (suppliers?.find(s => s.codigo === item.cod_provedor || s.id === item.fornecedor_id)?.trade_name || item.cod_provedor || '').toLowerCase();
+            if (!desc.includes(lowerTerm) && !code.includes(lowerTerm) && !creator.includes(lowerTerm) && !dept.includes(lowerTerm) && !supplier.includes(lowerTerm)) return false;
         }
         return true;
     });
@@ -396,6 +399,7 @@ export const Titulos = () => {
                                 <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Código</TableHead>
                                 <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Descrição</TableHead>
                                 <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Fornecedor</TableHead>
+                                <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Solicitante</TableHead>
                                 <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Vencimento</TableHead>
                                 <TableHead className="text-right text-slate-500 font-bold text-xs uppercase tracking-wider">Valor</TableHead>
                                 <TableHead className="text-center text-slate-500 font-bold text-xs uppercase tracking-wider">Status</TableHead>
@@ -405,7 +409,7 @@ export const Titulos = () => {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-12 text-slate-400">Carregando ordens...</TableCell>
+                                    <TableCell colSpan={9} className="text-center py-12 text-slate-400">Carregando ordens...</TableCell>
                                 </TableRow>
                             ) : paginatedData.length > 0 ? paginatedData.map((item) => {
                                 const supplierName = suppliers?.find(s => s.codigo === item.cod_provedor || s.id === item.fornecedor_id)?.trade_name || item.cod_provedor || 'Não informado';
@@ -473,6 +477,21 @@ export const Titulos = () => {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-slate-600 dark:text-slate-400">{supplierName}</TableCell>
+                                        <TableCell className="text-slate-700 dark:text-slate-300">
+                                            <div className="flex items-center gap-2" title={`Usuário Solicitante: ${item.criador_email || 'Não informado'}`}>
+                                                <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center text-[10px] font-bold border border-blue-200 dark:border-blue-900/40 flex-shrink-0">
+                                                    {item.criador_email ? item.criador_email.charAt(0).toUpperCase() : 'U'}
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[130px]">
+                                                        {item.criador_email ? item.criador_email.split('@')[0] : 'Sistema'}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-400 truncate max-w-[130px]">
+                                                        {item.departamento_origem || 'Geral'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </TableCell>
                                         <TableCell className="text-slate-600 dark:text-slate-400">{formatDate(item.data_vencimento)}</TableCell>
                                         <TableCell className="text-right font-bold text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</TableCell>
                                         <TableCell className="text-center">
@@ -517,7 +536,7 @@ export const Titulos = () => {
                                 );
                             }) : (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="px-6 py-12 text-center text-slate-400">
+                                    <TableCell colSpan={9} className="px-6 py-12 text-center text-slate-400">
                                         <div className="flex flex-col items-center gap-2 py-6">
                                             <Filter size={36} className="opacity-20 text-slate-400" />
                                             <p className="font-medium">Nenhuma ordem de pagamento encontrada.</p>

@@ -740,11 +740,17 @@ export async function createOrdemPagamento(
     const codOrdenPago = `OP-${LPAD(nextNum.toString(), 6, '0')}`;
 
     // 2. Insert header
+    const { data: userData } = await supabase.auth.getUser();
+    const email = userData?.user?.email || 'sistema';
+    const userId = userData?.user?.id || null;
+
     const headerInsert = {
       ...ordem,
       cod_orden_pago: codOrdenPago,
       qtde_itens: itens.length,
-      status: 'rascunho'
+      status: 'rascunho',
+      criador_id: ordem.criador_id || userId,
+      criador_email: ordem.criador_email || (email !== 'sistema' ? email : null)
     };
 
     const { data: newOrdem, error: insertErr } = await supabase
@@ -774,9 +780,6 @@ export async function createOrdemPagamento(
     }
 
     // 4. Create initial movement log
-    const { data: userData } = await supabase.auth.getUser();
-    const email = userData?.user?.email || 'sistema';
-
     const movimento: Partial<MovimentoPago> = {
       ordem_pagamento_id: newOrdem.id,
       cod_mov: `MOV-${new Date().toISOString().replace(/[-:T.Z]/g, '').substring(2, 14)}`,
