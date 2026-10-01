@@ -241,7 +241,7 @@ export interface OrdemPagamento {
   fornecedor_id?: string | null;
   valor: number;
   data_vencimento: string;
-  status: 'rascunho' | 'aguardando_aprovacao' | 'aprovado' | 'pago' | 'rejeitado' | 'cancelado';
+  status: 'rascunho' | 'aguardando_aprovacao' | 'aprovado' | 'pago' | 'rejeitado' | 'cancelado' | 'correcao_solicitada';
   criador_id: string;
   aprovador_id?: string | null;
   created_at: string;
@@ -257,9 +257,13 @@ export interface OrdemPagamento {
   tipo_orden?: string | null;
   observaciones?: string | null;
   observaciones_financeiro?: string | null;
+  motivo_correcao?: string | null;
   fecha_aprobacion?: string | null;
   pago_por?: string | null;
   fecha_pago?: string | null;
+  banco_id?: string | null;
+  forma_pagamento?: string | null;
+  comprovante_geral?: string | null;
   comprovante_general?: string | null;
   qtde_itens?: number;
   cancelado_por?: string | null;
@@ -273,4 +277,5 @@ export interface OrdemPagamento {
   contab_conta_snc?: string | null;
   fecha_vencto?: string | null;
   itens?: OrdemPagamentoItem[];
+  movimentos?: MovimentoPago[];
 }

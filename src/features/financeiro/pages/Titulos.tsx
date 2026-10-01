@@ -13,12 +13,13 @@ import { createOrdemPagamento } from '../data/loader';
 import { logisticsService } from '@/features/logistica/services/logisticsService';
 import { toast } from 'sonner';
 
-const ALL_STATUSES = ['rascunho', 'aguardando_aprovacao', 'aprovado', 'pago', 'rejeitado', 'cancelado'];
+const ALL_STATUSES = ['rascunho', 'aguardando_aprovacao', 'correcao_solicitada', 'aprovado', 'pago', 'rejeitado', 'cancelado'];
 
 const getStatusLabel = (status: string) => {
     switch(status) {
         case 'rascunho': return 'Rascunho';
         case 'aguardando_aprovacao': return 'Aguardando Aprovação';
+        case 'correcao_solicitada': return 'Correção Solicitada';
         case 'aprovado': return 'Aprovado';
         case 'pago': return 'Pago';
         case 'rejeitado': return 'Rejeitado';
@@ -29,10 +30,11 @@ const getStatusLabel = (status: string) => {
 
 const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" | "success" => {
     switch (status) {
-        case 'pago': return 'default'; // Success green in standard config
+        case 'pago': return 'default'; // Success green
         case 'rejeitado':
         case 'cancelado': return 'destructive';
         case 'aguardando_aprovacao': return 'secondary';
+        case 'correcao_solicitada': return 'outline';
         case 'aprovado': return 'outline';
         case 'rascunho': return 'secondary';
         default: return 'outline';
@@ -159,11 +161,12 @@ export const Titulos = () => {
         switch (item.status) {
             case 'pago': acc.pago += Number(item.valor) || 0; break;
             case 'aguardando_aprovacao': acc.aguardando += Number(item.valor) || 0; break;
+            case 'correcao_solicitada': acc.correcao += Number(item.valor) || 0; break;
             case 'aprovado': acc.aprovado += Number(item.valor) || 0; break;
             case 'rascunho': acc.rascunho += Number(item.valor) || 0; break;
         }
         return acc;
-    }, { count: 0, totalValue: 0, pago: 0, aguardando: 0, aprovado: 0, rascunho: 0 });
+    }, { count: 0, totalValue: 0, pago: 0, aguardando: 0, aprovado: 0, correcao: 0, rascunho: 0 });
 
     const totalPages = Math.ceil(localFilteredData.length / itemsPerPage);
     const paginatedData = localFilteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -284,7 +287,7 @@ export const Titulos = () => {
                 </div>
 
                 {/* KPIs Row */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 mt-6">
                     <Card className="rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Ordens</CardTitle>
@@ -301,20 +304,28 @@ export const Titulos = () => {
                             <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{formatCompactCurrency(kpis.totalValue)}</div>
                         </CardContent>
                     </Card>
-                    <Card className="border-l-4 border-l-slate-400 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rascunho</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-slate-700 dark:text-slate-300">{formatCompactCurrency(kpis.rascunho)}</div>
-                        </CardContent>
-                    </Card>
                     <Card className="border-l-4 border-l-blue-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aguardando Aprovação</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatCompactCurrency(kpis.aguardando)}</div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-l-4 border-l-amber-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Correção Solicitada</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{formatCompactCurrency(kpis.correcao)}</div>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-l-4 border-l-indigo-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aprovado</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{formatCompactCurrency(kpis.aprovado)}</div>
                         </CardContent>
                     </Card>
                     <Card className="border-l-4 border-l-emerald-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
@@ -465,9 +476,16 @@ export const Titulos = () => {
                                         <TableCell className="text-slate-600 dark:text-slate-400">{formatDate(item.data_vencimento)}</TableCell>
                                         <TableCell className="text-right font-bold text-slate-900 dark:text-slate-100">{formatCurrency(item.valor)}</TableCell>
                                         <TableCell className="text-center">
-                                            <Badge variant={getStatusVariant(item.status)} className="rounded-full px-2.5 py-0.5 text-[11px] font-bold">
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                                                item.status === 'pago' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200' :
+                                                item.status === 'aguardando_aprovacao' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200' :
+                                                item.status === 'correcao_solicitada' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 animate-pulse' :
+                                                item.status === 'aprovado' ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200' :
+                                                (item.status === 'rejeitado' || item.status === 'cancelado') ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200' :
+                                                'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200'
+                                            }`}>
                                                 {getStatusLabel(item.status)}
-                                            </Badge>
+                                            </span>
                                         </TableCell>
                                         <TableCell className="text-center px-6">
                                             <div className="flex items-center justify-center gap-1">

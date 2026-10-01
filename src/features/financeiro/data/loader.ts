@@ -798,7 +798,7 @@ export async function createOrdemPagamento(
 
 export async function updateOrdemPagamentoStatus(
   id: string,
-  status: 'rascunho' | 'aguardando_aprovacao' | 'aprovado' | 'pago' | 'rejeitado',
+  status: 'rascunho' | 'aguardando_aprovacao' | 'aprovado' | 'pago' | 'rejeitado' | 'cancelado' | 'correcao_solicitada',
   comments: string,
   aprovadorId?: string
 ): Promise<{ success: boolean; error?: any }> {
@@ -813,6 +813,9 @@ export async function updateOrdemPagamentoStatus(
       updateObj.observaciones_financeiro = comments;
     } else if (status === 'rejeitado') {
       updateObj.observaciones_financeiro = comments;
+    } else if (status === 'correcao_solicitada') {
+      updateObj.motivo_correcao = comments;
+      updateObj.observaciones_financeiro = comments;
     }
 
     const { error: updateErr } = await supabase
@@ -823,16 +826,23 @@ export async function updateOrdemPagamentoStatus(
 
     if (updateErr) throw updateErr;
 
-    // Create movement log
+    // Determinar dados de movimento
     let tipo_mov = 'Atualização';
-    let estado_mov = status;
+    let estado_mov = status as string;
     if (status === 'aguardando_aprovacao') {
-      tipo_mov = 'Devolución para aprovación';
-      estado_mov = 'Aguardando aprovação';
+      tipo_mov = 'Envio para Aprovação';
+      estado_mov = 'Aguardando Aprovação';
+    } else if (status === 'correcao_solicitada') {
+      tipo_mov = 'Solicitação de Correção';
+      estado_mov = 'Correção Solicitada';
     } else if (status === 'rejeitado') {
-      tipo_mov = 'Devolución para revisão';
-      estado_mov = 'Aguardando revisão';
+      tipo_mov = 'Rejeição';
+      estado_mov = 'Rejeitado';
+    } else if (status === 'cancelado') {
+      tipo_mov = 'Cancelamento';
+      estado_mov = 'Cancelado';
     } else if (status === 'aprovado') {
+      // Trigger em banco cria o contas_pagar e movimento de aprovação
       return { success: true };
     }
 
@@ -851,6 +861,251 @@ export async function updateOrdemPagamentoStatus(
   } catch (err) {
     console.error("Error updating OP status:", err);
     return { success: false, error: err };
+  }
+}
+
+export async function liquidarOrdemPagamento({
+  id,
+  bancoId,
+  bancoNome,
+  formaPagamento,
+  dataPagamento,
+  comprovanteUrl,
+  observacoes
+}: {
+  id: string;
+  bancoId?: string;
+  bancoNome?: string;
+  formaPagamento: string;
+  dataPagamento: string;
+  comprovanteUrl?: string;
+  observacoes?: string;
+}): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const email = userData?.user?.email || 'sistema';
+
+    // 1. Buscar ordem atual
+    const { data: ordem, error: fetchErr } = await supabase
+      .schema('core_finance')
+      .from('ordens_pagamento')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+
+    // Se a ordem ainda não foi aprovada, aprovar primeiro para disparar a trigger de contas_pagar
+    if (ordem.status !== 'aprovado' && ordem.status !== 'pago') {
+      await supabase
+        .schema('core_finance')
+        .from('ordens_pagamento')
+        .update({
+          status: 'aprovado',
+          aprovador_id: userData?.user?.id || null,
+          fecha_aprobacion: new Date().toISOString()
+        })
+        .eq('id', id);
+    }
+
+    // 2. Atualizar ordem para 'pago' com dados de liquidação
+    const updateObj: any = {
+      status: 'pago',
+      pago_por: email,
+      fecha_pago: dataPagamento ? new Date(dataPagamento).toISOString() : new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    if (comprovanteUrl) updateObj.comprovante_geral = comprovanteUrl;
+    if (bancoId) updateObj.banco_id = bancoId;
+    if (formaPagamento) updateObj.forma_pagamento = formaPagamento;
+    if (observacoes) updateObj.observaciones_financeiro = observacoes;
+
+    const { error: opUpdateErr } = await supabase
+      .schema('core_finance')
+      .from('ordens_pagamento')
+      .update(updateObj)
+      .eq('id', id);
+
+    if (opUpdateErr) throw opUpdateErr;
+
+    // 3. Atualizar títulos correspondentes em public.contas_pagar
+    const { data: cpList } = await supabase
+      .from('contas_pagar')
+      .select('id, valor_total')
+      .eq('ordem_pagamento_id', id);
+
+    if (cpList && cpList.length > 0) {
+      for (const cp of cpList) {
+        await supabase
+          .from('contas_pagar')
+          .update({
+            status: 'Pago',
+            saldo_a_pagar: '0',
+            dt_pagamento: dataPagamento || new Date().toISOString().split('T')[0],
+            banco: bancoNome || '',
+            obs_pagamento: formaPagamento,
+            anexo_url: comprovanteUrl || undefined
+          })
+          .eq('id', cp.id);
+
+        // Inserir registro em contas_pagar_pagamentos
+        await supabase.from('contas_pagar_pagamentos').insert([{
+          conta_pagar_id: cp.id,
+          valor: parseEuroNumber(cp.valor_total),
+          data_pagamento: dataPagamento || new Date().toISOString().split('T')[0],
+          forma_pagamento: formaPagamento,
+          tipo_pagamento: 'Integral',
+          banco_id: bancoId || null,
+          anexo_url: comprovanteUrl || null
+        }]);
+      }
+    }
+
+    // 4. Registrar movimento de liquidação em core_finance.movimentos_pagos
+    const movimento: Partial<MovimentoPago> = {
+      ordem_pagamento_id: id,
+      cod_mov: `MOV-${new Date().toISOString().replace(/[-:T.Z]/g, '').substring(2, 14)}`,
+      tipo_mov: 'Liquidación Bancaria',
+      estado_mov: 'Pago',
+      valor_pago: ordem.valor,
+      anexo_url: comprovanteUrl || null,
+      banco_id: bancoId || null,
+      forma_pagamento: formaPagamento,
+      observaciones: observacoes || 'Ordem liquidada e comprovante anexado.',
+      criado_por: email
+    };
+
+    await supabase.schema('core_finance').from('movimentos_pagos').insert([movimento]);
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error liquidating OP:", err);
+    return { success: false, error: err };
+  }
+}
+
+export async function updateOrdemPagamentoDados(
+  id: string,
+  dados: {
+    descricao?: string;
+    empresaId?: string;
+    fornecedorId?: string;
+    anexos?: string;
+    observacoes?: string;
+    itens?: Partial<OrdemPagamentoItem>[];
+  },
+  reenviarAprovacao = false
+): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { data: userData } = await supabase.auth.getUser();
+    const email = userData?.user?.email || 'sistema';
+
+    const updateObj: any = {
+      updated_at: new Date().toISOString()
+    };
+    if (dados.descricao) updateObj.descricao = dados.descricao;
+    if (dados.empresaId) updateObj.id_empresa = dados.empresaId;
+    if (dados.fornecedorId) updateObj.fornecedor_id = dados.fornecedorId;
+    if (dados.anexos !== undefined) updateObj.anexos = dados.anexos;
+    if (dados.observacoes !== undefined) updateObj.observaciones = dados.observacoes;
+
+    if (dados.itens && dados.itens.length > 0) {
+      const totalValor = dados.itens.reduce((acc, it) => acc + (Number(it.valor_orden) || 0), 0);
+      updateObj.valor = totalValor;
+      updateObj.qtde_itens = dados.itens.length;
+      if (dados.itens[0]?.vencimento_orden) {
+        updateObj.data_vencimento = dados.itens[0].vencimento_orden;
+      }
+    }
+
+    if (reenviarAprovacao) {
+      updateObj.status = 'aguardando_aprovacao';
+    }
+
+    const { error: updateErr } = await supabase
+      .schema('core_finance')
+      .from('ordens_pagamento')
+      .update(updateObj)
+      .eq('id', id);
+
+    if (updateErr) throw updateErr;
+
+    // Se foram enviados itens, atualizar
+    if (dados.itens && dados.itens.length > 0) {
+      await supabase
+        .schema('core_finance')
+        .from('ordens_pagamento_itens')
+        .delete()
+        .eq('ordem_pagamento_id', id);
+
+      const { data: opData } = await supabase
+        .schema('core_finance')
+        .from('ordens_pagamento')
+        .select('cod_orden_pago')
+        .eq('id', id)
+        .single();
+
+      const codOP = opData?.cod_orden_pago || 'OP-000000';
+
+      for (let i = 0; i < dados.itens.length; i++) {
+        const item = dados.itens[i];
+        const itemNum = i + 1;
+        const codItem = `${codOP}-IT-${LPAD(itemNum.toString(), 3, '0')}`;
+        await supabase
+          .schema('core_finance')
+          .from('ordens_pagamento_itens')
+          .insert([{
+            ...item,
+            ordem_pagamento_id: id,
+            cod_orden_pago: codOP,
+            cod_orden_pago_item: codItem,
+            status_item: 'Pendente'
+          }]);
+      }
+    }
+
+    // Registrar movimento
+    const movimento: Partial<MovimentoPago> = {
+      ordem_pagamento_id: id,
+      cod_mov: `MOV-${new Date().toISOString().replace(/[-:T.Z]/g, '').substring(2, 14)}`,
+      tipo_mov: reenviarAprovacao ? 'Reenvio para Aprovação' : 'Edição da Ordem',
+      estado_mov: reenviarAprovacao ? 'Aguardando Aprovação' : 'Ordem Atualizada',
+      observaciones: reenviarAprovacao ? 'Ordem corrigida e reenviada pelo solicitante.' : 'Dados da ordem atualizados.',
+      criado_por: email
+    };
+
+    await supabase.schema('core_finance').from('movimentos_pagos').insert([movimento]);
+
+    return { success: true };
+  } catch (err) {
+    console.error("Error updating OP dados:", err);
+    return { success: false, error: err };
+  }
+}
+
+export async function uploadComprovanteFinanceiro(file: File): Promise<{ url?: string; error?: any }> {
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `comprovante_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+    const filePath = `ordens/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('comprovantes-financeiro')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+    if (uploadError) throw uploadError;
+
+    const { data } = supabase.storage
+      .from('comprovantes-financeiro')
+      .getPublicUrl(filePath);
+
+    return { url: data.publicUrl };
+  } catch (err) {
+    console.error("Error uploading comprovante:", err);
+    return { error: err };
   }
 }
 
