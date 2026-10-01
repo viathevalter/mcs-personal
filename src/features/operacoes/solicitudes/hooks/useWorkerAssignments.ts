@@ -60,29 +60,17 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
             const sixtyDaysAgo = new Date();
             sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
             const dateStr = sixtyDaysAgo.toISOString();
+            const dateShortStr = dateStr.split('T')[0];
 
             let recentBajasTargetsPromise = Promise.resolve({ data: [] as any[] });
             let recentTerminatedAssignmentsPromise = Promise.resolve({ data: [] as any[] });
+            let recentBajasWorkersPromise = Promise.resolve({ data: [] as any[] });
 
             if (filters.include_recent_bajas) {
                 let offboardQuery = supabase
                     .schema('core_operacoes')
                     .from('solicitud_targets')
-                    .select(`
-                        id,
-                        empresa_id,
-                        source_worker_id,
-                        source_client_id,
-                        source_client_site_id,
-                        source_pedido_id,
-                        source_pedido_item_id,
-                        action_type,
-                        status,
-                        created_at,
-                        reason,
-                        notes,
-                        worker:source_worker_id(id, nome, cod_colab, nif, dni, email, movil, funcion, contratante, data_baixa, data_ingresso)
-                    `)
+                    .select('id, empresa_id, source_worker_id, source_client_id, source_client_site_id, source_pedido_id, source_pedido_item_id, action_type, status, created_at, reason, notes')
                     .eq('action_type', 'offboard')
                     .gte('created_at', dateStr);
 
@@ -109,9 +97,15 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                     termQuery = termQuery.eq('client_id', filters.client_id);
                 }
                 recentTerminatedAssignmentsPromise = termQuery as any;
+
+                recentBajasWorkersPromise = supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('id, nome, cod_colab, nif, dni, email, movil, funcion, contratante, data_baixa, data_ingresso, cliente, cod_cliente, status_trabajador')
+                    .gte('data_baixa', dateShortStr) as any;
             }
 
-            const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes, recentBajasTargetsRes, recentTerminatedAssignmentsRes] = await Promise.all([
+            const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes, recentBajasTargetsRes, recentTerminatedAssignmentsRes, recentBajasWorkersRes] = await Promise.all([
                 pedidoIds.length > 0 
                   ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
                   : Promise.resolve({ data: [] }),
@@ -119,9 +113,7 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                 siteIds.length > 0
                   ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
                   : Promise.resolve({ data: [] }),
-                empresaIds.length > 0
-                  ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
-                  : Promise.resolve({ data: [] }),
+                supabase.schema('core_common').from('empresas').select('id, nome'),
                 supabase.schema('core_personal').rpc('get_hours_control_workers', {
                     p_empresa_id: filters.empresa_id,
                     p_period_year: new Date().getFullYear(),
@@ -130,13 +122,26 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                     p_cliente_nombre: null
                 }),
                 recentBajasTargetsPromise,
-                recentTerminatedAssignmentsPromise
+                recentTerminatedAssignmentsPromise,
+                recentBajasWorkersPromise
             ]);
 
             const pedidosMap = new Map(pedidosRes.data?.map(p => [p.id, p]) || []);
             const clientsMap = new Map(allClientsRes.data?.map(c => [c.id, c]) || []);
             const sitesMap = new Map(sitesRes.data?.map(s => [s.id, s]) || []);
             const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
+            const allClients = allClientsRes.data || [];
+            const allEmpresas = empresasRes.data || [];
+
+            const normalizeString = (str: string) => {
+                if (!str) return '';
+                return str
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '')
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]/g, '')
+                    .trim();
+            };
 
             const mappedRealAssignments = assignmentsData.map(a => ({
                 ...a,
@@ -148,18 +153,7 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
 
             // Generate virtual assignments for active workers from hours control who do not have an active assignment row
             const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
-            const allClients = allClientsRes.data || [];
             const activeWorkers = activeWorkersRes.data || [];
-
-            const normalizeString = (str: string) => {
-                if (!str) return '';
-                return str
-                    .normalize('NFD')
-                    .replace(/[\u0300-\u036f]/g, '')
-                    .toLowerCase()
-                    .replace(/[^a-z0-9]/g, '')
-                    .trim();
-            };
 
             const virtualAssignments = activeWorkers
                 .filter((w: any) => !existingWorkerIds.has(w.id))
@@ -227,7 +221,30 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
             if (filters.include_recent_bajas) {
                 const offboardTargets = recentBajasTargetsRes.data || [];
                 const terminatedAssignments = recentTerminatedAssignmentsRes.data || [];
+                const directBajasWorkers = recentBajasWorkersRes.data || [];
 
+                // Collect worker IDs from targets that need to be fetched
+                const missingWorkerIds = offboardTargets
+                    .map((t: any) => t.source_worker_id)
+                    .filter((id: string) => id && !existingWorkerIds.has(id));
+
+                const workersLookupMap = new Map<string, any>();
+                directBajasWorkers.forEach((w: any) => {
+                    if (w?.id) workersLookupMap.set(w.id, w);
+                });
+
+                const idsToQuery = missingWorkerIds.filter(id => !workersLookupMap.has(id));
+                if (idsToQuery.length > 0) {
+                    const { data: fetchedWorkers } = await supabase
+                        .schema('core_personal')
+                        .from('workers')
+                        .select('id, nome, cod_colab, nif, dni, email, movil, funcion, contratante, data_baixa, data_ingresso, cliente, cod_cliente, status_trabajador')
+                        .in('id', idsToQuery);
+                    
+                    (fetchedWorkers || []).forEach(w => workersLookupMap.set(w.id, w));
+                }
+
+                // 1. Process terminated assignments
                 terminatedAssignments.forEach((ta: any) => {
                     if (!existingWorkerIds.has(ta.worker_id)) {
                         existingWorkerIds.add(ta.worker_id);
@@ -243,16 +260,50 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                     }
                 });
 
+                // 2. Process offboard targets from solicitudes (like Jorge)
                 offboardTargets.forEach((t: any) => {
                     if (t.source_worker_id && !existingWorkerIds.has(t.source_worker_id)) {
                         existingWorkerIds.add(t.source_worker_id);
-                        const w = t.worker || {};
+                        const w = workersLookupMap.get(t.source_worker_id) || {};
+                        
+                        let matchedClient = clientsMap.get(t.source_client_id);
+                        if (!matchedClient && (w.cliente || w.cliente_nombre)) {
+                            const workerClientNorm = normalizeString(w.cliente || w.cliente_nombre);
+                            matchedClient = allClients.find((c: any) => {
+                                const tradeNorm = normalizeString(c.trade_name);
+                                const legalNorm = normalizeString(c.legal_name);
+                                return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
+                            });
+                        }
+
+                        const clientObj = matchedClient ? {
+                            id: matchedClient.id,
+                            trade_name: matchedClient.trade_name,
+                            legal_name: matchedClient.legal_name
+                        } : (t.source_client_id ? {
+                            id: t.source_client_id,
+                            trade_name: w.cliente || 'Cliente',
+                            legal_name: w.cliente || 'Cliente'
+                        } : (w.cliente ? {
+                            id: null,
+                            trade_name: w.cliente,
+                            legal_name: w.cliente
+                        } : null));
+
+                        let matchedEmpresa = empresasMap.get(t.empresa_id || filters.empresa_id);
+                        if (!matchedEmpresa && w.contratante) {
+                            matchedEmpresa = allEmpresas.find(e => 
+                                normalizeString(e.nome).includes(normalizeString(w.contratante)) ||
+                                normalizeString(w.contratante).includes(normalizeString(e.nome))
+                            );
+                        }
+
                         recentBajasList.push({
                             id: `baja-${t.source_worker_id}-${t.id}`,
                             empresa_id: t.empresa_id || filters.empresa_id,
                             worker_id: t.source_worker_id,
                             job_function_name_snapshot: w.funcion || 'Trabalhador',
-                            client_id: t.source_client_id,
+                            client_id: clientObj?.id || t.source_client_id,
                             client_site_id: t.source_client_site_id,
                             pedido_id: t.source_pedido_id,
                             pedido_item_id: t.source_pedido_item_id,
@@ -271,15 +322,92 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                                 movil: w.movil,
                                 funcion: w.funcion,
                                 contratante: w.contratante,
-                                data_baixa: w.data_baixa
+                                data_baixa: w.data_baixa,
+                                cliente: w.cliente,
+                                cod_cliente: w.cod_cliente
                             },
-                            client: clientsMap.get(t.source_client_id) || null,
+                            client: clientObj,
                             client_site: sitesMap.get(t.source_client_site_id) || null,
                             pedido: pedidosMap.get(t.source_pedido_id) || null,
-                            empresa: empresasMap.get(t.empresa_id || filters.empresa_id) || null,
+                            empresa: matchedEmpresa || {
+                                id: filters.empresa_id,
+                                nome: empresasMap.get(filters.empresa_id)?.nome || ''
+                            },
                             replaced_assignment: null,
                             solicitud_target_id: t.id
                         });
+                    }
+                });
+
+                // 3. Process direct worker bajas (workers marked with data_baixa in core_personal.workers)
+                const selectedEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || '';
+                directBajasWorkers.forEach((w: any) => {
+                    if (w.id && !existingWorkerIds.has(w.id)) {
+                        const matchesEmpresa = !filters.empresa_id || !w.contratante || !selectedEmpresaNome || 
+                            normalizeString(selectedEmpresaNome).includes(normalizeString(w.contratante)) || 
+                            normalizeString(w.contratante).includes(normalizeString(selectedEmpresaNome));
+
+                        if (matchesEmpresa) {
+                            existingWorkerIds.add(w.id);
+
+                            let matchedClient = null;
+                            if (w.cliente) {
+                                const workerClientNorm = normalizeString(w.cliente);
+                                matchedClient = allClients.find((c: any) => {
+                                    const tradeNorm = normalizeString(c.trade_name);
+                                    const legalNorm = normalizeString(c.legal_name);
+                                    return (tradeNorm && tradeNorm === workerClientNorm) || (legalNorm && legalNorm === workerClientNorm);
+                                });
+                            }
+
+                            const clientObj = matchedClient ? {
+                                id: matchedClient.id,
+                                trade_name: matchedClient.trade_name,
+                                legal_name: matchedClient.legal_name
+                            } : (w.cliente ? {
+                                id: null,
+                                trade_name: w.cliente,
+                                legal_name: w.cliente
+                            } : null);
+
+                            recentBajasList.push({
+                                id: `baja-worker-${w.id}`,
+                                empresa_id: filters.empresa_id,
+                                worker_id: w.id,
+                                job_function_name_snapshot: w.funcion || 'Trabalhador',
+                                client_id: clientObj?.id || null,
+                                client_site_id: null,
+                                pedido_id: null,
+                                pedido_item_id: null,
+                                status: 'terminated',
+                                is_baja_recente: true,
+                                data_baixa: w.data_baixa,
+                                start_date: w.data_ingresso || w.created_at,
+                                end_date: w.data_baixa,
+                                worker: {
+                                    id: w.id,
+                                    nome: w.nome,
+                                    cod_colab: w.cod_colab,
+                                    nif: w.nif,
+                                    dni: w.dni,
+                                    email: w.email,
+                                    movil: w.movil,
+                                    funcion: w.funcion,
+                                    contratante: w.contratante,
+                                    data_baixa: w.data_baixa,
+                                    cliente: w.cliente,
+                                    cod_cliente: w.cod_cliente
+                                },
+                                client: clientObj,
+                                client_site: null,
+                                pedido: null,
+                                empresa: {
+                                    id: filters.empresa_id,
+                                    nome: selectedEmpresaNome
+                                },
+                                replaced_assignment: null
+                            });
+                        }
                     }
                 });
             }

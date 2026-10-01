@@ -64,7 +64,7 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
             const isSelected = selectedIds.includes(assignment.id);
             const workerName = assignment.worker?.nome || 'N/A';
             const clientSiteName = assignment.client_site?.name || 'N/A';
-            const clientName = assignment.client?.trade_name || assignment.client?.legal_name || 'N/A';
+            const clientName = assignment.client?.trade_name || assignment.client?.legal_name || assignment.worker?.cliente || 'N/A';
             const jobFunctionName = assignment.job_function?.name || assignment.job_function_name_snapshot || 'N/A';
             const isReplacement = assignment.assignment_type === 'replacement';
             const replacedWorkerName = assignment.replaced_assignment?.worker?.nome;

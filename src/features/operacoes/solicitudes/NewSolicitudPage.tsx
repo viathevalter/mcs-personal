@@ -259,11 +259,26 @@ export function NewSolicitudPage() {
         return (reemplazos as any[]).find(r => r.id === selectedReemplazoId) || null;
     }, [reemplazos, selectedReemplazoId]);
 
+    const normalizeString = (str: string) => {
+        if (!str) return '';
+        return str
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '')
+            .trim();
+    };
+
     const filteredAssignments = assignments.filter(a => {
         // Filter by Client
         if (selectedClientId !== 'all') {
-            const assignmentClientName = a.client?.trade_name || a.client?.legal_name || '';
-            if (assignmentClientName.toLowerCase() !== selectedClientName.toLowerCase()) {
+            const assignmentClientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente || '';
+            const isIdMatch = (a.client_id && a.client_id === selectedClientId) || (a.client?.id && a.client?.id === selectedClientId);
+            const isNameMatch = assignmentClientName && (
+                assignmentClientName.toLowerCase() === selectedClientName.toLowerCase() ||
+                normalizeString(assignmentClientName) === normalizeString(selectedClientName)
+            );
+            if (!isIdMatch && !isNameMatch) {
                 return false;
             }
         }
@@ -289,11 +304,15 @@ export function NewSolicitudPage() {
 
         // Filter by Client Site (for other types)
         if (actionType !== 'order_extension' && actionType !== 'order_termination' && actionType !== 'order_cancellation' && actionType !== 'order_postponement' && selectedClientSiteId !== 'all') {
-            const selectedSite = clientSites.find(s => s.id === selectedClientSiteId);
-            const selectedSiteName = selectedSite?.name || '';
-            const assignmentSiteName = a.client_site?.name || '';
-            if (assignmentSiteName.toLowerCase() !== selectedSiteName.toLowerCase()) {
-                return false;
+            if (a.is_baja_recente && !a.client_site_id && !a.client_site?.name) {
+                // Keep recent baja if it had no specific site assigned
+            } else {
+                const selectedSite = clientSites.find(s => s.id === selectedClientSiteId);
+                const selectedSiteName = selectedSite?.name || '';
+                const assignmentSiteName = a.client_site?.name || '';
+                if (assignmentSiteName.toLowerCase() !== selectedSiteName.toLowerCase()) {
+                    return false;
+                }
             }
         }
 
@@ -996,13 +1015,13 @@ export function NewSolicitudPage() {
             ? (selectedPedido?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null)
             : (actionType === 'relocation')
                 ? (targetClientId !== 'all' ? targetClientId : null)
-                : (firstAssignment?.client_id || null);
+                : ((selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null);
 
         const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation')
             ? (selectedPedido?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null)
             : (actionType === 'relocation')
                 ? (targetClientSiteId !== 'all' ? targetClientSiteId : null)
-                : (firstAssignment?.client_site_id || null);
+                : ((selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null);
 
         // Map the selected assignments to the payload target structure
         const targets = selectedList.map(a => ({
