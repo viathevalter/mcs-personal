@@ -78,9 +78,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [pedidosSortField, setPedidosSortField] = useState<'cliente' | 'empresa' | 'obra' | 'cidade' | 'pendentes' | 'data'>('pendentes');
   const [pedidosSortOrder, setPedidosSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  // Ordenação dos Trabalhadores do Pedido Selecionado (Aba 1)
+  // Ordenação e Filtro dos Trabalhadores do Pedido Selecionado (Aba 1)
   const [pedidoWorkersSortField, setPedidoWorkersSortField] = useState<'nome' | 'codigo' | 'funcao' | 'status'>('status');
   const [pedidoWorkersSortOrder, setPedidoWorkersSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [pedidoWorkersFilter, setPedidoWorkersFilter] = useState<'todos' | 'inactivos_rh'>('todos');
 
   // Filtros Avançados e Ordenação de Alojamientos de la Empresa (Aba 2)
   const [alojadosSearch, setAlojadosSearch] = useState('');
@@ -89,7 +90,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [alojadosClienteFilter, setAlojadosClienteFilter] = useState('todos');
   const [alojadosObraFilter, setAlojadosObraFilter] = useState('todos');
   const [alojadosPedidoFilter, setAlojadosPedidoFilter] = useState('todos');
-  const [alojadosTipoSubFilter, setAlojadosTipoSubFilter] = useState<'todos' | 'fijo' | 'temporal'>('todos');
+  const [alojadosTipoSubFilter, setAlojadosTipoSubFilter] = useState<'todos' | 'fijo' | 'temporal' | 'inactivos_rh'>('todos');
   const [empresaSortField, setEmpresaSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'data_checkin'>('cliente');
   const [empresaSortOrder, setEmpresaSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -101,13 +102,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [propioMonth, setPropioMonth] = useState<number>(new Date().getMonth() + 1);
   const [propioSearch, setPropioSearch] = useState('');
   const [propioEmpresaFilter, setPropioEmpresaFilter] = useState('todas');
-  const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos'>('activos');
+  const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos' | 'inactivos_rh'>('activos');
   const [propioSortField, setPropioSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'municipio' | 'periodo' | 'dias' | 'valor'>('cliente');
   const [propioSortOrder, setPropioSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Filtros e Ordenação para Alojamiento por Cliente (Aba 4)
   const [clienteSearch, setClienteSearch] = useState('');
   const [clienteEmpresaFilter, setClienteEmpresaFilter] = useState('todas');
+  const [clienteStatusFilter, setClienteStatusFilter] = useState<'todos' | 'inactivos_rh'>('todos');
   const [clienteSortField, setClienteSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'periodo'>('cliente');
   const [clienteSortOrder, setClienteSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -321,6 +323,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
     return empresaAlojadosRaw.filter(a => a.is_inativo_rh);
   }, [empresaAlojadosRaw]);
 
+  const inactivosRHCliente = useMemo(() => {
+    return clienteAlojadosRaw.filter(a => a.is_inativo_rh);
+  }, [clienteAlojadosRaw]);
+
   // Listas Únicas para Filtros Avançados da Aba 2 (Alojamientos Empresa)
   const empresasList = useMemo(() => {
     const set = new Set<string>();
@@ -403,6 +409,10 @@ export const DemandasAlocacaoPage: React.FC = () => {
       }
 
       if (alojadosTipoSubFilter === 'temporal' && a.tipo_alojamento?.toLowerCase() !== 'temporal') {
+        return false;
+      }
+
+      if (alojadosTipoSubFilter === 'inactivos_rh' && !a.is_inativo_rh) {
         return false;
       }
 
@@ -507,6 +517,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       if (propioStatusFilter === 'activos' && !a.calc.isAtivoNoMes) return false;
       if (propioStatusFilter === 'inactivos' && a.calc.isAtivoNoMes) return false;
+      if (propioStatusFilter === 'inactivos_rh' && (!a.is_inativo_rh || !a.calc.isAtivoNoMes)) return false;
 
       return true;
     });
@@ -544,9 +555,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
         return false;
       }
 
+      if (clienteStatusFilter === 'inactivos_rh' && !a.is_inativo_rh) {
+        return false;
+      }
+
       return true;
     });
-  }, [clienteAlojadosRaw, clienteSearch, clienteEmpresaFilter]);
+  }, [clienteAlojadosRaw, clienteSearch, clienteEmpresaFilter, clienteStatusFilter]);
 
   // Helpers de Comparação e Ordenação
   const compareValues = (a: any, b: any, direction: 'asc' | 'desc') => {
@@ -597,7 +612,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
   // 2. Trabalhadores do Pedido Selecionado Ordenados (Aba 1)
   const sortedPedidoWorkers = useMemo(() => {
     if (!selectedPedido) return [];
-    return [...selectedPedido.trabalhadores].sort((a, b) => {
+    let list = selectedPedido.trabalhadores;
+    if (pedidoWorkersFilter === 'inactivos_rh') {
+      list = list.filter(w => w.is_inativo_rh);
+    }
+    return [...list].sort((a, b) => {
       switch (pedidoWorkersSortField) {
         case 'nome': return compareValues(a.worker_nome, b.worker_nome, pedidoWorkersSortOrder);
         case 'codigo': return compareValues(a.codigo_colab, b.codigo_colab, pedidoWorkersSortOrder);
@@ -606,7 +625,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
         default: return 0;
       }
     });
-  }, [selectedPedido, pedidoWorkersSortField, pedidoWorkersSortOrder]);
+  }, [selectedPedido, pedidoWorkersSortField, pedidoWorkersSortOrder, pedidoWorkersFilter]);
 
   // Contadores globais
   const totalPedidosPendentes = useMemo(() => {
@@ -1417,6 +1436,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
             }`}>
               {empresaAlojadosRaw.length} en inmuebles
             </span>
+            {inactivosRHEmpresa.length > 0 && (
+              <span
+                title={`${inactivosRHEmpresa.length} trabajadores figuran como Inactivo / Baja en Personal`}
+                className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse"
+              >
+                ⚠️ {inactivosRHEmpresa.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1436,6 +1463,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
             }`}>
               {propioAlojadosRaw.length} por cuenta propia
             </span>
+            {inactivosRHPropio.length > 0 && (
+              <span
+                title={`${inactivosRHPropio.length} colaboradores con alojamiento propio figuran como Inactivo / Baja en Personal`}
+                className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse"
+              >
+                ⚠️ {inactivosRHPropio.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1455,6 +1490,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
             }`}>
               {clienteAlojadosRaw.length} en cliente
             </span>
+            {inactivosRHCliente.length > 0 && (
+              <span
+                title={`${inactivosRHCliente.length} colaboradores en alojamiento por cliente figuran como Inactivo / Baja en Personal`}
+                className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs animate-pulse"
+              >
+                ⚠️ {inactivosRHCliente.length}
+              </span>
+            )}
           </button>
         </div>
 
@@ -2065,15 +2108,34 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {selectedWorkerIds.length > 0 && (
-                      <button
-                        onClick={handleOpenBatchAlloc}
-                        className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs animate-in fade-in"
-                      >
-                        <Bed size={14} />
-                        Asignar Grupo al Mismo Alojamiento ({selectedWorkerIds.length})
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {selectedPedido.trabalhadores.some(t => t.is_inativo_rh) && (
+                        <button
+                          onClick={() => setPedidoWorkersFilter(pedidoWorkersFilter === 'inactivos_rh' ? 'todos' : 'inactivos_rh')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            pedidoWorkersFilter === 'inactivos_rh'
+                              ? 'bg-rose-600 text-white shadow-2xs'
+                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100'
+                          }`}
+                        >
+                          <AlertTriangle size={13} className={pedidoWorkersFilter === 'inactivos_rh' ? 'text-white' : 'text-rose-600 dark:text-rose-400'} />
+                          {pedidoWorkersFilter === 'inactivos_rh'
+                            ? 'Ver Todos los Trabajadores'
+                            : `Solo Inactivos en Personal (${selectedPedido.trabalhadores.filter(t => t.is_inativo_rh).length})`
+                          }
+                        </button>
+                      )}
+
+                      {selectedWorkerIds.length > 0 && (
+                        <button
+                          onClick={handleOpenBatchAlloc}
+                          className="flex items-center gap-2 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs animate-in fade-in"
+                        >
+                          <Bed size={14} />
+                          Asignar Grupo al Mismo Alojamiento ({selectedWorkerIds.length})
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Tabela de Trabalhadores com Ordenação nos Cabeçalhos */}
@@ -2560,7 +2622,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Chips de Modalidade: Fijo vs Temporal */}
+          {/* Chips de Modalidade: Fijo vs Temporal vs Inactivos en Personal */}
           <div className="px-4 py-2 bg-slate-100/60 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <button
@@ -2595,9 +2657,23 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <span>🏨</span>
                 Temporales (Booking & Airbnb) ({empresaAlojadosRaw.filter(a => a.tipo_alojamento?.toLowerCase() === 'temporal').length})
               </button>
+
+              {inactivosRHEmpresa.length > 0 && (
+                <button
+                  onClick={() => setAlojadosTipoSubFilter(alojadosTipoSubFilter === 'inactivos_rh' ? 'todos' : 'inactivos_rh')}
+                  className={`px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                    alojadosTipoSubFilter === 'inactivos_rh'
+                      ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-500/30'
+                      : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100'
+                  }`}
+                >
+                  <AlertTriangle size={13} className={alojadosTipoSubFilter === 'inactivos_rh' ? 'text-white' : 'text-rose-600 dark:text-rose-400'} />
+                  ⚠️ Inactivos en Personal ({inactivosRHEmpresa.length})
+                </button>
+              )}
             </div>
 
-            {(alojadosAlojamentoFilter !== 'todos' || alojadosClienteFilter !== 'todos' || alojadosObraFilter !== 'todos' || alojadosPedidoFilter !== 'todos' || alojadosEmpresaFilter !== 'todas' || alojadosSearch.trim() !== '') && (
+            {(alojadosAlojamentoFilter !== 'todos' || alojadosClienteFilter !== 'todos' || alojadosObraFilter !== 'todos' || alojadosPedidoFilter !== 'todos' || alojadosEmpresaFilter !== 'todas' || alojadosTipoSubFilter !== 'todos' || alojadosSearch.trim() !== '') && (
               <button
                 onClick={() => {
                   setAlojadosAlojamentoFilter('todos');
@@ -2605,6 +2681,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   setAlojadosObraFilter('todos');
                   setAlojadosPedidoFilter('todos');
                   setAlojadosEmpresaFilter('todas');
+                  setAlojadosTipoSubFilter('todos');
                   setAlojadosSearch('');
                 }}
                 className="text-[11px] font-bold text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
@@ -2617,7 +2694,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
           {/* Alerta de Inactivos en Personal / Baja de Seguridad Social */}
           {inactivosRHEmpresa.length > 0 && (
-            <div className="mx-4 my-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200 shadow-2xs">
+            <div className="mx-4 my-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200 shadow-2xs">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-rose-100 dark:bg-rose-900/60 rounded-xl text-rose-600 dark:text-rose-300">
                   <AlertTriangle size={16} />
@@ -2627,9 +2704,43 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     Alerta de Personal: {inactivosRHEmpresa.length} {inactivosRHEmpresa.length === 1 ? 'trabajador figura' : 'trabajadores figuran'} como Inactivo / Baja en RRHH
                   </span>
                   <p className="text-[11px] text-rose-700 dark:text-rose-300">
-                    Siguen ocupando plazas en alojamientos de la empresa. Revise las filas resaltadas en rojo para tramitar el check-out y liberar las camas.
+                    Siguen ocupando plazas en alojamientos de la empresa. Filtre solo los inactivos para tramitar el check-out individual o masivo y liberar las camas.
                   </p>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setAlojadosTipoSubFilter(alojadosTipoSubFilter === 'inactivos_rh' ? 'todos' : 'inactivos_rh')}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+                    alojadosTipoSubFilter === 'inactivos_rh'
+                      ? 'bg-rose-700 hover:bg-rose-800 text-white ring-2 ring-white/50'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  }`}
+                >
+                  <Filter size={13} />
+                  {alojadosTipoSubFilter === 'inactivos_rh' ? 'Ver Todos los Alojamientos' : `Filtrar solo Inactivos (${inactivosRHEmpresa.length})`}
+                </button>
+
+                {alojadosTipoSubFilter === 'inactivos_rh' && selectedAlojadosIds.length === 0 && (
+                  <button
+                    onClick={() => setSelectedAlojadosIds(filteredAlojadosEmpresa.map(a => a.alocacao_id || a.id))}
+                    className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 dark:bg-rose-900/60 dark:hover:bg-rose-900 dark:text-rose-200 rounded-xl font-bold text-xs transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <CheckCircle2 size={13} />
+                    Seleccionar Todos ({filteredAlojadosEmpresa.length})
+                  </button>
+                )}
+
+                {selectedAlojadosIds.length > 0 && (
+                  <button
+                    onClick={handleBatchCheckout}
+                    className="px-3 py-1.5 bg-rose-800 hover:bg-rose-900 text-white rounded-xl font-bold text-xs transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer animate-in fade-in"
+                  >
+                    <LogOut size={13} />
+                    Check-out Grupo ({selectedAlojadosIds.length})
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -3054,12 +3165,33 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <select
                   value={propioStatusFilter}
                   onChange={e => setPropioStatusFilter(e.target.value as any)}
-                  className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                  className={`px-3 py-1.5 border rounded-xl text-xs font-semibold ${
+                    propioStatusFilter === 'inactivos_rh'
+                      ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                      : 'bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700'
+                  }`}
                 >
-                  <option value="todos">Estado Mes: Todos ({filteredPropriosCalculated.length})</option>
                   <option value="activos">Solo Activos en {MESES_NOMES[propioMonth - 1]} ({propiosMonthTotals.activosNoMes})</option>
+                  <option value="todos">Estado Mes: Todos ({filteredPropriosCalculated.length})</option>
                   <option value="inactivos">Inactivos / Fuera de este Mes</option>
+                  {inactivosRHPropio.length > 0 && (
+                    <option value="inactivos_rh">⚠️ Solo Inactivos en Personal ({inactivosRHPropio.length})</option>
+                  )}
                 </select>
+
+                {inactivosRHPropio.length > 0 && (
+                  <button
+                    onClick={() => setPropioStatusFilter(propioStatusFilter === 'inactivos_rh' ? 'activos' : 'inactivos_rh')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 ${
+                      propioStatusFilter === 'inactivos_rh'
+                        ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-500/30'
+                        : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100'
+                    }`}
+                  >
+                    <AlertTriangle size={13} className={propioStatusFilter === 'inactivos_rh' ? 'text-white' : 'text-rose-600 dark:text-rose-400'} />
+                    ⚠️ Inactivos en Personal ({inactivosRHPropio.length})
+                  </button>
+                )}
               </div>
 
               <div className="relative w-full sm:w-72">
@@ -3078,7 +3210,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
           {/* Alerta de Inactivos en Personal / Baja de Seguridad Social con Alojamiento Propio */}
           {inactivosRHPropio.length > 0 && (
-            <div className="mx-4 my-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200 shadow-2xs">
+            <div className="mx-4 my-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200 shadow-2xs">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-rose-100 dark:bg-rose-900/60 rounded-xl text-rose-600 dark:text-rose-300">
                   <AlertTriangle size={16} />
@@ -3091,6 +3223,20 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     Tienen asignación de Alojamiento Propio activa en este mes. Compruebe si corresponde finalizar el registro para evitar el abono de moradía indebida.
                   </p>
                 </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setPropioStatusFilter(propioStatusFilter === 'inactivos_rh' ? 'activos' : 'inactivos_rh')}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+                    propioStatusFilter === 'inactivos_rh'
+                      ? 'bg-rose-700 hover:bg-rose-800 text-white ring-2 ring-white/50'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  }`}
+                >
+                  <Filter size={13} />
+                  {propioStatusFilter === 'inactivos_rh' ? 'Ver Todos los Activos' : `Filtrar solo Inactivos (${inactivosRHPropio.length})`}
+                </button>
               </div>
             </div>
           )}
@@ -3397,6 +3543,20 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 </select>
               )}
 
+              {inactivosRHCliente.length > 0 && (
+                <button
+                  onClick={() => setClienteStatusFilter(clienteStatusFilter === 'inactivos_rh' ? 'todos' : 'inactivos_rh')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    clienteStatusFilter === 'inactivos_rh'
+                      ? 'bg-rose-600 text-white shadow-xs ring-2 ring-rose-500/30'
+                      : 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 hover:bg-rose-100'
+                  }`}
+                >
+                  <AlertTriangle size={13} className={clienteStatusFilter === 'inactivos_rh' ? 'text-white' : 'text-rose-600 dark:text-rose-400'} />
+                  ⚠️ Inactivos en Personal ({inactivosRHCliente.length})
+                </button>
+              )}
+
               {/* Busca */}
               <div className="relative w-48 sm:w-64">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -3410,6 +3570,39 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Alerta de Inactivos en Personal / Baja de Seguridad Social con Alojamiento por Cliente */}
+          {inactivosRHCliente.length > 0 && (
+            <div className="mx-4 my-2 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-rose-100 dark:bg-rose-900/60 rounded-xl text-rose-600 dark:text-rose-300">
+                  <AlertTriangle size={16} />
+                </div>
+                <div>
+                  <span className="font-bold text-rose-800 dark:text-rose-200">
+                    Alerta de Personal: {inactivosRHCliente.length} {inactivosRHCliente.length === 1 ? 'colaborador figura' : 'colaboradores figuran'} como Inactivo / Baja en RRHH
+                  </span>
+                  <p className="text-[11px] text-rose-700 dark:text-rose-300">
+                    Siguen asignados a alojamientos cedidos por el cliente. Revise las filas resaltadas en rojo para tramitar el check-out y notificar a la empresa / cliente.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setClienteStatusFilter(clienteStatusFilter === 'inactivos_rh' ? 'todos' : 'inactivos_rh')}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+                    clienteStatusFilter === 'inactivos_rh'
+                      ? 'bg-rose-700 hover:bg-rose-800 text-white ring-2 ring-white/50'
+                      : 'bg-rose-600 hover:bg-rose-700 text-white'
+                  }`}
+                >
+                  <Filter size={13} />
+                  {clienteStatusFilter === 'inactivos_rh' ? 'Ver Todos los Alojamientos' : `Filtrar solo Inactivos (${inactivosRHCliente.length})`}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="overflow-x-auto max-h-[640px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
             <table className="w-full text-xs text-left">
