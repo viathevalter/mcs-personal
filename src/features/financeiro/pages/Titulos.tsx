@@ -271,7 +271,7 @@ export const Titulos = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-6 space-y-6 max-w-7xl mx-auto bg-transparent">
+        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-4 w-full max-w-[1850px] mx-auto">
             <div className="flex-none space-y-4">
                 <div className="flex justify-between items-center">
                     <div>
