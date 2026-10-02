@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useEstimaciones } from './hooks/useEstimaciones';
+import { useEstimaciones, matchesEstimacionSearch } from './hooks/useEstimaciones';
 import { EstimacionKpiCards } from './components/EstimacionKpiCards';
 import { EstimacionesTable } from './components/EstimacionesTable';
 import { Button } from '@/components/ui/button';
@@ -62,16 +62,23 @@ export function EstimacionesPage() {
 
   const { data: allEstimaciones = [], isLoading } = useEstimaciones({
     solicitud_type: filters.solicitud_type,
-    search: filters.search,
     empresa_id: filters.empresa_id
   });
 
   const filteredEstimaciones = allEstimaciones.filter(est => {
-    if (filters.status === 'all') return true;
-    if (filters.status === 'rejected') {
-      return ['rejected', 'expired'].includes(est.status);
+    if (filters.status !== 'all') {
+      if (filters.status === 'rejected') {
+        if (!['rejected', 'expired'].includes(est.status)) return false;
+      } else if (est.status !== filters.status) {
+        return false;
+      }
     }
-    return est.status === filters.status;
+
+    if (filters.search && !matchesEstimacionSearch(est, filters.search)) {
+      return false;
+    }
+
+    return true;
   });
 
   const clearFilters = () => {

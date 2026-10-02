@@ -955,7 +955,7 @@
       "subtitle": "Gestão de propostas comerciais e orçamentos para clientes.",
       "btnNew": "Nova Estimativa",
       "searchLabel": "Busca",
-      "searchPlaceholder": "Buscar por código ou título...",
+      "searchPlaceholder": "Buscar por código, cliente, empresa, vendedor, obra...",
       "statusLabel": "Status",
       "allStatus": "Todos os Status",
       "orderTypeLabel": "Tipo de Pedido",

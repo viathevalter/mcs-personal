@@ -42,13 +42,15 @@ import {
   Paperclip,
   MapPin,
   Navigation,
-  Utensils
+  Utensils,
+  Briefcase,
+  ChevronDown
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase/client';
 import { financeLogisticsService } from '../services/financeLogisticsService';
 import type { PagoAlojamento } from '../services/financeLogisticsService';
 import { logisticsService } from '../services/logisticsService';
-import type { Alojamento, Provedor } from '../services/logisticsService';
+import type { Alojamento, Provedor, PedidoDemandaLogistica } from '../services/logisticsService';
 import { EditarOrdemPagoModal } from '../components/EditarOrdemPagoModal';
 import { ReciboPagoModal } from '../components/ReciboPagoModal';
 
@@ -86,13 +88,14 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const [editingOp, setEditingOp] = useState<PagoAlojamento | null>(null);
   const [receiptOp, setReceiptOp] = useState<PagoAlojamento | null>(null);
 
-  // Lista de Trabalhadores e Alocações
+  // Lista de Trabalhadores, Alocações e Pedidos
   const [alocacoes, setAlocacoes] = useState<any[]>([]);
-  const [workers, setWorkers] = useState<Array<{ id: string; nome: string; cod_colab?: string; nif?: string }>>([]);
+  const [workers, setWorkers] = useState<Array<{ id: string; nome: string; cod_colab?: string; nif?: string; funcion?: string; cliente?: string; obra?: string; pedido_codigo?: string; cidade?: string }>>([]);
+  const [pedidosDemanda, setPedidosDemanda] = useState<PedidoDemandaLogistica[]>([]);
 
   // Modal Nueva OP / Gasto (Ampliado e Completo)
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modoVinculacao, setModoVinculacao] = useState<'deslocamento' | 'alojamento' | 'geral'>('deslocamento');
+  const [modoVinculacao, setModoVinculacao] = useState<'trabalhador' | 'alojamento' | 'geral'>('trabalhador');
 
   // Trabalhador & Deslocamento
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
@@ -100,7 +103,12 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const [selectedWorkerCodigo, setSelectedWorkerCodigo] = useState<string>('');
   const [workerSearchTerm, setWorkerSearchTerm] = useState<string>('');
   const [isWorkerDropdownOpen, setIsWorkerDropdownOpen] = useState<boolean>(false);
+
+  // Pedido Comercial Interligado
+  const [selectedPedidoId, setSelectedPedidoId] = useState<string>('');
   const [pedidoCodigo, setPedidoCodigo] = useState<string>('');
+  const [pedidoSearchTerm, setPedidoSearchTerm] = useState<string>('');
+  const [isPedidoDropdownOpen, setIsPedidoDropdownOpen] = useState<boolean>(false);
   const [rotaDeslocamento, setRotaDeslocamento] = useState<string>('');
 
   // Alojamento & Fornecedor
@@ -134,26 +142,114 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [pagosData, alojData, provData, alocsData, workersRes] = await Promise.all([
-        financeLogisticsService.fetchPagos(),
-        logisticsService.fetchAlojamentos(),
-        logisticsService.fetchProvedores(),
-        logisticsService.fetchAlocacoesAtivas(),
-        supabase
-          .schema('core_personal')
-          .from('workers')
-          .select('id, nome, cod_colab, nif')
-          .order('nome', { ascending: true })
-          .limit(1000)
-          .catch(() => ({ data: [] }))
+      // 1. Carregar Finanças, Alojamentos, Provedores, Alocações e Pedidos em paralelo
+      const [pagosData, alojData, provData, alocsData, pedidosData] = await Promise.all([
+        financeLogisticsService.fetchPagos().catch(e => { console.error('fetchPagos:', e); return []; }),
+        logisticsService.fetchAlojamentos().catch(e => { console.error('fetchAlojamentos:', e); return []; }),
+        logisticsService.fetchProvedores().catch(e => { console.error('fetchProvedores:', e); return []; }),
+        logisticsService.fetchAlocacoesAtivas().catch(e => { console.error('fetchAlocacoesAtivas:', e); return []; }),
+        logisticsService.fetchDemandasPorPedido().catch(e => { console.error('fetchDemandasPorPedido:', e); return []; })
       ]);
+
       setPagos(pagosData);
       setAlojamentos(alojData);
       setProvedores(provData);
       setAlocacoes(alocsData);
-      if (workersRes?.data) {
-        setWorkers(workersRes.data);
+      setPedidosDemanda(pedidosData);
+
+      // 2. Carregar Trabalhadores da base (core_personal.workers) com fallback robusto
+      let baseWorkers: any[] = [];
+      try {
+        const personalClient = (supabase as any).schema ? (supabase as any).schema('core_personal') : supabase;
+        const res = await personalClient
+          .from('workers')
+          .select('id, nome, cod_colab, nif, funcion, cliente')
+          .order('nome', { ascending: true })
+          .limit(2000);
+        if (!res.error && res.data && res.data.length > 0) {
+          baseWorkers = res.data;
+        }
+      } catch (e) {
+        console.warn('Falha query core_personal.workers:', e);
       }
+
+      // Se falhou, tentar no schema default (public)
+      if (baseWorkers.length === 0) {
+        try {
+          const resPub = await supabase
+            .from('workers')
+            .select('id, nome, cod_colab, nif, funcion, cliente')
+            .order('nome', { ascending: true })
+            .limit(2000);
+          if (!resPub.error && resPub.data && resPub.data.length > 0) {
+            baseWorkers = resPub.data;
+          }
+        } catch (ePub) {
+          console.warn('Falha query public.workers:', ePub);
+        }
+      }
+
+      // 3. Unir e enriquecer com trabalhadores presentes em Alocações e em Pedidos
+      const workerMap = new Map<string, any>();
+      baseWorkers.forEach(w => {
+        if (w.id) workerMap.set(w.id, w);
+        if (w.cod_colab) workerMap.set(w.cod_colab.toUpperCase().trim(), w);
+      });
+
+      // Trabalhadores de alocações ativas
+      (alocsData || []).forEach((al: any) => {
+        const wKey = al.worker_id || (al.codigo_colab ? al.codigo_colab.toUpperCase().trim() : null);
+        if (wKey && workerMap.has(wKey)) {
+          const existing = workerMap.get(wKey);
+          if (!existing.cliente && al.cliente_nome) existing.cliente = al.cliente_nome;
+          if (!existing.obra && al.obra_nome) existing.obra = al.obra_nome;
+          if (!existing.pedido_codigo && al.pedido_codigo) existing.pedido_codigo = al.pedido_codigo;
+        } else if (al.worker_id) {
+          const newW = {
+            id: al.worker_id,
+            nome: al.worker_nome,
+            cod_colab: al.codigo_colab,
+            cliente: al.cliente_nome,
+            obra: al.obra_nome,
+            pedido_codigo: al.pedido_codigo,
+            cidade: al.municipio
+          };
+          workerMap.set(al.worker_id, newW);
+          baseWorkers.push(newW);
+        }
+      });
+
+      // Trabalhadores de pedidos de demanda
+      (pedidosData || []).forEach((ped: PedidoDemandaLogistica) => {
+        (ped.trabalhadores || []).forEach((tw: any) => {
+          const wKey = tw.worker_id || (tw.codigo_colab ? tw.codigo_colab.toUpperCase().trim() : null);
+          if (wKey && workerMap.has(wKey)) {
+            const existing = workerMap.get(wKey);
+            if (!existing.pedido_codigo) existing.pedido_codigo = ped.pedido_codigo;
+            if (!existing.cliente) existing.cliente = ped.cliente_nome;
+            if (!existing.obra) existing.obra = ped.obra_nome;
+            if (!existing.cidade) existing.cidade = ped.cidade;
+          } else if (tw.worker_id) {
+            const newW = {
+              id: tw.worker_id,
+              nome: tw.worker_nome,
+              cod_colab: tw.codigo_colab,
+              nif: tw.nif,
+              funcion: tw.funcao,
+              cliente: ped.cliente_nome,
+              obra: ped.obra_nome,
+              pedido_codigo: ped.pedido_codigo,
+              cidade: ped.cidade
+            };
+            workerMap.set(tw.worker_id, newW);
+            baseWorkers.push(newW);
+          }
+        });
+      });
+
+      // Ordenar por nome
+      baseWorkers.sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+      setWorkers(baseWorkers);
     } catch (err) {
       console.error('Error al cargar datos de logística:', err);
     } finally {
@@ -211,42 +307,118 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     }
   };
 
-  const handleSelectWorker = (w: { id: string; nome: string; cod_colab?: string }) => {
+  // Seleção Inteligente de Trabalhador
+  const handleSelectWorker = (w: { id: string; nome: string; cod_colab?: string; cliente?: string; obra?: string; pedido_codigo?: string; cidade?: string }) => {
     setSelectedWorkerId(w.id);
     setSelectedWorkerNome(w.nome);
     setSelectedWorkerCodigo(w.cod_colab || '');
     setWorkerSearchTerm(`${w.nome}${w.cod_colab ? ` [${w.cod_colab}]` : ''}`);
     setIsWorkerDropdownOpen(false);
 
-    // Buscar se esse trabalhador possui uma alocação ativa para preencher o pedido/cliente/obra
-    const matchAloc = alocacoes.find((a: any) =>
-      a.status !== 'Checkout' &&
-      (a.worker_id === w.id || (w.cod_colab && a.codigo_colab === w.cod_colab) || (a.worker_nome && a.worker_nome.toLowerCase() === w.nome.toLowerCase()))
+    // 1. Procurar em Pedidos de Demanda se este trabalhador está alocado
+    const matchPed = pedidosDemanda.find(p =>
+      p.trabalhadores?.some(t =>
+        t.worker_id === w.id ||
+        (w.cod_colab && t.codigo_colab && t.codigo_colab.toUpperCase() === w.cod_colab.toUpperCase()) ||
+        (t.worker_nome && t.worker_nome.toLowerCase().trim() === w.nome.toLowerCase().trim())
+      )
     );
 
-    if (matchAloc) {
+    // 2. Procurar em Alocações ativas
+    const matchAloc = alocacoes.find((a: any) =>
+      a.status !== 'Checkout' &&
+      (a.worker_id === w.id ||
+        (w.cod_colab && a.codigo_colab && a.codigo_colab.toUpperCase() === w.cod_colab.toUpperCase()) ||
+        (a.worker_nome && a.worker_nome.toLowerCase().trim() === w.nome.toLowerCase().trim()))
+    );
+
+    if (matchPed) {
+      setSelectedPedidoId(matchPed.pedido_id);
+      setPedidoCodigo(matchPed.pedido_codigo);
+      setPedidoSearchTerm(`${matchPed.pedido_codigo} - ${matchPed.cliente_nome}`);
+      if (matchPed.cliente_nome) setClienteCentroCusto(matchPed.cliente_nome);
+      if (matchPed.obra_nome) setObraCentroCusto(matchPed.obra_nome);
+      if (!rotaDeslocamento) {
+        setRotaDeslocamento(`Madrid ➔ ${matchPed.cidade || matchPed.obra_nome || 'Destino'}`);
+      }
+    } else if (matchAloc) {
+      if (matchAloc.pedido_codigo) {
+        setPedidoCodigo(matchAloc.pedido_codigo);
+        setPedidoSearchTerm(matchAloc.pedido_codigo);
+      }
       if (matchAloc.cliente_nome) setClienteCentroCusto(matchAloc.cliente_nome);
       if (matchAloc.obra_nome) setObraCentroCusto(matchAloc.obra_nome);
-      if (matchAloc.pedido_codigo) setPedidoCodigo(matchAloc.pedido_codigo);
-      else if (matchAloc.solicitud_id) setPedidoCodigo(matchAloc.solicitud_id);
+      if (!rotaDeslocamento && matchAloc.municipio) {
+        setRotaDeslocamento(`Madrid ➔ ${matchAloc.municipio}`);
+      }
+    } else {
+      if (w.pedido_codigo) {
+        setPedidoCodigo(w.pedido_codigo);
+        setPedidoSearchTerm(w.pedido_codigo);
+      }
+      if (w.cliente) setClienteCentroCusto(w.cliente);
+      if (w.obra) setObraCentroCusto(w.obra);
+      if (w.cidade && !rotaDeslocamento) {
+        setRotaDeslocamento(`Madrid ➔ ${w.cidade}`);
+      }
     }
   };
 
-  const resetModalForm = (novoModo?: 'deslocamento' | 'alojamento' | 'geral') => {
+  // Limpar seleção do Trabalhador
+  const handleClearWorker = () => {
+    setSelectedWorkerId('');
+    setSelectedWorkerNome('');
+    setSelectedWorkerCodigo('');
+    setWorkerSearchTerm('');
+  };
+
+  // Seleção Inteligente de Pedido
+  const handleSelectPedido = (ped: PedidoDemandaLogistica) => {
+    setSelectedPedidoId(ped.pedido_id);
+    setPedidoCodigo(ped.pedido_codigo);
+    setPedidoSearchTerm(`${ped.pedido_codigo} - ${ped.cliente_nome}`);
+    setIsPedidoDropdownOpen(false);
+
+    if (ped.cliente_nome) setClienteCentroCusto(ped.cliente_nome);
+    if (ped.obra_nome) setObraCentroCusto(ped.obra_nome);
+    if (!rotaDeslocamento) {
+      setRotaDeslocamento(`Madrid ➔ ${ped.cidade || ped.obra_nome || 'Destino'}`);
+    }
+
+    // Se o pedido tiver apenas 1 trabalhador e ainda não tiver trabalhador selecionado, pré-selecionar
+    if (!selectedWorkerId && ped.trabalhadores && ped.trabalhadores.length === 1) {
+      const w = ped.trabalhadores[0];
+      setSelectedWorkerId(w.worker_id);
+      setSelectedWorkerNome(w.worker_nome);
+      setSelectedWorkerCodigo(w.codigo_colab || '');
+      setWorkerSearchTerm(`${w.worker_nome}${w.codigo_colab ? ` [${w.codigo_colab}]` : ''}`);
+    }
+  };
+
+  // Limpar seleção do Pedido
+  const handleClearPedido = () => {
+    setSelectedPedidoId('');
+    setPedidoCodigo('');
+    setPedidoSearchTerm('');
+  };
+
+  const resetModalForm = (novoModo?: 'trabalhador' | 'alojamento' | 'geral') => {
     const modo = novoModo || modoVinculacao;
     setSelectedAlojamentoId('');
     setSelectedWorkerId('');
     setSelectedWorkerNome('');
     setSelectedWorkerCodigo('');
     setWorkerSearchTerm('');
+    setSelectedPedidoId('');
     setPedidoCodigo('');
+    setPedidoSearchTerm('');
     setRotaDeslocamento('');
-    setProvedorNome(modo === 'deslocamento' ? 'Iberia / Renfe / Transporte' : '');
+    setProvedorNome(modo === 'trabalhador' ? 'Iberia / Renfe / Transporte' : '');
     setIbanCobranca('');
     setBancoCobranca('');
     setTitularCobranca('');
-    setTipoGasto(modo === 'deslocamento' ? 'Passagens_Transporte' : modo === 'alojamento' ? 'Aluguel' : 'Outros_Gastos');
-    setFormaPagamento(modo === 'deslocamento' ? 'Cartão de Reserva / Corporativo' : 'Transferência Bancária / Fatura');
+    setTipoGasto(modo === 'trabalhador' ? 'Passagens_Transporte' : modo === 'alojamento' ? 'Aluguel' : 'Outros_Gastos');
+    setFormaPagamento(modo === 'trabalhador' ? 'Cartão de Reserva / Corporativo' : 'Transferência Bancária / Fatura');
     setValorGasto(0);
     setVencimentoGasto(new Date().toISOString().split('T')[0]);
     setCompetenciaGasto('10/2026');
@@ -1443,101 +1615,296 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
               {/* SEÇÃO CONFORME O MODO */}
               {modoVinculacao === 'trabalhador' && (
-                <div className="p-4 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-3.5">
-                  <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300 font-bold text-xs">
-                    <User size={15} />
-                    <span>Datos del Trabajador y Trayecto</span>
+                <div className="p-4 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300 font-bold text-xs">
+                      <User size={15} />
+                      <span>Trabajador y Pedido Vinculado (Imputación y Conciliación)</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">
+                      {workers.length} trabajadores • {pedidosDemanda.length} pedidos activos
+                    </span>
                   </div>
 
-                  {/* Seleção do Trabalhador com Autocomplete */}
-                  <div className="relative">
-                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Trabajador Contratado / Beneficiario <span className="text-red-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="Escriba el nombre o código del colaborador para buscar..."
-                        value={workerSearchTerm}
-                        onChange={e => {
-                          setWorkerSearchTerm(e.target.value);
-                          setIsWorkerDropdownOpen(true);
-                        }}
-                        onFocus={() => setIsWorkerDropdownOpen(true)}
-                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        required
-                      />
-                      {selectedWorkerNome && (
-                        <div className="absolute right-2 top-2 flex items-center gap-1.5">
-                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded-md">
-                            {selectedWorkerCodigo || 'Seleccionado'}
-                          </span>
+                  {/* Grid de 2 colunas: Trabalhador & Pedido Interligados */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* COLUNA 1: SELETOR DE TRABALHADOR */}
+                    <div className="space-y-1 relative">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between text-[11px]">
+                        <span>Trabajador / Beneficiario <span className="text-red-500">*</span></span>
+                        {selectedWorkerNome && (
+                          <button
+                            type="button"
+                            onClick={handleClearWorker}
+                            className="text-[10px] text-red-500 hover:underline font-semibold"
+                          >
+                            Cambiar
+                          </button>
+                        )}
+                      </label>
+
+                      {selectedWorkerNome ? (
+                        <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl shadow-2xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="p-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 rounded-lg flex-shrink-0">
+                              <User size={15} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[150px]">
+                                  {selectedWorkerNome}
+                                </span>
+                                {selectedWorkerCodigo && (
+                                  <span className="font-mono text-[9px] bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.2 rounded font-bold">
+                                    {selectedWorkerCodigo}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400 truncate block">
+                                {clienteCentroCusto ? `Cliente: ${clienteCentroCusto}` : 'Colaborador asignado'}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleClearWorker}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors ml-1"
+                            title="Quitar trabajador"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Buscar por nombre, código o función..."
+                              value={workerSearchTerm}
+                              onChange={e => {
+                                setWorkerSearchTerm(e.target.value);
+                                setIsWorkerDropdownOpen(true);
+                              }}
+                              onFocus={() => setIsWorkerDropdownOpen(true)}
+                              className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white font-medium text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              required={!selectedWorkerNome}
+                            />
+                            <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                          </div>
+
+                          {/* Dropdown Lista de Trabalhadores */}
+                          {isWorkerDropdownOpen && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-56 overflow-y-auto z-40 divide-y divide-slate-100 dark:divide-slate-800">
+                              {/* Se tiver pedido selecionado, sugerir os trabalhadores deste pedido no topo */}
+                              {pedidoCodigo && (
+                                <div className="p-2 bg-indigo-50/70 dark:bg-indigo-950/50 border-b border-indigo-100 dark:border-indigo-900">
+                                  <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 block mb-1">
+                                    ⭐ Trabajadores del Pedido {pedidoCodigo}:
+                                  </span>
+                                  <div className="space-y-1">
+                                    {pedidosDemanda
+                                      .find(p => p.pedido_codigo === pedidoCodigo)
+                                      ?.trabalhadores?.map((tw: any) => (
+                                        <button
+                                          key={tw.worker_id}
+                                          type="button"
+                                          onClick={() => {
+                                            handleSelectWorker({
+                                              id: tw.worker_id,
+                                              nome: tw.worker_nome,
+                                              cod_colab: tw.codigo_colab,
+                                              nif: tw.nif,
+                                              funcion: tw.funcao,
+                                              cliente: clienteCentroCusto,
+                                              obra: obraCentroCusto,
+                                              pedido_codigo: pedidoCodigo
+                                            });
+                                          }}
+                                          className="w-full text-left p-1.5 hover:bg-white dark:hover:bg-slate-800 rounded-lg transition-colors flex items-center justify-between text-xs"
+                                        >
+                                          <div>
+                                            <span className="font-bold text-slate-800 dark:text-slate-100 block text-xs">{tw.worker_nome}</span>
+                                            <span className="text-[10px] text-slate-500">{tw.funcao || 'Operador'} {tw.codigo_colab ? `(${tw.codigo_colab})` : ''}</span>
+                                          </div>
+                                          <span className="text-[10px] font-bold text-indigo-600 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded border border-indigo-200">
+                                            Elegir
+                                          </span>
+                                        </button>
+                                      ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Lista Geral de Trabalhadores */}
+                              {workers
+                                .filter(w =>
+                                  !workerSearchTerm ||
+                                  w.nome.toLowerCase().includes(workerSearchTerm.toLowerCase()) ||
+                                  (w.cod_colab && w.cod_colab.toLowerCase().includes(workerSearchTerm.toLowerCase())) ||
+                                  (w.nif && w.nif.toLowerCase().includes(workerSearchTerm.toLowerCase())) ||
+                                  (w.funcion && w.funcion.toLowerCase().includes(workerSearchTerm.toLowerCase()))
+                                )
+                                .slice(0, 40)
+                                .map(w => (
+                                  <button
+                                    key={w.id}
+                                    type="button"
+                                    onClick={() => handleSelectWorker(w)}
+                                    className="w-full text-left px-3 py-2 hover:bg-indigo-50/70 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                                  >
+                                    <div>
+                                      <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">{w.nome}</span>
+                                      <span className="text-[10px] text-slate-400">
+                                        {w.cod_colab ? `Cód: ${w.cod_colab}` : 'Sin código'} {w.funcion ? `• ${w.funcion}` : ''} {w.cliente ? `• ${w.cliente}` : ''}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-indigo-600">Seleccionar</span>
+                                  </button>
+                                ))}
+                              {workers.length === 0 && (
+                                <div className="p-3 text-slate-400 text-center">Cargando trabajadores...</div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
 
-                    {/* Dropdown Lista de Trabalhadores */}
-                    {isWorkerDropdownOpen && (
-                      <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-48 overflow-y-auto z-30 divide-y divide-slate-100 dark:divide-slate-800">
-                        {workers
-                          .filter(w =>
-                            !workerSearchTerm ||
-                            w.nome.toLowerCase().includes(workerSearchTerm.toLowerCase()) ||
-                            (w.cod_colab && w.cod_colab.toLowerCase().includes(workerSearchTerm.toLowerCase())) ||
-                            (w.nif && w.nif.toLowerCase().includes(workerSearchTerm.toLowerCase()))
-                          )
-                          .slice(0, 50)
-                          .map(w => (
-                            <button
-                              key={w.id}
-                              type="button"
-                              onClick={() => handleSelectWorker(w)}
-                              className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
-                            >
-                              <div>
-                                <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">{w.nome}</span>
-                                <span className="text-[10px] text-slate-400">
-                                  {w.cod_colab ? `Cód: ${w.cod_colab}` : 'Sin código'} {w.nif ? `• NIF: ${w.nif}` : ''}
-                                </span>
-                              </div>
-                              <span className="text-[10px] font-bold text-indigo-600">Seleccionar</span>
-                            </button>
-                          ))}
-                        {workers.length === 0 && (
-                          <div className="p-3 text-slate-400 text-center">No hay trabajadores en la base</div>
+                    {/* COLUNA 2: SELETOR DE PEDIDO COMERCIAL */}
+                    <div className="space-y-1 relative">
+                      <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between text-[11px]">
+                        <span>Pedido / Obra Vinculada</span>
+                        {pedidoCodigo && (
+                          <button
+                            type="button"
+                            onClick={handleClearPedido}
+                            className="text-[10px] text-red-500 hover:underline font-semibold"
+                          >
+                            Cambiar
+                          </button>
                         )}
-                      </div>
-                    )}
+                      </label>
+
+                      {pedidoCodigo ? (
+                        <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl shadow-2xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="p-1.5 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-lg flex-shrink-0">
+                              <Briefcase size={15} />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900 dark:text-white text-xs truncate max-w-[150px]">
+                                  {pedidoCodigo}
+                                </span>
+                                {clienteCentroCusto && (
+                                  <span className="text-[9px] font-bold bg-blue-50 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800">
+                                    {clienteCentroCusto}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-400 truncate block">
+                                {obraCentroCusto || 'Obra vinculada'}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleClearPedido}
+                            className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors ml-1"
+                            title="Quitar pedido"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Buscar pedido comercial o cliente..."
+                              value={pedidoSearchTerm}
+                              onChange={e => {
+                                setPedidoSearchTerm(e.target.value);
+                                setPedidoCodigo(e.target.value);
+                                setIsPedidoDropdownOpen(true);
+                              }}
+                              onFocus={() => setIsPedidoDropdownOpen(true)}
+                              className="w-full pl-8 pr-3 py-2 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl text-slate-900 dark:text-white font-medium text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
+                          </div>
+
+                          {/* Dropdown Lista de Pedidos */}
+                          {isPedidoDropdownOpen && (
+                            <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-56 overflow-y-auto z-40 divide-y divide-slate-100 dark:divide-slate-800">
+                              {pedidosDemanda
+                                .filter(p =>
+                                  !pedidoSearchTerm ||
+                                  p.pedido_codigo.toLowerCase().includes(pedidoSearchTerm.toLowerCase()) ||
+                                  p.cliente_nome.toLowerCase().includes(pedidoSearchTerm.toLowerCase()) ||
+                                  (p.obra_nome && p.obra_nome.toLowerCase().includes(pedidoSearchTerm.toLowerCase())) ||
+                                  (p.cidade && p.cidade.toLowerCase().includes(pedidoSearchTerm.toLowerCase()))
+                                )
+                                .slice(0, 30)
+                                .map(p => (
+                                  <button
+                                    key={p.pedido_id}
+                                    type="button"
+                                    onClick={() => handleSelectPedido(p)}
+                                    className="w-full text-left px-3 py-2 hover:bg-blue-50/70 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-bold text-slate-900 dark:text-white text-xs">{p.pedido_codigo}</span>
+                                        <span className="text-[10px] font-semibold text-blue-600">{p.cliente_nome}</span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 block mt-0.5">
+                                        {p.obra_nome} {p.cidade ? `(${p.cidade})` : ''} • {p.trabalhadores?.length || 0} trabajadores asignados
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-blue-600">Vincular</span>
+                                  </button>
+                                ))}
+                              {pedidosDemanda.length === 0 && (
+                                <div className="p-3 text-slate-400 text-center">
+                                  No hay pedidos activos disponibles
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Pedido e Rota */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                        Pedido / Obra Vinculada
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej: PED-2026-089 / Madrid - Milán"
-                        value={pedidoCodigo}
-                        onChange={e => setPedidoCodigo(e.target.value)}
-                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                        Trayecto / Ruta de Desplazamiento <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej: Madrid ➔ Milán (Italia)"
-                        value={rotaDeslocamento}
-                        onChange={e => setRotaDeslocamento(e.target.value)}
-                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                        required={modoVinculacao === 'trabalhador'}
-                      />
-                    </div>
+                  {/* Trayecto / Ruta de Desplazamiento */}
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1 text-[11px]">
+                      <Navigation size={13} className="text-indigo-600" />
+                      Trayecto / Ruta de Desplazamiento <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Madrid ➔ Milán (Italia)"
+                      value={rotaDeslocamento}
+                      onChange={e => setRotaDeslocamento(e.target.value)}
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      required={modoVinculacao === 'trabalhador'}
+                    />
                   </div>
+
+                  {/* Aviso de Conciliação em Tempo Real */}
+                  {(selectedWorkerNome || pedidoCodigo) && (
+                    <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
+                      <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" />
+                      <span>
+                        <strong>Conciliación automática:</strong> Gasto vinculado al trabajador{' '}
+                        <strong>{selectedWorkerNome || 'Sin trabajador'}</strong> para el pedido{' '}
+                        <strong>{pedidoCodigo || 'Sin pedido'}</strong>{' '}
+                        {clienteCentroCusto ? `(${clienteCentroCusto})` : ''}.
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -122,7 +122,7 @@
             "subtitle": "Management of commercial proposals and client estimations.",
             "btnNew": "New Estimation",
             "searchLabel": "Search",
-            "searchPlaceholder": "Search by code or title...",
+            "searchPlaceholder": "Search by code, client, company, seller, site...",
             "statusLabel": "Status",
             "allStatus": "All Statuses",
             "orderTypeLabel": "Order Type",
