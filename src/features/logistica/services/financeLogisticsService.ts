@@ -709,16 +709,55 @@ export const financeLogisticsService = {
     } catch (e) {}
   },
 
-  // 6. Exclusão de Ordem de Pagamento (somente em rascunho)
-  async excluirOrdemPagamento(id: string): Promise<void> {
+  // 6. Exclusão de Ordem de Pagamento (Individual ou Lote)
+  async excluirOrdemPagamento(id: string | string[]): Promise<void> {
+    const ids = Array.isArray(id) ? id : [id];
+    if (ids.length === 0) return;
+
     const { error } = await supabase
       .schema('core_finance')
       .from('ordens_pagamento')
       .delete()
-      .eq('id', id);
+      .in('id', ids);
 
     if (error) {
       throw new Error(`Erro ao excluir ordem de pagamento: ${error.message}`);
+    }
+  },
+
+  // 6b. Reverter para Rascunho / Voltar para trás
+  async reverterParaRascunho(id: string | string[]): Promise<void> {
+    const ids = Array.isArray(id) ? id : [id];
+    if (ids.length === 0) return;
+    const { email: userEmail } = await getCurrentUserId();
+
+    const { error } = await supabase
+      .schema('core_finance')
+      .from('ordens_pagamento')
+      .update({
+        status: 'rascunho',
+        updated_at: new Date().toISOString()
+      })
+      .in('id', ids);
+
+    if (error) {
+      throw new Error(`Erro ao voltar OP para rascunho: ${error.message}`);
+    }
+
+    for (const opId of ids) {
+      try {
+        await supabase
+          .schema('core_finance')
+          .from('movimentos_pagos')
+          .insert([{
+            ordem_pagamento_id: opId,
+            cod_mov: `MOV-${Date.now().toString().slice(-10)}`,
+            tipo_mov: 'Retorno a Rascunho',
+            estado_mov: 'Rascunho',
+            observaciones: `Orden devuelta a borrador por ${userEmail}`,
+            criado_por: userEmail
+          }]);
+      } catch (e) {}
     }
   },
 

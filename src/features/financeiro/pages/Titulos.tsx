@@ -448,13 +448,51 @@ export const Titulos = () => {
                 </div>
             </div>
 
-            {/* Dica de Navegação Rápida */}
-            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 px-3 py-1.5 bg-slate-50/80 dark:bg-slate-850/60 border border-slate-200/60 dark:border-slate-800 rounded-xl">
-                <div className="flex items-center gap-2">
-                    <HelpCircle size={15} className="text-blue-500 flex-shrink-0" />
-                    <span><strong>Navegação ágil:</strong> Dê <strong>1 clique</strong> em qualquer linha para abrir a gaveta de ações rápidas inline, ou <strong>duplo clique</strong> para abrir os detalhes completos.</span>
+            {/* Barra de Ações em Lote */}
+            {selectedItems.length > 0 && (
+                <div className="bg-slate-900 text-white px-5 py-3 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg border border-slate-800 animate-in fade-in duration-150">
+                    <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-blue-600 text-white rounded-lg">
+                            <CheckSquare size={16} />
+                        </div>
+                        <div>
+                            <span className="font-bold text-sm">
+                                {selectedItems.length} {selectedItems.length === 1 ? 'ordem selecionada' : 'ordens selecionadas'}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={async () => {
+                                if (confirm(`¿Está seguro de eliminar permanentemente las ${selectedItems.length} órdenes seleccionadas?`)) {
+                                    const { error } = await supabase.schema('core_finance').from('ordens_pagamento').delete().in('id', selectedItems);
+                                    if (error) {
+                                        toast.error(`Falha ao eliminar: ${error.message}`);
+                                    } else {
+                                        toast.success(`${selectedItems.length} ordens eliminadas com sucesso.`);
+                                        setSelectedItems([]);
+                                        queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
+                                    }
+                                }
+                            }}
+                            className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold"
+                        >
+                            <Trash2 size={13} className="mr-1.5" />
+                            Eliminar Selecionadas ({selectedItems.length})
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedItems([])}
+                            className="border-slate-700 text-slate-300 hover:bg-slate-800 rounded-xl text-xs"
+                        >
+                            Cancelar
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
 
             <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 rounded-2xl">
                 <CardContent className="p-0 overflow-auto flex-1">
@@ -643,20 +681,24 @@ export const Titulos = () => {
                                                             <Eye size={18} />
                                                         </Link>
                                                     </Button>
-                                                    {item.status === 'rascunho' && (
+                                                    {item.status !== 'pago' && (
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={async (e) => {
                                                                 e.stopPropagation();
-                                                                if (confirm(`¿Eliminar orden borrador ${item.cod_orden_pago}?`)) {
-                                                                    await supabase.schema('core_finance').from('ordens_pagamento').delete().eq('id', item.id);
-                                                                    toast.success('Orden borrador eliminada.');
-                                                                    queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
+                                                                if (confirm(`¿Está seguro de eliminar permanentemente la orden ${item.cod_orden_pago}?`)) {
+                                                                    const { error } = await supabase.schema('core_finance').from('ordens_pagamento').delete().eq('id', item.id);
+                                                                    if (error) {
+                                                                        toast.error(`Falha ao eliminar: ${error.message}`);
+                                                                    } else {
+                                                                        toast.success(`Orden ${item.cod_orden_pago} eliminada com sucesso.`);
+                                                                        queryClient.invalidateQueries({ queryKey: ['ordens_pagamento'] });
+                                                                    }
                                                                 }
                                                             }}
                                                             className="rounded-xl hover:bg-red-50 hover:text-red-600 dark:hover:bg-slate-800 text-slate-400 hover:text-red-600 transition-colors"
-                                                            title="Eliminar borrador"
+                                                            title="Eliminar permanentemente"
                                                         >
                                                             <Trash2 size={16} />
                                                         </Button>

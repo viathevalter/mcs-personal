@@ -33,7 +33,8 @@ import {
   Users,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  RotateCcw
 } from 'lucide-react';
 import { financeLogisticsService } from '../services/financeLogisticsService';
 import type { PagoAlojamento } from '../services/financeLogisticsService';
@@ -54,9 +55,10 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const [competenciaFilter, setCompetenciaFilter] = useState<string>('todos');
   const [copiedIban, setCopiedIban] = useState<string | null>(null);
 
-  // Seleção Múltipla para Envio em Lote
+  // Seleção Múltipla para Envio e Exclusão em Lote
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isSendingBatch, setIsSendingBatch] = useState(false);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
   // Ordenação de Colunas
   const [sortField, setSortField] = useState<string>('data_vencimento');
@@ -194,20 +196,84 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     }
   };
 
-  // Excluir ordem (somente rascunhos)
+  // Voltar para trás / Reverter ordem individual para Rascunho
+  const handleReverterRascunho = async (op: PagoAlojamento, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm(`¿Desea retirar la orden ${op.codigo_pago} de aprobación y devolverla a Borrador (Rascunho)? Podrá editarla o eliminarla libremente.`)) {
+      return;
+    }
+
+    try {
+      await financeLogisticsService.reverterParaRascunho(op.id);
+      alert(`Orden de pago ${op.codigo_pago} devuelta a borrador.`);
+      loadData();
+    } catch (err: any) {
+      console.error('Error al revertir OP:', err);
+      alert(`Error al devolver a borrador: ${err?.message || 'Compruebe la conexión.'}`);
+    }
+  };
+
+  // Reverter lote selecionado para Rascunho
+  const handleReverterLoteRascunho = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    if (!confirm(`¿Desea devolver ${ids.length} órdenes seleccionadas a Borrador (Rascunho)?`)) {
+      return;
+    }
+
+    try {
+      await financeLogisticsService.reverterParaRascunho(ids);
+      alert(`¡Se devolvieron ${ids.length} órdenes a borrador con éxito!`);
+      setSelectedIds(new Set());
+      loadData();
+    } catch (err: any) {
+      console.error('Error al devolver lote a borrador:', err);
+      alert('Error al devolver lote a borrador.');
+    }
+  };
+
+  // Excluir ordem permanentemente
   const handleExcluirOp = async (op: PagoAlojamento, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!confirm(`¿Está seguro de que desea eliminar la orden de pago borrador ${op.codigo_pago}? Esta acción es permanente.`)) {
+    if (op.status_pago === 'Pago') {
+      alert('No es posible eliminar una orden que ya ha sido Pagada en Tesorería.');
+      return;
+    }
+    if (!confirm(`¿Está seguro de que desea ELIMINAR permanentemente la orden ${op.codigo_pago}? Esta acción liberará el registro para ser generado nuevamente.`)) {
       return;
     }
 
     try {
       await financeLogisticsService.excluirOrdemPagamento(op.id);
-      alert(`Orden de pago ${op.codigo_pago} eliminada.`);
+      alert(`Orden de pago ${op.codigo_pago} eliminada permanentemente.`);
       loadData();
     } catch (err: any) {
       console.error('Error al eliminar OP:', err);
       alert(`Error al eliminar: ${err?.message || 'Compruebe los permisos.'}`);
+    }
+  };
+
+  // Excluir lote selecionado
+  const handleExcluirLote = async () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+
+    if (!confirm(`¿Está seguro de que desea ELIMINAR permanentemente ${ids.length} órdenes seleccionadas? Esta acción liberará los registros para ser generados nuevamente.`)) {
+      return;
+    }
+
+    try {
+      setIsDeletingBatch(true);
+      await financeLogisticsService.excluirOrdemPagamento(ids);
+      alert(`¡Se eliminaron ${ids.length} órdenes permanentemente!`);
+      setSelectedIds(new Set());
+      loadData();
+    } catch (err: any) {
+      console.error('Error al eliminar lote:', err);
+      alert(`Error al eliminar lote: ${err?.message || 'Compruebe los permisos.'}`);
+    } finally {
+      setIsDeletingBatch(false);
     }
   };
 
@@ -607,20 +673,42 @@ export const FinanceiroLogisticaPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleEnviarLoteAprovacao}
-              disabled={isSendingBatch}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              disabled={isSendingBatch || isDeletingBatch}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              title="Enviar órdenes seleccionadas a aprobación de Finanzas"
             >
               <Send size={13} />
-              {isSendingBatch ? 'Enviando...' : `Enviar ${selectedIds.size} a Aprobación`}
+              {isSendingBatch ? 'Enviando...' : `Enviar a Aprobación (${selectedIds.size})`}
             </button>
+
+            <button
+              onClick={handleReverterLoteRascunho}
+              disabled={isSendingBatch || isDeletingBatch}
+              className="px-3 py-2 bg-amber-600/90 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              title="Volver órdenes seleccionadas al estado Borrador (Rascunho)"
+            >
+              <RotateCcw size={13} />
+              Volver a Borrador
+            </button>
+
+            <button
+              onClick={handleExcluirLote}
+              disabled={isSendingBatch || isDeletingBatch}
+              className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-colors inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              title="Eliminar permanentemente las órdenes seleccionadas"
+            >
+              <Trash2 size={13} />
+              {isDeletingBatch ? 'Eliminando...' : `Eliminar (${selectedIds.size})`}
+            </button>
+
             <button
               onClick={() => setSelectedIds(new Set())}
               className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-colors"
             >
-              Cancelar Selección
+              Cancelar
             </button>
           </div>
         </div>
@@ -891,6 +979,22 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                             </button>
 
                             <button
+                              onClick={e => handleReverterRascunho(op, e)}
+                              className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Volver a Borrador (Rascunho)"
+                            >
+                              <RotateCcw size={14} />
+                            </button>
+
+                            <button
+                              onClick={e => handleExcluirOp(op, e)}
+                              className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Eliminar orden permanentemente"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+
+                            <button
                               onClick={e => handleCancelarOp(op, e)}
                               className="px-2 py-1 bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1 shadow-xs"
                               title="Cancelar orden de pago"
@@ -948,9 +1052,18 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
                         {/* Cancelado */}
                         {op.status_pago === 'Cancelado' && (
-                          <span className="text-[10px] font-bold text-red-500">
-                            Anulada
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-red-500">
+                              Anulada
+                            </span>
+                            <button
+                              onClick={e => handleExcluirOp(op, e)}
+                              className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                              title="Eliminar permanentemente del histórico"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         )}
                       </div>
                     </td>
