@@ -8,7 +8,7 @@ import { useEstimacionMutations } from '../hooks/useEstimacionMutations';
 import { 
   FileText, Send, CheckCircle2, Clock, Copy, 
   ExternalLink, Lock, Mail, RefreshCw, Download, 
-  Check, ShieldCheck, AlertCircle, Loader2
+  Check, ShieldCheck, AlertCircle, Loader2, Package
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -47,8 +47,10 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
 
   const sig = estimacion.proposal_signature;
   let status = sig?.status || 'draft';
-  if (status === 'expired' || status === 'cancelled' || status === 'rejected' || estimacion.status === 'draft') {
-    status = 'draft';
+  if (status !== 'signed') {
+    if (status === 'expired' || status === 'cancelled' || status === 'rejected' || estimacion.status === 'draft') {
+      status = 'draft';
+    }
   }
 
   React.useEffect(() => {
@@ -700,7 +702,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               <div>
                 <span className="text-slate-500 block font-medium">Assinante verificado</span>
                 <span className="font-semibold text-slate-900 dark:text-slate-200 break-all">
-                  {estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email}
+                  {sig.proposal_audit_logs?.[0]?.email_or_phone_used || estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email}
                 </span>
               </div>
               <div>
@@ -710,6 +712,23 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                 </span>
               </div>
             </div>
+
+            {estimacion.pedido?.id && (
+              <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-emerald-600" />
+                  Pedido em Operações: <strong>{estimacion.pedido.codigo}</strong>
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  onClick={() => window.location.href = `/operacoes/pedidos/${estimacion.pedido.id}`}
+                >
+                  Ver Pedido <ExternalLink className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+            )}
 
             {sig.document_url && (
               <div className="pt-2">

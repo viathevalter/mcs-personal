@@ -40,7 +40,7 @@ export function useEstimacionDetail(id: string | undefined) {
         { data: lead },
         { data: client_site },
         { data: country },
-        { data: proposal_signature },
+        { data: rawSignatures },
         { data: pedido }
       ] = await Promise.all([
         estimacion.client_id
@@ -59,16 +59,18 @@ export function useEstimacionDetail(id: string | undefined) {
           .from('proposal_signatures')
           .select('*, proposal_audit_logs(*)')
           .eq('estimacion_id', id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .order('created_at', { ascending: false }),
         supabase.schema('core_comercial')
           .from('pedidos')
-          .select('id, codigo, commercial_status, operational_status')
+          .select('id, codigo, commercial_status, operational_status, source_estimacion_version_id')
           .eq('source_estimacion_id', id)
           .eq('empresa_id', selectedEmpresaId)
           .maybeSingle()
       ]);
+
+      const allSignatures = (rawSignatures as any[]) || [];
+      const signedSignature = allSignatures.find(s => s.status === 'signed');
+      const proposal_signature = signedSignature || allSignatures[0] || null;
 
       let solicitud = null;
       if (pedido) {
@@ -125,11 +127,12 @@ export function useEstimacionDetail(id: string | undefined) {
         country,
         current_version: currentVersion,
         proposal_signature,
+        all_signatures: allSignatures,
         pedido,
         solicitud,
         seller: sellerUser,
         created_by_user: sellerUser
-      } as Estimacion & { versions: any[]; proposal_signature: any; pedido: any; solicitud: any };
+      } as Estimacion & { versions: any[]; proposal_signature: any; all_signatures?: any[]; pedido: any; solicitud: any };
     },
     enabled: !!selectedEmpresaId && !!id,
   });

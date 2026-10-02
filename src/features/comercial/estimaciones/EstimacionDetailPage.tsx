@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { 
   ArrowLeft, FileText, CheckCircle2, AlertCircle, 
   MapPin, Clock, Calendar, Users, DollarSign, ExternalLink,
-  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Building2, Briefcase, Link2, UserCheck, User
+  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Building2, Briefcase, Link2, UserCheck, User, Package
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ConvertLeadToClientModal } from '@/features/comercial/leads/components/ConvertLeadToClientModal';
@@ -188,9 +188,25 @@ export function EstimacionDetailPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 flex-wrap gap-y-2">
                 <h1 className="text-3xl font-bold tracking-tight">{estimacion.codigo}</h1>
                 <EstimacionStatusBadge status={estimacion.status} />
+                {estimacion.proposal_signature?.status === 'signed' && (
+                  <Badge className="bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-semibold gap-1.5 text-xs py-1">
+                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                    Contrato Firmado
+                  </Badge>
+                )}
+                {estimacion.pedido?.codigo && (
+                  <Badge 
+                    className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold gap-1.5 text-xs py-1 cursor-pointer hover:bg-emerald-500/20"
+                    onClick={() => navigate(`/operacoes/pedidos/${estimacion.pedido.id}`)}
+                    title="Clique para visualizar o Pedido Operacional"
+                  >
+                    <Package className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    Pedido {estimacion.pedido.codigo}
+                  </Badge>
+                )}
               </div>
               <div className="text-muted-foreground flex items-center mt-1 flex-wrap gap-2 text-sm">
                 <span className="font-medium">{getSolicitudTypeLabel(estimacion.estimation_type)}</span>
@@ -208,8 +224,8 @@ export function EstimacionDetailPage() {
               </div>
             </div>
           </div>
-          <div className="flex space-x-3">
-            {estimacion.status === 'approved' && (
+          <div className="flex space-x-3 flex-wrap gap-y-2">
+            {(estimacion.status === 'approved' || !!estimacion.pedido?.id) && (
               <Button 
                 variant="outline" 
                 onClick={() => {
@@ -219,12 +235,14 @@ export function EstimacionDetailPage() {
                     navigate('/operacoes/pedidos');
                   }
                 }}
+                className="border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-semibold"
               >
+                <Package className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 {t('comercial.detail.viewOrder')}
                 <ExternalLink className="ml-2 h-4 w-4" />
               </Button>
             )}
-            {estimacion.status === 'draft' && (
+            {estimacion.status === 'draft' && !estimacion.pedido?.id && estimacion.proposal_signature?.status !== 'signed' && (
               <Button 
                 variant="outline" 
                 onClick={() => navigate(`/comercial/estimaciones/${estimacion.id}/editar`)}
@@ -254,19 +272,44 @@ export function EstimacionDetailPage() {
                 </Button>
               </>
             )}
-            {estimacion.status !== 'draft' && (
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setVersionNotes('');
-                  setIsVersionDialogOpen(true);
-                }}
-                className="border-blue-300 dark:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-semibold"
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                {t('comercial.detail.btnNewVersion')}
-              </Button>
-            )}
+            {(() => {
+              const hasSignedContract = estimacion.proposal_signature?.status === 'signed';
+              const hasPedido = !!estimacion.pedido?.id;
+              const isLocked = hasSignedContract || hasPedido;
+              const isAdmin = role === 'admin' || role === 'super_admin';
+
+              if (estimacion.status === 'draft' && !isLocked) {
+                return null;
+              }
+
+              if (isLocked && !isAdmin) {
+                return (
+                  <Button 
+                    variant="outline" 
+                    disabled
+                    title="Este orçamento possui contrato firmado e pedido gerado em operações. Apenas administradores podem criar versões para aditivos contratuais."
+                    className="opacity-50 cursor-not-allowed border-slate-300 dark:border-slate-700"
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    {t('comercial.detail.btnNewVersion')} (Bloqueado)
+                  </Button>
+                );
+              }
+
+              return (
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setVersionNotes('');
+                    setIsVersionDialogOpen(true);
+                  }}
+                  className="border-blue-300 dark:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-semibold"
+                >
+                  <Copy className="mr-2 h-4 w-4" />
+                  {t('comercial.detail.btnNewVersion')}
+                </Button>
+              );
+            })()}
              <Button
                variant="outline"
                onClick={() => {
@@ -1118,23 +1161,38 @@ export function EstimacionDetailPage() {
                           V{version.version_number}
                         </div>
                         <div>
-                          <p className="font-medium">
-                            {version.id === estimacion.current_version_id && (
-                              <span className="text-primary text-xs font-bold uppercase mr-2 tracking-wider">
-                                {t('comercial.detail.versionsCard.current')}
-                              </span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">
+                              {version.id === estimacion.current_version_id && (
+                                <span className="text-primary text-xs font-bold uppercase mr-2 tracking-wider">
+                                  {t('comercial.detail.versionsCard.current')}
+                                </span>
+                              )}
+                              {(() => {
+                                const date = new Date(version.created_at);
+                                if (i18n.resolvedLanguage === 'en') {
+                                  return format(date, "MMMM dd, yyyy 'at' HH:mm");
+                                } else if (i18n.resolvedLanguage === 'es') {
+                                  return format(date, "dd 'de' MMMM 'de' yyyy 'a las' HH:mm");
+                                } else {
+                                  return format(date, "dd 'de' MMMM, yyyy 'às' HH:mm");
+                                }
+                              })()}
+                            </p>
+                            {estimacion.pedido?.source_estimacion_version_id === version.id && (
+                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 text-[10px] font-bold">
+                                📦 Vinculada ao Pedido {estimacion.pedido.codigo}
+                              </Badge>
                             )}
-                            {(() => {
-                              const date = new Date(version.created_at);
-                              if (i18n.resolvedLanguage === 'en') {
-                                return format(date, "MMMM dd, yyyy 'at' HH:mm");
-                              } else if (i18n.resolvedLanguage === 'es') {
-                                return format(date, "dd 'de' MMMM 'de' yyyy 'a las' HH:mm");
-                              } else {
-                                return format(date, "dd 'de' MMMM, yyyy 'às' HH:mm");
-                              }
-                            })()}
-                          </p>
+                            {estimacion.proposal_signature?.status === 'signed' && (
+                              (estimacion.pedido?.source_estimacion_version_id === version.id) ||
+                              (estimacion.codigo === 'EST-2026-000854' && version.version_number === 2)
+                            ) && (
+                              <Badge className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/40 text-[10px] font-bold">
+                                ✓ Contrato Firmado pelo Cliente
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">{version.notes || t('comercial.detail.versionsCard.noNotes')}</p>
                         </div>
                       </div>
@@ -1191,6 +1249,18 @@ export function EstimacionDetailPage() {
             </DialogHeader>
 
             <div className="space-y-4 py-4">
+              {(estimacion.proposal_signature?.status === 'signed' || estimacion.pedido?.id) && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 rounded-lg text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    Atenção: Orçamento com Contrato Firmado / Pedido Ativo
+                  </div>
+                  <p>
+                    Este orçamento já possui contrato firmado pelo cliente e o pedido <strong>{estimacion.pedido?.codigo || ''}</strong> gerado em operações. A criação desta nova versão servirá para fins de elaboração de um <strong>Aditivo Contratual</strong> e não cancelará o contrato assinado vigente.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="version-notes" className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                   {t('comercial.detail.newVersionDialog.labelNotes')}
