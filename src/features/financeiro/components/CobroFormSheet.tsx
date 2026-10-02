@@ -340,31 +340,79 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
 
   const handleFileUpload = async (file: File) => {
     if (!file) return;
+
+    // Check size (35MB limit)
+    if (file.size > 35 * 1024 * 1024) {
+      toast.error('O arquivo é muito grande. O limite máximo é de 35MB.');
+      return;
+    }
+
     setIsUploading(true);
     try {
-      const fileExt = file.name.split('.').pop() || 'pdf';
-      const cleanName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const filePath = `${Date.now()}_${cleanName}`;
+      const fileExt = (file.name.split('.').pop() || 'pdf').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const rawBase = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      const cleanBase = rawBase
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_+/g, '_')
+        .slice(0, 60);
 
-      const { error: uploadError } = await supabase.storage
-        .from('financeiro-anexos')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+      const filePath = `cobros_${Date.now()}_${cleanBase}.${fileExt}`;
+      const contentType = file.type || (fileExt === 'pdf' ? 'application/pdf' : 'application/octet-stream');
 
-      if (uploadError) throw uploadError;
+      // Helper function with timeout
+      const uploadWithTimeout = async (bucket: string, path: string) => {
+        const uploadTask = supabase.storage
+          .from(bucket)
+          .upload(path, file, {
+            contentType,
+            cacheControl: '3600',
+            upsert: false
+          });
 
-      const { data: urlData } = supabase.storage
-        .from('financeiro-anexos')
-        .getPublicUrl(filePath);
+        const timeoutTask = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Tempo limite excedido ao comunicar com o servidor de arquivos (timeout de 25s).')), 25000)
+        );
 
-      const publicUrl = urlData.publicUrl;
-      setFormData(prev => ({ ...prev, anexo_url: publicUrl }));
-      toast.success('Arquivo anexado com sucesso!');
+        return Promise.race([uploadTask, timeoutTask]) as Promise<{ data: any; error: any }>;
+      };
+
+      let finalUrl = '';
+      let lastError: any = null;
+
+      // 1. Try primary bucket: financeiro-anexos
+      try {
+        const res = await uploadWithTimeout('financeiro-anexos', filePath);
+        if (res.error) throw res.error;
+        const { data: urlData } = supabase.storage.from('financeiro-anexos').getPublicUrl(filePath);
+        finalUrl = urlData.publicUrl;
+      } catch (err1: any) {
+        console.warn('Upload to financeiro-anexos failed, attempting fallback to comprovantes-financeiro...', err1);
+        lastError = err1;
+
+        // 2. Fallback to comprovantes-financeiro
+        try {
+          const fallbackPath = `cobros/${filePath}`;
+          const resFallback = await uploadWithTimeout('comprovantes-financeiro', fallbackPath);
+          if (resFallback.error) throw resFallback.error;
+          const { data: urlData } = supabase.storage.from('comprovantes-financeiro').getPublicUrl(fallbackPath);
+          finalUrl = urlData.publicUrl;
+        } catch (err2: any) {
+          console.error('Fallback upload also failed:', err2);
+          throw lastError || err2;
+        }
+      }
+
+      if (finalUrl) {
+        setFormData(prev => ({ ...prev, anexo_url: finalUrl }));
+        toast.success('Arquivo anexado com sucesso!');
+      } else {
+        throw new Error('Não foi possível obter o link do arquivo após o upload.');
+      }
     } catch (err: any) {
       console.error('Error uploading file:', err);
-      toast.error('Erro ao fazer upload do anexo: ' + (err.message || 'Falha na conexão'));
+      toast.error('Erro ao fazer upload do anexo: ' + (err.message || 'Falha na conexão com o servidor'));
     } finally {
       setIsUploading(false);
     }
@@ -375,6 +423,8 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
     if (file) {
       handleFileUpload(file);
     }
+    // Reset input value to allow selecting the same file again if needed
+    e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -919,10 +969,22 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
                     }`}
                   >
                     {isUploading ? (
-                      <>
-                        <Loader2 className="h-6 w-6 mb-2 animate-spin text-emerald-600 dark:text-emerald-400" />
+                      <div className="space-y-1.5 py-1">
+                        <Loader2 className="h-6 w-6 mb-1 animate-spin text-emerald-600 dark:text-emerald-400 mx-auto" />
                         <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Enviando arquivo...</p>
-                      </>
+                        <p className="text-[11px] text-slate-400">Aguardando confirmação do servidor...</p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsUploading(false);
+                            toast.info('Envio cancelado.');
+                          }}
+                          className="mt-1 text-xs text-slate-500 hover:text-rose-600 underline font-medium"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <Paperclip className="h-5 w-5 mb-1.5 text-slate-400" />
