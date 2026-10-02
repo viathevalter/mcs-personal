@@ -19,6 +19,11 @@ export interface PagoAlojamento {
   alojamento_id?: string;
   alojamento_nome?: string;
   alojamento_codigo?: string;
+  worker_id?: string;
+  worker_nome?: string;
+  worker_codigo?: string;
+  pedido_codigo?: string;
+  rota_deslocamento?: string;
   provedor_id?: string;
   provedor_nome?: string;
   iban_cobranca?: string;
@@ -27,7 +32,20 @@ export interface PagoAlojamento {
   centro_custo_cliente?: string;
   centro_custo_obra?: string;
   ordem_pagamento_id?: string;
-  tipo_pago: 'Aluguel' | 'Fianza_Saida' | 'Fianza_Devolucion' | 'Suministro_Luz' | 'Suministro_Agua' | 'Suministro_Gas' | 'Suministro_Internet' | 'Manutencao_Limpeza';
+  tipo_pago:
+    | 'Aluguel'
+    | 'Fianza_Saida'
+    | 'Fianza_Devolucion'
+    | 'Suministro_Luz'
+    | 'Suministro_Agua'
+    | 'Suministro_Gas'
+    | 'Suministro_Internet'
+    | 'Manutencao_Limpeza'
+    | 'Viagem_Deslocamento'
+    | 'Passagens_Transporte'
+    | 'Diarias_Alimentacao'
+    | 'Outros_Gastos'
+    | string;
   status_pago: 'Rascunho' | 'Aguardando Aprovação' | 'Aprovado' | 'Pago' | 'Cancelado';
   periodo_competencia?: string;
   data_emissao?: string;
@@ -104,6 +122,21 @@ function parseMetadataFromObs(obs?: string | null) {
     if (line.startsWith('Titular:')) meta.titular = line.replace('Titular:', '').trim();
     if (line.startsWith('Comp:')) meta.competencia = line.replace('Comp:', '').trim();
     if (line.startsWith('Alojamiento:')) meta.alojamento_nome = line.replace('Alojamiento:', '').trim();
+    if (line.startsWith('Trabajador:')) {
+      const parts = line.replace('Trabajador:', '').trim();
+      const match = parts.match(/^(.*?)(?:\s*\[(.*?)\])?$/);
+      if (match) {
+        meta.worker_nome = match[1].trim();
+        if (match[2]) meta.worker_codigo = match[2].trim();
+      } else {
+        meta.worker_nome = parts;
+      }
+    }
+    if (line.startsWith('Pedido:')) meta.pedido_codigo = line.replace('Pedido:', '').trim();
+    if (line.startsWith('Ruta / Desplazamiento:') || line.startsWith('Ruta:') || line.startsWith('Trayecto:')) {
+      meta.rota_deslocamento = line.replace(/^(Ruta \/ Desplazamiento:|Ruta:|Trayecto:)/, '').trim();
+    }
+    if (line.startsWith('Forma de Pago:')) meta.forma_pagamento = line.replace('Forma de Pago:', '').trim();
   }
   return meta;
 }
@@ -209,7 +242,11 @@ export const financeLogisticsService = {
           codigo_pago: op.cod_orden_pago || `OP-${op.id.substring(0, 8)}`,
           contrato_id: op.cod_contrato || undefined,
           alojamento_codigo: op.cod_alojamiento || undefined,
-          alojamento_nome: meta.alojamento_nome || op.descricao?.replace(/^(Alquiler|Aluguel|Fianza|Suministro)\s*-\s*/i, '').replace(/\s*\(\d{2}\/\d{4}\)$/, '') || 'Alojamiento',
+          alojamento_nome: meta.alojamento_nome || op.descricao?.replace(/^(Alquiler|Aluguel|Fianza|Suministro|Passagens|Viagem|Deslocamento)\s*-\s*/i, '').replace(/\s*\(\d{2}\/\d{4}\)$/, '') || 'Alojamiento / Servicio',
+          worker_nome: meta.worker_nome || undefined,
+          worker_codigo: meta.worker_codigo || undefined,
+          pedido_codigo: meta.pedido_codigo || op.cod_contrato || undefined,
+          rota_deslocamento: meta.rota_deslocamento || undefined,
           provedor_id: op.fornecedor_id || undefined,
           provedor_nome: op.cod_provedor || 'Proveedor',
           iban_cobranca: meta.iban || '',
@@ -230,7 +267,7 @@ export const financeLogisticsService = {
           anexo_fatura_url: op.anexos || undefined,
           comprovante_url: op.comprovante_geral || cp?.anexo_url || undefined,
           pago_por: op.pago_por || undefined,
-          forma_pagamento: cp?.obs_pagamento || undefined,
+          forma_pagamento: op.forma_pagamento || cp?.obs_pagamento || meta.forma_pagamento || undefined,
           ocupantes: ocupantesImovel
         };
       });
@@ -298,12 +335,18 @@ export const financeLogisticsService = {
     }
   },
 
-  // 3. Geração Individual de Ordem de Pagamento (levando dados de ocupantes)
+  // 3. Geração Individual de Ordem de Pagamento (Alojamento, Deslocamento / Viagens, ou Geral)
   async gerarOrdemPagamento(payload: {
     contrato_id?: string;
+    pedido_id?: string;
+    pedido_codigo?: string;
     alojamento_id?: string;
     alojamento_nome?: string;
     alojamento_codigo?: string;
+    worker_id?: string;
+    worker_nome?: string;
+    worker_codigo?: string;
+    rota_deslocamento?: string;
     provedor_id?: string;
     provedor_nome?: string;
     iban_cobranca?: string;
@@ -312,6 +355,8 @@ export const financeLogisticsService = {
     centro_custo_cliente?: string;
     centro_custo_obra?: string;
     tipo_pago: PagoAlojamento['tipo_pago'];
+    forma_pagamento?: string;
+    anexo_url?: string;
     valor: number;
     data_vencimento: string;
     periodo_competencia?: string;
@@ -320,17 +365,34 @@ export const financeLogisticsService = {
     const { id: userId, email: userEmail } = await getCurrentUserId();
     const codOrdenPago = await getNextCodOrdenPago(0);
 
-    // Buscar ocupantes ativos atuais do imóvel
-    const ocupantes = await this.fetchOcupantesAlojamento(payload.alojamento_codigo || payload.alojamento_id, payload.alojamento_nome);
+    // Buscar ocupantes ativos atuais do imóvel se for despesa de alojamento
+    const ocupantes = payload.alojamento_codigo || payload.alojamento_id
+      ? await this.fetchOcupantesAlojamento(payload.alojamento_codigo || payload.alojamento_id, payload.alojamento_nome)
+      : [];
     const ocupantesNomes = ocupantes.map(o => `${o.worker_nome}${o.codigo_colab ? ` [${o.codigo_colab}]` : ''}`).join(', ');
 
     const compStr = payload.periodo_competencia ? ` (${payload.periodo_competencia})` : '';
-    const descricao = `${payload.tipo_pago} - ${payload.alojamento_nome || 'Alojamiento'}${compStr}`;
-    const centroCustos = `${payload.centro_custo_cliente || 'Centro de Coste General'} / ${payload.centro_custo_obra || 'Obra Principal'}`;
+
+    // Descrição inteligente de acordo com o tipo
+    let descricao = '';
+    if (payload.worker_nome) {
+      const rotaStr = payload.rota_deslocamento ? ` - ${payload.rota_deslocamento}` : '';
+      descricao = `${payload.tipo_pago} - ${payload.worker_nome}${rotaStr}${compStr}`;
+    } else if (payload.alojamento_nome) {
+      descricao = `${payload.tipo_pago} - ${payload.alojamento_nome}${compStr}`;
+    } else {
+      descricao = `${payload.tipo_pago} - Logística${compStr}`;
+    }
+
+    const centroCustos = `${payload.centro_custo_cliente || 'Centro de Coste General'} / ${payload.centro_custo_obra || payload.pedido_codigo || 'Obra Principal'}`;
 
     const obsCompletas = [
-      `Alojamiento: ${payload.alojamento_nome || ''}`,
+      payload.alojamento_nome ? `Alojamiento: ${payload.alojamento_nome}` : null,
+      payload.worker_nome ? `Trabajador: ${payload.worker_nome}${payload.worker_codigo ? ` [${payload.worker_codigo}]` : ''}` : null,
+      payload.pedido_codigo ? `Pedido: ${payload.pedido_codigo}` : null,
+      payload.rota_deslocamento ? `Ruta / Desplazamiento: ${payload.rota_deslocamento}` : null,
       ocupantes.length > 0 ? `Personas Alojadas (${ocupantes.length}): ${ocupantesNomes}` : null,
+      payload.forma_pagamento ? `Forma de Pago: ${payload.forma_pagamento}` : null,
       payload.iban_cobranca ? `IBAN: ${payload.iban_cobranca}` : null,
       payload.banco ? `Banco: ${payload.banco}` : null,
       payload.titular ? `Titular: ${payload.titular}` : null,
@@ -349,13 +411,16 @@ export const financeLogisticsService = {
         cod_provedor: payload.provedor_nome || 'Proveedor',
         valor: payload.valor,
         data_vencimento: payload.data_vencimento,
-        status: 'rascunho', // OPÇÃO B: Nascendo como Rascunho
+        status: 'rascunho', // Nasce como Rascunho
         criador_id: userId,
+        criador_email: userEmail,
         departamento_origem: 'Logística',
         cod_alojamiento: payload.alojamento_codigo || null,
-        cod_contrato: payload.contrato_id || null,
+        cod_contrato: payload.pedido_codigo || payload.contrato_id || null,
         tipo_orden: payload.tipo_pago,
         centro_custos: centroCustos,
+        forma_pagamento: payload.forma_pagamento || null,
+        anexos: payload.anexo_url || null,
         observaciones: obsCompletas,
         qtde_itens: ocupantes.length > 0 ? ocupantes.length : 1
       }])
@@ -367,9 +432,28 @@ export const financeLogisticsService = {
       throw new Error(`Falha ao gerar Ordem de Pagamento: ${insertErr.message}`);
     }
 
-    // Inserir Itens detalhados por ocupante ou item geral
+    // Inserir Itens detalhados
     try {
-      if (ocupantes.length > 0) {
+      if (payload.worker_nome) {
+        // Item específico do trabalhador e viagem
+        await supabase
+          .schema('core_finance')
+          .from('ordens_pagamento_itens')
+          .insert([{
+            ordem_pagamento_id: newOrdem.id,
+            cod_orden_pago: codOrdenPago,
+            cod_orden_pago_item: `${codOrdenPago}-IT-001`,
+            cod_contrato: payload.pedido_codigo || payload.contrato_id || null,
+            cod_provedor: payload.provedor_nome || null,
+            cod_colab: payload.worker_codigo || null,
+            observacion_item: `Colaborador: ${payload.worker_nome}${payload.rota_deslocamento ? ` | Trayecto: ${payload.rota_deslocamento}` : ''} - Pedido: ${payload.pedido_codigo || payload.centro_custo_obra || 'N/A'}`,
+            categoria_orden: payload.tipo_pago,
+            valor_orden: payload.valor,
+            vencimento_orden: payload.data_vencimento,
+            centro_custo: centroCustos,
+            status_item: 'Rascunho'
+          }]);
+      } else if (ocupantes.length > 0) {
         const valorPorOcupante = Number((payload.valor / ocupantes.length).toFixed(2));
         for (let i = 0; i < ocupantes.length; i++) {
           const oc = ocupantes[i];
@@ -425,7 +509,7 @@ export const financeLogisticsService = {
           tipo_mov: 'Orden Generada',
           estado_mov: 'Rascunho',
           valor_pago: payload.valor,
-          observaciones: `Orden de Pago generada en Logística con ${ocupantes.length} ocupantes por ${userEmail}`,
+          observaciones: `Orden de Pago generada en Logística por ${userEmail}`,
           criado_por: userEmail
         }]);
     } catch (movErr) {}
@@ -437,6 +521,11 @@ export const financeLogisticsService = {
       alojamento_id: payload.alojamento_id,
       alojamento_nome: payload.alojamento_nome,
       alojamento_codigo: payload.alojamento_codigo,
+      worker_id: payload.worker_id,
+      worker_nome: payload.worker_nome,
+      worker_codigo: payload.worker_codigo,
+      pedido_codigo: payload.pedido_codigo,
+      rota_deslocamento: payload.rota_deslocamento,
       provedor_id: payload.provedor_id,
       provedor_nome: payload.provedor_nome,
       iban_cobranca: payload.iban_cobranca,
@@ -445,6 +534,8 @@ export const financeLogisticsService = {
       centro_custo_cliente: payload.centro_custo_cliente,
       centro_custo_obra: payload.centro_custo_obra,
       tipo_pago: payload.tipo_pago,
+      forma_pagamento: payload.forma_pagamento,
+      anexo_fatura_url: payload.anexo_url,
       status_pago: 'Rascunho',
       periodo_competencia: payload.periodo_competencia,
       data_emissao: new Date().toISOString().split('T')[0],

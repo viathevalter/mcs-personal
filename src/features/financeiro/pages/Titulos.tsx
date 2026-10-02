@@ -6,7 +6,7 @@ import {
     Search, ChevronLeft, ChevronRight, Filter, Eye, CheckSquare, Square, 
     Plus, Trash2, X, PlusCircle, Users, ChevronDown, ArrowUpRight, 
     CheckCircle2, AlertTriangle, Copy, CreditCard, Building2, User, 
-    Calendar, FileText, ExternalLink, HelpCircle
+    Calendar, FileText, ExternalLink, HelpCircle, Paperclip, Plane
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -626,7 +626,26 @@ export const Titulos = () => {
                                             </TableCell>
                                             <TableCell className="font-medium text-slate-800 dark:text-slate-200">
                                                 <div>
-                                                    <span className="font-semibold">{item.descricao}</span>
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className="font-semibold">{item.descricao}</span>
+                                                        {item.forma_pagamento && (item.forma_pagamento.toLowerCase().includes('reserva') || item.forma_pagamento.toLowerCase().includes('cart')) && (
+                                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                                                💳 Tarjeta Reserva
+                                                            </span>
+                                                        )}
+                                                        {item.anexos && (
+                                                            <a
+                                                                href={item.anexos}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                onClick={e => e.stopPropagation()}
+                                                                className="inline-flex items-center gap-0.5 text-blue-600 hover:text-blue-800 p-0.5"
+                                                                title="Ver anexo / billete"
+                                                            >
+                                                                <Paperclip size={12} />
+                                                            </a>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                                         {item.cod_alojamiento && (
                                                             <span className="text-[10px] font-mono text-slate-400">
@@ -848,11 +867,37 @@ export const Titulos = () => {
                                                                 <div className="space-y-1 mt-1 text-slate-600 dark:text-slate-300">
                                                                     <p><span className="text-slate-400">Setor Origem:</span> <strong className="text-slate-700 dark:text-slate-200">{item.departamento_origem || 'Geral'}</strong></p>
                                                                     <p><span className="text-slate-400">Centro:</span> <strong className="text-slate-700 dark:text-slate-200">{item.centro_custos || 'Não especificado'}</strong></p>
+                                                                    {item.forma_pagamento && (
+                                                                        <p className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="text-slate-400">Forma de Pago:</span>
+                                                                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                                                                                item.forma_pagamento.toLowerCase().includes('reserva') || item.forma_pagamento.toLowerCase().includes('cart')
+                                                                                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                                                                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                                            }`}>
+                                                                                💳 {item.forma_pagamento}
+                                                                            </span>
+                                                                        </p>
+                                                                    )}
                                                                     {item.cod_alojamiento && (
                                                                         <p><span className="text-slate-400">Imóvel:</span> <span className="font-mono font-semibold text-blue-600">{item.cod_alojamiento}</span></p>
                                                                     )}
                                                                     {item.tipo_orden && (
                                                                         <p><span className="text-slate-400">Tipo:</span> <span className="font-semibold text-slate-700 dark:text-slate-200">{item.tipo_orden}</span></p>
+                                                                    )}
+                                                                    {item.anexos && (
+                                                                        <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800">
+                                                                            <a
+                                                                                href={item.anexos}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                onClick={e => e.stopPropagation()}
+                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 rounded-lg text-xs font-bold border border-blue-200 dark:border-blue-800 transition-colors"
+                                                                            >
+                                                                                <Paperclip size={12} />
+                                                                                Ver Billete / Fatura Adjunta
+                                                                            </a>
+                                                                        </div>
                                                                     )}
                                                                 </div>
                                                             </div>

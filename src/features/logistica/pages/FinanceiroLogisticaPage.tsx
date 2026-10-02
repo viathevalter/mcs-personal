@@ -34,8 +34,17 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  RotateCcw
+  RotateCcw,
+  Plane,
+  Ticket,
+  User,
+  FileUp,
+  Paperclip,
+  MapPin,
+  Navigation,
+  Utensils
 } from 'lucide-react';
+import { supabase } from '@/shared/supabase/client';
 import { financeLogisticsService } from '../services/financeLogisticsService';
 import type { PagoAlojamento } from '../services/financeLogisticsService';
 import { logisticsService } from '../services/logisticsService';
@@ -77,17 +86,46 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const [editingOp, setEditingOp] = useState<PagoAlojamento | null>(null);
   const [receiptOp, setReceiptOp] = useState<PagoAlojamento | null>(null);
 
-  // Modal Nueva OP
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedAlojamentoId, setSelectedAlojamentoId] = useState<string>('');
+  // Lista de Trabalhadores e Alocações
   const [alocacoes, setAlocacoes] = useState<any[]>([]);
-  const [tipoGasto, setTipoGasto] = useState<PagoAlojamento['tipo_pago']>('Aluguel');
+  const [workers, setWorkers] = useState<Array<{ id: string; nome: string; cod_colab?: string; nif?: string }>>([]);
+
+  // Modal Nueva OP / Gasto (Ampliado e Completo)
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modoVinculacao, setModoVinculacao] = useState<'deslocamento' | 'alojamento' | 'geral'>('deslocamento');
+
+  // Trabalhador & Deslocamento
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
+  const [selectedWorkerNome, setSelectedWorkerNome] = useState<string>('');
+  const [selectedWorkerCodigo, setSelectedWorkerCodigo] = useState<string>('');
+  const [workerSearchTerm, setWorkerSearchTerm] = useState<string>('');
+  const [isWorkerDropdownOpen, setIsWorkerDropdownOpen] = useState<boolean>(false);
+  const [pedidoCodigo, setPedidoCodigo] = useState<string>('');
+  const [rotaDeslocamento, setRotaDeslocamento] = useState<string>('');
+
+  // Alojamento & Fornecedor
+  const [selectedAlojamentoId, setSelectedAlojamentoId] = useState<string>('');
+  const [provedorNome, setProvedorNome] = useState<string>('');
+  const [ibanCobranca, setIbanCobranca] = useState<string>('');
+  const [bancoCobranca, setBancoCobranca] = useState<string>('');
+  const [titularCobranca, setTitularCobranca] = useState<string>('');
+
+  // Categoria, Forma de Pagamento e Valores
+  const [tipoGasto, setTipoGasto] = useState<PagoAlojamento['tipo_pago']>('Passagens_Transporte');
+  const [formaPagamento, setFormaPagamento] = useState<string>('Cartão de Reserva / Corporativo');
   const [valorGasto, setValorGasto] = useState<number>(0);
   const [vencimentoGasto, setVencimentoGasto] = useState<string>(new Date().toISOString().split('T')[0]);
   const [competenciaGasto, setCompetenciaGasto] = useState<string>('10/2026');
   const [clienteCentroCusto, setClienteCentroCusto] = useState<string>('');
   const [obraCentroCusto, setObraCentroCusto] = useState<string>('');
   const [observacoesGasto, setObservacoesGasto] = useState<string>('');
+
+  // Anexo / Comprovante / Passagem
+  const [anexoUrl, setAnexoUrl] = useState<string>('');
+  const [anexoNome, setAnexoNome] = useState<string>('');
+  const [isUploadingAnexo, setIsUploadingAnexo] = useState<boolean>(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
   const [isSavingOp, setIsSavingOp] = useState(false);
 
   // Modal Detalhes Simples
@@ -96,18 +134,28 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [pagosData, alojData, provData, alocsData] = await Promise.all([
+      const [pagosData, alojData, provData, alocsData, workersRes] = await Promise.all([
         financeLogisticsService.fetchPagos(),
         logisticsService.fetchAlojamentos(),
         logisticsService.fetchProvedores(),
-        logisticsService.fetchAlocacoesAtivas()
+        logisticsService.fetchAlocacoesAtivas(),
+        supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome, cod_colab, nif')
+          .order('nome', { ascending: true })
+          .limit(1000)
+          .catch(() => ({ data: [] }))
       ]);
       setPagos(pagosData);
       setAlojamentos(alojData);
       setProvedores(provData);
       setAlocacoes(alocsData);
+      if (workersRes?.data) {
+        setWorkers(workersRes.data);
+      }
     } catch (err) {
-      console.error('Error al cargar pagos de logística:', err);
+      console.error('Error al cargar datos de logística:', err);
     } finally {
       setIsLoading(false);
     }
@@ -127,6 +175,8 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     if (!alojId) {
       setClienteCentroCusto('');
       setObraCentroCusto('');
+      setProvedorNome('');
+      setIbanCobranca('');
       return;
     }
 
@@ -148,8 +198,102 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
     setObraCentroCusto(`Obra ${aloj.municipio || aloj.provincia || 'Principal'}`);
 
+    const prov = provedores.find(p => p.id === aloj.provedor_id);
+    if (prov) {
+      setProvedorNome(prov.nome_razao_social || '');
+      setIbanCobranca(prov.iban || '');
+      setBancoCobranca(prov.banco || '');
+      setTitularCobranca(prov.titular_conta || prov.nome_razao_social || '');
+    }
+
     if (tipoGasto === 'Aluguel' && (aloj.custo_mensal_total || aloj.valor_mensal)) {
       setValorGasto(Number(aloj.custo_mensal_total || aloj.valor_mensal));
+    }
+  };
+
+  const handleSelectWorker = (w: { id: string; nome: string; cod_colab?: string }) => {
+    setSelectedWorkerId(w.id);
+    setSelectedWorkerNome(w.nome);
+    setSelectedWorkerCodigo(w.cod_colab || '');
+    setWorkerSearchTerm(`${w.nome}${w.cod_colab ? ` [${w.cod_colab}]` : ''}`);
+    setIsWorkerDropdownOpen(false);
+
+    // Buscar se esse trabalhador possui uma alocação ativa para preencher o pedido/cliente/obra
+    const matchAloc = alocacoes.find((a: any) =>
+      a.status !== 'Checkout' &&
+      (a.worker_id === w.id || (w.cod_colab && a.codigo_colab === w.cod_colab) || (a.worker_nome && a.worker_nome.toLowerCase() === w.nome.toLowerCase()))
+    );
+
+    if (matchAloc) {
+      if (matchAloc.cliente_nome) setClienteCentroCusto(matchAloc.cliente_nome);
+      if (matchAloc.obra_nome) setObraCentroCusto(matchAloc.obra_nome);
+      if (matchAloc.pedido_codigo) setPedidoCodigo(matchAloc.pedido_codigo);
+      else if (matchAloc.solicitud_id) setPedidoCodigo(matchAloc.solicitud_id);
+    }
+  };
+
+  const resetModalForm = (novoModo?: 'deslocamento' | 'alojamento' | 'geral') => {
+    const modo = novoModo || modoVinculacao;
+    setSelectedAlojamentoId('');
+    setSelectedWorkerId('');
+    setSelectedWorkerNome('');
+    setSelectedWorkerCodigo('');
+    setWorkerSearchTerm('');
+    setPedidoCodigo('');
+    setRotaDeslocamento('');
+    setProvedorNome(modo === 'deslocamento' ? 'Iberia / Renfe / Transporte' : '');
+    setIbanCobranca('');
+    setBancoCobranca('');
+    setTitularCobranca('');
+    setTipoGasto(modo === 'deslocamento' ? 'Passagens_Transporte' : modo === 'alojamento' ? 'Aluguel' : 'Outros_Gastos');
+    setFormaPagamento(modo === 'deslocamento' ? 'Cartão de Reserva / Corporativo' : 'Transferência Bancária / Fatura');
+    setValorGasto(0);
+    setVencimentoGasto(new Date().toISOString().split('T')[0]);
+    setCompetenciaGasto('10/2026');
+    setClienteCentroCusto('');
+    setObraCentroCusto('');
+    setObservacoesGasto('');
+    setAnexoUrl('');
+    setAnexoNome('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleUploadAnexo = async (file: File) => {
+    try {
+      setIsUploadingAnexo(true);
+      const fileExt = file.name.split('.').pop() || 'pdf';
+      const cleanFileName = `gasto_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+      const filePath = `comprovantes/${cleanFileName}`;
+
+      let uploadResult = await supabase.storage
+        .from('comprovantes-financeiro')
+        .upload(filePath, file, { upsert: true });
+
+      let publicUrl = '';
+      if (!uploadResult.error) {
+        const { data } = supabase.storage.from('comprovantes-financeiro').getPublicUrl(filePath);
+        publicUrl = data?.publicUrl || '';
+      } else {
+        const fallbackRes = await supabase.storage
+          .from('alojamentos')
+          .upload(filePath, file, { upsert: true });
+        if (!fallbackRes.error) {
+          const { data } = supabase.storage.from('alojamentos').getPublicUrl(filePath);
+          publicUrl = data?.publicUrl || '';
+        }
+      }
+
+      if (publicUrl) {
+        setAnexoUrl(publicUrl);
+        setAnexoNome(file.name);
+      } else {
+        alert('No fue posible subir el archivo. Compruebe los permisos o tamaño.');
+      }
+    } catch (e: any) {
+      console.error('Error al subir comprobante:', e);
+      alert('Error en la carga del archivo.');
+    } finally {
+      setIsUploadingAnexo(false);
     }
   };
 
@@ -296,8 +440,18 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   // Salvar Nova OP (nasce como Rascunho / Opção B)
   const handleSaveNovaOp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedAlojamentoId || valorGasto <= 0) {
-      alert('Seleccione un inmueble e informe un importe válido.');
+    if (valorGasto <= 0) {
+      alert('Informe un importe válido mayor a 0.');
+      return;
+    }
+
+    if (modoVinculacao === 'alojamento' && !selectedAlojamentoId) {
+      alert('Seleccione un inmueble / alojamiento vinculado.');
+      return;
+    }
+
+    if (modoVinculacao === 'deslocamento' && !selectedWorkerNome && !workerSearchTerm) {
+      alert('Indique o busque el trabajador que realizará el viaje o desplazamiento.');
       return;
     }
 
@@ -306,18 +460,28 @@ export const FinanceiroLogisticaPage: React.FC = () => {
       const aloj = alojamentos.find(a => a.id === selectedAlojamentoId);
       const prov = provedores.find(p => p.id === aloj?.provedor_id);
 
+      const finalWorkerNome = selectedWorkerNome || workerSearchTerm;
+      const finalProvedorNome = provedorNome.trim() || prov?.nome_razao_social || (modoVinculacao === 'deslocamento' ? 'Agencia / Transporte' : 'Proveedor Logístico');
+
       const novaOp = await financeLogisticsService.gerarOrdemPagamento({
-        alojamento_id: selectedAlojamentoId,
-        alojamento_nome: aloj?.nome || 'Alojamiento',
-        alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+        alojamento_id: modoVinculacao === 'alojamento' ? selectedAlojamentoId : undefined,
+        alojamento_nome: modoVinculacao === 'alojamento' ? (aloj?.nome || 'Alojamiento') : undefined,
+        alojamento_codigo: modoVinculacao === 'alojamento' ? (aloj?.codigo || 'AL-XXXX') : undefined,
+        worker_id: selectedWorkerId || undefined,
+        worker_nome: finalWorkerNome || undefined,
+        worker_codigo: selectedWorkerCodigo || undefined,
+        pedido_codigo: pedidoCodigo || undefined,
+        rota_deslocamento: rotaDeslocamento || undefined,
         provedor_id: aloj?.provedor_id,
-        provedor_nome: prov?.nome_razao_social || 'Proveedor Inmobiliario',
-        iban_cobranca: prov?.iban || (aloj?.contrato as any)?.iban || '',
-        banco: prov?.banco || '',
-        titular: prov?.titular_conta || prov?.nome_razao_social || '',
+        provedor_nome: finalProvedorNome,
+        iban_cobranca: ibanCobranca || prov?.iban || '',
+        banco: bancoCobranca || prov?.banco || '',
+        titular: titularCobranca || prov?.titular_conta || finalProvedorNome,
         centro_custo_cliente: clienteCentroCusto,
-        centro_custo_obra: obraCentroCusto,
+        centro_custo_obra: obraCentroCusto || pedidoCodigo,
         tipo_pago: tipoGasto,
+        forma_pagamento: formaPagamento,
+        anexo_url: anexoUrl || undefined,
         valor: valorGasto,
         data_vencimento: vencimentoGasto,
         periodo_competencia: competenciaGasto,
@@ -326,9 +490,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
       alert(`¡Orden de Pago ${novaOp.codigo_pago} creada como Borrador con éxito!\nPuede revisarla y enviarla a aprobación.`);
       setIsModalOpen(false);
-      setSelectedAlojamentoId('');
-      setValorGasto(0);
-      setObservacoesGasto('');
+      resetModalForm();
       loadData();
     } catch (err: any) {
       console.error('Error al crear OP:', err);
@@ -379,6 +541,10 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     const matchesSearch =
       p.codigo_pago.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.alojamento_nome && p.alojamento_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.worker_nome && p.worker_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.worker_codigo && p.worker_codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.pedido_codigo && p.pedido_codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (p.rota_deslocamento && p.rota_deslocamento.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.provedor_nome && p.provedor_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.centro_custo_cliente && p.centro_custo_cliente.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (p.iban_cobranca && p.iban_cobranca.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -446,6 +612,17 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
   const getTipoIcon = (tipo: string) => {
     switch (tipo) {
+      case 'Passagens_Transporte':
+      case 'Passagens':
+      case 'Pasajes':
+        return <Ticket size={13} className="text-teal-500" />;
+      case 'Viagem_Deslocamento':
+      case 'Viagem':
+      case 'Desplazamiento':
+        return <Plane size={13} className="text-purple-500" />;
+      case 'Diarias_Alimentacao':
+      case 'Dietas':
+        return <Utensils size={13} className="text-amber-600" />;
       case 'Aluguel':
         return <Home size={13} className="text-blue-500" />;
       case 'Fiança':
@@ -474,6 +651,17 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
   const getTipoLabel = (tipo: string) => {
     switch (tipo) {
+      case 'Passagens_Transporte':
+      case 'Passagens':
+      case 'Pasajes':
+        return 'Pasajes / Transporte';
+      case 'Viagem_Deslocamento':
+      case 'Viagem':
+      case 'Desplazamiento':
+        return 'Viaje / Desplazamiento';
+      case 'Diarias_Alimentacao':
+      case 'Dietas':
+        return 'Dietas / Alimentación';
       case 'Aluguel':
         return 'Alquiler Mensual';
       case 'Fiança':
@@ -496,6 +684,8 @@ export const FinanceiroLogisticaPage: React.FC = () => {
       case 'Manutencao_Limpeza':
       case 'Manutenção / Limpeza':
         return 'Mantenimiento / Limpieza';
+      case 'Outros_Gastos':
+        return 'Otros Gastos';
       default:
         return tipo;
     }
@@ -812,10 +1002,10 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     {renderSortHeader('Código OP & Categoría', 'codigo_pago')}
                   </th>
                   <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
-                    {renderSortHeader('Alojamiento Vinculado', 'alojamento_nome')}
+                    {renderSortHeader('Alojamiento / Trabajador', 'alojamento_nome')}
                   </th>
                   <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
-                    {renderSortHeader('Proveedor / IBAN', 'provedor_nome')}
+                    {renderSortHeader('Proveedor / Forma Pago', 'provedor_nome')}
                   </th>
                   <th className="px-4 py-3 sticky top-0 bg-slate-100/95 dark:bg-slate-800/95 z-20">
                     {renderSortHeader('Centro de Coste', 'centro_custo_cliente')}
@@ -860,50 +1050,93 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Alojamento */}
+                    {/* Alojamento OU Trabalhador / Viagem */}
                     <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <Home size={14} className="text-slate-400 flex-shrink-0" />
-                        <div>
-                          <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                            {op.alojamento_nome}
-                          </span>
-                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                            <span className="font-mono text-[10px] text-slate-400">
-                              {op.alojamento_codigo || '-'} {op.contrato_id ? `• ${op.contrato_id}` : ''}
+                      {op.worker_nome ? (
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex-shrink-0">
+                            <User size={14} />
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                              {op.worker_nome}
                             </span>
-                            {op.ocupantes && op.ocupantes.length > 0 && (
-                              <span
-                                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
-                                title={op.ocupantes.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
-                              >
-                                <Users size={10} /> {op.ocupantes.length} ocupante(s)
-                              </span>
-                            )}
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              {op.worker_codigo && (
+                                <span className="font-mono text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded">
+                                  {op.worker_codigo}
+                                </span>
+                              )}
+                              {op.pedido_codigo && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                                  Pedido: {op.pedido_codigo}
+                                </span>
+                              )}
+                              {op.rota_deslocamento && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500">
+                                  • {op.rota_deslocamento}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-
-                    {/* Proveedor e IBAN */}
-                    <td className="px-4 py-3.5">
-                      <p className="font-bold text-slate-800 dark:text-slate-200">{op.provedor_nome}</p>
-                      {op.iban_cobranca ? (
-                        <div className="flex items-center gap-1 mt-0.5">
-                          <span className="font-mono text-[10px] text-slate-500">
-                            {op.iban_cobranca.slice(0, 4)} •••• {op.iban_cobranca.slice(-4)}
-                          </span>
-                          <button
-                            onClick={e => handleCopyIban(op.iban_cobranca || '', e)}
-                            className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 ml-1"
-                          >
-                            <Copy size={10} />
-                            {copiedIban === op.iban_cobranca ? '¡Copiado!' : 'Copiar'}
-                          </button>
+                      ) : op.alojamento_nome ? (
+                        <div className="flex items-center gap-2">
+                          <Home size={14} className="text-slate-400 flex-shrink-0" />
+                          <div>
+                            <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                              {op.alojamento_nome}
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              <span className="font-mono text-[10px] text-slate-400">
+                                {op.alojamento_codigo || '-'} {op.contrato_id ? `• ${op.contrato_id}` : ''}
+                              </span>
+                              {op.ocupantes && op.ocupantes.length > 0 && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
+                                  title={op.ocupantes.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
+                                >
+                                  <Users size={10} /> {op.ocupantes.length} ocupante(s)
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ) : (
-                        <span className="text-[10px] text-slate-400">IBAN no especificado</span>
+                        <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                          Gasto Operativo Logística
+                        </span>
                       )}
+                    </td>
+
+                    {/* Proveedor e IBAN / Forma de Pagamento */}
+                    <td className="px-4 py-3.5">
+                      <p className="font-bold text-slate-800 dark:text-slate-200">{op.provedor_nome || 'Logística / Proveedor'}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        {op.forma_pagamento && (
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                            op.forma_pagamento.toLowerCase().includes('reserva') || op.forma_pagamento.toLowerCase().includes('cart')
+                              ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
+                              : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                          }`}>
+                            💳 {op.forma_pagamento}
+                          </span>
+                        )}
+                        {op.iban_cobranca ? (
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono text-[10px] text-slate-500">
+                              {op.iban_cobranca.slice(0, 4)} •••• {op.iban_cobranca.slice(-4)}
+                            </span>
+                            <button
+                              onClick={e => handleCopyIban(op.iban_cobranca || '', e)}
+                              className="text-[10px] text-blue-600 hover:underline flex items-center gap-0.5 ml-0.5"
+                            >
+                              <Copy size={10} />
+                              {copiedIban === op.iban_cobranca ? '¡Copiado!' : 'Copiar'}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
 
                     {/* Centro de Custo */}
@@ -934,9 +1167,22 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     {/* Status */}
                     <td className="px-4 py-3.5">{getStatusBadge(op.status_pago)}</td>
 
-                    {/* Ações e Comprovantes */}
+                    {/* Ações e Comprobantes */}
                     <td className="px-4 py-3.5 text-right">
                       <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                        {/* Botão de Ver Anexo / Passagem / Fatura se houver */}
+                        {op.anexo_fatura_url && (
+                          <a
+                            href={op.anexo_fatura_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
+                            title="Ver billete / factura adjunta"
+                          >
+                            <Paperclip size={13} />
+                          </a>
+                        )}
                         {/* Ações para RASCUNHO / BORRADOR */}
                         {op.status_pago === 'Rascunho' && (
                           <>
@@ -1093,76 +1339,298 @@ export const FinanceiroLogisticaPage: React.FC = () => {
         />
       )}
 
-      {/* Modal Nova Ordem de Pagamento / Despesa */}
+      {/* Modal Nova Ordem de Pagamento / Gasto Ampliado */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-xl overflow-hidden flex flex-col shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-3xl overflow-hidden flex flex-col shadow-2xl">
+            {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/80">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-600 text-white rounded-2xl shadow-sm">
-                  <DollarSign size={20} />
+                <div className={`p-2.5 text-white rounded-2xl shadow-sm ${
+                  modoVinculacao === 'trabalhador' ? 'bg-indigo-600' : modoVinculacao === 'alojamento' ? 'bg-blue-600' : 'bg-emerald-600'
+                }`}>
+                  {modoVinculacao === 'trabalhador' ? <Plane size={22} /> : modoVinculacao === 'alojamento' ? <Home size={22} /> : <DollarSign size={22} />}
                 </div>
                 <div>
                   <h2 className="text-base font-black text-slate-900 dark:text-white">
-                    Nueva Orden de Pago / Gasto
+                    Nueva Orden de Pago / Gasto de Logística
                   </h2>
                   <p className="text-xs text-slate-500">
-                    Se creará en estado <strong>Borrador (Rascunho)</strong> para revisión previa
+                    Se creará en estado <strong>Borrador (Rascunho)</strong> para revisión previa antes de enviar a Finanzas
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+                type="button"
+                onClick={() => { setIsModalOpen(false); resetModalForm(); }}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSaveNovaOp} className="p-6 space-y-4 text-xs overflow-y-auto max-h-[80vh]">
-              {/* Seleção de Alojamento */}
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <Home size={13} className="text-blue-500" />
-                  Inmueble / Alojamiento Vinculado <span className="text-red-500">*</span>
+            <form onSubmit={handleSaveNovaOp} className="p-6 space-y-5 text-xs overflow-y-auto max-h-[82vh]">
+              {/* Seletor de Modo do Gasto */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5 uppercase text-[10px] tracking-wider">
+                  Tipo de Actividad / Destino del Gasto
                 </label>
-                <select
-                  value={selectedAlojamentoId}
-                  onChange={e => handleSelectAlojamento(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
-                  required
-                >
-                  <option value="">Seleccione un alojamiento...</option>
-                  {alojamentos.map(a => (
-                    <option key={a.id} value={a.id}>
-                      {a.codigo} - {a.nome} ({a.municipio || 'España'})
-                    </option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoVinculacao('trabalhador');
+                      setTipoGasto('Passagens_Transporte');
+                    }}
+                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
+                      modoVinculacao === 'trabalhador'
+                        ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <Plane size={18} className={modoVinculacao === 'trabalhador' ? 'text-indigo-600 mt-0.5' : 'text-slate-400 mt-0.5'} />
+                    <div>
+                      <span className="font-bold block text-xs">Desplazamiento / Viajes</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                        Billetes de avión/tren, traslado de trabajadores a obras/pedidos
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoVinculacao('alojamento');
+                      setTipoGasto('Aluguel');
+                    }}
+                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
+                      modoVinculacao === 'alojamento'
+                        ? 'border-blue-600 bg-blue-50/60 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <Home size={18} className={modoVinculacao === 'alojamento' ? 'text-blue-600 mt-0.5' : 'text-slate-400 mt-0.5'} />
+                    <div>
+                      <span className="font-bold block text-xs">Alojamiento / Inmueble</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                        Alquiler, suministros, fianza, mantenimiento de pisos
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoVinculacao('geral');
+                      setTipoGasto('Outros_Gastos');
+                    }}
+                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
+                      modoVinculacao === 'geral'
+                        ? 'border-emerald-600 bg-emerald-50/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <Ticket size={18} className={modoVinculacao === 'geral' ? 'text-emerald-600 mt-0.5' : 'text-slate-400 mt-0.5'} />
+                    <div>
+                      <span className="font-bold block text-xs">Gasto Operativo General</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                        Materiales, combustible, gestiones o proveedores diversos
+                      </span>
+                    </div>
+                  </button>
+                </div>
               </div>
 
-              {/* Tipo de Gasto e Valor */}
+              {/* SEÇÃO CONFORME O MODO */}
+              {modoVinculacao === 'trabalhador' && (
+                <div className="p-4 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-3.5">
+                  <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300 font-bold text-xs">
+                    <User size={15} />
+                    <span>Datos del Trabajador y Trayecto</span>
+                  </div>
+
+                  {/* Seleção do Trabalhador com Autocomplete */}
+                  <div className="relative">
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                      Trabajador Contratado / Beneficiario <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Escriba el nombre o código del colaborador para buscar..."
+                        value={workerSearchTerm}
+                        onChange={e => {
+                          setWorkerSearchTerm(e.target.value);
+                          setIsWorkerDropdownOpen(true);
+                        }}
+                        onFocus={() => setIsWorkerDropdownOpen(true)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        required
+                      />
+                      {selectedWorkerNome && (
+                        <div className="absolute right-2 top-2 flex items-center gap-1.5">
+                          <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300 px-2 py-0.5 rounded-md">
+                            {selectedWorkerCodigo || 'Seleccionado'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dropdown Lista de Trabalhadores */}
+                    {isWorkerDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-48 overflow-y-auto z-30 divide-y divide-slate-100 dark:divide-slate-800">
+                        {workers
+                          .filter(w =>
+                            !workerSearchTerm ||
+                            w.nome.toLowerCase().includes(workerSearchTerm.toLowerCase()) ||
+                            (w.cod_colab && w.cod_colab.toLowerCase().includes(workerSearchTerm.toLowerCase())) ||
+                            (w.nif && w.nif.toLowerCase().includes(workerSearchTerm.toLowerCase()))
+                          )
+                          .slice(0, 50)
+                          .map(w => (
+                            <button
+                              key={w.id}
+                              type="button"
+                              onClick={() => handleSelectWorker(w)}
+                              className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">{w.nome}</span>
+                                <span className="text-[10px] text-slate-400">
+                                  {w.cod_colab ? `Cód: ${w.cod_colab}` : 'Sin código'} {w.nif ? `• NIF: ${w.nif}` : ''}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-bold text-indigo-600">Seleccionar</span>
+                            </button>
+                          ))}
+                        {workers.length === 0 && (
+                          <div className="p-3 text-slate-400 text-center">No hay trabajadores en la base</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Pedido e Rota */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Pedido / Obra Vinculada
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej: PED-2026-089 / Madrid - Milán"
+                        value={pedidoCodigo}
+                        onChange={e => setPedidoCodigo(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                        Trayecto / Ruta de Desplazamiento <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej: Madrid ➔ Milán (Italia)"
+                        value={rotaDeslocamento}
+                        onChange={e => setRotaDeslocamento(e.target.value)}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-xl text-slate-900 dark:text-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        required={modoVinculacao === 'trabalhador'}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {modoVinculacao === 'alojamento' && (
+                <div className="space-y-1 p-4 bg-blue-50/40 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/40">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
+                    <Home size={13} className="text-blue-500" />
+                    Inmueble / Alojamiento Vinculado <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedAlojamentoId}
+                    onChange={e => handleSelectAlojamento(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
+                    required={modoVinculacao === 'alojamento'}
+                  >
+                    <option value="">Seleccione un alojamiento...</option>
+                    {alojamentos.map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.codigo} - {a.nome} ({a.municipio || 'España'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Categorias e Forma de Pagamento */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Tipo de Pago / Categoría <span className="text-red-500">*</span>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Categoría del Gasto <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={tipoGasto}
                     onChange={e => setTipoGasto(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
                     required
                   >
-                    <option value="Aluguel">Alquiler Mensual</option>
-                    <option value="Fianza_Saida">Fianza (Depósito)</option>
-                    <option value="Suministro_Luz">Electricidad (Luz)</option>
-                    <option value="Suministro_Agua">Agua</option>
-                    <option value="Suministro_Gas">Gas</option>
-                    <option value="Suministro_Internet">Internet / Wifi</option>
-                    <option value="Manutencao_Limpeza">Mantenimiento / Limpieza</option>
+                    {modoVinculacao === 'trabalhador' ? (
+                      <>
+                        <option value="Passagens_Transporte">✈️ Billetes de Avión / Tren / Autobús</option>
+                        <option value="Viagem_Deslocamento">🚗 Desplazamiento / Viajes</option>
+                        <option value="Diarias_Alimentacao">🍽️ Dietas / Manutención</option>
+                        <option value="Outros_Gastos">📦 Otros Gastos de Movilidad</option>
+                      </>
+                    ) : modoVinculacao === 'alojamento' ? (
+                      <>
+                        <option value="Aluguel">🏠 Alquiler Mensual</option>
+                        <option value="Fianza_Saida">💰 Fianza (Depósito)</option>
+                        <option value="Suministro_Luz">💡 Suministro Luz</option>
+                        <option value="Suministro_Agua">💧 Suministro Agua</option>
+                        <option value="Suministro_Gas">🔥 Suministro Gas</option>
+                        <option value="Suministro_Internet">📶 Internet / Wifi</option>
+                        <option value="Manutencao_Limpeza">🧹 Mantenimiento / Limpieza</option>
+                        <option value="Outros_Gastos">📦 Otros Gastos</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="Outros_Gastos">📦 Gasto General Logística</option>
+                        <option value="Passagens_Transporte">🎫 Transporte / Combustible</option>
+                        <option value="Manutencao_Limpeza">🧹 Mantenimiento de Equipos</option>
+                      </>
+                    )}
                   </select>
                 </div>
 
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Forma de Pago / Modalidad <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formaPagamento}
+                    onChange={e => setFormaPagamento(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
+                    required
+                  >
+                    <option value="Cartão de Reserva / Corporativo">💳 Tarjeta de Reserva / Corporativa (Pagado en el acto)</option>
+                    <option value="Transferência Bancária">🏦 Transferencia Bancaria (A pagar por Tesorería)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Informação sobre Cartão de Reserva */}
+              {formaPagamento.includes('Reserva') && (
+                <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800/60 text-purple-900 dark:text-purple-200 flex items-start gap-2.5">
+                  <CreditCard size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-[11px] leading-relaxed">
+                    <strong>Liquidado con Tarjeta de Reserva:</strong> La compra fue agilizada y pagada directamente por el departamento de Logística. Se enviará a Finanzas para conciliación bancaria y aprobación del cargo corporativo.
+                  </p>
+                </div>
+              )}
+
+              {/* Valores, Competência e Vencimento */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 dark:text-slate-300">
                     Importe Previsto (€) <span className="text-red-500">*</span>
@@ -1174,14 +1642,11 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     placeholder="0.00"
                     value={valorGasto || ''}
                     onChange={e => setValorGasto(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-black text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     required
                   />
                 </div>
-              </div>
 
-              {/* Competência e Vencimento */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 dark:text-slate-300">
                     Mes / Competencia
@@ -1197,36 +1662,66 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Fecha de Vencimiento <span className="text-red-500">*</span>
+                    Fecha de Vencimiento / Cargo <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
                     value={vencimentoGasto}
                     onChange={e => setVencimentoGasto(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none font-medium"
                     required
                   />
                 </div>
               </div>
 
-              {/* Centros de Custo (Preenchidos automaticamente) */}
+              {/* Proveedor / Compañía e IBAN */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300">
+                    Proveedor / Empresa Emitente <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Iberia, Ryanair, Renfe, Booking, Arrendador..."
+                    value={provedorNome}
+                    onChange={e => setProvedorNome(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300">
+                    IBAN / Cuenta Bancaria {formaPagamento.includes('Reserva') ? '(Opcional)' : ''}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="ES00 0000 0000 0000 0000 0000"
+                    value={ibanCobranca}
+                    onChange={e => setIbanCobranca(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Centros de Costo (Cliente & Obra) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
                 <div className="space-y-1">
                   <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
-                    Cliente Imputado
+                    Cliente Imputado / Centro de Coste
                   </label>
                   <input
                     type="text"
                     value={clienteCentroCusto}
                     onChange={e => setClienteCentroCusto(e.target.value)}
-                    placeholder="Cliente / Centro de Coste"
+                    placeholder="Cliente / Obra Principal"
                     className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white text-xs"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
-                    Obra
+                    Obra / Destino
                   </label>
                   <input
                     type="text"
@@ -1238,6 +1733,72 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Anexo / Bilhete / Passagem / Fatura */}
+              <div className="space-y-2 p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Paperclip size={14} className="text-blue-500" />
+                    Billete / Pasaje / Factura Adjunta
+                  </label>
+                  <span className="text-[10px] text-slate-400">PDF, JPG o PNG (máx. 10MB)</span>
+                </div>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleUploadAnexo}
+                  accept=".pdf,image/*"
+                  className="hidden"
+                />
+
+                {anexoUrl ? (
+                  <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-300 dark:border-emerald-800 shadow-2xs">
+                    <div className="flex items-center gap-2 truncate">
+                      <div className="p-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 rounded-lg">
+                        <CheckCircle2 size={16} />
+                      </div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 truncate text-xs">
+                        {anexoNome || 'Archivo adjunto'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={anexoUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-lg text-[10px] font-bold"
+                      >
+                        Visualizar
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAnexoUrl('');
+                          setAnexoNome('');
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="p-1 text-slate-400 hover:text-red-600 rounded-lg"
+                        title="Quitar archivo"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingAnexo}
+                    className="w-full py-3 px-4 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 rounded-xl flex items-center justify-center gap-2 text-slate-600 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-white dark:bg-slate-900"
+                  >
+                    <FileUp size={16} className={isUploadingAnexo ? 'animate-bounce' : ''} />
+                    <span className="font-bold text-xs">
+                      {isUploadingAnexo ? 'Subiendo archivo al servidor...' : 'Subir billete, tarjeta de embarque o factura'}
+                    </span>
+                  </button>
+                )}
+              </div>
+
               {/* Observações */}
               <div className="space-y-1">
                 <label className="font-bold text-slate-700 dark:text-slate-300">
@@ -1247,15 +1808,16 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                   rows={2}
                   value={observacoesGasto}
                   onChange={e => setObservacoesGasto(e.target.value)}
-                  placeholder="Detalles sobre este gasto, lecturas de contadores o datos bancarios..."
+                  placeholder="Detalles sobre este viaje, horarios, localizador de reserva o datos bancarios..."
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
                 />
               </div>
 
+              {/* Rodapé de Ações */}
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsModalOpen(false); resetModalForm(); }}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-colors"
                 >
                   Cancelar
@@ -1266,7 +1828,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                   className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                 >
                   <Plus size={14} />
-                  {isSavingOp ? 'Creando...' : 'Crear Orden Borrador'}
+                  {isSavingOp ? 'Creando Orden...' : 'Crear Orden Borrador'}
                 </button>
               </div>
             </form>
