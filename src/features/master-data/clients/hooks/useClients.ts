@@ -84,9 +84,9 @@ export function useMutateClientTariffs(clientId: string, empresaId?: string | nu
   const activeEmpresaId = empresaId !== undefined ? empresaId : selectedEmpresaId;
 
   const saveTariffMutation = useMutation({
-    mutationFn: ({ clientSiteId, jobFunctionId, valorTarifa }: { clientSiteId: string | null; jobFunctionId: string; valorTarifa: number }) => {
+    mutationFn: ({ clientSiteId, jobFunctionId, valorTarifa, valorTarifaNoturna }: { clientSiteId: string | null; jobFunctionId: string; valorTarifa: number; valorTarifaNoturna?: number | null }) => {
       if (!activeEmpresaId) throw new Error('Empresa não selecionada');
-      return clientsApi.saveClientTariff(activeEmpresaId, clientId, clientSiteId, jobFunctionId, valorTarifa);
+      return clientsApi.saveClientTariff(activeEmpresaId, clientId, clientSiteId, jobFunctionId, valorTarifa, valorTarifaNoturna);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientTariffs', clientId] });
@@ -103,9 +103,9 @@ export function useMutateClientTariffs(clientId: string, empresaId?: string | nu
   });
 
   const saveWorkerTariffMutation = useMutation({
-    mutationFn: ({ clientSiteId, workerId, valorTarifa }: { clientSiteId: string | null; workerId: string; valorTarifa: number }) => {
+    mutationFn: ({ clientSiteId, workerId, valorTarifa, valorTarifaNoturna }: { clientSiteId: string | null; workerId: string; valorTarifa: number; valorTarifaNoturna?: number | null }) => {
       if (!activeEmpresaId) throw new Error('Empresa não selecionada');
-      return clientsApi.saveClientWorkerTariff(activeEmpresaId, clientId, clientSiteId, workerId, valorTarifa);
+      return clientsApi.saveClientWorkerTariff(activeEmpresaId, clientId, clientSiteId, workerId, valorTarifa, valorTarifaNoturna);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clientWorkerTariffs', clientId] });

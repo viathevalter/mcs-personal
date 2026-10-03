@@ -158,6 +158,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [workerSiteId, setWorkerSiteId] = useState('global');
   const [workerRate, setWorkerRate] = useState('');
+  const [workerNightRate, setWorkerNightRate] = useState('');
   const [showOnlyClientWorkers, setShowOnlyClientWorkers] = useState(true);
   const [allocatedWorkerCodes, setAllocatedWorkerCodes] = useState<string[]>([]);
 
@@ -210,7 +211,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   }, [filteredWorkers, selectedWorkerId]);
 
   // Local state for selected tariffs to allow editing before saving
-  const [selectedTariffs, setSelectedTariffs] = useState<{ job_function_id: string; valor_tarifa: number }[]>([]);
+  const [selectedTariffs, setSelectedTariffs] = useState<{ job_function_id: string; valor_tarifa: number; valor_tarifa_noturna?: number | null }[]>([]);
 
   // Multi-select checkbox states
   const [selectedAvailableIds, setSelectedAvailableIds] = useState<Set<string>>(new Set());
@@ -264,7 +265,8 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
         .filter(t => t.client_site_id === siteIdFilter && t.empresa_id === activeEmpresaId)
         .map(t => ({
           job_function_id: t.job_function_id,
-          valor_tarifa: Number(t.valor_tarifa)
+          valor_tarifa: Number(t.valor_tarifa),
+          valor_tarifa_noturna: t.valor_tarifa_noturna !== null && t.valor_tarifa_noturna !== undefined ? Number(t.valor_tarifa_noturna) : null
         }));
       setSelectedTariffs(filtered);
     }
@@ -354,10 +356,16 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   };
 
   // Handle rate change
-  const handleRateChange = (jfId: string, val: string) => {
-    const numeric = parseFloat(val) || 0;
+  const handleRateChange = (jfId: string, val: string, isNight = false) => {
+    const numeric = val.trim() === '' ? null : (parseFloat(val) || 0);
     setSelectedTariffs(prev =>
-      prev.map(t => (t.job_function_id === jfId ? { ...t, valor_tarifa: numeric } : t))
+      prev.map(t => {
+        if (t.job_function_id !== jfId) return t;
+        if (isNight) {
+          return { ...t, valor_tarifa_noturna: numeric };
+        }
+        return { ...t, valor_tarifa: numeric ?? 0 };
+      })
     );
   };
 
@@ -435,7 +443,8 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
         saveTariff({
           clientSiteId: siteIdFilter,
           jobFunctionId: t.job_function_id,
-          valorTarifa: t.valor_tarifa
+          valorTarifa: t.valor_tarifa,
+          valorTarifaNoturna: t.valor_tarifa_noturna !== undefined ? t.valor_tarifa_noturna : null
         })
       );
       await Promise.all(promises);
@@ -453,22 +462,25 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
       return;
     }
     if (!workerRate || isNaN(parseFloat(workerRate))) {
-      toast.error('Informe um valor de tarifa válido');
+      toast.error('Informe um valor de tarifa diurna válido');
       return;
     }
 
     const siteIdFilter = workerSiteId === 'global' ? null : workerSiteId;
+    const nightRate = workerNightRate && !isNaN(parseFloat(workerNightRate)) ? parseFloat(workerNightRate) : null;
 
     try {
       await saveWorkerTariff({
         clientSiteId: siteIdFilter,
         workerId: selectedWorkerId,
-        valorTarifa: parseFloat(workerRate)
+        valorTarifa: parseFloat(workerRate),
+        valorTarifaNoturna: nightRate
       });
       toast.success('Exceção cadastrada com sucesso!');
       setIsWorkerDialogOpen(false);
       setSelectedWorkerId('');
       setWorkerRate('');
+      setWorkerNightRate('');
       setWorkerSiteId('global');
       refetchExceptions();
     } catch (err: any) {
@@ -740,22 +752,42 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center border rounded bg-white pl-2 w-28 focus-within:ring-1 focus-within:ring-orange-500">
-                          <span className="text-xs font-semibold text-slate-400">€</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.50"
-                            value={t.valor_tarifa}
-                            onChange={e => handleRateChange(t.job_function_id, e.target.value)}
-                            className="border-0 shadow-none h-8 pl-1 pr-2 text-right focus-visible:ring-0 text-sm font-semibold"
-                          />
+                      <div className="flex items-center gap-2">
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] text-slate-400 font-medium">Diurna (€)</span>
+                          <div className="flex items-center border rounded bg-white pl-2 w-24 focus-within:ring-1 focus-within:ring-orange-500">
+                            <span className="text-xs font-semibold text-slate-400">€</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.50"
+                              value={t.valor_tarifa}
+                              onChange={e => handleRateChange(t.job_function_id, e.target.value, false)}
+                              className="border-0 shadow-none h-7 pl-1 pr-1 text-right focus-visible:ring-0 text-xs font-semibold"
+                            />
+                          </div>
                         </div>
+
+                        <div className="flex flex-col items-end">
+                          <span className="text-[10px] text-indigo-500 font-medium flex items-center gap-0.5">Noturna (€)</span>
+                          <div className="flex items-center border border-indigo-200 rounded bg-indigo-50/30 pl-2 w-24 focus-within:ring-1 focus-within:ring-indigo-500">
+                            <span className="text-xs font-semibold text-indigo-400">€</span>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.50"
+                              placeholder="Padrao"
+                              value={t.valor_tarifa_noturna !== null && t.valor_tarifa_noturna !== undefined ? t.valor_tarifa_noturna : ''}
+                              onChange={e => handleRateChange(t.job_function_id, e.target.value, true)}
+                              className="border-0 shadow-none h-7 pl-1 pr-1 text-right focus-visible:ring-0 text-xs font-semibold text-indigo-700 placeholder:text-indigo-300"
+                            />
+                          </div>
+                        </div>
+
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20"
+                          className="h-8 w-8 text-rose-500 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 mt-3"
                           onClick={() => handleRemoveFunction(t.job_function_id)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -814,15 +846,16 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                 <th className="px-4 py-3 font-medium text-slate-500">Função</th>
                 <th className="px-4 py-3 font-medium text-slate-500">Local / Obra</th>
                 <th className="px-4 py-3 font-medium text-slate-500">Autor / Modificação</th>
-                <th className="px-4 py-3 font-medium text-slate-500 text-right">Tarifa Customizada</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-right">Tarifa Diurna</th>
+                <th className="px-4 py-3 font-medium text-slate-500 text-right">Tarifa Noturna</th>
                 <th className="px-4 py-3 font-medium text-slate-500 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {loadingExceptions ? (
-                <tr><td colSpan={6} className="p-4 text-center text-slate-400">Carregando exceções...</td></tr>
+                <tr><td colSpan={7} className="p-4 text-center text-slate-400">Carregando exceções...</td></tr>
               ) : filteredWorkerExceptions.length === 0 ? (
-                <tr><td colSpan={6} className="p-6 text-center text-slate-400 text-xs">Nenhuma exceção de tarifa cadastrada para este cliente.</td></tr>
+                <tr><td colSpan={7} className="p-6 text-center text-slate-400 text-xs">Nenhuma exceção de tarifa cadastrada para este cliente.</td></tr>
               ) : (
                 filteredWorkerExceptions.map(exc => (
                   <tr key={exc.id} className="hover:bg-slate-50/50">
@@ -853,6 +886,13 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                     </td>
                     <td className="px-4 py-3 text-right font-bold text-orange-600">
                       € {Number(exc.valor_tarifa).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-indigo-600">
+                      {exc.valor_tarifa_noturna ? (
+                        `€ ${Number(exc.valor_tarifa_noturna).toFixed(2)}`
+                      ) : (
+                        <span className="text-slate-400 text-xs italic font-normal">Igual diurna</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button
@@ -936,20 +976,39 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="dialog_rate_value">Valor da Tarifa de Faturamento (€/h)</Label>
-              <div className="flex items-center border rounded bg-slate-50 pl-3 focus-within:ring-1 focus-within:ring-orange-500">
-                <span className="text-sm font-semibold text-slate-400">€</span>
-                <Input
-                  id="dialog_rate_value"
-                  type="number"
-                  min="0"
-                  step="0.50"
-                  placeholder="Ex: 35.00"
-                  value={workerRate}
-                  onChange={e => setWorkerRate(e.target.value)}
-                  className="border-0 bg-transparent focus-visible:ring-0 font-semibold"
-                />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="dialog_rate_value">Tarifa Diurna (€/h)</Label>
+                <div className="flex items-center border rounded bg-slate-50 pl-3 focus-within:ring-1 focus-within:ring-orange-500">
+                  <span className="text-sm font-semibold text-slate-400">€</span>
+                  <Input
+                    id="dialog_rate_value"
+                    type="number"
+                    min="0"
+                    step="0.50"
+                    placeholder="Ex: 28.00"
+                    value={workerRate}
+                    onChange={e => setWorkerRate(e.target.value)}
+                    className="border-0 bg-transparent focus-visible:ring-0 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="dialog_night_rate_value">Tarifa Noturna (€/h) <span className="text-[10px] text-slate-400 font-normal">(Opcional)</span></Label>
+                <div className="flex items-center border border-indigo-200 rounded bg-indigo-50/20 pl-3 focus-within:ring-1 focus-within:ring-indigo-500">
+                  <span className="text-sm font-semibold text-indigo-400">€</span>
+                  <Input
+                    id="dialog_night_rate_value"
+                    type="number"
+                    min="0"
+                    step="0.50"
+                    placeholder="Ex: 34.00"
+                    value={workerNightRate}
+                    onChange={e => setWorkerNightRate(e.target.value)}
+                    className="border-0 bg-transparent focus-visible:ring-0 font-semibold text-indigo-700 placeholder:text-indigo-300"
+                  />
+                </div>
               </div>
             </div>
           </div>

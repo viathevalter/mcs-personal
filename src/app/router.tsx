@@ -46,6 +46,9 @@ import { ProtectedRoute } from './router/ProtectedRoute';
 import { WorkerPortalLayout } from '../features/worker-portal/WorkerPortalLayout';
 import { WorkerLoginPage } from '../features/worker-portal/WorkerLoginPage';
 import { WorkerDashboardPage } from '../features/worker-portal/WorkerDashboardPage';
+import { WorkerHoleritesPage } from '../features/worker-portal/WorkerHoleritesPage';
+import { WorkerProfilePage } from '../features/worker-portal/WorkerProfilePage';
+import { SupervisorSignPage } from '../features/worker-portal/SupervisorSignPage';
 import { HoursControlPage } from '../features/hours-control/HoursControlPage';
 import { ClientHoursDetail } from '../features/hours-control/ClientHoursDetail';
 import { GlobalHubPage } from '../features/hub/GlobalHubPage';
@@ -255,6 +258,16 @@ export const router = createBrowserRouter([
         errorElement: <RootErrorBoundary />,
     },
     {
+        path: '/firmar-hoja/:token',
+        element: <SupervisorSignPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/assinar-folha/:token',
+        element: <SupervisorSignPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
         path: '/portal/login',
         element: <WorkerLoginPage />
     },
@@ -269,6 +282,22 @@ export const router = createBrowserRouter([
             {
                 path: 'dashboard',
                 element: <WorkerDashboardPage />
+            },
+            {
+                path: 'horas',
+                element: <WorkerDashboardPage />
+            },
+            {
+                path: 'nominas',
+                element: <WorkerHoleritesPage />
+            },
+            {
+                path: 'holerites',
+                element: <WorkerHoleritesPage />
+            },
+            {
+                path: 'perfil',
+                element: <WorkerProfilePage />
             }
         ]
     },

@@ -311,7 +311,7 @@ export const clientsApi = {
     return data || [];
   },
 
-  async saveClientTariff(empresaId: string, clientId: string, clientSiteId: string | null, jobFunctionId: string, valorTarifa: number): Promise<void> {
+  async saveClientTariff(empresaId: string, clientId: string, clientSiteId: string | null, jobFunctionId: string, valorTarifa: number, valorTarifaNoturna?: number | null): Promise<void> {
     if (!empresaId || !clientId || !jobFunctionId) throw new Error('Dados insuficientes para salvar tarifa');
     
     const query = supabase
@@ -336,6 +336,7 @@ export const clientsApi = {
         .from('client_tariffs')
         .update({
           valor_tarifa: valorTarifa,
+          valor_tarifa_noturna: valorTarifaNoturna !== undefined ? valorTarifaNoturna : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', data[0].id);
@@ -349,7 +350,8 @@ export const clientsApi = {
           client_id: clientId,
           client_site_id: clientSiteId || null,
           job_function_id: jobFunctionId,
-          valor_tarifa: valorTarifa
+          valor_tarifa: valorTarifa,
+          valor_tarifa_noturna: valorTarifaNoturna !== undefined ? valorTarifaNoturna : null
         });
       if (insertError) throw insertError;
     }
@@ -437,7 +439,7 @@ export const clientsApi = {
     }));
   },
 
-  async saveClientWorkerTariff(empresaId: string, clientId: string, clientSiteId: string | null, workerId: string, valorTarifa: number): Promise<void> {
+  async saveClientWorkerTariff(empresaId: string, clientId: string, clientSiteId: string | null, workerId: string, valorTarifa: number, valorTarifaNoturna?: number | null): Promise<void> {
     if (!empresaId || !clientId || !workerId) throw new Error('Dados insuficientes para salvar exceção');
 
     // Fetch current user UUID
@@ -466,6 +468,7 @@ export const clientsApi = {
         .from('client_worker_tariffs')
         .update({
           valor_tarifa: valorTarifa,
+          valor_tarifa_noturna: valorTarifaNoturna !== undefined ? valorTarifaNoturna : null,
           updated_at: new Date().toISOString(),
           updated_by: userId
         })
@@ -481,6 +484,7 @@ export const clientsApi = {
           client_site_id: clientSiteId || null,
           worker_id: workerId,
           valor_tarifa: valorTarifa,
+          valor_tarifa_noturna: valorTarifaNoturna !== undefined ? valorTarifaNoturna : null,
           created_by: userId,
           updated_by: userId
         });

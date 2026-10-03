@@ -598,7 +598,18 @@ export async function getHorasPendentesFaturamento(
         }
       }
 
-      const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; horasIds: string[] }>();
+      const calculateHourEntryValor = (h: any): number => {
+        const tot = Number(h.horas_totais || 0);
+        const not = Number(h.horas_noturnas || 0);
+        const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, tot - not);
+        const tarifaNormal = Number(h.tarifa_faturada || 0);
+        const tarifaNoturna = h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined
+          ? Number(h.tarifa_faturada_noturna)
+          : tarifaNormal;
+        return (norm * tarifaNormal) + (not * tarifaNoturna);
+      };
+
+      const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; totalNormais: number; totalNoturnas: number; horasIds: string[] }>();
       
       activeSessionHours.forEach(h => {
         const oId = h.obra_id || null;
@@ -609,12 +620,19 @@ export async function getHorasPendentesFaturamento(
             name: siteName,
             totalHoras: 0,
             totalValor: 0,
+            totalNormais: 0,
+            totalNoturnas: 0,
             horasIds: []
           });
         }
         const entry = obrasMap.get(oId)!;
-        entry.totalHoras += Number(h.horas_totais || 0);
-        entry.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
+        const entryTot = Number(h.horas_totais || 0);
+        const entryNot = Number(h.horas_noturnas || 0);
+        const entryNorm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, entryTot - entryNot);
+        entry.totalHoras += entryTot;
+        entry.totalNormais += entryNorm;
+        entry.totalNoturnas += entryNot;
+        entry.totalValor += calculateHourEntryValor(h);
         if (h.id) {
           entry.horasIds.push(h.id);
         }
@@ -668,10 +686,12 @@ export async function getHorasPendentesFaturamento(
         const wActiveHours = activeHoursByWorker.get(w.id) || [];
 
         const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValor = wActiveHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+        const wTotalNormais = wActiveHours.reduce((sum, h) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+        const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Number(h.horas_noturnas || 0), 0);
+        const wTotalValor = wActiveHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
         const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValorMes = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+        const wTotalValorMes = wHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
         totalHoras += wTotalHoras;
         totalValor += wTotalValor;
@@ -689,6 +709,7 @@ export async function getHorasPendentesFaturamento(
         // Find tariff from hours, or default to mock
         const sampleHour = wHours[0];
         const tarifa = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : (w.funcao?.toLowerCase().includes('soldador') ? 25.50 : (w.funcao?.toLowerCase().includes('tubero') ? 28.00 : 27.00));
+        const tarifaNoturna = sampleHour?.tarifa_faturada_noturna ? Number(sampleHour.tarifa_faturada_noturna) : null;
 
         // Check if there is an active custom exception configuration for this worker
         const hourlyObraId = wHours[0]?.obra_id || null;
@@ -706,7 +727,10 @@ export async function getHorasPendentesFaturamento(
           codColab: w.cod_colab || 'N/A',
           perfil: perfilName,
           tarifa,
+          tarifaNoturna,
           totalHoras: wTotalHoras,
+          totalHorasNormais: wTotalNormais,
+          totalHorasNoturnas: wTotalNoturnas,
           totalValor: wTotalValor,
           totalHorasMes: wTotalHorasMes,
           totalValorMes: wTotalValorMes,
@@ -738,10 +762,12 @@ export async function getHorasPendentesFaturamento(
 
         const wActiveHours = activeHoursByWorker.get(wId) || [];
         const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValor = wActiveHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+        const wTotalNormais = wActiveHours.reduce((sum, h) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+        const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Number(h.horas_noturnas || 0), 0);
+        const wTotalValor = wActiveHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
         const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalValorMes = wHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+        const wTotalValorMes = wHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
         totalHoras += wTotalHoras;
         totalValor += wTotalValor;
@@ -753,6 +779,7 @@ export async function getHorasPendentesFaturamento(
         });
 
         const tariff = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : 27.00;
+        const tariffNoturna = sampleHour?.tarifa_faturada_noturna ? Number(sampleHour.tarifa_faturada_noturna) : null;
 
         const hasException = workerExceptions.some(e => 
           e.client_id === client.id && 
@@ -768,16 +795,19 @@ export async function getHorasPendentesFaturamento(
           codColab: wCodColab,
           perfil: jobFunctionsMap.get(wFuncaoId || '') || uw?.funcion || 'Não Definido',
           tarifa: tariff,
+          tarifaNoturna: tariffNoturna,
           totalHoras: wTotalHoras,
+          totalHorasNormais: wTotalNormais,
+          totalHorasNoturnas: wTotalNoturnas,
           totalValor: wTotalValor,
           totalHorasMes: wTotalHorasMes,
           totalValorMes: wTotalValorMes,
           isValidated: true,
           isBilled,
+          funcaoId: wFuncaoId,
           workerStatus: wStatus,
           dataBaixa: wDataBaixa,
           observacoes: null,
-          funcaoId: wFuncaoId,
           isException: hasException,
           horasDiarias
         });

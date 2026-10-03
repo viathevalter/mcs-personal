@@ -41,6 +41,8 @@ interface DayRecord {
     weekday: string;
     inicio: string;
     fim: string;
+    horasNormais: string;
+    horasNoturnas: string;
     obra: string;
     totalHoras: string;
     dbRecordId?: string;
@@ -108,6 +110,13 @@ export function ValidationScreen({
     const [jobFunctions, setJobFunctions] = useState<{ id: string; name: string }[]>([]);
     const [ocrSnapshot, setOcrSnapshot] = useState<Record<number, { inicio: string; fim: string; totalHoras: string }>>({});
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
+    const [supervisorSignature, setSupervisorSignature] = useState<{
+        signedAt: string | null;
+        signedIp: string | null;
+        encarregadoNome: string | null;
+        signatureImageUrl: string | null;
+        status: string | null;
+    } | null>(null);
     
     // For Setup Obra modal
     const [newSiteOpen, setNewSiteOpen] = useState(false);
@@ -290,6 +299,32 @@ export function ValidationScreen({
 
             if (loadErr) throw loadErr;
 
+            // 5.1 Load worker_hours metadata (draft entries & supervisor digital signature)
+            let workerHourRec: any = null;
+            if (recordId) {
+                const { data: whData } = await supabase
+                    .schema('core_personal')
+                    .from('worker_hours')
+                    .select('apontamentos_diarios, signed_at, signed_ip, encarregado_nome, signature_image_url, status')
+                    .eq('id', recordId)
+                    .maybeSingle();
+                
+                workerHourRec = whData;
+                if (whData) {
+                    setSupervisorSignature({
+                        signedAt: whData.signed_at,
+                        signedIp: whData.signed_ip,
+                        encarregadoNome: whData.encarregado_nome,
+                        signatureImageUrl: whData.signature_image_url,
+                        status: whData.status
+                    });
+                }
+            }
+
+            const draftsList: any[] = Array.isArray(workerHourRec?.apontamentos_diarios) 
+                ? workerHourRec.apontamentos_diarios 
+                : [];
+
             // Generate days of month
             const numDays = new Date(year, month, 0).getDate();
             const locale = i18n?.language?.startsWith('es') ? 'es-ES' : 'pt-BR';
@@ -302,25 +337,54 @@ export function ValidationScreen({
                 const weekdayName = dateObj.toLocaleDateString(locale, { weekday: 'long' });
                 const weekdayFormatted = weekdayName.charAt(0).toUpperCase() + weekdayName.slice(1);
 
-                // Find existing record
+                // Find existing db record in core_finance.horas_trabalhadas
                 const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
                 const dbRec = existingHours?.find(h => h.data_trabalho === dayStr);
+
+                // Fallback to worker portal draft entry if not yet inserted into horas_trabalhadas
+                const draftRec = draftsList.find((d: any) => d.day === dayNum);
 
                 // Apply pre-selection logic for obra: if exactly 1 site exists, always pre-select it
                 let initialObra = '';
                 if (finalSites.length === 1) {
                     initialObra = finalSites[0].id;
-                } else if (dbRec) {
-                    initialObra = dbRec.obra_id || '';
+                } else if (dbRec?.obra_id) {
+                    initialObra = dbRec.obra_id;
+                } else if (draftRec?.obra_id) {
+                    initialObra = draftRec.obra_id;
                 }
+
+                const inicioVal = dbRec?.hora_inicio 
+                    ? dbRec.hora_inicio.substring(0, 5) 
+                    : (draftRec?.inicio || '');
+
+                const fimVal = dbRec?.hora_fim 
+                    ? dbRec.hora_fim.substring(0, 5) 
+                    : (draftRec?.fim || '');
+
+                const totalHorasVal = dbRec?.horas_totais !== undefined && dbRec?.horas_totais !== null 
+                    ? String(dbRec.horas_totais) 
+                    : (draftRec?.total_horas !== undefined && draftRec?.total_horas !== null ? String(draftRec.total_horas) : '');
+
+                const normaisVal = dbRec?.horas_normais !== undefined && dbRec?.horas_normais !== null
+                    ? String(dbRec.horas_normais)
+                    : (draftRec?.horas_normais !== undefined && draftRec?.horas_normais !== null 
+                        ? String(draftRec.horas_normais) 
+                        : totalHorasVal);
+
+                const noturnasVal = dbRec?.horas_noturnas !== undefined && dbRec?.horas_noturnas !== null
+                    ? String(dbRec.horas_noturnas)
+                    : (draftRec?.horas_noturnas !== undefined && draftRec?.horas_noturnas !== null ? String(draftRec.horas_noturnas) : '0');
 
                 return {
                     day: dayNum,
                     weekday: weekdayFormatted,
-                    inicio: dbRec?.hora_inicio ? dbRec.hora_inicio.substring(0, 5) : '',
-                    fim: dbRec?.hora_fim ? dbRec.hora_fim.substring(0, 5) : '',
+                    inicio: inicioVal,
+                    fim: fimVal,
+                    horasNormais: normaisVal,
+                    horasNoturnas: noturnasVal,
                     obra: initialObra,
-                    totalHoras: dbRec?.horas_totais ? String(dbRec.horas_totais) : '',
+                    totalHoras: totalHorasVal,
                     dbRecordId: dbRec?.id,
                     isWeekend
                 };
@@ -348,7 +412,22 @@ export function ValidationScreen({
                 const updated = { ...r, [field]: value };
                 if (field === 'inicio' || field === 'fim') {
                     const duration = calculateDuration(updated.inicio, updated.fim);
-                    updated.totalHoras = duration > 0 ? String(duration) : '';
+                    if (duration > 0) {
+                        const noturnas = parseFloat(updated.horasNoturnas) || 0;
+                        const normais = Math.max(0, Math.round((duration - noturnas) * 100) / 100);
+                        updated.horasNormais = String(normais);
+                        updated.totalHoras = String(duration);
+                    }
+                } else if (field === 'horasNormais' || field === 'horasNoturnas') {
+                    const normais = parseFloat(field === 'horasNormais' ? value : updated.horasNormais) || 0;
+                    const noturnas = parseFloat(field === 'horasNoturnas' ? value : updated.horasNoturnas) || 0;
+                    const total = Math.round((normais + noturnas) * 100) / 100;
+                    updated.totalHoras = total > 0 ? String(total) : '';
+                } else if (field === 'totalHoras') {
+                    const total = parseFloat(value) || 0;
+                    const noturnas = parseFloat(updated.horasNoturnas) || 0;
+                    const normais = Math.max(0, Math.round((total - noturnas) * 100) / 100);
+                    updated.horasNormais = String(normais);
                 }
                 return updated;
             }
@@ -498,6 +577,8 @@ export function ValidationScreen({
     };
 
     const totalHours = records.reduce((acc, curr) => acc + (parseFloat(curr.totalHoras) || 0), 0);
+    const totalNormais = records.reduce((acc, curr) => acc + (parseFloat(curr.horasNormais) || 0), 0);
+    const totalNoturnas = records.reduce((acc, curr) => acc + (parseFloat(curr.horasNoturnas) || 0), 0);
 
     const handleBulkApplyObra = (siteId: string) => {
         if (selectedDays.length === 0) return;
@@ -542,46 +623,71 @@ export function ValidationScreen({
             const { data: workerExceptions } = await supabase
                 .schema('core_common')
                 .from('client_worker_tariffs')
-                .select('worker_id, client_site_id, valor_tarifa')
+                .select('worker_id, client_site_id, valor_tarifa, valor_tarifa_noturna')
                 .eq('client_id', clientId);
 
             const { data: standardTariffs } = await supabase
                 .schema('core_common')
                 .from('client_tariffs')
-                .select('job_function_id, client_site_id, valor_tarifa')
+                .select('job_function_id, client_site_id, valor_tarifa, valor_tarifa_noturna')
                 .eq('client_id', clientId);
 
-            const resolveTariff = (wId: string, funcId: string, siteId: string | null): number => {
+            const resolveTariff = (wId: string, funcId: string, siteId: string | null): { normal: number; noturna: number } => {
                 // 1. Try to find a worker exception matching this site
                 const wExcSite = workerExceptions?.find(e => 
                     e.worker_id === wId && 
                     e.client_site_id === siteId
                 );
-                if (wExcSite) return Number(wExcSite.valor_tarifa);
+                if (wExcSite) {
+                    const norm = Number(wExcSite.valor_tarifa);
+                    const not = wExcSite.valor_tarifa_noturna !== null && wExcSite.valor_tarifa_noturna !== undefined
+                        ? Number(wExcSite.valor_tarifa_noturna)
+                        : norm;
+                    return { normal: norm, noturna: not };
+                }
 
                 // 2. Try to find a worker exception with global (null) site
                 const wExcGlobal = workerExceptions?.find(e => 
                     e.worker_id === wId && 
                     e.client_site_id === null
                 );
-                if (wExcGlobal) return Number(wExcGlobal.valor_tarifa);
+                if (wExcGlobal) {
+                    const norm = Number(wExcGlobal.valor_tarifa);
+                    const not = wExcGlobal.valor_tarifa_noturna !== null && wExcGlobal.valor_tarifa_noturna !== undefined
+                        ? Number(wExcGlobal.valor_tarifa_noturna)
+                        : norm;
+                    return { normal: norm, noturna: not };
+                }
 
                 // 3. Try to find a standard function tariff matching this site
                 const stdSite = standardTariffs?.find(t => 
                     t.job_function_id === funcId && 
                     t.client_site_id === siteId
                 );
-                if (stdSite) return Number(stdSite.valor_tarifa);
+                if (stdSite) {
+                    const norm = Number(stdSite.valor_tarifa);
+                    const not = stdSite.valor_tarifa_noturna !== null && stdSite.valor_tarifa_noturna !== undefined
+                        ? Number(stdSite.valor_tarifa_noturna)
+                        : norm;
+                    return { normal: norm, noturna: not };
+                }
 
                 // 4. Try to find a standard function tariff with global (null) site
                 const stdGlobal = standardTariffs?.find(t => 
                     t.job_function_id === funcId && 
                     t.client_site_id === null
                 );
-                if (stdGlobal) return Number(stdGlobal.valor_tarifa);
+                if (stdGlobal) {
+                    const norm = Number(stdGlobal.valor_tarifa);
+                    const not = stdGlobal.valor_tarifa_noturna !== null && stdGlobal.valor_tarifa_noturna !== undefined
+                        ? Number(stdGlobal.valor_tarifa_noturna)
+                        : norm;
+                    return { normal: norm, noturna: not };
+                }
 
                 // 5. General fallback based on function name matching
-                return targetFuncName?.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName?.toLowerCase().includes('tubero') ? 28.00 : 27.00);
+                const base = targetFuncName?.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName?.toLowerCase().includes('tubero') ? 28.00 : 27.00);
+                return { normal: base, noturna: base };
             };
 
             const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
@@ -609,7 +715,10 @@ export function ValidationScreen({
                 .map(r => {
                     const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`;
                     const siteId = r.obra || null;
-                    const tarifaFaturada = resolveTariff(workerId, workerFuncId, siteId);
+                    const tariffPair = resolveTariff(workerId, workerFuncId, siteId);
+                    const totalH = parseFloat(r.totalHoras) || 0;
+                    const noturnasH = parseFloat(r.horasNoturnas) || 0;
+                    const normaisH = r.horasNormais !== '' ? (parseFloat(r.horasNormais) || 0) : Math.max(0, totalH - noturnasH);
                     
                     return {
                         worker_id: workerId,
@@ -617,11 +726,14 @@ export function ValidationScreen({
                         data_trabalho: dayStr,
                         hora_inicio: r.inicio ? `${r.inicio}:00` : null,
                         hora_fim: r.fim ? `${r.fim}:00` : null,
-                        horas_totais: parseFloat(r.totalHoras),
+                        horas_normais: normaisH,
+                        horas_noturnas: noturnasH,
+                        horas_totais: totalH,
                         status: 'pending_review',
                         funcao_id: workerFuncId,
                         obra_id: siteId,
-                        tarifa_faturada: tarifaFaturada
+                        tarifa_faturada: tariffPair.normal,
+                        tarifa_faturada_noturna: tariffPair.noturna
                     };
                 });
 
@@ -774,17 +886,25 @@ export function ValidationScreen({
                     </div>
 
                     {/* KPIs Executivos */}
-                    <div className="flex flex-col sm:flex-row gap-3 xl:min-w-[340px]">
-                        {/* KPI Horas Totais */}
-                        <div className="flex-1 flex items-center justify-between gap-4 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 text-white px-5 py-4 rounded-2xl shadow-lg shadow-indigo-100/50 transition-all duration-300 hover:scale-[1.02] border border-indigo-500/20">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-200">Horas Totais</span>
-                                <span className="text-3xl font-black tracking-tight">{totalHours.toFixed(2)}h</span>
+                    <div className="flex flex-col sm:flex-row gap-3 xl:min-w-[420px]">
+                        {/* KPI Horas Totais com Breakdown */}
+                        <div className="flex-1 flex flex-col justify-between bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 text-white px-5 py-3.5 rounded-2xl shadow-lg shadow-indigo-100/50 transition-all duration-300 hover:scale-[1.02] border border-indigo-500/20">
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] uppercase font-bold tracking-widest text-indigo-200">Horas Totais</span>
+                                    <span className="text-2xl font-black tracking-tight">{totalHours.toFixed(2)}h</span>
+                                </div>
+                                <div className="bg-white/10 p-2 rounded-xl border border-white/10">
+                                    <Clock className="h-4.5 w-4.5 text-white" />
+                                </div>
                             </div>
-                            <div className="bg-white/10 p-2.5 rounded-xl border border-white/10">
-                                <Clock className="h-5 w-5 text-white" />
+                            <div className="flex items-center gap-3 pt-2 mt-2 border-t border-white/15 text-[11px] font-semibold text-indigo-100">
+                                <span>Diurnas: <strong className="text-white">{totalNormais.toFixed(1)}h</strong></span>
+                                <span>•</span>
+                                <span className="text-amber-200">Noturnas: <strong className="text-white">{totalNoturnas.toFixed(1)}h</strong></span>
                             </div>
                         </div>
+
                         {/* KPI Dias Trabalhados */}
                         <div className="flex-1 flex items-center justify-between gap-4 bg-white px-5 py-4 rounded-2xl border border-slate-100 shadow-sm transition-all duration-300 hover:scale-[1.02]">
                             <div className="flex flex-col">
@@ -799,6 +919,35 @@ export function ValidationScreen({
                         </div>
                     </div>
                 </div>
+
+                {/* Banner de Assinatura Eletrônica do Encarregado */}
+                {supervisorSignature?.signedAt && (
+                    <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs font-semibold text-emerald-900">
+                        <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-600 text-white font-bold text-[10px]">
+                                ✓
+                            </span>
+                            <span>
+                                Folha assinada eletronicamente por <strong>{supervisorSignature.encarregadoNome || 'Encarregado do Cliente'}</strong> em {new Date(supervisorSignature.signedAt).toLocaleString('pt-PT')}
+                            </span>
+                            {supervisorSignature.signedIp && (
+                                <Badge variant="outline" className="text-[10px] border-emerald-300 bg-white text-emerald-700">
+                                    IP: {supervisorSignature.signedIp}
+                                </Badge>
+                            )}
+                        </div>
+                        {supervisorSignature.signatureImageUrl && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-slate-400 text-[10px]">Rubrica:</span>
+                                <img 
+                                    src={supervisorSignature.signatureImageUrl} 
+                                    alt="Assinatura" 
+                                    className="h-6 max-w-[90px] object-contain bg-white rounded border border-emerald-200 px-1" 
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Barra de Ações */}
                 <div className="bg-slate-50/30 px-5 py-3.5 border-b flex justify-between items-center flex-wrap gap-3 shadow-2xs">
@@ -914,12 +1063,14 @@ export function ValidationScreen({
                                             className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer"
                                         />
                                     </TableHead>
-                                    <TableHead className="w-[60px] text-center font-bold text-slate-600">Dia</TableHead>
-                                    <TableHead className="w-[130px] font-bold text-slate-600">Dia da Semana</TableHead>
-                                    <TableHead className="w-[100px] text-center font-bold text-slate-600">Inicio</TableHead>
-                                    <TableHead className="w-[100px] text-center font-bold text-slate-600">Fim</TableHead>
+                                    <TableHead className="w-[50px] text-center font-bold text-slate-600">Dia</TableHead>
+                                    <TableHead className="w-[110px] font-bold text-slate-600">Dia da Semana</TableHead>
+                                    <TableHead className="w-[85px] text-center font-bold text-slate-600">Início</TableHead>
+                                    <TableHead className="w-[85px] text-center font-bold text-slate-600">Fim</TableHead>
+                                    <TableHead className="w-[85px] text-center font-bold text-slate-700">Normais (h)</TableHead>
+                                    <TableHead className="w-[85px] text-center font-bold text-indigo-600">Noturnas (h)</TableHead>
                                     <TableHead className="font-bold text-slate-600">Obra/Centro de Custo</TableHead>
-                                    <TableHead className="w-[125px] text-center font-bold text-slate-600">Total Horas</TableHead>
+                                    <TableHead className="w-[95px] text-center font-bold text-slate-600">Total (h)</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -977,7 +1128,7 @@ export function ValidationScreen({
                                                 </span>
                                             </TableCell>
                                             <TableCell className="p-2">
-                                                <span className={`text-sm ${
+                                                <span className={`text-xs ${
                                                     isModified
                                                         ? "font-semibold text-rose-800"
                                                         : hasHours 
@@ -995,7 +1146,7 @@ export function ValidationScreen({
                                                     placeholder="HH:MM"
                                                     value={record.inicio}
                                                     onChange={(e) => handleRecordChange(record.day, 'inicio', e.target.value)}
-                                                    className={`h-9 w-full text-center rounded-lg shadow-2xs transition-all duration-150 border-slate-200 ${
+                                                    className={`h-9 w-full text-center rounded-lg shadow-2xs transition-all duration-150 border-slate-200 text-xs ${
                                                         isModified
                                                             ? "bg-white border-rose-200/80 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/50 text-rose-800 font-medium"
                                                             : hasHours 
@@ -1010,7 +1161,7 @@ export function ValidationScreen({
                                                     placeholder="HH:MM"
                                                     value={record.fim}
                                                     onChange={(e) => handleRecordChange(record.day, 'fim', e.target.value)}
-                                                    className={`h-9 w-full text-center rounded-lg shadow-2xs transition-all duration-150 border-slate-200 ${
+                                                    className={`h-9 w-full text-center rounded-lg shadow-2xs transition-all duration-150 border-slate-200 text-xs ${
                                                         isModified
                                                             ? "bg-white border-rose-200/80 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/50 text-rose-800 font-medium"
                                                             : hasHours 
@@ -1020,10 +1171,30 @@ export function ValidationScreen({
                                                 />
                                             </TableCell>
                                             <TableCell className="p-2">
+                                                <Input 
+                                                    type="number" 
+                                                    placeholder="0"
+                                                    step="0.5"
+                                                    value={record.horasNormais}
+                                                    onChange={(e) => handleRecordChange(record.day, 'horasNormais', e.target.value)}
+                                                    className="h-9 w-full text-center font-medium text-xs rounded-lg shadow-2xs transition-all duration-150 border-slate-200 bg-white"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="p-2">
+                                                <Input 
+                                                    type="number" 
+                                                    placeholder="0"
+                                                    step="0.5"
+                                                    value={record.horasNoturnas}
+                                                    onChange={(e) => handleRecordChange(record.day, 'horasNoturnas', e.target.value)}
+                                                    className="h-9 w-full text-center font-semibold text-xs rounded-lg shadow-2xs transition-all duration-150 border-indigo-200 bg-indigo-50/40 text-indigo-700"
+                                                />
+                                            </TableCell>
+                                            <TableCell className="p-2">
                                                 <select
                                                     value={record.obra}
                                                     onChange={(e) => handleObraChange(record.day, e.target.value)}
-                                                    className={`flex h-9 w-full rounded-lg border px-3 py-1 text-sm shadow-2xs transition-all duration-150 border-slate-200 focus-visible:outline-none focus:ring-2 focus:ring-offset-0 ${
+                                                    className={`flex h-9 w-full rounded-lg border px-2 py-1 text-xs shadow-2xs transition-all duration-150 border-slate-200 focus-visible:outline-none focus:ring-2 focus:ring-offset-0 ${
                                                         isModified
                                                             ? "bg-white border-rose-200/80 focus:border-rose-500 focus:ring-rose-200/50 text-slate-700"
                                                             : hasHours 
@@ -1045,7 +1216,7 @@ export function ValidationScreen({
                                                     step="0.01"
                                                     value={record.totalHoras}
                                                     onChange={(e) => handleRecordChange(record.day, 'totalHoras', e.target.value)}
-                                                    className={`h-9 w-full text-center font-bold rounded-lg shadow-2xs transition-all duration-150 border-slate-200 ${
+                                                    className={`h-9 w-full text-center font-bold text-xs rounded-lg shadow-2xs transition-all duration-150 border-slate-200 ${
                                                         isModified
                                                             ? "text-rose-750 bg-rose-50/40 border-rose-200/80 focus:border-rose-500 focus:ring-2 focus:ring-rose-200/50"
                                                             : hasHours 
