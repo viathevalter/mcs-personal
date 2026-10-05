@@ -262,7 +262,7 @@ export function SupervisorSignPage() {
         }
     };
 
-    const handleDownloadPdf = () => {
+    const handleDownloadPdf = async () => {
         if (!timesheet) return;
 
         const pdfData: TimesheetPdfData = {
@@ -284,7 +284,7 @@ export function SupervisorSignPage() {
             signatureImageUrl: timesheet.signature_image_url
         };
 
-        downloadTimesheetPdf(pdfData);
+        await downloadTimesheetPdf(pdfData);
     };
 
     if (loading) {

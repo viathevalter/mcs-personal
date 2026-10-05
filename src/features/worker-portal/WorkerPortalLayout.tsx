@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../app/providers';
 
+import { getCompanyBranding } from './services/companyLogos';
+
 export function WorkerPortalLayout() {
     const { t } = useTranslation();
     const navigate = useNavigate();
@@ -30,6 +32,8 @@ export function WorkerPortalLayout() {
     const workerAuth = session ? JSON.parse(session) : null;
 
     if (!workerAuth) return null;
+
+    const branding = getCompanyBranding(workerAuth.contratante || workerAuth.empresa_nome);
 
     const navItems = [
         {
@@ -59,15 +63,22 @@ export function WorkerPortalLayout() {
                 <div className="max-w-4xl mx-auto px-4 sm:px-6">
                     <div className="flex justify-between h-14 sm:h-16 items-center">
                         <div className="flex items-center gap-2.5">
-                            <div className="rounded-lg bg-blue-600 p-2 text-white shadow-xs">
-                                <ShieldCheck className="h-5 w-5" />
-                            </div>
+                            {branding?.logoUrl ? (
+                                <div className="h-9 w-9 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shadow-2xs overflow-hidden">
+                                    <img src={branding.logoUrl} alt={branding.name} className="max-h-full max-w-full object-contain" />
+                                </div>
+                            ) : (
+                                <div className="rounded-lg bg-blue-600 p-2 text-white shadow-xs">
+                                    <ShieldCheck className="h-5 w-5" />
+                                </div>
+                            )}
                             <div>
                                 <span className="font-bold text-base text-slate-900 leading-tight block">
                                     Portal do Trabalhador
                                 </span>
-                                <span className="text-[11px] text-slate-400 hidden sm:block">
-                                    MCS Group • Apontamentos & Nóminas
+                                <span className="text-[11px] text-slate-500 font-medium block">
+                                    <strong className="text-slate-800">{branding?.name || workerAuth.contratante || 'MCS Group'}</strong>
+                                    {workerAuth.cliente && <span className="text-slate-400"> • {workerAuth.cliente}</span>}
                                 </span>
                             </div>
                         </div>

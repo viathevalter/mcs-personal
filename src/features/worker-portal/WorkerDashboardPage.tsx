@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { downloadTimesheetPdf, type TimesheetPdfData } from './services/timesheetPdfService';
+import { getCompanyBranding } from './services/companyLogos';
 
 export function WorkerDashboardPage() {
     const { t, i18n } = useTranslation();
@@ -298,11 +299,14 @@ export function WorkerDashboardPage() {
 
     const profiles = workerAuth.profiles && workerAuth.profiles.length > 0 ? workerAuth.profiles : [workerAuth];
 
-    const handleDownloadQuickPdf = (period: WorkerHour) => {
+    const handleDownloadQuickPdf = async (period: WorkerHour) => {
         const profile = profiles.find((p: any) => p.id === period.worker_id) || workerAuth;
+        const compName = profile.contratante || profile.empresa_nome || 'MCS Personal';
+        const branding = getCompanyBranding(compName);
         const pdfData: TimesheetPdfData = {
-            empresaNome: profile.empresa_nome || 'MCS Personal',
-            empresaNif: profile.empresa_nif,
+            empresaNome: compName,
+            empresaNif: profile.empresa_nif || branding?.nif,
+            logoUrl: branding?.logoUrl,
             workerNome: profile.nome,
             workerDoc: profile.pasaporte || profile.nie || 'N/A',
             workerFuncion: profile.funcion,
@@ -318,7 +322,7 @@ export function WorkerDashboardPage() {
             signedIp: period.signed_ip,
             signatureImageUrl: period.signature_image_url
         };
-        downloadTimesheetPdf(pdfData);
+        await downloadTimesheetPdf(pdfData);
     };
 
     return (

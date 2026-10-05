@@ -1,4 +1,5 @@
 import { jsPDF } from 'jspdf';
+import { getCompanyBranding } from './companyLogos';
 
 export interface TimesheetDayEntry {
     dia: number;
@@ -7,16 +8,19 @@ export interface TimesheetDayEntry {
     horasNormais?: number;
     horasNoturnas?: number;
     totalHoras?: number;
+    obra?: string;
     obs?: string;
 }
 
 export interface TimesheetPdfData {
     empresaNome: string;
     empresaNif?: string;
+    logoUrl?: string;
     workerNome: string;
     workerDoc: string; // NIE / Passport
     workerFuncion?: string;
     clienteNome?: string;
+    obraNome?: string;
     mes: number;
     ano: number;
     apontamentos: TimesheetDayEntry[];
@@ -37,7 +41,28 @@ const MONTH_NAMES_ES = [
 
 const WEEKDAYS_ES = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
 
-export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
+async function loadImageDataUrl(url: string): Promise<string | null> {
+    if (!url) return null;
+    if (url.startsWith('data:')) return url;
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return null;
+        const blob = await response.blob();
+        return new Promise<string | null>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                resolve(typeof reader.result === 'string' ? reader.result : null);
+            };
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.warn('Could not load company logo for PDF:', e);
+        return null;
+    }
+}
+
+export async function generateTimesheetPdf(data: TimesheetPdfData): Promise<jsPDF> {
     const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -51,29 +76,55 @@ export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
 
     let y = 12;
 
+    const branding = getCompanyBranding(data.empresaNome);
+    const resolvedCompanyLogo = data.logoUrl || branding?.logoUrl;
+    const resolvedCompanyNif = data.empresaNif || branding?.nif;
+    const resolvedCompanyName = branding?.name || data.empresaNome || 'MCS Personal';
+
     // Header Card
     doc.setFillColor(248, 250, 252); // slate-50
     doc.setDrawColor(203, 213, 225); // slate-300
-    doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'FD');
+    doc.roundedRect(margin, y, contentWidth, 24, 2, 2, 'FD');
 
     // Title & Company
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(10.5);
     doc.setTextColor(15, 23, 42); // slate-900
     doc.text('REGISTRO MENSUAL DE JORNADA LABORAL Y CONTROL DE HORAS', margin + 4, y + 6);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(8);
     doc.setTextColor(71, 85, 105); // slate-600
-    const companyText = `Empresa: ${data.empresaNome || 'Numinus / Stoko'} ${data.empresaNif ? `(NIF/CIF: ${data.empresaNif})` : ''} | Conforme Art. 34.9 Estatuto de los Trabajadores`;
-    doc.text(companyText, margin + 4, y + 12);
+    const companyText = `Empresa: ${resolvedCompanyName} ${resolvedCompanyNif ? `(NIF/CIF: ${resolvedCompanyNif})` : ''}`;
+    doc.text(companyText, margin + 4, y + 11.5);
+
+    doc.setFontSize(7.5);
+    doc.text('Conforme Art. 34.9 Estatuto de los Trabajadores (RDL 8/2019)', margin + 4, y + 16.5);
 
     const periodText = `Período: ${MONTH_NAMES_ES[data.mes - 1] || data.mes} de ${data.ano}`;
     doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text(periodText, margin + 4, y + 18);
+    doc.text(periodText, margin + 4, y + 21.5);
 
-    y += 25;
+    // Company Logo on Header Top Right
+    if (resolvedCompanyLogo) {
+        const logoData = await loadImageDataUrl(resolvedCompanyLogo);
+        if (logoData) {
+            try {
+                // Dimensions: max width 38mm, max height 18mm
+                const logoW = 38;
+                const logoH = 18;
+                const logoX = margin + contentWidth - logoW - 3;
+                const logoY = y + 3;
+                doc.addImage(logoData, 'PNG', logoX, logoY, logoW, logoH, undefined, 'FAST');
+            } catch (err) {
+                console.warn('Could not add logo to PDF:', err);
+            }
+        }
+    }
+
+    y += 27;
 
     // Worker & Client Info Box
     doc.setFillColor(255, 255, 255);
@@ -92,7 +143,7 @@ export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
     doc.setFont('helvetica', 'normal');
     doc.text(data.workerDoc, margin + 143, y + 5);
 
-    // Line 2: Puesto & Cliente
+    // Line 2: Puesto & Cliente / Obra
     doc.setFont('helvetica', 'bold');
     doc.text('Categoría:', margin + 3, y + 12);
     doc.setFont('helvetica', 'normal');
@@ -101,21 +152,25 @@ export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
     doc.setFont('helvetica', 'bold');
     doc.text('Cliente / Obra:', margin + 115, y + 12);
     doc.setFont('helvetica', 'normal');
-    doc.text(data.clienteNome || 'General', margin + 143, y + 12);
+    const displayObra = data.obraNome || '';
+    const clienteObraStr = displayObra 
+        ? `${data.clienteNome || 'General'} • ${displayObra}` 
+        : (data.clienteNome || 'General');
+    doc.text(clienteObraStr.substring(0, 35), margin + 143, y + 12);
 
-    y += 22;
+    y += 21;
 
     // Days Table
     const totalDaysInMonth = new Date(data.ano, data.mes, 0).getDate();
     const colWidths = {
         dia: 14,
         sem: 12,
-        entrada: 26,
-        saida: 26,
-        normais: 28,
-        noturnas: 28,
-        total: 26,
-        obs: 26,
+        entrada: 22,
+        saida: 22,
+        normais: 24,
+        noturnas: 24,
+        total: 24,
+        obs: 44,
     };
 
     // Table Header
@@ -131,17 +186,17 @@ export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
     x += colWidths.dia;
     doc.text('Sem.', x + 2, y + 4.8);
     x += colWidths.sem;
-    doc.text('Entrada', x + 5, y + 4.8);
+    doc.text('Entrada', x + 4, y + 4.8);
     x += colWidths.entrada;
-    doc.text('Salida', x + 6, y + 4.8);
+    doc.text('Salida', x + 5, y + 4.8);
     x += colWidths.saida;
-    doc.text('H. Diurnas', x + 4, y + 4.8);
+    doc.text('H. Diurnas', x + 3, y + 4.8);
     x += colWidths.normais;
-    doc.text('H. Nocturnas', x + 3, y + 4.8);
+    doc.text('H. Nocturnas', x + 2, y + 4.8);
     x += colWidths.noturnas;
     doc.text('Total Horas', x + 3, y + 4.8);
     x += colWidths.total;
-    doc.text('Observaciones', x + 2, y + 4.8);
+    doc.text('Obra / Observaciones', x + 2, y + 4.8);
 
     y += 7;
 
@@ -191,42 +246,44 @@ export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
 
         // Entrada
         doc.setFont('helvetica', 'normal');
-        doc.text(entry?.entrada || (hTot > 0 ? '08:00' : '-'), x + 5, y + 3.4);
+        doc.text(entry?.entrada || (hTot > 0 ? '08:00' : '-'), x + 4, y + 3.4);
         x += colWidths.entrada;
 
         // Salida
-        doc.text(entry?.saida || (hTot > 0 ? '17:00' : '-'), x + 5, y + 3.4);
+        doc.text(entry?.saida || (hTot > 0 ? '17:00' : '-'), x + 4, y + 3.4);
         x += colWidths.saida;
 
         // H. Diurnas
-        doc.text(hNorm > 0 ? `${hNorm.toFixed(1)} h` : '-', x + 8, y + 3.4);
+        doc.text(hNorm > 0 ? `${hNorm.toFixed(1)} h` : '-', x + 7, y + 3.4);
         x += colWidths.normais;
 
         // H. Nocturnas
         if (hNot > 0) {
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(2, 132, 199); // sky-600
-            doc.text(`${hNot.toFixed(1)} h`, x + 7, y + 3.4);
+            doc.text(`${hNot.toFixed(1)} h`, x + 6, y + 3.4);
             doc.setFont('helvetica', 'normal');
             doc.setTextColor(30, 41, 59);
         } else {
-            doc.text('-', x + 10, y + 3.4);
+            doc.text('-', x + 9, y + 3.4);
         }
         x += colWidths.noturnas;
 
         // Total Horas
         if (hTot > 0) {
             doc.setFont('helvetica', 'bold');
-            doc.text(`${hTot.toFixed(1)} h`, x + 6, y + 3.4);
+            doc.text(`${hTot.toFixed(1)} h`, x + 5, y + 3.4);
             doc.setFont('helvetica', 'normal');
         } else {
-            doc.text('-', x + 8, y + 3.4);
+            doc.text('-', x + 7, y + 3.4);
         }
         x += colWidths.total;
 
-        // Obs
-        const obsText = entry?.obs ? entry.obs.substring(0, 15) : (isWeekend && hTot === 0 ? 'Descanso' : '');
-        doc.text(obsText, x + 2, y + 3.4);
+        // Obra / Obs
+        const obraStr = entry?.obra ? `[${entry.obra}] ` : '';
+        const obsCore = entry?.obs || (isWeekend && hTot === 0 ? 'Descanso' : '');
+        const obsFull = `${obraStr}${obsCore}`.trim();
+        doc.text(obsFull.substring(0, 28), x + 2, y + 3.4);
 
         y += rowHeight;
     }
@@ -243,12 +300,12 @@ export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
     doc.setTextColor(15, 23, 42);
 
     doc.text('TOTALES DEL MES:', margin + 4, y + 5.2);
-    doc.text(`Diurnas: ${data.totalNormais.toFixed(1)} h`, margin + 55, y + 5.2);
+    doc.text(`Diurnas: ${data.totalNormais.toFixed(1)} h`, margin + 50, y + 5.2);
     doc.setTextColor(2, 132, 199);
-    doc.text(`Nocturnas: ${data.totalNoturnas.toFixed(1)} h`, margin + 98, y + 5.2);
+    doc.text(`Nocturnas: ${data.totalNoturnas.toFixed(1)} h`, margin + 92, y + 5.2);
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(9);
-    doc.text(`TOTAL GENERAL: ${data.totalGeral.toFixed(1)} HORAS`, margin + 140, y + 5.2);
+    doc.text(`TOTAL GENERAL: ${data.totalGeral.toFixed(1)} HORAS`, margin + 135, y + 5.2);
 
     y += 12;
 
@@ -339,8 +396,8 @@ export function generateTimesheetPdf(data: TimesheetPdfData): jsPDF {
     return doc;
 }
 
-export function downloadTimesheetPdf(data: TimesheetPdfData, filename?: string) {
-    const doc = generateTimesheetPdf(data);
+export async function downloadTimesheetPdf(data: TimesheetPdfData, filename?: string): Promise<void> {
+    const doc = await generateTimesheetPdf(data);
     const fname = filename || `Hoja_Horas_${data.workerNome.replace(/\s+/g, '_')}_${data.ano}_${String(data.mes).padStart(2, '0')}.pdf`;
     doc.save(fname);
 }
