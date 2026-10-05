@@ -1366,12 +1366,22 @@ MCS - Gestão Comercial`;
       }, {} as Record<string, any>);
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
-      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+      const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+      const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
+      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+        const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+        const notu = Number(h.horas_noturnas || 0);
+        const tfNorm = Number(h.tarifa_faturada || 0);
+        const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+        return sum + (norm * tfNorm) + (notu * tfNotu);
+      }, 0);
 
       return {
         ...w,
         horasDiarias: filteredHorasDiarias,
         totalHoras: wTotalHoras,
+        totalHorasNormais: wTotalHorasNormais,
+        totalHorasNoturnas: wTotalHorasNoturnas,
         totalValor: wTotalValor
       };
     }).filter(w => w.totalHoras > 0);
@@ -2457,12 +2467,22 @@ MCS - Gestão Comercial`;
         : w.horasDiarias;
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
-      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+      const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+      const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
+      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+        const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+        const notu = Number(h.horas_noturnas || 0);
+        const tfNorm = Number(h.tarifa_faturada || 0);
+        const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+        return sum + (norm * tfNorm) + (notu * tfNotu);
+      }, 0);
 
       return {
         ...w,
         horasDiarias: filteredHorasDiarias,
         totalHoras: wTotalHoras,
+        totalHorasNormais: wTotalHorasNormais,
+        totalHorasNoturnas: wTotalHorasNoturnas,
         totalValor: wTotalValor
       };
     }).filter(w => w.totalHoras > 0);
@@ -3207,12 +3227,22 @@ MCS - Gestão Comercial`;
               }, {} as Record<string, any>);
 
               const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
-              const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+              const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+              const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
+              const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+                const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+                const notu = Number(h.horas_noturnas || 0);
+                const tfNorm = Number(h.tarifa_faturada || 0);
+                const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+                return sum + (norm * tfNorm) + (notu * tfNotu);
+              }, 0);
 
               return {
                 ...w,
                 horasDiarias: filteredHorasDiarias,
                 totalHoras: wTotalHoras,
+                totalHorasNormais: wTotalHorasNormais,
+                totalHorasNoturnas: wTotalHorasNoturnas,
                 totalValor: wTotalValor
               };
             }).filter(w => w.totalHoras > 0);
@@ -3756,25 +3786,43 @@ MCS - Gestão Comercial`;
                                   </TableCell>
 
                                   <TableCell className="text-right font-bold text-slate-800 dark:text-slate-200 align-top pt-4">
-                                    {worker.isValidated || worker.isBilled ? `${(worker.totalHorasMes ?? worker.totalHoras).toFixed(2)}h` : '--'}
+                                    {worker.isValidated || worker.isBilled ? (
+                                      <div>
+                                        <div>{`${(worker.totalHorasMes ?? worker.totalHoras).toFixed(2)}h`}</div>
+                                        {Boolean(worker.totalHorasNoturnas && worker.totalHorasNoturnas > 0) && (
+                                          <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5 whitespace-nowrap">
+                                            <span>☀️ {(worker.totalHorasNormais ?? Math.max(0, (worker.totalHorasMes ?? worker.totalHoras) - worker.totalHorasNoturnas)).toFixed(1)}h</span>
+                                            <span className="mx-1">•</span>
+                                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold">🌙 {worker.totalHorasNoturnas.toFixed(1)}h</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : '--'}
                                   </TableCell>
                                   <TableCell className="text-right font-semibold align-top pt-4">
                                     {worker.isValidated || worker.isBilled ? (
-                                      <div className="flex items-center justify-end gap-1.5 group/tarifa">
-                                        <span className={worker.isException ? "text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-200/50" : ""}>
-                                          € {worker.tarifa.toFixed(2)}
-                                        </span>
-                                        {!isAlreadyInvoiced && !worker.isBilled && (
-                                          <button 
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleOpenTariffDialog(worker, f.clientId, f.clientName, f.year, f.month);
-                                            }}
-                                            className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 dark:hover:bg-slate-800 opacity-0 group-hover/tarifa:opacity-100 transition-all"
-                                            title="Editar Tarifa"
-                                          >
-                                            <Edit2 size={12} />
-                                          </button>
+                                      <div>
+                                        <div className="flex items-center justify-end gap-1.5 group/tarifa">
+                                          <span className={worker.isException ? "text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-200/50" : ""}>
+                                            € {worker.tarifa.toFixed(2)}
+                                          </span>
+                                          {!isAlreadyInvoiced && !worker.isBilled && (
+                                            <button 
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleOpenTariffDialog(worker, f.clientId, f.clientName, f.year, f.month);
+                                              }}
+                                              className="p-1 text-slate-400 hover:text-blue-600 rounded hover:bg-slate-100 dark:hover:bg-slate-800 opacity-0 group-hover/tarifa:opacity-100 transition-all"
+                                              title="Editar Tarifa"
+                                            >
+                                              <Edit2 size={12} />
+                                            </button>
+                                          )}
+                                        </div>
+                                        {Boolean(worker.totalHorasNoturnas && worker.totalHorasNoturnas > 0) && (
+                                          <div className="text-[10px] font-normal text-indigo-600 dark:text-indigo-400 mt-0.5" title="Tarifa Noturna">
+                                            🌙 € {(worker.tarifaNoturna || worker.tarifa).toFixed(2)}
+                                          </div>
                                         )}
                                       </div>
                                     ) : (
@@ -3782,7 +3830,18 @@ MCS - Gestão Comercial`;
                                     )}
                                   </TableCell>
                                   <TableCell className="text-right pr-6 font-bold text-emerald-600 dark:text-emerald-500 align-top pt-4">
-                                    {worker.isValidated || worker.isBilled ? `€ ${(worker.totalValorMes ?? worker.totalValor).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '--'}
+                                    {worker.isValidated || worker.isBilled ? (
+                                      <div>
+                                        <div>{`€ ${(worker.totalValorMes ?? worker.totalValor).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</div>
+                                        {Boolean(worker.totalHorasNoturnas && worker.totalHorasNoturnas > 0) && (
+                                          <div className="text-[10px] font-normal text-slate-500 dark:text-slate-400 mt-0.5 whitespace-nowrap">
+                                            <span>☀️ € {((worker.totalHorasNormais ?? Math.max(0, (worker.totalHorasMes ?? worker.totalHoras) - worker.totalHorasNoturnas)) * worker.tarifa).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                            <span className="mx-1">+</span>
+                                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold">🌙 € {(worker.totalHorasNoturnas * (worker.tarifaNoturna || worker.tarifa)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : '--'}
                                   </TableCell>
                                 </TableRow>
 
@@ -3806,6 +3865,8 @@ MCS - Gestão Comercial`;
                                             const targetDateStr = dInfo.dateStr;
                                             const record = worker.horasDiarias[targetDateStr];
                                             const hoursVal = record ? Number(record.horas_totais) : 0;
+                                            const nightVal = record ? Number(record.horas_noturnas || 0) : 0;
+                                            const hasNight = nightVal > 0;
                                             
                                             const date = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
                                             const dayOfWeek = date.getDay();
@@ -3817,17 +3878,24 @@ MCS - Gestão Comercial`;
                                               <div 
                                                 key={dInfo.dateStr} 
                                                 className={`flex-1 flex flex-col items-center p-1.5 rounded-md min-w-[38px] max-w-[50px] transition-colors ${
-                                                  isWeekend 
-                                                    ? 'bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40' 
-                                                    : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
+                                                  hasNight
+                                                    ? 'bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-300 dark:border-indigo-800'
+                                                    : isWeekend 
+                                                      ? 'bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40' 
+                                                      : 'bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
                                                 }`}
                                               >
-                                                <span className={`text-[10px] md:text-xs font-extrabold leading-none mb-1 ${isWeekend ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                                <span className={`text-[10px] md:text-xs font-extrabold leading-none mb-1 ${hasNight ? 'text-indigo-700 dark:text-indigo-300' : isWeekend ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
                                                   {String(dInfo.day).padStart(2, '0')}
                                                 </span>
-                                                <span className={`text-[8px] md:text-[9.5px] font-bold leading-normal mb-1.5 ${isWeekend ? 'text-amber-500/70' : 'text-slate-400/70'}`}>
+                                                <span className={`text-[8px] md:text-[9.5px] font-bold leading-normal mb-1 ${isWeekend ? 'text-amber-500/70' : 'text-slate-400/70'}`}>
                                                   {weekdayLabel}
                                                 </span>
+                                                {hasNight && (
+                                                  <span className="text-[8px] leading-tight font-extrabold text-indigo-600 dark:text-indigo-400 mb-0.5" title={`Noturnas: ${nightVal}h`}>
+                                                    🌙{nightVal}
+                                                  </span>
+                                                )}
                                                 <input
                                                   type="text"
                                                   disabled={!worker.isValidated || isAlreadyInvoiced || worker.isBilled}
@@ -3924,6 +3992,7 @@ MCS - Gestão Comercial`;
                                     const dateKey = dInfo.dateStr;
                                     const hourObj = worker.horasDiarias[dateKey] as any;
                                     const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+                                    const nightVal = hourObj ? Number(hourObj.horas_noturnas || 0) : 0;
                                     
                                     const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
                                     const dayOfWeek = cellDate.getDay();
@@ -3933,23 +4002,41 @@ MCS - Gestão Comercial`;
                                       <TableCell 
                                         key={dInfo.dateStr} 
                                         className={`text-center text-xs p-1 transition-colors ${
-                                          isWeekend 
-                                            ? 'bg-amber-50/15 dark:bg-amber-950/5 border-x border-x-amber-100/20 dark:border-x-amber-900/10' 
-                                            : ''
+                                          nightVal > 0
+                                            ? 'bg-indigo-50/50 dark:bg-indigo-950/20 font-bold text-indigo-700 dark:text-indigo-400'
+                                            : isWeekend 
+                                              ? 'bg-amber-50/15 dark:bg-amber-950/5 border-x border-x-amber-100/20 dark:border-x-amber-900/10' 
+                                              : ''
                                         } ${
                                           hoursVal > 0 
-                                            ? isWeekend 
-                                              ? 'font-bold text-amber-700 dark:text-amber-400'
-                                              : 'font-bold text-blue-600 dark:text-blue-400' 
+                                            ? nightVal > 0
+                                              ? ''
+                                              : isWeekend 
+                                                ? 'font-bold text-amber-700 dark:text-amber-400'
+                                                : 'font-bold text-blue-600 dark:text-blue-400' 
                                             : 'text-slate-300 dark:text-slate-700'
                                         }`}
                                       >
-                                        {hoursVal > 0 ? hoursVal : '-'}
+                                        {hoursVal > 0 ? (
+                                          <div className="flex flex-col items-center">
+                                            <span>{hoursVal}</span>
+                                            {nightVal > 0 && (
+                                              <span className="text-[8px] text-indigo-600 dark:text-indigo-400 font-extrabold leading-none" title={`Noturnas: ${nightVal}h`}>
+                                                🌙{nightVal}
+                                              </span>
+                                            )}
+                                          </div>
+                                        ) : '-'}
                                       </TableCell>
                                     );
                                   })}
                                   <TableCell className="text-right font-bold text-xs text-slate-900 dark:text-slate-100 pr-4 py-3">
-                                    {workerTotal.toFixed(1)}h
+                                    <div>{workerTotal.toFixed(1)}h</div>
+                                    {Boolean(worker.totalHorasNoturnas && worker.totalHorasNoturnas > 0) && (
+                                      <div className="text-[10px] font-normal text-indigo-600 dark:text-indigo-400">
+                                        🌙 {worker.totalHorasNoturnas.toFixed(1)}h
+                                      </div>
+                                    )}
                                   </TableCell>
                                 </TableRow>
                               );
@@ -4266,25 +4353,75 @@ MCS - Gestão Comercial`;
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).map(w => (
-                                  <TableRow key={w.workerId}>
-                                    <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">
-                                      <div className="flex items-center justify-between w-full">
-                                        <span>{w.workerName}</span>
-                                        {w.isException && (
-                                          <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-1 py-0.5 rounded uppercase tracking-wider">
-                                            Tarifa Especial
-                                          </span>
+                                {filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).map(w => {
+                                  const hasNight = Boolean(w.totalHorasNoturnas && w.totalHorasNoturnas > 0);
+                                  const normais = w.totalHorasNormais ?? Math.max(0, w.totalHoras - (w.totalHorasNoturnas || 0));
+                                  const noturnas = w.totalHorasNoturnas || 0;
+                                  const tarifaNotu = w.tarifaNoturna || w.tarifa;
+
+                                  if (hasNight) {
+                                    return (
+                                      <React.Fragment key={w.workerId}>
+                                        {normais > 0 && (
+                                          <TableRow>
+                                            <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">
+                                              <div className="flex items-center justify-between w-full">
+                                                <span>{w.workerName} <span className="text-[10px] text-slate-500 font-normal">(Diurnas ☀️)</span></span>
+                                                {w.isException && (
+                                                  <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-1 py-0.5 rounded uppercase tracking-wider">
+                                                    Tarifa Especial
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </TableCell>
+                                            <TableCell className="text-right font-medium">{normais.toFixed(2)}h</TableCell>
+                                            <TableCell className={`text-right font-medium ${w.isException ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                                              € {w.tarifa.toFixed(2)}
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold pr-4">€ {(normais * w.tarifa).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                          </TableRow>
                                         )}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
-                                    <TableCell className={`text-right font-medium ${w.isException ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
-                                      € {w.tarifa.toFixed(2)}
-                                    </TableCell>
-                                    <TableCell className="text-right font-bold pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                  </TableRow>
-                                ))}
+                                        <TableRow className="bg-indigo-50/20 dark:bg-indigo-950/10">
+                                          <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">
+                                            <div className="flex items-center justify-between w-full">
+                                              <span>{w.workerName} <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">(Noturnas 🌙)</span></span>
+                                              {w.isException && (
+                                                <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-1 py-0.5 rounded uppercase tracking-wider">
+                                                  Tarifa Especial
+                                                </span>
+                                              )}
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="text-right font-medium text-indigo-700 dark:text-indigo-400">{noturnas.toFixed(2)}h</TableCell>
+                                          <TableCell className="text-right font-medium text-indigo-700 dark:text-indigo-400">
+                                            € {tarifaNotu.toFixed(2)}
+                                          </TableCell>
+                                          <TableCell className="text-right font-bold pr-4 text-indigo-700 dark:text-indigo-400">€ {(noturnas * tarifaNotu).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                        </TableRow>
+                                      </React.Fragment>
+                                    );
+                                  }
+
+                                  return (
+                                    <TableRow key={w.workerId}>
+                                      <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4">
+                                        <div className="flex items-center justify-between w-full">
+                                          <span>{w.workerName}</span>
+                                          {w.isException && (
+                                            <span className="text-[8px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 px-1 py-0.5 rounded uppercase tracking-wider">
+                                              Tarifa Especial
+                                            </span>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
+                                      <TableCell className={`text-right font-medium ${w.isException ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                                        € {w.tarifa.toFixed(2)}
+                                      </TableCell>
+                                      <TableCell className="text-right font-bold pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    </TableRow>
+                                  );
+                                })}
                                 <TableRow className="bg-slate-50 dark:bg-slate-900/50">
                                   <TableCell className="font-bold pl-4">Totales</TableCell>
                                   <TableCell className="text-right font-bold">{displayTotalHoras.toFixed(2)}h</TableCell>
@@ -4413,14 +4550,48 @@ MCS - Gestão Comercial`;
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  <tr className="border-b border-[#ec8a5e]/30">
-                                    <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'}</td>
-                                    <td className="text-right py-1 text-slate-800">{displayTotalHoras.toFixed(2)}</td>
-                                    <td className="text-right py-1 text-slate-800">{(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                    <td className="text-right py-1 text-slate-800">0,00</td>
-                                    <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                    <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                  </tr>
+                                  {(() => {
+                                    const clientTotalNoturnas = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + (w.totalHorasNoturnas || 0), 0);
+                                    const clientTotalNormais = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + (w.totalHorasNormais ?? Math.max(0, w.totalHoras - (w.totalHorasNoturnas || 0))), 0);
+                                    const clientValorNoturnas = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + ((w.totalHorasNoturnas || 0) * (w.tarifaNoturna || w.tarifa)), 0);
+                                    const clientValorNormais = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + ((w.totalHorasNormais ?? Math.max(0, w.totalHoras - (w.totalHorasNoturnas || 0))) * w.tarifa), 0);
+
+                                    if (clientTotalNoturnas > 0) {
+                                      return (
+                                        <>
+                                          {clientTotalNormais > 0 && (
+                                            <tr className="border-b border-[#ec8a5e]/30">
+                                              <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'} - Horas Diurnas</td>
+                                              <td className="text-right py-1 text-slate-800">{clientTotalNormais.toFixed(2)}</td>
+                                              <td className="text-right py-1 text-slate-800">{(clientValorNormais / (clientTotalNormais || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                              <td className="text-right py-1 text-slate-800">0,00</td>
+                                              <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                              <td className="text-right font-bold pr-3 py-1 text-slate-900">{clientValorNormais.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                            </tr>
+                                          )}
+                                          <tr className="border-b border-[#ec8a5e]/30 bg-indigo-50/20">
+                                            <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'} - Horas Noturnas (🌙)</td>
+                                            <td className="text-right py-1 text-slate-800">{clientTotalNoturnas.toFixed(2)}</td>
+                                            <td className="text-right py-1 text-slate-800">{(clientValorNoturnas / (clientTotalNoturnas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                            <td className="text-right py-1 text-slate-800">0,00</td>
+                                            <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                            <td className="text-right font-bold pr-3 py-1 text-slate-900">{clientValorNoturnas.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                          </tr>
+                                        </>
+                                      );
+                                    }
+
+                                    return (
+                                      <tr className="border-b border-[#ec8a5e]/30">
+                                        <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'}</td>
+                                        <td className="text-right py-1 text-slate-800">{displayTotalHoras.toFixed(2)}</td>
+                                        <td className="text-right py-1 text-slate-800">{(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                        <td className="text-right py-1 text-slate-800">0,00</td>
+                                        <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                        <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                      </tr>
+                                    );
+                                  })()}
                                   {Number(adj.incrementos) > 0 && (
                                     <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
                                       <td className="pl-3 py-1">{adj.incrementosDesc || 'Incremento Adicional'}</td>

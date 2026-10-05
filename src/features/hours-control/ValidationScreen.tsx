@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Loader2, Save, X, Sparkles, ZoomIn, ZoomOut, Maximize, Clock, Building2, Briefcase, User, Wrench, Calendar, CheckCircle2, FileText, Smartphone, RefreshCw } from 'lucide-react';
+import { Loader2, Save, X, Sparkles, ZoomIn, ZoomOut, Maximize, Clock, Building2, Briefcase, User, Wrench, Calendar, CheckCircle2, FileText, Smartphone, RefreshCw, Sun, Moon } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { supabase } from '../../shared/supabase/client';
 import { toast } from 'sonner';
@@ -569,10 +569,32 @@ export function ValidationScreen({
                                     matchedObraId = clientSites[0].id;
                                 }
 
+                                // Check if night hours
+                                const isNightAnnotation = extDay.obra && /noche|nocturn/i.test(extDay.obra);
+                                const isNightTime = extDay.inicio && (extDay.inicio >= '19:00' || extDay.inicio <= '05:00');
+                                const isNightType = extDay.tipo_jornada === 'noturna' || (Number(extDay.horas_noturnas) > 0);
+
+                                let normaisStr = '';
+                                let noturnasStr = '';
+                                if (!hasNoHours) {
+                                    if (extDay.horas_noturnas !== undefined && extDay.horas_noturnas !== null && Number(extDay.horas_noturnas) > 0) {
+                                        noturnasStr = String(extDay.horas_noturnas);
+                                        normaisStr = String(extDay.horas_normais || 0);
+                                    } else if (isNightAnnotation || isNightTime || isNightType) {
+                                        noturnasStr = String(extDay.total_horas);
+                                        normaisStr = '0';
+                                    } else {
+                                        normaisStr = String(extDay.horas_normais !== undefined && extDay.horas_normais !== null ? extDay.horas_normais : extDay.total_horas);
+                                        noturnasStr = '0';
+                                    }
+                                }
+
                                 return {
                                     ...r,
                                     inicio: hasNoHours ? '' : (extDay.inicio ? extDay.inicio.substring(0, 5) : ''),
                                     fim: hasNoHours ? '' : (extDay.fim ? extDay.fim.substring(0, 5) : ''),
+                                    horasNormais: normaisStr,
+                                    horasNoturnas: noturnasStr,
                                     obra: hasNoHours ? '' : matchedObraId,
                                     totalHoras: hasNoHours ? '' : String(extDay.total_horas)
                                 };
@@ -581,6 +603,8 @@ export function ValidationScreen({
                                 ...r,
                                 inicio: '',
                                 fim: '',
+                                horasNormais: '',
+                                horasNoturnas: '',
                                 obra: '',
                                 totalHoras: ''
                             };
@@ -626,6 +650,97 @@ export function ValidationScreen({
         const siteName = clientSites.find(s => s.id === siteId)?.name || 'Obra';
         toast.success(`Obra "${siteName}" aplicada em lote para ${selectedDays.length} dias!`);
         setSelectedDays([]);
+    };
+
+    const handleSelectWeek = (weekNum: number) => {
+        const startDay = (weekNum - 1) * 7 + 1;
+        const endDay = Math.min(records.length, weekNum === 5 ? records.length : weekNum * 7);
+        const weekDays = records.filter(r => r.day >= startDay && r.day <= endDay).map(r => r.day);
+        setSelectedDays(weekDays);
+        toast.info(`Semana ${weekNum} (dias ${startDay} a ${endDay}) selecionada.`);
+    };
+
+    const handleBulkSetNight = () => {
+        if (selectedDays.length === 0) return;
+        setRecords(prev => prev.map(r => {
+            if (!selectedDays.includes(r.day)) return r;
+            const norm = parseFloat(r.horasNormais) || 0;
+            const not = parseFloat(r.horasNoturnas) || 0;
+            const tot = parseFloat(r.totalHoras) || (norm + not);
+            if (tot <= 0) return r;
+            return {
+                ...r,
+                horasNoturnas: String(tot),
+                horasNormais: '0',
+                totalHoras: String(tot)
+            };
+        }));
+        toast.success(`${selectedDays.length} dias marcados como Horas Noturnas (🌙)!`);
+    };
+
+    const handleBulkSetDay = () => {
+        if (selectedDays.length === 0) return;
+        setRecords(prev => prev.map(r => {
+            if (!selectedDays.includes(r.day)) return r;
+            const norm = parseFloat(r.horasNormais) || 0;
+            const not = parseFloat(r.horasNoturnas) || 0;
+            const tot = parseFloat(r.totalHoras) || (norm + not);
+            if (tot <= 0) return r;
+            return {
+                ...r,
+                horasNormais: String(tot),
+                horasNoturnas: '0',
+                totalHoras: String(tot)
+            };
+        }));
+        toast.success(`${selectedDays.length} dias marcados como Horas Diurnas (☀️)!`);
+    };
+
+    const handleBulkFillPreset = (preset: '8h_diurna' | '10h_noturna' | '12h_noturna' | 'descanso') => {
+        if (selectedDays.length === 0) return;
+        setRecords(prev => prev.map(r => {
+            if (!selectedDays.includes(r.day)) return r;
+            if (preset === '8h_diurna') {
+                return {
+                    ...r,
+                    inicio: '08:00',
+                    fim: '17:00',
+                    horasNormais: '8',
+                    horasNoturnas: '0',
+                    totalHoras: '8'
+                };
+            }
+            if (preset === '10h_noturna') {
+                return {
+                    ...r,
+                    inicio: '20:00',
+                    fim: '06:00',
+                    horasNormais: '0',
+                    horasNoturnas: '10',
+                    totalHoras: '10'
+                };
+            }
+            if (preset === '12h_noturna') {
+                return {
+                    ...r,
+                    inicio: '19:00',
+                    fim: '07:00',
+                    horasNormais: '0',
+                    horasNoturnas: '12',
+                    totalHoras: '12'
+                };
+            }
+            // descanso
+            return {
+                ...r,
+                inicio: '',
+                fim: '',
+                horasNormais: '0',
+                horasNoturnas: '0',
+                totalHoras: ''
+            };
+        }));
+        toast.success(`Preenchimento em lote aplicado para ${selectedDays.length} dias!`);
     };
 
     const handleReloadPortalValues = () => {
@@ -824,10 +939,19 @@ export function ValidationScreen({
                 }
             }
 
+            const totalNormaisH = rowsToInsert.reduce((sum, r) => sum + (Number(r.horas_normais) || 0), 0);
+            const totalNoturnasH = rowsToInsert.reduce((sum, r) => sum + (Number(r.horas_noturnas) || 0), 0);
+            const totalGeralH = totalNormaisH + totalNoturnasH;
+
             const { error: updateError } = await supabase
                 .schema('core_personal')
                 .from('worker_hours')
-                .update({ status: 'validado' })
+                .update({ 
+                    status: 'validado',
+                    total_horas_normais: totalNormaisH,
+                    total_horas_noturnas: totalNoturnasH,
+                    horas_totais: totalGeralH
+                })
                 .eq('id', recordId);
 
             if (updateError) {
@@ -1214,23 +1338,6 @@ export function ValidationScreen({
                             )}
                             Extrair Dados (IA)
                         </Button>
-                        <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => {
-                                const daysWithHours = records.filter(r => (parseFloat(r.totalHoras) || 0) > 0).map(r => r.day);
-                                setSelectedDays(daysWithHours);
-                                if (daysWithHours.length > 0) {
-                                    toast.info(`${daysWithHours.length} dias com horas foram marcados. Agora selecione a Obra em lote abaixo.`);
-                                } else {
-                                    toast.warning("Não há nenhum dia com horas preenchidas para selecionar.");
-                                }
-                            }}
-                            disabled={loading || loadingSites || records.length === 0} 
-                            className="text-indigo-600 border-indigo-200 hover:bg-indigo-50/50 font-semibold shadow-sm transition-all py-2"
-                        >
-                            Selecionar Dias c/ Horas
-                        </Button>
                         <Button variant="outline" size="sm" onClick={onClose} disabled={loading} className="text-slate-600 border-slate-200 hover:bg-slate-50 font-semibold shadow-sm transition-all py-2">
                             Cancelar
                         </Button>
@@ -1245,19 +1352,129 @@ export function ValidationScreen({
                         </Button>
                     </div>
                 </div>
+
+                {/* Seleção Rápida por Semanas */}
+                <div className="bg-slate-100/70 px-5 py-2 border-b flex items-center gap-1.5 flex-wrap text-xs">
+                    <span className="text-slate-500 font-bold mr-1 text-[11px] uppercase tracking-wider">
+                        Selecionar:
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => handleSelectWeek(1)}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 shadow-2xs transition-all"
+                    >
+                        Sem. 1 (1-7)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleSelectWeek(2)}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 shadow-2xs transition-all"
+                    >
+                        Sem. 2 (8-14)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleSelectWeek(3)}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 shadow-2xs transition-all"
+                    >
+                        Sem. 3 (15-21)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleSelectWeek(4)}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 shadow-2xs transition-all"
+                    >
+                        Sem. 4 (22-28)
+                    </button>
+                    {records.length > 28 && (
+                        <button
+                            type="button"
+                            onClick={() => handleSelectWeek(5)}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 shadow-2xs transition-all"
+                        >
+                            Sem. 5 (29-{records.length})
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const daysWithHours = records.filter(r => (parseFloat(r.totalHoras) || 0) > 0).map(r => r.day);
+                            setSelectedDays(daysWithHours);
+                        }}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 shadow-2xs transition-all"
+                    >
+                        Dias c/ Horas
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSelectedDays(records.map(r => r.day))}
+                        className="px-2.5 py-1 rounded-md text-[11px] font-bold bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 shadow-2xs transition-all"
+                    >
+                        Todos
+                    </button>
+                    {selectedDays.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedDays([])}
+                            className="px-2.5 py-1 rounded-md text-[11px] font-bold text-red-600 hover:text-red-800 ml-auto hover:underline"
+                        >
+                            Limpar Seleção
+                        </button>
+                    )}
+                </div>
                 
                 {/* Bulk Action Bar */}
                 {selectedDays.length > 0 && (
-                    <div className="bg-indigo-50 border-b border-indigo-100 px-6 py-2.5 flex items-center gap-4 text-indigo-900 text-xs font-semibold animate-in fade-in duration-200">
-                        <div className="flex items-center gap-1.5">
-                            <span className="bg-indigo-600 text-white rounded-full px-2 py-0.5 text-[10px] font-bold">
-                                {selectedDays.length}
+                    <div className="bg-gradient-to-r from-indigo-50 via-sky-50 to-indigo-50 border-b border-indigo-200 px-5 py-2.5 flex items-center justify-between flex-wrap gap-2 text-indigo-950 text-xs font-semibold animate-in fade-in duration-200 shadow-xs">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="bg-indigo-600 text-white rounded-full px-2.5 py-0.5 text-[11px] font-bold shadow-2xs">
+                                {selectedDays.length} {selectedDays.length === 1 ? 'dia' : 'dias'}
                             </span>
-                            <span>{selectedDays.length === 1 ? 'dia selecionado' : 'dias selecionados'}</span>
-                        </div>
-                        <div className="h-4 w-px bg-indigo-200"></div>
-                        <div className="flex items-center gap-2">
-                            <span className="text-slate-500 font-normal">Aplicar Obra em Lote:</span>
+
+                            <div className="h-4 w-px bg-indigo-200"></div>
+
+                            {/* Botões Noturnas / Diurnas */}
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={handleBulkSetNight}
+                                className="h-7 px-2.5 text-[11px] font-bold border-sky-300 bg-sky-100/70 text-sky-900 hover:bg-sky-200 gap-1 shadow-2xs"
+                            >
+                                <Moon className="h-3.5 w-3.5 text-sky-600" /> Definir como Noturnas
+                            </Button>
+
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={handleBulkSetDay}
+                                className="h-7 px-2.5 text-[11px] font-bold border-amber-300 bg-amber-100/70 text-amber-900 hover:bg-amber-200 gap-1 shadow-2xs"
+                            >
+                                <Sun className="h-3.5 w-3.5 text-amber-600" /> Definir como Diurnas
+                            </Button>
+
+                            <div className="h-4 w-px bg-indigo-200"></div>
+
+                            {/* Preencher Horas em Lote */}
+                            <select
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val) {
+                                        handleBulkFillPreset(val as any);
+                                    }
+                                    e.target.value = '';
+                                }}
+                                className="rounded-lg border border-indigo-200 bg-white px-2 py-1 text-xs text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-2xs h-7"
+                            >
+                                <option value="">Preencher horas...</option>
+                                <option value="8h_diurna">☀️ 8h Diurnas (08:00 - 17:00)</option>
+                                <option value="10h_noturna">🌙 10h Noturnas (20:00 - 06:00)</option>
+                                <option value="12h_noturna">🌙 12h Noturnas (19:00 - 07:00)</option>
+                                <option value="descanso">🏖️ Folga / 0h</option>
+                            </select>
+
+                            {/* Aplicar Obra em Lote */}
                             <select
                                 onChange={(e) => {
                                     const siteId = e.target.value;
@@ -1266,19 +1483,21 @@ export function ValidationScreen({
                                     }
                                     e.target.value = '';
                                 }}
-                                className="rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-xs text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-2xs"
+                                className="rounded-lg border border-indigo-200 bg-white px-2 py-1 text-xs text-slate-700 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer shadow-2xs h-7"
                             >
-                                <option value="">Selecione uma obra...</option>
+                                <option value="">Aplicar obra...</option>
                                 {clientSites.map((site) => (
                                     <option key={site.id} value={site.id}>{site.name}</option>
                                 ))}
                             </select>
                         </div>
+
                         <button
+                            type="button"
                             onClick={() => setSelectedDays([])}
-                            className="ml-auto text-indigo-600 hover:text-indigo-800 text-xs font-bold hover:underline"
+                            className="text-indigo-600 hover:text-indigo-800 text-xs font-bold hover:underline"
                         >
-                            Desmarcar todos
+                            Desmarcar
                         </button>
                     </div>
                 )}

@@ -330,9 +330,14 @@ Regras de Extração e Conversão:
    - Obra ou local de trabalho ('Obra', 'Proyecto', 'Centro de Coste', etc.), se houver escrito na linha do dia.
 
 Formatação dos Valores no JSON:
-- 'inicio' e 'fim': devem ser strings formatadas como 'HH:MM' (ex: '08:00', '17:30'). Se o dia estiver em branco (fim de semana não trabalhado, folga, falta), retorne null para ambos.
-- 'total_horas': deve ser um número decimal (ex: 8.5 para 8h30m, 8.0 para 8h, ou 0 se não trabalhou). Caso o total esteja escrito em formato decimal ou HH:MM, converta-o para decimal puro.
-- 'obra': se houver algum nome ou código de obra anotado na linha daquele dia, extraia exatamente o que está escrito. Caso contrário, retorne null.
+- 'inicio' e 'fim': devem ser strings formatadas como 'HH:MM' (ex: '08:00', '17:30', ou '19:00', '05:00'). Se o dia estiver em branco (fim de semana não trabalhado, folga, falta), retorne null para ambos. Se os horários estiverem com AM/PM (ex: '7 PM', '5 AM'), converta para o formato 24 horas ('19:00', '05:00').
+- 'total_horas': deve ser um número decimal (ex: 8.5 para 8h30m, 10.0 para 10h, ou 0 se não trabalhou). Caso o total esteja escrito em formato decimal ou HH:MM ou texto (ex: '10 HORAS'), converta-o para decimal puro.
+- 'horas_normais' e 'horas_noturnas': 
+  * Se houver anotação explícita de 'NOCHE', 'NOCTURNA', 'NOCHE' na coluna Obra ou na linha, OU se o horário de início for noturno (a partir das 19:00 / 7 PM) e saída na madrugada/manhã (05:00 - 07:00): classifique como noturno, preencha 'horas_noturnas' com o total e 'horas_normais' como 0.
+  * Se for trabalho diurno (ex: das 08:00 às 17:00, ou 12:00 às 22:00, ou anotação 'DIA'): preencha 'horas_normais' com o total e 'horas_noturnas' como 0.
+  * Se for folga/sem horas, ambos devem ser 0.
+- 'tipo_jornada': 'noturna' se foi à noite, 'diurna' se foi de dia, ou null se não trabalhou.
+- 'obra': se houver algum nome ou código de obra anotado na linha daquele dia, extraia exatamente o que está escrito. Caso esteja escrito 'NOCHE' ou 'DIA' na coluna obra, mantenha esse texto pois ajuda a identificar o turno.
 
 Retorne um objeto JSON exatamente conforme o schema solicitado.`;
 
@@ -351,7 +356,10 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
                 inicio: { type: "STRING" },
                 fim: { type: "STRING" },
                 obra: { type: "STRING" },
-                total_horas: { type: "NUMBER" }
+                total_horas: { type: "NUMBER" },
+                horas_normais: { type: "NUMBER" },
+                horas_noturnas: { type: "NUMBER" },
+                tipo_jornada: { type: "STRING" }
               },
               required: ["day"]
             }

@@ -1754,7 +1754,13 @@ export function FaturasTracking() {
     };
 
     const totalHorasVal = hours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-    const totalTarifaVal = hours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 27.00)), 0);
+    const totalTarifaVal = hours.reduce((sum, h) => {
+      const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+      const notu = Number(h.horas_noturnas || 0);
+      const tfNorm = Number(h.tarifa_faturada || 27.00);
+      const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 27.00);
+      return sum + (norm * tfNorm) + (notu * tfNotu);
+    }, 0);
 
     const workersMap = new Map<string, {
       workerId: string;
@@ -3542,7 +3548,13 @@ MCS - Gestão Comercial`;
               return Array.from(map.values());
             })();
 
-            const totalBaseVal = effectiveDisputeHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+            const totalBaseVal = effectiveDisputeHours.reduce((sum, h) => {
+              const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+              const notu = Number(h.horas_noturnas || 0);
+              const tfNorm = Number(h.tarifa_faturada || 0);
+              const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+              return sum + (norm * tfNorm) + (notu * tfNotu);
+            }, 0);
             const finalTotalVal = (totalBaseVal + adjustments.incrementos - adjustments.reducoes) * (1 + adjustments.ivaPct / 100);
             const totalHorasCalculadas = effectiveDisputeHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
 
@@ -3551,7 +3563,10 @@ MCS - Gestão Comercial`;
                 workerId: string;
                 workerName: string;
                 totalHoras: number;
+                totalHorasNormais: number;
+                totalHorasNoturnas: number;
                 tarifa: number;
+                tarifaNoturna?: number | null;
                 totalValor: number;
               }>();
 
@@ -3564,14 +3579,24 @@ MCS - Gestão Comercial`;
                     workerId: wId,
                     workerName: h.worker?.nome || h.worker?.nombrecompleto || 'Colaborador',
                     totalHoras: 0,
+                    totalHorasNormais: 0,
+                    totalHorasNoturnas: 0,
                     tarifa: Number(h.tarifa_faturada || 0),
+                    tarifaNoturna: h.tarifa_faturada_noturna ? Number(h.tarifa_faturada_noturna) : null,
                     totalValor: 0
                   });
                 }
 
                 const wObj = workersMap.get(wId)!;
+                const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+                const notu = Number(h.horas_noturnas || 0);
+                const tfNorm = Number(h.tarifa_faturada || 0);
+                const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+
                 wObj.totalHoras += Number(h.horas_totais || 0);
-                wObj.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
+                wObj.totalHorasNormais += norm;
+                wObj.totalHorasNoturnas += notu;
+                wObj.totalValor += (norm * tfNorm) + (notu * tfNotu);
               });
 
               return Array.from(workersMap.values());
@@ -4201,14 +4226,41 @@ MCS - Gestão Comercial`;
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {groupedDisputeWorkersEnriched.map(w => (
-                                    <TableRow key={w.workerId}>
-                                      <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
-                                      <TableCell className="text-right font-medium text-slate-800">{w.totalHoras.toFixed(2)}h</TableCell>
-                                      <TableCell className="text-right font-medium text-slate-800">€ {w.tarifa.toFixed(2)}</TableCell>
-                                      <TableCell className="text-right font-bold text-slate-800 pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                                    </TableRow>
-                                  ))}
+                                  {groupedDisputeWorkersEnriched.map(w => {
+                                    if (w.totalHorasNoturnas > 0) {
+                                      const tarifaNotu = w.tarifaNoturna || w.tarifa;
+                                      return (
+                                        <React.Fragment key={w.workerId}>
+                                          {w.totalHorasNormais > 0 && (
+                                            <TableRow>
+                                              <TableCell className="font-semibold text-slate-800 pl-4">
+                                                {w.workerName} <span className="text-[10px] text-slate-500 font-normal">(Diurnas ☀️)</span>
+                                              </TableCell>
+                                              <TableCell className="text-right font-medium text-slate-800">{w.totalHorasNormais.toFixed(2)}h</TableCell>
+                                              <TableCell className="text-right font-medium text-slate-800">€ {w.tarifa.toFixed(2)}</TableCell>
+                                              <TableCell className="text-right font-bold text-slate-800 pr-4">€ {(w.totalHorasNormais * w.tarifa).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                            </TableRow>
+                                          )}
+                                          <TableRow className="bg-indigo-50/20">
+                                            <TableCell className="font-semibold text-slate-800 pl-4">
+                                              {w.workerName} <span className="text-[10px] text-indigo-600 font-medium">(Noturnas 🌙)</span>
+                                            </TableCell>
+                                            <TableCell className="text-right font-medium text-indigo-700">{w.totalHorasNoturnas.toFixed(2)}h</TableCell>
+                                            <TableCell className="text-right font-medium text-indigo-700">€ {tarifaNotu.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right font-bold text-indigo-700 pr-4">€ {(w.totalHorasNoturnas * tarifaNotu).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                          </TableRow>
+                                        </React.Fragment>
+                                      );
+                                    }
+                                    return (
+                                      <TableRow key={w.workerId}>
+                                        <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
+                                        <TableCell className="text-right font-medium text-slate-800">{w.totalHoras.toFixed(2)}h</TableCell>
+                                        <TableCell className="text-right font-medium text-slate-800">€ {w.tarifa.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-bold text-slate-800 pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                      </TableRow>
+                                    );
+                                  })}
                                   <TableRow className="bg-slate-50">
                                     <TableCell className="font-bold text-slate-800 pl-4">Totales</TableCell>
                                     <TableCell className="text-right font-bold text-slate-800">{totalHorasCalculadas.toFixed(2)}h</TableCell>
@@ -5443,7 +5495,13 @@ MCS - Gestão Comercial`;
           return Array.from(map.values());
         })();
 
-        const totalBaseVal = effectivePdfHours.reduce((sum, h) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+        const totalBaseVal = effectivePdfHours.reduce((sum, h) => {
+          const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+          const notu = Number(h.horas_noturnas || 0);
+          const tfNorm = Number(h.tarifa_faturada || 0);
+          const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+          return sum + (norm * tfNorm) + (notu * tfNotu);
+        }, 0);
         const finalTotalVal = (totalBaseVal + adjustments.incrementos - adjustments.reducoes) * (1 + adjustments.ivaPct / 100);
         const totalHorasCalculadas = effectivePdfHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
         
@@ -5452,7 +5510,10 @@ MCS - Gestão Comercial`;
             workerId: string;
             workerName: string;
             totalHoras: number;
+            totalHorasNormais: number;
+            totalHorasNoturnas: number;
             tarifa: number;
+            tarifaNoturna?: number | null;
             totalValor: number;
           }>();
 
@@ -5465,14 +5526,24 @@ MCS - Gestão Comercial`;
                 workerId: wId,
                 workerName: h.worker?.nome || h.worker?.nombrecompleto || 'Colaborador',
                 totalHoras: 0,
+                totalHorasNormais: 0,
+                totalHorasNoturnas: 0,
                 tarifa: Number(h.tarifa_faturada || 0),
+                tarifaNoturna: h.tarifa_faturada_noturna ? Number(h.tarifa_faturada_noturna) : null,
                 totalValor: 0
               });
             }
 
             const wObj = workersMap.get(wId)!;
+            const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+            const notu = Number(h.horas_noturnas || 0);
+            const tfNorm = Number(h.tarifa_faturada || 0);
+            const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+
             wObj.totalHoras += Number(h.horas_totais || 0);
-            wObj.totalValor += Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0);
+            wObj.totalHorasNormais += norm;
+            wObj.totalHorasNoturnas += notu;
+            wObj.totalValor += (norm * tfNorm) + (notu * tfNotu);
           });
 
           return Array.from(workersMap.values());
@@ -5593,14 +5664,41 @@ MCS - Gestão Comercial`;
                       </tr>
                     </thead>
                     <tbody>
-                      {groupedDisputeWorkersEnriched.map(w => (
-                        <tr key={w.workerId} className="border-b border-slate-150">
-                          <td className="font-semibold text-slate-800 p-2 pl-4">{w.workerName}</td>
-                          <td className="text-right font-medium text-slate-800 p-2">{w.totalHoras.toFixed(2)}h</td>
-                          <td className="text-right font-medium text-slate-800 p-2">€ {w.tarifa.toFixed(2)}</td>
-                          <td className="text-right font-bold text-slate-800 p-2 pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
-                        </tr>
-                      ))}
+                      {groupedDisputeWorkersEnriched.map(w => {
+                        if (w.totalHorasNoturnas > 0) {
+                          const tarifaNotu = w.tarifaNoturna || w.tarifa;
+                          return (
+                            <React.Fragment key={w.workerId}>
+                              {w.totalHorasNormais > 0 && (
+                                <tr className="border-b border-slate-150">
+                                  <td className="font-semibold text-slate-800 p-2 pl-4">
+                                    {w.workerName} <span style={{ fontSize: '10px', color: '#64748b' }}>(Diurnas ☀️)</span>
+                                  </td>
+                                  <td className="text-right font-medium text-slate-800 p-2">{w.totalHorasNormais.toFixed(2)}h</td>
+                                  <td className="text-right font-medium text-slate-800 p-2">€ {w.tarifa.toFixed(2)}</td>
+                                  <td className="text-right font-bold text-slate-800 p-2 pr-4">€ {(w.totalHorasNormais * w.tarifa).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                                </tr>
+                              )}
+                              <tr className="border-b border-slate-150 bg-indigo-50/20">
+                                <td className="font-semibold text-slate-800 p-2 pl-4">
+                                  {w.workerName} <span style={{ fontSize: '10px', color: '#4f46e5' }}>(Noturnas 🌙)</span>
+                                </td>
+                                <td className="text-right font-medium text-indigo-700 p-2">{w.totalHorasNoturnas.toFixed(2)}h</td>
+                                <td className="text-right font-medium text-indigo-700 p-2">€ {tarifaNotu.toFixed(2)}</td>
+                                <td className="text-right font-bold text-indigo-700 p-2 pr-4">€ {(w.totalHorasNoturnas * tarifaNotu).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                              </tr>
+                            </React.Fragment>
+                          );
+                        }
+                        return (
+                          <tr key={w.workerId} className="border-b border-slate-150">
+                            <td className="font-semibold text-slate-800 p-2 pl-4">{w.workerName}</td>
+                            <td className="text-right font-medium text-slate-800 p-2">{w.totalHoras.toFixed(2)}h</td>
+                            <td className="text-right font-medium text-slate-800 p-2">€ {w.tarifa.toFixed(2)}</td>
+                            <td className="text-right font-bold text-slate-800 p-2 pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+                          </tr>
+                        );
+                      })}
                       <tr className="bg-slate-50 font-bold">
                         <td className="text-slate-800 p-2 pl-4">Totales</td>
                         <td className="text-right text-slate-800 p-2">{totalHorasCalculadas.toFixed(2)}h</td>

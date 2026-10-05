@@ -190,7 +190,10 @@ export interface ClientBillingSummary {
     codColab: string;
     perfil: string;
     tarifa: number;
+    tarifaNoturna?: number | null;
     totalHoras: number;
+    totalHorasNormais?: number;
+    totalHorasNoturnas?: number;
     totalValor: number;
     totalHorasMes?: number;
     totalValorMes?: number;
@@ -204,7 +207,10 @@ export interface ClientBillingSummary {
     horasDiarias: Record<string, {
       id?: string;
       horas_totais: number;
+      horas_normais?: number;
+      horas_noturnas?: number;
       tarifa_faturada: number;
+      tarifa_faturada_noturna?: number | null;
       data_trabalho: string;
       funcao_id?: string;
       obra?: string | null;
@@ -2200,7 +2206,7 @@ export async function sincronizarTarifasFaturamento(
   const { data: exceptions, error: excError } = await supabase
     .schema('core_common')
     .from('client_worker_tariffs')
-    .select('worker_id, client_site_id, valor_tarifa')
+    .select('worker_id, client_site_id, valor_tarifa, valor_tarifa_noturna')
     .eq('client_id', clientId);
 
   if (excError) throw mapSupabaseError(excError);
@@ -2210,7 +2216,7 @@ export async function sincronizarTarifasFaturamento(
   const { data: tariffs, error: tarError } = await supabase
     .schema('core_common')
     .from('client_tariffs')
-    .select('job_function_id, client_site_id, valor_tarifa')
+    .select('job_function_id, client_site_id, valor_tarifa, valor_tarifa_noturna')
     .eq('client_id', clientId);
 
   if (tarError) throw mapSupabaseError(tarError);
@@ -2230,7 +2236,7 @@ export async function sincronizarTarifasFaturamento(
   const { data: hours, error: hrError } = await supabase
     .schema('core_finance')
     .from('horas_trabalhadas')
-    .select('id, worker_id, funcao_id, obra_id, tarifa_faturada')
+    .select('id, worker_id, funcao_id, obra_id, tarifa_faturada, tarifa_faturada_noturna')
     .eq('client_id', clientId)
     .gte('data_trabalho', startDateStr)
     .lte('data_trabalho', endDateStr);
@@ -2279,14 +2285,21 @@ export async function sincronizarTarifasFaturamento(
 
     // Resolve tariff
     let resolvedTariff = 27.00;
+    let resolvedTariffNoturna: number | null = null;
 
     const wExcSite = workerExceptions.find(e => e.worker_id === workerId && e.client_site_id === siteId);
     if (wExcSite) {
       resolvedTariff = Number(wExcSite.valor_tarifa);
+      resolvedTariffNoturna = wExcSite.valor_tarifa_noturna !== null && wExcSite.valor_tarifa_noturna !== undefined
+        ? Number(wExcSite.valor_tarifa_noturna)
+        : resolvedTariff;
     } else {
       const wExcGlobal = workerExceptions.find(e => e.worker_id === workerId && e.client_site_id === null);
       if (wExcGlobal) {
         resolvedTariff = Number(wExcGlobal.valor_tarifa);
+        resolvedTariffNoturna = wExcGlobal.valor_tarifa_noturna !== null && wExcGlobal.valor_tarifa_noturna !== undefined
+          ? Number(wExcGlobal.valor_tarifa_noturna)
+          : resolvedTariff;
       } else {
         let stdSite = standardTariffs.find(t => t.job_function_id === funcId && t.client_site_id === siteId);
         if (!stdSite && !siteId) {
@@ -2296,22 +2309,35 @@ export async function sincronizarTarifasFaturamento(
 
         if (stdSite) {
           resolvedTariff = Number(stdSite.valor_tarifa);
+          resolvedTariffNoturna = stdSite.valor_tarifa_noturna !== null && stdSite.valor_tarifa_noturna !== undefined
+            ? Number(stdSite.valor_tarifa_noturna)
+            : resolvedTariff;
         } else {
           const stdGlobal = standardTariffs.find(t => t.job_function_id === funcId && t.client_site_id === null);
           if (stdGlobal) {
             resolvedTariff = Number(stdGlobal.valor_tarifa);
+            resolvedTariffNoturna = stdGlobal.valor_tarifa_noturna !== null && stdGlobal.valor_tarifa_noturna !== undefined
+              ? Number(stdGlobal.valor_tarifa_noturna)
+              : resolvedTariff;
           } else {
             resolvedTariff = targetFuncName.toLowerCase().includes('soldador') ? 25.50 : (targetFuncName.toLowerCase().includes('tubero') ? 28.00 : 27.00);
+            resolvedTariffNoturna = resolvedTariff;
           }
         }
       }
     }
 
-    if (Number(h.tarifa_faturada) !== resolvedTariff) {
+    const needsTariffUpdate = Number(h.tarifa_faturada) !== resolvedTariff ||
+      (resolvedTariffNoturna !== null && Number(h.tarifa_faturada_noturna) !== resolvedTariffNoturna);
+
+    if (needsTariffUpdate) {
       const { error: updError } = await supabase
         .schema('core_finance')
         .from('horas_trabalhadas')
-        .update({ tarifa_faturada: resolvedTariff })
+        .update({ 
+          tarifa_faturada: resolvedTariff,
+          tarifa_faturada_noturna: resolvedTariffNoturna
+        })
         .eq('id', h.id);
 
       if (updError) throw mapSupabaseError(updError);
