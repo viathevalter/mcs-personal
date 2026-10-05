@@ -3,7 +3,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-import { Loader2, Save, X, Sparkles, ZoomIn, ZoomOut, Maximize, Clock, Building2, Briefcase, User, Wrench, Calendar, CheckCircle2 } from 'lucide-react';
+import { Loader2, Save, X, Sparkles, ZoomIn, ZoomOut, Maximize, Clock, Building2, Briefcase, User, Wrench, Calendar, CheckCircle2, FileText, Smartphone, RefreshCw } from 'lucide-react';
 import { Badge } from '../../components/ui/badge';
 import { supabase } from '../../shared/supabase/client';
 import { toast } from 'sonner';
@@ -110,6 +110,8 @@ export function ValidationScreen({
     const [jobFunctions, setJobFunctions] = useState<{ id: string; name: string }[]>([]);
     const [ocrSnapshot, setOcrSnapshot] = useState<Record<number, { inicio: string; fim: string; totalHoras: string }>>({});
     const [selectedDays, setSelectedDays] = useState<number[]>([]);
+    const [portalDrafts, setPortalDrafts] = useState<any[]>([]);
+    const [leftTab, setLeftTab] = useState<'document' | 'portal'>('document');
     const [supervisorSignature, setSupervisorSignature] = useState<{
         signedAt: string | null;
         signedIp: string | null;
@@ -305,25 +307,41 @@ export function ValidationScreen({
                 const { data: whData } = await supabase
                     .schema('core_personal')
                     .from('worker_hours')
-                    .select('apontamentos_diarios, signed_at, signed_ip, encarregado_nome, signature_image_url, status')
+                    .select('id, apontamentos_diarios, signed_at, signed_ip, encarregado_nome, signature_image_url, status, total_horas_normais, total_horas_noturnas, horas_totais')
                     .eq('id', recordId)
                     .maybeSingle();
                 
                 workerHourRec = whData;
-                if (whData) {
-                    setSupervisorSignature({
-                        signedAt: whData.signed_at,
-                        signedIp: whData.signed_ip,
-                        encarregadoNome: whData.encarregado_nome,
-                        signatureImageUrl: whData.signature_image_url,
-                        status: whData.status
-                    });
-                }
+            } else if (workerId) {
+                const { data: whData } = await supabase
+                    .schema('core_personal')
+                    .from('worker_hours')
+                    .select('id, apontamentos_diarios, signed_at, signed_ip, encarregado_nome, signature_image_url, status, total_horas_normais, total_horas_noturnas, horas_totais')
+                    .eq('worker_id', workerId)
+                    .eq('period_year', year)
+                    .eq('period_month', month)
+                    .maybeSingle();
+                
+                workerHourRec = whData;
+            }
+
+            if (workerHourRec) {
+                setSupervisorSignature({
+                    signedAt: workerHourRec.signed_at,
+                    signedIp: workerHourRec.signed_ip,
+                    encarregadoNome: workerHourRec.encarregado_nome,
+                    signatureImageUrl: workerHourRec.signature_image_url,
+                    status: workerHourRec.status
+                });
             }
 
             const draftsList: any[] = Array.isArray(workerHourRec?.apontamentos_diarios) 
                 ? workerHourRec.apontamentos_diarios 
                 : [];
+            setPortalDrafts(draftsList);
+            if (!fileUrl && draftsList.length > 0) {
+                setLeftTab('portal');
+            }
 
             // Generate days of month
             const numDays = new Date(year, month, 0).getDate();
@@ -342,7 +360,7 @@ export function ValidationScreen({
                 const dbRec = existingHours?.find(h => h.data_trabalho === dayStr);
 
                 // Fallback to worker portal draft entry if not yet inserted into horas_trabalhadas
-                const draftRec = draftsList.find((d: any) => d.day === dayNum);
+                const draftRec = draftsList.find((d: any) => Number(d.day ?? d.dia) === dayNum);
 
                 // Apply pre-selection logic for obra: if exactly 1 site exists, always pre-select it
                 let initialObra = '';
@@ -356,25 +374,35 @@ export function ValidationScreen({
 
                 const inicioVal = dbRec?.hora_inicio 
                     ? dbRec.hora_inicio.substring(0, 5) 
-                    : (draftRec?.inicio || '');
+                    : (draftRec?.inicio || draftRec?.entrada || '');
 
                 const fimVal = dbRec?.hora_fim 
                     ? dbRec.hora_fim.substring(0, 5) 
-                    : (draftRec?.fim || '');
+                    : (draftRec?.fim || draftRec?.saida || '');
 
-                const totalHorasVal = dbRec?.horas_totais !== undefined && dbRec?.horas_totais !== null 
-                    ? String(dbRec.horas_totais) 
-                    : (draftRec?.total_horas !== undefined && draftRec?.total_horas !== null ? String(draftRec.total_horas) : '');
+                const rawNormais = draftRec?.horasNormais ?? draftRec?.horas_normais;
+                const rawNoturnas = draftRec?.horasNoturnas ?? draftRec?.horas_noturnas;
+                const rawTotal = draftRec?.totalHoras ?? draftRec?.total_horas;
 
                 const normaisVal = dbRec?.horas_normais !== undefined && dbRec?.horas_normais !== null
                     ? String(dbRec.horas_normais)
-                    : (draftRec?.horas_normais !== undefined && draftRec?.horas_normais !== null 
-                        ? String(draftRec.horas_normais) 
-                        : totalHorasVal);
+                    : (rawNormais !== undefined && rawNormais !== null && String(rawNormais) !== ''
+                        ? String(rawNormais)
+                        : (rawTotal !== undefined && rawTotal !== null && String(rawTotal) !== '' ? String(rawTotal) : ''));
 
                 const noturnasVal = dbRec?.horas_noturnas !== undefined && dbRec?.horas_noturnas !== null
                     ? String(dbRec.horas_noturnas)
-                    : (draftRec?.horas_noturnas !== undefined && draftRec?.horas_noturnas !== null ? String(draftRec.horas_noturnas) : '0');
+                    : (rawNoturnas !== undefined && rawNoturnas !== null && String(rawNoturnas) !== ''
+                        ? String(rawNoturnas)
+                        : '0');
+
+                const totalHorasVal = dbRec?.horas_totais !== undefined && dbRec?.horas_totais !== null 
+                    ? String(dbRec.horas_totais) 
+                    : (rawTotal !== undefined && rawTotal !== null && String(rawTotal) !== ''
+                        ? String(rawTotal)
+                        : (Number(normaisVal || 0) + Number(noturnasVal || 0) > 0 
+                            ? String(Number(normaisVal || 0) + Number(noturnasVal || 0)) 
+                            : ''));
 
                 return {
                     day: dayNum,
@@ -592,6 +620,45 @@ export function ValidationScreen({
         setSelectedDays([]);
     };
 
+    const handleReloadPortalValues = () => {
+        if (!portalDrafts || portalDrafts.length === 0) {
+            toast.error("Nenhum apontamento do portal disponível para este trabalhador.");
+            return;
+        }
+
+        setRecords(prev => prev.map(r => {
+            const draftRec = portalDrafts.find((d: any) => Number(d.day ?? d.dia) === r.day);
+            if (!draftRec) return r;
+
+            const rawNormais = draftRec?.horasNormais ?? draftRec?.horas_normais;
+            const rawNoturnas = draftRec?.horasNoturnas ?? draftRec?.horas_noturnas;
+            const rawTotal = draftRec?.totalHoras ?? draftRec?.total_horas;
+
+            const inicioVal = draftRec?.inicio || draftRec?.entrada || '';
+            const fimVal = draftRec?.fim || draftRec?.saida || '';
+            const normaisVal = rawNormais !== undefined && rawNormais !== null && String(rawNormais) !== '' 
+                ? String(rawNormais) 
+                : (rawTotal !== undefined && rawTotal !== null && String(rawTotal) !== '' ? String(rawTotal) : '');
+            const noturnasVal = rawNoturnas !== undefined && rawNoturnas !== null && String(rawNoturnas) !== '' 
+                ? String(rawNoturnas) 
+                : '0';
+            const totalHorasVal = rawTotal !== undefined && rawTotal !== null && String(rawTotal) !== '' 
+                ? String(rawTotal) 
+                : (Number(normaisVal || 0) + Number(noturnasVal || 0) > 0 ? String(Number(normaisVal || 0) + Number(noturnasVal || 0)) : '');
+
+            return {
+                ...r,
+                inicio: inicioVal,
+                fim: fimVal,
+                horasNormais: normaisVal,
+                horasNoturnas: noturnasVal,
+                totalHoras: totalHorasVal
+            };
+        }));
+
+        toast.success("Apontamentos digitais do portal carregados na tabela com sucesso!");
+    };
+
     const handleSave = async () => {
         if (!clientId) {
             toast.error("ID do cliente não encontrado. Não é possível salvar.");
@@ -774,53 +841,201 @@ export function ValidationScreen({
 
     return (
         <div className="flex flex-col lg:flex-row h-full w-full gap-4 p-4 bg-background">
-            <Card className="flex-1 lg:w-1/2 flex flex-col overflow-hidden border">
-                <div className="bg-muted px-4 py-3 border-b flex justify-between items-center">
-                    <h3 className="font-semibold text-lg">Documento: {workerName}</h3>
+            <Card className="flex-1 lg:w-1/2 flex flex-col overflow-hidden border shadow-sm rounded-2xl bg-white">
+                <div className="bg-slate-50/80 px-4 py-3 border-b flex justify-between items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-slate-200/70 p-1 rounded-xl">
+                            <button
+                                type="button"
+                                onClick={() => setLeftTab('document')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                    leftTab === 'document'
+                                        ? 'bg-white text-slate-800 shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                <FileText className="h-3.5 w-3.5" />
+                                Documento Físico
+                                {fileUrl && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 ml-1" />}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setLeftTab('portal')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+                                    leftTab === 'portal'
+                                        ? 'bg-white text-indigo-700 shadow-xs'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                            >
+                                <Smartphone className="h-3.5 w-3.5" />
+                                Portal Digital
+                                {portalDrafts.length > 0 && (
+                                    <span className="bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-1">
+                                        {portalDrafts.filter((d: any) => Number(d.total_horas ?? d.totalHoras ?? 0) > 0).length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    </div>
                     {onClose && (
-                        <Button variant="ghost" size="icon" onClick={onClose}>
-                            <X className="h-5 w-5" />
+                        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 text-slate-400 hover:text-slate-700">
+                            <X className="h-4 w-4" />
                         </Button>
                     )}
                 </div>
-                <div className="flex-1 bg-muted/30 relative flex items-center justify-center overflow-hidden">
-                    {fileUrl ? (
-                        isPdf ? (
-                            <iframe 
-                                src={fileUrl.includes('#') ? fileUrl : `${fileUrl}#navpanes=0`} 
-                                className="w-full h-full rounded-md border-0 bg-white"
-                                title="Document Viewer"
-                            />
+
+                <div className="flex-1 bg-muted/20 relative flex flex-col overflow-hidden">
+                    {leftTab === 'document' ? (
+                        fileUrl ? (
+                            isPdf ? (
+                                <iframe 
+                                    src={fileUrl.includes('#') ? fileUrl : `${fileUrl}#navpanes=0`} 
+                                    className="w-full h-full rounded-b-2xl border-0 bg-white"
+                                    title="Document Viewer"
+                                />
+                            ) : (
+                                <div className="w-full h-full relative flex flex-col items-center rounded-b-2xl overflow-hidden bg-black/5">
+                                    <div className="absolute top-2 right-2 flex gap-1 z-10 bg-white/90 p-1 rounded-md shadow-sm border backdrop-blur-sm">
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setImageZoom(z => Math.max(0.25, z - 0.25))} title="Diminuir Zoom">
+                                            <ZoomOut className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setImageZoom(1)} title="Ajustar à tela">
+                                            <Maximize className="h-4 w-4" />
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setImageZoom(z => Math.min(4, z + 0.25))} title="Aumentar Zoom">
+                                            <ZoomIn className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                    <div className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-2">
+                                        <img 
+                                            src={fileUrl} 
+                                            alt="Documento de Horas" 
+                                            style={{ 
+                                                transform: `scale(${imageZoom})`,
+                                                transformOrigin: 'center center',
+                                                transition: 'transform 0.15s ease-in-out'
+                                            }}
+                                            className={imageZoom === 1 ? "max-w-full max-h-full object-contain rounded" : "rounded shadow-md"}
+                                        />
+                                    </div>
+                                </div>
+                            )
                         ) : (
-                            <div className="w-full h-full relative flex flex-col items-center rounded-md overflow-hidden bg-black/5">
-                                <div className="absolute top-2 right-2 flex gap-1 z-10 bg-white/90 p-1 rounded-md shadow-sm border backdrop-blur-sm">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setImageZoom(z => Math.max(0.25, z - 0.25))} title="Diminuir Zoom">
-                                        <ZoomOut className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setImageZoom(1)} title="Ajustar à tela">
-                                        <Maximize className="h-4 w-4" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setImageZoom(z => Math.min(4, z + 0.25))} title="Aumentar Zoom">
-                                        <ZoomIn className="h-4 w-4" />
-                                    </Button>
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                                <div className="p-3 bg-slate-100 rounded-2xl text-slate-400 mb-3">
+                                    <FileText className="h-8 w-8" />
                                 </div>
-                                <div className="flex-1 w-full h-full overflow-auto flex items-center justify-center p-2">
-                                    <img 
-                                        src={fileUrl} 
-                                        alt="Documento de Horas" 
-                                        style={{ 
-                                            transform: `scale(${imageZoom})`,
-                                            transformOrigin: 'center center',
-                                            transition: 'transform 0.15s ease-in-out'
-                                        }}
-                                        className={imageZoom === 1 ? "max-w-full max-h-full object-contain rounded" : "rounded shadow-md"}
-                                    />
-                                </div>
+                                <h4 className="font-semibold text-slate-700 text-sm">Sem anexo físico nesta folha</h4>
+                                <p className="text-xs text-slate-500 max-w-xs mt-1">
+                                    {portalDrafts.length > 0 
+                                        ? "O trabalhador realizou o apontamento diretamente pelo Portal Digital do Trabalhador."
+                                        : "Nenhum arquivo ou documento físico foi carregado para este período."}
+                                </p>
+                                {portalDrafts.length > 0 && (
+                                    <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => setLeftTab('portal')}
+                                        className="mt-4 text-xs font-semibold text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                    >
+                                        <Smartphone className="h-3.5 w-3.5 mr-1.5" />
+                                        Ver Apontamentos do Portal ({portalDrafts.filter((d: any) => Number(d.total_horas ?? d.totalHoras ?? 0) > 0).length} dias)
+                                    </Button>
+                                )}
                             </div>
                         )
                     ) : (
-                        <div className="text-muted-foreground flex flex-col items-center">
-                            <span className="mb-2">Nenhum documento selecionado para visualização.</span>
+                        <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
+                            {/* Header de Resumo do Portal */}
+                            <div className="p-4 bg-white border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Apontamentos do Portal</span>
+                                        {supervisorSignature?.signedAt ? (
+                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-semibold">
+                                                ✓ Assinado pelo Encarregado
+                                            </Badge>
+                                        ) : (
+                                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] font-semibold">
+                                                Rascunho / Em Andamento
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                        Dados informados pelo trabalhador {workerName} para o mês {month}/{year}.
+                                    </p>
+                                </div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleReloadPortalValues}
+                                    className="text-xs font-semibold text-indigo-700 border-indigo-200 hover:bg-indigo-50 shrink-0"
+                                >
+                                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                                    Carregar na Tabela
+                                </Button>
+                            </div>
+
+                            {/* Tabela de Consulta do Portal */}
+                            <div className="flex-1 overflow-auto p-4">
+                                {portalDrafts.length === 0 ? (
+                                    <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                                        <Smartphone className="h-8 w-8 mb-2 opacity-50" />
+                                        <span className="text-sm font-semibold">Nenhum apontamento feito pelo portal</span>
+                                        <span className="text-xs mt-1">O trabalhador ainda não submeteu horas pelo app/portal neste mês.</span>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50">
+                                                <TableRow className="text-[11px] font-bold text-slate-600">
+                                                    <TableHead className="w-16">Dia</TableHead>
+                                                    <TableHead>Horário</TableHead>
+                                                    <TableHead className="text-right">Diurnas</TableHead>
+                                                    <TableHead className="text-right">Noturnas</TableHead>
+                                                    <TableHead className="text-right font-black">Total</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody className="text-xs">
+                                                {portalDrafts
+                                                    .filter((d: any) => {
+                                                        const tot = Number(d.total_horas ?? d.totalHoras ?? 0);
+                                                        const ini = d.inicio || d.entrada;
+                                                        return tot > 0 || !!ini;
+                                                    })
+                                                    .sort((a: any, b: any) => Number(a.day ?? a.dia) - Number(b.day ?? b.dia))
+                                                    .map((d: any) => {
+                                                        const dayNum = Number(d.day ?? d.dia);
+                                                        const ini = d.inicio || d.entrada || '-';
+                                                        const fim = d.fim || d.saida || '-';
+                                                        const norm = Number(d.horas_normais ?? d.horasNormais ?? 0);
+                                                        const notu = Number(d.horas_noturnas ?? d.horasNoturnas ?? 0);
+                                                        const tot = Number(d.total_horas ?? d.totalHoras ?? (norm + notu));
+                                                        return (
+                                                            <TableRow key={dayNum} className="hover:bg-slate-50/80">
+                                                                <TableCell className="font-bold text-slate-700">
+                                                                    Dia {String(dayNum).padStart(2, '0')}
+                                                                </TableCell>
+                                                                <TableCell className="text-slate-500 font-mono text-[11px]">
+                                                                    {ini} às {fim}
+                                                                </TableCell>
+                                                                <TableCell className="text-right text-slate-700">
+                                                                    {norm > 0 ? `${norm.toFixed(1)}h` : '-'}
+                                                                </TableCell>
+                                                                <TableCell className="text-right text-amber-600 font-medium">
+                                                                    {notu > 0 ? `${notu.toFixed(1)}h` : '-'}
+                                                                </TableCell>
+                                                                <TableCell className="text-right font-black text-indigo-700">
+                                                                    {tot.toFixed(1)}h
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -946,6 +1161,27 @@ export function ValidationScreen({
                                 />
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Banner de Sincronização do Portal */}
+                {portalDrafts.length > 0 && (
+                    <div className="bg-indigo-50/70 border-b border-indigo-100 px-5 py-2.5 flex items-center justify-between flex-wrap gap-2 text-xs text-indigo-900">
+                        <div className="flex items-center gap-2">
+                            <span className="flex h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
+                            <span>
+                                <strong>Apontamento Digital Detectado:</strong> O trabalhador informou horas via portal ({portalDrafts.filter((d: any) => Number(d.total_horas ?? d.totalHoras ?? 0) > 0).length} dias preenchidos).
+                            </span>
+                        </div>
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={handleReloadPortalValues}
+                            className="h-7 px-2.5 text-xs font-bold text-indigo-700 bg-white hover:bg-indigo-100/70 border border-indigo-200 rounded-lg shadow-2xs"
+                        >
+                            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                            Recarregar Horas do Portal na Tabela
+                        </Button>
                     </div>
                 )}
 

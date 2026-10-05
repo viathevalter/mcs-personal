@@ -1,43 +1,10 @@
--- Migration: 20261003220000_worker_portal_evolution_and_night_tariffs.sql
--- Description: Evolution of worker portal, night tariffs support, online timesheet drafts and supervisor digital signature via OTP
+const { Client } = require('pg');
 
--- 1. Client Tariffs & Worker Exceptions: Add night tariff columns
-ALTER TABLE core_common.client_tariffs 
-ADD COLUMN IF NOT EXISTS valor_tarifa_noturna NUMERIC(10, 2);
+const devConnectionString = 'postgresql://postgres.pyahcgorkvwfwmlzspnv:Stkrt%40Dev2026@aws-1-eu-central-1.pooler.supabase.com:5432/postgres';
+const prodConnectionString = 'postgresql://postgres.unbepkdzvsfvylnysrcq:Stkrt%402026%23%40%23@aws-1-eu-west-1.pooler.supabase.com:5432/postgres';
 
-ALTER TABLE core_common.client_worker_tariffs 
-ADD COLUMN IF NOT EXISTS valor_tarifa_noturna NUMERIC(10, 2);
-
--- 2. Horas Trabalhadas: Support normal and night hours separation
-ALTER TABLE core_finance.horas_trabalhadas 
-ADD COLUMN IF NOT EXISTS horas_normais NUMERIC(10, 2) DEFAULT 0,
-ADD COLUMN IF NOT EXISTS horas_noturnas NUMERIC(10, 2) DEFAULT 0,
-ADD COLUMN IF NOT EXISTS tarifa_faturada_noturna NUMERIC(10, 2);
-
--- 3. Worker Hours: Draft tracking, daily entries, and supervisor signature
-ALTER TABLE core_personal.worker_hours 
-ADD COLUMN IF NOT EXISTS apontamentos_diarios JSONB DEFAULT '[]'::jsonb,
-ADD COLUMN IF NOT EXISTS total_horas_normais NUMERIC(10, 2) DEFAULT 0,
-ADD COLUMN IF NOT EXISTS total_horas_noturnas NUMERIC(10, 2) DEFAULT 0,
-ADD COLUMN IF NOT EXISTS signature_token UUID DEFAULT gen_random_uuid(),
-ADD COLUMN IF NOT EXISTS encarregado_nome TEXT,
-ADD COLUMN IF NOT EXISTS encarregado_email TEXT,
-ADD COLUMN IF NOT EXISTS encarregado_telefone TEXT,
-ADD COLUMN IF NOT EXISTS otp_code VARCHAR(10),
-ADD COLUMN IF NOT EXISTS otp_expires_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS signed_at TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS signed_ip TEXT,
-ADD COLUMN IF NOT EXISTS signature_image_url TEXT,
-ADD COLUMN IF NOT EXISTS rejection_notes TEXT;
-
--- Index for fast token lookups on supervisor signature
-CREATE INDEX IF NOT EXISTS idx_worker_hours_signature_token ON core_personal.worker_hours(signature_token);
-
--- 4. Holerites: Portal publication flag
-ALTER TABLE core_personal.holerites 
-ADD COLUMN IF NOT EXISTS publicado_portal BOOLEAN DEFAULT TRUE;
-
--- 5. RPC: Get Worker Holerites for Portal (Secure by worker credentials)
+const sql = `
+-- 1. Fix get_worker_holerites_portal (remove dnie)
 CREATE OR REPLACE FUNCTION public.get_worker_holerites_portal(
     p_worker_id UUID,
     p_pasaporte TEXT
@@ -111,7 +78,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_worker_holerites_portal(UUID, TEXT) TO anon, authenticated, service_role;
 
--- 6. RPC: Save Worker Timesheet Draft (Daily continuous recording)
+-- 2. Fix save_worker_timesheet_draft (remove dnie)
 CREATE OR REPLACE FUNCTION public.save_worker_timesheet_draft(
     p_worker_id UUID,
     p_pasaporte TEXT,
@@ -173,7 +140,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.save_worker_timesheet_draft(UUID, TEXT, UUID, JSONB, NUMERIC, NUMERIC) TO anon, authenticated, service_role;
 
--- 7. RPC: Request Timesheet Signature (Generates OTP and signature link)
+-- 3. Fix request_timesheet_signature (remove dnie)
 CREATE OR REPLACE FUNCTION public.request_timesheet_signature(
     p_worker_id UUID,
     p_pasaporte TEXT,
@@ -234,118 +201,28 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.request_timesheet_signature(UUID, TEXT, UUID, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+`;
 
--- 8. RPC: Get Timesheet For Signature (Called by the supervisor via token, no login needed)
-CREATE OR REPLACE FUNCTION public.get_signature_timesheet(
-    p_token UUID
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_rec RECORD;
-BEGIN
-    SELECT 
-        wh.id,
-        wh.worker_id,
-        w.nome AS worker_nome,
-        w.pasaporte AS worker_pasaporte,
-        w.funcion AS worker_funcion,
-        wh.cliente_nombre,
-        wh.empresa_id,
-        emp.nome AS empresa_nome,
-        emp.nif AS empresa_nif,
-        wh.period_year,
-        wh.period_month,
-        wh.apontamentos_diarios,
-        wh.total_horas_normais,
-        wh.total_horas_noturnas,
-        wh.horas_totais,
-        wh.status,
-        wh.encarregado_nome,
-        wh.encarregado_email,
-        wh.encarregado_telefone,
-        wh.signed_at,
-        wh.signed_ip,
-        wh.signature_image_url
-    INTO v_rec
-    FROM core_personal.worker_hours wh
-    JOIN core_personal.workers w ON w.id = wh.worker_id
-    LEFT JOIN public.empresas emp ON emp.id = wh.empresa_id
-    WHERE wh.signature_token = p_token
-    LIMIT 1;
+async function runOnDb(name, connStr) {
+    const client = new Client({ connectionString: connStr });
+    try {
+        await client.connect();
+        console.log(`Connected to ${name} database.`);
+        await client.query(sql);
+        console.log(`Successfully fixed RPCs on ${name} DB!`);
+    } catch (err) {
+        console.error(`Error applying fix to ${name} DB:`, err);
+    } finally {
+        await client.end();
+    }
+}
 
-    IF v_rec.id IS NULL THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Folha de horas não encontrada ou link expirado');
-    END IF;
+async function main() {
+    console.log("Applying fix to DEV database...");
+    await runOnDb('DEV', devConnectionString);
 
-    RETURN jsonb_build_object(
-        'success', true,
-        'timesheet', row_to_json(v_rec)
-    );
-END;
-$$;
+    console.log("Applying fix to PROD database...");
+    await runOnDb('PROD', prodConnectionString);
+}
 
-GRANT EXECUTE ON FUNCTION public.get_signature_timesheet(UUID) TO anon, authenticated, service_role;
-
--- 9. RPC: Sign Timesheet By Supervisor
-CREATE OR REPLACE FUNCTION public.sign_timesheet_encarregado(
-    p_token UUID,
-    p_otp_code TEXT,
-    p_signature_image TEXT,
-    p_encarregado_nome TEXT,
-    p_ip TEXT,
-    p_user_agent TEXT
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-DECLARE
-    v_rec RECORD;
-BEGIN
-    SELECT id, otp_code, otp_expires_at, status
-    INTO v_rec
-    FROM core_personal.worker_hours
-    WHERE signature_token = p_token
-    LIMIT 1;
-
-    IF v_rec.id IS NULL THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Folha não encontrada');
-    END IF;
-
-    IF v_rec.status IN ('assinado_encarregado', 'validado') THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Esta folha de horas já foi assinada anteriormente.');
-    END IF;
-
-    -- Validate OTP
-    IF v_rec.otp_code IS NOT NULL AND TRIM(v_rec.otp_code) <> TRIM(p_otp_code) THEN
-        RETURN jsonb_build_object('success', false, 'error', 'Código de verificação OTP incorreto.');
-    END IF;
-
-    IF v_rec.otp_expires_at IS NOT NULL AND v_rec.otp_expires_at < NOW() THEN
-        RETURN jsonb_build_object('success', false, 'error', 'O código OTP expirou. Peça ao trabalhador para gerar um novo envio.');
-    END IF;
-
-    -- Mark as signed
-    UPDATE core_personal.worker_hours
-    SET status = 'assinado_encarregado',
-        signed_at = NOW(),
-        signed_ip = p_ip,
-        signature_image_url = p_signature_image,
-        encarregado_nome = COALESCE(NULLIF(TRIM(p_encarregado_nome), ''), encarregado_nome),
-        otp_code = NULL,
-        otp_expires_at = NULL,
-        updated_at = NOW()
-    WHERE id = v_rec.id;
-
-    RETURN jsonb_build_object(
-        'success', true,
-        'message', 'Folha de horas aprovada e assinada com sucesso!',
-        'signed_at', NOW()
-    );
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.sign_timesheet_encarregado(UUID, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated, service_role;
+main();

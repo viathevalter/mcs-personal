@@ -52,22 +52,25 @@ export function WorkerTimesheetEditor({
 
     // Initialize daily records from existing draft or create empty days
     const [days, setDays] = useState<TimesheetDayEntry[]>(() => {
-        const existing = (period.apontamentos_diarios as TimesheetDayEntry[]) || [];
+        const existing = (period.apontamentos_diarios as any[]) || [];
         const initial: TimesheetDayEntry[] = [];
 
         for (let d = 1; d <= totalDaysInMonth; d++) {
-            const found = existing.find((item) => Number(item.dia) === d);
+            const found = existing.find((item) => Number(item.dia ?? item.day) === d);
             const dateObj = new Date(period.period_year, period.period_month - 1, d);
             const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
 
             if (found) {
+                const norm = Number(found.horasNormais ?? found.horas_normais ?? (isWeekend ? 0 : 0));
+                const not = Number(found.horasNoturnas ?? found.horas_noturnas ?? 0);
+                const tot = Number(found.totalHoras ?? found.total_horas ?? (norm + not));
                 initial.push({
                     dia: d,
-                    entrada: found.entrada || '',
-                    saida: found.saida || '',
-                    horasNormais: found.horasNormais ?? (isWeekend ? 0 : 0),
-                    horasNoturnas: found.horasNoturnas ?? 0,
-                    totalHoras: found.totalHoras ?? 0,
+                    entrada: found.entrada || found.inicio || '',
+                    saida: found.saida || found.fim || '',
+                    horasNormais: norm,
+                    horasNoturnas: not,
+                    totalHoras: tot,
                     obs: found.obs || ''
                 });
             } else {
@@ -157,13 +160,29 @@ export function WorkerTimesheetEditor({
     const handleSaveDraft = async () => {
         try {
             setSaving(true);
-            const passport = worker.pasaporte || worker.nie || worker.dnie;
+            const passport = worker.pasaporte || worker.nie;
+
+            const apontamentosFormatted = days.map((d) => ({
+                dia: d.dia,
+                day: d.dia,
+                entrada: d.entrada || '',
+                inicio: d.entrada || '',
+                saida: d.saida || '',
+                fim: d.saida || '',
+                horasNormais: Number(d.horasNormais || 0),
+                horas_normais: Number(d.horasNormais || 0),
+                horasNoturnas: Number(d.horasNoturnas || 0),
+                horas_noturnas: Number(d.horasNoturnas || 0),
+                totalHoras: Number(d.totalHoras || (Number(d.horasNormais || 0) + Number(d.horasNoturnas || 0))),
+                total_horas: Number(d.totalHoras || (Number(d.horasNormais || 0) + Number(d.horasNoturnas || 0))),
+                obs: d.obs || ''
+            }));
 
             const { data, error } = await supabase.rpc('save_worker_timesheet_draft', {
                 p_worker_id: worker.id,
                 p_pasaporte: passport,
                 p_worker_hour_id: period.id,
-                p_apontamentos: days,
+                p_apontamentos: apontamentosFormatted,
                 p_total_normais: totalNormais,
                 p_total_noturnas: totalNoturnas
             });
@@ -193,14 +212,30 @@ export function WorkerTimesheetEditor({
 
         try {
             setRequestingSignature(true);
-            const passport = worker.pasaporte || worker.nie || worker.dnie;
+            const passport = worker.pasaporte || worker.nie;
+
+            const apontamentosFormatted = days.map((d) => ({
+                dia: d.dia,
+                day: d.dia,
+                entrada: d.entrada || '',
+                inicio: d.entrada || '',
+                saida: d.saida || '',
+                fim: d.saida || '',
+                horasNormais: Number(d.horasNormais || 0),
+                horas_normais: Number(d.horasNormais || 0),
+                horasNoturnas: Number(d.horasNoturnas || 0),
+                horas_noturnas: Number(d.horasNoturnas || 0),
+                totalHoras: Number(d.totalHoras || (Number(d.horasNormais || 0) + Number(d.horasNoturnas || 0))),
+                total_horas: Number(d.totalHoras || (Number(d.horasNormais || 0) + Number(d.horasNoturnas || 0))),
+                obs: d.obs || ''
+            }));
 
             // First ensure draft is saved
             await supabase.rpc('save_worker_timesheet_draft', {
                 p_worker_id: worker.id,
                 p_pasaporte: passport,
                 p_worker_hour_id: period.id,
-                p_apontamentos: days,
+                p_apontamentos: apontamentosFormatted,
                 p_total_normais: totalNormais,
                 p_total_noturnas: totalNoturnas
             });
