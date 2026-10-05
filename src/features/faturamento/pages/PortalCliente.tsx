@@ -59,18 +59,48 @@ export function PortalCliente() {
   const [activeTab, setActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
   const [selectedObraId, setSelectedObraId] = useState<string>('all');
 
-  const [editingCell, setEditingCell] = useState<{ workerId: string; dateKey: string } | null>(null);
+  const [editingCell, setEditingCell] = useState<{ workerId: string; dateKey: string; obraId: string } | null>(null);
   const [disputedHours, setDisputedHours] = useState<Record<string, Record<string, number>>>({});
   const [disputeFile, setDisputeFile] = useState<File | null>(null);
+  const [isApproveConfirmOpen, setIsApproveConfirmOpen] = useState(false);
+
+  const getCellKey = React.useCallback((workerId: string, obraId?: string | null) => {
+    return (obraId && obraId !== 'all' && obraId !== 'sem_obra' && obraId !== 'no_obra')
+      ? `${workerId}___${obraId}`
+      : workerId;
+  }, []);
+
+  const getProposedHours = React.useCallback((workerId: string, obraId?: string | null, dateKey?: string): number | undefined => {
+    if (!disputedHours || !dateKey) return undefined;
+
+    // 1. Composite key: workerId___obraId
+    if (obraId && obraId !== 'all' && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+      const compKey = `${workerId}___${obraId}`;
+      if (disputedHours[compKey]?.[dateKey] !== undefined) {
+        return Number(disputedHours[compKey][dateKey]);
+      }
+      // 2. Nested format: disputedHours[obraId][workerId][dateKey]
+      if (disputedHours[obraId]?.[workerId]?.[dateKey] !== undefined) {
+        return Number(disputedHours[obraId][workerId][dateKey]);
+      }
+    }
+
+    // 3. Simple key: workerId (legacy fallback)
+    if (disputedHours[workerId]?.[dateKey] !== undefined) {
+      return Number(disputedHours[workerId][dateKey]);
+    }
+
+    return undefined;
+  }, [disputedHours]);
 
   const totalHorasCalculadas = React.useMemo(() => {
     let sum = 0;
     horas.forEach(h => {
-      const proposed = disputedHours[h.worker_id]?.[h.data_trabalho];
-      sum += proposed !== undefined ? proposed : h.horas_totais;
+      const proposed = getProposedHours(h.worker_id, h.obra_id || 'sem_obra', h.data_trabalho);
+      sum += proposed !== undefined ? proposed : Number(h.horas_totais || 0);
     });
     return sum;
-  }, [horas, disputedHours]);
+  }, [horas, getProposedHours]);
 
   useEffect(() => {
     // Force light mode on this page
@@ -103,6 +133,12 @@ export function PortalCliente() {
       setError(null);
       const data = await getFaturaByToken(token!);
       setFatura(data.fatura);
+
+      // Load previously saved disputed hours if available
+      const savedDisputed = data.fatura?.ajustes_json?.disputed_hours;
+      if (savedDisputed && typeof savedDisputed === 'object') {
+        setDisputedHours(savedDisputed);
+      }
 
       // Group and sum duplicate registry records per worker, date, and obra to preserve separate obras
       const groupedMap = new Map<string, any>();
@@ -141,6 +177,7 @@ export function PortalCliente() {
         title: '¡Muchas gracias!',
         desc: 'Has aprobado el informe de horas correctamente. Ya puedes descargar los documentos adjuntos en los botones de abajo. La factura oficial te será enviada posteriormente por correo electrónico.'
       });
+      setIsApproveConfirmOpen(false);
       await loadData();
     } catch (err: any) {
       console.error(err);
@@ -150,11 +187,12 @@ export function PortalCliente() {
     }
   };
 
-  const handleCellEdit = (workerId: string, dateKey: string, hours: number, originalHours: number) => {
+  const handleCellEdit = (workerId: string, obraId: string, dateKey: string, hours: number, originalHours: number) => {
     if (isNaN(hours) || hours < 0) return;
+    const key = getCellKey(workerId, obraId);
 
     setDisputedHours(prev => {
-      const workerPrev = { ...(prev[workerId] || {}) };
+      const workerPrev = { ...(prev[key] || {}) };
       if (hours === originalHours) {
         delete workerPrev[dateKey];
       } else {
@@ -163,9 +201,9 @@ export function PortalCliente() {
 
       const next = { ...prev };
       if (Object.keys(workerPrev).length === 0) {
-        delete next[workerId];
+        delete next[key];
       } else {
-        next[workerId] = workerPrev;
+        next[key] = workerPrev;
       }
       return next;
     });
@@ -199,10 +237,13 @@ export function PortalCliente() {
   };
 
   const handleDispute = async () => {
-    if (!disputeReason.trim()) {
-      alert("Por favor, informe o motivo do erro.");
+    const hasEdits = Object.keys(disputedHours).length > 0;
+    if (!disputeReason.trim() && !hasEdits) {
+      alert("Por favor, ingrese el motivo de la corrección o ajuste las horas en la planilla.");
       return;
     }
+
+    const finalReason = disputeReason.trim() || 'Ajustes y correcciones de horas solicitados por el cliente en la planilla.';
     
     try {
       setIsSubmitting(true);
@@ -217,7 +258,7 @@ export function PortalCliente() {
         }
       }
 
-      await contestarHorasCliente(token!, fatura!.id, disputeReason, disputedHours, fileUrl);
+      await contestarHorasCliente(token!, fatura!.id, finalReason, disputedHours, fileUrl);
       setIsDisputeModalOpen(false);
       setSubmittedMessage({
         type: 'error',
@@ -608,7 +649,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
         obraGroup.workers.push(worker);
       }
 
-      const proposed = disputedHours[wId]?.[h.data_trabalho];
+      const proposed = getProposedHours(wId, oId, h.data_trabalho);
       const hoursVal = proposed !== undefined ? proposed : Number(h.horas_totais || 0);
 
       worker.totalHoras += hoursVal;
@@ -626,7 +667,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
     });
 
     return Array.from(obraMap.values()).sort((a, b) => a.obraName.localeCompare(b.obraName));
-  }, [horas, disputedHours, fatura]);
+  }, [horas, getProposedHours, fatura]);
 
   const visibleObras = React.useMemo(() => {
     if (selectedObraId === 'all') return groupedObras;
@@ -758,7 +799,19 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
     );
   }
 
-  const isResolved = fatura.status === 'approved' || fatura.status === 'invoice_sent' || fatura.status === 'disputed';
+  const isApproved = fatura.status === 'approved' || fatura.status === 'invoice_sent';
+  const isDisputed = fatura.status === 'disputed';
+  const canEdit = !isApproved;
+
+  const totalEditsCount = React.useMemo(() => {
+    let count = 0;
+    Object.keys(disputedHours).forEach(key => {
+      count += Object.keys(disputedHours[key] || {}).length;
+    });
+    return count;
+  }, [disputedHours]);
+
+  const hasEdits = totalEditsCount > 0;
 
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 flex py-10 px-2 sm:px-4 lg:px-6 font-sans text-left">
@@ -858,20 +911,31 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
         {/* State Banner: Disputed Case */}
         {fatura.status === 'disputed' && (
-          <div className="bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900 rounded-3xl p-6 flex items-start gap-4 text-left shadow-sm">
-            <AlertTriangle className="w-10 h-10 text-rose-600 shrink-0 mt-1" />
-            <div className="space-y-1">
-              <h3 className="text-xl font-extrabold text-rose-900 dark:text-rose-300">
-                Informe de Horas en Disputa
-              </h3>
-              <p className="text-sm font-semibold text-rose-700 dark:text-rose-400 leading-relaxed">
-                Has solicitado una corrección para este informe de horas. Nuestro equipo comercial está revisando tus comentarios y se pondrá en contacto contigo a la brevedad.
-              </p>
+          <div className="bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900 rounded-3xl p-6 flex flex-col sm:flex-row items-start justify-between gap-4 text-left shadow-sm">
+            <div className="flex items-start gap-4">
+              <AlertTriangle className="w-10 h-10 text-rose-600 shrink-0 mt-1" />
+              <div className="space-y-1">
+                <h3 className="text-xl font-extrabold text-rose-900 dark:text-rose-300">
+                  Informe de Horas en Disputa
+                </h3>
+                <p className="text-sm font-semibold text-rose-700 dark:text-rose-400 leading-relaxed">
+                  Has solicitado una corrección para este informe de horas. Nuestro equipo comercial está revisando tus observaciones. Puedes seguir editando las horas en la planilla de abajo para agregar o actualizar tus correcciones si lo necesitas.
+                </p>
+              </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDisputeModalOpen(true)}
+              className="border-rose-300 text-rose-700 hover:bg-rose-100 font-extrabold shrink-0 self-start sm:self-center h-10 px-4 rounded-xl shadow-xs"
+            >
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Revisar / Modificar Corrección
+            </Button>
           </div>
         )}
 
-        {submittedMessage && !isResolved && (
+        {submittedMessage && !isApproved && (
           <div className={`p-6 rounded-xl border shadow-sm ${submittedMessage.type === 'success' ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800' : 'bg-rose-50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-800'}`}>
             <div className="flex items-start gap-4">
               {submittedMessage.type === 'success' ? (
@@ -892,12 +956,18 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
         )}
 
         {/* Action Buttons at the Top Fold */}
-        {!isResolved && horas.length > 0 && (
+        {!isApproved && horas.length > 0 && (
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <Button 
               size="lg" 
               className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-lg transition-all border-none h-12 text-sm font-bold rounded-xl"
-              onClick={handleApprove}
+              onClick={() => {
+                if (hasEdits) {
+                  setIsApproveConfirmOpen(true);
+                } else {
+                  handleApprove();
+                }
+              }}
               disabled={isSubmitting}
             >
               {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <CheckCircle className="w-5 h-5 mr-2" />}
@@ -906,13 +976,33 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
             
             <Button 
               size="lg" 
-              variant="outline"
-              className="flex-1 border border-red-200 text-red-700 bg-white hover:bg-red-50 hover:text-red-800 hover:border-red-300 transition-all h-12 text-sm font-bold rounded-xl"
+              variant={hasEdits ? "default" : "outline"}
+              className={`flex-1 transition-all h-12 text-sm font-bold rounded-xl shadow-md ${
+                hasEdits 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white border-none' 
+                  : isDisputed
+                    ? 'border-2 border-blue-400 text-blue-700 bg-white hover:bg-blue-50'
+                    : 'border border-red-200 text-red-700 bg-white hover:bg-red-50 hover:text-red-800 hover:border-red-300'
+              }`}
               onClick={() => setIsDisputeModalOpen(true)}
               disabled={isSubmitting}
             >
-              <XCircle className="w-5 h-5 mr-2" />
-              Disputar / Solicitar Corrección
+              {hasEdits ? (
+                <>
+                  <Check className="w-5 h-5 mr-2" />
+                  Guardar y Enviar Correcciones ({totalEditsCount})
+                </>
+              ) : isDisputed ? (
+                <>
+                  <MessageSquare className="w-5 h-5 mr-2" />
+                  Actualizar / Reenviar Corrección
+                </>
+              ) : (
+                <>
+                  <XCircle className="w-5 h-5 mr-2" />
+                  Disputar / Solicitar Corrección
+                </>
+              )}
             </Button>
           </div>
         )}
@@ -974,6 +1064,33 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                     <p className="font-semibold text-slate-500">Total de Horas: <span className="text-slate-900 font-bold">{totalHorasCalculadas.toFixed(2)}h</span></p>
                   </div>
                 </div>
+
+                {/* Banner de modificaciones pendientes con botón directo para guardar */}
+                {hasEdits && !isApproved && (
+                  <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 dark:from-blue-950/40 dark:to-indigo-950/40 border-2 border-blue-400 dark:border-blue-600 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
+                    <div className="flex items-center gap-3 text-left">
+                      <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-sm shrink-0">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-extrabold text-blue-950 dark:text-blue-100">
+                          Tienes {totalEditsCount} modificación{totalEditsCount > 1 ? 'es' : ''} pendiente{totalEditsCount > 1 ? 's' : ''} de enviar
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300 font-medium mt-0.5">
+                          Tus horas modificadas están marcadas en azul. Pulsa el botón para guardar y notificar al departamento comercial.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-5 h-10 rounded-xl shadow-md shrink-0 w-full sm:w-auto text-xs"
+                      onClick={() => setIsDisputeModalOpen(true)}
+                    >
+                      <Check className="w-4 h-4 mr-1.5" />
+                      Guardar y Enviar Correcciones ({totalEditsCount})
+                    </Button>
+                  </div>
+                )}
 
                 {/* Filtro de Obras (se houver mais de uma obra) */}
                 {groupedObras.length > 1 && (
@@ -1069,7 +1186,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                         {obra.workers.map(worker => {
                           const workerTotal = daysArray.reduce((sum, dInfo) => {
                             const dateKey = dInfo.dateStr;
-                            const proposedVal = disputedHours[worker.workerId]?.[dateKey];
+                            const proposedVal = getProposedHours(worker.workerId, obra.obraId, dateKey);
                             if (proposedVal !== undefined) return sum + proposedVal;
                             const hourObj = worker.horasDiarias[dateKey] as any;
                             return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
@@ -1083,8 +1200,10 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                                 const hourObj = worker.horasDiarias[dateKey] as any;
                                 const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
 
-                                const isEditing = editingCell?.workerId === worker.workerId && editingCell?.dateKey === dateKey;
-                                const proposedVal = disputedHours[worker.workerId]?.[dateKey];
+                                const isEditing = editingCell?.workerId === worker.workerId && 
+                                                  editingCell?.dateKey === dateKey && 
+                                                  editingCell?.obraId === obra.obraId;
+                                const proposedVal = getProposedHours(worker.workerId, obra.obraId, dateKey);
                                 const hasDispute = proposedVal !== undefined;
                                 const displayVal = hasDispute ? proposedVal : hoursVal;
                                 
@@ -1102,10 +1221,10 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                                         max="24" 
                                         defaultValue={displayVal || 0} 
                                         className="w-9 h-7 text-center text-xs p-0 border border-blue-500 rounded bg-blue-50 text-blue-900 font-extrabold focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm" 
-                                        onBlur={(e) => handleCellEdit(worker.workerId, dateKey, Number(e.target.value), hoursVal)} 
+                                        onBlur={(e) => handleCellEdit(worker.workerId, obra.obraId, dateKey, Number(e.target.value), hoursVal)} 
                                         onKeyDown={(e) => {
                                           if (e.key === 'Enter') {
-                                            handleCellEdit(worker.workerId, dateKey, Number((e.target as HTMLInputElement).value), hoursVal);
+                                            handleCellEdit(worker.workerId, obra.obraId, dateKey, Number((e.target as HTMLInputElement).value), hoursVal);
                                           } else if (e.key === 'Escape') {
                                             setEditingCell(null);
                                           }
@@ -1119,11 +1238,11 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                                 return (
                                   <TableCell 
                                     key={dInfo.dateStr} 
-                                    onClick={() => !isResolved && setEditingCell({ workerId: worker.workerId, dateKey })} 
-                                    className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none cursor-pointer transition-all border-x border-slate-100 dark:border-slate-850 ${
-                                      isResolved 
+                                    onClick={() => canEdit && setEditingCell({ workerId: worker.workerId, obraId: obra.obraId, dateKey })} 
+                                    className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none transition-all border-x border-slate-100 dark:border-slate-850 ${
+                                      !canEdit
                                         ? 'cursor-default' 
-                                        : 'hover:bg-amber-100 hover:text-amber-850 dark:hover:bg-slate-800'
+                                        : 'hover:bg-amber-100 hover:text-amber-850 dark:hover:bg-slate-800 cursor-pointer'
                                     } ${
                                       isWk
                                         ? hasDispute
@@ -1165,7 +1284,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                           </TableCell>
                           {daysArray.map(dInfo => {
                             const daySum = obra.workers.reduce((sum, w) => {
-                              const proposedVal = disputedHours[w.workerId]?.[dInfo.dateStr];
+                              const proposedVal = getProposedHours(w.workerId, obra.obraId, dInfo.dateStr);
                               if (proposedVal !== undefined) return sum + proposedVal;
                               const hourObj = w.horasDiarias[dInfo.dateStr] as any;
                               return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
@@ -1563,35 +1682,63 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
         {/* Dispute Modal */}
         <Dialog open={isDisputeModalOpen} onOpenChange={setIsDisputeModalOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-xl">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-xl text-red-700">
-                <AlertTriangle className="w-6 h-6" />
-                Contestar Horas
+              <DialogTitle className="flex items-center gap-2 text-xl text-blue-700 dark:text-blue-400">
+                <AlertTriangle className="w-6 h-6 text-amber-500" />
+                {isDisputed ? 'Actualizar Corrección de Horas' : 'Guardar y Enviar Corrección de Horas'}
               </DialogTitle>
-              <DialogDescription className="text-base pt-2">
-                Por favor, explique o motivo da contestação e anexe um comprovativo se necessário. Você também pode alterar as horas na planilha antes de enviar.
+              <DialogDescription className="text-sm pt-1">
+                Revisa los cambios que has indicado en la planilla. Si lo deseas, puedes añadir una observación explicativa o adjuntar un parte de horas / justificante en PDF o imagen.
               </DialogDescription>
             </DialogHeader>
-            <div className="py-4 space-y-4">
-              {Object.keys(disputedHours).length > 0 && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-250 dark:border-amber-900 rounded-xl space-y-2 text-xs">
-                  <p className="font-bold text-amber-800 dark:text-amber-300">Alterações propostas na planilha:</p>
-                  <div className="max-h-[120px] overflow-y-auto space-y-1">
-                    {Object.keys(disputedHours).map(workerId => {
-                      const worker = groupedWorkers.find(w => w.workerId === workerId);
-                      const dates = disputedHours[workerId];
+            <div className="py-3 space-y-4">
+              {hasEdits && (
+                <div className="p-3.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-250 dark:border-amber-900 rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-900 pb-1.5">
+                    <p className="font-extrabold text-amber-900 dark:text-amber-200 uppercase tracking-wide text-[11px]">
+                      Modificaciones propuestas ({totalEditsCount} cambio{totalEditsCount > 1 ? 's' : ''}):
+                    </p>
+                  </div>
+                  <div className="max-h-[180px] overflow-y-auto space-y-2.5 pr-1">
+                    {groupedObras.map(obra => {
+                      const obraEdits: Array<{ workerName: string; dateStr: string; originalHours: number; newHours: number }> = [];
+                      obra.workers.forEach(w => {
+                        daysArray.forEach(dInfo => {
+                          const proposedVal = getProposedHours(w.workerId, obra.obraId, dInfo.dateStr);
+                          const hourObj = w.horasDiarias[dInfo.dateStr] as any;
+                          const originalHours = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+                          if (proposedVal !== undefined && proposedVal !== originalHours) {
+                            obraEdits.push({
+                              workerName: w.workerName,
+                              dateStr: dInfo.dateStr,
+                              originalHours,
+                              newHours: proposedVal
+                            });
+                          }
+                        });
+                      });
+
+                      if (obraEdits.length === 0) return null;
+
                       return (
-                        <div key={workerId} className="border-b border-amber-100 dark:border-amber-900/40 pb-1 last:border-0">
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">{worker?.workerName || 'Colaborador'}:</span>
-                          <div className="pl-2 space-y-0.5 mt-0.5">
-                            {Object.keys(dates).map(dateKey => {
-                              const [y, m, d] = dateKey.split('-');
-                              const originalHObj = worker?.horasDiarias[dateKey] as any;
-                              const originalHours = originalHObj ? Number(originalHObj.horas_totais) : 0;
+                        <div key={obra.obraId} className="bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-amber-200 dark:border-amber-900/60 shadow-xs">
+                          <span className="font-extrabold text-blue-900 dark:text-blue-300 uppercase block mb-1 text-[11px]">
+                            🏗️ {obra.obraName}
+                          </span>
+                          <div className="pl-2 space-y-1">
+                            {obraEdits.map((edit, eIdx) => {
+                              const [y, m, d] = edit.dateStr.split('-');
                               return (
-                                <p key={dateKey} className="text-slate-655 dark:text-slate-400">
-                                  Dia {d}/{m}: <span className="line-through text-red-500">{originalHours}h</span> &rarr; <span className="font-extrabold text-blue-650">{dates[dateKey]}h</span>
+                                <p key={eIdx} className="text-slate-700 dark:text-slate-300 text-[11px] flex items-center justify-between">
+                                  <span>
+                                    <strong className="text-slate-900 dark:text-white">{edit.workerName}</strong> (Día {d}/{m})
+                                  </span>
+                                  <span>
+                                    <span className="line-through text-red-500 font-semibold mr-1.5">{edit.originalHours}h</span>
+                                    &rarr;
+                                    <span className="font-extrabold text-blue-700 dark:text-blue-400 ml-1.5 text-xs">{edit.newHours}h</span>
+                                  </span>
                                 </p>
                               );
                             })}
@@ -1605,11 +1752,11 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                  Descrição da Divergência
+                  Motivo o Justificación {hasEdits ? '(Opcional)' : ''}
                 </label>
                 <Textarea
-                  placeholder="Ex: No dia 15/06 o funcionário João saiu às 16:00 e não às 18:00..."
-                  className="min-h-[100px] text-base resize-y"
+                  placeholder={hasEdits ? "Opcional: Si quieres añadir algún comentario para el equipo comercial, escríbelo aquí..." : "Ex: No día 15/06 o funcionário João saiu às 16:00 e não às 18:00..."}
+                  className="min-h-[85px] text-sm resize-y"
                   value={disputeReason}
                   onChange={(e) => setDisputeReason(e.target.value)}
                 />
@@ -1617,9 +1764,9 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                  Documento de Comprovação (Opcional)
+                  Documento de Comprobación (Opcional)
                 </label>
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <input 
                     type="file" 
                     id="dispute-file"
@@ -1633,21 +1780,21 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                   <Button 
                     type="button" 
                     variant="outline" 
-                    className="w-full flex items-center justify-center gap-2 border-dashed border-slate-350 dark:border-slate-700 py-6"
+                    className="w-full flex items-center justify-center gap-2 border-dashed border-slate-350 dark:border-slate-700 py-5"
                     onClick={() => document.getElementById('dispute-file')?.click()}
                   >
                     <Paperclip className="w-4 h-4 text-slate-500" />
                     {disputeFile ? (
-                      <span className="text-slate-800 dark:text-slate-200 truncate max-w-[240px]">
+                      <span className="text-slate-800 dark:text-slate-200 truncate max-w-[240px] text-xs font-bold">
                         {disputeFile.name}
                       </span>
                     ) : (
-                      <span className="text-slate-500">Selecionar arquivo (PDF, Imagem, Relógio Ponto)</span>
+                      <span className="text-slate-500 text-xs">Adjuntar archivo (PDF, Imagen, Registro Horario)</span>
                     )}
                   </Button>
                   {disputeFile && (
                     <Button 
-                      type="button"
+                      type="button" 
                       variant="ghost" 
                       size="icon"
                       className="text-red-500 hover:text-red-750"
@@ -1657,8 +1804,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                     </Button>
                   )}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Envie um PDF ou imagem de seu relógio ponto ou controle interno para agilizar a verificação.
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Puedes adjuntar un justificante firmado o el parte de horas interno para agilizar la revisión.
                 </p>
               </div>
             </div>
@@ -1666,13 +1813,85 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
               <Button variant="outline" onClick={() => setIsDisputeModalOpen(false)} disabled={isSubmitting}>
                 Cancelar
               </Button>
-              <Button variant="destructive" onClick={handleDispute} disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <MessageSquare className="w-4 h-4 mr-2" />}
-                Enviar Contestação
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold"
+                onClick={handleDispute} 
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                {isDisputed ? 'Actualizar y Enviar' : 'Guardar y Enviar'}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Approval Confirmation Dialog if User has edits */}
+        <Dialog open={isApproveConfirmOpen} onOpenChange={setIsApproveConfirmOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg text-amber-700">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+                Tienes cambios en la planilla de horas
+              </DialogTitle>
+              <DialogDescription className="text-sm pt-2 text-slate-700">
+                Has modificado <strong className="text-slate-900">{totalEditsCount} valor(es)</strong> en la tabla. Si apruebas directamente el informe, se aprobarán las <strong>horas originales de la empresa</strong> sin tener en cuenta tus correcciones.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2 text-xs text-slate-500">
+              Para que tus correcciones sean revisadas y aceptadas, debes enviarlas mediante el botón <strong>"Guardar y Enviar Correcciones"</strong>.
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setIsApproveConfirmOpen(false)}
+                className="text-xs"
+              >
+                Volver a la planilla
+              </Button>
+              <Button 
+                variant="destructive"
+                onClick={handleApprove}
+                disabled={isSubmitting}
+                className="text-xs"
+              >
+                Aprobar horas originales igualmente
+              </Button>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs"
+                onClick={() => {
+                  setIsApproveConfirmOpen(false);
+                  setIsDisputeModalOpen(true);
+                }}
+              >
+                <Check className="w-3.5 h-3.5 mr-1" />
+                Guardar mis correcciones
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Floating action bar when user has pending edits */}
+        {hasEdits && !isApproved && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white px-5 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-4 backdrop-blur-md max-w-[95vw]">
+            <div className="flex items-center gap-2 text-xs font-semibold">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
+              </span>
+              <span>{totalEditsCount} cambio{totalEditsCount > 1 ? 's' : ''} pendiente{totalEditsCount > 1 ? 's' : ''} de guardar</span>
+            </div>
+            <div className="w-px h-5 bg-slate-700" />
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs px-4 h-9 rounded-xl shadow-sm border-none"
+              onClick={() => setIsDisputeModalOpen(true)}
+              disabled={isSubmitting}
+            >
+              <Check className="w-4 h-4 mr-1.5" />
+              Guardar y Enviar
+            </Button>
+          </div>
+        )}
         
       </div>
     </div>

@@ -1114,9 +1114,39 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
   if (!disputedObj || typeof disputedObj !== 'object') return {};
   const normalized: Record<string, Record<string, number>> = {};
 
-  Object.keys(disputedObj).forEach(workerId => {
-    const dates = disputedObj[workerId] || {};
-    if (!normalized[workerId]) normalized[workerId] = {};
+  Object.keys(disputedObj).forEach(key => {
+    const datesOrWorkers = disputedObj[key];
+    if (!datesOrWorkers || typeof datesOrWorkers !== 'object') return;
+
+    // Check if it's nested { obraId: { workerId: { date: hours } } }
+    const firstVal = Object.values(datesOrWorkers)[0];
+    if (firstVal && typeof firstVal === 'object' && !Array.isArray(firstVal)) {
+      // Nested format by obra
+      const obraId = key;
+      Object.keys(datesOrWorkers).forEach(wId => {
+        const dates = datesOrWorkers[wId] || {};
+        const compositeKey = `${wId}___${obraId}`;
+        if (!normalized[compositeKey]) normalized[compositeKey] = {};
+
+        Object.keys(dates).forEach(rawDate => {
+          let cleanDate = rawDate ? (rawDate.includes('T') ? rawDate.split('T')[0] : rawDate) : '';
+          const parts = cleanDate.split('-');
+          if (parts.length === 3) {
+            const y = parts[0];
+            const m = String(parseInt(parts[1])).padStart(2, '0');
+            const d = String(parseInt(parts[2])).padStart(2, '0');
+            cleanDate = `${y}-${m}-${d}`;
+          }
+          if (cleanDate) {
+            normalized[compositeKey][cleanDate] = Number(dates[rawDate] || 0);
+          }
+        });
+      });
+      return;
+    }
+
+    if (!normalized[key]) normalized[key] = {};
+    const dates = datesOrWorkers;
 
     Object.keys(dates).forEach(rawDate => {
       let cleanDate = rawDate ? (rawDate.includes('T') ? rawDate.split('T')[0] : rawDate) : '';
@@ -1128,7 +1158,7 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
         cleanDate = `${y}-${m}-${d}`;
       }
       if (cleanDate) {
-        normalized[workerId][cleanDate] = Number(dates[rawDate] || 0);
+        normalized[key][cleanDate] = Number(dates[rawDate] || 0);
       }
     });
   });
@@ -1140,16 +1170,16 @@ export function deepMergeDisputedHours(existing: any, modified: any): Record<str
   const merged: Record<string, Record<string, number>> = {};
   
   if (existing && typeof existing === 'object') {
-    Object.keys(existing).forEach(wId => {
-      merged[wId] = { ...(existing[wId] || {}) };
+    Object.keys(existing).forEach(key => {
+      merged[key] = { ...(existing[key] || {}) };
     });
   }
 
   if (modified && typeof modified === 'object') {
-    Object.keys(modified).forEach(wId => {
-      if (!merged[wId]) merged[wId] = {};
-      Object.keys(modified[wId] || {}).forEach(dateKey => {
-        merged[wId][dateKey] = Number(modified[wId][dateKey]);
+    Object.keys(modified).forEach(key => {
+      if (!merged[key]) merged[key] = {};
+      Object.keys(modified[key] || {}).forEach(dateKey => {
+        merged[key][dateKey] = Number(modified[key][dateKey]);
       });
     });
   }
@@ -1157,10 +1187,8 @@ export function deepMergeDisputedHours(existing: any, modified: any): Record<str
   return normalizeDisputedHours(merged);
 }
 
-export function getDisputedHourValue(disputedObj: any, wId: string, rawDateKey: string, defaultVal: number): number {
-  if (!disputedObj || !disputedObj[wId]) return defaultVal;
-  const wObj = disputedObj[wId];
-
+function lookupHourInObject(wObj: Record<string, any>, rawDateKey: string): number | undefined {
+  if (!wObj || typeof wObj !== 'object') return undefined;
   const cleanKey = rawDateKey ? (rawDateKey.includes('T') ? rawDateKey.split('T')[0] : rawDateKey) : '';
   if (wObj[cleanKey] !== undefined) return Number(wObj[cleanKey]);
   if (wObj[rawDateKey] !== undefined) return Number(wObj[rawDateKey]);
@@ -1175,6 +1203,37 @@ export function getDisputedHourValue(disputedObj: any, wId: string, rawDateKey: 
 
     const unpaddedKey = `${y}-${parseInt(cleanParts[1])}-${parseInt(cleanParts[2])}`;
     if (wObj[unpaddedKey] !== undefined) return Number(wObj[unpaddedKey]);
+  }
+  return undefined;
+}
+
+export function getDisputedHourValue(
+  disputedObj: any, 
+  wId: string, 
+  rawDateKey: string, 
+  defaultVal: number,
+  obraId?: string | null
+): number {
+  if (!disputedObj || typeof disputedObj !== 'object') return defaultVal;
+
+  // 1. Check composite key with obra: `${wId}___${obraId}`
+  if (obraId && obraId !== 'all' && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+    const compositeKey = `${wId}___${obraId}`;
+    if (disputedObj[compositeKey]) {
+      const val = lookupHourInObject(disputedObj[compositeKey], rawDateKey);
+      if (val !== undefined) return val;
+    }
+    // Also check nested { obraId: { wId: { dateKey: ... } } }
+    if (disputedObj[obraId]?.[wId]) {
+      const val = lookupHourInObject(disputedObj[obraId][wId], rawDateKey);
+      if (val !== undefined) return val;
+    }
+  }
+
+  // 2. Fallback to direct worker key (single obra invoices or legacy format)
+  if (disputedObj[wId]) {
+    const val = lookupHourInObject(disputedObj[wId], rawDateKey);
+    if (val !== undefined) return val;
   }
 
   return defaultVal;
@@ -1245,7 +1304,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             return supabase
               .schema('core_finance')
               .from('horas_trabalhadas')
-              .select('fatura_id, worker_id, data_trabalho, horas_totais, tarifa_faturada')
+              .select('fatura_id, worker_id, data_trabalho, horas_totais, tarifa_faturada, obra_id')
               .in('fatura_id', chunk)
               .range(from, to);
           });
@@ -1264,22 +1323,23 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
         let totValor = 0;
         const processedKeys = new Set<string>();
 
-        // Group by worker and day to sum duplicate registry records before applying adjustments
-        const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
+        // Group by worker, obra, and day to sum duplicate registry records before applying adjustments
+        const groupedMap = new Map<string, { wId: string; obraId?: string | null; dateKey: string; hours: number; rate: number }>();
         faturaHours.forEach(h => {
           const wId = h.worker_id;
           if (!wId) return;
           const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-          const key = `${wId}_${dateKey}`;
+          const obraKey = h.obra_id || 'sem_obra';
+          const key = `${wId}_${dateKey}_${obraKey}`;
           if (!groupedMap.has(key)) {
-            groupedMap.set(key, { wId, dateKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
+            groupedMap.set(key, { wId, obraId: h.obra_id, dateKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
           }
           groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
         });
 
         groupedMap.forEach((gVal, key) => {
           processedKeys.add(key);
-          const hoursVal = getDisputedHourValue(disputedObj, gVal.wId, gVal.dateKey, gVal.hours);
+          const hoursVal = getDisputedHourValue(disputedObj, gVal.wId, gVal.dateKey, gVal.hours, gVal.obraId);
           totHoras += hoursVal;
           totValor += hoursVal * gVal.rate;
         });
@@ -1513,21 +1573,28 @@ export async function processarContestacaoFatura(
       .single();
 
     // 1. Iterate over proposed hours and update or insert in horas_trabalhadas
-    for (const workerId of Object.keys(normHours)) {
-      const dates = normHours[workerId];
+    for (const key of Object.keys(normHours)) {
+      const [workerId, obraId] = key.includes('___') ? key.split('___') : [key, null];
+      const dates = normHours[key];
       for (const rawDateKey of Object.keys(dates)) {
         const cleanDate = rawDateKey.split('T')[0];
         const newHours = Number(dates[rawDateKey]);
         
-        // Check if row already exists for this fatura_id, worker_id, data_trabalho
-        const { data: existingRow } = await supabase
+        // Check if row already exists for this fatura_id, worker_id, data_trabalho (and obra_id if available)
+        let query = supabase
           .schema('core_finance')
           .from('horas_trabalhadas')
-          .select('id, tarifa_faturada, client_id, funcao_id')
+          .select('id, tarifa_faturada, client_id, funcao_id, obra_id')
           .eq('fatura_id', faturaId)
           .eq('worker_id', workerId)
-          .eq('data_trabalho', cleanDate)
-          .maybeSingle();
+          .eq('data_trabalho', cleanDate);
+
+        if (obraId && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+          query = query.eq('obra_id', obraId);
+        }
+
+        const { data: existingRows } = await query;
+        const existingRow = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
         if (existingRow) {
           if (newHours === 0) {
@@ -1547,16 +1614,22 @@ export async function processarContestacaoFatura(
           }
         } else if (newHours > 0) {
           // Find sample row for worker in this fatura to get tariff and job function
-          const { data: sampleRow } = await supabase
+          let sampleQuery = supabase
             .schema('core_finance')
             .from('horas_trabalhadas')
-            .select('tarifa_faturada, client_id, funcao_id')
+            .select('tarifa_faturada, client_id, funcao_id, obra_id')
             .eq('fatura_id', faturaId)
             .eq('worker_id', workerId)
             .not('tarifa_faturada', 'is', null)
             .gt('tarifa_faturada', 0)
-            .limit(1)
-            .maybeSingle();
+            .limit(1);
+
+          if (obraId && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+            sampleQuery = sampleQuery.eq('obra_id', obraId);
+          }
+
+          const { data: sampleRows } = await sampleQuery;
+          const sampleRow = sampleRows && sampleRows.length > 0 ? sampleRows[0] : null;
 
           const { error: insErr } = await supabase
             .schema('core_finance')
@@ -1569,6 +1642,7 @@ export async function processarContestacaoFatura(
               client_id: sampleRow?.client_id || fatData?.client_id,
               tarifa_faturada: sampleRow?.tarifa_faturada || 0,
               funcao_id: sampleRow?.funcao_id || null,
+              obra_id: obraId && obraId !== 'sem_obra' && obraId !== 'no_obra' ? obraId : (sampleRow?.obra_id || null),
               status: 'invoiced'
             });
 
@@ -1576,13 +1650,18 @@ export async function processarContestacaoFatura(
         }
 
         // Also clean up any duplicate unlinked row (fatura_id is null) on the same date to avoid double counting
-        await supabase
+        let dupQuery = supabase
           .schema('core_finance')
           .from('horas_trabalhadas')
           .delete()
           .eq('worker_id', workerId)
           .eq('data_trabalho', cleanDate)
           .is('fatura_id', null);
+
+        if (obraId && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+          dupQuery = dupQuery.eq('obra_id', obraId);
+        }
+        await dupQuery;
       }
     }
   }
@@ -1634,20 +1713,27 @@ export async function desmembrarFaturaPorObras(
       .eq('id', faturaId)
       .single();
 
-    for (const workerId of Object.keys(normHours)) {
-      const dates = normHours[workerId];
+    for (const key of Object.keys(normHours)) {
+      const [workerId, obraId] = key.includes('___') ? key.split('___') : [key, null];
+      const dates = normHours[key];
       for (const rawDateKey of Object.keys(dates)) {
         const cleanDate = rawDateKey.split('T')[0];
         const newHours = Number(dates[rawDateKey]);
 
-        const { data: existingRow } = await supabase
+        let query = supabase
           .schema('core_finance')
           .from('horas_trabalhadas')
           .select('id, tarifa_faturada, client_id, funcao_id, obra_id')
           .eq('fatura_id', faturaId)
           .eq('worker_id', workerId)
-          .eq('data_trabalho', cleanDate)
-          .maybeSingle();
+          .eq('data_trabalho', cleanDate);
+
+        if (obraId && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+          query = query.eq('obra_id', obraId);
+        }
+
+        const { data: existingRows } = await query;
+        const existingRow = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
         if (existingRow) {
           if (newHours === 0) {
@@ -1666,7 +1752,7 @@ export async function desmembrarFaturaPorObras(
             if (updErr) console.error(`Erro ao atualizar hora do trabalhador ${workerId} no dia ${cleanDate}:`, updErr);
           }
         } else if (newHours > 0) {
-          const { data: sampleRow } = await supabase
+          let sampleQuery = supabase
             .schema('core_finance')
             .from('horas_trabalhadas')
             .select('tarifa_faturada, client_id, funcao_id, obra_id')
@@ -1674,8 +1760,14 @@ export async function desmembrarFaturaPorObras(
             .eq('worker_id', workerId)
             .not('tarifa_faturada', 'is', null)
             .gt('tarifa_faturada', 0)
-            .limit(1)
-            .maybeSingle();
+            .limit(1);
+
+          if (obraId && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+            sampleQuery = sampleQuery.eq('obra_id', obraId);
+          }
+
+          const { data: sampleRows } = await sampleQuery;
+          const sampleRow = sampleRows && sampleRows.length > 0 ? sampleRows[0] : null;
 
           const { error: insErr } = await supabase
             .schema('core_finance')
@@ -1688,20 +1780,25 @@ export async function desmembrarFaturaPorObras(
               client_id: sampleRow?.client_id || fatData?.client_id,
               tarifa_faturada: sampleRow?.tarifa_faturada || 0,
               funcao_id: sampleRow?.funcao_id || null,
-              obra_id: sampleRow?.obra_id || null,
+              obra_id: obraId && obraId !== 'sem_obra' && obraId !== 'no_obra' ? obraId : (sampleRow?.obra_id || null),
               status: 'invoiced'
             });
 
           if (insErr) console.error(`Erro ao inserir nova hora para o trabalhador ${workerId} no dia ${cleanDate}:`, insErr);
         }
 
-        await supabase
+        let dupQuery = supabase
           .schema('core_finance')
           .from('horas_trabalhadas')
           .delete()
           .eq('worker_id', workerId)
           .eq('data_trabalho', cleanDate)
           .is('fatura_id', null);
+
+        if (obraId && obraId !== 'sem_obra' && obraId !== 'no_obra') {
+          dupQuery = dupQuery.eq('obra_id', obraId);
+        }
+        await dupQuery;
       }
     }
   }
