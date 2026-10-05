@@ -765,6 +765,20 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
     };
   }, [fatura, groupedWorkers, groupedObras]);
 
+  const isApproved = fatura ? (fatura.status === 'approved' || fatura.status === 'invoice_sent') : false;
+  const isDisputed = fatura ? (fatura.status === 'disputed') : false;
+  const canEdit = !isApproved;
+
+  const totalEditsCount = React.useMemo(() => {
+    let count = 0;
+    Object.keys(disputedHours).forEach(key => {
+      count += Object.keys(disputedHours[key] || {}).length;
+    });
+    return count;
+  }, [disputedHours]);
+
+  const hasEdits = totalEditsCount > 0;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -798,20 +812,6 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       </div>
     );
   }
-
-  const isApproved = fatura.status === 'approved' || fatura.status === 'invoice_sent';
-  const isDisputed = fatura.status === 'disputed';
-  const canEdit = !isApproved;
-
-  const totalEditsCount = React.useMemo(() => {
-    let count = 0;
-    Object.keys(disputedHours).forEach(key => {
-      count += Object.keys(disputedHours[key] || {}).length;
-    });
-    return count;
-  }, [disputedHours]);
-
-  const hasEdits = totalEditsCount > 0;
 
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 flex py-10 px-2 sm:px-4 lg:px-6 font-sans text-left">
