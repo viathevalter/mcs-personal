@@ -30,7 +30,7 @@ interface WorkerTimesheetEditorProps {
     worker: any;
     period: WorkerHour;
     onBack: () => void;
-    onSaved: () => void;
+    onSaved: (updatedPeriod?: WorkerHour) => void;
     onSwitchToUpload?: () => void;
 }
 
@@ -40,6 +40,52 @@ const MONTH_NAMES = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
+
+const parseDrafts = (raw: any): any[] => {
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') {
+        try { return JSON.parse(raw); } catch { return []; }
+    }
+    return [];
+};
+
+const buildDaysFromPeriod = (currentPeriod: WorkerHour): TimesheetDayEntry[] => {
+    const numDays = new Date(currentPeriod.period_year, currentPeriod.period_month, 0).getDate();
+    const existing = parseDrafts(currentPeriod.apontamentos_diarios);
+    const result: TimesheetDayEntry[] = [];
+
+    for (let d = 1; d <= numDays; d++) {
+        const found = existing.find((item) => Number(item.dia ?? item.day) === d);
+        const dateObj = new Date(currentPeriod.period_year, currentPeriod.period_month - 1, d);
+        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+
+        if (found) {
+            const norm = Number(found.horasNormais ?? found.horas_normais ?? 0);
+            const not = Number(found.horasNoturnas ?? found.horas_noturnas ?? 0);
+            const tot = Number(found.totalHoras ?? found.total_horas ?? (norm + not));
+            result.push({
+                dia: d,
+                entrada: found.entrada || found.inicio || (isWeekend ? '' : '08:00'),
+                saida: found.saida || found.fim || (isWeekend ? '' : '17:00'),
+                horasNormais: norm,
+                horasNoturnas: not,
+                totalHoras: tot,
+                obs: found.obs || (isWeekend && tot === 0 ? 'Descanso' : '')
+            });
+        } else {
+            result.push({
+                dia: d,
+                entrada: isWeekend ? '' : '08:00',
+                saida: isWeekend ? '' : '17:00',
+                horasNormais: 0,
+                horasNoturnas: 0,
+                totalHoras: 0,
+                obs: isWeekend ? 'Descanso' : ''
+            });
+        }
+    }
+    return result;
+};
 
 export function WorkerTimesheetEditor({
     worker,
@@ -51,42 +97,12 @@ export function WorkerTimesheetEditor({
     const totalDaysInMonth = new Date(period.period_year, period.period_month, 0).getDate();
 
     // Initialize daily records from existing draft or create empty days
-    const [days, setDays] = useState<TimesheetDayEntry[]>(() => {
-        const existing = (period.apontamentos_diarios as any[]) || [];
-        const initial: TimesheetDayEntry[] = [];
+    const [days, setDays] = useState<TimesheetDayEntry[]>(() => buildDaysFromPeriod(period));
 
-        for (let d = 1; d <= totalDaysInMonth; d++) {
-            const found = existing.find((item) => Number(item.dia ?? item.day) === d);
-            const dateObj = new Date(period.period_year, period.period_month - 1, d);
-            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-
-            if (found) {
-                const norm = Number(found.horasNormais ?? found.horas_normais ?? (isWeekend ? 0 : 0));
-                const not = Number(found.horasNoturnas ?? found.horas_noturnas ?? 0);
-                const tot = Number(found.totalHoras ?? found.total_horas ?? (norm + not));
-                initial.push({
-                    dia: d,
-                    entrada: found.entrada || found.inicio || '',
-                    saida: found.saida || found.fim || '',
-                    horasNormais: norm,
-                    horasNoturnas: not,
-                    totalHoras: tot,
-                    obs: found.obs || ''
-                });
-            } else {
-                initial.push({
-                    dia: d,
-                    entrada: isWeekend ? '' : '08:00',
-                    saida: isWeekend ? '' : '17:00',
-                    horasNormais: 0,
-                    horasNoturnas: 0,
-                    totalHoras: 0,
-                    obs: isWeekend ? 'Descanso' : ''
-                });
-            }
-        }
-        return initial;
-    });
+    // Keep days synced if period is refreshed or updated
+    useEffect(() => {
+        setDays(buildDaysFromPeriod(period));
+    }, [period.id, period.updated_at, period.apontamentos_diarios]);
 
     const [saving, setSaving] = useState(false);
     const [signatureModalOpen, setSignatureModalOpen] = useState(false);
@@ -193,8 +209,18 @@ export function WorkerTimesheetEditor({
                 return;
             }
 
+            const updatedPeriod: WorkerHour = {
+                ...period,
+                apontamentos_diarios: apontamentosFormatted,
+                total_horas_normais: totalNormais,
+                total_horas_noturnas: totalNoturnas,
+                horas_totais: totalGeral,
+                status: period.status === 'pendente' ? 'em_andamento' : period.status,
+                updated_at: new Date().toISOString()
+            };
+
             toast.success('Rascunho de horas salvo com sucesso!');
-            onSaved();
+            onSaved(updatedPeriod);
         } catch (err: any) {
             console.error('Erro ao salvar rascunho:', err);
             toast.error(err.message || 'Erro ao salvar no servidor.');

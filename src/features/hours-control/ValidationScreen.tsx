@@ -312,7 +312,8 @@ export function ValidationScreen({
                     .maybeSingle();
                 
                 workerHourRec = whData;
-            } else if (workerId) {
+            }
+            if (!workerHourRec && workerId) {
                 const { data: whData } = await supabase
                     .schema('core_personal')
                     .from('worker_hours')
@@ -335,9 +336,16 @@ export function ValidationScreen({
                 });
             }
 
-            const draftsList: any[] = Array.isArray(workerHourRec?.apontamentos_diarios) 
-                ? workerHourRec.apontamentos_diarios 
-                : [];
+            let draftsList: any[] = [];
+            if (Array.isArray(workerHourRec?.apontamentos_diarios)) {
+                draftsList = workerHourRec.apontamentos_diarios;
+            } else if (typeof workerHourRec?.apontamentos_diarios === 'string') {
+                try {
+                    draftsList = JSON.parse(workerHourRec.apontamentos_diarios);
+                } catch {
+                    draftsList = [];
+                }
+            }
             setPortalDrafts(draftsList);
             if (!fileUrl && draftsList.length > 0) {
                 setLeftTab('portal');

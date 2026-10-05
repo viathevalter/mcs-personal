@@ -272,6 +272,11 @@ export function WorkerDashboardPage() {
             });
 
             setPendingMonths(allRecords);
+            setSelectedPeriod((curr) => {
+                if (!curr) return null;
+                const fresh = allRecords.find((r) => r.id === curr.id);
+                return fresh || curr;
+            });
         } catch (error) {
             console.error('Error fetching hours:', error);
             toast.error(t('workerPortal.dashboard.errorFetching'));
@@ -337,7 +342,10 @@ export function WorkerDashboardPage() {
                         worker={profiles.find((p: any) => p.id === selectedPeriod.worker_id) || workerAuth}
                         period={selectedPeriod}
                         onBack={() => setSelectedPeriod(null)}
-                        onSaved={() => {
+                        onSaved={(updatedPeriod?: WorkerHour) => {
+                            if (updatedPeriod) {
+                                setSelectedPeriod(updatedPeriod);
+                            }
                             fetchPendingHours();
                         }}
                         onSwitchToUpload={() => setViewMode('upload')}
