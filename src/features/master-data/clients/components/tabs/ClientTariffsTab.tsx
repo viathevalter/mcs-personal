@@ -217,7 +217,10 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const [selectedAvailableIds, setSelectedAvailableIds] = useState<Set<string>>(new Set());
   const [selectedActiveIds, setSelectedActiveIds] = useState<Set<string>>(new Set());
   const [bulkRateAvailable, setBulkRateAvailable] = useState('27.00');
+  const [bulkNightRateAvailable, setBulkNightRateAvailable] = useState('');
+  const [bulkTargetActive, setBulkTargetActive] = useState<'both' | 'diurna' | 'noturna'>('both');
   const [bulkRateActive, setBulkRateActive] = useState('');
+  const [bulkNightRateActive, setBulkNightRateActive] = useState('');
 
   // Clear checkbox selection when switching sites
   useEffect(() => {
@@ -331,18 +334,26 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
   // Handle adding function to selected list
   const handleAddFunction = (jfId: string) => {
+    const rate = parseFloat(bulkRateAvailable) || 27.00;
+    const nightRate = bulkNightRateAvailable.trim() !== '' && !isNaN(parseFloat(bulkNightRateAvailable))
+      ? parseFloat(bulkNightRateAvailable)
+      : null;
     setSelectedTariffs(prev => [
       ...prev,
-      { job_function_id: jfId, valor_tarifa: 27.00 } // Default fallback rate
+      { job_function_id: jfId, valor_tarifa: rate, valor_tarifa_noturna: nightRate }
     ]);
   };
 
   // Bulk add available functions
   const handleBulkAddAvailable = () => {
     const rate = parseFloat(bulkRateAvailable) || 27.00;
+    const nightRate = bulkNightRateAvailable.trim() !== '' && !isNaN(parseFloat(bulkNightRateAvailable))
+      ? parseFloat(bulkNightRateAvailable)
+      : null;
     const toAdd = Array.from(selectedAvailableIds).map(id => ({
       job_function_id: id,
-      valor_tarifa: rate
+      valor_tarifa: rate,
+      valor_tarifa_noturna: nightRate
     }));
 
     setSelectedTariffs(prev => {
@@ -371,19 +382,50 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
   // Bulk update active tariffs locally
   const handleBulkUpdateActive = () => {
-    if (!bulkRateActive || isNaN(parseFloat(bulkRateActive))) {
-      toast.error('Informe um valor de tarifa válido');
+    const diurnaNumeric = bulkRateActive.trim() !== '' && !isNaN(parseFloat(bulkRateActive))
+      ? parseFloat(bulkRateActive)
+      : null;
+    const noturnaNumeric = bulkNightRateActive.trim() !== '' && !isNaN(parseFloat(bulkNightRateActive))
+      ? parseFloat(bulkNightRateActive)
+      : null;
+
+    if (bulkTargetActive === 'diurna' && diurnaNumeric === null) {
+      toast.error('Informe um valor válido para a tarifa diurna');
       return;
     }
-    const rate = parseFloat(bulkRateActive);
+
+    if (bulkTargetActive === 'noturna' && noturnaNumeric === null && bulkNightRateActive.trim() !== '') {
+      toast.error('Informe um valor numérico válido para a tarifa noturna');
+      return;
+    }
+
+    if (bulkTargetActive === 'both' && diurnaNumeric === null && noturnaNumeric === null && bulkNightRateActive.trim() === '') {
+      toast.error('Informe ao menos uma tarifa (diurna ou noturna) para aplicar');
+      return;
+    }
+
     setSelectedTariffs(prev =>
-      prev.map(t =>
-        selectedActiveIds.has(t.job_function_id) ? { ...t, valor_tarifa: rate } : t
-      )
+      prev.map(t => {
+        if (!selectedActiveIds.has(t.job_function_id)) return t;
+
+        const updated = { ...t };
+        if (bulkTargetActive === 'both' || bulkTargetActive === 'diurna') {
+          if (diurnaNumeric !== null) {
+            updated.valor_tarifa = diurnaNumeric;
+          }
+        }
+        if (bulkTargetActive === 'both' || bulkTargetActive === 'noturna') {
+          if (noturnaNumeric !== null) {
+            updated.valor_tarifa_noturna = noturnaNumeric;
+          } else if (bulkNightRateActive.trim() === '' && bulkTargetActive === 'noturna') {
+            updated.valor_tarifa_noturna = null;
+          }
+        }
+        return updated;
+      })
     );
-    setSelectedActiveIds(new Set());
-    setBulkRateActive('');
-    toast.success('Tarifa aplicada localmente às funções selecionadas!');
+
+    toast.success(`Tarifas atualizadas para ${selectedActiveIds.size} funções selecionadas! Clique em "Salvar Tarifas da Obra" para gravar.`);
   };
 
   // Handle removing function
@@ -609,27 +651,50 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
             {/* Bulk Action Bar for Available Functions */}
             {selectedAvailableIds.size > 0 && (
-              <div className="flex flex-wrap items-center gap-3 p-3 bg-orange-50/60 border border-orange-100 rounded-lg dark:bg-orange-950/10 dark:border-orange-900/30">
-                <span className="text-xs font-semibold text-orange-800 dark:text-orange-400">
-                  {selectedAvailableIds.size} selecionadas
+              <div className="flex flex-wrap items-center justify-between gap-2.5 p-3 bg-orange-50/70 border border-orange-200/80 rounded-lg dark:bg-orange-950/20 dark:border-orange-900/40">
+                <span className="text-xs font-bold text-orange-900 dark:text-orange-300">
+                  {selectedAvailableIds.size} selecionada{selectedAvailableIds.size > 1 ? 's' : ''}
                 </span>
-                <div className="flex items-center gap-1.5 ml-auto">
-                  <span className="text-xs text-slate-500">Tarifa:</span>
-                  <div className="flex items-center border rounded bg-white dark:bg-slate-950 pl-2 w-24">
-                    <span className="text-xs text-slate-400">€</span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.50"
-                      value={bulkRateAvailable}
-                      onChange={e => setBulkRateAvailable(e.target.value)}
-                      className="border-0 shadow-none h-7 pl-1 pr-2 text-right focus-visible:ring-0 text-xs font-bold"
-                    />
+
+                <div className="flex flex-wrap items-center gap-2 ml-auto">
+                  {/* Diurna Input */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Diurna:</span>
+                    <div className="flex items-center border rounded bg-white dark:bg-slate-950 pl-2 w-24 focus-within:ring-1 focus-within:ring-orange-500">
+                      <span className="text-xs font-semibold text-slate-400">€</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.50"
+                        value={bulkRateAvailable}
+                        onChange={e => setBulkRateAvailable(e.target.value)}
+                        placeholder="27.00"
+                        className="border-0 shadow-none h-7 pl-1 pr-1.5 text-right focus-visible:ring-0 text-xs font-bold"
+                      />
+                    </div>
                   </div>
+
+                  {/* Noturna Input */}
+                  <div className="flex items-center gap-1">
+                    <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">Noturna:</span>
+                    <div className="flex items-center border border-indigo-200 rounded bg-indigo-50/40 dark:bg-indigo-950/30 pl-2 w-24 focus-within:ring-1 focus-within:ring-indigo-500">
+                      <span className="text-xs font-semibold text-indigo-400">€</span>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.50"
+                        value={bulkNightRateAvailable}
+                        onChange={e => setBulkNightRateAvailable(e.target.value)}
+                        placeholder="Padrão"
+                        className="border-0 shadow-none h-7 pl-1 pr-1.5 text-right focus-visible:ring-0 text-xs font-bold text-indigo-700 placeholder:text-indigo-300"
+                      />
+                    </div>
+                  </div>
+
                   <Button
                     size="sm"
                     onClick={handleBulkAddAvailable}
-                    className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-7 px-3"
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-7 px-3.5 shadow-sm"
                   >
                     Adicionar
                   </Button>
@@ -690,39 +755,82 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
             {/* Bulk Action Bar for Active Tariffs */}
             {selectedActiveIds.size > 0 && (
-              <div className="flex flex-wrap items-center gap-3 p-3 bg-orange-50/60 border border-orange-100 rounded-lg dark:bg-orange-950/10 dark:border-orange-900/30">
-                <span className="text-xs font-semibold text-orange-800 dark:text-orange-400">
-                  {selectedActiveIds.size} selecionadas
-                </span>
-                <div className="flex items-center gap-1.5 ml-auto">
-                  <span className="text-xs text-slate-500">Definir:</span>
-                  <div className="flex items-center border rounded bg-white dark:bg-slate-950 pl-2 w-24">
-                    <span className="text-xs text-slate-400">€</span>
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.50"
-                      value={bulkRateActive}
-                      placeholder="Tarifa..."
-                      onChange={e => setBulkRateActive(e.target.value)}
-                      className="border-0 shadow-none h-7 pl-1 pr-2 text-right focus-visible:ring-0 text-xs font-bold"
-                    />
+              <div className="flex flex-col gap-2 p-3 bg-orange-50/70 border border-orange-200/80 rounded-lg dark:bg-orange-950/20 dark:border-orange-900/40">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-orange-900 dark:text-orange-300">
+                      {selectedActiveIds.size} selecionada{selectedActiveIds.size > 1 ? 's' : ''}
+                    </span>
+                    <span className="text-[11px] text-slate-400">•</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Alterar:</span>
+                      <Select value={bulkTargetActive} onValueChange={(val: any) => setBulkTargetActive(val)}>
+                        <SelectTrigger className="h-7 text-xs w-[170px] bg-white dark:bg-slate-900 border-slate-300 font-medium">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="both">Ambas (Diurna e Noturna)</SelectItem>
+                          <SelectItem value="diurna">Apenas Diurna</SelectItem>
+                          <SelectItem value="noturna">Apenas Noturna</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={handleBulkUpdateActive}
-                    className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-7 px-3"
-                  >
-                    Aplicar
-                  </Button>
+
                   <Button
                     size="sm"
                     variant="ghost"
                     onClick={handleBulkDeleteActive}
-                    className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 font-semibold text-xs h-7 px-2 gap-1"
+                    className="text-rose-600 hover:bg-rose-50 hover:text-rose-700 dark:hover:bg-rose-950/20 font-semibold text-xs h-7 px-2 gap-1 ml-auto"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    Remover
+                    Remover Selecionadas
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-orange-200/60 dark:border-orange-900/30">
+                  {(bulkTargetActive === 'both' || bulkTargetActive === 'diurna') && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">Nova Diurna:</span>
+                      <div className="flex items-center border rounded bg-white dark:bg-slate-950 pl-2 w-24 focus-within:ring-1 focus-within:ring-orange-500">
+                        <span className="text-xs font-semibold text-slate-400">€</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          value={bulkRateActive}
+                          placeholder="Ex: 28.00"
+                          onChange={e => setBulkRateActive(e.target.value)}
+                          className="border-0 shadow-none h-7 pl-1 pr-1.5 text-right focus-visible:ring-0 text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {(bulkTargetActive === 'both' || bulkTargetActive === 'noturna') && (
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">Nova Noturna:</span>
+                      <div className="flex items-center border border-indigo-200 rounded bg-indigo-50/40 dark:bg-indigo-950/30 pl-2 w-24 focus-within:ring-1 focus-within:ring-indigo-500">
+                        <span className="text-xs font-semibold text-indigo-400">€</span>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.50"
+                          value={bulkNightRateActive}
+                          placeholder="Padrão"
+                          onChange={e => setBulkNightRateActive(e.target.value)}
+                          className="border-0 shadow-none h-7 pl-1 pr-1.5 text-right focus-visible:ring-0 text-xs font-bold text-indigo-700 placeholder:text-indigo-300"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <Button
+                    size="sm"
+                    onClick={handleBulkUpdateActive}
+                    className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-7 px-3.5 shadow-sm"
+                  >
+                    Aplicar às Selecionadas
                   </Button>
                 </div>
               </div>
