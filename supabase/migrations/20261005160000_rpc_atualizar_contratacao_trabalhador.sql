@@ -115,8 +115,7 @@ BEGIN
         licencia_conducir = COALESCE(v_licencia_conducir, licencia_conducir),
         movil = COALESCE(v_movil, movil),
         pasaporte = COALESCE(v_pasaporte, pasaporte),
-        status_trabajador = COALESCE(v_new_worker_status, status_trabajador),
-        updated_at = NOW()
+        status_trabajador = COALESCE(v_new_worker_status, status_trabajador)
     WHERE id = v_assignment.worker_id
     RETURNING cod_colab INTO v_cod_colab;
 
@@ -129,7 +128,8 @@ BEGIN
             licencia_conducir = COALESCE(v_licencia_conducir, licencia_conducir),
             movil = COALESCE(v_movil, movil),
             pasaporte = COALESCE(v_pasaporte, pasaporte),
-            status_trabajador = COALESCE(v_new_worker_status, status_trabajador)
+            status_trabajador = COALESCE(v_new_worker_status, status_trabajador),
+            updated_at = NOW()
         WHERE cod_colab = v_cod_colab;
     END IF;
 
