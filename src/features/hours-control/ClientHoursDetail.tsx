@@ -8,7 +8,7 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
-import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote, Search, X } from 'lucide-react';
+import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote, Search, X, Clock, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
 import { AdminNotesDialog } from './components/AdminNotesDialog';
@@ -26,7 +26,7 @@ interface WorkerDetail {
     funcion?: string;
     pasaporte: string | null;
     movil: string | null;
-    status: 'pendente' | 'enviado' | 'processado' | 'validado';
+    status: 'pendente' | 'enviado' | 'processado' | 'validado' | 'em_andamento' | 'aguardando_assinatura' | 'assinado_encarregado' | string;
     file_url?: string;
     file_name?: string;
     hour_record_id?: string;
@@ -571,6 +571,24 @@ export function ClientHoursDetail() {
                                     </TableCell>
                                     <TableCell className="text-center align-top pt-4">
                                         {worker.status === 'pendente' && <Badge variant="outline" className="bg-yellow-100/50 text-yellow-700 border-yellow-200">{t('clientHoursDetail.badges.pending')}</Badge>}
+                                        {worker.status === 'em_andamento' && (
+                                            <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-300 font-semibold flex items-center justify-center gap-1 shadow-2xs">
+                                                <Clock className="h-3 w-3 text-sky-500" />
+                                                <span>Portal: Rascunho</span>
+                                            </Badge>
+                                        )}
+                                        {worker.status === 'aguardando_assinatura' && (
+                                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-semibold flex items-center justify-center gap-1 shadow-2xs">
+                                                <Clock className="h-3 w-3 text-amber-500 animate-pulse" />
+                                                <span>Portal: Assinatura</span>
+                                            </Badge>
+                                        )}
+                                        {worker.status === 'assinado_encarregado' && (
+                                            <Badge variant="default" className="bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold flex items-center justify-center gap-1 shadow-2xs">
+                                                <Check className="h-3 w-3 text-emerald-600" />
+                                                <span>Portal: Assinado</span>
+                                            </Badge>
+                                        )}
                                         {worker.status === 'enviado' && (
                                             <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 animate-pulse flex items-center justify-center gap-1">
                                                 <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
@@ -630,6 +648,15 @@ export function ClientHoursDetail() {
                                                 <FileText className="h-4 w-4 shrink-0" />
                                                 <span className="truncate underline font-medium" title={worker.file_name}>{worker.file_name}</span>
                                             </div>
+                                        ) : ['em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) ? (
+                                            <div
+                                                className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-md font-semibold w-fit cursor-pointer hover:bg-indigo-100 transition-colors"
+                                                onClick={() => handleOpenValidation(worker)}
+                                                title="Clique para abrir e validar os apontamentos do portal"
+                                            >
+                                                <Smartphone className="h-3.5 w-3.5 text-indigo-600" />
+                                                <span>Portal Digital</span>
+                                            </div>
                                         ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
                                         )}
@@ -656,14 +683,17 @@ export function ClientHoursDetail() {
                                             )}
                                             {worker.status !== 'pendente' && worker.hour_record_id && (
                                                 <>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        disabled={actionLoading === worker.hour_record_id + '-dl' || actionLoading === worker.hour_record_id + '-ap' || actionLoading === worker.hour_record_id + '-rj'}
-                                                        onClick={() => handleDownloadFile(worker.file_url, worker.file_name, worker.hour_record_id!)}
-                                                    >
-                                                        {actionLoading === worker.hour_record_id + '-dl' ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
-                                                    </Button>
+                                                    {worker.file_url && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            disabled={actionLoading === worker.hour_record_id + '-dl' || actionLoading === worker.hour_record_id + '-ap' || actionLoading === worker.hour_record_id + '-rj'}
+                                                            onClick={() => handleDownloadFile(worker.file_url, worker.file_name, worker.hour_record_id!)}
+                                                            title="Baixar folha anexada"
+                                                        >
+                                                            {actionLoading === worker.hour_record_id + '-dl' ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
+                                                        </Button>
+                                                    )}
                                                     {worker.status === 'enviado' && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
                                                         <Button
                                                             variant="ghost"
@@ -676,18 +706,30 @@ export function ClientHoursDetail() {
                                                             <span>{t('clientHoursDetail.buttons.processing', 'Lendo folha...')}</span>
                                                         </Button>
                                                     )}
-                                                    {(worker.status === 'processado' || worker.status === 'validado') && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
+                                                    {['processado', 'validado', 'em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
                                                         <Button
                                                             variant="default"
                                                             size="sm"
                                                             className={`h-8 text-white font-semibold px-3 flex items-center gap-1.5 shadow-sm transition-colors ${
                                                                 worker.status === 'validado'
                                                                     ? 'bg-green-600 hover:bg-green-700'
-                                                                    : 'bg-slate-500 hover:bg-slate-600'
+                                                                    : worker.status === 'assinado_encarregado'
+                                                                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                                                                    : worker.status === 'em_andamento' || worker.status === 'aguardando_assinatura'
+                                                                    ? 'bg-indigo-600 hover:bg-indigo-700'
+                                                                    : 'bg-slate-600 hover:bg-slate-700'
                                                             }`}
                                                             onClick={() => handleOpenValidation(worker)}
                                                             disabled={actionLoading === worker.hour_record_id + '-ap'}
-                                                            title={worker.status === 'validado' ? t('clientHoursDetail.tooltips.revalidate', 'Revalidar Lançamentos') : t('clientHoursDetail.tooltips.validate')}
+                                                            title={
+                                                                worker.status === 'validado'
+                                                                    ? t('clientHoursDetail.tooltips.revalidate', 'Revalidar Lançamentos')
+                                                                    : worker.status === 'assinado_encarregado'
+                                                                    ? 'Validar Apontamento Assinado'
+                                                                    : worker.status === 'em_andamento'
+                                                                    ? 'Validar Apontamento do Portal'
+                                                                    : t('clientHoursDetail.tooltips.validate')
+                                                            }
                                                         >
                                                             {actionLoading === worker.hour_record_id + '-ap' ? (
                                                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -697,11 +739,17 @@ export function ClientHoursDetail() {
                                                             <span>
                                                                 {worker.status === 'validado'
                                                                     ? t('clientHoursDetail.buttons.validated', 'Validado')
+                                                                    : worker.status === 'assinado_encarregado'
+                                                                    ? 'Validar Assinado'
+                                                                    : worker.status === 'em_andamento'
+                                                                    ? 'Validar Portal'
+                                                                    : worker.status === 'aguardando_assinatura'
+                                                                    ? 'Ver / Validar'
                                                                     : t('clientHoursDetail.buttons.validate', 'Validar')}
                                                             </span>
                                                         </Button>
                                                     )}
-                                                    {(role === 'super_admin' || role === 'admin_rh') && (
+                                                    {worker.file_url && (role === 'super_admin' || role === 'admin_rh') && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
