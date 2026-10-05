@@ -19,6 +19,7 @@ ALTER TABLE core_personal.worker_hours
 ADD COLUMN IF NOT EXISTS apontamentos_diarios JSONB DEFAULT '[]'::jsonb,
 ADD COLUMN IF NOT EXISTS total_horas_normais NUMERIC(10, 2) DEFAULT 0,
 ADD COLUMN IF NOT EXISTS total_horas_noturnas NUMERIC(10, 2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS horas_totais NUMERIC(10, 2) DEFAULT 0,
 ADD COLUMN IF NOT EXISTS signature_token UUID DEFAULT gen_random_uuid(),
 ADD COLUMN IF NOT EXISTS encarregado_nome TEXT,
 ADD COLUMN IF NOT EXISTS encarregado_email TEXT,
