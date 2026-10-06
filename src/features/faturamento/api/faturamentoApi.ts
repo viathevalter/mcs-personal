@@ -539,7 +539,7 @@ export async function getHorasPendentesFaturamento(
       const { data: fatData } = await supabase
         .schema('core_finance')
         .from('faturas')
-        .select('id, client_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud, observacoes_cliente, dispute_file_url')
+        .select('id, client_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud, observacoes_cliente')
         .in('id', faturaIds);
       faturasList = fatData || [];
     }
@@ -868,7 +868,7 @@ export async function getHorasPendentesFaturamento(
         faturaNumero = activeFatura.fatura_numero || null;
         faturaAtcud = activeFatura.atcud || null;
         observacoesCliente = activeFatura.observacoes_cliente || null;
-        disputeFileUrl = activeFatura.dispute_file_url || activeFatura.ajustes_json?.dispute_file_url || null;
+        disputeFileUrl = activeFatura.ajustes_json?.dispute_file_url || null;
         if (activeFatura.status === 'pending_client_approval') {
           statusBilling = 'invoiced_pending';
         } else if (activeFatura.status === 'approved' || activeFatura.status === 'invoice_sent') {
