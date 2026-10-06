@@ -165,6 +165,8 @@ export interface ClientBillingSummary {
   magicLinkToken: string | null;
   dataEmissaoFatura?: string | null;
   ajustesJson?: any | null;
+  observacoesCliente?: string | null;
+  disputeFileUrl?: string | null;
   totalWorkers: number;
   validatedWorkers: number;
   paymentTermName?: string | null;
@@ -487,11 +489,14 @@ export async function getHorasPendentesFaturamento(
       return uw ? uw.empresa_id === empresaId : false;
     };
 
-    // Filter hours to keep those belonging to the company's workers AND falling within their client's custom cycle
+    // Filter hours to keep those belonging to the company (either the client belongs to the company or the worker belongs to it) AND falling within custom cycle
     const hoursList = horasTrabalhadasList.filter(h => {
-      if (!belongsToCompany(h.worker_id)) return false;
       const client = clientsList.find(c => c.id === h.client_id);
       if (!client) return false;
+      const clientBelongsToCompany = client.empresa_id === empresaId;
+      const workerBelongsToCompany = belongsToCompany(h.worker_id);
+      if (!clientBelongsToCompany && !workerBelongsToCompany) return false;
+
       const cycleStartDay = client.billing_cycle_start_day || 1;
       const { start: clientStart, end: clientEnd } = getClientDateRange(cycleStartDay, periodYear, periodMonth);
       return h.data_trabalho >= clientStart && h.data_trabalho <= clientEnd;
@@ -534,7 +539,7 @@ export async function getHorasPendentesFaturamento(
       const { data: fatData } = await supabase
         .schema('core_finance')
         .from('faturas')
-        .select('id, client_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud')
+        .select('id, client_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud, observacoes_cliente, dispute_file_url')
         .in('id', faturaIds);
       faturasList = fatData || [];
     }
@@ -607,7 +612,9 @@ export async function getHorasPendentesFaturamento(
       const calculateHourEntryValor = (h: any): number => {
         const tot = Number(h.horas_totais || 0);
         const not = Number(h.horas_noturnas || 0);
-        const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, tot - not);
+        const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
+          ? Number(h.horas_normais)
+          : Math.max(0, tot - not);
         const tarifaNormal = Number(h.tarifa_faturada || 0);
         const tarifaNoturna = h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined
           ? Number(h.tarifa_faturada_noturna)
@@ -634,7 +641,9 @@ export async function getHorasPendentesFaturamento(
         const entry = obrasMap.get(oId)!;
         const entryTot = Number(h.horas_totais || 0);
         const entryNot = Number(h.horas_noturnas || 0);
-        const entryNorm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, entryTot - entryNot);
+        const entryNorm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || entryNot > 0))
+          ? Number(h.horas_normais)
+          : Math.max(0, entryTot - entryNot);
         entry.totalHoras += entryTot;
         entry.totalNormais += entryNorm;
         entry.totalNoturnas += entryNot;
@@ -692,7 +701,13 @@ export async function getHorasPendentesFaturamento(
         const wActiveHours = activeHoursByWorker.get(w.id) || [];
 
         const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalNormais = wActiveHours.reduce((sum, h) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+        const wTotalNormais = wActiveHours.reduce((sum, h) => {
+          const not = Number(h.horas_noturnas || 0);
+          const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
+            ? Number(h.horas_normais)
+            : Math.max(0, Number(h.horas_totais || 0) - not);
+          return sum + norm;
+        }, 0);
         const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Number(h.horas_noturnas || 0), 0);
         const wTotalValor = wActiveHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
@@ -768,7 +783,13 @@ export async function getHorasPendentesFaturamento(
 
         const wActiveHours = activeHoursByWorker.get(wId) || [];
         const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-        const wTotalNormais = wActiveHours.reduce((sum, h) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+        const wTotalNormais = wActiveHours.reduce((sum, h) => {
+          const not = Number(h.horas_noturnas || 0);
+          const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
+            ? Number(h.horas_normais)
+            : Math.max(0, Number(h.horas_totais || 0) - not);
+          return sum + norm;
+        }, 0);
         const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Number(h.horas_noturnas || 0), 0);
         const wTotalValor = wActiveHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
@@ -837,6 +858,8 @@ export async function getHorasPendentesFaturamento(
       let ajustesJson: any | null = null;
       let faturaNumero: string | null = null;
       let faturaAtcud: string | null = null;
+      let observacoesCliente: string | null = null;
+      let disputeFileUrl: string | null = null;
 
       if (activeFatura) {
         magicLinkToken = activeFatura.magic_link_token;
@@ -844,6 +867,8 @@ export async function getHorasPendentesFaturamento(
         ajustesJson = activeFatura.ajustes_json || null;
         faturaNumero = activeFatura.fatura_numero || null;
         faturaAtcud = activeFatura.atcud || null;
+        observacoesCliente = activeFatura.observacoes_cliente || null;
+        disputeFileUrl = activeFatura.dispute_file_url || activeFatura.ajustes_json?.dispute_file_url || null;
         if (activeFatura.status === 'pending_client_approval') {
           statusBilling = 'invoiced_pending';
         } else if (activeFatura.status === 'approved' || activeFatura.status === 'invoice_sent') {
@@ -905,6 +930,8 @@ export async function getHorasPendentesFaturamento(
         magicLinkToken,
         dataEmissaoFatura,
         ajustesJson,
+        observacoesCliente,
+        disputeFileUrl,
         totalWorkers: hasUnbilled ? totalUnbilled : workersSummary.length,
         validatedWorkers: hasUnbilled ? validatedUnbilled : workersSummary.length,
         paymentTermName: termName,

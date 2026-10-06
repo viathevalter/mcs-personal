@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/shared/supabase/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -45,7 +46,8 @@ import {
   X,
   XCircle,
   Eye,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -108,6 +110,7 @@ export const getBillingCycleDays = (startDay: number, year: number, monthIndex: 
 };
 
 export function FaturasPendentes() {
+  const navigate = useNavigate();
   const [faturamentos, setFaturamentos] = useState<ClientBillingSummary[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -751,12 +754,38 @@ MCS - Gestão Comercial`;
     setFaturaActiveTab('resumo');
     setLoadingFaturaHours(true);
     try {
+      const faturaId = fatura.id || fatura.activeFaturaId;
+
+      if (faturaId) {
+        const { data: freshFat } = await supabase
+          .schema('core_finance')
+          .from('faturas')
+          .select('*')
+          .eq('id', faturaId)
+          .maybeSingle();
+
+        if (freshFat) {
+          setSelectedFatura((prev: any) => ({
+            ...prev,
+            ...freshFat,
+            clientName: prev?.clientName || freshFat.client_name,
+            clientLegalName: prev?.clientLegalName || prev?.clientName || freshFat.client_name,
+            faturaNumero: freshFat.fatura_numero || prev?.faturaNumero,
+            atcud: freshFat.atcud || prev?.atcud,
+            status: freshFat.status || prev?.status,
+            observacoes_cliente: freshFat.observacoes_cliente || prev?.observacoesCliente || prev?.observacoes_cliente,
+            dispute_file_url: freshFat.dispute_file_url || freshFat.ajustes_json?.dispute_file_url || prev?.disputeFileUrl || prev?.dispute_file_url,
+            ajustes_json: freshFat.ajustes_json || prev?.ajustesJson || prev?.ajustes_json
+          }));
+        }
+      }
+
       const data = await fetchAllPages(async (from, to) => {
         return supabase
           .schema('core_finance')
           .from('horas_trabalhadas')
           .select('*')
-          .eq('fatura_id', fatura.id)
+          .eq('fatura_id', faturaId)
           .range(from, to);
       });
       
@@ -3201,7 +3230,16 @@ MCS - Gestão Comercial`;
               }, {} as Record<string, any>);
 
               const wTotalHorasMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
-              const wTotalValorMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
+              const wTotalValorMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+                const totu = Number(h.horas_totais || 0);
+                const notu = Number(h.horas_noturnas || 0);
+                const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+                  ? Number(h.horas_normais)
+                  : Math.max(0, totu - notu);
+                const tfNorm = Number(h.tarifa_faturada || 0);
+                const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+                return sum + (norm * tfNorm) + (notu * tfNotu);
+              }, 0);
 
               return {
                 ...w,
@@ -3227,11 +3265,21 @@ MCS - Gestão Comercial`;
               }, {} as Record<string, any>);
 
               const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
-              const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
+              const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+                const totu = Number(h.horas_totais || 0);
+                const notu = Number(h.horas_noturnas || 0);
+                const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+                  ? Number(h.horas_normais)
+                  : Math.max(0, totu - notu);
+                return sum + norm;
+              }, 0);
               const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
               const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
-                const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+                const totu = Number(h.horas_totais || 0);
                 const notu = Number(h.horas_noturnas || 0);
+                const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+                  ? Number(h.horas_normais)
+                  : Math.max(0, totu - notu);
                 const tfNorm = Number(h.tarifa_faturada || 0);
                 const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
                 return sum + (norm * tfNorm) + (notu * tfNotu);
@@ -3351,7 +3399,7 @@ MCS - Gestão Comercial`;
                       <div className="text-sm">
                         <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Horas a Faturar</p>
                         <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
-                          {f.totalHoras.toFixed(2)}h
+                          {displayTotalHoras.toFixed(2)}h
                         </p>
                         {totalBilledHours > 0 && (
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
@@ -3367,7 +3415,7 @@ MCS - Gestão Comercial`;
                       <div className="text-sm">
                         <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Faturamento Pendente</p>
                         <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
-                          € {f.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          € {displayTotalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                         {totalBilledValor > 0 && (
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
@@ -3519,7 +3567,9 @@ MCS - Gestão Comercial`;
                             data_emissao: f.dataEmissaoFatura,
                             ajustes_json: f.ajustesJson,
                             fatura_numero: f.faturaNumero,
-                            atcud: f.atcud
+                            atcud: f.atcud,
+                            observacoes_cliente: f.observacoesCliente,
+                            dispute_file_url: f.disputeFileUrl
                           };
                           handleOpenFaturaDetails(faturaObj);
                         }}
@@ -5117,17 +5167,78 @@ MCS - Gestão Comercial`;
               ? (selectedFatura.fatura_numero.includes('/') ? selectedFatura.fatura_numero : `IF-${selectedFatura.year || year}/${String(selectedFatura.fatura_numero).padStart(4, '0')}`)
               : `#${selectedFatura.id.substring(0, 8).toUpperCase()}`;
 
+            const isDisputed = selectedFatura.status === 'disputed' || !!selectedFatura.observacoes_cliente || !!selectedFatura.observacoesCliente;
+            const clientComment = selectedFatura.observacoes_cliente || selectedFatura.observacoesCliente || null;
+            const disputeDocUrl = selectedFatura.dispute_file_url || selectedFatura.disputeFileUrl || selectedFatura.ajustes_json?.dispute_file_url || null;
+            const disputedHoursMap = selectedFatura.ajustes_json?.disputed_hours || {};
+
             return (
               <>
                 <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                    <FileText className="w-6 h-6" />
-                    Detalhes do Faturamento - Fatura {invoiceControlCode}
+                  <DialogTitle className={`flex items-center gap-2 ${isDisputed ? 'text-rose-700 dark:text-rose-400' : 'text-blue-700 dark:text-blue-400'}`}>
+                    {isDisputed ? (
+                      <AlertTriangle className="w-6 h-6 text-rose-600" />
+                    ) : (
+                      <FileText className="w-6 h-6" />
+                    )}
+                    {isDisputed ? `Análise de Contestação - Fatura ${invoiceControlCode}` : `Detalhes do Faturamento - Fatura ${invoiceControlCode}`}
                   </DialogTitle>
                   <DialogDescription className="text-base pt-1">
-                    Consulte o resumo de horas, informe de faturamento e fatura única correspondentes a este ciclo.
+                    {isDisputed
+                      ? 'O cliente contestou esta fatura. Veja abaixo a justificativa do cliente, comprovantes e divergências na folha.'
+                      : 'Consulte o resumo de horas, informe de faturamento e fatura única correspondentes a este ciclo.'}
                   </DialogDescription>
                 </DialogHeader>
+
+                {/* Banner de Contestação com o motivo e observações do cliente */}
+                {isDisputed && (
+                  <div className="bg-rose-50 dark:bg-rose-950/30 border-2 border-rose-300 dark:border-rose-900 rounded-xl p-4 my-2 text-rose-950 dark:text-rose-100 shadow-sm animate-in fade-in">
+                    <div className="flex items-center justify-between gap-3 pb-2.5 border-b border-rose-200 dark:border-rose-900/60">
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0" />
+                        <div>
+                          <h4 className="font-extrabold text-sm text-rose-900 dark:text-rose-200">
+                            Contestação Aberta pelo Cliente
+                          </h4>
+                          <p className="text-[11px] text-rose-700 dark:text-rose-400">
+                            O cliente analisou o faturamento e enviou o motivo da recusa/ajustes.
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className="bg-rose-600 text-white font-bold text-xs uppercase px-2 py-0.5 shrink-0">
+                        Status: Contestado
+                      </Badge>
+                    </div>
+
+                    {/* Comentário do Cliente */}
+                    <div className="mt-3 space-y-1">
+                      <span className="text-[10px] uppercase tracking-wider font-extrabold text-rose-800 dark:text-rose-300 block">
+                        Justificativa / Motivo Informado pelo Cliente:
+                      </span>
+                      <div className="bg-white dark:bg-slate-900 p-3.5 rounded-lg border border-rose-200 dark:border-rose-800 text-xs text-slate-800 dark:text-slate-100 whitespace-pre-wrap font-sans leading-relaxed shadow-sm">
+                        "{clientComment || 'Nenhuma justificativa textual fornecida pelo cliente.'}"
+                      </div>
+                    </div>
+
+                    {/* Documento de Comprovação Anexo se houver */}
+                    {disputeDocUrl && (
+                      <div className="mt-3 pt-2.5 border-t border-rose-200 dark:border-rose-900/50 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-rose-600" />
+                          Documento Comprovatório Anexado:
+                        </span>
+                        <a
+                          href={disputeDocUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold text-blue-700 hover:text-blue-900 dark:text-blue-300 underline flex items-center gap-1.5 bg-white dark:bg-slate-900 px-3 py-1.5 rounded-md border border-rose-200 dark:border-rose-800 shadow-sm"
+                        >
+                          Visualizar Documento de Comprovação <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Tab Navigation */}
                 <div className="flex border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-xl mt-2">
@@ -5235,21 +5346,33 @@ MCS - Gestão Comercial`;
                                       {disputeDaysArray.map(dayInfo => {
                                         const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
                                         const isWk = isWeekendFatura(dayInfo.day, dayInfo.year, dayInfo.month - 1);
+                                        const proposedVal = disputedHoursMap[worker.workerId]?.[dayInfo.dateStr];
+                                        const hasDispute = proposedVal !== undefined && proposedVal !== originalVal;
 
                                         return (
                                           <TableCell 
                                             key={dayInfo.dateStr} 
                                             className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none border-x border-slate-100 dark:border-slate-850 ${
-                                              isWk
-                                                ? originalVal > 0
-                                                  ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
-                                                  : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
-                                                : originalVal > 0
-                                                  ? 'bg-slate-50 dark:bg-slate-800/10 text-slate-900 dark:text-slate-100 font-bold'
-                                                  : 'text-slate-300 font-normal'
+                                              hasDispute
+                                                ? 'bg-amber-100 dark:bg-amber-950/50 border-amber-300 dark:border-amber-700 font-extrabold text-amber-900 dark:text-amber-200'
+                                                : isWk
+                                                  ? originalVal > 0
+                                                    ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
+                                                    : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
+                                                  : originalVal > 0
+                                                    ? 'bg-slate-50 dark:bg-slate-800/10 text-slate-900 dark:text-slate-100 font-bold'
+                                                    : 'text-slate-300 font-normal'
                                             }`}
+                                            title={hasDispute ? `Contestado pelo cliente: Original ${originalVal}h ➔ Proposto ${proposedVal}h` : undefined}
                                           >
-                                            {originalVal > 0 ? originalVal : '-'}
+                                            {hasDispute ? (
+                                              <div className="flex flex-col items-center leading-none py-0.5">
+                                                <span className="line-through text-[8px] text-slate-500 opacity-75">{originalVal > 0 ? originalVal : '0'}</span>
+                                                <span className="text-[10px] font-black text-rose-700 dark:text-rose-400">{proposedVal}</span>
+                                              </div>
+                                            ) : (
+                                              originalVal > 0 ? originalVal : '-'
+                                            )}
                                           </TableCell>
                                         );
                                       })}
@@ -5631,10 +5754,26 @@ MCS - Gestão Comercial`;
                   )}
                 </div>
 
-                <DialogFooter className="gap-2 sm:gap-0 border-t dark:border-slate-800 pt-4 mt-2">
+                <DialogFooter className="flex flex-col sm:flex-row justify-between items-center gap-2 border-t dark:border-slate-800 pt-4 mt-2">
                   <Button variant="outline" onClick={() => setSelectedFatura(null)}>
                     Fechar
                   </Button>
+
+                  {isDisputed && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => {
+                          const fId = selectedFatura.id || selectedFatura.activeFaturaId;
+                          setSelectedFatura(null);
+                          navigate(`/faturamento/tracking?faturaId=${fId}`);
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold gap-1.5 shadow-sm"
+                      >
+                        <ExternalLink size={14} />
+                        Abrir Resolução Completa no Tracking
+                      </Button>
+                    </div>
+                  )}
                 </DialogFooter>
               </>
             );
