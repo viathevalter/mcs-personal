@@ -1301,6 +1301,233 @@ export function getDisputedHourValue(
   return proposed !== undefined ? proposed : defaultVal;
 }
 
+export function computeDisputeTotalsAndCells(
+  disputeHours: any[],
+  disputedHoursObj: any,
+  selectedObraId: string = 'all'
+) {
+  const normalized = normalizeDisputedHoursMap(disputedHoursObj || {});
+  const cellRecordsMap = new Map<string, {
+    wId: string;
+    workerName: string;
+    oId: string;
+    obraName: string;
+    dKey: string;
+    original: number;
+    proposed?: number;
+    tarifa: number;
+    tarifaNoturna: number | null;
+    horasNormais: number;
+    horasNoturnas: number;
+  }>();
+
+  (disputeHours || []).forEach((h: any) => {
+    const wId = h.worker_id;
+    if (!wId) return;
+    const oId = h.obra_id || 'sem_obra';
+    const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
+    const key = `${wId}___${oId}___${dKey}`;
+    if (!cellRecordsMap.has(key)) {
+      cellRecordsMap.set(key, {
+        wId,
+        workerName: h.worker?.nome || h.worker?.nombrecompleto || 'Colaborador',
+        oId,
+        obraName: h.obra_name || 'Sem Obra',
+        dKey,
+        original: 0,
+        tarifa: Number(h.tarifa_faturada || 0),
+        tarifaNoturna: h.tarifa_faturada_noturna ? Number(h.tarifa_faturada_noturna) : null,
+        horasNormais: Number(h.horas_normais || 0),
+        horasNoturnas: Number(h.horas_noturnas || 0),
+      });
+    }
+    const cell = cellRecordsMap.get(key)!;
+    cell.original += Number(h.horas_totais || 0);
+  });
+
+  // Apply disputed hours
+  Object.keys(normalized).forEach(k => {
+    let targetWorkerId = k;
+    let targetObraId: string | null = null;
+    if (k.includes('___')) {
+      const parts = k.split('___');
+      targetWorkerId = parts[0];
+      targetObraId = parts[1];
+    }
+    const dates = normalized[k] || {};
+    Object.keys(dates).forEach(dKey => {
+      const val = Number(dates[dKey]);
+      if (isNaN(val)) return;
+      if (targetObraId) {
+        const key = `${targetWorkerId}___${targetObraId}___${dKey}`;
+        if (!cellRecordsMap.has(key)) {
+          const sample = (disputeHours || []).find((h: any) => h.worker_id === targetWorkerId);
+          cellRecordsMap.set(key, {
+            wId: targetWorkerId,
+            workerName: sample?.worker?.nome || sample?.worker?.nombrecompleto || 'Colaborador',
+            oId: targetObraId,
+            obraName: sample?.obra_name || 'Sem Obra',
+            dKey,
+            original: 0,
+            proposed: val,
+            tarifa: Number(sample?.tarifa_faturada || 0),
+            tarifaNoturna: sample?.tarifa_faturada_noturna ? Number(sample?.tarifa_faturada_noturna) : null,
+            horasNormais: 0,
+            horasNoturnas: 0,
+          });
+        } else {
+          cellRecordsMap.get(key)!.proposed = val;
+        }
+      } else {
+        // Direct worker key without obra suffix: apply to all records of this worker on dKey
+        const matchingKeys = Array.from(cellRecordsMap.keys()).filter(key => key.startsWith(`${targetWorkerId}___`) && key.endsWith(`___${dKey}`));
+        if (matchingKeys.length > 0) {
+          matchingKeys.forEach(mKey => {
+            cellRecordsMap.get(mKey)!.proposed = val;
+          });
+        } else {
+          const sample = (disputeHours || []).find((h: any) => h.worker_id === targetWorkerId);
+          const key = `${targetWorkerId}___sem_obra___${dKey}`;
+          cellRecordsMap.set(key, {
+            wId: targetWorkerId,
+            workerName: sample?.worker?.nome || sample?.worker?.nombrecompleto || 'Colaborador',
+            oId: 'sem_obra',
+            obraName: 'Sem Obra',
+            dKey,
+            original: 0,
+            proposed: val,
+            tarifa: Number(sample?.tarifa_faturada || 0),
+            tarifaNoturna: sample?.tarifa_faturada_noturna ? Number(sample?.tarifa_faturada_noturna) : null,
+            horasNormais: 0,
+            horasNoturnas: 0,
+          });
+        }
+      }
+    });
+  });
+
+  const allCells = Array.from(cellRecordsMap.values());
+
+  // Compute obra stats across all cells
+  const obrasMap = new Map<string, { id: string | null; name: string; hours: number; workers: Set<string> }>();
+  allCells.forEach(c => {
+    const key = c.oId || 'sem_obra';
+    if (!obrasMap.has(key)) {
+      obrasMap.set(key, {
+        id: c.oId !== 'sem_obra' ? c.oId : null,
+        name: c.obraName || 'Sem Obra',
+        hours: 0,
+        workers: new Set()
+      });
+    }
+    const item = obrasMap.get(key)!;
+    const eff = c.proposed !== undefined ? c.proposed : c.original;
+    item.hours += eff;
+    item.workers.add(c.wId);
+  });
+  const disputeObras = Array.from(obrasMap.values());
+
+  const filteredCells = (selectedObraId && selectedObraId !== 'all')
+    ? allCells.filter(c => (c.oId === selectedObraId) || (!c.oId && selectedObraId === 'sem_obra'))
+    : allCells;
+
+  const totalHorasCalculadas = filteredCells.reduce((sum, c) => sum + (c.proposed !== undefined ? c.proposed : c.original), 0);
+  const totalAllObrasHours = allCells.reduce((sum, c) => sum + (c.proposed !== undefined ? c.proposed : c.original), 0);
+
+  const totalBaseVal = filteredCells.reduce((sum, c) => {
+    const eff = c.proposed !== undefined ? c.proposed : c.original;
+    const notu = Math.min(eff, Number(c.horasNoturnas || 0));
+    const norm = Math.max(0, eff - notu);
+    const tfNorm = Number(c.tarifa || 0);
+    const tfNotu = Number(c.tarifaNoturna || c.tarifa || 0);
+    return sum + (norm * tfNorm) + (notu * tfNotu);
+  }, 0);
+
+  const enrichedMap = new Map<string, {
+    workerId: string;
+    workerName: string;
+    totalHoras: number;
+    totalHorasNormais: number;
+    totalHorasNoturnas: number;
+    tarifa: number;
+    tarifaNoturna?: number | null;
+    totalValor: number;
+  }>();
+
+  filteredCells.forEach(c => {
+    if (!enrichedMap.has(c.wId)) {
+      enrichedMap.set(c.wId, {
+        workerId: c.wId,
+        workerName: c.workerName,
+        totalHoras: 0,
+        totalHorasNormais: 0,
+        totalHorasNoturnas: 0,
+        tarifa: c.tarifa,
+        tarifaNoturna: c.tarifaNoturna,
+        totalValor: 0
+      });
+    }
+    const wObj = enrichedMap.get(c.wId)!;
+    const eff = c.proposed !== undefined ? c.proposed : c.original;
+    const notu = Math.min(eff, Number(c.horasNoturnas || 0));
+    const norm = Math.max(0, eff - notu);
+    const tfNorm = Number(c.tarifa || wObj.tarifa || 0);
+    const tfNotu = Number(c.tarifaNoturna || wObj.tarifaNoturna || tfNorm);
+
+    wObj.totalHoras += eff;
+    wObj.totalHorasNormais += norm;
+    wObj.totalHorasNoturnas += notu;
+    wObj.totalValor += (norm * tfNorm) + (notu * tfNotu);
+  });
+  const groupedDisputeWorkersEnriched = Array.from(enrichedMap.values());
+
+  const matrixMap = new Map<string, {
+    workerId: string;
+    workerName: string;
+    horasDiariasOriginal: Record<string, number>;
+    horasDiariasEffective: Record<string, number>;
+    hasDisputePerDate: Record<string, boolean>;
+    workerOriginalTotal: number;
+    workerAdjustedTotal: number;
+  }>();
+
+  filteredCells.forEach(c => {
+    if (!matrixMap.has(c.wId)) {
+      matrixMap.set(c.wId, {
+        workerId: c.wId,
+        workerName: c.workerName,
+        horasDiariasOriginal: {},
+        horasDiariasEffective: {},
+        hasDisputePerDate: {},
+        workerOriginalTotal: 0,
+        workerAdjustedTotal: 0
+      });
+    }
+    const w = matrixMap.get(c.wId)!;
+    const eff = c.proposed !== undefined ? c.proposed : c.original;
+    w.horasDiariasOriginal[c.dKey] = (w.horasDiariasOriginal[c.dKey] || 0) + c.original;
+    w.horasDiariasEffective[c.dKey] = (w.horasDiariasEffective[c.dKey] || 0) + eff;
+    if (c.proposed !== undefined && Math.abs(c.proposed - c.original) > 0.01) {
+      w.hasDisputePerDate[c.dKey] = true;
+    }
+    w.workerOriginalTotal += c.original;
+    w.workerAdjustedTotal += eff;
+  });
+  const groupedDisputeWorkers = Array.from(matrixMap.values());
+
+  return {
+    cellRecordsMap,
+    allCells,
+    filteredCells,
+    disputeObras,
+    totalHorasCalculadas,
+    totalAllObrasHours,
+    totalBaseVal,
+    groupedDisputeWorkersEnriched,
+    groupedDisputeWorkers
+  };
+}
+
 export async function getFaturasTracking(empresaId?: string | null): Promise<any[]> {
   try {
     let query = supabase

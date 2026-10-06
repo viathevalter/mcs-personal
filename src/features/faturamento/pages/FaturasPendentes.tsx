@@ -17,7 +17,8 @@ import {
   sincronizarTarifasFaturamento,
   fetchAllPages,
   normalizeDisputedHoursMap,
-  getDisputedHourProposed
+  getDisputedHourProposed,
+  computeDisputeTotalsAndCells
 } from '../api/faturamentoApi';
 import type { ClientBillingSummary } from '../api/faturamentoApi';
 import { toast } from 'sonner';
@@ -5211,30 +5212,17 @@ MCS - Gestão Comercial`;
               descricaoServico: 'Prestação de Serviços'
             };
 
-            const totalBaseVal = faturaHours.reduce((sum, h) => sum + Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0), 0);
-            const finalTotalVal = (totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * (1 + Number(adjustments.ivaPct || 0) / 100);
-            const totalHorasCalculadas = faturaHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
+            const disputedHoursMap = normalizeDisputedHoursMap(selectedFatura.ajustes_json?.disputed_hours || {});
 
-            const groupedWorkersEnriched = (() => {
-              const workersMap = new Map();
-              faturaHours.forEach(h => {
-                const wId = h.worker_id;
-                if (!wId) return;
-                if (!workersMap.has(wId)) {
-                  workersMap.set(wId, {
-                    workerId: wId,
-                    workerName: h.worker?.nome || 'Colaborador',
-                    totalHoras: 0,
-                    tarifa: h.tarifa_faturada || 0,
-                    totalValor: 0
-                  });
-                }
-                const wObj = workersMap.get(wId);
-                wObj.totalHoras += h.horas_totais;
-                wObj.totalValor += h.horas_totais * (h.tarifa_faturada || 0);
-              });
-              return Array.from(workersMap.values());
-            })();
+            const {
+              totalHorasCalculadas,
+              totalBaseVal,
+              groupedDisputeWorkersEnriched,
+              groupedDisputeWorkers
+            } = computeDisputeTotalsAndCells(faturaHours, disputedHoursMap, 'all');
+
+            const finalTotalVal = (totalBaseVal + Number(adjustments.incrementos || 0) - Number(adjustments.reducoes || 0)) * (1 + Number(adjustments.ivaPct || 0) / 100);
+            const groupedWorkersEnriched = groupedDisputeWorkersEnriched;
 
             const disputeDaysArray = (() => {
               let disputeYear = year;
@@ -5258,7 +5246,6 @@ MCS - Gestão Comercial`;
             const isDisputed = selectedFatura.status === 'disputed' || !!selectedFatura.observacoes_cliente || !!selectedFatura.observacoesCliente;
             const clientComment = selectedFatura.observacoes_cliente || selectedFatura.observacoesCliente || null;
             const disputeDocUrl = selectedFatura.dispute_file_url || selectedFatura.disputeFileUrl || selectedFatura.ajustes_json?.dispute_file_url || null;
-            const disputedHoursMap = normalizeDisputedHoursMap(selectedFatura.ajustes_json?.disputed_hours || {});
 
             return (
               <>
@@ -5419,28 +5406,17 @@ MCS - Gestão Comercial`;
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {groupedWorkersEnriched.map(worker => {
-                                  const workerHoursList = faturaHours.filter(h => h.worker_id === worker.workerId);
-                                  const workerHoursMapLocal = new Map(workerHoursList.map(h => [h.data_trabalho, h.horas_totais]));
-
-                                  const workerOriginalTotal = disputeDaysArray.reduce((sum, dayInfo) => {
-                                    return sum + (workerHoursMapLocal.get(dayInfo.dateStr) || 0);
-                                  }, 0);
-                                  const workerAdjustedTotal = disputeDaysArray.reduce((sum, dayInfo) => {
-                                    const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
-                                    const proposedVal = getDisputedHourProposed(disputedHoursMap, worker.workerId, dayInfo.dateStr);
-                                    return sum + (proposedVal !== undefined ? proposedVal : originalVal);
-                                  }, 0);
-                                  const hasWorkerDispute = Math.abs(workerAdjustedTotal - workerOriginalTotal) > 0.01;
+                                {groupedDisputeWorkers.map(worker => {
+                                  const hasWorkerDispute = Math.abs(worker.workerAdjustedTotal - worker.workerOriginalTotal) > 0.01;
 
                                   return (
                                     <TableRow key={worker.workerId} className="hover:bg-slate-50/50">
                                       <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
                                       {disputeDaysArray.map(dayInfo => {
-                                        const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
+                                        const originalVal = worker.horasDiariasOriginal[dayInfo.dateStr] || 0;
+                                        const effectiveVal = worker.horasDiariasEffective[dayInfo.dateStr] || 0;
                                         const isWk = isWeekendFatura(dayInfo.day, dayInfo.year, dayInfo.month - 1);
-                                        const proposedVal = getDisputedHourProposed(disputedHoursMap, worker.workerId, dayInfo.dateStr);
-                                        const hasDispute = proposedVal !== undefined && proposedVal !== originalVal;
+                                        const hasDispute = !!worker.hasDisputePerDate[dayInfo.dateStr] || Math.abs(effectiveVal - originalVal) > 0.01;
 
                                         return (
                                           <TableCell 
@@ -5456,12 +5432,12 @@ MCS - Gestão Comercial`;
                                                     ? 'bg-slate-50 dark:bg-slate-800/10 text-slate-900 dark:text-slate-100 font-bold'
                                                     : 'text-slate-300 font-normal'
                                             }`}
-                                            title={hasDispute ? `Contestado pelo cliente: Original ${originalVal}h ➔ Proposto ${proposedVal}h` : undefined}
+                                            title={hasDispute ? `Contestado pelo cliente: Original ${originalVal}h ➔ Proposto ${effectiveVal}h` : undefined}
                                           >
                                             {hasDispute ? (
                                               <div className="flex flex-col items-center leading-none py-0.5">
                                                 <span className="line-through text-[8px] text-slate-500 opacity-75">{originalVal > 0 ? originalVal : '0'}</span>
-                                                <span className="text-[10px] font-black text-rose-700 dark:text-rose-400">{proposedVal}</span>
+                                                <span className="text-[10px] font-black text-rose-700 dark:text-rose-400">{effectiveVal}</span>
                                               </div>
                                             ) : (
                                               originalVal > 0 ? originalVal : '-'
@@ -5472,11 +5448,11 @@ MCS - Gestão Comercial`;
                                       <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
                                         {hasWorkerDispute ? (
                                           <div className="flex flex-col items-end leading-none">
-                                            <span className="line-through text-[9px] text-slate-400">{workerOriginalTotal.toFixed(1)}h</span>
-                                            <span className="text-xs font-black text-rose-700 dark:text-rose-400">{workerAdjustedTotal.toFixed(1)}h</span>
+                                            <span className="line-through text-[9px] text-slate-400">{worker.workerOriginalTotal.toFixed(1)}h</span>
+                                            <span className="text-xs font-black text-rose-700 dark:text-rose-400">{worker.workerAdjustedTotal.toFixed(1)}h</span>
                                           </div>
                                         ) : (
-                                          `${workerOriginalTotal.toFixed(1)}h`
+                                          `${worker.workerOriginalTotal.toFixed(1)}h`
                                         )}
                                       </TableCell>
                                     </TableRow>

@@ -20,7 +20,8 @@ import {
   getDisputedHourValue, 
   deepMergeDisputedHours,
   normalizeDisputedHoursMap,
-  getDisputedHourProposed
+  getDisputedHourProposed,
+  computeDisputeTotalsAndCells
 } from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -239,20 +240,17 @@ export function FaturasTracking() {
     }
   };
 
+  const [disputeSelectedObraId, setDisputeSelectedObraId] = useState<string>('all');
+
   const disputeObras = React.useMemo(() => {
     if (!disputeHours || disputeHours.length === 0) return [];
-    const map = new Map<string, { id: string | null; name: string; hours: number; workers: Set<string> }>();
-    disputeHours.forEach((h: any) => {
-      const key = h.obra_id || 'sem_obra';
-      if (!map.has(key)) {
-        map.set(key, { id: h.obra_id || null, name: h.obra_name || 'Sem Obra', hours: 0, workers: new Set() });
-      }
-      const item = map.get(key)!;
-      item.hours += Number(h.horas_totais || 0);
-      if (h.worker_id) item.workers.add(h.worker_id);
-    });
-    return Array.from(map.values());
-  }, [disputeHours]);
+    const combined = deepMergeDisputedHours(
+      selectedDispute?.ajustes_json?.disputed_hours || {},
+      adminModifiedHours || {}
+    );
+    const { disputeObras } = computeDisputeTotalsAndCells(disputeHours, combined, 'all');
+    return disputeObras;
+  }, [disputeHours, selectedDispute, adminModifiedHours]);
 
   const [pdfRenderData, setPdfRenderData] = useState<{ fatura: any, hours: any[], type: 'informe' | 'factura' } | null>(null);
   const [statusFilter, setStatusFilter] = useState(() => {
@@ -2229,14 +2227,40 @@ export function FaturasTracking() {
     }
   };
 
-  const handleAdminCellEdit = (workerId: string, dateKey: string, hours: number, originalHours: number) => {
+  const handleAdminCellEdit = (
+    workerId: string, 
+    dateKey: string, 
+    hours: number, 
+    originalHours: number,
+    targetObraId?: string
+  ) => {
     if (isNaN(hours) || hours < 0) return;
 
     const current = deepMergeDisputedHours(
       normalizeDisputedHoursMap(selectedDispute?.ajustes_json?.disputed_hours || {}),
       adminModifiedHoursRef.current
     );
-    const workerPrev = { ...(current[workerId] || {}) };
+
+    // Determine target key:
+    let targetKey = workerId;
+    if (targetObraId && targetObraId !== 'all') {
+      targetKey = `${workerId}___${targetObraId}`;
+    } else {
+      // If editing in 'all', check if there are already composite keys for this worker on dateKey
+      const existingCompositeKeys = Object.keys(current).filter(k => k.startsWith(`${workerId}___`) && current[k]?.[dateKey] !== undefined);
+      if (existingCompositeKeys.length === 1) {
+        targetKey = existingCompositeKeys[0];
+      } else {
+        // Check if disputeHours for this worker on dateKey belongs to an obra
+        const dayHours = (disputeHours || []).filter((h: any) => h.worker_id === workerId && h.data_trabalho && h.data_trabalho.startsWith(dateKey));
+        const obraIds = [...new Set(dayHours.map((h: any) => h.obra_id).filter(Boolean))];
+        if (obraIds.length === 1) {
+          targetKey = `${workerId}___${obraIds[0]}`;
+        }
+      }
+    }
+
+    const workerPrev = { ...(current[targetKey] || {}) };
     if (hours === originalHours) {
       delete workerPrev[dateKey];
     } else {
@@ -2245,71 +2269,18 @@ export function FaturasTracking() {
 
     const next = { ...current };
     if (Object.keys(workerPrev).length === 0) {
-      delete next[workerId];
+      delete next[targetKey];
     } else {
-      next[workerId] = workerPrev;
+      next[targetKey] = workerPrev;
     }
-
-    // Keep any composite key matching workerId in sync
-    Object.keys(next).forEach(k => {
-      if (k.startsWith(`${workerId}___`)) {
-        if (next[k]) {
-          if (hours === originalHours) {
-            delete next[k][dateKey];
-          } else {
-            next[k][dateKey] = hours;
-          }
-          if (Object.keys(next[k]).length === 0) {
-            delete next[k];
-          }
-        }
-      }
-    });
     
     adminModifiedHoursRef.current = next;
     setAdminModifiedHours(next);
 
     if (selectedDispute) {
-      let effH = 0;
-      let effBaseV = 0;
-      const processed = new Set<string>();
-
-      // Group disputeHours by worker and date
-      const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
-      (disputeHours || []).forEach((h: any) => {
-        const wId = h.worker_id;
-        if (!wId) return;
-        const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-        const key = `${wId}_${dKey}`;
-        if (!groupedMap.has(key)) {
-          groupedMap.set(key, { wId, dateKey: dKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
-        }
-        groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
-      });
-
-      groupedMap.forEach((gVal, key) => {
-        processed.add(key);
-        const proposed = getDisputedHourProposed(next, gVal.wId, gVal.dateKey);
-        const hoursVal = proposed !== undefined ? Number(proposed) : gVal.hours;
-        effH += hoursVal;
-        effBaseV += hoursVal * gVal.rate;
-      });
-
-      Object.keys(next).forEach(wId => {
-        const dates = next[wId] || {};
-        const sample = (disputeHours || []).find((h: any) => h.worker_id === wId);
-        const rate = Number(sample?.tarifa_faturada || 0);
-
-        Object.keys(dates).forEach(dKey => {
-          if (!processed.has(`${wId}_${dKey}`)) {
-            const hoursVal = Number(dates[dKey] || 0);
-            if (hoursVal > 0) {
-              effH += hoursVal;
-              effBaseV += hoursVal * rate;
-            }
-          }
-        });
-      });
+      const calcResult = computeDisputeTotalsAndCells(disputeHours, next, 'all');
+      const effH = calcResult.totalAllObrasHours;
+      const effBaseV = calcResult.totalBaseVal;
 
       const red = disputeReductions;
       const inc = disputeIncrements;
@@ -2362,45 +2333,9 @@ export function FaturasTracking() {
         adminModifiedHoursRef.current
       );
 
-      let effH = 0;
-      let effBaseV = 0;
-      const processed = new Set<string>();
-
-      // Group disputeHours by worker and date
-      const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
-      (disputeHours || []).forEach((h: any) => {
-        const wId = h.worker_id;
-        if (!wId) return;
-        const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-        const key = `${wId}_${dKey}`;
-        if (!groupedMap.has(key)) {
-          groupedMap.set(key, { wId, dateKey: dKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
-        }
-        groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
-      });
-
-      groupedMap.forEach((gVal, key) => {
-        processed.add(key);
-        const hoursVal = getDisputedHourValue(activeEdits, gVal.wId, gVal.dateKey, gVal.hours);
-        effH += hoursVal;
-        effBaseV += hoursVal * gVal.rate;
-      });
-
-      Object.keys(activeEdits).forEach(wId => {
-        const dates = activeEdits[wId] || {};
-        const sample = (disputeHours || []).find((h: any) => h.worker_id === wId);
-        const rate = Number(sample?.tarifa_faturada || 0);
-
-        Object.keys(dates).forEach(dKey => {
-          if (!processed.has(`${wId}_${dKey}`)) {
-            const hoursVal = Number(dates[dKey] || 0);
-            if (hoursVal > 0) {
-              effH += hoursVal;
-              effBaseV += hoursVal * rate;
-            }
-          }
-        });
-      });
+      const calcResult = computeDisputeTotalsAndCells(disputeHours, activeEdits, 'all');
+      let effH = calcResult.totalAllObrasHours;
+      let effBaseV = calcResult.totalBaseVal;
 
       if (effH === 0 && selectedDispute.total_horas) {
         effH = selectedDispute.total_horas;
@@ -3702,189 +3637,20 @@ MCS - Gestão Comercial`;
             const dataVencimentoStr = dueDate.toISOString().split('T')[0];
             const year = new Date(dataEmissaoStr).getFullYear();
 
-            // Group by worker for matrix
-            const groupedDisputeWorkers = disputeHours.length > 0 ? (() => {
-              const workersMap = new Map<string, {
-                workerId: string;
-                workerName: string;
-                horasDiarias: Record<string, number>;
-              }>();
+            const combinedDisputedHours = deepMergeDisputedHours(
+              normalizeDisputedHoursMap(selectedDispute?.ajustes_json?.disputed_hours || {}),
+              normalizeDisputedHoursMap(adminModifiedHours || {})
+            );
 
-              disputeHours.forEach(h => {
-                const wId = h.worker_id;
-                if (!wId) return;
+            const {
+              totalHorasCalculadas,
+              totalAllObrasHours,
+              totalBaseVal,
+              groupedDisputeWorkersEnriched,
+              groupedDisputeWorkers
+            } = computeDisputeTotalsAndCells(disputeHours, combinedDisputedHours, disputeSelectedObraId);
 
-                if (!workersMap.has(wId)) {
-                  workersMap.set(wId, {
-                    workerId: wId,
-                    workerName: h.worker?.nome || 'Colaborador',
-                    horasDiarias: {}
-                  });
-                }
-
-                const wObj = workersMap.get(wId)!;
-                const dKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-                wObj.horasDiarias[dKey] = (wObj.horasDiarias[dKey] || 0) + Number(h.horas_totais || 0);
-              });
-
-              return Array.from(workersMap.values());
-            })() : [];
-
-            const { disputeYear, disputeMonth } = (() => {
-              if (disputeHours && disputeHours.length > 0) {
-                const rawDate = disputeHours[0].data_trabalho || '';
-                const firstDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
-                const parts = firstDate.split('-');
-                if (parts.length >= 2) {
-                  return { disputeYear: parseInt(parts[0]), disputeMonth: parseInt(parts[1]) - 1 };
-                }
-              }
-              const today = new Date();
-              return { disputeYear: today.getFullYear(), disputeMonth: today.getMonth() };
-            })();
-
-            const disputeDaysArray = (() => {
-              const numDays = new Date(disputeYear, disputeMonth + 1, 0).getDate();
-              return Array.from({ length: numDays }, (_, i) => i + 1);
-            })();
-
-            // Load adjustments or defaults
-            const adjustments = (() => {
-              const adj = selectedDispute.ajustes_json || {};
-              return {
-                incrementos: adj.incrementos !== undefined ? Number(adj.incrementos) : 0,
-                incrementosDesc: adj.incrementos_desc || '',
-                reducoes: adj.reducoes !== undefined ? Number(adj.reducoes) : 0,
-                reducoesDesc: adj.reducoes_desc || '',
-                ivaPct: adj.iva_pct !== undefined ? Number(adj.iva_pct) : 21,
-                iban: adj.iban || 'BANCO COMERCIAL PORTUGUÊS (BCP)\nIBAN: PT50 0033 0000 1234 5678 9012 3\nSWIFT: BCPTPLPT',
-                descricaoServico: adj.descricao_servico || 'Prestação de serviços de mão de obra temporária especializada nas instalações do cliente.'
-              };
-            })();
-
-            const effectiveDisputeHours = (() => {
-              const map = new Map<string, any>();
-              const normalizedDb = normalizeDisputedHoursMap(selectedDispute?.ajustes_json?.disputed_hours || {});
-              const normalizedAdmin = normalizeDisputedHoursMap(adminModifiedHours || {});
-              const combinedDisputedHours = deepMergeDisputedHours(normalizedDb, normalizedAdmin);
-
-              (disputeHours || []).forEach(h => {
-                const wId = h.worker_id;
-                if (!wId) return;
-                const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-                const key = `${wId}_${dateKey}`;
-                const proposed = getDisputedHourProposed(combinedDisputedHours, wId, dateKey, h.obra_id);
-
-                if (proposed !== undefined) {
-                  // If there is an adjusted value, use it directly (overrides duplicates)
-                  map.set(key, {
-                    ...h,
-                    data_trabalho: dateKey,
-                    horas_totais: Number(proposed)
-                  });
-                } else {
-                  // If there is no adjustment, accumulate hours for duplicate records
-                  const existing = map.get(key);
-                  if (existing) {
-                    existing.horas_totais = Number(existing.horas_totais || 0) + Number(h.horas_totais || 0);
-                  } else {
-                    map.set(key, {
-                      ...h,
-                      data_trabalho: dateKey,
-                      horas_totais: Number(h.horas_totais || 0)
-                    });
-                  }
-                }
-              });
-
-              Object.keys(combinedDisputedHours).forEach(wKey => {
-                const wId = wKey.includes('___') ? wKey.split('___')[0] : wKey;
-                const dates = combinedDisputedHours[wKey] || {};
-                Object.keys(dates).forEach(dateKey => {
-                  const key = `${wId}_${dateKey}`;
-                  const hoursVal = Number(dates[dateKey] || 0);
-                  if (!map.has(key) && hoursVal > 0) {
-                    const sample = (disputeHours || []).find((h: any) => h.worker_id === wId);
-                    map.set(key, {
-                      fatura_id: selectedDispute?.id,
-                      worker_id: wId,
-                      data_trabalho: dateKey,
-                      horas_totais: hoursVal,
-                      tarifa_faturada: sample?.tarifa_faturada || 0,
-                      worker: sample?.worker || { nome: 'Colaborador' }
-                    });
-                  }
-                });
-              });
-
-              return Array.from(map.values());
-            })();
-
-            const totalBaseVal = effectiveDisputeHours.reduce((sum, h) => {
-              const tot = Number(h.horas_totais || 0);
-              const notu = Number(h.horas_noturnas || 0);
-              const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-                ? Number(h.horas_normais)
-                : Math.max(0, tot - notu);
-              const tfNorm = Number(h.tarifa_faturada || 0);
-              const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
-              return sum + (norm * tfNorm) + (notu * tfNotu);
-            }, 0);
             const finalTotalVal = (totalBaseVal + adjustments.incrementos - adjustments.reducoes) * (1 + adjustments.ivaPct / 100);
-            const totalHorasCalculadas = effectiveDisputeHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-
-            const groupedDisputeWorkersEnriched = (() => {
-              const workersMap = new Map<string, {
-                workerId: string;
-                workerName: string;
-                totalHoras: number;
-                totalHorasNormais: number;
-                totalHorasNoturnas: number;
-                tarifa: number;
-                tarifaNoturna?: number | null;
-                totalValor: number;
-              }>();
-
-              effectiveDisputeHours.forEach(h => {
-                const wId = h.worker_id;
-                if (!wId) return;
-
-                if (!workersMap.has(wId)) {
-                  workersMap.set(wId, {
-                    workerId: wId,
-                    workerName: h.worker?.nome || h.worker?.nombrecompleto || 'Colaborador',
-                    totalHoras: 0,
-                    totalHorasNormais: 0,
-                    totalHorasNoturnas: 0,
-                    tarifa: Number(h.tarifa_faturada || 0),
-                    tarifaNoturna: h.tarifa_faturada_noturna ? Number(h.tarifa_faturada_noturna) : null,
-                    totalValor: 0
-                  });
-                }
-
-                const wObj = workersMap.get(wId)!;
-                const tot = Number(h.horas_totais || 0);
-                const notu = Number(h.horas_noturnas || 0);
-                const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-                  ? Number(h.horas_normais)
-                  : Math.max(0, tot - notu);
-                const tfNorm = Number(h.tarifa_faturada || wObj.tarifa || 0);
-                const tfNotu = Number(h.tarifa_faturada_noturna || wObj.tarifaNoturna || tfNorm);
-
-                wObj.totalHoras += tot;
-                wObj.totalHorasNormais += norm;
-                wObj.totalHorasNoturnas += notu;
-                wObj.totalValor += (norm * tfNorm) + (notu * tfNotu);
-              });
-
-              workersMap.forEach(w => {
-                if (w.totalValor === 0 && w.totalHoras > 0 && w.tarifa > 0) {
-                  w.totalValor = w.totalHoras * w.tarifa;
-                }
-              });
-
-              return Array.from(workersMap.values());
-            })();
 
             return (
               <>
@@ -3955,15 +3721,26 @@ MCS - Gestão Comercial`;
                         Esta fatura engloba múltiplas obras. Você pode aceitar a proposta gerando uma fatura independente para cada obra, com seu próprio número sequencial oficial e PDF.
                       </p>
                       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-                        {disputeObras.map((o, idx) => (
-                          <div key={idx} className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-indigo-100 dark:border-indigo-900 flex flex-col justify-between shadow-xs">
+                        {disputeObras.map((o, idx) => {
+                          const isSelected = disputeSelectedObraId === (o.id || 'sem_obra');
+                          return (
+                            <div 
+                              key={idx} 
+                              onClick={() => setDisputeSelectedObraId(isSelected ? 'all' : (o.id || 'sem_obra'))}
+                              className={`p-2.5 rounded-lg border flex flex-col justify-between shadow-xs cursor-pointer transition-all ${
+                                isSelected
+                                  ? 'bg-indigo-100 dark:bg-indigo-900/60 border-indigo-500 ring-2 ring-indigo-400'
+                                  : 'bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900 hover:border-indigo-300'
+                              }`}
+                            >
                             <span className="font-bold text-slate-800 dark:text-slate-200 text-xs truncate" title={o.name}>🏗️ {o.name}</span>
                             <div className="flex justify-between items-center text-[11px] text-slate-500 mt-1.5 font-medium">
                               <span>{o.workers.size} colaborador{o.workers.size > 1 ? 'es' : ''}</span>
                               <span className="font-extrabold text-indigo-600 dark:text-indigo-400">{o.hours.toFixed(1)}h</span>
                             </div>
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -4137,18 +3914,7 @@ MCS - Gestão Comercial`;
                               <Clock className="w-3.5 h-3.5 text-blue-600" /> Total de Horas
                             </span>
                             <span className="text-xl font-extrabold text-slate-900 dark:text-slate-100 font-mono mt-1">
-                              {(() => {
-                                const grandTotalHours = groupedDisputeWorkers.reduce((acc, worker) => {
-                                  const workerTotal = disputeDaysArray.reduce((sum, day) => {
-                                    const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                    const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
-                                    if (proposedVal !== undefined) return sum + proposedVal;
-                                    return sum + (worker.horasDiarias[dateKey] || 0);
-                                  }, 0);
-                                  return acc + workerTotal;
-                                }, 0);
-                                return `${grandTotalHours.toFixed(1)}h`;
-                              })()}
+                              {totalHorasCalculadas.toFixed(1)}h
                             </span>
                           </div>
 
@@ -4214,6 +3980,46 @@ MCS - Gestão Comercial`;
                             Instrução: Clique nas células para alterar ou ajustar os valores das horas manualmente!
                           </span>
                         </div>
+
+                        {/* Obra Filter Buttons */}
+                        {disputeObras.length > 1 && (
+                          <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                            <span className="text-[10px] font-extrabold text-slate-500 uppercase px-2 flex items-center gap-1">
+                              <Filter className="w-3 h-3 text-indigo-500" /> Filtrar Obra:
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setDisputeSelectedObraId('all')}
+                              className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                                disputeSelectedObraId === 'all'
+                                  ? 'bg-blue-600 text-white shadow-sm'
+                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                              }`}
+                            >
+                              Todas as Obras ({totalAllObrasHours.toFixed(1)}h)
+                            </button>
+                            {disputeObras.map(o => {
+                              const isSelected = disputeSelectedObraId === (o.id || 'sem_obra');
+                              return (
+                                <button
+                                  key={o.id || 'sem_obra'}
+                                  type="button"
+                                  onClick={() => setDisputeSelectedObraId(isSelected ? 'all' : (o.id || 'sem_obra'))}
+                                  className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+                                    isSelected
+                                      ? 'bg-indigo-600 text-white shadow-sm ring-2 ring-indigo-400'
+                                      : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                                  }`}
+                                >
+                                  <span>🏗️ {o.name}</span>
+                                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-indigo-700 text-white' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-extrabold'}`}>
+                                    {o.hours.toFixed(1)}h
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                         {loadingDisputeHours ? (
                           <div className="flex items-center justify-center py-10">
                             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -4245,29 +4051,19 @@ MCS - Gestão Comercial`;
                               </TableHeader>
                                 <TableBody>
                                 {groupedDisputeWorkers.map(worker => {
-                                  const workerOriginalTotal = disputeDaysArray.reduce((sum, day) => {
-                                    const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                    return sum + (worker.horasDiarias[dateKey] || 0);
-                                  }, 0);
-                                  const workerAdjustedTotal = disputeDaysArray.reduce((sum, day) => {
-                                    const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                    const originalVal = worker.horasDiarias[dateKey] || 0;
-                                    const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
-                                    return sum + (proposedVal !== undefined ? proposedVal : originalVal);
-                                  }, 0);
-                                  const hasWorkerDispute = Math.abs(workerAdjustedTotal - workerOriginalTotal) > 0.01;
+                                  const hasWorkerDispute = Math.abs(worker.workerAdjustedTotal - worker.workerOriginalTotal) > 0.01;
 
                                   return (
                                     <TableRow key={worker.workerId} className="hover:bg-slate-50/50">
                                       <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
                                       {disputeDaysArray.map(day => {
                                         const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                        const originalVal = worker.horasDiarias[dateKey] || 0;
+                                        const originalVal = worker.horasDiariasOriginal[dateKey] || 0;
+                                        const effectiveVal = worker.horasDiariasEffective[dateKey] || 0;
+                                        const hasDispute = !!worker.hasDisputePerDate[dateKey] || Math.abs(effectiveVal - originalVal) > 0.01;
 
                                         const isEditing = adminEditingCell?.workerId === worker.workerId && adminEditingCell?.dateKey === dateKey;
-                                        const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
-                                        const hasDispute = proposedVal !== undefined && proposedVal !== originalVal;
-                                        const displayVal = (proposedVal !== undefined) ? proposedVal : originalVal;
+                                        const displayVal = effectiveVal;
                                         const isWk = isWeekend(day, disputeYear, disputeMonth);
 
                                         if (isEditing) {
@@ -4283,13 +4079,13 @@ MCS - Gestão Comercial`;
                                                 onChange={(e) => {
                                                   const val = Number(e.target.value);
                                                   if (!isNaN(val) && val >= 0) {
-                                                    handleAdminCellEdit(worker.workerId, dateKey, val, originalVal);
+                                                    handleAdminCellEdit(worker.workerId, dateKey, val, originalVal, disputeSelectedObraId !== 'all' ? disputeSelectedObraId : undefined);
                                                   }
                                                 }}
                                                 onBlur={(e) => {
                                                   const val = Number(e.target.value);
                                                   if (!isNaN(val) && val >= 0) {
-                                                    handleAdminCellEdit(worker.workerId, dateKey, val, originalVal);
+                                                    handleAdminCellEdit(worker.workerId, dateKey, val, originalVal, disputeSelectedObraId !== 'all' ? disputeSelectedObraId : undefined);
                                                   }
                                                   setAdminEditingCell(null);
                                                 }}
@@ -4297,7 +4093,7 @@ MCS - Gestão Comercial`;
                                                   if (e.key === 'Enter') {
                                                     const val = Number((e.target as HTMLInputElement).value);
                                                     if (!isNaN(val) && val >= 0) {
-                                                      handleAdminCellEdit(worker.workerId, dateKey, val, originalVal);
+                                                      handleAdminCellEdit(worker.workerId, dateKey, val, originalVal, disputeSelectedObraId !== 'all' ? disputeSelectedObraId : undefined);
                                                     }
                                                     setAdminEditingCell(null);
                                                   } else if (e.key === 'Escape') {
@@ -4314,24 +4110,24 @@ MCS - Gestão Comercial`;
                                           <TableCell 
                                             key={day} 
                                             onClick={() => setAdminEditingCell({ workerId: worker.workerId, dateKey })}
-                                            className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none cursor-pointer transition-all border-x border-slate-100 dark:border-slate-850 hover:bg-amber-105 hover:text-amber-900 ${
+                                            className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none cursor-pointer transition-all border-x border-slate-100 dark:border-slate-850 hover:bg-amber-100 hover:text-amber-900 ${
                                               isWk
                                                 ? hasDispute
                                                   ? 'bg-amber-100/80 dark:bg-amber-950/30 font-extrabold text-blue-650'
                                                   : originalVal > 0
-                                                    ? 'bg-rose-105/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
+                                                    ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
                                                     : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
                                                 : hasDispute
                                                   ? 'bg-amber-50 dark:bg-amber-950/20 font-extrabold text-blue-650'
                                                   : originalVal > 0
-                                                    ? 'bg-slate-55/50 dark:bg-slate-800/10'
+                                                    ? 'bg-slate-50/50 dark:bg-slate-800/10'
                                                     : 'text-slate-300'
                                             }`}
                                           >
                                             {hasDispute ? (
                                               <div className="flex flex-col items-center leading-none py-0.5">
                                                 <span className="line-through text-red-500 text-[8px]">{originalVal}</span>
-                                                <span className="font-extrabold text-blue-650 text-[10px]">{proposedVal}</span>
+                                                <span className="font-extrabold text-blue-650 text-[10px]">{effectiveVal}</span>
                                               </div>
                                             ) : (
                                               <span>
@@ -4344,11 +4140,11 @@ MCS - Gestão Comercial`;
                                       <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
                                         {hasWorkerDispute ? (
                                           <div className="flex flex-col items-end leading-none">
-                                            <span className="line-through text-[9px] text-slate-400">{workerOriginalTotal.toFixed(1)}h</span>
-                                            <span className="text-xs font-black text-blue-650 dark:text-blue-400">{workerAdjustedTotal.toFixed(1)}h</span>
+                                            <span className="line-through text-[9px] text-slate-400">{worker.workerOriginalTotal.toFixed(1)}h</span>
+                                            <span className="text-xs font-black text-blue-650 dark:text-blue-400">{worker.workerAdjustedTotal.toFixed(1)}h</span>
                                           </div>
                                         ) : (
-                                          `${workerOriginalTotal.toFixed(1)}h`
+                                          `${worker.workerOriginalTotal.toFixed(1)}h`
                                         )}
                                       </TableCell>
                                     </TableRow>
@@ -4361,16 +4157,9 @@ MCS - Gestão Comercial`;
                                     TOTAL GERAL DE HORAS
                                   </TableCell>
                                   {disputeDaysArray.map(day => {
-                                    const dailyTotalOriginal = groupedDisputeWorkers.reduce((sum, worker) => {
-                                      const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                      return sum + (worker.horasDiarias[dateKey] || 0);
-                                    }, 0);
-                                    const dailyTotalAdjusted = groupedDisputeWorkers.reduce((sum, worker) => {
-                                      const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                      const originalVal = worker.horasDiarias[dateKey] || 0;
-                                      const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
-                                      return sum + (proposedVal !== undefined ? proposedVal : originalVal);
-                                    }, 0);
+                                    const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                    const dailyTotalOriginal = groupedDisputeWorkers.reduce((sum, worker) => sum + (worker.horasDiariasOriginal[dateKey] || 0), 0);
+                                    const dailyTotalAdjusted = groupedDisputeWorkers.reduce((sum, worker) => sum + (worker.horasDiariasEffective[dateKey] || 0), 0);
                                     const hasDayDispute = Math.abs(dailyTotalAdjusted - dailyTotalOriginal) > 0.01;
 
                                     return (
@@ -4388,20 +4177,8 @@ MCS - Gestão Comercial`;
                                   })}
                                   <TableCell className="text-right pr-4 py-3 text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50/50 dark:bg-emerald-950/20">
                                     {(() => {
-                                      const grandOriginalHours = groupedDisputeWorkers.reduce((acc, worker) => {
-                                        return acc + disputeDaysArray.reduce((sum, day) => {
-                                          const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                          return sum + (worker.horasDiarias[dateKey] || 0);
-                                        }, 0);
-                                      }, 0);
-                                      const grandAdjustedHours = groupedDisputeWorkers.reduce((acc, worker) => {
-                                        return acc + disputeDaysArray.reduce((sum, day) => {
-                                          const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                          const originalVal = worker.horasDiarias[dateKey] || 0;
-                                          const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
-                                          return sum + (proposedVal !== undefined ? proposedVal : originalVal);
-                                        }, 0);
-                                      }, 0);
+                                      const grandOriginalHours = groupedDisputeWorkers.reduce((acc, worker) => acc + worker.workerOriginalTotal, 0);
+                                      const grandAdjustedHours = groupedDisputeWorkers.reduce((acc, worker) => acc + worker.workerAdjustedTotal, 0);
                                       const hasGrandDispute = Math.abs(grandAdjustedHours - grandOriginalHours) > 0.01;
 
                                       return hasGrandDispute ? (
