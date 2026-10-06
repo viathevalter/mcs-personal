@@ -21,6 +21,10 @@ export interface Contract {
     updated_at: string;
     
     // Virtual fields
+    pedido_codigo?: string | null;
+    solicitud_codigo?: string | null;
+    solicitud_tipo?: string | null;
+    solicitud_title?: string | null;
     worker?: {
         id: string;
         nome: string;
@@ -33,6 +37,7 @@ export interface Contract {
         pasaporte: string;
         cliente?: string;
         cod_cliente?: string;
+        cod_colab?: string;
     };
     assignment?: {
         id: string;
@@ -51,6 +56,158 @@ export interface ListContractsParams {
     workerId?: string;
     status?: string[];
     contractType?: string[];
+}
+
+function normalizeCompany(str: string): string {
+    if (!str) return '';
+    return str
+        .toUpperCase()
+        .replace(/,/g, '')
+        .replace(/\bLDA\b/g, '')
+        .replace(/\bSL\b/g, '')
+        .replace(/\bSRL\b/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+async function fetchWorkersOrderInfo(workerIds: string[], codColabs: string[]) {
+    const uniqueWorkerIds = [...new Set(workerIds.filter(Boolean))];
+    const uniqueCodColabs = [...new Set(codColabs.filter(Boolean))];
+
+    const [allocRes, assignRes, targetsTargetRes, targetsSourceRes] = await Promise.all([
+        uniqueCodColabs.length > 0
+            ? supabase
+                .schema('core_personal')
+                .from('vw_worker_allocations')
+                .select('cod_colab, codpedido, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador, fechafinpedido, inserted_at')
+                .in('cod_colab', uniqueCodColabs)
+            : Promise.resolve({ data: [] }),
+        uniqueWorkerIds.length > 0
+            ? supabase
+                .schema('core_personal')
+                .from('worker_assignments')
+                .select('id, worker_id, client_id, pedido_id, created_at')
+                .in('worker_id', uniqueWorkerIds)
+            : Promise.resolve({ data: [] }),
+        uniqueWorkerIds.length > 0
+            ? supabase
+                .schema('core_operacoes')
+                .from('solicitud_targets')
+                .select('id, solicitud_id, target_worker_id, source_worker_id, created_at')
+                .in('target_worker_id', uniqueWorkerIds)
+            : Promise.resolve({ data: [] }),
+        uniqueWorkerIds.length > 0
+            ? supabase
+                .schema('core_operacoes')
+                .from('solicitud_targets')
+                .select('id, solicitud_id, target_worker_id, source_worker_id, created_at')
+                .in('source_worker_id', uniqueWorkerIds)
+            : Promise.resolve({ data: [] })
+    ]);
+
+    const allocs = (allocRes.data || []) as any[];
+    const assigns = (assignRes.data || []) as any[];
+    const targets = [...(targetsTargetRes.data || []), ...(targetsSourceRes.data || [])] as any[];
+
+    const pedidoIds = [...new Set(assigns.map((a: any) => a.pedido_id).filter(Boolean))];
+    const solicitudIds = [...new Set(targets.map((t: any) => t.solicitud_id).filter(Boolean))];
+
+    const [pedidosRes, solRes] = await Promise.all([
+        pedidoIds.length > 0
+            ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
+            : Promise.resolve({ data: [] }),
+        solicitudIds.length > 0
+            ? supabase.schema('core_operacoes').from('solicitudes_operativas').select('id, codigo, tipo, title').in('id', solicitudIds)
+            : Promise.resolve({ data: [] })
+    ]);
+
+    const pedidosMap = new Map((pedidosRes.data || []).map((p: any) => [p.id, p.codigo]));
+    const solMap = new Map((solRes.data || []).map((s: any) => [s.id, s]));
+
+    const allocationsGroupByWorker = new Map<string, any[]>();
+    allocs.forEach((a: any) => {
+        if (a.cod_colab) {
+            if (!allocationsGroupByWorker.has(a.cod_colab)) allocationsGroupByWorker.set(a.cod_colab, []);
+            allocationsGroupByWorker.get(a.cod_colab)!.push(a);
+        }
+    });
+
+    const assignmentsGroupByWorker = new Map<string, any[]>();
+    assigns.forEach((a: any) => {
+        if (a.worker_id) {
+            if (!assignmentsGroupByWorker.has(a.worker_id)) assignmentsGroupByWorker.set(a.worker_id, []);
+            assignmentsGroupByWorker.get(a.worker_id)!.push(a);
+        }
+    });
+
+    const targetsGroupByWorker = new Map<string, any[]>();
+    targets.forEach((t: any) => {
+        const wId = t.target_worker_id || t.source_worker_id;
+        if (wId) {
+            if (!targetsGroupByWorker.has(wId)) targetsGroupByWorker.set(wId, []);
+            targetsGroupByWorker.get(wId)!.push(t);
+        }
+    });
+
+    return {
+        allocationsGroupByWorker,
+        assignmentsGroupByWorker,
+        targetsGroupByWorker,
+        pedidosMap,
+        solMap
+    };
+}
+
+function resolveOrderInfo(
+    workerId?: string,
+    codColab?: string,
+    contratante?: string,
+    explicitPedidoCodigo?: string,
+    allocationsGroupByWorker?: Map<string, any[]>,
+    assignmentsGroupByWorker?: Map<string, any[]>,
+    targetsGroupByWorker?: Map<string, any[]>,
+    pedidosMap?: Map<string, string>,
+    solMap?: Map<string, any>
+) {
+    const workerAllocs = codColab && allocationsGroupByWorker ? (allocationsGroupByWorker.get(codColab) || []) : [];
+    const workerAssigns = workerId && assignmentsGroupByWorker ? (assignmentsGroupByWorker.get(workerId) || []) : [];
+    const workerTargets = workerId && targetsGroupByWorker ? (targetsGroupByWorker.get(workerId) || []) : [];
+
+    // Sort assignments by created_at desc
+    const sortedAssigns = [...workerAssigns].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const latestAssign = sortedAssigns[0];
+    const assignPedidoCodigo = latestAssign?.pedido_id && pedidosMap ? pedidosMap.get(latestAssign.pedido_id) : null;
+
+    // Sort targets by created_at desc
+    const sortedTargets = [...workerTargets].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    const latestTarget = sortedTargets[0];
+    const latestSol = latestTarget?.solicitud_id && solMap ? solMap.get(latestTarget.solicitud_id) : null;
+
+    // Get pertinent allocation
+    let pertinentAlloc = workerAllocs[0];
+    if (contratante && workerAllocs.length > 0) {
+        const contractorNorm = normalizeCompany(contratante);
+        const contractorWords = contractorNorm.split(' ').filter(w => w.length > 2);
+        const filtered = workerAllocs.filter(alloc => {
+            if (!alloc.contratante) return false;
+            const allocContrNorm = normalizeCompany(alloc.contratante);
+            if (contractorNorm.includes(allocContrNorm) || allocContrNorm.includes(contractorNorm)) return true;
+            return contractorWords.some(word => allocContrNorm.includes(word));
+        });
+        if (filtered.length > 0) {
+            pertinentAlloc = filtered[0];
+        }
+    }
+
+    const finalPedidoCodigo = explicitPedidoCodigo || assignPedidoCodigo || pertinentAlloc?.codpedido || latestSol?.codigo || null;
+    const finalTipo = latestSol?.tipo || (finalPedidoCodigo ? 'Pedido' : null);
+
+    return {
+        pedido_codigo: finalPedidoCodigo,
+        solicitud_codigo: latestSol?.codigo || null,
+        solicitud_tipo: finalTipo,
+        solicitud_title: latestSol?.title || null
+    };
 }
 
 export async function listContracts({ empresaId, workerId, status, contractType }: ListContractsParams): Promise<Contract[]> {
@@ -92,54 +249,18 @@ export async function listContracts({ empresaId, workerId, status, contractType 
 
     const contracts = (data || []) as any[];
     const clientIds = [...new Set(contracts.map(c => c.assignment?.client_id).filter(Boolean))];
-
-    let clientsMap = new Map();
-    if (clientIds.length > 0) {
-        const { data: clientsData, error: clientsErr } = await supabase
-            .schema('core_common')
-            .from('clients')
-            .select('id, legal_name, trade_name')
-            .in('id', clientIds);
-
-        if (!clientsErr && clientsData) {
-            clientsMap = new Map(clientsData.map(c => [c.id, c]));
-        }
-    }
-
-    // Resolve active/last client for workers when assignment_id is null
     const codColabs = [...new Set(contracts.map(c => c.worker?.cod_colab).filter(Boolean))];
-    const allocationsGroupByWorker = new Map<string, any[]>();
-    
-    if (codColabs.length > 0) {
-        const { data: allocData } = await supabase
-            .schema('core_personal')
-            .from('vw_worker_allocations')
-            .select('cod_colab, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador, fechafinpedido, inserted_at')
-            .in('cod_colab', codColabs);
+    const workerIds = [...new Set(contracts.map(c => c.worker_id).filter(Boolean))];
 
-        if (allocData) {
-            allocData.forEach(alloc => {
-                if (alloc.cod_colab) {
-                    if (!allocationsGroupByWorker.has(alloc.cod_colab)) {
-                        allocationsGroupByWorker.set(alloc.cod_colab, []);
-                    }
-                    allocationsGroupByWorker.get(alloc.cod_colab)!.push(alloc);
-                }
-            });
-        }
-    }
+    const [clientsRes, orderInfo] = await Promise.all([
+        clientIds.length > 0
+            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds)
+            : Promise.resolve({ data: [] }),
+        fetchWorkersOrderInfo(workerIds, codColabs)
+    ]);
 
-    function normalizeCompany(str: string): string {
-        if (!str) return '';
-        return str
-            .toUpperCase()
-            .replace(/,/g, '')
-            .replace(/\bLDA\b/g, '')
-            .replace(/\bSL\b/g, '')
-            .replace(/\bSRL\b/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
+    const clientsMap = new Map((clientsRes.data || []).map(c => [c.id, c]));
+    const { allocationsGroupByWorker, assignmentsGroupByWorker, targetsGroupByWorker, pedidosMap, solMap } = orderInfo;
 
     function getPertinentClientForContract(contratante: string, workerAllocations: any[]): string | null {
         if (!workerAllocations || workerAllocations.length === 0) return null;
@@ -186,9 +307,21 @@ export async function listContracts({ empresaId, workerId, status, contractType 
     return contracts.map(c => {
         const workerAllocs = c.worker?.cod_colab ? (allocationsGroupByWorker.get(c.worker.cod_colab) || []) : [];
         const pertinentClient = c.contratante ? getPertinentClientForContract(c.contratante, workerAllocs) : null;
+        const resolvedOrder = resolveOrderInfo(
+            c.worker_id,
+            c.worker?.cod_colab,
+            c.contratante,
+            undefined,
+            allocationsGroupByWorker,
+            assignmentsGroupByWorker,
+            targetsGroupByWorker,
+            pedidosMap,
+            solMap
+        );
 
         return {
             ...c,
+            ...resolvedOrder,
             worker: c.worker ? {
                 ...c.worker,
                 cliente: pertinentClient || c.worker.cliente
@@ -307,6 +440,16 @@ export interface DocumentRequest {
     expires_at: string;
     created_at: string;
     updated_at: string;
+    pedido_codigo?: string | null;
+    solicitud_codigo?: string | null;
+    solicitud_tipo?: string | null;
+    solicitud_title?: string | null;
+    client?: {
+        id: string;
+        legal_name: string;
+        trade_name: string;
+        codigo?: string;
+    } | null;
     worker?: {
         id: string;
         nome: string;
@@ -374,6 +517,9 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
 
     // Fetch related empresas and clients in-memory to bypass cross-schema join restrictions in PostgREST
     const empresaIds = [...new Set(docRequests.map(r => r.empresa_id).filter(Boolean))];
+    const codColabs = [...new Set(docRequests.map(r => r.worker?.cod_colab).filter(Boolean))];
+    const workerIds = [...new Set(docRequests.map(r => r.worker_id).filter(Boolean))];
+
     const clientIds: string[] = [];
     docRequests.forEach(r => {
         if ((r as any).extracted_data?.client_id) {
@@ -385,24 +531,41 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
     });
     const uniqueClientIds = [...new Set(clientIds)];
 
-    const [empresasRes, clientsRes] = await Promise.all([
+    const [empresasRes, clientsRes, orderInfo] = await Promise.all([
         empresaIds.length > 0
             ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
             : Promise.resolve({ data: [] }),
         uniqueClientIds.length > 0
             ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, codigo').in('id', uniqueClientIds)
-            : Promise.resolve({ data: [] })
+            : Promise.resolve({ data: [] }),
+        fetchWorkersOrderInfo(workerIds, codColabs)
     ]);
 
-    const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
-    const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
+    const empresasMap = new Map((empresasRes.data || []).map((e: any) => [e.id, e]));
+    const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
+    const { allocationsGroupByWorker, assignmentsGroupByWorker, targetsGroupByWorker, pedidosMap, solMap } = orderInfo;
 
     return docRequests.map(r => {
         const emp = empresasMap.get(r.empresa_id);
         const explicitClientId = (r as any).extracted_data?.client_id;
         const explicitClient = explicitClientId ? clientsMap.get(explicitClientId) : null;
+        const explicitPedido = (r as any).extracted_data?.pedido_codigo || (r as any).extracted_data?.codigo_pedido;
+
+        const resolvedOrder = resolveOrderInfo(
+            r.worker_id,
+            r.worker?.cod_colab,
+            undefined,
+            explicitPedido,
+            allocationsGroupByWorker,
+            assignmentsGroupByWorker,
+            targetsGroupByWorker,
+            pedidosMap,
+            solMap
+        );
+
         return {
             ...r,
+            ...resolvedOrder,
             empresa: emp ? { id: emp.id, name: emp.nome } : null,
             client: explicitClient || r.worker?.assignments?.[0]?.client || null,
             worker: r.worker ? {

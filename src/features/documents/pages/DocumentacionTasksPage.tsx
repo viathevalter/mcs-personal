@@ -22,7 +22,7 @@ import {
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
     MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2,
-    Calendar, MapPin, Clock, AlertTriangle, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown
+    Calendar, MapPin, Clock, AlertTriangle, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Package
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -231,11 +231,13 @@ export function DocumentacionTasksPage() {
     const [statusFilterRequests, setStatusFilterRequests] = useState('all');
     const [empresaFilterRequests, setEmpresaFilterRequests] = useState('all');
     const [clientFilterRequests, setClientFilterRequests] = useState('all');
+    const [pedidoFilterRequests, setPedidoFilterRequests] = useState('all');
     const [sortFieldRequests, setSortFieldRequests] = useState<'worker' | 'empresa' | 'client' | 'planned_start_date' | 'created_at'>('created_at');
     const [sortDirectionRequests, setSortDirectionRequests] = useState<'asc' | 'desc'>('desc');
 
     const [searchTermContracts, setSearchTermContracts] = useState('');
     const [statusFilterContracts, setStatusFilterContracts] = useState('all');
+    const [pedidoFilterContracts, setPedidoFilterContracts] = useState('all');
     const [sortFieldContracts, setSortFieldContracts] = useState<'created_at' | 'worker' | 'empresa' | 'client' | 'type' | 'status'>('created_at');
     const [sortDirectionContracts, setSortDirectionContracts] = useState<'asc' | 'desc'>('desc');
 
@@ -273,6 +275,26 @@ export function DocumentacionTasksPage() {
         return Array.from(set).sort();
     }, [docRequests]);
 
+    // Get unique list of pedidos and reemplazos from docRequests dynamically
+    const uniquePedidosRequests = useMemo(() => {
+        const set = new Set<string>();
+        docRequests.forEach(req => {
+            if (req.pedido_codigo) set.add(req.pedido_codigo);
+            if (req.solicitud_codigo) set.add(req.solicitud_codigo);
+        });
+        return Array.from(set).sort();
+    }, [docRequests]);
+
+    // Get unique list of pedidos and reemplazos from contracts dynamically
+    const uniquePedidosContracts = useMemo(() => {
+        const set = new Set<string>();
+        contracts.forEach(c => {
+            if (c.pedido_codigo) set.add(c.pedido_codigo);
+            if (c.solicitud_codigo) set.add(c.solicitud_codigo);
+        });
+        return Array.from(set).sort();
+    }, [contracts]);
+
     // Handler for sorting requests
     const handleRequestSort = (field: 'worker' | 'empresa' | 'client' | 'planned_start_date' | 'created_at') => {
         if (sortFieldRequests === field) {
@@ -298,13 +320,17 @@ export function DocumentacionTasksPage() {
             const workerEmail = req.worker?.email || '';
             const workerMovil = req.worker?.movil || '';
             const status = req.status || '';
+            const pedidoCode = req.pedido_codigo || '';
+            const solicitudCode = req.solicitud_codigo || '';
             
             const textMatch = 
                 workerName.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
                 workerEmail.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
                 workerMovil.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
                 empresaName.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
-                clientName.toLowerCase().includes(searchTermRequests.toLowerCase());
+                clientName.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
+                pedidoCode.toLowerCase().includes(searchTermRequests.toLowerCase()) ||
+                solicitudCode.toLowerCase().includes(searchTermRequests.toLowerCase());
                 
             const isExpired = new Date(req.expires_at) < new Date();
             let statusMatch = true;
@@ -325,8 +351,13 @@ export function DocumentacionTasksPage() {
             if (clientFilterRequests !== 'all') {
                 clientMatch = clientName === clientFilterRequests;
             }
+
+            let pedidoMatch = true;
+            if (pedidoFilterRequests !== 'all') {
+                pedidoMatch = req.pedido_codigo === pedidoFilterRequests || req.solicitud_codigo === pedidoFilterRequests;
+            }
             
-            return textMatch && statusMatch && empresaMatch && clientMatch;
+            return textMatch && statusMatch && empresaMatch && clientMatch && pedidoMatch;
         });
 
         return filtered.sort((a, b) => {
@@ -374,7 +405,7 @@ export function DocumentacionTasksPage() {
             if (valA > valB) return sortDirectionRequests === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [docRequests, searchTermRequests, statusFilterRequests, empresaFilterRequests, clientFilterRequests, sortFieldRequests, sortDirectionRequests]);
+    }, [docRequests, searchTermRequests, statusFilterRequests, empresaFilterRequests, clientFilterRequests, pedidoFilterRequests, sortFieldRequests, sortDirectionRequests]);
 
     // Filtrar e ordenar contratos localmente
     const filteredContracts = useMemo(() => {
@@ -383,19 +414,28 @@ export function DocumentacionTasksPage() {
             const empresaName = contract.contratante || '';
             const workerName = contract.worker?.nome || '';
             const workerEmail = contract.worker?.email || '';
+            const pedidoCode = contract.pedido_codigo || '';
+            const solicitudCode = contract.solicitud_codigo || '';
             
             const textMatch = 
                 workerName.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
                 workerEmail.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
                 empresaName.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
-                clientName.toLowerCase().includes(searchTermContracts.toLowerCase());
+                clientName.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
+                pedidoCode.toLowerCase().includes(searchTermContracts.toLowerCase()) ||
+                solicitudCode.toLowerCase().includes(searchTermContracts.toLowerCase());
                 
             let statusMatch = true;
             if (statusFilterContracts !== 'all') {
                 statusMatch = contract.status === statusFilterContracts;
             }
+
+            let pedidoMatch = true;
+            if (pedidoFilterContracts !== 'all') {
+                pedidoMatch = contract.pedido_codigo === pedidoFilterContracts || contract.solicitud_codigo === pedidoFilterContracts;
+            }
             
-            return textMatch && statusMatch;
+            return textMatch && statusMatch && pedidoMatch;
         });
 
         return filtered.sort((a, b) => {
@@ -426,7 +466,7 @@ export function DocumentacionTasksPage() {
             if (valA > valB) return sortDirectionContracts === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [contracts, searchTermContracts, statusFilterContracts, sortFieldContracts, sortDirectionContracts]);
+    }, [contracts, searchTermContracts, statusFilterContracts, pedidoFilterContracts, sortFieldContracts, sortDirectionContracts]);
 
     const getTemplatePath = (contratante: string, docType: string) => {
         const upper = contratante.toUpperCase();
@@ -2090,6 +2130,22 @@ Muchas gracias.`;
                                     </Select>
                                 </div>
 
+                                <div className="w-[200px]">
+                                    <Select value={pedidoFilterRequests} onValueChange={setPedidoFilterRequests}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Pedido / Reemplazo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os Pedidos / Reemplazos</SelectItem>
+                                            {uniquePedidosRequests.map(ped => (
+                                                <SelectItem key={ped} value={ped}>
+                                                    <span className="font-mono">{ped}</span>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 <div className="w-[180px]">
                                     <Select value={statusFilterRequests} onValueChange={setStatusFilterRequests}>
                                         <SelectTrigger className="bg-white dark:bg-black">
@@ -2105,7 +2161,7 @@ Muchas gracias.`;
                                     </Select>
                                 </div>
 
-                                {(searchTermRequests || statusFilterRequests !== 'all' || empresaFilterRequests !== 'all' || clientFilterRequests !== 'all') && (
+                                {(searchTermRequests || statusFilterRequests !== 'all' || empresaFilterRequests !== 'all' || clientFilterRequests !== 'all' || pedidoFilterRequests !== 'all') && (
                                     <Button
                                         variant="ghost"
                                         size="sm"
@@ -2114,6 +2170,7 @@ Muchas gracias.`;
                                             setStatusFilterRequests('all');
                                             setEmpresaFilterRequests('all');
                                             setClientFilterRequests('all');
+                                            setPedidoFilterRequests('all');
                                         }}
                                         className="text-indigo-600 dark:text-indigo-400 font-semibold"
                                     >
@@ -2256,6 +2313,24 @@ Muchas gracias.`;
                                                                 )}
                                                                 <span>{clientName}</span>
                                                             </div>
+                                                            {req.pedido_codigo && (
+                                                                <div className="mt-1 flex items-center gap-1 flex-wrap">
+                                                                    <Badge 
+                                                                        variant="outline" 
+                                                                        className={`font-mono text-[11px] px-1.5 py-0.5 gap-1 ${
+                                                                            req.solicitud_tipo === 'replacement' || req.pedido_codigo?.startsWith('R-')
+                                                                                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                                                                : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                                                                        }`}
+                                                                    >
+                                                                        <Package className="w-3 h-3" />
+                                                                        {req.pedido_codigo}
+                                                                        {req.solicitud_tipo === 'replacement' && !req.pedido_codigo?.startsWith('R-') && (
+                                                                            <span className="text-[10px] opacity-80">(Reemplazo)</span>
+                                                                        )}
+                                                                    </Badge>
+                                                                </div>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-slate-800 dark:text-slate-200">
                                                             {formatDisplayDate(plannedStartDate)}
@@ -2386,6 +2461,22 @@ Muchas gracias.`;
                                     </Select>
                                 </div>
 
+                                <div className="w-[200px]">
+                                    <Select value={pedidoFilterContracts} onValueChange={setPedidoFilterContracts}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Pedido / Reemplazo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os Pedidos / Reemplazos</SelectItem>
+                                            {uniquePedidosContracts.map(ped => (
+                                                <SelectItem key={ped} value={ped}>
+                                                    <span className="font-mono">{ped}</span>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
                                 <div className="w-[240px]">
                                     <Select 
                                         value={`${sortFieldContracts}_${sortDirectionContracts}`} 
@@ -2416,13 +2507,14 @@ Muchas gracias.`;
                                     </Select>
                                 </div>
 
-                                {(searchTermContracts || statusFilterContracts !== 'all' || sortFieldContracts !== 'created_at' || sortDirectionContracts !== 'desc') && (
+                                {(searchTermContracts || statusFilterContracts !== 'all' || pedidoFilterContracts !== 'all' || sortFieldContracts !== 'created_at' || sortDirectionContracts !== 'desc') && (
                                     <Button
                                         variant="ghost"
                                         size="sm"
                                         onClick={() => {
                                             setSearchTermContracts('');
                                             setStatusFilterContracts('all');
+                                            setPedidoFilterContracts('all');
                                             setSortFieldContracts('created_at');
                                             setSortDirectionContracts('desc');
                                         }}
@@ -2544,7 +2636,25 @@ Muchas gracias.`;
                                                             {contract.contratante}
                                                         </TableCell>
                                                         <TableCell className="font-medium">
-                                                            {clientName}
+                                                            <div>{clientName}</div>
+                                                            {contract.pedido_codigo && (
+                                                                <div className="mt-1 flex items-center gap-1 flex-wrap">
+                                                                    <Badge 
+                                                                        variant="outline" 
+                                                                        className={`font-mono text-[11px] px-1.5 py-0.5 gap-1 ${
+                                                                            contract.solicitud_tipo === 'replacement' || contract.pedido_codigo?.startsWith('R-')
+                                                                                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                                                                : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                                                                        }`}
+                                                                    >
+                                                                        <Package className="w-3 h-3" />
+                                                                        {contract.pedido_codigo}
+                                                                        {contract.solicitud_tipo === 'replacement' && !contract.pedido_codigo?.startsWith('R-') && (
+                                                                            <span className="text-[10px] opacity-80">(Reemplazo)</span>
+                                                                        )}
+                                                                    </Badge>
+                                                                </div>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell>
                                                             <Badge variant="outline" className="capitalize">
