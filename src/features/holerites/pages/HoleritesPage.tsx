@@ -674,14 +674,17 @@ export function HoleritesPage() {
                 const { worker_id, client_id, fatura_id, dateKey, rawHours } = g;
 
                 let effectiveHours = rawHours;
-                const faturaDisp = fatura_id ? faturaDisputedMap.get(fatura_id) : null;
-                const clientDisp = client_id ? clientDisputedMap.get(client_id) : null;
+                const faturaDisp = (fatura_id && fatura_id !== 'none') ? faturaDisputedMap.get(fatura_id) : null;
+                const clientDisp = (client_id && client_id !== 'none') ? clientDisputedMap.get(client_id) : null;
 
-                const proposedVal = faturaDisp?.[worker_id]?.[dateKey] !== undefined
-                    ? Number(faturaDisp[worker_id][dateKey])
-                    : (clientDisp?.[worker_id]?.[dateKey] !== undefined 
-                        ? Number(clientDisp[worker_id][dateKey]) 
-                        : (globalDisputedHours.has(`${worker_id}_${dateKey}`) ? globalDisputedHours.get(`${worker_id}_${dateKey}`) : undefined));
+                let proposedVal: number | undefined = undefined;
+                if (faturaDisp?.[worker_id]?.[dateKey] !== undefined) {
+                    proposedVal = Number(faturaDisp[worker_id][dateKey]);
+                } else if (!fatura_id || fatura_id === 'none') {
+                    if (clientDisp?.[worker_id]?.[dateKey] !== undefined) {
+                        proposedVal = Number(clientDisp[worker_id][dateKey]);
+                    }
+                }
 
                 if (proposedVal !== undefined) {
                     effectiveHours = proposedVal;
@@ -751,7 +754,7 @@ export function HoleritesPage() {
 
             const allActiveWorkerIds = new Set<string>([
                 ...Array.from(groupedHours.values()).map(g => g.worker_id),
-                ...Array.from(globalDisputedHours.keys()).map(k => k.split('_')[0]),
+                ...Array.from(faturaDisputedMap.values()).flatMap(disp => Object.keys(disp)),
                 ...(workers || []).map(w => w.id)
             ]);
 
