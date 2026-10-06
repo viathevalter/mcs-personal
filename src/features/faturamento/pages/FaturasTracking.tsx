@@ -604,168 +604,39 @@ export function FaturasTracking() {
   const generateInformePDFProgrammatically = async (fat: any, hours: any[], clientName: string): Promise<jsPDF | null> => {
     const targetEmpresa = empresas.find(e => e.id === fat.empresa_id) || empresas[0];
     
-    // Aggregate hours per worker
-    const workerSummaryMap = new Map<string, {
-      workerId: string;
-      workerName: string;
-      totalHoras: number;
-      totalHorasNormais: number;
-      totalHorasNoturnas: number;
-      tarifa: number;
-      tarifaNoturna?: number | null;
-      totalValor: number;
-      isException: boolean;
-    }>();
-
-    const disputedHoursObj = fat.ajustes_json?.disputed_hours || fat.ajustesJson?.disputed_hours || {};
-    
-    // Group raw hours by worker and date key first to handle duplicate work records on the same day
-    const groupedHoursMap = new Map<string, {
-      wId: string;
-      dateKey: string;
-      hours: number;
-      normais: number;
-      noturnas: number;
-      rate: number;
-      rateNoturna: number;
-      isException: boolean;
-      workerName: string;
-    }>();
-    hours.forEach((h: any) => {
-      const wId = h.worker_id;
-      if (!wId) return;
-      const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-      const key = `${wId}_${dateKey}`;
-      const name = h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador';
-      
-      const tot = Number(h.horas_totais || 0);
-      const notu = Number(h.horas_noturnas || 0);
-      const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-        ? Number(h.horas_normais)
-        : Math.max(0, tot - notu);
-      const tfNorm = Number(h.tarifa_faturada || 0);
-      const tfNotu = Number(h.tarifa_faturada_noturna || tfNorm);
-
-      if (!groupedHoursMap.has(key)) {
-        groupedHoursMap.set(key, {
-          wId,
-          dateKey,
-          hours: 0,
-          normais: 0,
-          noturnas: 0,
-          rate: tfNorm,
-          rateNoturna: tfNotu,
-          isException: !!h.is_exception,
-          workerName: name
-        });
-      }
-      const gEntry = groupedHoursMap.get(key)!;
-      gEntry.hours += tot;
-      gEntry.normais += norm;
-      gEntry.noturnas += notu;
-      if (tfNorm > 0) gEntry.rate = tfNorm;
-      if (tfNotu > 0) gEntry.rateNoturna = tfNotu;
-      if (!!h.is_exception) {
-        gEntry.isException = true;
-      }
-    });
-
-    // Populate workerSummaryMap using groupedHoursMap
-    groupedHoursMap.forEach((gVal) => {
-      const proposed = disputedHoursObj[gVal.wId]?.[gVal.dateKey];
-      const hasDispute = proposed !== undefined;
-      const hoursVal = hasDispute ? Number(proposed) : gVal.hours;
-      
-      let normVal = gVal.normais;
-      let notuVal = gVal.noturnas;
-      if (hasDispute) {
-        if (gVal.hours > 0) {
-          const ratio = hoursVal / gVal.hours;
-          normVal = gVal.normais * ratio;
-          notuVal = gVal.noturnas * ratio;
-        } else {
-          normVal = hoursVal;
-          notuVal = 0;
-        }
-      }
-      
-      if (!workerSummaryMap.has(gVal.wId)) {
-        workerSummaryMap.set(gVal.wId, {
-          workerId: gVal.wId,
-          workerName: gVal.workerName,
-          totalHoras: 0,
-          totalHorasNormais: 0,
-          totalHorasNoturnas: 0,
-          tarifa: gVal.rate,
-          tarifaNoturna: gVal.rateNoturna > 0 ? gVal.rateNoturna : null,
-          totalValor: 0,
-          isException: gVal.isException
-        });
-      }
-      const wObj = workerSummaryMap.get(gVal.wId)!;
-      wObj.totalHoras += hoursVal;
-      wObj.totalHorasNormais += normVal;
-      wObj.totalHorasNoturnas += notuVal;
-      const entryVal = (normVal * gVal.rate) + (notuVal * (gVal.rateNoturna || gVal.rate));
-      wObj.totalValor += entryVal;
-      if (gVal.isException) {
-        wObj.isException = true;
-      }
-    });
-
-    // Also include any newly added dates in disputedHoursObj not in original hours
-    Object.keys(disputedHoursObj).forEach(wId => {
-      const dates = disputedHoursObj[wId] || {};
-      Object.keys(dates).forEach(dateKey => {
-        const hoursVal = Number(dates[dateKey] || 0);
-        if (hoursVal > 0) {
-          const alreadyProcessed = hours.some(h => h.worker_id === wId && (h.data_trabalho?.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) === dateKey);
-          if (!alreadyProcessed) {
-            const sample = hours.find((h: any) => h.worker_id === wId);
-            const rate = Number(sample?.tarifa_faturada || 0);
-            const rateNotu = Number(sample?.tarifa_faturada_noturna || rate);
-            const name = sample?.worker?.nombrecompleto || sample?.worker?.nome || 'Colaborador';
-            
-            if (!workerSummaryMap.has(wId)) {
-              workerSummaryMap.set(wId, {
-                workerId: wId,
-                workerName: name,
-                totalHoras: 0,
-                totalHorasNormais: 0,
-                totalHorasNoturnas: 0,
-                tarifa: rate,
-                tarifaNoturna: rateNotu > 0 ? rateNotu : null,
-                totalValor: 0,
-                isException: false
-              });
-            }
-            const wObj = workerSummaryMap.get(wId)!;
-            wObj.totalHoras += hoursVal;
-            wObj.totalHorasNormais += hoursVal;
-            wObj.totalValor += hoursVal * rate;
-          }
-        }
-      });
-    });
-
-    // Ensure fallback if totalValor evaluates to 0
-    workerSummaryMap.forEach(w => {
-      if (w.totalValor === 0 && w.totalHoras > 0 && w.tarifa > 0) {
-        w.totalValor = w.totalHoras * w.tarifa;
-      }
-    });
-
-    const workers = Array.from(workerSummaryMap.values());
-    const displayTotalHoras = workers.reduce((sum, w) => sum + w.totalHoras, 0);
-    const totalBase = workers.reduce((sum, w) => sum + w.totalValor, 0);
-
     const adj = fat.ajustes_json || fat.ajustesJson || {};
+    const baseDisputed = adj.disputed_hours || {};
+    const adminEdits = (selectedDispute && selectedDispute.id === fat.id) ? (adminModifiedHoursRef.current || {}) : {};
+    const disputedHoursObj = deepMergeDisputedHours(
+      normalizeDisputedHoursMap(baseDisputed),
+      normalizeDisputedHoursMap(adminEdits)
+    );
+
+    const targetObraId = (selectedDispute && selectedDispute.id === fat.id && disputeSelectedObraId)
+      ? disputeSelectedObraId
+      : (adj.obra_id || 'all');
+
+    const {
+      totalHorasCalculadas: displayTotalHoras,
+      totalBaseVal: totalBase,
+      groupedDisputeWorkersEnriched
+    } = computeDisputeTotalsAndCells(hours, disputedHoursObj, targetObraId);
+
+    const exceptionWorkerIds = new Set(
+      hours.filter((h: any) => !!h.is_exception).map((h: any) => h.worker_id)
+    );
+
+    const workers = groupedDisputeWorkersEnriched.map(w => ({
+      ...w,
+      isException: exceptionWorkerIds.has(w.workerId)
+    }));
+
     const desc = adj.descricao_servico || adj.descricaoServico || 'Serviços Prestados';
-    const inc = Number(adj.incrementos || 0);
-    const incDesc = adj.incrementos_desc || adj.incrementosDesc || 'Adicional';
-    const red = Number(adj.reducoes || 0);
-    const redDesc = adj.reducoes_desc || adj.reducoesDesc || 'Desconto';
-    const iva = Number(adj.iva_pct ?? adj.ivaPct ?? 0);
+    const inc = (selectedDispute && selectedDispute.id === fat.id && disputeIncrements !== undefined) ? Number(disputeIncrements) : Number(adj.incrementos || 0);
+    const incDesc = (selectedDispute && selectedDispute.id === fat.id && disputeIncrementsDesc !== undefined) ? disputeIncrementsDesc : (adj.incrementos_desc || adj.incrementosDesc || 'Adicional');
+    const red = (selectedDispute && selectedDispute.id === fat.id && disputeReductions !== undefined) ? Number(disputeReductions) : Number(adj.reducoes || 0);
+    const redDesc = (selectedDispute && selectedDispute.id === fat.id && disputeReductionsDesc !== undefined) ? disputeReductionsDesc : (adj.reducoes_desc || adj.reducoesDesc || 'Desconto');
+    const iva = (selectedDispute && selectedDispute.id === fat.id && disputeIvaPct !== undefined) ? Number(disputeIvaPct) : Number(adj.iva_pct ?? adj.ivaPct ?? 0);
     const iban = adj.iban || targetEmpresa?.iban || '';
     const obraName = adj.obra || 'TODAS AS OBRAS';
 
@@ -1067,54 +938,22 @@ export function FaturasTracking() {
     const targetEmpresa = empresas.find(e => e.id === fat.empresa_id) || empresas.find(e => e.id === selectedEmpresaId) || empresas[0];
     
     const adj = fat.ajustes_json || fat.ajustesJson || {};
-    const disputedHoursObj = adj.disputed_hours || {};
+    const baseDisputed = adj.disputed_hours || {};
+    const adminEdits = (selectedDispute && selectedDispute.id === fat.id) ? (adminModifiedHoursRef.current || {}) : {};
+    const disputedHoursObj = deepMergeDisputedHours(
+      normalizeDisputedHoursMap(baseDisputed),
+      normalizeDisputedHoursMap(adminEdits)
+    );
 
-    let totalHorasCalculadas = 0;
-    let totalBaseVal = 0;
+    const targetObraId = (selectedDispute && selectedDispute.id === fat.id && disputeSelectedObraId)
+      ? disputeSelectedObraId
+      : (adj.obra_id || 'all');
 
-    // Group raw hours by worker and date key first to handle duplicate records on the same day
-    const groupedHoursMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
-    hours.forEach((h: any) => {
-      const wId = h.worker_id;
-      if (!wId) return;
-      const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-      const key = `${wId}_${dateKey}`;
-      
-      if (!groupedHoursMap.has(key)) {
-        groupedHoursMap.set(key, {
-          wId,
-          dateKey,
-          hours: 0,
-          rate: Number(h.tarifa_faturada || 27)
-        });
-      }
-      groupedHoursMap.get(key)!.hours += Number(h.horas_totais || 0);
-    });
-
-    // Populate using groupedHoursMap
-    groupedHoursMap.forEach((gVal) => {
-      const proposed = disputedHoursObj[gVal.wId]?.[gVal.dateKey];
-      const hoursVal = proposed !== undefined ? Number(proposed) : gVal.hours;
-      totalHorasCalculadas += hoursVal;
-      totalBaseVal += hoursVal * gVal.rate;
-    });
-
-    // Also include any newly added dates in disputedHoursObj not in original hours
-    Object.keys(disputedHoursObj).forEach(wId => {
-      const dates = disputedHoursObj[wId] || {};
-      Object.keys(dates).forEach(dateKey => {
-        const hoursVal = Number(dates[dateKey] || 0);
-        if (hoursVal > 0) {
-          const alreadyProcessed = hours.some((h: any) => h.worker_id === wId && (h.data_trabalho?.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) === dateKey);
-          if (!alreadyProcessed) {
-            const sample = hours.find((h: any) => h.worker_id === wId);
-            const rate = Number(sample?.tarifa_faturada || 27);
-            totalHorasCalculadas += hoursVal;
-            totalBaseVal += hoursVal * rate;
-          }
-        }
-      });
-    });
+    const { totalHorasCalculadas, totalBaseVal } = computeDisputeTotalsAndCells(
+      hours,
+      disputedHoursObj,
+      targetObraId
+    );
 
     const emissionDateStr = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT');
     const vencimentoDateStr = fat.data_vencimento
@@ -1143,11 +982,21 @@ export function FaturasTracking() {
       `;
     }
 
-    const incrementos = Number(adj.incrementos || 0);
-    const incrementosDesc = adj.incrementos_desc || adj.incrementosDesc || 'Incremento Adicional';
-    const reducoes = Number(adj.reducoes || 0);
-    const reducoesDesc = adj.reducoes_desc || adj.reducoesDesc || 'Redução Comercial';
-    const ivaPct = Number(adj.iva_pct !== undefined ? adj.iva_pct : (adj.ivaPct || 0));
+    const incrementos = (selectedDispute && selectedDispute.id === fat.id && disputeIncrements !== undefined)
+      ? Number(disputeIncrements)
+      : Number(adj.incrementos || 0);
+    const incrementosDesc = (selectedDispute && selectedDispute.id === fat.id && disputeIncrementsDesc !== undefined)
+      ? disputeIncrementsDesc
+      : (adj.incrementos_desc || adj.incrementosDesc || 'Incremento Adicional');
+    const reducoes = (selectedDispute && selectedDispute.id === fat.id && disputeReductions !== undefined)
+      ? Number(disputeReductions)
+      : Number(adj.reducoes || 0);
+    const reducoesDesc = (selectedDispute && selectedDispute.id === fat.id && disputeReductionsDesc !== undefined)
+      ? disputeReductionsDesc
+      : (adj.reducoes_desc || adj.reducoesDesc || 'Redução Comercial');
+    const ivaPct = (selectedDispute && selectedDispute.id === fat.id && disputeIvaPct !== undefined)
+      ? Number(disputeIvaPct)
+      : Number(adj.iva_pct !== undefined ? adj.iva_pct : (adj.ivaPct || 0));
     
     const subtotal = totalBaseVal + incrementos - reducoes;
     const ivaVal = subtotal * (ivaPct / 100);
@@ -1976,40 +1825,30 @@ export function FaturasTracking() {
       worker: lang === 'pt' ? 'Trabalhador' : lang === 'es' ? 'Trabajador' : 'Worker'
     };
 
-    const totalHorasVal = hours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
-    const totalTarifaVal = hours.reduce((sum, h) => {
-      const tot = Number(h.horas_totais || 0);
-      const notu = Number(h.horas_noturnas || 0);
-      const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-        ? Number(h.horas_normais)
-        : Math.max(0, tot - notu);
-      const tfNorm = Number(h.tarifa_faturada || 27.00);
-      const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 27.00);
-      return sum + (norm * tfNorm) + (notu * tfNotu);
-    }, 0);
+    const adj = fatura.ajustes_json || fatura.ajustesJson || {};
+    const baseDisputed = adj.disputed_hours || {};
+    const adminEdits = (selectedDispute && selectedDispute.id === fatura.id) ? (adminModifiedHoursRef.current || {}) : {};
+    const disputedHoursObj = deepMergeDisputedHours(
+      normalizeDisputedHoursMap(baseDisputed),
+      normalizeDisputedHoursMap(adminEdits)
+    );
 
-    const workersMap = new Map<string, {
-      workerId: string;
-      workerName: string;
-      horasDiarias: Record<string, number>;
-    }>();
+    const targetObraId = (selectedDispute && selectedDispute.id === fatura.id && disputeSelectedObraId)
+      ? disputeSelectedObraId
+      : (adj.obra_id || 'all');
 
-    hours.forEach(h => {
-      const wId = h.worker_id;
-      if (!wId) return;
-      if (!workersMap.has(wId)) {
-        workersMap.set(wId, {
-          workerId: wId,
-          workerName: h.worker?.nombrecompleto || h.worker?.nome || 'Colaborador',
-          horasDiarias: {}
-        });
-      }
-      const wObj = workersMap.get(wId)!;
-      const dateKey = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
-      wObj.horasDiarias[dateKey] = h.horas_totais;
-    });
+    const {
+      totalHorasCalculadas: totalHorasVal,
+      totalBaseVal: totalTarifaVal,
+      groupedDisputeWorkers
+    } = computeDisputeTotalsAndCells(hours, disputedHoursObj, targetObraId);
 
-    const groupedWorkers = Array.from(workersMap.values());
+    const groupedWorkers = groupedDisputeWorkers.map(w => ({
+      workerId: w.workerId,
+      workerName: w.workerName,
+      horasDiarias: w.horasDiariasEffective
+    }));
+
     const cycleStartDay = fatura.client?.billingCycleStartDay || fatura.client?.billing_cycle_start_day || 1;
     const daysArray = getBillingCycleDays(cycleStartDay, periodYear, periodMonth);
 
@@ -2549,7 +2388,7 @@ export function FaturasTracking() {
     toast.success('Link de aprovação copiado para a área de transferência!');
   };
 
-  const generateEmailContent = (fatura: any, isAcceptance: boolean, lang: 'pt' | 'es' | 'en') => {
+  const generateEmailContent = (fatura: any, isAcceptance: boolean, lang: 'pt' | 'es' | 'en', overrideTotal?: number) => {
     const periodMonth = fatura.created_at ? new Date(fatura.created_at).getMonth() : new Date().getMonth();
     const periodYear = fatura.created_at ? new Date(fatura.created_at).getFullYear() : new Date().getFullYear();
     
@@ -2566,7 +2405,7 @@ export function FaturasTracking() {
     const monthStr = getTranslatedMonth(periodMonth, lang);
     const periodStr = lang === 'en' ? `${monthStr} ${periodYear}` : `${monthStr} de ${periodYear}`;
     
-    const finalTotal = Number(fatura.total_valor || 0);
+    const finalTotal = overrideTotal !== undefined ? overrideTotal : Number(fatura.total_valor || 0);
 
     const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || fatura.client?.trade_name || 'Cliente';
     const docNumber = fatura.fatura_numero || fatura.atcud || `IF-${periodYear}/0001`;
@@ -2676,7 +2515,12 @@ MCS - Gestão Comercial`;
   const handleLanguageChange = (lang: 'pt' | 'es' | 'en') => {
     setEmailLanguage(lang);
     if (currentEmailFatura) {
-      const { subject, body } = generateEmailContent(currentEmailFatura, isEmailAcceptance, lang);
+      const { subject, body } = generateEmailContent(
+        currentEmailFatura, 
+        isEmailAcceptance, 
+        lang, 
+        emailData?.totalValor || currentEmailFatura.total_valor
+      );
       setEmailData(prev => prev ? { ...prev, subject, body } : null);
       if (currentEmailFatura.id) {
         updateEmailCache(currentEmailFatura.id, { emailLanguage: lang, subject, body });
@@ -2715,8 +2559,6 @@ MCS - Gestão Comercial`;
       }));
 
       setEmailHours(mappedHours);
-      setCurrentEmailFatura(fatura);
-      setIsEmailAcceptance(!!isAcceptance);
 
       // 3. Determine default language
       const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || fatura.client?.trade_name || 'Cliente';
@@ -2726,8 +2568,6 @@ MCS - Gestão Comercial`;
                             (fatura.client?.countryId === 'country_es_id'); // standard match
       const defaultLang = isSpainClient ? 'es' : 'pt';
       setEmailLanguage(defaultLang);
-
-      const { subject, body } = generateEmailContent(fatura, !!isAcceptance, defaultLang);
 
       // 4. Resolve default recipient emails
       const defaultEmails: string[] = [];
@@ -2741,10 +2581,10 @@ MCS - Gestão Comercial`;
         });
       };
 
-      const activeEdits = {
-        ...(fatura.ajustes_json?.disputed_hours || {}),
-        ...((selectedDispute && selectedDispute.id === fatura.id) ? adminModifiedHoursRef.current : {})
-      };
+      const activeEdits = deepMergeDisputedHours(
+        normalizeDisputedHoursMap(fatura.ajustes_json?.disputed_hours || {}),
+        normalizeDisputedHoursMap((selectedDispute && selectedDispute.id === fatura.id) ? adminModifiedHoursRef.current : {})
+      );
 
       const currentReducoes = selectedDispute?.id === fatura.id ? disputeReductions : (fatura.ajustes_json?.reducoes || 0);
       const currentReducoesDesc = selectedDispute?.id === fatura.id ? disputeReductionsDesc : (fatura.ajustes_json?.reducoes_desc || '');
@@ -2762,67 +2602,37 @@ MCS - Gestão Comercial`;
         iva_pct: currentIvaPct
       };
 
+      const targetObraId = (selectedDispute && selectedDispute.id === fatura.id && disputeSelectedObraId)
+        ? disputeSelectedObraId
+        : (adj.obra_id || 'all');
+
+      const { totalHorasCalculadas: effTotalHoras, totalBaseVal: effTotalValorBase } = computeDisputeTotalsAndCells(
+        mappedHours,
+        adj.disputed_hours || {},
+        targetObraId
+      );
+
+      const inc = Number(adj.incrementos || 0);
+      const red = Number(adj.reducoes || 0);
+      const iva = Number(adj.iva_pct || 0);
+      const effTotalValor = (effTotalValorBase + inc - red) * (1 + iva / 100);
+
+      const finalTotalHoras = effTotalHoras;
+      const finalTotalValorBase = effTotalValorBase;
+      const finalTotalValor = effTotalValor;
+
       const faturaWithEdits = {
         ...fatura,
+        total_horas: finalTotalHoras,
+        total_valor: finalTotalValor,
+        total_valor_base: finalTotalValorBase,
         ajustes_json: adj
       };
 
-      const disputedObj = adj.disputed_hours || {};
-      let effTotalHoras = 0;
-      let effTotalValor = 0;
-      const processedKeys = new Set<string>();
+      setCurrentEmailFatura(faturaWithEdits);
+      setIsEmailAcceptance(!!isAcceptance);
 
-      // Group mappedHours by worker and date key first to handle duplicate daily records
-      const groupedMap = new Map<string, { wId: string; dateKey: string; hours: number; rate: number }>();
-      mappedHours.forEach((h: any) => {
-        const wId = h.worker_id;
-        if (!wId) return;
-        const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
-        const key = `${wId}_${dateKey}`;
-        
-        if (!groupedMap.has(key)) {
-          groupedMap.set(key, { wId, dateKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
-        }
-        groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
-      });
-
-      groupedMap.forEach((gVal, key) => {
-        processedKeys.add(key);
-        const hoursVal = getDisputedHourValue(disputedObj, gVal.wId, gVal.dateKey, gVal.hours);
-        effTotalHoras += hoursVal;
-        effTotalValor += hoursVal * gVal.rate;
-      });
-
-      Object.keys(disputedObj).forEach(wId => {
-        const dates = disputedObj[wId] || {};
-        const sample = mappedHours.find((h: any) => h.worker_id === wId);
-        const rate = Number(sample?.tarifa_faturada || 0);
-
-        Object.keys(dates).forEach(dateKey => {
-          const key = `${wId}_${dateKey}`;
-          if (!processedKeys.has(key)) {
-            const hoursVal = Number(dates[dateKey] || 0);
-            if (hoursVal > 0) {
-              effTotalHoras += hoursVal;
-              effTotalValor += hoursVal * rate;
-            }
-          }
-        });
-      });
-
-      const finalTotalHoras = (fatura.total_horas !== undefined && fatura.total_horas !== null && fatura.total_horas > 0)
-        ? fatura.total_horas
-        : (effTotalHoras > 0 ? effTotalHoras : 0);
-
-      const finalTotalValor = (fatura.total_valor !== undefined && fatura.total_valor !== null && fatura.total_valor > 0)
-        ? fatura.total_valor
-        : (effTotalValor > 0 ? effTotalValor : 0);
-
-      const finalTotalValorBase = (fatura.total_valor_base !== undefined && fatura.total_valor_base !== null && fatura.total_valor_base > 0)
-        ? fatura.total_valor_base
-        : (fatura.ajustes_json?.total_valor_base !== undefined && fatura.ajustes_json?.total_valor_base !== null && fatura.ajustes_json?.total_valor_base > 0)
-          ? fatura.ajustes_json?.total_valor_base
-          : (effTotalValor > 0 ? effTotalValor : 0);
+      const { subject, body } = generateEmailContent(faturaWithEdits, !!isAcceptance, defaultLang, finalTotalValor);
 
       const cached = emailCache[fatura.id];
       if (cached) {
