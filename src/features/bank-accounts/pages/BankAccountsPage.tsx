@@ -3,7 +3,7 @@ import {
     Loader2, Search, Wallet, Download, Eye, EyeOff, FileText, 
     UploadCloud, UserCheck, AlertCircle, RefreshCw, Send, CheckCircle2, 
     XCircle, Clock, Link2, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, HelpCircle, PenTool,
-    ArrowUpDown, ArrowUp, ArrowDown, Trash2
+    ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -34,6 +34,7 @@ export function BankAccountsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [clienteFilter, setClienteFilter] = useState<string>('all');
     const [contratanteFilter, setContratanteFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<'ativos' | 'inativos' | 'all'>('all');
     type KpiFilter = 'ALL' | 'COM_IBAN' | 'SEM_IBAN' | 'COMP_PENDENTE' | 'TROCA_PENDENTE';
     const [kpiFilter, setKpiFilter] = useState<KpiFilter>('ALL');
     
@@ -57,7 +58,7 @@ export function BankAccountsPage() {
     // Reset pagination when any filter changes
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, clienteFilter, contratanteFilter, kpiFilter, onlyNovos, periodMonth, periodYear]);
+    }, [searchTerm, clienteFilter, contratanteFilter, statusFilter, kpiFilter, onlyNovos, periodMonth, periodYear]);
 
     const [revealedIbans, setRevealedIbans] = useState<Set<string>>(new Set());
     
@@ -155,6 +156,11 @@ export function BankAccountsPage() {
         
         const matchesNovos = !onlyNovos || acc.is_new;
 
+        // Status Filter logic (Ativos / Inativos / Todos)
+        const matchesStatus = statusFilter === 'all' || 
+            (statusFilter === 'ativos' && acc.status_month === 'ATIVO') ||
+            (statusFilter === 'inativos' && acc.status_month === 'INATIVO');
+
         // KPI Filter logic
         let matchesKpi = true;
         if (kpiFilter === 'COM_IBAN') {
@@ -171,7 +177,7 @@ export function BankAccountsPage() {
             (acc.iban && acc.iban.toLowerCase().includes(lowerSearch))
         );
 
-        return matchesClient && matchesContratante && matchesSearch && matchesNovos && matchesKpi;
+        return matchesClient && matchesContratante && matchesStatus && matchesSearch && matchesNovos && matchesKpi;
     }) || [];
 
     const sortedAccounts = [...filteredAccounts].sort((a, b) => {
@@ -249,7 +255,7 @@ export function BankAccountsPage() {
     };
 
     return (
-        <div className="p-8 max-w-[1700px] mx-auto flex flex-col h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+        <div className="p-4 sm:p-6 w-full flex flex-col h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
@@ -286,9 +292,9 @@ export function BankAccountsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
                 {/* 1. Ativos */}
                 <div 
-                    onClick={() => { setKpiFilter('ALL'); setActiveTab('accounts'); }}
+                    onClick={() => { setKpiFilter('ALL'); setStatusFilter('ativos'); setActiveTab('accounts'); }}
                     className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-between group cursor-pointer select-none ${
-                        kpiFilter === 'ALL' 
+                        kpiFilter === 'ALL' && statusFilter === 'ativos'
                             ? 'border-emerald-500 dark:border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10 dark:bg-emerald-950/20' 
                             : 'border-slate-200/80 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700'
                     }`}
@@ -469,6 +475,21 @@ export function BankAccountsPage() {
 
                         <div className="w-px h-10 bg-slate-200 dark:bg-slate-800 self-center hidden lg:block mx-1"></div>
 
+                        {/* Status Filter (Ativos / Inativos / Todos) */}
+                        <div className="space-y-2 w-full sm:w-44">
+                            <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Status</Label>
+                            <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+                                <SelectTrigger className="bg-slate-50/50 dark:bg-slate-800/50 h-10 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-medium">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
+                                    <SelectItem value="ativos">Apenas Ativos</SelectItem>
+                                    <SelectItem value="inativos">Apenas Inativos</SelectItem>
+                                    <SelectItem value="all">Todos os Status</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <div className="space-y-2 w-full lg:w-56">
                             <Label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Cliente</Label>
                             <Combobox
@@ -527,10 +548,10 @@ export function BankAccountsPage() {
                                     <TableRow className="hover:bg-transparent border-b border-slate-200 dark:border-slate-800">
                                         <TableHead className="w-[50px] font-bold text-xs text-slate-700 dark:text-slate-200 uppercase text-center py-3">Nº</TableHead>
                                         {renderSortHeader('worker_codigo', 'ID', 'w-[90px]')}
-                                        {renderSortHeader('worker_nome', 'TRABALHADOR')}
+                                        {renderSortHeader('worker_nome', 'TRABALHADOR', 'min-w-[280px]')}
                                         {renderSortHeader('status_month', 'STATUS', 'text-center border-l border-slate-200 dark:border-slate-800')}
                                         {renderSortHeader('data_ingresso', 'DATA ENTRADA', 'text-center')}
-                                        {renderSortHeader('iban', 'IBAN', 'border-l border-slate-200 dark:border-slate-800 w-[230px]')}
+                                        {renderSortHeader('iban', 'IBAN', 'border-l border-slate-200 dark:border-slate-800 min-w-[260px]')}
                                         {renderSortHeader('banco', 'BANCO')}
                                         <TableHead className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase text-center border-l border-r border-slate-200 dark:border-slate-800 whitespace-nowrap py-3">CERT. TITUL.</TableHead>
                                         <TableHead className="font-bold text-xs text-slate-700 dark:text-slate-200 uppercase text-center border-r border-slate-200 dark:border-slate-800 py-3">AUTORIZAÇÃO</TableHead>
@@ -554,7 +575,7 @@ export function BankAccountsPage() {
                                                 <div className="flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
                                                     <AlertCircle className="h-10 w-10 text-slate-300 dark:text-slate-600 mb-3" />
                                                     <span className="font-medium text-slate-600 dark:text-slate-300">Nenhum trabalhador encontrado.</span>
-                                                    <span className="text-sm mt-1 text-slate-400 dark:text-slate-500">Ninguém esteve ativo nesse mês ou os filtros de empresa/cliente estão rígidos.</span>
+                                                    <span className="text-sm mt-1 text-slate-400 dark:text-slate-500">Ninguém atende aos filtros de status/empresa/cliente selecionados.</span>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -577,11 +598,24 @@ export function BankAccountsPage() {
                                                         <span className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded px-1.5 py-0.5 shadow-sm">{account.worker_codigo}</span>
                                                     </TableCell>
                                                     
-                                                    <TableCell>
+                                                    <TableCell className="min-w-[280px]">
                                                         <div className="flex items-center gap-2">
-                                                            <Link to={`/workers/${account.worker_id}?tab=bank_accounts`} className="font-semibold text-[13px] text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-nowrap truncate max-w-[200px]">
+                                                            <Link to={`/workers/${account.worker_id}?tab=bank_accounts`} className="font-semibold text-[13px] text-slate-900 dark:text-slate-100 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors whitespace-normal" title={account.worker_nome}>
                                                                 {account.worker_nome}
                                                             </Link>
+                                                            <button
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    navigator.clipboard.writeText(account.worker_nome);
+                                                                    toast.success("Nome do trabalhador copiado!");
+                                                                }}
+                                                                className="p-1 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors shrink-0"
+                                                                title="Copiar Nome Completo"
+                                                            >
+                                                                <Copy className="w-3.5 h-3.5" />
+                                                            </button>
                                                             {account.is_new && (
                                                                 <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900 border-0 text-[9px] px-1.5 py-0">NOVO</Badge>
                                                             )}
@@ -607,8 +641,8 @@ export function BankAccountsPage() {
                                                         {formatDate(account.data_ingresso)}
                                                     </TableCell>
                                                     
-                                                    <TableCell className="border-l border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 group-hover:bg-indigo-50/10 dark:group-hover:bg-indigo-950/20 transition-colors">
-                                                        <div className="flex items-center justify-between">
+                                                    <TableCell className="border-l border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 group-hover:bg-indigo-50/10 dark:group-hover:bg-indigo-950/20 transition-colors min-w-[260px]">
+                                                        <div className="flex items-center justify-between gap-2">
                                                             {missingIban ? (
                                                                 <span className="text-[13px] text-rose-500/80 dark:text-rose-400 italic font-medium flex items-center">
                                                                     <AlertCircle className="w-3.5 h-3.5 mr-1" /> Falta IBAN
@@ -620,13 +654,28 @@ export function BankAccountsPage() {
                                                             )}
                                                             
                                                             {!missingIban && (
-                                                                <button 
-                                                                    onClick={(e) => toggleIbanVisibility(account.worker_id, e)}
-                                                                    className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-md transition-colors"
-                                                                    title={isRevealed ? "Ocultar IBAN" : "Revelar IBAN"}
-                                                                >
-                                                                    {isRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                                </button>
+                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            navigator.clipboard.writeText(account.iban?.replace(/\s+/g, '') || '');
+                                                                            toast.success("IBAN copiado!");
+                                                                        }}
+                                                                        className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-md transition-colors"
+                                                                        title="Copiar IBAN"
+                                                                    >
+                                                                        <Copy className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={(e) => toggleIbanVisibility(account.worker_id, e)}
+                                                                        className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-md transition-colors"
+                                                                        title={isRevealed ? "Ocultar IBAN" : "Revelar IBAN"}
+                                                                    >
+                                                                        {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                                                    </button>
+                                                                </div>
                                                             )}
                                                         </div>
                                                     </TableCell>
