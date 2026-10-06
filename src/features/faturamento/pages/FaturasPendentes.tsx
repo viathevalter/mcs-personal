@@ -15,7 +15,9 @@ import {
   atualizarTarifaFaturada,
   cancelarFatura,
   sincronizarTarifasFaturamento,
-  fetchAllPages
+  fetchAllPages,
+  normalizeDisputedHoursMap,
+  getDisputedHourProposed
 } from '../api/faturamentoApi';
 import type { ClientBillingSummary } from '../api/faturamentoApi';
 import { toast } from 'sonner';
@@ -5256,7 +5258,7 @@ MCS - Gestão Comercial`;
             const isDisputed = selectedFatura.status === 'disputed' || !!selectedFatura.observacoes_cliente || !!selectedFatura.observacoesCliente;
             const clientComment = selectedFatura.observacoes_cliente || selectedFatura.observacoesCliente || null;
             const disputeDocUrl = selectedFatura.dispute_file_url || selectedFatura.disputeFileUrl || selectedFatura.ajustes_json?.dispute_file_url || null;
-            const disputedHoursMap = selectedFatura.ajustes_json?.disputed_hours || {};
+            const disputedHoursMap = normalizeDisputedHoursMap(selectedFatura.ajustes_json?.disputed_hours || {});
 
             return (
               <>
@@ -5421,10 +5423,15 @@ MCS - Gestão Comercial`;
                                   const workerHoursList = faturaHours.filter(h => h.worker_id === worker.workerId);
                                   const workerHoursMapLocal = new Map(workerHoursList.map(h => [h.data_trabalho, h.horas_totais]));
 
-                                  const workerTotal = disputeDaysArray.reduce((sum, dayInfo) => {
-                                    const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
-                                    return sum + originalVal;
+                                  const workerOriginalTotal = disputeDaysArray.reduce((sum, dayInfo) => {
+                                    return sum + (workerHoursMapLocal.get(dayInfo.dateStr) || 0);
                                   }, 0);
+                                  const workerAdjustedTotal = disputeDaysArray.reduce((sum, dayInfo) => {
+                                    const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
+                                    const proposedVal = getDisputedHourProposed(disputedHoursMap, worker.workerId, dayInfo.dateStr);
+                                    return sum + (proposedVal !== undefined ? proposedVal : originalVal);
+                                  }, 0);
+                                  const hasWorkerDispute = Math.abs(workerAdjustedTotal - workerOriginalTotal) > 0.01;
 
                                   return (
                                     <TableRow key={worker.workerId} className="hover:bg-slate-50/50">
@@ -5432,7 +5439,7 @@ MCS - Gestão Comercial`;
                                       {disputeDaysArray.map(dayInfo => {
                                         const originalVal = workerHoursMapLocal.get(dayInfo.dateStr) || 0;
                                         const isWk = isWeekendFatura(dayInfo.day, dayInfo.year, dayInfo.month - 1);
-                                        const proposedVal = disputedHoursMap[worker.workerId]?.[dayInfo.dateStr];
+                                        const proposedVal = getDisputedHourProposed(disputedHoursMap, worker.workerId, dayInfo.dateStr);
                                         const hasDispute = proposedVal !== undefined && proposedVal !== originalVal;
 
                                         return (
@@ -5463,7 +5470,14 @@ MCS - Gestão Comercial`;
                                         );
                                       })}
                                       <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
-                                        {workerTotal.toFixed(1)}h
+                                        {hasWorkerDispute ? (
+                                          <div className="flex flex-col items-end leading-none">
+                                            <span className="line-through text-[9px] text-slate-400">{workerOriginalTotal.toFixed(1)}h</span>
+                                            <span className="text-xs font-black text-rose-700 dark:text-rose-400">{workerAdjustedTotal.toFixed(1)}h</span>
+                                          </div>
+                                        ) : (
+                                          `${workerOriginalTotal.toFixed(1)}h`
+                                        )}
                                       </TableCell>
                                     </TableRow>
                                   );

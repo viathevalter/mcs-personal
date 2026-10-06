@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,19 @@ import {
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { getFaturasTracking, processarContestacaoFatura, desmembrarFaturaPorObras, gerarCobroDaFatura, cancelarFatura, fetchAllPages, updateFaturaAjustes, getDisputedHourValue, deepMergeDisputedHours } from '../api/faturamentoApi';
+import { 
+  getFaturasTracking, 
+  processarContestacaoFatura, 
+  desmembrarFaturaPorObras, 
+  gerarCobroDaFatura, 
+  cancelarFatura, 
+  fetchAllPages, 
+  updateFaturaAjustes, 
+  getDisputedHourValue, 
+  deepMergeDisputedHours,
+  normalizeDisputedHoursMap,
+  getDisputedHourProposed
+} from '../api/faturamentoApi';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -211,7 +224,20 @@ export function FaturasTracking() {
   const [isSplittingObras, setIsSplittingObras] = useState(false);
   const [disputeActiveTab, setDisputeActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
   const [isGeneratingCobro, setIsGeneratingCobro] = useState(false);
-  const { selectedEmpresaId, empresas } = useEmpresa();
+  const { selectedEmpresaId, setSelectedEmpresaId, empresas } = useEmpresa();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlFaturaId = searchParams.get('faturaId');
+  const autoOpenedRef = useRef<string | null>(null);
+  const [crossCompanyDisputes, setCrossCompanyDisputes] = useState<Array<{ id: string; name: string; count: number }>>([]);
+
+  const handleCloseDisputeModal = () => {
+    setSelectedDispute(null);
+    if (searchParams.get('faturaId')) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete('faturaId');
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
 
   const disputeObras = React.useMemo(() => {
     if (!disputeHours || disputeHours.length === 0) return [];
@@ -413,7 +439,7 @@ export function FaturasTracking() {
 
   const handleOpenDispute = async (fatura: any) => {
     setSelectedDispute(fatura);
-    const initialHours = fatura.ajustes_json?.disputed_hours || {};
+    const initialHours = normalizeDisputedHoursMap(fatura.ajustes_json?.disputed_hours || {});
     setAdminModifiedHours(initialHours);
     adminModifiedHoursRef.current = initialHours;
     setAdminEditingCell(null);
@@ -471,6 +497,111 @@ export function FaturasTracking() {
       setLoadingDisputeHours(false);
     }
   };
+
+  // Auto-open dispute modal if faturaId query param is present in URL
+  useEffect(() => {
+    if (!urlFaturaId || autoOpenedRef.current === urlFaturaId) return;
+
+    let isMounted = true;
+    const tryOpenFromUrl = async () => {
+      // 1. Try finding in loaded faturas
+      const existing = faturas.find(f => f.id === urlFaturaId);
+      if (existing) {
+        autoOpenedRef.current = urlFaturaId;
+        handleOpenDispute(existing);
+        return;
+      }
+
+      // 2. Fetch directly from DB if not yet in faturas or belongs to another empresa
+      try {
+        const { data: fatData, error: fatErr } = await supabase
+          .schema('core_finance')
+          .from('faturas')
+          .select('*')
+          .eq('id', urlFaturaId)
+          .single();
+
+        if (fatErr || !fatData || !isMounted) return;
+
+        // If from another empresa, switch company so user has full context
+        if (fatData.empresa_id && fatData.empresa_id !== selectedEmpresaId) {
+          setSelectedEmpresaId(fatData.empresa_id);
+        }
+
+        let enriched = { ...fatData };
+        if (!enriched.client && enriched.client_id) {
+          const { data: clData } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province, countries(name)')
+            .eq('id', enriched.client_id)
+            .single();
+          if (clData) enriched.client = clData;
+        }
+
+        if (isMounted) {
+          autoOpenedRef.current = urlFaturaId;
+          handleOpenDispute(enriched);
+        }
+      } catch (e) {
+        console.error('Erro ao abrir fatura contestada via URL:', e);
+      }
+    };
+
+    tryOpenFromUrl();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [urlFaturaId, faturas, selectedEmpresaId]);
+
+  // Check for disputed invoices in other companies of the group
+  useEffect(() => {
+    let isSubscribed = true;
+    const checkCrossCompanyDisputes = async () => {
+      try {
+        const { data, error } = await supabase
+          .schema('core_finance')
+          .from('faturas')
+          .select('id, empresa_id')
+          .eq('status', 'disputed');
+
+        if (error || !data || !isSubscribed) return;
+
+        const otherDisputes = data.filter(f => f.empresa_id && f.empresa_id !== selectedEmpresaId);
+        if (otherDisputes.length === 0) {
+          setCrossCompanyDisputes([]);
+          return;
+        }
+
+        const countsByEmpresa = new Map<string, number>();
+        otherDisputes.forEach(f => {
+          countsByEmpresa.set(f.empresa_id, (countsByEmpresa.get(f.empresa_id) || 0) + 1);
+        });
+
+        const list: Array<{ id: string; name: string; count: number }> = [];
+        countsByEmpresa.forEach((count, empId) => {
+          const emp = empresas.find(e => e.id === empId);
+          list.push({
+            id: empId,
+            name: emp?.nome || emp?.razao_social || 'Outra Empresa',
+            count
+          });
+        });
+
+        if (isSubscribed) {
+          setCrossCompanyDisputes(list);
+        }
+      } catch (e) {
+        console.error('Erro ao verificar contestações cross-empresa:', e);
+      }
+    };
+
+    checkCrossCompanyDisputes();
+    return () => {
+      isSubscribed = false;
+    };
+  }, [selectedEmpresaId, empresas]);
 
   const generateInformePDFProgrammatically = async (fat: any, hours: any[], clientName: string): Promise<jsPDF | null> => {
     const targetEmpresa = empresas.find(e => e.id === fat.empresa_id) || empresas[0];
@@ -2102,7 +2233,7 @@ export function FaturasTracking() {
     if (isNaN(hours) || hours < 0) return;
 
     const current = deepMergeDisputedHours(
-      selectedDispute?.ajustes_json?.disputed_hours || {},
+      normalizeDisputedHoursMap(selectedDispute?.ajustes_json?.disputed_hours || {}),
       adminModifiedHoursRef.current
     );
     const workerPrev = { ...(current[workerId] || {}) };
@@ -2118,6 +2249,22 @@ export function FaturasTracking() {
     } else {
       next[workerId] = workerPrev;
     }
+
+    // Keep any composite key matching workerId in sync
+    Object.keys(next).forEach(k => {
+      if (k.startsWith(`${workerId}___`)) {
+        if (next[k]) {
+          if (hours === originalHours) {
+            delete next[k][dateKey];
+          } else {
+            next[k][dateKey] = hours;
+          }
+          if (Object.keys(next[k]).length === 0) {
+            delete next[k];
+          }
+        }
+      }
+    });
     
     adminModifiedHoursRef.current = next;
     setAdminModifiedHours(next);
@@ -2142,7 +2289,7 @@ export function FaturasTracking() {
 
       groupedMap.forEach((gVal, key) => {
         processed.add(key);
-        const proposed = next[gVal.wId]?.[gVal.dateKey];
+        const proposed = getDisputedHourProposed(next, gVal.wId, gVal.dateKey);
         const hoursVal = proposed !== undefined ? Number(proposed) : gVal.hours;
         effH += hoursVal;
         effBaseV += hoursVal * gVal.rate;
@@ -3110,6 +3257,42 @@ MCS - Gestão Comercial`;
         </div>
       </div>
 
+      {/* Banner de Contestações em Outras Empresas do Grupo */}
+      {crossCompanyDisputes.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-400 dark:border-amber-600/50 rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/20 text-amber-700 dark:text-amber-400 rounded-xl flex-shrink-0 animate-pulse">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-950 dark:text-amber-100 flex items-center gap-2">
+                Faturas Contestadas em Outra Empresa
+                <Badge className="bg-amber-500 text-white font-black text-[10px] px-1.5 py-0">Atenção</Badge>
+              </p>
+              <p className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-0.5">
+                Existem faturas contestadas aguardando resolução: {crossCompanyDisputes.map(e => `${e.name} (${e.count} contestada${e.count > 1 ? 's' : ''})`).join(' • ')}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {crossCompanyDisputes.map(e => (
+              <Button
+                key={e.id}
+                size="sm"
+                onClick={() => {
+                  setSelectedEmpresaId(e.id);
+                  toast.info(`Alternando para ${e.name}...`);
+                }}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 shadow-sm flex items-center gap-1.5"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                Alternar para {e.name.split(' ')[0]}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 3. Cards de Resumo / KPI do Período */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card 1: Total do Período */}
@@ -3505,7 +3688,7 @@ MCS - Gestão Comercial`;
       </Card>
 
       {/* Dispute Reason Dialog */}
-      <Dialog open={selectedDispute !== null} onOpenChange={(open) => !open && setSelectedDispute(null)}>
+      <Dialog open={selectedDispute !== null} onOpenChange={(open) => !open && handleCloseDisputeModal()}>
         <DialogContent className="max-w-[98%] w-[98vw] dark:bg-slate-900 dark:border-slate-800">
           {(() => {
             if (!selectedDispute) return null;
@@ -3581,25 +3764,16 @@ MCS - Gestão Comercial`;
 
             const effectiveDisputeHours = (() => {
               const map = new Map<string, any>();
-              const combinedDisputedHours: Record<string, Record<string, number>> = {};
-              const allWorkerIds = new Set([
-                ...Object.keys(selectedDispute?.ajustes_json?.disputed_hours || {}),
-                ...Object.keys(adminModifiedHours || {})
-              ]);
-
-              allWorkerIds.forEach(wId => {
-                combinedDisputedHours[wId] = {
-                  ...(selectedDispute?.ajustes_json?.disputed_hours?.[wId] || {}),
-                  ...(adminModifiedHours?.[wId] || {})
-                };
-              });
+              const normalizedDb = normalizeDisputedHoursMap(selectedDispute?.ajustes_json?.disputed_hours || {});
+              const normalizedAdmin = normalizeDisputedHoursMap(adminModifiedHours || {});
+              const combinedDisputedHours = deepMergeDisputedHours(normalizedDb, normalizedAdmin);
 
               (disputeHours || []).forEach(h => {
                 const wId = h.worker_id;
                 if (!wId) return;
                 const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
                 const key = `${wId}_${dateKey}`;
-                const proposed = combinedDisputedHours[wId]?.[dateKey];
+                const proposed = getDisputedHourProposed(combinedDisputedHours, wId, dateKey, h.obra_id);
 
                 if (proposed !== undefined) {
                   // If there is an adjusted value, use it directly (overrides duplicates)
@@ -3623,8 +3797,9 @@ MCS - Gestão Comercial`;
                 }
               });
 
-              Object.keys(combinedDisputedHours).forEach(wId => {
-                const dates = combinedDisputedHours[wId] || {};
+              Object.keys(combinedDisputedHours).forEach(wKey => {
+                const wId = wKey.includes('___') ? wKey.split('___')[0] : wKey;
+                const dates = combinedDisputedHours[wKey] || {};
                 Object.keys(dates).forEach(dateKey => {
                   const key = `${wId}_${dateKey}`;
                   const hoursVal = Number(dates[dateKey] || 0);
@@ -4068,15 +4243,19 @@ MCS - Gestão Comercial`;
                                   <TableHead className="text-right font-extrabold pr-4 text-xs">TOTAL</TableHead>
                                 </TableRow>
                               </TableHeader>
-                              <TableBody>
+                                <TableBody>
                                 {groupedDisputeWorkers.map(worker => {
-                                  const workerTotal = disputeDaysArray.reduce((sum, day) => {
+                                  const workerOriginalTotal = disputeDaysArray.reduce((sum, day) => {
                                     const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                    const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
-                                    if (proposedVal !== undefined) return sum + proposedVal;
-                                    const originalVal = worker.horasDiarias[dateKey] || 0;
-                                    return sum + originalVal;
+                                    return sum + (worker.horasDiarias[dateKey] || 0);
                                   }, 0);
+                                  const workerAdjustedTotal = disputeDaysArray.reduce((sum, day) => {
+                                    const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                    const originalVal = worker.horasDiarias[dateKey] || 0;
+                                    const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
+                                    return sum + (proposedVal !== undefined ? proposedVal : originalVal);
+                                  }, 0);
+                                  const hasWorkerDispute = Math.abs(workerAdjustedTotal - workerOriginalTotal) > 0.01;
 
                                   return (
                                     <TableRow key={worker.workerId} className="hover:bg-slate-50/50">
@@ -4086,9 +4265,9 @@ MCS - Gestão Comercial`;
                                         const originalVal = worker.horasDiarias[dateKey] || 0;
 
                                         const isEditing = adminEditingCell?.workerId === worker.workerId && adminEditingCell?.dateKey === dateKey;
-                                        const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
-                                        const hasDispute = proposedVal !== undefined;
-                                        const displayVal = hasDispute ? proposedVal : originalVal;
+                                        const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
+                                        const hasDispute = proposedVal !== undefined && proposedVal !== originalVal;
+                                        const displayVal = (proposedVal !== undefined) ? proposedVal : originalVal;
                                         const isWk = isWeekend(day, disputeYear, disputeMonth);
 
                                         if (isEditing) {
@@ -4163,7 +4342,14 @@ MCS - Gestão Comercial`;
                                         );
                                       })}
                                       <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
-                                        {workerTotal.toFixed(1)}h
+                                        {hasWorkerDispute ? (
+                                          <div className="flex flex-col items-end leading-none">
+                                            <span className="line-through text-[9px] text-slate-400">{workerOriginalTotal.toFixed(1)}h</span>
+                                            <span className="text-xs font-black text-blue-650 dark:text-blue-400">{workerAdjustedTotal.toFixed(1)}h</span>
+                                          </div>
+                                        ) : (
+                                          `${workerOriginalTotal.toFixed(1)}h`
+                                        )}
                                       </TableCell>
                                     </TableRow>
                                   );
@@ -4175,30 +4361,57 @@ MCS - Gestão Comercial`;
                                     TOTAL GERAL DE HORAS
                                   </TableCell>
                                   {disputeDaysArray.map(day => {
-                                    const dailyTotal = groupedDisputeWorkers.reduce((sum, worker) => {
+                                    const dailyTotalOriginal = groupedDisputeWorkers.reduce((sum, worker) => {
                                       const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                      const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
-                                      if (proposedVal !== undefined) return sum + proposedVal;
                                       return sum + (worker.horasDiarias[dateKey] || 0);
                                     }, 0);
+                                    const dailyTotalAdjusted = groupedDisputeWorkers.reduce((sum, worker) => {
+                                      const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                      const originalVal = worker.horasDiarias[dateKey] || 0;
+                                      const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
+                                      return sum + (proposedVal !== undefined ? proposedVal : originalVal);
+                                    }, 0);
+                                    const hasDayDispute = Math.abs(dailyTotalAdjusted - dailyTotalOriginal) > 0.01;
+
                                     return (
                                       <TableCell key={day} className="text-center font-bold text-[10px] p-1 border-x border-slate-200 dark:border-slate-800">
-                                        {dailyTotal > 0 ? dailyTotal : '-'}
+                                        {hasDayDispute ? (
+                                          <div className="flex flex-col items-center leading-none">
+                                            <span className="line-through text-red-500 text-[8px]">{dailyTotalOriginal > 0 ? dailyTotalOriginal : '0'}</span>
+                                            <span className="font-extrabold text-blue-650 text-[10px]">{dailyTotalAdjusted}</span>
+                                          </div>
+                                        ) : (
+                                          dailyTotalOriginal > 0 ? dailyTotalOriginal : '-'
+                                        )}
                                       </TableCell>
                                     );
                                   })}
                                   <TableCell className="text-right pr-4 py-3 text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono bg-emerald-50/50 dark:bg-emerald-950/20">
                                     {(() => {
-                                      const grandTotalHours = groupedDisputeWorkers.reduce((acc, worker) => {
-                                        const workerTotal = disputeDaysArray.reduce((sum, day) => {
+                                      const grandOriginalHours = groupedDisputeWorkers.reduce((acc, worker) => {
+                                        return acc + disputeDaysArray.reduce((sum, day) => {
                                           const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                                          const proposedVal = adminModifiedHours[worker.workerId]?.[dateKey];
-                                          if (proposedVal !== undefined) return sum + proposedVal;
                                           return sum + (worker.horasDiarias[dateKey] || 0);
                                         }, 0);
-                                        return acc + workerTotal;
                                       }, 0);
-                                      return `${grandTotalHours.toFixed(1)}h`;
+                                      const grandAdjustedHours = groupedDisputeWorkers.reduce((acc, worker) => {
+                                        return acc + disputeDaysArray.reduce((sum, day) => {
+                                          const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                          const originalVal = worker.horasDiarias[dateKey] || 0;
+                                          const proposedVal = getDisputedHourProposed(adminModifiedHours, worker.workerId, dateKey);
+                                          return sum + (proposedVal !== undefined ? proposedVal : originalVal);
+                                        }, 0);
+                                      }, 0);
+                                      const hasGrandDispute = Math.abs(grandAdjustedHours - grandOriginalHours) > 0.01;
+
+                                      return hasGrandDispute ? (
+                                        <div className="flex flex-col items-end leading-none">
+                                          <span className="line-through text-[9px] text-slate-400">{grandOriginalHours.toFixed(1)}h</span>
+                                          <span className="text-xs font-black text-emerald-650 dark:text-emerald-400">{grandAdjustedHours.toFixed(1)}h</span>
+                                        </div>
+                                      ) : (
+                                        `${grandOriginalHours.toFixed(1)}h`
+                                      );
                                     })()}
                                   </TableCell>
                                 </TableRow>
@@ -4615,7 +4828,7 @@ MCS - Gestão Comercial`;
                 </div>
 
                 <DialogFooter className="gap-2 sm:gap-2 flex-wrap justify-end border-t dark:border-slate-800 pt-4 mt-2">
-                  <Button variant="outline" onClick={() => setSelectedDispute(null)} disabled={resolvingDispute || isSplittingObras}>
+                  <Button variant="outline" onClick={handleCloseDisputeModal} disabled={resolvingDispute || isSplittingObras}>
                     Fechar
                   </Button>
                   <Button 

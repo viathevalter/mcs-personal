@@ -1160,6 +1160,7 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
         const dates = datesOrWorkers[wId] || {};
         const compositeKey = `${wId}___${obraId}`;
         if (!normalized[compositeKey]) normalized[compositeKey] = {};
+        if (!normalized[wId]) normalized[wId] = {};
 
         Object.keys(dates).forEach(rawDate => {
           let cleanDate = rawDate ? (rawDate.includes('T') ? rawDate.split('T')[0] : rawDate) : '';
@@ -1171,14 +1172,18 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
             cleanDate = `${y}-${m}-${d}`;
           }
           if (cleanDate) {
-            normalized[compositeKey][cleanDate] = Number(dates[rawDate] || 0);
+            const val = Number(dates[rawDate] || 0);
+            normalized[compositeKey][cleanDate] = val;
+            normalized[wId][cleanDate] = val;
           }
         });
       });
       return;
     }
 
+    const wId = key.includes('___') ? key.split('___')[0] : key;
     if (!normalized[key]) normalized[key] = {};
+    if (!normalized[wId]) normalized[wId] = {};
     const dates = datesOrWorkers;
 
     Object.keys(dates).forEach(rawDate => {
@@ -1191,12 +1196,18 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
         cleanDate = `${y}-${m}-${d}`;
       }
       if (cleanDate) {
-        normalized[key][cleanDate] = Number(dates[rawDate] || 0);
+        const val = Number(dates[rawDate] || 0);
+        normalized[key][cleanDate] = val;
+        normalized[wId][cleanDate] = val;
       }
     });
   });
 
   return normalized;
+}
+
+export function normalizeDisputedHoursMap(disputedObj: any): Record<string, Record<string, number>> {
+  return normalizeDisputedHours(disputedObj);
 }
 
 export function deepMergeDisputedHours(existing: any, modified: any): Record<string, Record<string, number>> {
@@ -1240,14 +1251,13 @@ function lookupHourInObject(wObj: Record<string, any>, rawDateKey: string): numb
   return undefined;
 }
 
-export function getDisputedHourValue(
-  disputedObj: any, 
-  wId: string, 
-  rawDateKey: string, 
-  defaultVal: number,
+export function getDisputedHourProposed(
+  disputedObj: any,
+  wId: string,
+  rawDateKey: string,
   obraId?: string | null
-): number {
-  if (!disputedObj || typeof disputedObj !== 'object') return defaultVal;
+): number | undefined {
+  if (!disputedObj || typeof disputedObj !== 'object') return undefined;
 
   // 1. Check composite key with obra: `${wId}___${obraId}`
   if (obraId && obraId !== 'all' && obraId !== 'sem_obra' && obraId !== 'no_obra') {
@@ -1256,20 +1266,39 @@ export function getDisputedHourValue(
       const val = lookupHourInObject(disputedObj[compositeKey], rawDateKey);
       if (val !== undefined) return val;
     }
-    // Also check nested { obraId: { wId: { dateKey: ... } } }
     if (disputedObj[obraId]?.[wId]) {
       const val = lookupHourInObject(disputedObj[obraId][wId], rawDateKey);
       if (val !== undefined) return val;
     }
   }
 
-  // 2. Fallback to direct worker key (single obra invoices or legacy format)
+  // 2. Direct worker key lookup
   if (disputedObj[wId]) {
     const val = lookupHourInObject(disputedObj[wId], rawDateKey);
     if (val !== undefined) return val;
   }
 
-  return defaultVal;
+  // 3. Fallback: check any composite key starting with `${wId}___`
+  const prefix = `${wId}___`;
+  for (const k of Object.keys(disputedObj)) {
+    if (k.startsWith(prefix)) {
+      const val = lookupHourInObject(disputedObj[k], rawDateKey);
+      if (val !== undefined) return val;
+    }
+  }
+
+  return undefined;
+}
+
+export function getDisputedHourValue(
+  disputedObj: any, 
+  wId: string, 
+  rawDateKey: string, 
+  defaultVal: number,
+  obraId?: string | null
+): number {
+  const proposed = getDisputedHourProposed(disputedObj, wId, rawDateKey, obraId);
+  return proposed !== undefined ? proposed : defaultVal;
 }
 
 export async function getFaturasTracking(empresaId?: string | null): Promise<any[]> {
