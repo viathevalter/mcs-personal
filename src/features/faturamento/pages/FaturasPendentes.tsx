@@ -1395,15 +1395,25 @@ MCS - Gestão Comercial`;
       }, {} as Record<string, any>);
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
-      const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
-      const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
-      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
-        const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+      const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+        const tot = Number(h.horas_totais || 0);
         const notu = Number(h.horas_noturnas || 0);
-        const tfNorm = Number(h.tarifa_faturada || 0);
-        const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+        return sum + ((h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+          ? Number(h.horas_normais)
+          : Math.max(0, tot - notu));
+      }, 0);
+      const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
+      const wTotalValorCalculated = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+        const tot = Number(h.horas_totais || 0);
+        const notu = Number(h.horas_noturnas || 0);
+        const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+          ? Number(h.horas_normais)
+          : Math.max(0, tot - notu);
+        const tfNorm = Number(h.tarifa_faturada || w.tarifa || 0);
+        const tfNotu = Number(h.tarifa_faturada_noturna || w.tarifaNoturna || tfNorm);
         return sum + (norm * tfNorm) + (notu * tfNotu);
       }, 0);
+      const effectiveTotalValor = wTotalValorCalculated > 0 ? wTotalValorCalculated : (wTotalHoras * (w.tarifa || 0));
 
       return {
         ...w,
@@ -1411,7 +1421,7 @@ MCS - Gestão Comercial`;
         totalHoras: wTotalHoras,
         totalHorasNormais: wTotalHorasNormais,
         totalHorasNoturnas: wTotalHorasNoturnas,
-        totalValor: wTotalValor
+        totalValor: effectiveTotalValor
       };
     }).filter(w => w.totalHoras > 0);
 
@@ -1577,17 +1587,50 @@ MCS - Gestão Comercial`;
         const specialBadge = w.isException 
           ? `<span style="font-size: 8px; font-weight: 700; color: #d97706; background-color: #fef3c7; border: 1px solid #fde68a; padding: 2px 4px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.02em; margin-left: 8px;">Tarifa Especial</span>`
           : '';
-        tableBodyRowsHtml += `
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
-              <span>${w.workerName}</span>
-              ${specialBadge}
-            </td>
-            <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
-            <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
-            <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
-          </tr>
-        `;
+        const hasNight = Boolean(w.totalHorasNoturnas && w.totalHorasNoturnas > 0);
+        const normais = w.totalHorasNormais ?? Math.max(0, w.totalHoras - (w.totalHorasNoturnas || 0));
+        const noturnas = w.totalHorasNoturnas || 0;
+        const tarifaNotu = w.tarifaNoturna || w.tarifa;
+
+        if (hasNight) {
+          if (normais > 0) {
+            tableBodyRowsHtml += `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+                  <span>${w.workerName} <span style="font-size: 9px; color: #64748b; font-weight: normal;">(Diurnas ☀️)</span></span>
+                  ${specialBadge}
+                </td>
+                <td style="padding: 7px 12px; text-align: right;">${normais.toFixed(2)}h</td>
+                <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
+                <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${(normais * w.tarifa).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            `;
+          }
+          tableBodyRowsHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0; background-color: #f8fafc;">
+              <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+                <span>${w.workerName} <span style="font-size: 9px; color: #4f46e5; font-weight: 600;">(Noturnas 🌙)</span></span>
+                ${specialBadge}
+              </td>
+              <td style="padding: 7px 12px; text-align: right; color: #4f46e5;">${noturnas.toFixed(2)}h</td>
+              <td style="padding: 7px 12px; text-align: right; color: #4f46e5; font-weight: 600;">€ ${tarifaNotu.toFixed(2)}</td>
+              <td style="padding: 7px 12px; text-align: right; font-weight: 700; color: #4f46e5;">€ ${(noturnas * tarifaNotu).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          `;
+        } else {
+          const rowTotalValor = w.totalValor > 0 ? w.totalValor : (w.totalHoras * w.tarifa);
+          tableBodyRowsHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+                <span>${w.workerName}</span>
+                ${specialBadge}
+              </td>
+              <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
+              <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
+              <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${rowTotalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          `;
+        }
       });
 
       let tableFooterHtml = '';
@@ -2496,15 +2539,25 @@ MCS - Gestão Comercial`;
         : w.horasDiarias;
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
-      const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0))), 0);
-      const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
-      const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
-        const norm = h.horas_normais !== null && h.horas_normais !== undefined ? Number(h.horas_normais) : Math.max(0, Number(h.horas_totais || 0) - Number(h.horas_noturnas || 0));
+      const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+        const tot = Number(h.horas_totais || 0);
         const notu = Number(h.horas_noturnas || 0);
-        const tfNorm = Number(h.tarifa_faturada || 0);
-        const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
+        return sum + ((h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+          ? Number(h.horas_normais)
+          : Math.max(0, tot - notu));
+      }, 0);
+      const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
+      const wTotalValorCalculated = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
+        const tot = Number(h.horas_totais || 0);
+        const notu = Number(h.horas_noturnas || 0);
+        const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+          ? Number(h.horas_normais)
+          : Math.max(0, tot - notu);
+        const tfNorm = Number(h.tarifa_faturada || w.tarifa || 0);
+        const tfNotu = Number(h.tarifa_faturada_noturna || w.tarifaNoturna || tfNorm);
         return sum + (norm * tfNorm) + (notu * tfNotu);
       }, 0);
+      const effectiveTotalValor = wTotalValorCalculated > 0 ? wTotalValorCalculated : (wTotalHoras * (w.tarifa || 0));
 
       return {
         ...w,
@@ -2512,7 +2565,7 @@ MCS - Gestão Comercial`;
         totalHoras: wTotalHoras,
         totalHorasNormais: wTotalHorasNormais,
         totalHorasNoturnas: wTotalHorasNoturnas,
-        totalValor: wTotalValor
+        totalValor: effectiveTotalValor
       };
     }).filter(w => w.totalHoras > 0);
 
@@ -2678,17 +2731,50 @@ MCS - Gestão Comercial`;
         const specialBadge = w.isException 
           ? `<span style="font-size: 8px; font-weight: 700; color: #d97706; background-color: #fef3c7; border: 1px solid #fde68a; padding: 2px 4px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.02em; margin-left: 8px;">Tarifa Especial</span>`
           : '';
-        tableBodyRowsHtml += `
-          <tr style="border-bottom: 1px solid #e2e8f0;">
-            <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
-              <span>${w.workerName}</span>
-              ${specialBadge}
-            </td>
-            <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
-            <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
-            <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
-          </tr>
-        `;
+        const hasNight = Boolean(w.totalHorasNoturnas && w.totalHorasNoturnas > 0);
+        const normais = w.totalHorasNormais ?? Math.max(0, w.totalHoras - (w.totalHorasNoturnas || 0));
+        const noturnas = w.totalHorasNoturnas || 0;
+        const tarifaNotu = w.tarifaNoturna || w.tarifa;
+
+        if (hasNight) {
+          if (normais > 0) {
+            tableBodyRowsHtml += `
+              <tr style="border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+                  <span>${w.workerName} <span style="font-size: 9px; color: #64748b; font-weight: normal;">(Diurnas ☀️)</span></span>
+                  ${specialBadge}
+                </td>
+                <td style="padding: 7px 12px; text-align: right;">${normais.toFixed(2)}h</td>
+                <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
+                <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${(normais * w.tarifa).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+              </tr>
+            `;
+          }
+          tableBodyRowsHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0; background-color: #f8fafc;">
+              <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+                <span>${w.workerName} <span style="font-size: 9px; color: #4f46e5; font-weight: 600;">(Noturnas 🌙)</span></span>
+                ${specialBadge}
+              </td>
+              <td style="padding: 7px 12px; text-align: right; color: #4f46e5;">${noturnas.toFixed(2)}h</td>
+              <td style="padding: 7px 12px; text-align: right; color: #4f46e5; font-weight: 600;">€ ${tarifaNotu.toFixed(2)}</td>
+              <td style="padding: 7px 12px; text-align: right; font-weight: 700; color: #4f46e5;">€ ${(noturnas * tarifaNotu).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          `;
+        } else {
+          const rowTotalValor = w.totalValor > 0 ? w.totalValor : (w.totalHoras * w.tarifa);
+          tableBodyRowsHtml += `
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 7px 12px; font-weight: 600; color: #1e293b; display: flex; align-items: center; justify-content: space-between;">
+                <span>${w.workerName}</span>
+                ${specialBadge}
+              </td>
+              <td style="padding: 7px 12px; text-align: right;">${w.totalHoras.toFixed(2)}h</td>
+              <td style="padding: 7px 12px; text-align: right; ${w.isException ? 'color: #d97706; font-weight: 700;' : ''}">€ ${w.tarifa.toFixed(2)}</td>
+              <td style="padding: 7px 12px; text-align: right; font-weight: 700;">€ ${rowTotalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</td>
+            </tr>
+          `;
+        }
       });
 
       let tableFooterHtml = '';
