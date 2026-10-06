@@ -5212,6 +5212,8 @@ MCS - Gestão Comercial`;
               descricaoServico: 'Prestação de Serviços'
             };
 
+            const selectedObra = selectedFatura.ajustes_json?.obra ? { name: selectedFatura.ajustes_json.obra } : null;
+
             const disputedHoursMap = normalizeDisputedHoursMap(selectedFatura.ajustes_json?.disputed_hours || {});
 
             const {

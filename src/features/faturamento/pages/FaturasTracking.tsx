@@ -3650,6 +3650,38 @@ MCS - Gestão Comercial`;
               groupedDisputeWorkers
             } = computeDisputeTotalsAndCells(disputeHours, combinedDisputedHours, disputeSelectedObraId);
 
+            const { disputeYear, disputeMonth } = (() => {
+              if (disputeHours && disputeHours.length > 0) {
+                const rawDate = disputeHours[0].data_trabalho || '';
+                const firstDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
+                const parts = firstDate.split('-');
+                if (parts.length >= 2) {
+                  return { disputeYear: parseInt(parts[0]), disputeMonth: parseInt(parts[1]) - 1 };
+                }
+              }
+              const today = new Date();
+              return { disputeYear: today.getFullYear(), disputeMonth: today.getMonth() };
+            })();
+
+            const disputeDaysArray = (() => {
+              const numDays = new Date(disputeYear, disputeMonth + 1, 0).getDate();
+              return Array.from({ length: numDays }, (_, i) => i + 1);
+            })();
+
+            // Load adjustments or defaults
+            const adjustments = (() => {
+              const adj = selectedDispute.ajustes_json || {};
+              return {
+                incrementos: disputeIncrements !== undefined ? Number(disputeIncrements) : (adj.incrementos !== undefined ? Number(adj.incrementos) : 0),
+                incrementosDesc: disputeIncrementsDesc !== undefined ? disputeIncrementsDesc : (adj.incrementos_desc || ''),
+                reducoes: disputeReductions !== undefined ? Number(disputeReductions) : (adj.reducoes !== undefined ? Number(adj.reducoes) : 0),
+                reducoesDesc: disputeReductionsDesc !== undefined ? disputeReductionsDesc : (adj.reducoes_desc || ''),
+                ivaPct: disputeIvaPct !== undefined ? Number(disputeIvaPct) : (adj.iva_pct !== undefined ? Number(adj.iva_pct) : 21),
+                iban: adj.iban || 'BANCO COMERCIAL PORTUGUÊS (BCP)\nIBAN: PT50 0033 0000 1234 5678 9012 3\nSWIFT: BCPTPLPT',
+                descricaoServico: adj.descricao_servico || 'Prestação de serviços de mão de obra temporária especializada nas instalações do cliente.'
+              };
+            })();
+
             const finalTotalVal = (totalBaseVal + adjustments.incrementos - adjustments.reducoes) * (1 + adjustments.ivaPct / 100);
 
             return (
