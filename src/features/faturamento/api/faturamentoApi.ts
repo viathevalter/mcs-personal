@@ -1160,7 +1160,6 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
         const dates = datesOrWorkers[wId] || {};
         const compositeKey = `${wId}___${obraId}`;
         if (!normalized[compositeKey]) normalized[compositeKey] = {};
-        if (!normalized[wId]) normalized[wId] = {};
 
         Object.keys(dates).forEach(rawDate => {
           let cleanDate = rawDate ? (rawDate.includes('T') ? rawDate.split('T')[0] : rawDate) : '';
@@ -1174,16 +1173,13 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
           if (cleanDate) {
             const val = Number(dates[rawDate] || 0);
             normalized[compositeKey][cleanDate] = val;
-            normalized[wId][cleanDate] = val;
           }
         });
       });
       return;
     }
 
-    const wId = key.includes('___') ? key.split('___')[0] : key;
     if (!normalized[key]) normalized[key] = {};
-    if (!normalized[wId]) normalized[wId] = {};
     const dates = datesOrWorkers;
 
     Object.keys(dates).forEach(rawDate => {
@@ -1198,7 +1194,6 @@ export function normalizeDisputedHours(disputedObj: any): Record<string, Record<
       if (cleanDate) {
         const val = Number(dates[rawDate] || 0);
         normalized[key][cleanDate] = val;
-        normalized[wId][cleanDate] = val;
       }
     });
   });
@@ -1345,8 +1340,16 @@ export function computeDisputeTotalsAndCells(
     cell.original += Number(h.horas_totais || 0);
   });
 
-  // Apply disputed hours
-  Object.keys(normalized).forEach(k => {
+  // Apply disputed hours: sort so composite keys (with specific obra) run first
+  const sortedKeys = Object.keys(normalized).sort((a, b) => {
+    const aHas = a.includes('___');
+    const bHas = b.includes('___');
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
+    return 0;
+  });
+
+  sortedKeys.forEach(k => {
     let targetWorkerId = k;
     let targetObraId: string | null = null;
     if (k.includes('___')) {
@@ -1362,11 +1365,13 @@ export function computeDisputeTotalsAndCells(
         const key = `${targetWorkerId}___${targetObraId}___${dKey}`;
         if (!cellRecordsMap.has(key)) {
           const sample = (disputeHours || []).find((h: any) => h.worker_id === targetWorkerId);
+          const obraCell = Array.from(cellRecordsMap.values()).find(c => c.oId === targetObraId);
+          const resolvedObraName = obraCell?.obraName || (disputeHours || []).find((h: any) => h.obra_id === targetObraId)?.obra_name || sample?.obra_name || 'Obra';
           cellRecordsMap.set(key, {
             wId: targetWorkerId,
             workerName: sample?.worker?.nome || sample?.worker?.nombrecompleto || 'Colaborador',
             oId: targetObraId,
-            obraName: sample?.obra_name || 'Sem Obra',
+            obraName: resolvedObraName,
             dKey,
             original: 0,
             proposed: val,
@@ -1379,28 +1384,34 @@ export function computeDisputeTotalsAndCells(
           cellRecordsMap.get(key)!.proposed = val;
         }
       } else {
-        // Direct worker key without obra suffix: apply to all records of this worker on dKey
+        // Direct worker key without obra suffix: apply to existing records of this worker on dKey
         const matchingKeys = Array.from(cellRecordsMap.keys()).filter(key => key.startsWith(`${targetWorkerId}___`) && key.endsWith(`___${dKey}`));
         if (matchingKeys.length > 0) {
           matchingKeys.forEach(mKey => {
             cellRecordsMap.get(mKey)!.proposed = val;
           });
         } else {
-          const sample = (disputeHours || []).find((h: any) => h.worker_id === targetWorkerId);
-          const key = `${targetWorkerId}___sem_obra___${dKey}`;
-          cellRecordsMap.set(key, {
-            wId: targetWorkerId,
-            workerName: sample?.worker?.nome || sample?.worker?.nombrecompleto || 'Colaborador',
-            oId: 'sem_obra',
-            obraName: 'Sem Obra',
-            dKey,
-            original: 0,
-            proposed: val,
-            tarifa: Number(sample?.tarifa_faturada || 0),
-            tarifaNoturna: sample?.tarifa_faturada_noturna ? Number(sample?.tarifa_faturada_noturna) : null,
-            horasNormais: 0,
-            horasNoturnas: 0,
-          });
+          // If the worker has only one obra in this fatura, associate with it instead of creating 'sem_obra'
+          const workerObraIds = Array.from(new Set((disputeHours || []).filter((h: any) => h.worker_id === targetWorkerId && h.obra_id).map((h: any) => h.obra_id)));
+          if (workerObraIds.length === 1) {
+            const soleObraId = workerObraIds[0];
+            const key = `${targetWorkerId}___${soleObraId}___${dKey}`;
+            const sample = (disputeHours || []).find((h: any) => h.worker_id === targetWorkerId);
+            const obraCell = Array.from(cellRecordsMap.values()).find(c => c.oId === soleObraId);
+            cellRecordsMap.set(key, {
+              wId: targetWorkerId,
+              workerName: sample?.worker?.nome || sample?.worker?.nombrecompleto || 'Colaborador',
+              oId: soleObraId,
+              obraName: obraCell?.obraName || sample?.obra_name || 'Obra',
+              dKey,
+              original: 0,
+              proposed: val,
+              tarifa: Number(sample?.tarifa_faturada || 0),
+              tarifaNoturna: sample?.tarifa_faturada_noturna ? Number(sample?.tarifa_faturada_noturna) : null,
+              horasNormais: 0,
+              horasNoturnas: 0,
+            });
+          }
         }
       }
     });
@@ -1425,7 +1436,8 @@ export function computeDisputeTotalsAndCells(
     item.hours += eff;
     item.workers.add(c.wId);
   });
-  const disputeObras = Array.from(obrasMap.values());
+  // Filter out any 'sem_obra' entry if it has 0 hours
+  const disputeObras = Array.from(obrasMap.values()).filter(o => o.id !== null || o.hours > 0);
 
   const filteredCells = (selectedObraId && selectedObraId !== 'all')
     ? allCells.filter(c => (c.oId === selectedObraId) || (!c.oId && selectedObraId === 'sem_obra'))
