@@ -564,6 +564,8 @@ export function ValidationScreen({
                                     );
                                     if (matched) {
                                         matchedObraId = matched.id;
+                                    } else if (clientSites.length === 1) {
+                                        matchedObraId = clientSites[0].id;
                                     }
                                 } else if (clientSites.length === 1 && !hasNoHours) {
                                     matchedObraId = clientSites[0].id;
@@ -904,7 +906,7 @@ export function ValidationScreen({
                 })
                 .map(r => {
                     const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`;
-                    const siteId = r.obra || null;
+                    const siteId = r.obra || (clientSites.length === 1 ? clientSites[0].id : null);
                     const tariffPair = resolveTariff(workerId, workerFuncId, siteId);
                     const totalH = parseFloat(r.totalHoras) || 0;
                     const noturnasH = parseFloat(r.horasNoturnas) || 0;
