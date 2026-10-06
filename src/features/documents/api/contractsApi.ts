@@ -644,14 +644,109 @@ export async function approveDocumentRequest(
         }
     }
 
-    // 2. Atualizar o extracted_data da solicitação e marcar como verificada
+    // 2. Buscar dados completos da solicitação atual
     const { data: currentReq } = await supabase
         .schema('core_personal')
         .from('document_requests')
-        .select('extracted_data')
+        .select('*')
         .eq('id', requestId)
         .maybeSingle();
 
+    // 3. Sincronizar IBAN na tabela core_personal.worker_ibans
+    const finalIban = (approvedData.iban || updatedFormData?.iban || '').trim();
+    const finalBanco = (updatedFormData?.banco || '').trim() || 'Banco';
+    const certificadoUrl = currentReq?.iban_url || (currentReq?.extracted_data?.iban_url) || null;
+
+    if (finalIban) {
+        try {
+            const { data: existingIban } = await supabase
+                .schema('core_personal')
+                .from('worker_ibans')
+                .select('id, iban, banco')
+                .eq('worker_id', workerId)
+                .eq('status', 'ATIVO')
+                .maybeSingle();
+
+            if (existingIban) {
+                await supabase
+                    .schema('core_personal')
+                    .from('worker_ibans')
+                    .update({
+                        iban: finalIban,
+                        banco: finalBanco,
+                        certificado_url: certificadoUrl,
+                        documento_url: certificadoUrl,
+                        data_alteracao: new Date().toISOString().split('T')[0],
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existingIban.id);
+            } else {
+                await supabase
+                    .schema('core_personal')
+                    .from('worker_ibans')
+                    .insert({
+                        worker_id: workerId,
+                        banco: finalBanco,
+                        iban: finalIban,
+                        status: 'ATIVO',
+                        certificado_url: certificadoUrl,
+                        documento_url: certificadoUrl,
+                        data_alteracao: new Date().toISOString().split('T')[0],
+                        observacoes: 'Cadastrado via Validação de Documentos'
+                    });
+            }
+        } catch (ibanErr) {
+            console.error("Erro ao sincronizar worker_ibans:", ibanErr);
+        }
+    }
+
+    // 4. Sincronizar anexos de documentos no arquivo digital do trabalhador (worker_documents)
+    if (currentReq) {
+        try {
+            const empresaIdForDocs = currentReq.empresa_id || 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+            const docsToArchive: Array<{ docType: string; label: string; filePath: string | null }> = [
+                { docType: 'passaporte', label: 'Passaporte / Identificação', filePath: currentReq.passport_url },
+                { docType: 'nif', label: 'NIF', filePath: currentReq.nif_url },
+                { docType: 'niss', label: 'NISS', filePath: currentReq.niss_url },
+                { docType: 'permision_conducir', label: 'Carta de Condução', filePath: currentReq.license_url },
+                { docType: 'Cert. Titularidade Banco', label: 'Comprovativo IBAN', filePath: certificadoUrl }
+            ];
+
+            for (const doc of docsToArchive) {
+                if (doc.filePath) {
+                    const ext = doc.filePath.split('.').pop() || 'pdf';
+                    const fileName = `${doc.label} - ${approvedData.nome || 'Trabalhador'}.${ext}`;
+                    
+                    const { data: existingDoc } = await supabase
+                        .schema('core_personal')
+                        .from('worker_documents')
+                        .select('id')
+                        .eq('worker_id', workerId)
+                        .eq('file_path', doc.filePath)
+                        .maybeSingle();
+
+                    if (!existingDoc) {
+                        await supabase
+                            .schema('core_personal')
+                            .from('worker_documents')
+                            .insert({
+                                empresa_id: empresaIdForDocs,
+                                worker_id: workerId,
+                                doc_type: doc.docType,
+                                file_path: doc.filePath,
+                                file_name: fileName,
+                                file_size: 1024,
+                                mime_type: doc.filePath.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+                            });
+                    }
+                }
+            }
+        } catch (docErr) {
+            console.error("Erro ao arquivar worker_documents:", docErr);
+        }
+    }
+
+    // 5. Atualizar o extracted_data da solicitação e marcar como verificada
     const mergedExtracted = {
         ...(currentReq?.extracted_data || {}),
         ...(updatedFormData || approvedData),
