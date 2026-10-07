@@ -5,8 +5,9 @@ import type { GeneratedDocument } from './documentGeneratorService';
 
 export const pdfExportService = {
     /**
-     * Downloads a generated document as PDF.
-     * If signed, attaches the formal digital signature seal block at the bottom before exporting.
+     * Downloads a generated document as PDF with perfect symmetric margins and exact list numbering.
+     * Uses an isolated iframe to prevent CSS counter leaks (e.g. 2.1 turning into 2.6)
+     * and eliminates wrapper padding displacement.
      */
     async downloadDocumentAsPdf(docItem: GeneratedDocument): Promise<void> {
         // 1. Fetch .docx binary
@@ -16,22 +17,83 @@ export const pdfExportService = {
         }
         const blob = await response.blob();
 
-        // 2. Create offscreen container using global document DOM
-        const container = document.createElement('div');
-        container.style.position = 'absolute';
-        container.style.left = '-9999px';
-        container.style.top = '-9999px';
-        container.style.width = '800px';
-        container.style.backgroundColor = '#ffffff';
-        container.style.color = '#0f172a';
-        container.style.fontFamily = 'Arial, sans-serif';
-        container.style.padding = '30px';
-        container.style.boxSizing = 'border-box';
-        document.body.appendChild(container);
+        // 2. Create isolated hidden iframe to isolate CSS counters and ensure exact A4 layout
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.left = '-9999px';
+        iframe.style.top = '0';
+        iframe.style.width = '794px'; // 210mm at 96 DPI
+        iframe.style.height = '1123px'; // 297mm at 96 DPI
+        iframe.style.border = 'none';
+        iframe.style.zIndex = '-9999';
+        iframe.style.visibility = 'hidden';
+        document.body.appendChild(iframe);
 
         try {
-            // 3. Render .docx into HTML
-            await renderAsync(blob, container);
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!iframeDoc) {
+                throw new Error('Não foi possível inicializar ambiente isolado de renderização.');
+            }
+
+            iframeDoc.open();
+            iframeDoc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <style>
+                        * { box-sizing: border-box; }
+                        html, body {
+                            margin: 0 !important;
+                            padding: 0 !important;
+                            background: #ffffff !important;
+                            width: 794px !important;
+                            font-family: Arial, sans-serif;
+                            -webkit-print-color-adjust: exact;
+                            print-color-adjust: exact;
+                        }
+                        .docx-wrapper {
+                            padding: 0 !important;
+                            background: #ffffff !important;
+                            margin: 0 !important;
+                            width: 794px !important;
+                            display: block !important;
+                        }
+                        section.docx {
+                            margin: 0 auto !important;
+                            box-shadow: none !important;
+                            width: 794px !important;
+                            box-sizing: border-box !important;
+                            background: #ffffff !important;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div id="pdf-render-root" style="width: 794px; background: #ffffff; margin: 0; padding: 0;"></div>
+                </body>
+                </html>
+            `);
+            iframeDoc.close();
+
+            const container = iframeDoc.getElementById('pdf-render-root')!;
+
+            // 3. Render .docx into HTML inside isolated iframe
+            await renderAsync(blob, container, null, {
+                inWrapper: false,
+                ignoreWidth: false,
+                ignoreHeight: false,
+                breakPages: true
+            });
+
+            // Ensure all sections have clean margins & background
+            const sections = Array.from(container.querySelectorAll('section.docx')) as HTMLElement[];
+            sections.forEach(sec => {
+                sec.style.margin = '0 auto';
+                sec.style.boxShadow = 'none';
+                sec.style.backgroundColor = '#ffffff';
+                sec.style.width = '794px';
+                sec.style.boxSizing = 'border-box';
+            });
 
             // 4. If signed, replace placeholder inside document and append signature block
             if (docItem.signature_status === 'signed') {
@@ -69,7 +131,7 @@ export const pdfExportService = {
                             }
 
                             if (modified && node.parentNode) {
-                                const span = document.createElement('span');
+                                const span = iframeDoc.createElement('span');
                                 span.innerHTML = text.split('###SIG_IMG###').join(imgTag);
                                 node.parentNode.replaceChild(span, node);
                             }
@@ -94,8 +156,8 @@ export const pdfExportService = {
                     }
                 }
 
-                const sigBlock = document.createElement('div');
-                sigBlock.style.marginTop = '40px';
+                const sigBlock = iframeDoc.createElement('div');
+                sigBlock.style.margin = '40px 30px 20px 30px';
                 sigBlock.style.padding = '20px';
                 sigBlock.style.border = '2px solid #10b981';
                 sigBlock.style.borderRadius = '12px';
@@ -123,36 +185,77 @@ export const pdfExportService = {
                 container.appendChild(sigBlock);
             }
 
-            // 5. Capture HTML to Canvas (High clarity scale 1.5)
-            const canvas = await html2canvas(container, {
-                scale: 1.5,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            });
+            // Wait a moment for iframe rendering
+            await new Promise(r => setTimeout(r, 200));
 
-            // 6. Generate Compressed Multi-page A4 PDF with jsPDF (stream compression enabled)
-            const imgData = canvas.toDataURL('image/jpeg', 0.82);
+            // 5. Generate Multi-page A4 PDF using section-by-section capture if sections exist, or whole container
             const pdf = new jsPDF('p', 'mm', 'a4', true);
             const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
             const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
 
-            const imgWidth = pdfWidth;
-            const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+            const renderedSections = Array.from(container.querySelectorAll('section.docx')) as HTMLElement[];
 
-            let heightLeft = imgHeight;
-            let position = 0;
+            if (renderedSections.length > 0) {
+                // Render section by section for perfect page boundaries & margin alignment
+                for (let i = 0; i < renderedSections.length; i++) {
+                    const sec = renderedSections[i];
+                    if (i > 0) {
+                        pdf.addPage();
+                    }
 
-            // Page 1
-            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-            heightLeft -= pageHeight;
+                    const canvas = await html2canvas(sec, {
+                        scale: 1.5,
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: '#ffffff',
+                        windowWidth: 794
+                    });
 
-            // Subsequent pages
-            while (heightLeft > 0) {
-                position -= pageHeight;
-                pdf.addPage();
+                    const imgData = canvas.toDataURL('image/jpeg', 0.82);
+                    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, Math.min(imgHeight, pageHeight), undefined, 'FAST');
+                }
+
+                // If sigBlock exists and wasn't inside a section, append it on the final page or its own page
+                const extraSigBlock = container.querySelector('div[style*="#f0fdf4"]') as HTMLElement;
+                if (extraSigBlock && !renderedSections.some(s => s.contains(extraSigBlock))) {
+                    const canvasSig = await html2canvas(extraSigBlock, {
+                        scale: 1.5,
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: '#ffffff'
+                    });
+                    const sigImgData = canvasSig.toDataURL('image/jpeg', 0.85);
+                    const sigHeight = (canvasSig.height * pdfWidth) / canvasSig.width;
+                    pdf.addPage();
+                    pdf.addImage(sigImgData, 'JPEG', 10, 20, pdfWidth - 20, sigHeight, undefined, 'FAST');
+                }
+            } else {
+                // Fallback: render whole container with height pagination
+                const canvas = await html2canvas(container, {
+                    scale: 1.5,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    windowWidth: 794
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.82);
+                const imgWidth = pdfWidth;
+                const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                let heightLeft = imgHeight;
+                let position = 0;
+
                 pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
                 heightLeft -= pageHeight;
+
+                while (heightLeft > 0) {
+                    position -= pageHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+                    heightLeft -= pageHeight;
+                }
             }
 
             // Clean PDF filename
@@ -165,8 +268,8 @@ export const pdfExportService = {
 
             pdf.save(pdfName);
         } finally {
-            if (document.body.contains(container)) {
-                document.body.removeChild(container);
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
             }
         }
     }
