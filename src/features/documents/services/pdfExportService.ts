@@ -3,13 +3,88 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import type { GeneratedDocument } from './documentGeneratorService';
 
+/**
+ * Traverses paragraphs in the rendered DOCX container and injects exact
+ * hierarchical numbers (1.1, 2.1, 3.1, 4.1), guaranteeing that sub-clause
+ * counters always reset to 1 at every new main clause heading.
+ */
+function applyDirectDomNumbering(container: HTMLElement, doc: Document) {
+    // 1. Disable browser CSS pseudo-element counters to eliminate numbering bugs
+    const style = doc.createElement('style');
+    style.innerHTML = `
+        p[class*="num-"]::before, 
+        p[class*="docx-num-"]::before,
+        p[class*="num-"]:before, 
+        p[class*="docx-num-"]:before {
+            display: none !important;
+            content: "" !important;
+        }
+    `;
+    container.appendChild(style);
+
+    // 2. Track hierarchical counters per numbering definition
+    const counters: Record<string, number[]> = {};
+
+    const paragraphs = Array.from(
+        container.querySelectorAll('p[class*="num-"], p[class*="docx-num-"]')
+    ) as HTMLElement[];
+
+    for (const p of paragraphs) {
+        const classList = Array.from(p.classList);
+        let numId = 'default';
+        let level = -1;
+
+        for (const cls of classList) {
+            const match = cls.match(/(?:docx-)?num-(\d+)-(\d+)/);
+            if (match) {
+                numId = match[1];
+                level = parseInt(match[2], 10);
+                break;
+            }
+        }
+
+        if (level === -1) continue;
+
+        if (!counters[numId]) {
+            counters[numId] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+        }
+
+        // Increment current level
+        counters[numId][level]++;
+
+        // Reset all subordinate levels to 0
+        for (let l = level + 1; l < counters[numId].length; l++) {
+            counters[numId][l] = 0;
+        }
+
+        // Build prefix string
+        let prefix = '';
+        if (level === 0) {
+            prefix = `${counters[numId][0]}. `;
+        } else if (level === 1) {
+            prefix = `${counters[numId][0]}.${counters[numId][1]}. `;
+        } else if (level === 2) {
+            prefix = `${counters[numId][0]}.${counters[numId][1]}.${counters[numId][2]}. `;
+        }
+
+        if (prefix) {
+            const numSpan = doc.createElement('span');
+            numSpan.className = 'docx-fixed-num-prefix';
+            numSpan.style.fontWeight = 'bold';
+            numSpan.style.marginRight = '6px';
+            numSpan.innerText = prefix;
+            p.insertBefore(numSpan, p.firstChild);
+        }
+    }
+}
+
 export const pdfExportService = {
     /**
      * Downloads a generated document as PDF with:
      * 1. Multi-page smart pagination (no text/paragraphs sliced in half)
      * 2. Top and bottom margins on EVERY page (printer-safe)
      * 3. Perfect symmetric left and right margins
-     * 4. Exact multi-level clause numbering reset (2.1, 2.2, 3.1, 4.1)
+     * 4. Exact multi-level clause numbering reset (1.1, 2.1, 3.1, 4.1) via Direct DOM Numbering
      */
     async downloadDocumentAsPdf(docItem: GeneratedDocument): Promise<void> {
         // 1. Fetch .docx binary
@@ -91,32 +166,8 @@ export const pdfExportService = {
                 breakPages: true
             });
 
-            // 4. Fix docx-preview CSS counter-reset bug for multi-level lists (2.1, 3.1, 4.1, etc.)
-            const styleElements = Array.from(iframeDoc.querySelectorAll('style'));
-            styleElements.forEach(styleEl => {
-                let css = styleEl.innerHTML;
-                css = css.replace(/counter-set\s*:\s*([^;]+);?/gi, 'counter-reset: $1 !important;');
-                css = css.replace(/(p\.[a-zA-Z0-9_-]*num-(\d+)-0\s*\{[^}]*)\}/gi, (match, prefix, numId) => {
-                    return `${prefix}; counter-reset: docx-num-${numId}-1 0 docx-num-${numId}-2 0 !important; }`;
-                });
-                styleEl.innerHTML = css;
-            });
-
-            // Inject global counter-reset rules for all numbering IDs to guarantee sub-levels reset at every heading
-            const fixStyle = iframeDoc.createElement('style');
-            let fixCss = '';
-            for (let id = 1; id <= 25; id++) {
-                fixCss += `
-                    p.docx-num-${id}-0, .docx-num-${id}-0 {
-                        counter-reset: docx-num-${id}-1 0 docx-num-${id}-2 0 !important;
-                    }
-                    p.docx-num-${id}-1, .docx-num-${id}-1 {
-                        counter-reset: docx-num-${id}-2 0 !important;
-                    }
-                `;
-            }
-            fixStyle.innerHTML = fixCss;
-            iframeDoc.head.appendChild(fixStyle);
+            // 4. Apply Direct DOM Numbering (1.1, 2.1, 3.1, 4.1) guaranteeing reset at each clause
+            applyDirectDomNumbering(container, iframeDoc);
 
             // Ensure all sections have clean margins & background
             const sections = Array.from(container.querySelectorAll('section.docx')) as HTMLElement[];
