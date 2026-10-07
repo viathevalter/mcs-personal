@@ -97,109 +97,12 @@ const isWeekend = (day: number, year: number, month: number) => {
   return wDay === 0 || wDay === 6;
 };
 
-const MONTH_NAMES_PT = [
-  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
+export {
+  sanitizeFilenamePart,
+  getFaturaBillingPeriod,
+  buildFaturaPdfFilename
+} from '../utils/faturaPdfExport';
 
-function sanitizeFilenamePart(str?: string | null): string {
-  if (!str) return '';
-  return str
-    .replace(/[/\\?%*:|"<>]/g, '-') // Replace illegal filesystem chars with hyphen
-    .replace(/\s+/g, ' ')           // Normalize multiple spaces
-    .trim();
-}
-
-export function getFaturaBillingPeriod(fat: any, hours?: any[]): string {
-  // 1. Check hours
-  if (hours && hours.length > 0) {
-    const sample = hours.find((h: any) => h.data_trabalho)?.data_trabalho;
-    if (sample) {
-      const dateStr = typeof sample === 'string' ? sample.split('T')[0] : new Date(sample).toISOString().split('T')[0];
-      const parts = dateStr.split('-');
-      if (parts.length >= 2) {
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10) - 1;
-        if (m >= 0 && m < 12 && !isNaN(y)) {
-          return `${MONTH_NAMES_PT[m]} ${y}`;
-        }
-      }
-    }
-  }
-
-  // 2. Check descricao_servico in ajustes_json
-  const desc = fat?.ajustes_json?.descricao_servico || fat?.ajustes_json?.descricaoServico || '';
-  const monthMatch = desc.match(/(Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+(\d{4})/i);
-  if (monthMatch) {
-    const mStr = monthMatch[1].charAt(0).toUpperCase() + monthMatch[1].slice(1).toLowerCase();
-    return `${mStr} ${monthMatch[2]}`;
-  }
-
-  // 3. Check data_emissao
-  const emissao = fat?.data_emissao || fat?.ajustes_json?.data_emissao;
-  if (emissao) {
-    const dateStr = typeof emissao === 'string' ? emissao.split('T')[0] : new Date(emissao).toISOString().split('T')[0];
-    const parts = dateStr.split('-');
-    if (parts.length >= 2) {
-      const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
-      if (m >= 0 && m < 12 && !isNaN(y)) {
-        return `${MONTH_NAMES_PT[m]} ${y}`;
-      }
-    }
-  }
-
-  // 4. Check fat.year / fat.month
-  if (fat?.year && fat?.month !== undefined) {
-    const m = Number(fat.month);
-    if (m >= 0 && m < 12) {
-      return `${MONTH_NAMES_PT[m]} ${fat.year}`;
-    }
-  }
-
-  // 5. Check created_at
-  if (fat?.created_at) {
-    const d = new Date(fat.created_at);
-    return `${MONTH_NAMES_PT[d.getMonth()]} ${d.getFullYear()}`;
-  }
-
-  const now = new Date();
-  return `${MONTH_NAMES_PT[now.getMonth()]} ${now.getFullYear()}`;
-}
-
-export function buildFaturaPdfFilename(
-  fat: any, 
-  hours: any[] | undefined, 
-  clientName: string, 
-  type: 'informe' | 'factura' | 'horas' = 'factura'
-): string {
-  const cleanClient = sanitizeFilenamePart(
-    fat?.client?.legal_name || fat?.client?.razon_social || fat?.client?.nombre_comercial || clientName || 'Cliente'
-  );
-  const period = getFaturaBillingPeriod(fat, hours);
-  
-  let rawNumero = fat?.fatura_numero || '';
-  if (!rawNumero && fat?.empresa?.invoiceSeries) {
-    rawNumero = `Factura nº${fat.empresa.invoiceSeries} ${fat.year || new Date().getFullYear()}/${fat.empresa.nextInvoiceNumber || 1}`;
-  }
-  if (!rawNumero) {
-    rawNumero = 'Factura';
-  }
-  
-  const cleanNumero = sanitizeFilenamePart(rawNumero);
-
-  if (type === 'informe') {
-    return `Informe - ${cleanClient} - ${period} - ${cleanNumero}.pdf`;
-  } else if (type === 'horas') {
-    return `Folha de Ponto - ${cleanClient} - ${period} - ${cleanNumero}.pdf`;
-  }
-
-  // Factura
-  if (/factura/i.test(cleanNumero)) {
-    return `${cleanClient} - ${period} - ${cleanNumero}.pdf`;
-  }
-  return `Factura - ${cleanClient} - ${period} - ${cleanNumero}.pdf`;
-}
 
 export function FaturasTracking() {
   const [faturas, setFaturas] = useState<any[]>([]);

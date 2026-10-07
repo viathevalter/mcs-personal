@@ -27,8 +27,18 @@ import {
     AlertCircle,
     Info,
     Paperclip,
-    ExternalLink
+    ExternalLink,
+    Download,
+    FileSpreadsheet,
+    ShieldCheck,
+    Eye
 } from 'lucide-react';
+import { 
+    buildFaturaPdfFilename, 
+    generateFacturaPDF, 
+    generateInformePDF, 
+    generateRelatorioHorasPDF 
+} from '@/features/faturamento/utils/faturaPdfExport';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -116,16 +126,16 @@ export function CobroDetalhesSheet({
         return list;
     }, [titulo]);
 
+    const [isGeneratingPdf, setIsGeneratingPdf] = useState<'factura' | 'informe' | 'horas' | null>(null);
+
     useEffect(() => {
         if (isOpen && titulo) {
             loadTimeline();
             fetchUser();
-            if (titulo.fatura_id) {
-                loadFaturaOrigin(titulo.fatura_id);
-            } else {
-                setFaturaInfo(null);
-                setHorasTrabalhadas([]);
-            }
+            loadFaturaOrigin(titulo);
+        } else {
+            setFaturaInfo(null);
+            setHorasTrabalhadas([]);
         }
     }, [isOpen, titulo]);
 
@@ -160,28 +170,99 @@ export function CobroDetalhesSheet({
         }
     };
 
-    const loadFaturaOrigin = async (faturaId: string) => {
+    const loadFaturaOrigin = async (tRecord: EnrichedTitulo) => {
         setIsLoadingFatura(true);
         try {
+            let targetFaturaId = tRecord.fatura_id;
+
+            // Smart lookup if fatura_id is not directly populated on titulo
+            if (!targetFaturaId && tRecord.Num_doc) {
+                const doc = tRecord.Num_doc.trim();
+                if (doc.toUpperCase().startsWith('FAT-')) {
+                    const prefix = doc.replace(/^FAT-/i, '').toLowerCase();
+                    const { data: matched } = await supabase
+                        .schema('core_finance')
+                        .from('faturas')
+                        .select('id')
+                        .ilike('id', `${prefix}%`)
+                        .limit(1);
+                    if (matched && matched.length > 0) {
+                        targetFaturaId = matched[0].id;
+                    }
+                } else {
+                    const { data: matched } = await supabase
+                        .schema('core_finance')
+                        .from('faturas')
+                        .select('id')
+                        .ilike('fatura_numero', `%${doc}%`)
+                        .limit(1);
+                    if (matched && matched.length > 0) {
+                        targetFaturaId = matched[0].id;
+                    }
+                }
+            }
+
+            if (!targetFaturaId) {
+                setFaturaInfo(null);
+                setHorasTrabalhadas([]);
+                setIsLoadingFatura(false);
+                return;
+            }
+
             // 1. Fetch fatura info
             const { data: fatData, error: fatErr } = await supabase
                 .schema('core_finance')
                 .from('faturas')
                 .select('*')
-                .eq('id', faturaId)
+                .eq('id', targetFaturaId)
                 .single();
 
             if (fatErr) throw fatErr;
-            setFaturaInfo(fatData);
 
             if (fatData) {
+                // Enrich client if available
+                if (fatData.client_id) {
+                    try {
+                        const { data: clientData } = await supabase
+                            .schema('core_personal')
+                            .from('clients')
+                            .select('*')
+                            .eq('id', fatData.client_id)
+                            .single();
+                        if (clientData) {
+                            fatData.client = clientData;
+                        }
+                    } catch (e) {
+                        console.warn('Erro ao buscar cliente da fatura:', e);
+                    }
+                }
+
+                // Enrich empresa if available
+                if (fatData.empresa_id) {
+                    try {
+                        const { data: empData } = await supabase
+                            .schema('core_common')
+                            .from('empresas')
+                            .select('*')
+                            .eq('id', fatData.empresa_id)
+                            .single();
+                        if (empData) {
+                            fatData.empresa = empData;
+                        }
+                    } catch (e) {
+                        console.warn('Erro ao buscar empresa da fatura:', e);
+                    }
+                }
+
+                setFaturaInfo(fatData);
+
                 // 2. Fetch hours worked using paginated query
                 const horasData = await fetchAllPages(async (from, to) => {
                     return supabase
                         .schema('core_finance')
                         .from('horas_trabalhadas')
                         .select('*')
-                        .eq('fatura_id', faturaId)
+                        .eq('fatura_id', targetFaturaId)
                         .range(from, to);
                 });
 
@@ -201,16 +282,91 @@ export function CobroDetalhesSheet({
 
                 const enrichedHoras = (horasData || []).map(h => ({
                     ...h,
-                    worker_nome: workersMap.get(h.worker_id)?.nome || t('financeiro.detail_sheet.unknown_worker', 'Trabalhador Desconhecido')
+                    worker_nome: workersMap.get(h.worker_id)?.nome || t('financeiro.detail_sheet.unknown_worker', 'Trabalhador Desconhecido'),
+                    worker: workersMap.get(h.worker_id)
                 }));
 
                 setHorasTrabalhadas(enrichedHoras);
             }
         } catch (err: any) {
             console.error(t('financeiro.detail_sheet.err_billing_load', 'Erro ao carregar dados do faturamento:'), err);
-            toast.error(t('financeiro.detail_sheet.err_billing_origin', 'Não foi possível carregar a origem do faturamento: ') + err.message);
         } finally {
             setIsLoadingFatura(false);
+        }
+    };
+
+    const handleDownloadFacturaPdf = async () => {
+        if (!faturaInfo) {
+            toast.error(t('financeiro.detail_sheet.err_fatura_not_linked', 'Fatura não vinculada a este cobro.'));
+            return;
+        }
+        setIsGeneratingPdf('factura');
+        const toastId = toast.loading(t('financeiro.detail_sheet.generating_factura_pdf', 'Gerando PDF da Factura Oficial / Pró-forma...'));
+        try {
+            const clientName = titulo.Cliente || faturaInfo.client?.legal_name || 'Cliente';
+            const pdf = await generateFacturaPDF(faturaInfo, horasTrabalhadas, clientName, faturaInfo.empresa);
+            if (pdf) {
+                const filename = buildFaturaPdfFilename(faturaInfo, horasTrabalhadas, clientName, 'factura');
+                pdf.save(filename);
+                toast.success(t('financeiro.detail_sheet.factura_pdf_success', 'Factura baixada com sucesso!'), { id: toastId });
+            } else {
+                toast.error(t('financeiro.detail_sheet.factura_pdf_err', 'Não foi possível gerar a Factura em PDF.'), { id: toastId });
+            }
+        } catch (err: any) {
+            console.error(err);
+            toast.error('Erro ao gerar PDF: ' + err.message, { id: toastId });
+        } finally {
+            setIsGeneratingPdf(null);
+        }
+    };
+
+    const handleDownloadInformePdf = async () => {
+        if (!faturaInfo) {
+            toast.error(t('financeiro.detail_sheet.err_fatura_not_linked', 'Fatura não vinculada a este cobro.'));
+            return;
+        }
+        setIsGeneratingPdf('informe');
+        const toastId = toast.loading(t('financeiro.detail_sheet.generating_informe_pdf', 'Gerando PDF do Informe de Facturación...'));
+        try {
+            const clientName = titulo.Cliente || faturaInfo.client?.legal_name || 'Cliente';
+            const pdf = await generateInformePDF(faturaInfo, horasTrabalhadas, clientName, faturaInfo.empresa);
+            if (pdf) {
+                const filename = buildFaturaPdfFilename(faturaInfo, horasTrabalhadas, clientName, 'informe');
+                pdf.save(filename);
+                toast.success(t('financeiro.detail_sheet.informe_pdf_success', 'Informe de Faturamento baixado com sucesso!'), { id: toastId });
+            } else {
+                toast.error(t('financeiro.detail_sheet.informe_pdf_err', 'Não foi possível gerar o Informe em PDF.'), { id: toastId });
+            }
+        } catch (err: any) {
+            console.error(err);
+            toast.error('Erro ao gerar PDF: ' + err.message, { id: toastId });
+        } finally {
+            setIsGeneratingPdf(null);
+        }
+    };
+
+    const handleDownloadRelatorioHorasPdf = async () => {
+        if (!faturaInfo) {
+            toast.error(t('financeiro.detail_sheet.err_fatura_not_linked', 'Fatura não vinculada a este cobro.'));
+            return;
+        }
+        setIsGeneratingPdf('horas');
+        const toastId = toast.loading(t('financeiro.detail_sheet.generating_timesheet_pdf', 'Gerando PDF da Folha de Ponto / Relatório de Horas...'));
+        try {
+            const clientName = titulo.Cliente || faturaInfo.client?.legal_name || 'Cliente';
+            const pdf = await generateRelatorioHorasPDF(faturaInfo, horasTrabalhadas, clientName);
+            if (pdf) {
+                const filename = buildFaturaPdfFilename(faturaInfo, horasTrabalhadas, clientName, 'horas');
+                pdf.save(filename);
+                toast.success(t('financeiro.detail_sheet.timesheet_pdf_success', 'Relatório de Horas baixado com sucesso!'), { id: toastId });
+            } else {
+                toast.error(t('financeiro.detail_sheet.timesheet_pdf_err', 'Não foi possível gerar a Folha de Ponto em PDF.'), { id: toastId });
+            }
+        } catch (err: any) {
+            console.error(err);
+            toast.error('Erro ao gerar PDF: ' + err.message, { id: toastId });
+        } finally {
+            setIsGeneratingPdf(null);
         }
     };
 
@@ -324,22 +480,204 @@ export function CobroDetalhesSheet({
                                     {titulo.periodo_fat && (
                                         <div className="flex items-center gap-1.5 col-span-2"><Info size={14} className="text-slate-400" /> <span className="font-semibold text-slate-500">{t('financeiro.detail_sheet.billing_month', 'Mês de Faturamento')}:</span> <span className="font-bold text-slate-800 dark:text-slate-200">{titulo.periodo_fat}</span></div>
                                     )}
-                                    {titulo.anexo_url && (
-                                        <div className="flex items-center gap-1.5 col-span-2 pt-1 border-t">
-                                            <Paperclip size={14} className="text-emerald-600" />
-                                            <span className="font-semibold text-slate-500">Documento Anexado:</span>
-                                            <a 
-                                                href={titulo.anexo_url} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer" 
-                                                className="font-bold text-brand-primary hover:underline flex items-center gap-1"
-                                            >
-                                                <span>Visualizar anexo</span>
-                                                <ExternalLink size={12} />
-                                            </a>
-                                        </div>
+                                </div>
+                            </div>
+
+                            {/* Documentos & Comprovação (Dossiê de Cobrança) */}
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between border-b pb-1">
+                                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                        <ShieldCheck size={16} className="text-brand-primary" />
+                                        {t('financeiro.detail_sheet.dossier_title', 'Documentos & Dossiê de Comprovação')}
+                                    </h3>
+                                    {faturaInfo && (
+                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[10px] font-bold">
+                                            {t('financeiro.detail_sheet.dossier_ready', 'Dossiê Disponível')}
+                                        </Badge>
                                     )}
                                 </div>
+
+                                {isLoadingFatura ? (
+                                    <div className="flex items-center justify-center py-4 bg-slate-50 dark:bg-slate-800/30 rounded-lg border text-xs text-slate-500">
+                                        <Loader2 className="w-4 h-4 animate-spin mr-2 text-brand-primary" />
+                                        {t('financeiro.detail_sheet.fetching_fatura_docs', 'Buscando fatura e documentos gerados no faturamento...')}
+                                    </div>
+                                ) : faturaInfo ? (
+                                    <div className="space-y-2.5">
+                                        {/* 1. Factura Oficial / Pro-forma */}
+                                        <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 flex items-center justify-center font-bold flex-none">
+                                                    <FileText size={20} />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                            {faturaInfo.fatura_numero || 'Factura Oficial / Pró-forma'}
+                                                        </span>
+                                                        {faturaInfo.atcud && (
+                                                            <Badge variant="secondary" className="text-[9px] px-1.5 py-0 h-4">
+                                                                ATCUD
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        Documento oficial enviado com QR Code, enquadramento de IVA e dados bancários.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="default"
+                                                onClick={handleDownloadFacturaPdf}
+                                                disabled={isGeneratingPdf !== null}
+                                                className="h-8 px-3 text-xs font-bold bg-brand-primary hover:bg-brand-primary/90 flex-none ml-2"
+                                            >
+                                                {isGeneratingPdf === 'factura' ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                                                ) : (
+                                                    <Download className="w-3.5 h-3.5 mr-1" />
+                                                )}
+                                                Baixar Factura
+                                            </Button>
+                                        </div>
+
+                                        {/* 2. Informe de Faturamento */}
+                                        <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center font-bold flex-none">
+                                                    <FileSpreadsheet size={20} />
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                        Informe de Facturación
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        Detalhamento comercial com relação de trabalhadores, tarifas e ajustes.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleDownloadInformePdf}
+                                                disabled={isGeneratingPdf !== null}
+                                                className="h-8 px-3 text-xs font-semibold flex-none ml-2"
+                                            >
+                                                {isGeneratingPdf === 'informe' ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                                                ) : (
+                                                    <Download className="w-3.5 h-3.5 mr-1" />
+                                                )}
+                                                Baixar Informe
+                                            </Button>
+                                        </div>
+
+                                        {/* 3. Relatório de Horas (Folha de Ponto) */}
+                                        <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center font-bold flex-none">
+                                                    <Calendar size={20} />
+                                                </div>
+                                                <div>
+                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                        Folha de Ponto / Relatório de Horas
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-500">
+                                                        Calendário mensal detalhado com horas diárias trabalhadas por colaborador.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleDownloadRelatorioHorasPdf}
+                                                disabled={isGeneratingPdf !== null}
+                                                className="h-8 px-3 text-xs font-semibold flex-none ml-2"
+                                            >
+                                                {isGeneratingPdf === 'horas' ? (
+                                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                                                ) : (
+                                                    <Download className="w-3.5 h-3.5 mr-1" />
+                                                )}
+                                                Baixar Ponto
+                                            </Button>
+                                        </div>
+
+                                        {/* 4. Link Portal do Cliente se magic_link_token */}
+                                        {faturaInfo.magic_link_token && (
+                                            <div className="bg-slate-50 dark:bg-slate-800/40 border border-dashed rounded-lg p-2.5 flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Eye size={14} className="text-slate-400" />
+                                                    <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
+                                                        Portal do Cliente: link de aprovação e conferência enviado ao cliente
+                                                    </span>
+                                                </div>
+                                                <a
+                                                    href={`/aprovacao-cliente/${faturaInfo.magic_link_token}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 text-xs font-bold text-brand-primary hover:underline"
+                                                >
+                                                    Abrir Portal <ExternalLink size={12} />
+                                                </a>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : null}
+
+                                {/* 5. Comprovante / Anexo manual se houver */}
+                                {titulo.anexo_url && (
+                                    <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-600 flex items-center justify-center font-bold flex-none">
+                                                <Paperclip size={20} />
+                                            </div>
+                                            <div>
+                                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                    Comprovativo Anexado ao Cobro
+                                                </span>
+                                                <p className="text-[11px] text-slate-500">
+                                                    Documento ou recibo registrado no cadastro do título.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 flex-none ml-2">
+                                            <a
+                                                href={titulo.anexo_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md border text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                            >
+                                                <Eye size={13} className="mr-1" /> Ver
+                                            </a>
+                                            <a
+                                                href={titulo.anexo_url}
+                                                download
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1 h-8 px-2.5 rounded-md bg-slate-800 text-white hover:bg-slate-700 text-xs font-semibold"
+                                            >
+                                                <Download size={13} className="mr-1" /> Baixar
+                                            </a>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Se sem fatura e sem anexo */}
+                                {!faturaInfo && !isLoadingFatura && !titulo.anexo_url && (
+                                    <div className="bg-slate-50 dark:bg-slate-800/30 p-3.5 rounded-lg border border-dashed text-xs text-slate-500 flex items-start gap-2.5">
+                                        <AlertCircle className="w-4 h-4 text-slate-400 mt-0.5 flex-none" />
+                                        <div>
+                                            <p className="font-semibold text-slate-700 dark:text-slate-300">
+                                                {t('financeiro.detail_sheet.manual_entry', 'Lançamento Manual')}
+                                            </p>
+                                            <p className="text-[11px] text-slate-400 mt-0.5">
+                                                Este título não possui fatura vinculada gerada no módulo de Faturamento nem anexo cadastrado.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Partial Payments Section if any */}
@@ -378,14 +716,8 @@ export function CobroDetalhesSheet({
                                 </div>
                             )}
 
-                            {/* Billing origin */}
-                            {!titulo.fatura_id ? (
-                                <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-lg border border-dashed text-center flex flex-col items-center justify-center space-y-2">
-                                    <AlertCircle className="w-8 h-8 text-slate-400" />
-                                    <p className="text-xs text-slate-500 font-semibold">{t('financeiro.detail_sheet.manual_entry', 'Lançamento Manual')}</p>
-                                    <p className="text-[11px] text-slate-400">{t('financeiro.detail_sheet.manual_entry_desc', 'Este cobro foi registrado manualmente. Não há vinculação direta com planilha de horas de trabalhadores.')}</p>
-                                </div>
-                            ) : isLoadingFatura ? (
+                            {/* Billing origin & Workers table */}
+                            {!faturaInfo ? null : isLoadingFatura ? (
                                 <div className="flex justify-center items-center py-12">
                                     <Loader2 className="w-6 h-6 animate-spin text-brand-primary" />
                                     <span className="text-xs text-slate-500 ml-2">{t('financeiro.detail_sheet.fetching_billing', 'Buscando faturamento e planilha de horas...')}</span>
