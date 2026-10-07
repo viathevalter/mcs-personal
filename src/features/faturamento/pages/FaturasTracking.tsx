@@ -97,11 +97,17 @@ const isWeekend = (day: number, year: number, month: number) => {
   return wDay === 0 || wDay === 6;
 };
 
-export {
+import {
   sanitizeFilenamePart,
   getFaturaBillingPeriod,
   buildFaturaPdfFilename
 } from '../utils/faturaPdfExport';
+
+export {
+  sanitizeFilenamePart,
+  getFaturaBillingPeriod,
+  buildFaturaPdfFilename
+};
 
 
 export function FaturasTracking() {

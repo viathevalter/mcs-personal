@@ -14,7 +14,7 @@ import { getBillingCycleDays } from './FaturasPendentes';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
-import { buildFaturaPdfFilename } from './FaturasTracking';
+import { buildFaturaPdfFilename } from '../utils/faturaPdfExport';
 
 // Format helpers
 const formatHours = (decimalHours: number) => {
