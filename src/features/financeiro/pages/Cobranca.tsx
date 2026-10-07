@@ -56,7 +56,7 @@ export const Cobranca = () => {
     const [filterPeriodoEmissao, setFilterPeriodoEmissao] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoEmissao') || 'all');
     const [startDateEmissao, setStartDateEmissao] = useState(() => sessionStorage.getItem('cobranca_startDateEmissao') || '');
     const [endDateEmissao, setEndDateEmissao] = useState(() => sessionStorage.getItem('cobranca_endDateEmissao') || '');
-    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoVencimento') || 'this-month');
+    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoVencimento') || 'all');
     const [startDateVencimento, setStartDateVencimento] = useState(() => sessionStorage.getItem('cobranca_startDateVencimento') || '');
     const [endDateVencimento, setEndDateVencimento] = useState(() => sessionStorage.getItem('cobranca_endDateVencimento') || '');
     const [filterPeriodoAlteracao, setFilterPeriodoAlteracao] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoAlteracao') || 'all');
@@ -645,6 +645,15 @@ export const Cobranca = () => {
         return new Date(Math.max(...dates.map(d => d.getTime())));
     };
 
+    const getPeriodoLabel = (val: string) => {
+        switch (val) {
+            case 'this-month': return 'Este Mês';
+            case 'past-30': return 'Últimos 30 Dias';
+            case 'next-30': return 'Próximos 30 Dias';
+            default: return val.replace('-', ' ');
+        }
+    };
+
     // Extract unique lists
     const uniqueEmpresas = Array.from(new Set(data.map(i => normalizeEmpresaName(i.Empresa)).filter(Boolean))).sort();
     const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean))).sort();
@@ -668,24 +677,33 @@ export const Cobranca = () => {
         // Periodo Fat filter
         if (filterPeriodosFat.length > 0 && !filterPeriodosFat.includes(item.periodo_fat)) return false;
 
-        // Periodo Emissao filter
+        // Periodo Emissao / Geracao filter
         if (filterPeriodoEmissao !== 'all') {
             const itemDate = item.Data_emissao ? new Date(item.Data_emissao) : null;
-            if (!itemDate) return false;
+            const createdDate = item.Creado ? new Date(item.Creado) : null;
+            if (!itemDate && !createdDate) return false;
 
             const now = new Date();
             if (filterPeriodoEmissao === 'this-month') {
                 const start = new Date(now.getFullYear(), now.getMonth(), 1);
                 const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-                if (itemDate < start || itemDate > end) return false;
+                const matchEmissao = itemDate ? (itemDate >= start && itemDate <= end) : false;
+                const matchCreado = createdDate ? (createdDate >= start && createdDate <= end) : false;
+                if (!matchEmissao && !matchCreado) return false;
             } else if (filterPeriodoEmissao === 'past-30') {
                 const end = new Date();
                 const start = new Date();
                 start.setDate(end.getDate() - 30);
-                if (itemDate < start || itemDate > end) return false;
+                start.setHours(0, 0, 0, 0);
+                const matchEmissao = itemDate ? (itemDate >= start && itemDate <= end) : false;
+                const matchCreado = createdDate ? (createdDate >= start && createdDate <= end) : false;
+                if (!matchEmissao && !matchCreado) return false;
             } else if (filterPeriodoEmissao === 'custom') {
-                if (startDateEmissao && new Date(itemDate) < new Date(startDateEmissao)) return false;
-                if (endDateEmissao && new Date(itemDate) > new Date(endDateEmissao)) return false;
+                const start = startDateEmissao ? new Date(startDateEmissao) : null;
+                const end = endDateEmissao ? new Date(endDateEmissao + 'T23:59:59') : null;
+                const matchEmissao = itemDate ? ((!start || itemDate >= start) && (!end || itemDate <= end)) : false;
+                const matchCreado = createdDate ? ((!start || createdDate >= start) && (!end || createdDate <= end)) : false;
+                if (!matchEmissao && !matchCreado) return false;
             }
         }
 
@@ -1358,7 +1376,7 @@ export const Cobranca = () => {
                                             <div className="space-y-3 sm:border-l sm:pl-4 dark:border-slate-800">
                                                 {/* Período de Emissão */}
                                                 <div className="space-y-1">
-                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.periodo_emissao', 'Período de Emissão')}</label>
+                                                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{t('financeiro.filters.periodo_emissao', 'Período de Emissão / Geração')}</label>
                                                     <select
                                                         value={tempFilterPeriodoEmissao}
                                                         onChange={(e) => setTempFilterPeriodoEmissao(e.target.value)}
@@ -1615,7 +1633,7 @@ export const Cobranca = () => {
                             {/* Periodo Emissao Filter */}
                             {filterPeriodoEmissao !== 'all' && (
                                 <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
-                                    <span>Emissão: {filterPeriodoEmissao === 'custom' ? `${formatDateInput(startDateEmissao)} a ${formatDateInput(endDateEmissao)}` : filterPeriodoEmissao.replace('-', ' ')}</span>
+                                    <span>Geração / Emissão: {filterPeriodoEmissao === 'custom' ? `${formatDateInput(startDateEmissao)} a ${formatDateInput(endDateEmissao)}` : getPeriodoLabel(filterPeriodoEmissao)}</span>
                                     <button 
                                         onClick={() => {
                                             setFilterPeriodoEmissao('all');
@@ -1632,7 +1650,7 @@ export const Cobranca = () => {
                             {/* Periodo Vencimento Filter */}
                             {filterPeriodoVencimento !== 'all' && (
                                 <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
-                                    <span>Venc: {filterPeriodoVencimento === 'custom' ? `${formatDateInput(startDateVencimento)} a ${formatDateInput(endDateVencimento)}` : filterPeriodoVencimento.replace('-', ' ')}</span>
+                                    <span>Venc: {filterPeriodoVencimento === 'custom' ? `${formatDateInput(startDateVencimento)} a ${formatDateInput(endDateVencimento)}` : getPeriodoLabel(filterPeriodoVencimento)}</span>
                                     <button 
                                         onClick={() => {
                                             setFilterPeriodoVencimento('all');
@@ -1649,7 +1667,7 @@ export const Cobranca = () => {
                             {/* Periodo Alteracao Filter */}
                             {filterPeriodoAlteracao !== 'all' && (
                                 <Badge variant="outline" className="flex items-center gap-1 font-bold py-0.5 pl-2 pr-1 border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/60 dark:text-slate-350 dark:border-slate-800">
-                                    <span>Alteração: {filterPeriodoAlteracao === 'custom' ? `${formatDateInput(startDateAlteracao)} a ${formatDateInput(endDateAlteracao)}` : filterPeriodoAlteracao.replace('-', ' ')}</span>
+                                    <span>Alteração: {filterPeriodoAlteracao === 'custom' ? `${formatDateInput(startDateAlteracao)} a ${formatDateInput(endDateAlteracao)}` : getPeriodoLabel(filterPeriodoAlteracao)}</span>
                                     <button 
                                         onClick={() => {
                                             setFilterPeriodoAlteracao('all');
