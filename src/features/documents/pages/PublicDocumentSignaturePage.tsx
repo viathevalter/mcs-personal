@@ -119,6 +119,16 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                 docContainerRef.current.innerHTML = '';
                 await renderAsync(blob, docContainerRef.current);
 
+                // Fix docx-preview CSS counter-reset bug for multi-level lists
+                const styleElements = Array.from(docContainerRef.current.querySelectorAll('style'));
+                styleElements.forEach(styleEl => {
+                    let css = styleEl.innerHTML;
+                    css = css.replace(/counter-increment:\s*(num[_-](\d+)[_-]0\b[^;}]*);?/gi, (match, full, numId) => {
+                        return `counter-increment: ${full}; counter-reset: num-${numId}-1 0 num_${numId}_1 0 num-${numId}-2 0 num_${numId}_2 0;`;
+                    });
+                    styleEl.innerHTML = css;
+                });
+
                 const activeDoc = currentDoc || doc;
                 if (activeDoc?.signature_status === 'signed' && activeDoc?.signature_url) {
                     replaceSignaturePlaceholdersInHtml(docContainerRef.current, activeDoc.signature_url);

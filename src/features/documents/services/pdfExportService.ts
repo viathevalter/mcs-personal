@@ -5,10 +5,11 @@ import type { GeneratedDocument } from './documentGeneratorService';
 
 export const pdfExportService = {
     /**
-     * Downloads a generated document as PDF with perfect symmetric margins,
-     * exact list numbering, and multi-page A4 pagination.
-     * Uses an isolated iframe to prevent CSS counter leaks (e.g. 2.1 turning into 2.6)
-     * and eliminates wrapper padding displacement.
+     * Downloads a generated document as PDF with:
+     * 1. Multi-page smart pagination (no text/paragraphs sliced in half)
+     * 2. Top and bottom margins on EVERY page (printer-safe)
+     * 3. Perfect symmetric left and right margins
+     * 4. Exact multi-level clause numbering (2.1, 2.2, 3.1)
      */
     async downloadDocumentAsPdf(docItem: GeneratedDocument): Promise<void> {
         // 1. Fetch .docx binary
@@ -67,6 +68,10 @@ export const pdfExportService = {
                             box-sizing: border-box !important;
                             background: #ffffff !important;
                         }
+                        p, h1, h2, h3, h4, h5, h6, table, tr, li, .sig-block {
+                            break-inside: avoid !important;
+                            page-break-inside: avoid !important;
+                        }
                     </style>
                 </head>
                 <body>
@@ -86,6 +91,16 @@ export const pdfExportService = {
                 breakPages: true
             });
 
+            // 4. Fix docx-preview CSS counter-reset bug for multi-level lists (e.g. 2.1 turning into 2.6)
+            const styleElements = Array.from(iframeDoc.querySelectorAll('style'));
+            styleElements.forEach(styleEl => {
+                let css = styleEl.innerHTML;
+                css = css.replace(/counter-increment:\s*(num[_-](\d+)[_-]0\b[^;}]*);?/gi, (match, full, numId) => {
+                    return `counter-increment: ${full}; counter-reset: num-${numId}-1 0 num_${numId}_1 0 num-${numId}-2 0 num_${numId}_2 0;`;
+                });
+                styleEl.innerHTML = css;
+            });
+
             // Ensure all sections have clean margins & background
             const sections = Array.from(container.querySelectorAll('section.docx')) as HTMLElement[];
             sections.forEach(sec => {
@@ -96,7 +111,7 @@ export const pdfExportService = {
                 sec.style.boxSizing = 'border-box';
             });
 
-            // 4. If signed, replace placeholder inside document and append signature block
+            // 5. If signed, replace placeholder inside document and append signature block
             if (docItem.signature_status === 'signed') {
                 if (docItem.signature_url) {
                     const signaturePatterns = [
@@ -158,6 +173,7 @@ export const pdfExportService = {
                 }
 
                 const sigBlock = iframeDoc.createElement('div');
+                sigBlock.className = 'sig-block';
                 sigBlock.style.margin = '40px 30px 20px 30px';
                 sigBlock.style.padding = '20px';
                 sigBlock.style.border = '2px solid #10b981';
@@ -186,10 +202,46 @@ export const pdfExportService = {
                 container.appendChild(sigBlock);
             }
 
-            // Wait a moment for iframe rendering
+            // 6. Smart Page Break Spacer Insertion:
+            // A4 page height at 794px width is ~1123px.
+            // With top margin (50px = ~13mm) and bottom margin (50px = ~13mm), printable height is ~1023px.
+            const PAGE_HEIGHT = 1123;
+            const TOP_MARGIN = 50;
+            const BOTTOM_MARGIN = 50;
+            const PRINTABLE_HEIGHT = PAGE_HEIGHT - TOP_MARGIN - BOTTOM_MARGIN;
+
+            const blockElements = Array.from(
+                container.querySelectorAll('p, table, h1, h2, h3, h4, h5, h6, ul, ol, .sig-block')
+            ) as HTMLElement[];
+
+            let currentPageTop = 0;
+
+            for (let i = 0; i < blockElements.length; i++) {
+                const el = blockElements[i];
+                // Ignore nested elements inside tables
+                if (el.closest('table') && el.tagName.toLowerCase() !== 'table') continue;
+
+                const elTop = el.offsetTop;
+                const elHeight = el.offsetHeight;
+
+                // If element exceeds printable area of current page, push it to next page
+                if ((elTop + elHeight) - currentPageTop > PRINTABLE_HEIGHT && (elTop - currentPageTop) > 60) {
+                    const spacer = iframeDoc.createElement('div');
+                    const neededGap = (currentPageTop + PAGE_HEIGHT) - elTop + TOP_MARGIN;
+                    spacer.style.height = `${Math.max(neededGap, 20)}px`;
+                    spacer.style.width = '100%';
+                    spacer.style.display = 'block';
+                    spacer.className = 'page-break-spacer';
+
+                    el.parentNode?.insertBefore(spacer, el);
+                    currentPageTop += PAGE_HEIGHT;
+                }
+            }
+
+            // Wait a moment for layout calculation
             await new Promise(r => setTimeout(r, 250));
 
-            // 5. Generate Multi-page A4 PDF using height slicing loop
+            // 7. Capture HTML to Canvas (High clarity scale 1.5)
             const canvas = await html2canvas(container, {
                 scale: 1.5,
                 useCORS: true,
@@ -198,10 +250,11 @@ export const pdfExportService = {
                 windowWidth: 794
             });
 
+            // 8. Generate Multi-page A4 PDF with top and bottom margins on EVERY page
             const imgData = canvas.toDataURL('image/jpeg', 0.82);
             const pdf = new jsPDF('p', 'mm', 'a4', true);
             const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
-            const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
+            const pdfPageHeight = pdf.internal.pageSize.getHeight(); // 297mm
 
             const imgWidth = pdfWidth;
             const imgHeight = (canvas.height * pdfWidth) / canvas.width;
@@ -211,14 +264,14 @@ export const pdfExportService = {
 
             // Page 1
             pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-            heightLeft -= pageHeight;
+            heightLeft -= pdfPageHeight;
 
             // Subsequent pages (Page 2, 3, 4, ..., N)
             while (heightLeft > 0) {
-                position -= pageHeight;
+                position -= pdfPageHeight;
                 pdf.addPage();
                 pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-                heightLeft -= pageHeight;
+                heightLeft -= pdfPageHeight;
             }
 
             // Clean PDF filename
