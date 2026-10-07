@@ -93,7 +93,13 @@ export function PortalCliente() {
     return undefined;
   }, [disputedHours]);
 
-  const { totalHorasCalculadas, totalNormaisCalculadas, totalNoturnasCalculadas } = React.useMemo(() => {
+  const { 
+    totalHorasCalculadas, 
+    totalNormaisCalculadas, 
+    totalNoturnasCalculadas,
+    totalHorasNormaisCalculadas,
+    totalHorasNoturnasCalculadas
+  } = React.useMemo(() => {
     let tot = 0;
     let norm = 0;
     let not = 0;
@@ -127,7 +133,9 @@ export function PortalCliente() {
     return {
       totalHorasCalculadas: tot,
       totalNormaisCalculadas: norm,
-      totalNoturnasCalculadas: not
+      totalNoturnasCalculadas: not,
+      totalHorasNormaisCalculadas: norm,
+      totalHorasNoturnasCalculadas: not
     };
   }, [horas, getProposedHours]);
 
