@@ -72,19 +72,19 @@ export function WorkerPortalLayout() {
     const navItems = [
         {
             path: '/portal',
-            label: 'Horas',
+            label: t('workerPortal.layout.navHours', 'Horas'),
             icon: Clock,
             isActive: location.pathname === '/portal' || location.pathname === '/portal/' || location.pathname === '/portal/horas'
         },
         {
             path: '/portal/nominas',
-            label: 'Nóminas',
+            label: t('workerPortal.layout.navNominas', 'Nóminas'),
             icon: FileText,
             isActive: location.pathname.startsWith('/portal/nominas')
         },
         {
             path: '/portal/perfil',
-            label: 'Meu Perfil',
+            label: t('workerPortal.layout.navProfile', 'Meu Perfil'),
             icon: User,
             isActive: location.pathname.startsWith('/portal/perfil')
         }
@@ -108,7 +108,7 @@ export function WorkerPortalLayout() {
                             )}
                             <div>
                                 <span className="font-bold text-base text-slate-900 leading-tight block">
-                                    Portal do Trabalhador
+                                    {t('workerPortal.layout.title', 'Portal do Trabalhador')}
                                 </span>
                                 <span className="text-[11px] text-slate-500 font-medium block">
                                     <strong className="text-slate-800">{branding?.name || activeWorker.contratante || activeWorker.empresa_nome || 'MCS Personal'}</strong>
@@ -138,7 +138,7 @@ export function WorkerPortalLayout() {
                             })}
                         </nav>
 
-                        {/* User Profile Info & Logout */}
+                        {/* User Profile Info, Language Toggle & Logout */}
                         <div className="flex items-center gap-2 sm:gap-3">
                             <div className="text-right hidden sm:block">
                                 <span className="text-xs font-semibold text-slate-800 block truncate max-w-[150px]">
@@ -148,6 +148,19 @@ export function WorkerPortalLayout() {
                                     {activeWorker.pasaporte || activeWorker.nie || ''}
                                 </span>
                             </div>
+
+                            {/* Seletor Rápido de Idioma PT / ES */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const next = (i18n.language || '').startsWith('es') ? 'pt' : 'es';
+                                    i18n.changeLanguage(next);
+                                }}
+                                className="px-2 py-1 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors shadow-2xs"
+                                title="Mudar Idioma (Português / Español)"
+                            >
+                                {(i18n.language || '').startsWith('es') ? '🇪🇸 ES' : '🇵🇹 PT'}
+                            </button>
 
                             <Button
                                 variant="ghost"

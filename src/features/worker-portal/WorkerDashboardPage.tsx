@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
+import { useTranslation } from 'react-i18next';
 import { useWorkerTimesheet } from './hooks/useWorkerTimesheet';
 import { DailyEntryModal } from './components/DailyEntryModal';
 import { WeeklyView } from './components/WeeklyView';
@@ -31,19 +32,10 @@ import { UploadComponent } from './UploadComponent';
 import { getCompanyBranding } from './services/companyLogos';
 import { downloadTimesheetPdf, type TimesheetPdfData, type TimesheetDayEntry } from './services/timesheetPdfService';
 
-const MONTH_NAMES_PT = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
-
-const WEEKDAY_NAMES_FULL = [
-    'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
-    'Quinta-feira', 'Sexta-feira', 'Sábado'
-];
-
 type SubView = 'home' | 'week' | 'calendar' | 'summary' | 'generate-pdf' | 'upload';
 
 export function WorkerDashboardPage() {
+    const { t, i18n } = useTranslation();
     const { workerAuth } = useOutletContext<{ workerAuth: any }>();
     
     // Hook principal de gestão de horas e períodos
@@ -69,6 +61,8 @@ export function WorkerDashboardPage() {
         saveDayEntry,
         deleteDayEntry,
         setMonthYear,
+        availableObras,
+        defaultObra,
         reload
     } = timesheet;
 
@@ -78,8 +72,11 @@ export function WorkerDashboardPage() {
     // Modal de apontamento diário
     const [modalDay, setModalDay] = useState<number | null>(null);
 
-    // Diálogo de troca de obra/cliente (caso haja múltiplos períodos no mês)
+    // Diálogo de troca de obra/cliente (caso haja múltiplos períodos no mês ou múltiplas obras cadastradas)
     const [showObraSelector, setShowObraSelector] = useState(false);
+
+    const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
+    const locale = isSpanish ? 'es-ES' : 'pt-PT';
 
     // Identificação visual do trabalhador
     const workerInitials = useMemo(() => {
@@ -93,21 +90,34 @@ export function WorkerDashboardPage() {
         selectedPeriod?.contratante || workerAuth?.contratante || workerAuth?.empresa_nome
     );
 
-    // Todos os períodos disponíveis no mês atual para troca de obra
+    // Nome da obra prioritária vinculada ao cliente
+    const currentObraName = useMemo(() => {
+        if (availableObras.length > 0) return availableObras[0].name;
+        return selectedPeriod?.cliente_nombre || workerAuth?.cliente || 'Obra Principal';
+    }, [availableObras, selectedPeriod?.cliente_nombre, workerAuth?.cliente]);
+
+    // Todos os períodos disponíveis no mês atual para troca de cliente/contrato
     const currentMonthPeriods = useMemo(() => {
         return allPeriods.filter(
             p => p.period_year === currentYear && p.period_month === currentMonth
         );
     }, [allPeriods, currentYear, currentMonth]);
 
-    // Data de hoje formatada
+    // Data de hoje formatada no idioma ativo
     const todayDateFormatted = useMemo(() => {
         const now = new Date();
-        const weekDay = WEEKDAY_NAMES_FULL[now.getDay()];
+        const weekDay = now.toLocaleDateString(locale, { weekday: 'long' });
         const day = now.getDate();
-        const monthName = MONTH_NAMES_PT[now.getMonth()];
-        return `Hoje, ${weekDay} · ${day} de ${monthName}`;
-    }, []);
+        const monthName = now.toLocaleDateString(locale, { month: 'long' });
+        const prefix = isSpanish ? 'Hoy' : 'Hoje';
+        return `${prefix}, ${weekDay} · ${day} ${isSpanish ? 'de' : 'de'} ${monthName}`;
+    }, [locale, isSpanish]);
+
+    // Nome do mês atual
+    const currentMonthName = useMemo(() => {
+        const d = new Date(currentYear, currentMonth - 1, 1);
+        return d.toLocaleDateString(locale, { month: 'long' });
+    }, [currentYear, currentMonth, locale]);
 
     // Abertura do modal para um dia específico
     const handleOpenDailyModal = (day: number) => {
@@ -127,6 +137,7 @@ export function WorkerDashboardPage() {
             workerDoc: workerAuth?.pasaporte || workerAuth?.nie || 'N/A',
             workerFuncion: workerAuth?.funcion || 'Operador',
             clienteNome: selectedPeriod.cliente_nombre || 'NÃO DEFINIDO',
+            obraNome: currentObraName,
             mes: selectedPeriod.period_month,
             ano: selectedPeriod.period_year,
             apontamentos: (selectedPeriod.apontamentos_diarios as any[]) || [],
@@ -146,7 +157,9 @@ export function WorkerDashboardPage() {
         return (
             <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-6">
                 <div className="animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent mb-3" />
-                <p className="text-sm font-medium text-slate-600">A carregar os seus apontamentos...</p>
+                <p className="text-sm font-medium text-slate-600">
+                    {t('workerPortal.dashboard.loading', 'A carregar os seus apontamentos...')}
+                </p>
             </div>
         );
     }
@@ -160,7 +173,7 @@ export function WorkerDashboardPage() {
                     onClick={() => setSubView('home')}
                     className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
                 >
-                    <ArrowLeft className="h-4 w-4" /> Voltar ao Início
+                    <ArrowLeft className="h-4 w-4" /> {t('workerPortal.dashboard.backHome', 'Voltar ao Início')}
                 </button>
 
                 <WeeklyView
@@ -185,7 +198,9 @@ export function WorkerDashboardPage() {
                         month={currentMonth}
                         year={currentYear}
                         initialEntry={days.find(d => d.dia === modalDay)}
-                        defaultObra={selectedPeriod?.cliente_nombre || ''}
+                        defaultObra={defaultObra}
+                        availableObras={availableObras}
+                        clientName={selectedPeriod?.cliente_nombre || ''}
                         onClose={() => setModalDay(null)}
                         onSave={async (entry) => {
                             await saveDayEntry(entry);
@@ -212,7 +227,7 @@ export function WorkerDashboardPage() {
                     onClick={() => setSubView('home')}
                     className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
                 >
-                    <ArrowLeft className="h-4 w-4" /> Voltar ao Início
+                    <ArrowLeft className="h-4 w-4" /> {t('workerPortal.dashboard.backHome', 'Voltar ao Início')}
                 </button>
 
                 <MonthlyCalendarView
@@ -237,7 +252,9 @@ export function WorkerDashboardPage() {
                         month={currentMonth}
                         year={currentYear}
                         initialEntry={days.find(d => d.dia === modalDay)}
-                        defaultObra={selectedPeriod?.cliente_nombre || ''}
+                        defaultObra={defaultObra}
+                        availableObras={availableObras}
+                        clientName={selectedPeriod?.cliente_nombre || ''}
                         onClose={() => setModalDay(null)}
                         onSave={async (entry) => {
                             await saveDayEntry(entry);
@@ -279,7 +296,7 @@ export function WorkerDashboardPage() {
                         className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md gap-2"
                     >
                         <FileText className="h-5 w-5" />
-                        Gerar PDF Oficial do Mês
+                        {t('workerPortal.summaryView.btnGeneratePdf', 'Gerar PDF Oficial do Mês')}
                     </Button>
                 </div>
             </div>
@@ -315,7 +332,7 @@ export function WorkerDashboardPage() {
                     onClick={() => setSubView('home')}
                     className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
                 >
-                    <ArrowLeft className="h-4 w-4" /> Voltar ao Início
+                    <ArrowLeft className="h-4 w-4" /> {t('workerPortal.dashboard.backHome', 'Voltar ao Início')}
                 </button>
 
                 <UploadComponent
@@ -342,7 +359,7 @@ export function WorkerDashboardPage() {
                     </div>
                     <div className="min-w-0">
                         <h2 className="text-base font-bold text-slate-900 truncate leading-tight">
-                            {workerAuth?.nome || 'Trabalhador'}
+                            {workerAuth?.nome || t('workerPortal.dashboard.workerTitle', 'Trabalhador')}
                         </h2>
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
                             <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-medium">
@@ -373,9 +390,10 @@ export function WorkerDashboardPage() {
                             d.setMonth(d.getMonth() - i);
                             const yr = d.getFullYear();
                             const mo = d.getMonth() + 1;
+                            const mName = d.toLocaleDateString(locale, { month: 'short' });
                             return (
                                 <option key={`${yr}-${mo}`} value={`${yr}-${mo}`}>
-                                    {MONTH_NAMES_PT[mo - 1].substring(0, 3)} {yr}
+                                    {mName} {yr}
                                 </option>
                             );
                         })}
@@ -383,34 +401,39 @@ export function WorkerDashboardPage() {
                 </div>
             </div>
 
-            {/* TAG DA OBRA / CLIENTE ATUAL + TROCA CASO TENHA MAIS DE UMA */}
+            {/* TAG DA OBRA REAL / CLIENTE ATUAL + TROCA CASO TENHA MAIS DE UMA */}
             <div className="bg-slate-100/80 rounded-2xl px-3.5 py-2 flex items-center justify-between text-xs border border-slate-200/60">
                 <div className="flex items-center gap-2 truncate">
                     <MapPin className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
-                    <span className="text-slate-500">Obra atual:</span>
+                    <span className="text-slate-500">{t('workerPortal.dashboard.obraActual', 'Obra atual:')}</span>
                     <strong className="text-slate-800 truncate">
-                        {selectedPeriod?.cliente_nombre || workerAuth?.cliente || 'Obra Principal'}
+                        {currentObraName}
                     </strong>
+                    {selectedPeriod?.cliente_nombre && selectedPeriod.cliente_nombre !== currentObraName && (
+                        <span className="text-[10px] text-slate-400 truncate hidden sm:inline">
+                            &bull; {selectedPeriod.cliente_nombre}
+                        </span>
+                    )}
                 </div>
-                {currentMonthPeriods.length > 1 && (
+                {(currentMonthPeriods.length > 1 || availableObras.length > 1) && (
                     <button
                         type="button"
                         onClick={() => setShowObraSelector(true)}
                         className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline ml-2 flex-shrink-0"
                     >
-                        Trocar
+                        {t('workerPortal.dashboard.changeObra', 'Trocar')}
                     </button>
                 )}
             </div>
 
-            {/* MODAL DE SELEÇÃO DE OBRA (Se houver múltiplas) */}
+            {/* MODAL DE SELEÇÃO DE OBRA / CLIENTE (Se houver múltiplas) */}
             {showObraSelector && (
                 <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-xl">
                         <div className="flex items-center justify-between">
                             <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                                 <Building2 className="h-4 w-4 text-emerald-600" />
-                                Selecionar Obra / Cliente
+                                {t('workerPortal.dashboard.selectObraTitle', 'Selecionar Obra / Cliente')}
                             </h3>
                             <button
                                 type="button"
@@ -421,6 +444,25 @@ export function WorkerDashboardPage() {
                             </button>
                         </div>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {/* Obras cadastradas para o cliente */}
+                            {availableObras.length > 1 && (
+                                <div className="space-y-1 mb-2">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Obras Cadastradas
+                                    </span>
+                                    {availableObras.map((site) => (
+                                        <div
+                                            key={site.id}
+                                            className="p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 flex items-center justify-between"
+                                        >
+                                            <span>{site.name}</span>
+                                            <span className="text-[10px] text-slate-400">Ativa</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Contratos / Clientes do Trabalhador */}
                             {currentMonthPeriods.map((period) => (
                                 <button
                                     key={period.id}
@@ -450,13 +492,13 @@ export function WorkerDashboardPage() {
             <Card className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/30 shadow-md overflow-hidden">
                 <CardContent className="p-4 sm:p-5 space-y-3.5">
                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-500">
+                        <span className="text-xs font-semibold text-slate-500 capitalize">
                             {todayDateFormatted}
                         </span>
                         {todayIsFilled && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                                 <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                                Registado
+                                {t('workerPortal.dashboard.todayRecorded', 'Registado')}
                             </span>
                         )}
                     </div>
@@ -467,14 +509,16 @@ export function WorkerDashboardPage() {
                             <div className="flex items-center justify-between bg-white/90 p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
                                 <div>
                                     <div className="text-2xl font-black text-emerald-900 flex items-center gap-1.5">
-                                        {Number(todayEntry?.totalHoras || 0).toFixed(1)}
-                                        <span className="text-sm font-bold text-emerald-700">horas</span>
+                                        {Number(todayEntry?.totalHoras || 0).toFixed(1).replace('.', ',')}
+                                        <span className="text-sm font-bold text-emerald-700">
+                                            {t('workerPortal.dashboard.hours', 'horas')}
+                                        </span>
                                     </div>
                                     <p className="text-[11px] text-slate-500 font-medium">
                                         {todayEntry?.horasNoturnas && todayEntry.horasNoturnas > 0
-                                            ? `Nocturno (${todayEntry.horasNoturnas}h)`
-                                            : 'Turno Diurno'}
-                                        {todayEntry?.entrada && ` • ${todayEntry.entrada} às ${todayEntry.saida}`}
+                                            ? `${t('workerPortal.dashboard.nightShift', 'Nocturno')} (${todayEntry.horasNoturnas}h)`
+                                            : t('workerPortal.dashboard.dayShift', 'Turno Diurno')}
+                                        {todayEntry?.entrada && ` • ${todayEntry.entrada} - ${todayEntry.saida}`}
                                     </p>
                                 </div>
                                 <Button
@@ -483,7 +527,7 @@ export function WorkerDashboardPage() {
                                     className="h-10 px-4 rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold text-xs gap-1.5 shadow-2xs"
                                 >
                                     <Edit3 className="h-3.5 w-3.5" />
-                                    Editar
+                                    {t('workerPortal.dashboard.editToday', 'Editar')}
                                 </Button>
                             </div>
                         </div>
@@ -494,10 +538,10 @@ export function WorkerDashboardPage() {
                                 className="w-full h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-black text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
                             >
                                 <Plus className="h-5 w-5 stroke-[2.5]" />
-                                Apontar minhas horas de hoje
+                                {t('workerPortal.dashboard.pointTodayHours', 'Apontar minhas horas de hoje')}
                             </Button>
                             <p className="text-center text-[11px] text-slate-500 font-medium">
-                                Leva apenas 5 a 10 segundos no seu telemóvel
+                                {t('workerPortal.dashboard.quickTimeTip', 'Leva apenas 5 a 10 segundos no seu telemóvel')}
                             </p>
                         </div>
                     )}
@@ -513,10 +557,13 @@ export function WorkerDashboardPage() {
                         </div>
                         <div className="min-w-0">
                             <h4 className="text-xs font-bold text-amber-900 truncate">
-                                Faltam horas de dias anteriores
+                                {t('workerPortal.dashboard.pendingAlertTitle', 'Faltam horas de dias anteriores')}
                             </h4>
                             <p className="text-[11px] text-amber-700 font-medium">
-                                {monthlyStats.pendingDays} {monthlyStats.pendingDays === 1 ? 'dia pendente' : 'dias pendentes'} no mês
+                                {t('workerPortal.dashboard.pendingDaysCount', {
+                                    count: monthlyStats.pendingDays,
+                                    defaultValue: `${monthlyStats.pendingDays} dia(s) pendente(s) no mês`
+                                })}
                             </p>
                         </div>
                     </div>
@@ -525,7 +572,7 @@ export function WorkerDashboardPage() {
                         onClick={() => handleOpenDailyModal(firstPendingDay)}
                         className="h-8 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex-shrink-0 shadow-2xs"
                     >
-                        Preencher
+                        {t('workerPortal.dashboard.fillNow', 'Preencher')}
                     </Button>
                 </div>
             )}
@@ -534,31 +581,31 @@ export function WorkerDashboardPage() {
             <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
-                        Semana
+                        {t('workerPortal.dashboard.kpiWeek', 'Semana')}
                     </span>
                     <span className="text-lg font-black text-slate-900 block mt-0.5">
-                        {Number(activeWeek?.totalHours || 0).toFixed(1)}h
+                        {Number(activeWeek?.totalHours || 0).toFixed(1).replace('.', ',')}h
                     </span>
                     <span className="text-[10px] text-slate-500 font-medium">
-                        {activeWeek?.daysWorked || 0} dias
+                        {activeWeek?.daysWorked || 0} {t('workerPortal.dashboard.daysUnit', 'dias')}
                     </span>
                 </div>
 
                 <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
-                        Total Mês
+                        {t('workerPortal.dashboard.kpiMonth', 'Total Mês')}
                     </span>
                     <span className="text-lg font-black text-emerald-700 block mt-0.5">
-                        {Number(monthlyStats.totalHours || 0).toFixed(1)}h
+                        {Number(monthlyStats.totalHours || 0).toFixed(1).replace('.', ',')}h
                     </span>
                     <span className="text-[10px] text-slate-500 font-medium">
-                        {monthlyStats.daysWorked} dias
+                        {monthlyStats.daysWorked} {t('workerPortal.dashboard.daysUnit', 'dias')}
                     </span>
                 </div>
 
                 <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                     <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
-                        Pendentes
+                        {t('workerPortal.dashboard.kpiPending', 'Pendentes')}
                     </span>
                     <span className={`text-lg font-black block mt-0.5 ${
                         monthlyStats.pendingDays > 0 ? 'text-amber-600' : 'text-slate-400'
@@ -566,7 +613,9 @@ export function WorkerDashboardPage() {
                         {monthlyStats.pendingDays}
                     </span>
                     <span className="text-[10px] text-slate-500 font-medium">
-                        {monthlyStats.pendingDays === 0 ? 'Em dia' : 'a lançar'}
+                        {monthlyStats.pendingDays === 0 
+                            ? t('workerPortal.dashboard.upToDate', 'Em dia') 
+                            : t('workerPortal.dashboard.toFill', 'a lançar')}
                     </span>
                 </div>
             </div>
@@ -574,7 +623,7 @@ export function WorkerDashboardPage() {
             {/* 5. AÇÕES RÁPIDAS (MENUS EM CARDS) */}
             <div className="space-y-2">
                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
-                    Ações Rápidas
+                    {t('workerPortal.dashboard.quickActions', 'Ações Rápidas')}
                 </h3>
 
                 <div className="grid gap-2">
@@ -590,10 +639,10 @@ export function WorkerDashboardPage() {
                             </div>
                             <div>
                                 <h4 className="text-sm font-bold text-slate-800 leading-tight">
-                                    Minhas horas da semana
+                                    {t('workerPortal.dashboard.actionWeekTitle', 'Minhas horas da semana')}
                                 </h4>
                                 <p className="text-[11px] text-slate-500">
-                                    Visualizar os 7 dias e apontar horas passadas
+                                    {t('workerPortal.dashboard.actionWeekDesc', 'Visualizar os 7 dias e apontar horas passadas')}
                                 </p>
                             </div>
                         </div>
@@ -612,10 +661,10 @@ export function WorkerDashboardPage() {
                             </div>
                             <div>
                                 <h4 className="text-sm font-bold text-slate-800 leading-tight">
-                                    Calendário do mês
+                                    {t('workerPortal.dashboard.actionCalendarTitle', 'Calendário do mês')}
                                 </h4>
                                 <p className="text-[11px] text-slate-500">
-                                    Grelha completa de {MONTH_NAMES_PT[currentMonth - 1]} com pontos de status
+                                    {t('workerPortal.dashboard.actionCalendarDesc', 'Grelha completa com pontos de status')}
                                 </p>
                             </div>
                         </div>
@@ -634,10 +683,10 @@ export function WorkerDashboardPage() {
                             </div>
                             <div>
                                 <h4 className="text-sm font-bold text-slate-800 leading-tight">
-                                    Resumo do mês
+                                    {t('workerPortal.dashboard.actionSummaryTitle', 'Resumo do mês')}
                                 </h4>
                                 <p className="text-[11px] text-slate-500">
-                                    Totais por semana, horas diurnas e nocturnas
+                                    {t('workerPortal.dashboard.actionSummaryDesc', 'Totais por semana, horas diurnas e nocturnas')}
                                 </p>
                             </div>
                         </div>
@@ -657,14 +706,14 @@ export function WorkerDashboardPage() {
                             <div>
                                 <div className="flex items-center gap-1.5">
                                     <h4 className="text-sm font-bold text-emerald-950 leading-tight">
-                                        Gerar PDF para assinatura
+                                        {t('workerPortal.dashboard.actionPdfTitle', 'Gerar PDF para assinatura')}
                                     </h4>
                                     <span className="text-[10px] font-black bg-emerald-600 text-white px-1.5 py-0.2 rounded-full">
-                                        Oficial
+                                        {t('workerPortal.dashboard.officialBadge', 'Oficial')}
                                     </span>
                                 </div>
                                 <p className="text-[11px] text-emerald-800/80 font-medium">
-                                    Enviar para o encarregado validar digitalmente
+                                    {t('workerPortal.dashboard.actionPdfDesc', 'Enviar para o encarregado validar digitalmente')}
                                 </p>
                             </div>
                         </div>
@@ -683,10 +732,10 @@ export function WorkerDashboardPage() {
                             </div>
                             <div>
                                 <h4 className="text-xs font-semibold text-slate-700 leading-tight">
-                                    Enviar foto da folha em papel (Plano B)
+                                    {t('workerPortal.dashboard.actionPaperTitle', 'Enviar foto da folha em papel (Plano B)')}
                                 </h4>
                                 <p className="text-[10px] text-slate-400">
-                                    Caso tenha preenchido o modelo físico impresso
+                                    {t('workerPortal.dashboard.actionPaperDesc', 'Caso tenha preenchido o modelo físico impresso')}
                                 </p>
                             </div>
                         </div>
@@ -700,8 +749,8 @@ export function WorkerDashboardPage() {
                 <div className="bg-white rounded-2xl p-3 border border-slate-200/80 flex items-center justify-between shadow-2xs">
                     <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-slate-400" />
-                        <span className="text-xs text-slate-600 font-medium">
-                            Folha de {MONTH_NAMES_PT[currentMonth - 1]}:
+                        <span className="text-xs text-slate-600 font-medium capitalize">
+                            {t('workerPortal.dashboard.timesheetOf', { month: currentMonthName, defaultValue: `Folha de ${currentMonthName}:` })}
                         </span>
                         <StatusPill status={selectedPeriod.status} />
                     </div>
@@ -714,7 +763,7 @@ export function WorkerDashboardPage() {
                         title="Baixar PDF do Mês"
                     >
                         <Download className="h-3.5 w-3.5" />
-                        PDF
+                        {t('workerPortal.dashboard.pdfBtn', 'PDF')}
                     </Button>
                 </div>
             )}
@@ -727,7 +776,9 @@ export function WorkerDashboardPage() {
                     month={currentMonth}
                     year={currentYear}
                     initialEntry={days.find(d => d.dia === modalDay)}
-                    defaultObra={selectedPeriod?.cliente_nombre || ''}
+                    defaultObra={defaultObra}
+                    availableObras={availableObras}
+                    clientName={selectedPeriod?.cliente_nombre || ''}
                     onClose={() => setModalDay(null)}
                     onSave={async (entry) => {
                         await saveDayEntry(entry);

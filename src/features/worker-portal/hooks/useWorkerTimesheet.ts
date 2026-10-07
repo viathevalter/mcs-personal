@@ -111,6 +111,53 @@ export function useWorkerTimesheet(workerAuth: any) {
         ) || allPeriods[0] || null;
     }, [allPeriods, selectedPeriodId, currentYear, currentMonth, activeProfile]);
 
+    // Obras / Locais de Trabalho do cliente selecionado
+    const [availableObras, setAvailableObras] = useState<Array<{ id: string; name: string }>>([]);
+    const [loadingObras, setLoadingObras] = useState(false);
+
+    useEffect(() => {
+        if (!selectedPeriod?.cliente_nombre && !selectedPeriod?.empresa_id) {
+            setAvailableObras([]);
+            return;
+        }
+
+        const fetchSites = async () => {
+            try {
+                setLoadingObras(true);
+                const { data, error } = await supabase.rpc('get_client_sites_portal', {
+                    p_cliente_nombre: selectedPeriod.cliente_nombre || null,
+                    p_empresa_id: selectedPeriod.empresa_id || null,
+                    p_cliente_id: (selectedPeriod as any).cliente_id || null
+                });
+
+                if (!error && data?.sites && Array.isArray(data.sites)) {
+                    const seen = new Set<string>();
+                    const deduplicated = data.sites.filter((site: any) => {
+                        const key = (site.name || '').trim().toLowerCase();
+                        if (!key || seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+                    setAvailableObras(deduplicated);
+                } else {
+                    setAvailableObras([]);
+                }
+            } catch (err) {
+                console.warn('Erro ao carregar obras do cliente:', err);
+                setAvailableObras([]);
+            } finally {
+                setLoadingObras(false);
+            }
+        };
+
+        fetchSites();
+    }, [selectedPeriod?.cliente_nombre, selectedPeriod?.empresa_id, (selectedPeriod as any)?.cliente_id]);
+
+    const defaultObra = useMemo(() => {
+        if (availableObras.length > 0) return availableObras[0].name;
+        return selectedPeriod?.cliente_nombre || '';
+    }, [availableObras, selectedPeriod?.cliente_nombre]);
+
     // Parse dos dias do mês
     const days = useMemo<TimesheetDayEntry[]>(() => {
         if (!selectedPeriod) return [];
@@ -122,6 +169,8 @@ export function useWorkerTimesheet(workerAuth: any) {
         else if (typeof raw === 'string') {
             try { existing = JSON.parse(raw); } catch { existing = []; }
         }
+
+        const fallbackObra = availableObras.length === 1 ? availableObras[0].name : (selectedPeriod.cliente_nombre || '');
 
         const result: TimesheetDayEntry[] = [];
         for (let d = 1; d <= numDays; d++) {
@@ -140,7 +189,7 @@ export function useWorkerTimesheet(workerAuth: any) {
                     horasNormais: norm,
                     horasNoturnas: not,
                     totalHoras: tot,
-                    obra: found.obra || selectedPeriod.cliente_nombre || '',
+                    obra: found.obra || fallbackObra,
                     obs: found.obs || (isWeekend && tot === 0 ? 'Descanso' : '')
                 });
             } else {
@@ -151,13 +200,13 @@ export function useWorkerTimesheet(workerAuth: any) {
                     horasNormais: 0,
                     horasNoturnas: 0,
                     totalHoras: 0,
-                    obra: selectedPeriod.cliente_nombre || '',
+                    obra: fallbackObra,
                     obs: isWeekend ? 'Descanso' : ''
                 });
             }
         }
         return result;
-    }, [selectedPeriod]);
+    }, [selectedPeriod, availableObras]);
 
     // Dia de Hoje
     const todayDayNumber = now.getFullYear() === currentYear && (now.getMonth() + 1) === currentMonth ? now.getDate() : null;
@@ -397,6 +446,9 @@ export function useWorkerTimesheet(workerAuth: any) {
         saveDayEntry,
         deleteDayEntry,
         setMonthYear,
+        availableObras,
+        defaultObra,
+        loadingObras,
         reload: loadPeriods
     };
 }

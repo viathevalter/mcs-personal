@@ -7,6 +7,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../../shared/supabase/client';
 import { downloadTimesheetPdf, type TimesheetPdfData, type TimesheetDayEntry } from '../services/timesheetPdfService';
 import { getCompanyBranding } from '../services/companyLogos';
@@ -28,11 +29,6 @@ interface GeneratePdfViewProps {
     onCompleted?: () => void;
 }
 
-const MONTH_NAMES_PT = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
-
 export function GeneratePdfView({
     worker,
     period,
@@ -42,6 +38,10 @@ export function GeneratePdfView({
     onSwitchToUpload,
     onCompleted
 }: GeneratePdfViewProps) {
+    const { t, i18n } = useTranslation();
+    const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
+    const locale = isSpanish ? 'es-ES' : 'pt-PT';
+
     // Etapas do fluxo: 'review' (Tela 8) | 'send' (Tela 9) | 'success' (Tela 10)
     const [step, setStep] = useState<'review' | 'send' | 'success'>('review');
     const [downloading, setDownloading] = useState(false);
@@ -51,8 +51,14 @@ export function GeneratePdfView({
     const [encarregadoNome, setEncarregadoNome] = useState(period.encarregado_nome || '');
     const [encarregadoEmail, setEncarregadoEmail] = useState(period.encarregado_email || '');
     const [encarregadoTelefone, setEncarregadoTelefone] = useState(period.encarregado_telefone || '');
+
+    const dateObj = new Date(period.period_year, period.period_month - 1, 1);
+    const monthName = dateObj.toLocaleDateString(locale, { month: 'long' });
+
     const [mensagem, setMensagem] = useState(
-        `Olá, segue a minha folha de horas do mês de ${MONTH_NAMES_PT[period.period_month - 1]}.`
+        isSpanish 
+            ? `Hola, adjunto mi hoja de horas del mes de ${monthName}.`
+            : `Olá, segue a minha folha de horas do mês de ${monthName}.`
     );
 
     const [signingResult, setSigningResult] = useState<{
@@ -64,12 +70,12 @@ export function GeneratePdfView({
 
     const compName = worker.contratante || worker.empresa_nome || 'MCS Personal';
     const branding = getCompanyBranding(compName);
-    const monthName = MONTH_NAMES_PT[period.period_month - 1];
 
     // Gerar e Baixar PDF Oficial
     const handleDownloadPdf = async () => {
         try {
             setDownloading(true);
+            const firstObra = days.find(d => d.obra)?.obra || '';
             const pdfData: TimesheetPdfData = {
                 empresaNome: compName,
                 empresaNif: worker.empresa_nif || branding?.nif,
@@ -78,6 +84,7 @@ export function GeneratePdfView({
                 workerDoc: worker.pasaporte || worker.nie || 'N/A',
                 workerFuncion: worker.funcion,
                 clienteNome: period.cliente_nombre,
+                obraNome: firstObra,
                 mes: period.period_month,
                 ano: period.period_year,
                 apontamentos: days,
@@ -90,7 +97,7 @@ export function GeneratePdfView({
                 signatureImageUrl: period.signature_image_url
             };
             await downloadTimesheetPdf(pdfData);
-            toast.success('PDF oficial gerado com sucesso!');
+            toast.success(isSpanish ? '¡PDF oficial generado con éxito!' : 'PDF oficial gerado com sucesso!');
         } catch (err: any) {
             console.error('Erro ao baixar PDF:', err);
             toast.error(err.message || 'Erro ao gerar o PDF.');
@@ -104,7 +111,7 @@ export function GeneratePdfView({
         e.preventDefault();
 
         if (!encarregadoNome.trim()) {
-            toast.error('Por favor, informe o nome do encarregado de obra.');
+            toast.error(isSpanish ? 'Por favor, introduce el nombre del encargado.' : 'Por favor, informe o nome do encarregado de obra.');
             return;
         }
 
@@ -164,7 +171,7 @@ export function GeneratePdfView({
             });
 
             setStep('success');
-            toast.success('Folha enviada ao encarregado!');
+            toast.success(isSpanish ? '¡Hoja enviada al encargado!' : 'Folha enviada ao encarregado!');
         } catch (err: any) {
             console.error('Erro ao enviar ao encarregado:', err);
             toast.error(err.message || 'Erro ao enviar a folha.');
@@ -177,7 +184,7 @@ export function GeneratePdfView({
         if (!signingResult?.link) return;
         navigator.clipboard.writeText(signingResult.link);
         setCopied(true);
-        toast.success('Link copiado para a área de transferência!');
+        toast.success(isSpanish ? '¡Enlace copiado al portapapeles!' : 'Link copiado para a área de transferência!');
         setTimeout(() => setCopied(false), 2500);
     };
 
@@ -185,16 +192,16 @@ export function GeneratePdfView({
     if (step === 'success') {
         return (
             <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 text-center shadow-xl space-y-6 animate-in zoom-in-95 duration-200">
-                <div className="h-20 w-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner animate-bounce">
+                <div className="h-20 w-20 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
                     <CheckCircle2 className="h-10 w-10" />
                 </div>
 
                 <div>
                     <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-                        Enviado com sucesso!
+                        {t('workerPortal.generatePdf.successTitle', 'Folha Enviada com Sucesso!')}
                     </h2>
                     <p className="mt-2 text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
-                        O seu relatório de horas foi enviado para o encarregado <strong>{encarregadoNome}</strong> para conferência e assinatura.
+                        {t('workerPortal.generatePdf.successDesc', 'O encarregado receberá o link para conferir as horas e assinar com o código OTP.')}
                     </p>
                 </div>
 
@@ -205,8 +212,12 @@ export function GeneratePdfView({
                             <FileText className="h-5 w-5" />
                         </div>
                         <div>
-                            <span className="text-xs text-slate-500 font-bold block uppercase">Folha de Horas</span>
-                            <span className="text-sm font-black text-slate-900 block">{monthName} de {period.period_year}</span>
+                            <span className="text-xs text-slate-500 font-bold block uppercase">
+                                {t('workerPortal.generatePdf.title', 'Folha de Horas')}
+                            </span>
+                            <span className="text-sm font-black text-slate-900 block capitalize">
+                                {monthName} de {period.period_year}
+                            </span>
                         </div>
                     </div>
                     <span className="text-base font-black text-emerald-800">
@@ -218,7 +229,7 @@ export function GeneratePdfView({
                 {signingResult?.link && (
                     <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3.5 text-left space-y-2">
                         <span className="text-xs font-bold text-emerald-900 block">
-                            Link direto para o Encarregado assinar:
+                            {isSpanish ? 'Enlace directo para firma del Encargado:' : 'Link direto para o Encarregado assinar:'}
                         </span>
                         <div className="flex items-center gap-2">
                             <Input
@@ -241,9 +252,9 @@ export function GeneratePdfView({
                 <Button
                     type="button"
                     onClick={onCompleted || onBack}
-                    className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-900/20 active:scale-95 transition-all"
+                    className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md active:scale-95 transition-all"
                 >
-                    Voltar ao Início
+                    {t('workerPortal.generatePdf.btnBackHome', 'Voltar ao Início')}
                 </Button>
             </div>
         );
@@ -252,7 +263,7 @@ export function GeneratePdfView({
     // TELA 9: ENVIAR PARA O ENCARREGADO
     if (step === 'send') {
         return (
-            <div className="space-y-5">
+            <div className="space-y-4">
                 <div className="flex items-center gap-3">
                     <button
                         type="button"
@@ -263,19 +274,16 @@ export function GeneratePdfView({
                     </button>
                     <div>
                         <h2 className="text-xl font-extrabold text-slate-900">
-                            Enviar para o Encarregado
+                            {t('workerPortal.generatePdf.sendTitle', 'Validação do Encarregado')}
                         </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            O PDF será enviado para conferência e assinatura digital.
-                        </p>
                     </div>
                 </div>
 
-                <form onSubmit={handleSendToSupervisor} className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
+                <form onSubmit={handleSendToSupervisor} className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-3.5">
                     {/* Nome do Encarregado */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                         <Label htmlFor="encarregadoNome" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                            Nome do Encarregado / Supervisor *
+                            {t('workerPortal.generatePdf.supervisorName', 'Nome do Encarregado')} *
                         </Label>
                         <div className="relative">
                             <User className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -291,9 +299,9 @@ export function GeneratePdfView({
                     </div>
 
                     {/* E-mail (Opcional) */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                         <Label htmlFor="encarregadoEmail" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                            E-mail do Encarregado (opcional)
+                            {t('workerPortal.generatePdf.supervisorEmail', 'E-mail do Encarregado')}
                         </Label>
                         <div className="relative">
                             <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -309,9 +317,9 @@ export function GeneratePdfView({
                     </div>
 
                     {/* Telefone / WhatsApp (Opcional) */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                         <Label htmlFor="encarregadoTelefone" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                            WhatsApp / Telefone (opcional)
+                            {t('workerPortal.generatePdf.supervisorPhone', 'Telemóvel / WhatsApp')}
                         </Label>
                         <div className="relative">
                             <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -327,9 +335,9 @@ export function GeneratePdfView({
                     </div>
 
                     {/* Mensagem Opcional */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-1">
                         <Label htmlFor="mensagem" className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                            Mensagem (opcional)
+                            {t('workerPortal.generatePdf.messageLabel', 'Mensagem')}
                         </Label>
                         <textarea
                             id="mensagem"
@@ -344,17 +352,17 @@ export function GeneratePdfView({
                     <Button
                         type="submit"
                         disabled={sending}
-                        className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
+                        className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2 mt-2"
                     >
                         {sending ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                Enviando...
+                                {t('workerPortal.generatePdf.btnSending', 'A enviar...')}
                             </>
                         ) : (
                             <>
                                 <Send className="h-4 w-4" />
-                                Enviar PDF
+                                {t('workerPortal.generatePdf.btnConfirmSend', 'Enviar Folha para Assinatura')}
                             </>
                         )}
                     </Button>
@@ -365,7 +373,7 @@ export function GeneratePdfView({
 
     // TELA 8: REVISAR E GERAR PDF PARA ASSINATURA
     return (
-        <div className="space-y-5">
+        <div className="space-y-4">
             {/* Topo com botão Voltar */}
             <div className="flex items-center gap-3">
                 <button
@@ -376,14 +384,14 @@ export function GeneratePdfView({
                     <ArrowLeft className="h-5 w-5" />
                 </button>
                 <h2 className="text-xl font-extrabold text-slate-900">
-                    Gerar PDF para Assinatura
+                    {t('workerPortal.generatePdf.title', 'Folha Oficial de Horas')}
                 </h2>
             </div>
 
             {/* Cartão de Resumo da Folha de Horas */}
-            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-5">
+            <div className="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs space-y-4">
                 {/* Cabeçalho da Folha */}
-                <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
                     <div className="flex items-center gap-3">
                         {branding?.logoUrl ? (
                             <img src={branding.logoUrl} alt={compName} className="h-9 w-auto max-w-[100px] object-contain" />
@@ -393,13 +401,19 @@ export function GeneratePdfView({
                             </div>
                         )}
                         <div>
-                            <span className="text-xs uppercase font-extrabold text-slate-400 block tracking-wider">Folha de Horas</span>
-                            <span className="text-base font-black text-slate-900 block leading-tight">{monthName} de {period.period_year}</span>
+                            <span className="text-xs uppercase font-extrabold text-slate-400 block tracking-wider">
+                                {t('workerPortal.generatePdf.title', 'Folha de Horas')}
+                            </span>
+                            <span className="text-base font-black text-slate-900 block leading-tight capitalize">
+                                {monthName} de {period.period_year}
+                            </span>
                         </div>
                     </div>
 
                     <div className="text-right">
-                        <span className="text-xs uppercase font-bold text-slate-400 block">Total do Mês</span>
+                        <span className="text-xs uppercase font-bold text-slate-400 block">
+                            {t('workerPortal.dashboard.kpiMonth', 'Total do Mês')}
+                        </span>
                         <span className="text-2xl font-black text-emerald-800 block leading-none">
                             {monthlyStats.totalHours.toFixed(1).replace('.', ',')} h
                         </span>
@@ -407,9 +421,11 @@ export function GeneratePdfView({
                 </div>
 
                 {/* Dados do Trabalhador e Obra */}
-                <div className="grid grid-cols-2 gap-4 text-xs">
+                <div className="grid grid-cols-2 gap-3 text-xs">
                     <div>
-                        <span className="text-slate-400 font-bold block uppercase text-[10px]">Trabalhador</span>
+                        <span className="text-slate-400 font-bold block uppercase text-[10px]">
+                            {t('workerPortal.dashboard.workerTitle', 'Trabalhador')}
+                        </span>
                         <span className="font-extrabold text-slate-900 text-sm block truncate">{worker.nome}</span>
                     </div>
 
@@ -432,27 +448,27 @@ export function GeneratePdfView({
                 {/* Alerta de Dias Pendentes se houver */}
                 {monthlyStats.pendingDays > 0 && (
                     <div className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 text-amber-900 text-xs font-semibold flex items-center gap-2">
-                        <span className="text-amber-600 font-bold">Atenção:</span> Existem {monthlyStats.pendingDays} {monthlyStats.pendingDays === 1 ? 'dia pendente' : 'dias pendentes'} neste mês. Você pode fechar agora ou voltar para preencher.
+                        <span className="text-amber-600 font-bold">Atenção:</span> Existem {monthlyStats.pendingDays} dia(s) pendente(s) neste mês.
                     </div>
                 )}
 
                 {/* Botões de Ação */}
-                <div className="space-y-2.5 pt-2">
+                <div className="space-y-2 pt-2">
                     <Button
                         type="button"
                         onClick={handleDownloadPdf}
                         disabled={downloading}
-                        className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md shadow-emerald-900/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        className="w-full h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
                         {downloading ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                Gerando PDF...
+                                {isSpanish ? 'Generando PDF...' : 'Gerando PDF...'}
                             </>
                         ) : (
                             <>
                                 <Download className="h-4 w-4" />
-                                Baixar PDF Oficial
+                                {t('workerPortal.generatePdf.btnDownload', 'Baixar PDF Oficial')}
                             </>
                         )}
                     </Button>
@@ -464,21 +480,21 @@ export function GeneratePdfView({
                         className="w-full h-12 rounded-2xl border-slate-300 hover:bg-slate-50 text-slate-800 font-bold text-sm flex items-center justify-center gap-2"
                     >
                         <Send className="h-4 w-4 text-emerald-600" />
-                        Enviar para o Encarregado
+                        {t('workerPortal.generatePdf.btnSendSupervisor', 'Enviar para o Encarregado')}
                     </Button>
                 </div>
             </div>
 
             {/* Plano B: Enviar folha de papel física */}
             {onSwitchToUpload && (
-                <div className="text-center pt-2">
+                <div className="text-center pt-1">
                     <button
                         type="button"
                         onClick={onSwitchToUpload}
                         className="text-xs text-slate-500 hover:text-slate-800 font-semibold underline flex items-center justify-center gap-1.5 mx-auto py-2"
                     >
                         <UploadCloud className="h-4 w-4 text-slate-400" />
-                        Prefere enviar foto da folha física assinada? (Plano B)
+                        {t('workerPortal.generatePdf.btnPaperFallback', 'Enviar folha em papel (Plano B)')}
                     </button>
                 </div>
             )}

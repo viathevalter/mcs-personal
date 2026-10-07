@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import { useTranslation } from 'react-i18next';
 import type { TimesheetDayEntry } from '../services/timesheetPdfService';
 
 interface MonthlyCalendarViewProps {
@@ -21,13 +22,6 @@ interface MonthlyCalendarViewProps {
     onTabChange: (tab: 'semana' | 'mes') => void;
 }
 
-const MONTH_NAMES_PT = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-];
-
-const WEEKDAY_HEADERS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-
 export function MonthlyCalendarView({
     year,
     month,
@@ -39,16 +33,31 @@ export function MonthlyCalendarView({
     activeTab,
     onTabChange
 }: MonthlyCalendarViewProps) {
+    const { t, i18n } = useTranslation();
+    const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
+    const locale = isSpanish ? 'es-ES' : 'pt-PT';
+
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === year && (today.getMonth() + 1) === month;
     const todayDay = isCurrentMonth ? today.getDate() : null;
 
     // Calcular dias vazios antes do dia 1 (para alinhar com Segunda-feira como coluna 0)
     const firstDayDate = new Date(year, month - 1, 1);
-    // getDay() retorna 0 para Domingo, 1 para Segunda, etc.
-    // Convertendo para 0 = Segunda, 6 = Domingo:
     const startPadding = (firstDayDate.getDay() + 6) % 7;
     const numDays = days.length;
+
+    const monthName = firstDayDate.toLocaleDateString(locale, { month: 'long' });
+
+    const weekdayHeaders = useMemo(() => {
+        // Seg a Dom
+        const headers: string[] = [];
+        for (let i = 1; i <= 7; i++) {
+            // 2026-05-04 is a Monday
+            const d = new Date(2026, 4, 3 + i);
+            headers.push(d.toLocaleDateString(locale, { weekday: 'short' }));
+        }
+        return headers;
+    }, [locale]);
 
     const handlePrevMonth = () => {
         let m = month - 1;
@@ -77,7 +86,7 @@ export function MonthlyCalendarView({
                             : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
-                    Semana
+                    {t('workerPortal.weeklyView.tabWeek', 'Semana')}
                 </button>
                 <button
                     type="button"
@@ -88,11 +97,11 @@ export function MonthlyCalendarView({
                             : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
-                    Mês
+                    {t('workerPortal.weeklyView.tabMonth', 'Mês')}
                 </button>
             </div>
 
-            {/* Navegação do Mês */}
+            {/* Cabeçalho do Mês */}
             <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-xs">
                 <button
                     type="button"
@@ -103,8 +112,11 @@ export function MonthlyCalendarView({
                 </button>
 
                 <div className="text-center">
-                    <span className="text-base font-extrabold text-slate-900">
-                        {MONTH_NAMES_PT[month - 1]} de {year}
+                    <span className="text-base font-black text-slate-900 capitalize block leading-tight">
+                        {monthName} {year}
+                    </span>
+                    <span className="text-xs font-semibold text-emerald-700">
+                        {monthlyStats.totalHours.toFixed(1).replace('.', ',')}h &bull; {monthlyStats.daysWorked} {t('workerPortal.dashboard.daysUnit', 'dias')}
                     </span>
                 </div>
 
@@ -117,95 +129,76 @@ export function MonthlyCalendarView({
                 </button>
             </div>
 
-            {/* 3 KPIs do Mês */}
-            <div className="grid grid-cols-3 gap-2.5">
-                <div className="bg-white border border-slate-200 rounded-2xl p-3 text-center shadow-xs">
-                    <span className="text-2xl font-black text-slate-900 block leading-tight">
-                        {monthlyStats.daysWorked}
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">
-                        dias trabalhados
-                    </span>
-                </div>
-
-                <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-3 text-center shadow-xs">
-                    <span className="text-2xl font-black text-emerald-800 block leading-tight">
-                        {monthlyStats.totalHours.toFixed(1).replace('.', ',')} h
-                    </span>
-                    <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-tight block">
-                        total do mês
-                    </span>
-                </div>
-
-                <div className={`rounded-2xl p-3 text-center border shadow-xs ${
-                    monthlyStats.pendingDays > 0
-                        ? 'bg-amber-50 border-amber-200 text-amber-900'
-                        : 'bg-white border-slate-200 text-slate-900'
-                }`}>
-                    <span className={`text-2xl font-black block leading-tight ${monthlyStats.pendingDays > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
-                        {monthlyStats.pendingDays}
-                    </span>
-                    <span className={`text-[10px] font-bold uppercase tracking-tight block ${monthlyStats.pendingDays > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                        dias pendentes
-                    </span>
-                </div>
-            </div>
-
-            {/* Grade do Calendário */}
+            {/* Grelha do Calendário Mensal */}
             <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-xs">
                 {/* Cabeçalho dos Dias da Semana */}
-                <div className="grid grid-cols-7 mb-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    {WEEKDAY_HEADERS.map((w, idx) => (
-                        <div key={idx} className={idx >= 5 ? 'text-slate-300' : ''}>
-                            {w}
-                        </div>
+                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                    {weekdayHeaders.map((header, idx) => (
+                        <span
+                            key={idx}
+                            className={`text-[11px] font-extrabold uppercase tracking-wider py-1 capitalize ${
+                                idx >= 5 ? 'text-slate-400' : 'text-slate-600'
+                            }`}
+                        >
+                            {header}
+                        </span>
                     ))}
                 </div>
 
-                {/* Grid dos Dias */}
-                <div className="grid grid-cols-7 gap-1 sm:gap-2">
-                    {/* Espaços vazios antes do dia 1 */}
+                {/* Dias do Mês */}
+                <div className="grid grid-cols-7 gap-1.5">
+                    {/* Padding inicial (dias vazios antes do dia 1) */}
                     {Array.from({ length: startPadding }).map((_, idx) => (
-                        <div key={`pad-${idx}`} className="h-11 sm:h-13" />
+                        <div key={`pad-${idx}`} className="h-12 rounded-xl" />
                     ))}
 
-                    {/* Dias do Mês */}
+                    {/* Células de cada dia */}
                     {days.map((day) => {
                         const dateObj = new Date(year, month - 1, day.dia);
-                        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+                        const dayOfWeek = (dateObj.getDay() + 6) % 7; // 0=Seg, 6=Dom
+                        const isWeekend = dayOfWeek >= 5;
                         const isToday = day.dia === todayDay;
+
                         const hasHours = Number(day.totalHoras || 0) > 0;
-                        const isRest = day.obs === 'Descanso' || day.obs === 'Folga';
-                        const isPast = dateObj <= today;
-                        const isPending = !hasHours && !isRest && isPast && !isWeekend;
+                        const isRest = day.obs === 'Descanso' || day.obs === 'Folga' || day.obs?.toLowerCase().includes('descanso');
+                        const isPending = !hasHours && !isRest && dateObj <= today && !isWeekend;
 
                         return (
                             <button
                                 key={day.dia}
                                 type="button"
                                 onClick={() => onSelectDay(day.dia)}
-                                className={`h-11 sm:h-13 rounded-2xl flex flex-col items-center justify-center relative transition-all active:scale-95 ${
+                                className={`h-12 rounded-2xl flex flex-col items-center justify-between p-1.5 transition-all select-none border ${
                                     isToday
-                                        ? 'bg-emerald-600 text-white font-black shadow-md shadow-emerald-900/20'
-                                        : hasHours
-                                        ? 'bg-emerald-50 text-emerald-950 font-bold hover:bg-emerald-100/70 border border-emerald-100'
-                                        : isPending
-                                        ? 'bg-amber-50 text-amber-950 font-bold hover:bg-amber-100/70 border border-amber-200'
-                                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-100'
+                                        ? 'border-emerald-500 bg-emerald-50/50 shadow-xs ring-2 ring-emerald-500/20'
+                                        : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100/80 active:scale-95'
                                 }`}
                             >
-                                <span className="text-xs sm:text-sm leading-none">
+                                <span className={`text-xs font-black leading-none ${
+                                    isToday 
+                                        ? 'text-emerald-900 font-black' 
+                                        : isWeekend 
+                                        ? 'text-slate-400' 
+                                        : 'text-slate-700'
+                                }`}>
                                     {day.dia}
                                 </span>
 
-                                {/* Ponto Indicador de Status */}
-                                <div className="mt-1 flex items-center justify-center">
+                                {/* Indicador Visual do Dia */}
+                                <div className="flex items-center justify-center">
                                     {hasHours ? (
-                                        <div className={`h-1.5 w-1.5 rounded-full ${isToday ? 'bg-white' : 'bg-emerald-600'}`} />
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-[10px] font-black text-emerald-700 leading-none">
+                                                {Number(day.totalHoras) % 1 === 0 ? Number(day.totalHoras) : Number(day.totalHoras).toFixed(1)}h
+                                            </span>
+                                            <div className="h-1 w-1 rounded-full bg-emerald-600 mt-0.5" />
+                                        </div>
                                     ) : isPending ? (
-                                        <div className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                                    ) : (
+                                        <div className="h-2 w-2 rounded-full bg-amber-500 shadow-xs animate-pulse" />
+                                    ) : isRest ? (
                                         <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                    ) : (
+                                        <div className="h-1.5 w-1.5 rounded-full bg-transparent" />
                                     )}
                                 </div>
                             </button>
@@ -213,31 +206,31 @@ export function MonthlyCalendarView({
                     })}
                 </div>
 
-                {/* Legenda */}
-                <div className="flex items-center justify-center gap-4 mt-5 pt-3 border-t border-slate-100 text-[11px] font-semibold text-slate-500">
+                {/* Legenda de Status */}
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-around text-[11px] text-slate-500 font-medium">
                     <div className="flex items-center gap-1.5">
                         <div className="h-2 w-2 rounded-full bg-emerald-600" />
-                        <span>Com horas</span>
+                        <span>{t('workerPortal.calendarView.statusFilled', 'Horas Apontadas')}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <div className="h-2 w-2 rounded-full bg-amber-500" />
-                        <span>Pendente</span>
+                        <span>{t('workerPortal.calendarView.statusPending', 'Dia Pendente')}</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <div className="h-2 w-2 rounded-full bg-slate-300" />
-                        <span>Não trabalhado</span>
+                        <span>{t('workerPortal.calendarView.statusRest', 'Folga / Descanso')}</span>
                     </div>
                 </div>
             </div>
 
-            {/* Ação para ver detalhes da semana */}
+            {/* Ação para ver lista da semana */}
             {onViewWeekDetails && (
                 <Button
-                    type="button"
+                    variant="outline"
                     onClick={onViewWeekDetails}
-                    className="w-full h-12 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm shadow-xs"
+                    className="w-full h-11 rounded-2xl border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs"
                 >
-                    Ver detalhes da semana
+                    {t('workerPortal.calendarView.btnViewWeek', 'Ver Lista da Semana')}
                 </Button>
             )}
         </div>

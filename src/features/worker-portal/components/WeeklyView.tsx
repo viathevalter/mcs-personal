@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, CheckCircle2, AlertTriangle, Plus, Clock, Sun, Moon } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
+import { useTranslation } from 'react-i18next';
 import type { TimesheetDayEntry } from '../services/timesheetPdfService';
 import type { WeekBreakdown } from '../hooks/useWorkerTimesheet';
 
@@ -16,8 +17,6 @@ interface WeeklyViewProps {
     onTabChange: (tab: 'semana' | 'mes') => void;
 }
 
-const WEEKDAY_NAMES_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-
 export function WeeklyView({
     activeWeek,
     weekIndex,
@@ -29,7 +28,11 @@ export function WeeklyView({
     activeTab,
     onTabChange
 }: WeeklyViewProps) {
+    const { t, i18n } = useTranslation();
     if (!activeWeek) return null;
+
+    const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
+    const locale = isSpanish ? 'es-ES' : 'pt-PT';
 
     return (
         <div className="space-y-4">
@@ -44,7 +47,7 @@ export function WeeklyView({
                             : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
-                    Semana
+                    {t('workerPortal.weeklyView.tabWeek', 'Semana')}
                 </button>
                 <button
                     type="button"
@@ -55,7 +58,7 @@ export function WeeklyView({
                             : 'text-slate-600 hover:text-slate-900'
                     }`}
                 >
-                    Mês
+                    {t('workerPortal.weeklyView.tabMonth', 'Mês')}
                 </button>
             </div>
 
@@ -96,7 +99,7 @@ export function WeeklyView({
                         {activeWeek.daysWorked}
                     </span>
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight block">
-                        dias trabalhados
+                        {t('workerPortal.summaryView.daysWorked', 'dias trabalhados')}
                     </span>
                 </div>
 
@@ -105,7 +108,7 @@ export function WeeklyView({
                         {activeWeek.totalHours.toFixed(1).replace('.', ',')} h
                     </span>
                     <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-tight block">
-                        total da semana
+                        {t('workerPortal.dashboard.kpiWeek', 'total semana')}
                     </span>
                 </div>
 
@@ -118,7 +121,7 @@ export function WeeklyView({
                         {activeWeek.pendingDays}
                     </span>
                     <span className={`text-[10px] font-bold uppercase tracking-tight block ${activeWeek.pendingDays > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                        dias pendentes
+                        {t('workerPortal.dashboard.kpiPending', 'dias pendentes')}
                     </span>
                 </div>
             </div>
@@ -128,18 +131,18 @@ export function WeeklyView({
                 {activeWeek.days.map((day) => {
                     const dateObj = new Date(year, month - 1, day.dia);
                     const dayOfWeek = dateObj.getDay();
-                    const weekdayShort = WEEKDAY_NAMES_SHORT[dayOfWeek];
+                    const weekdayShort = dateObj.toLocaleDateString(locale, { weekday: 'short' });
                     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
                     const hasHours = Number(day.totalHoras || 0) > 0;
-                    const isRest = day.obs === 'Descanso' || day.obs === 'Folga';
+                    const isRest = day.obs === 'Descanso' || day.obs === 'Folga' || day.obs?.toLowerCase().includes('descanso');
                     const isPending = !hasHours && !isRest && dateObj <= new Date() && !isWeekend;
 
                     return (
                         <div
                             key={day.dia}
                             onClick={() => onSelectDay(day.dia)}
-                            className="flex items-center justify-between px-4 py-3.5 hover:bg-slate-50 active:bg-slate-100 cursor-pointer transition-colors select-none"
+                            className="flex items-center justify-between px-4 py-3 hover:bg-slate-50 active:bg-slate-100 cursor-pointer transition-colors select-none"
                         >
                             {/* Dia e Dia da Semana */}
                             <div className="flex items-center gap-3">
@@ -158,40 +161,48 @@ export function WeeklyView({
                                         <span className="text-sm font-extrabold text-slate-900 block">
                                             {Number(day.totalHoras).toFixed(1).replace('.', ',')} h
                                         </span>
-                                        {Number(day.horasNoturnas || 0) > 0 && (
-                                            <span className="text-[10px] font-bold text-indigo-600 block">
-                                                Noturno
-                                            </span>
-                                        )}
+                                        <div className="flex items-center gap-1 justify-end text-[10px] text-slate-400 font-medium">
+                                            {day.horasNoturnas && Number(day.horasNoturnas) > 0 ? (
+                                                <span className="flex items-center gap-0.5 text-indigo-600 font-bold">
+                                                    <Moon className="h-2.5 w-2.5" /> {Number(day.horasNoturnas).toFixed(1)}h
+                                                </span>
+                                            ) : (
+                                                <span className="flex items-center gap-0.5 text-emerald-700">
+                                                    <Sun className="h-2.5 w-2.5" /> Diurno
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
                                 ) : isRest ? (
-                                    <span className="text-xs font-medium text-slate-400 italic">
-                                        Folga/Descanso
-                                    </span>
-                                ) : isPending ? (
-                                    <span className="text-xs font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                                        Pendente
+                                    <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">
+                                        {t('workerPortal.weeklyView.dayRest', 'Descanso')}
                                     </span>
                                 ) : (
-                                    <span className="text-xs font-medium text-slate-400">
-                                        Não informado
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${
+                                        isPending 
+                                            ? 'text-amber-700 bg-amber-100' 
+                                            : 'text-slate-400'
+                                    }`}>
+                                        {isPending ? t('workerPortal.weeklyView.pendingDays', 'Pendente') : '—'}
                                     </span>
                                 )}
 
-                                {/* Ícone de Status à Direita */}
-                                {hasHours ? (
-                                    <div className="h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                                        <CheckCircle2 className="h-4 w-4" />
-                                    </div>
-                                ) : isPending ? (
-                                    <div className="h-7 w-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
-                                        <AlertTriangle className="h-4 w-4" />
-                                    </div>
-                                ) : (
-                                    <div className="h-7 w-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center hover:bg-slate-200">
-                                        <Plus className="h-4 w-4" />
-                                    </div>
-                                )}
+                                {/* Status Icon / Ação */}
+                                <div className="w-8 flex justify-end">
+                                    {hasHours ? (
+                                        <div className="h-7 w-7 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                                            <CheckCircle2 className="h-4 w-4" />
+                                        </div>
+                                    ) : isPending ? (
+                                        <div className="h-7 w-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                                            <AlertTriangle className="h-4 w-4" />
+                                        </div>
+                                    ) : (
+                                        <div className="h-7 w-7 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
+                                            <Plus className="h-4 w-4" />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     );
