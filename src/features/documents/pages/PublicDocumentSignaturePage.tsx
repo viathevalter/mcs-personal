@@ -119,15 +119,31 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                 docContainerRef.current.innerHTML = '';
                 await renderAsync(blob, docContainerRef.current);
 
-                // Fix docx-preview CSS counter-reset bug for multi-level lists
+                // Fix docx-preview CSS counter-reset bug for multi-level lists (2.1, 3.1, 4.1, etc.)
                 const styleElements = Array.from(docContainerRef.current.querySelectorAll('style'));
                 styleElements.forEach(styleEl => {
                     let css = styleEl.innerHTML;
-                    css = css.replace(/counter-increment:\s*(num[_-](\d+)[_-]0\b[^;}]*);?/gi, (match, full, numId) => {
-                        return `counter-increment: ${full}; counter-reset: num-${numId}-1 0 num_${numId}_1 0 num-${numId}-2 0 num_${numId}_2 0;`;
+                    css = css.replace(/counter-set\s*:\s*([^;]+);?/gi, 'counter-reset: $1 !important;');
+                    css = css.replace(/(p\.[a-zA-Z0-9_-]*num-(\d+)-0\s*\{[^}]*)\}/gi, (match, prefix, numId) => {
+                        return `${prefix}; counter-reset: docx-num-${numId}-1 0 docx-num-${numId}-2 0 !important; }`;
                     });
                     styleEl.innerHTML = css;
                 });
+
+                const fixStyle = document.createElement('style');
+                let fixCss = '';
+                for (let id = 1; id <= 25; id++) {
+                    fixCss += `
+                        p.docx-num-${id}-0, .docx-num-${id}-0 {
+                            counter-reset: docx-num-${id}-1 0 docx-num-${id}-2 0 !important;
+                        }
+                        p.docx-num-${id}-1, .docx-num-${id}-1 {
+                            counter-reset: docx-num-${id}-2 0 !important;
+                        }
+                    `;
+                }
+                fixStyle.innerHTML = fixCss;
+                docContainerRef.current.appendChild(fixStyle);
 
                 const activeDoc = currentDoc || doc;
                 if (activeDoc?.signature_status === 'signed' && activeDoc?.signature_url) {

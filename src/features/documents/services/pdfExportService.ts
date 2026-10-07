@@ -9,7 +9,7 @@ export const pdfExportService = {
      * 1. Multi-page smart pagination (no text/paragraphs sliced in half)
      * 2. Top and bottom margins on EVERY page (printer-safe)
      * 3. Perfect symmetric left and right margins
-     * 4. Exact multi-level clause numbering (2.1, 2.2, 3.1)
+     * 4. Exact multi-level clause numbering reset (2.1, 2.2, 3.1, 4.1)
      */
     async downloadDocumentAsPdf(docItem: GeneratedDocument): Promise<void> {
         // 1. Fetch .docx binary
@@ -91,15 +91,32 @@ export const pdfExportService = {
                 breakPages: true
             });
 
-            // 4. Fix docx-preview CSS counter-reset bug for multi-level lists (e.g. 2.1 turning into 2.6)
+            // 4. Fix docx-preview CSS counter-reset bug for multi-level lists (2.1, 3.1, 4.1, etc.)
             const styleElements = Array.from(iframeDoc.querySelectorAll('style'));
             styleElements.forEach(styleEl => {
                 let css = styleEl.innerHTML;
-                css = css.replace(/counter-increment:\s*(num[_-](\d+)[_-]0\b[^;}]*);?/gi, (match, full, numId) => {
-                    return `counter-increment: ${full}; counter-reset: num-${numId}-1 0 num_${numId}_1 0 num-${numId}-2 0 num_${numId}_2 0;`;
+                css = css.replace(/counter-set\s*:\s*([^;]+);?/gi, 'counter-reset: $1 !important;');
+                css = css.replace(/(p\.[a-zA-Z0-9_-]*num-(\d+)-0\s*\{[^}]*)\}/gi, (match, prefix, numId) => {
+                    return `${prefix}; counter-reset: docx-num-${numId}-1 0 docx-num-${numId}-2 0 !important; }`;
                 });
                 styleEl.innerHTML = css;
             });
+
+            // Inject global counter-reset rules for all numbering IDs to guarantee sub-levels reset at every heading
+            const fixStyle = iframeDoc.createElement('style');
+            let fixCss = '';
+            for (let id = 1; id <= 25; id++) {
+                fixCss += `
+                    p.docx-num-${id}-0, .docx-num-${id}-0 {
+                        counter-reset: docx-num-${id}-1 0 docx-num-${id}-2 0 !important;
+                    }
+                    p.docx-num-${id}-1, .docx-num-${id}-1 {
+                        counter-reset: docx-num-${id}-2 0 !important;
+                    }
+                `;
+            }
+            fixStyle.innerHTML = fixCss;
+            iframeDoc.head.appendChild(fixStyle);
 
             // Ensure all sections have clean margins & background
             const sections = Array.from(container.querySelectorAll('section.docx')) as HTMLElement[];
