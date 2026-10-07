@@ -49,6 +49,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImportTarifasDialog } from '../components/ImportTarifasDialog';
+import { ExportTarifasDialog } from '../components/ExportTarifasDialog';
 import { EditTariffDialog } from '../components/EditTariffDialog';
 import { TariffAuthorizationModal } from '../components/TariffAuthorizationModal';
 import { TariffAuditLogDialog } from '../components/TariffAuditLogDialog';
@@ -445,6 +446,31 @@ export function WorkerTariffsPage() {
                         <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
                         Solicitar Termo ({selectedWorkerIds.size})
                     </Button>
+                    <ExportTarifasDialog
+                        trigger={
+                            <Button 
+                                variant="outline"
+                                size="sm"
+                                className="h-9 text-xs font-semibold border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 gap-1.5"
+                            >
+                                <DownloadCloud className="w-3.5 h-3.5 text-emerald-600" />
+                                Exportar Tarifas (Excel)
+                            </Button>
+                        }
+                        currentFilters={{
+                            search: debouncedSearch || undefined,
+                            clienteNombre: clienteNombre.length > 0 ? clienteNombre : undefined,
+                            contratante: contratante || undefined,
+                            funcion: funcion || undefined,
+                            statusSeguridad: statusSeguridad ? [statusSeguridad] : undefined,
+                            mesContratacao,
+                            workerFilterType,
+                            sortColumn,
+                            sortDirection
+                        }}
+                        selectedWorkerIds={selectedWorkerIds}
+                        totalFilteredCount={totalCount}
+                    />
                     <ImportTarifasDialog 
                         trigger={
                             <Button className="bg-indigo-600 hover:bg-indigo-700 h-9 text-xs font-medium">
