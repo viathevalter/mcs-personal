@@ -10,7 +10,7 @@ import { supabase } from '../../shared/supabase/client';
 import { getCompanyBranding } from './services/companyLogos';
 
 export function WorkerPortalLayout() {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const location = useLocation();
     const { setTheme } = useTheme();
