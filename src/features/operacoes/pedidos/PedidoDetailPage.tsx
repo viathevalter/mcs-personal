@@ -6,6 +6,7 @@ import { usePedidoTasks } from './hooks/usePedidoTasks';
 import { usePedidoTimeline } from './hooks/usePedidoTimeline';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { toast } from 'sonner';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -290,7 +291,7 @@ export function PedidoDetailPage() {
         </TabsContent>
         
         <TabsContent value="items" className="focus-visible:outline-none">
-          <PedidoItemsTab items={items} />
+          <PedidoItemsTab items={items} pedido={pedido} />
         </TabsContent>
         
         <TabsContent value="solicitudes" className="focus-visible:outline-none">
