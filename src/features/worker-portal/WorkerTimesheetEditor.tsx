@@ -138,6 +138,17 @@ export function WorkerTimesheetEditor({
     const [clientSites, setClientSites] = useState<Array<{ id: string; name: string }>>([]);
     const [loadingSites, setLoadingSites] = useState(false);
 
+    // Guaranteed deduplication of sites by name
+    const uniqueClientSites = useMemo(() => {
+        const seen = new Set<string>();
+        return clientSites.filter((site) => {
+            const key = (site.name || '').trim().toLowerCase();
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+    }, [clientSites]);
+
     // Day Modal editor
     const [activeDayModal, setActiveDayModal] = useState<number | null>(null);
 
@@ -163,14 +174,15 @@ export function WorkerTimesheetEditor({
         setDays(buildDaysFromPeriod(period));
     }, [period.id, period.updated_at, period.apontamentos_diarios]);
 
-    // Load Client Sites (Obras)
+    // Load Client Sites (Obras) strictly for the client
     useEffect(() => {
         const fetchSites = async () => {
             try {
                 setLoadingSites(true);
                 const { data, error } = await supabase.rpc('get_client_sites_portal', {
                     p_cliente_nombre: period.cliente_nombre || null,
-                    p_empresa_id: period.empresa_id || null
+                    p_empresa_id: period.empresa_id || null,
+                    p_cliente_id: (period as any).cliente_id || null
                 });
                 if (!error && data?.sites) {
                     setClientSites(data.sites);
@@ -182,7 +194,7 @@ export function WorkerTimesheetEditor({
             }
         };
         fetchSites();
-    }, [period.cliente_nombre, period.empresa_id]);
+    }, [period.cliente_nombre, period.empresa_id, (period as any).cliente_id]);
 
     // Calculate Totals
     const totalNormais = days.reduce((sum, d) => sum + (Number(d.horasNormais) || 0), 0);
@@ -882,12 +894,12 @@ export function WorkerTimesheetEditor({
                                                         className="w-full h-7 text-xs px-1.5 rounded border border-slate-200 bg-white text-slate-800"
                                                     >
                                                         <option value="">(Selecione)</option>
-                                                        {clientSites.map((site) => (
+                                                        {uniqueClientSites.map((site) => (
                                                             <option key={site.id} value={site.name}>
                                                                 {site.name}
                                                             </option>
                                                         ))}
-                                                        {item.obra && !clientSites.some((s) => s.name === item.obra) && (
+                                                        {item.obra && !uniqueClientSites.some((s) => s.name === item.obra) && (
                                                             <option value={item.obra}>{item.obra}</option>
                                                         )}
                                                     </select>
@@ -1059,12 +1071,21 @@ export function WorkerTimesheetEditor({
                                             onChange={(e) => handleDayChange(editingDay.dia, 'obra', e.target.value)}
                                             className="w-full h-9 text-xs px-2.5 rounded-lg border border-slate-300 bg-white text-slate-900 font-medium"
                                         >
-                                            <option value="">Selecione uma obra cadastrada...</option>
-                                            {clientSites.map((site) => (
+                                            <option value="">
+                                                {loadingSites 
+                                                    ? 'Carregando obras...' 
+                                                    : uniqueClientSites.length > 0 
+                                                        ? 'Selecione uma obra cadastrada...' 
+                                                        : 'Nenhuma obra cadastrada para este cliente'}
+                                            </option>
+                                            {uniqueClientSites.map((site) => (
                                                 <option key={site.id} value={site.name}>
                                                     {site.name}
                                                 </option>
                                             ))}
+                                            {editingDay.obra && !uniqueClientSites.some((s) => s.name === editingDay.obra) && (
+                                                <option value={editingDay.obra}>{editingDay.obra} (Outra)</option>
+                                            )}
                                         </select>
 
                                         <Input
