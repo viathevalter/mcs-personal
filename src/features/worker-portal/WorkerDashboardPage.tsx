@@ -1,539 +1,787 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { supabase } from '../../shared/supabase/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import type { WorkerHour } from '../../shared/types/corePersonal';
-import { toast } from 'sonner';
-import { UploadComponent } from './UploadComponent';
-import { WorkerTimesheetEditor } from './WorkerTimesheetEditor';
-import {
-    CalendarDays,
-    CheckCircle2,
-    Clock,
-    UploadCloud,
-    AlertCircle,
+import { 
+    Calendar, 
+    CalendarDays, 
+    Clock, 
+    CheckCircle2, 
+    AlertTriangle, 
+    FileText, 
+    UploadCloud, 
+    Plus, 
+    ChevronRight, 
+    ArrowLeft, 
+    MapPin, 
+    Building2, 
+    Sparkles, 
+    Download, 
+    Send,
     Edit3,
-    FileCheck,
-    Sun,
-    Moon,
-    FileText
+    BarChart3
 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-import { downloadTimesheetPdf, type TimesheetPdfData } from './services/timesheetPdfService';
+import { Button } from '../../components/ui/button';
+import { Card, CardContent } from '../../components/ui/card';
+import { useWorkerTimesheet } from './hooks/useWorkerTimesheet';
+import { DailyEntryModal } from './components/DailyEntryModal';
+import { WeeklyView } from './components/WeeklyView';
+import { MonthlyCalendarView } from './components/MonthlyCalendarView';
+import { MonthlySummaryView } from './components/MonthlySummaryView';
+import { GeneratePdfView } from './components/GeneratePdfView';
+import { UploadComponent } from './UploadComponent';
 import { getCompanyBranding } from './services/companyLogos';
+import { downloadTimesheetPdf, type TimesheetPdfData, type TimesheetDayEntry } from './services/timesheetPdfService';
+
+const MONTH_NAMES_PT = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+const WEEKDAY_NAMES_FULL = [
+    'Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira',
+    'Quinta-feira', 'Sexta-feira', 'Sábado'
+];
+
+type SubView = 'home' | 'week' | 'calendar' | 'summary' | 'generate-pdf' | 'upload';
 
 export function WorkerDashboardPage() {
-    const { t, i18n } = useTranslation();
     const { workerAuth } = useOutletContext<{ workerAuth: any }>();
-    const [pendingMonths, setPendingMonths] = useState<WorkerHour[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [selectedPeriod, setSelectedPeriod] = useState<WorkerHour | null>(null);
-    const [viewMode, setViewMode] = useState<'editor' | 'upload'>('editor');
+    
+    // Hook principal de gestão de horas e períodos
+    const timesheet = useWorkerTimesheet(workerAuth);
+    const {
+        allPeriods,
+        selectedPeriod,
+        selectedPeriodId,
+        setSelectedPeriodId,
+        loading,
+        currentYear,
+        currentMonth,
+        days,
+        weeks,
+        activeWeek,
+        selectedWeekIndex,
+        setSelectedWeekIndex,
+        todayDayNumber,
+        todayEntry,
+        todayIsFilled,
+        monthlyStats,
+        firstPendingDay,
+        saveDayEntry,
+        deleteDayEntry,
+        setMonthYear,
+        reload
+    } = timesheet;
 
-    useEffect(() => {
-        if (workerAuth) {
-            fetchPendingHours();
-        }
-    }, [workerAuth]);
+    // Sub-visão ativa
+    const [subView, setSubView] = useState<SubView>('home');
+    
+    // Modal de apontamento diário
+    const [modalDay, setModalDay] = useState<number | null>(null);
 
-    const fetchPendingHours = async () => {
-        try {
-            setLoading(true);
-            const profiles = workerAuth.profiles && workerAuth.profiles.length > 0 ? workerAuth.profiles : [workerAuth];
-            const workerIds = profiles.map((p: any) => p.id);
+    // Diálogo de troca de obra/cliente (caso haja múltiplos períodos no mês)
+    const [showObraSelector, setShowObraSelector] = useState(false);
 
-            const { data, error } = await supabase
-                .schema('core_personal')
-                .from('worker_hours')
-                .select('*')
-                .in('worker_id', workerIds)
-                .order('period_year', { ascending: false })
-                .order('period_month', { ascending: false });
+    // Identificação visual do trabalhador
+    const workerInitials = useMemo(() => {
+        if (!workerAuth?.nome) return 'TR';
+        const parts = workerAuth.nome.trim().split(/\s+/);
+        if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }, [workerAuth?.nome]);
 
-            if (error) throw error;
+    const branding = getCompanyBranding(
+        selectedPeriod?.contratante || workerAuth?.contratante || workerAuth?.empresa_nome
+    );
 
-            // Fetch workers data (ingresso and baixa dates) as a fallback if not in the session profiles
-            const { data: dbWorkers } = await supabase
-                .schema('core_personal')
-                .from('workers')
-                .select('id, data_ingresso, data_baixa, status_trabajador')
-                .in('id', workerIds);
+    // Todos os períodos disponíveis no mês atual para troca de obra
+    const currentMonthPeriods = useMemo(() => {
+        return allPeriods.filter(
+            p => p.period_year === currentYear && p.period_month === currentMonth
+        );
+    }, [allPeriods, currentYear, currentMonth]);
 
-            // Verify if there is a record for the current month and previous month.
-            const now = new Date();
-            const currentMonth = now.getMonth() + 1; // 1-12
-            const currentYear = now.getFullYear();
+    // Data de hoje formatada
+    const todayDateFormatted = useMemo(() => {
+        const now = new Date();
+        const weekDay = WEEKDAY_NAMES_FULL[now.getDay()];
+        const day = now.getDate();
+        const monthName = MONTH_NAMES_PT[now.getMonth()];
+        return `Hoje, ${weekDay} · ${day} de ${monthName}`;
+    }, []);
 
-            let prevMonth = currentMonth - 1;
-            let prevYear = currentYear;
-            if (prevMonth === 0) {
-                prevMonth = 12;
-                prevYear--;
-            }
-
-            let allRecords = data || [];
-
-            // For each profile, evaluate if they are 'ativo'. If so, ensure current and prev month exist for THAT profile.
-            for (const profile of profiles) {
-                const dbWorker = dbWorkers?.find((w) => w.id === profile.id);
-                const dataIngresso = profile.data_ingresso || dbWorker?.data_ingresso;
-                const dataBaixa = profile.data_baixa || dbWorker?.data_baixa;
-                const statusTrabajador = profile.status_trabajador || dbWorker?.status_trabajador || 'Ativo';
-
-                const isAtivo =
-                    statusTrabajador?.toLowerCase().includes('at') ||
-                    statusTrabajador?.toLowerCase().includes('ac');
-
-                let isEligibleCurrent = isAtivo;
-                let isEligiblePrev = isAtivo;
-
-                if (!isAtivo && dataBaixa) {
-                    const baixaDate = new Date(dataBaixa + 'T00:00:00');
-                    const baixaYear = baixaDate.getFullYear();
-                    const baixaMonth = baixaDate.getMonth() + 1;
-
-                    if (baixaYear > currentYear || (baixaYear === currentYear && baixaMonth >= currentMonth)) {
-                        isEligibleCurrent = true;
-                    }
-                    if (baixaYear > prevYear || (baixaYear === prevYear && baixaMonth >= prevMonth)) {
-                        isEligiblePrev = true;
-                    }
-                }
-
-                if (isEligibleCurrent || isEligiblePrev) {
-                    const profileRecords = allRecords.filter(
-                        (r) => r.worker_id === profile.id && r.empresa_id === profile.empresa_id
-                    );
-
-                    // Fetch allocations for this worker to generate cards by client
-                    const { data: allocations } = await supabase
-                        .schema('core_personal')
-                        .from('vw_worker_allocations')
-                        .select('cliente_nombre, fechainiciopedido, fechafinpedido, fechasalidatrabajador')
-                        .eq('cod_colab', profile.cod_colab);
-
-                    const getClientsForPeriod = (yr: number, mo: number) => {
-                        const start = new Date(yr, mo - 1, 1);
-                        const end = new Date(yr, mo, 0);
-
-                        const activeAllocations = (allocations || []).filter((alloc) => {
-                            const allocStart = alloc.fechainiciopedido ? new Date(alloc.fechainiciopedido) : null;
-                            const allocEnd = alloc.fechafinpedido ? new Date(alloc.fechafinpedido) : null;
-                            const exitDate = alloc.fechasalidatrabajador ? new Date(alloc.fechasalidatrabajador) : null;
-
-                            const actualEnd = exitDate || allocEnd;
-
-                            const isAfterStart = !allocStart || allocStart <= end;
-                            const isBeforeEnd = !actualEnd || actualEnd >= start;
-
-                            return isAfterStart && isBeforeEnd;
-                        });
-
-                        if (activeAllocations.length === 0) {
-                            return [profile.cliente_nombre || 'NÃO DEFINIDO'];
-                        }
-
-                        return Array.from(new Set(activeAllocations.map((a) => a.cliente_nombre).filter(Boolean)));
-                    };
-
-                    const toInsert = [];
-
-                    if (isEligibleCurrent) {
-                        const currentClients = getClientsForPeriod(currentYear, currentMonth);
-                        for (const client of currentClients) {
-                            const hasRecord = profileRecords.some(
-                                (r) =>
-                                    r.period_year === currentYear &&
-                                    r.period_month === currentMonth &&
-                                    (r.cliente_nombre === client || r.cliente_nombre === 'NÃO DEFINIDO')
-                            );
-
-                            let shouldHave = true;
-                            if (dataIngresso) {
-                                const admissionDate = new Date(dataIngresso);
-                                const admissionYear = admissionDate.getFullYear();
-                                const admissionMonth = admissionDate.getMonth() + 1;
-                                shouldHave =
-                                    admissionYear < currentYear ||
-                                    (admissionYear === currentYear && admissionMonth <= currentMonth);
-                            }
-                            if (currentYear === 2026 && (currentMonth === 3 || currentMonth === 4)) {
-                                shouldHave = false;
-                            }
-
-                            if (!hasRecord && shouldHave) {
-                                toInsert.push({
-                                    empresa_id: profile.empresa_id,
-                                    worker_id: profile.id,
-                                    period_year: currentYear,
-                                    period_month: currentMonth,
-                                    status: 'pendente',
-                                    cliente_nombre: client
-                                });
-                            }
-                        }
-                    }
-
-                    if (isEligiblePrev) {
-                        const prevClients = getClientsForPeriod(prevYear, prevMonth);
-                        for (const client of prevClients) {
-                            const hasRecord = profileRecords.some(
-                                (r) =>
-                                    r.period_year === prevYear &&
-                                    r.period_month === prevMonth &&
-                                    (r.cliente_nombre === client || r.cliente_nombre === 'NÃO DEFINIDO')
-                            );
-
-                            let shouldHave = true;
-                            if (dataIngresso) {
-                                const admissionDate = new Date(dataIngresso);
-                                const admissionYear = admissionDate.getFullYear();
-                                const admissionMonth = admissionDate.getMonth() + 1;
-                                shouldHave =
-                                    admissionYear < prevYear ||
-                                    (admissionYear === prevYear && admissionMonth <= prevMonth);
-                            }
-                            if (prevYear === 2026 && (prevMonth === 3 || prevMonth === 4)) {
-                                shouldHave = false;
-                            }
-
-                            if (!hasRecord && shouldHave) {
-                                toInsert.push({
-                                    empresa_id: profile.empresa_id,
-                                    worker_id: profile.id,
-                                    period_year: prevYear,
-                                    period_month: prevMonth,
-                                    status: 'pendente',
-                                    cliente_nombre: client
-                                });
-                            }
-                        }
-                    }
-
-                    if (toInsert.length > 0) {
-                        const { data: insertedRecords, error: insertError } = await supabase
-                            .schema('core_personal')
-                            .from('worker_hours')
-                            .insert(toInsert)
-                            .select();
-
-                        if (!insertError && insertedRecords) {
-                            allRecords = [...insertedRecords, ...allRecords];
-                        }
-                    }
-                }
-            }
-
-            // Filtrar duplicatas geradas pela concorrência do React Strict Mode
-            const statusWeight: Record<string, number> = {
-                validado: 6,
-                assinado_encarregado: 5,
-                aguardando_assinatura: 4,
-                processado: 3,
-                enviado: 2,
-                em_andamento: 1.5,
-                pendente: 1
-            };
-            const uniqueRecordsMap = new Map<string, WorkerHour>();
-
-            for (const record of allRecords) {
-                const key = `${record.period_year}-${record.period_month}-${record.worker_id}-${record.empresa_id}`;
-                const existing = uniqueRecordsMap.get(key);
-
-                if (!existing) {
-                    uniqueRecordsMap.set(key, record);
-                } else {
-                    const existingWeight = statusWeight[existing.status] || 0;
-                    const newWeight = statusWeight[record.status] || 0;
-                    if (newWeight > existingWeight) {
-                        uniqueRecordsMap.set(key, record);
-                    }
-                }
-            }
-
-            allRecords = Array.from(uniqueRecordsMap.values());
-
-            // Regra específica: bloquear envio (status pendente) para Março e Abril de 2026 no portal para todos
-            allRecords = allRecords.filter((record) => {
-                if (
-                    record.period_year === 2026 &&
-                    (record.period_month === 3 || record.period_month === 4) &&
-                    record.status === 'pendente'
-                ) {
-                    return false;
-                }
-                return true;
-            });
-
-            // Ordenar de forma decrescente
-            allRecords.sort((a, b) => {
-                if (a.period_year !== b.period_year) return b.period_year - a.period_year;
-                return b.period_month - a.period_month;
-            });
-
-            setPendingMonths(allRecords);
-            setSelectedPeriod((curr) => {
-                if (!curr) return null;
-                const fresh = allRecords.find((r) => r.id === curr.id);
-                return fresh || curr;
-            });
-        } catch (error) {
-            console.error('Error fetching hours:', error);
-            toast.error(t('workerPortal.dashboard.errorFetching'));
-        } finally {
-            setLoading(false);
-        }
+    // Abertura do modal para um dia específico
+    const handleOpenDailyModal = (day: number) => {
+        setModalDay(day);
     };
 
-    const handleUploadSuccess = () => {
-        setSelectedPeriod(null);
-        fetchPendingHours();
-    };
-
-    const getMonthName = (month: number) => {
-        const date = new Date(2000, month - 1, 1);
-        const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-PT';
-        return date.toLocaleString(locale, { month: 'long' }).toUpperCase();
-    };
-
-    const profiles = workerAuth.profiles && workerAuth.profiles.length > 0 ? workerAuth.profiles : [workerAuth];
-
-    const handleDownloadQuickPdf = async (period: WorkerHour) => {
-        const profile = profiles.find((p: any) => p.id === period.worker_id) || workerAuth;
-        const compName = profile.contratante || profile.empresa_nome || 'MCS Personal';
-        const branding = getCompanyBranding(compName);
+    // Download rápido direto do PDF
+    const handleQuickDownloadPdf = async () => {
+        if (!selectedPeriod) return;
+        const compName = selectedPeriod.contratante || workerAuth?.empresa_nome || 'MCS Personal';
+        const b = getCompanyBranding(compName);
         const pdfData: TimesheetPdfData = {
             empresaNome: compName,
-            empresaNif: profile.empresa_nif || branding?.nif,
-            logoUrl: branding?.logoUrl,
-            workerNome: profile.nome,
-            workerDoc: profile.pasaporte || profile.nie || 'N/A',
-            workerFuncion: profile.funcion,
-            clienteNome: period.cliente_nombre,
-            mes: period.period_month,
-            ano: period.period_year,
-            apontamentos: (period.apontamentos_diarios as any[]) || [],
-            totalNormais: Number(period.total_horas_normais || 0),
-            totalNoturnas: Number(period.total_horas_noturnas || 0),
-            totalGeral: Number(period.horas_totais || 0),
-            encarregadoNome: period.encarregado_nome,
-            signedAt: period.signed_at,
-            signedIp: period.signed_ip,
-            signatureImageUrl: period.signature_image_url
+            empresaNif: workerAuth?.empresa_nif || b?.nif,
+            logoUrl: b?.logoUrl,
+            workerNome: workerAuth?.nome || 'Trabalhador',
+            workerDoc: workerAuth?.pasaporte || workerAuth?.nie || 'N/A',
+            workerFuncion: workerAuth?.funcion || 'Operador',
+            clienteNome: selectedPeriod.cliente_nombre || 'NÃO DEFINIDO',
+            mes: selectedPeriod.period_month,
+            ano: selectedPeriod.period_year,
+            apontamentos: (selectedPeriod.apontamentos_diarios as any[]) || [],
+            totalNormais: Number(selectedPeriod.total_horas_normais || 0),
+            totalNoturnas: Number(selectedPeriod.total_horas_noturnas || 0),
+            totalGeral: Number(selectedPeriod.horas_totais || 0),
+            encarregadoNome: selectedPeriod.encarregado_nome,
+            signedAt: selectedPeriod.signed_at,
+            signedIp: selectedPeriod.signed_ip,
+            signatureImageUrl: selectedPeriod.signature_image_url
         };
         await downloadTimesheetPdf(pdfData);
     };
 
+    // Estado de carregamento
+    if (loading && !selectedPeriod) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-6">
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-emerald-500 border-t-transparent mb-3" />
+                <p className="text-sm font-medium text-slate-600">A carregar os seus apontamentos...</p>
+            </div>
+        );
+    }
+
+    // SUB-VISÃO: VISÃO SEMANAL (TELA 4)
+    if (subView === 'week') {
+        return (
+            <div className="space-y-4 max-w-lg mx-auto">
+                <button
+                    type="button"
+                    onClick={() => setSubView('home')}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                    <ArrowLeft className="h-4 w-4" /> Voltar ao Início
+                </button>
+
+                <WeeklyView
+                    activeWeek={activeWeek}
+                    weekIndex={selectedWeekIndex}
+                    totalWeeks={weeks.length}
+                    year={currentYear}
+                    month={currentMonth}
+                    onSelectWeekIndex={setSelectedWeekIndex}
+                    onSelectDay={handleOpenDailyModal}
+                    activeTab="semana"
+                    onTabChange={(tab) => {
+                        if (tab === 'mes') setSubView('calendar');
+                    }}
+                />
+
+                {/* Modal Diário acoplado */}
+                {modalDay !== null && (
+                    <DailyEntryModal
+                        isOpen={true}
+                        dayNumber={modalDay}
+                        month={currentMonth}
+                        year={currentYear}
+                        initialEntry={days.find(d => d.dia === modalDay)}
+                        defaultObra={selectedPeriod?.cliente_nombre || ''}
+                        onClose={() => setModalDay(null)}
+                        onSave={async (entry) => {
+                            await saveDayEntry(entry);
+                            setModalDay(null);
+                        }}
+                        onDelete={async (day) => {
+                            await deleteDayEntry(day);
+                            setModalDay(null);
+                        }}
+                        onNavigateDay={(nextDay) => setModalDay(nextDay)}
+                        maxDaysInMonth={days.length}
+                    />
+                )}
+            </div>
+        );
+    }
+
+    // SUB-VISÃO: CALENDÁRIO MENSAL (TELA 5)
+    if (subView === 'calendar') {
+        return (
+            <div className="space-y-4 max-w-lg mx-auto">
+                <button
+                    type="button"
+                    onClick={() => setSubView('home')}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                    <ArrowLeft className="h-4 w-4" /> Voltar ao Início
+                </button>
+
+                <MonthlyCalendarView
+                    year={currentYear}
+                    month={currentMonth}
+                    days={days}
+                    monthlyStats={monthlyStats}
+                    onSelectDay={handleOpenDailyModal}
+                    onMonthChange={setMonthYear}
+                    onViewWeekDetails={() => setSubView('week')}
+                    activeTab="mes"
+                    onTabChange={(tab) => {
+                        if (tab === 'semana') setSubView('week');
+                    }}
+                />
+
+                {/* Modal Diário acoplado */}
+                {modalDay !== null && (
+                    <DailyEntryModal
+                        isOpen={true}
+                        dayNumber={modalDay}
+                        month={currentMonth}
+                        year={currentYear}
+                        initialEntry={days.find(d => d.dia === modalDay)}
+                        defaultObra={selectedPeriod?.cliente_nombre || ''}
+                        onClose={() => setModalDay(null)}
+                        onSave={async (entry) => {
+                            await saveDayEntry(entry);
+                            setModalDay(null);
+                        }}
+                        onDelete={async (day) => {
+                            await deleteDayEntry(day);
+                            setModalDay(null);
+                        }}
+                        onNavigateDay={(nextDay) => setModalDay(nextDay)}
+                        maxDaysInMonth={days.length}
+                    />
+                )}
+            </div>
+        );
+    }
+
+    // SUB-VISÃO: RESUMO MENSAL (TELA 7)
+    if (subView === 'summary') {
+        return (
+            <div className="space-y-4 max-w-lg mx-auto">
+                <MonthlySummaryView
+                    year={currentYear}
+                    month={currentMonth}
+                    weeks={weeks}
+                    monthlyStats={monthlyStats}
+                    onMonthChange={setMonthYear}
+                    onSelectWeek={(wIdx) => {
+                        setSelectedWeekIndex(wIdx);
+                        setSubView('week');
+                    }}
+                    onBack={() => setSubView('home')}
+                />
+
+                {/* Botão de ação direta para gerar PDF */}
+                <div className="pt-2">
+                    <Button
+                        onClick={() => setSubView('generate-pdf')}
+                        className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md gap-2"
+                    >
+                        <FileText className="h-5 w-5" />
+                        Gerar PDF Oficial do Mês
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+
+    // SUB-VISÃO: GERAR E ENVIAR PDF (TELAS 8, 9, 10)
+    if (subView === 'generate-pdf' && selectedPeriod) {
+        return (
+            <div className="max-w-lg mx-auto">
+                <GeneratePdfView
+                    worker={workerAuth}
+                    period={selectedPeriod}
+                    days={days}
+                    monthlyStats={monthlyStats}
+                    onBack={() => setSubView('home')}
+                    onSwitchToUpload={() => setSubView('upload')}
+                    onCompleted={() => {
+                        reload();
+                        setSubView('home');
+                    }}
+                />
+            </div>
+        );
+    }
+
+    // SUB-VISÃO: UPLOAD EM PAPEL (PLANO B)
+    if (subView === 'upload' && selectedPeriod) {
+        return (
+            <div className="space-y-4 max-w-lg mx-auto">
+                <button
+                    type="button"
+                    onClick={() => setSubView('home')}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                    <ArrowLeft className="h-4 w-4" /> Voltar ao Início
+                </button>
+
+                <UploadComponent
+                    worker={workerAuth}
+                    period={selectedPeriod}
+                    onCancel={() => setSubView('home')}
+                    onSuccess={() => {
+                        reload();
+                        setSubView('home');
+                    }}
+                />
+            </div>
+        );
+    }
+
+    // VISÃO PRINCIPAL (TELA 2 - DASHBOARD MOBILE-FIRST)
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                    {t('workerPortal.dashboard.title')}
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    {t('workerPortal.dashboard.subtitle')}
-                </p>
+        <div className="space-y-4 max-w-lg mx-auto">
+            {/* 1. CABEÇALHO DO TRABALHADOR */}
+            <div className="bg-white rounded-3xl p-4 shadow-xs border border-slate-100 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-black text-base flex items-center justify-center shadow-xs flex-shrink-0">
+                        {workerInitials}
+                    </div>
+                    <div className="min-w-0">
+                        <h2 className="text-base font-bold text-slate-900 truncate leading-tight">
+                            {workerAuth?.nome || 'Trabalhador'}
+                        </h2>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
+                            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-medium">
+                                {workerAuth?.pasaporte || workerAuth?.nie || 'Doc. N/A'}
+                            </span>
+                            <span>•</span>
+                            <span className="truncate font-semibold text-slate-700">
+                                {branding?.name || selectedPeriod?.contratante || workerAuth?.contratante || 'MCS Personal'}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Seletor de mês rápido */}
+                <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-xl border border-slate-200">
+                    <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                    <select
+                        aria-label="Selecionar Mês"
+                        value={`${currentYear}-${currentMonth}`}
+                        onChange={(e) => {
+                            const [y, m] = e.target.value.split('-').map(Number);
+                            setMonthYear(m, y);
+                        }}
+                        className="bg-transparent text-xs font-bold text-slate-700 focus:outline-hidden cursor-pointer"
+                    >
+                        {Array.from({ length: 6 }).map((_, i) => {
+                            const d = new Date();
+                            d.setMonth(d.getMonth() - i);
+                            const yr = d.getFullYear();
+                            const mo = d.getMonth() + 1;
+                            return (
+                                <option key={`${yr}-${mo}`} value={`${yr}-${mo}`}>
+                                    {MONTH_NAMES_PT[mo - 1].substring(0, 3)} {yr}
+                                </option>
+                            );
+                        })}
+                    </select>
+                </div>
             </div>
 
-            {loading ? (
-                <div className="flex justify-center p-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            {/* TAG DA OBRA / CLIENTE ATUAL + TROCA CASO TENHA MAIS DE UMA */}
+            <div className="bg-slate-100/80 rounded-2xl px-3.5 py-2 flex items-center justify-between text-xs border border-slate-200/60">
+                <div className="flex items-center gap-2 truncate">
+                    <MapPin className="h-3.5 w-3.5 text-emerald-600 flex-shrink-0" />
+                    <span className="text-slate-500">Obra atual:</span>
+                    <strong className="text-slate-800 truncate">
+                        {selectedPeriod?.cliente_nombre || workerAuth?.cliente || 'Obra Principal'}
+                    </strong>
                 </div>
-            ) : selectedPeriod ? (
-                viewMode === 'editor' ? (
-                    <WorkerTimesheetEditor
-                        worker={profiles.find((p: any) => p.id === selectedPeriod.worker_id) || workerAuth}
-                        period={selectedPeriod}
-                        onBack={() => setSelectedPeriod(null)}
-                        onSaved={(updatedPeriod?: WorkerHour) => {
-                            if (updatedPeriod) {
-                                setSelectedPeriod(updatedPeriod);
-                            }
-                            fetchPendingHours();
-                        }}
-                        onSwitchToUpload={() => setViewMode('upload')}
-                    />
-                ) : (
-                    <UploadComponent
-                        worker={profiles.find((p: any) => p.id === selectedPeriod.worker_id) || workerAuth}
-                        period={selectedPeriod}
-                        onCancel={() => {
-                            setViewMode('editor');
-                            setSelectedPeriod(null);
-                        }}
-                        onSuccess={handleUploadSuccess}
-                    />
-                )
-            ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                    {pendingMonths.map((period) => {
-                        const totalNormais = Number(period.total_horas_normais || 0);
-                        const totalNoturnas = Number(period.total_horas_noturnas || 0);
-                        const totalGeral = Number(period.horas_totais || totalNormais + totalNoturnas);
+                {currentMonthPeriods.length > 1 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowObraSelector(true)}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 underline ml-2 flex-shrink-0"
+                    >
+                        Trocar
+                    </button>
+                )}
+            </div>
 
-                        const isPending = period.status === 'pendente';
-                        const isDraft = period.status === 'em_andamento';
-                        const isAwaitingSig = period.status === 'aguardando_assinatura';
-                        const isSigned = period.status === 'assinado_encarregado';
-
-                        return (
-                            <Card
-                                key={period.id}
-                                className={`border transition-shadow hover:shadow-md ${
-                                    isPending
-                                        ? 'border-amber-200 bg-amber-50/20'
-                                        : isSigned
-                                        ? 'border-emerald-200 bg-emerald-50/10'
-                                        : 'border-slate-200'
-                                }`}
-                            >
-                                <CardHeader className="pb-3">
-                                    <div className="flex justify-between items-start">
-                                        <div className="space-y-1">
-                                            <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
-                                                <CalendarDays className="h-5 w-5 text-blue-600" />
-                                                {getMonthName(period.period_month)} {period.period_year}
-                                            </CardTitle>
-                                            <CardDescription className="text-xs">
-                                                {t('workerPortal.dashboard.clientLabel')} {period.cliente_nombre || 'N/A'}
-                                            </CardDescription>
-                                        </div>
-                                        <StatusBadge status={period.status} />
-                                    </div>
-                                </CardHeader>
-
-                                <CardContent className="space-y-3">
-                                    {/* Hours Counter mini-grid */}
-                                    <div className="grid grid-cols-3 gap-2 text-center bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                        <div>
-                                            <span className="text-[10px] text-slate-500 font-medium flex items-center justify-center gap-0.5">
-                                                <Sun className="h-3 w-3 text-amber-500" /> Diurnas
-                                            </span>
-                                            <span className="text-sm font-bold text-slate-800">{totalNormais.toFixed(1)}h</span>
-                                        </div>
-                                        <div>
-                                            <span className="text-[10px] text-sky-700 font-medium flex items-center justify-center gap-0.5">
-                                                <Moon className="h-3 w-3 text-sky-600" /> Nocturnas
-                                            </span>
-                                            <span className="text-sm font-bold text-sky-900">{totalNoturnas.toFixed(1)}h</span>
-                                        </div>
-                                        <div className="bg-white rounded border border-slate-200">
-                                            <span className="text-[10px] text-emerald-700 font-bold block">TOTAL</span>
-                                            <span className="text-sm font-black text-emerald-900">{totalGeral.toFixed(1)}h</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Status Info Messages */}
-                                    {isPending && (
-                                        <p className="text-xs text-amber-800 bg-amber-100/60 p-2 border border-amber-200 rounded-md flex items-center gap-1.5">
-                                            <AlertCircle className="h-3.5 w-3.5 flex-shrink-0" />
-                                            {t('workerPortal.dashboard.statusInfo.pending')}
-                                        </p>
-                                    )}
-                                    {isDraft && (
-                                        <p className="text-xs text-blue-800 bg-blue-100/60 p-2 border border-blue-200 rounded-md flex items-center gap-1.5">
-                                            <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-                                            Rascunho gravado. Você pode continuar apontando as suas horas.
-                                        </p>
-                                    )}
-                                    {isAwaitingSig && (
-                                        <p className="text-xs text-purple-800 bg-purple-100/60 p-2 border border-purple-200 rounded-md flex items-center gap-1.5">
-                                            <FileCheck className="h-3.5 w-3.5 flex-shrink-0" />
-                                            Link enviado ao encarregado. Aguardando assinatura com o código OTP.
-                                        </p>
-                                    )}
-                                    {isSigned && (
-                                        <p className="text-xs text-emerald-800 bg-emerald-100/60 p-2 border border-emerald-200 rounded-md flex items-center gap-1.5">
-                                            <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
-                                            Validado e assinado digitalmente pelo encarregado ({period.encarregado_nome || 'Supervisor'}).
-                                        </p>
-                                    )}
-                                </CardContent>
-
-                                <CardFooter className="pt-2 gap-2 flex-wrap">
-                                    <Button
-                                        onClick={() => {
-                                            setViewMode('editor');
-                                            setSelectedPeriod(period);
-                                        }}
-                                        className="flex-1 gap-1.5 text-xs h-9 bg-blue-600 hover:bg-blue-700 text-white font-semibold"
-                                    >
-                                        <Edit3 className="h-3.5 w-3.5" />
-                                        {isSigned || period.status === 'validado' ? 'Ver Apontamentos' : 'Apontar / Editar Horas'}
-                                    </Button>
-
-                                    <Button
-                                        variant="outline"
-                                        size="icon"
-                                        onClick={() => handleDownloadQuickPdf(period)}
-                                        title="Baixar Folha em PDF"
-                                        className="h-9 w-9 border-slate-300"
-                                    >
-                                        <FileText className="h-4 w-4 text-slate-600" />
-                                    </Button>
-                                </CardFooter>
-                            </Card>
-                        );
-                    })}
-
-                    {pendingMonths.length === 0 && (
-                        <div className="col-span-full text-center py-16 px-4 border border-dashed rounded-xl bg-white shadow-sm">
-                            <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-3" />
-                            <h3 className="text-base font-semibold text-slate-800">
-                                {t('workerPortal.dashboard.empty.title')}
+            {/* MODAL DE SELEÇÃO DE OBRA (Se houver múltiplas) */}
+            {showObraSelector && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                                <Building2 className="h-4 w-4 text-emerald-600" />
+                                Selecionar Obra / Cliente
                             </h3>
-                            <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                                {t('workerPortal.dashboard.empty.desc')}
+                            <button
+                                type="button"
+                                onClick={() => setShowObraSelector(false)}
+                                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {currentMonthPeriods.map((period) => (
+                                <button
+                                    key={period.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedPeriodId(period.id);
+                                        setShowObraSelector(false);
+                                    }}
+                                    className={`w-full text-left p-3 rounded-xl border text-xs font-semibold flex items-center justify-between transition-colors ${
+                                        selectedPeriod?.id === period.id
+                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                                            : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                                    }`}
+                                >
+                                    <span className="truncate">{period.cliente_nombre || 'Geral'}</span>
+                                    {selectedPeriod?.id === period.id && (
+                                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 2. CARD PRINCIPAL DE HOJE (AÇÃO RÁPIDA DE 5 SEGUNDOS) */}
+            <Card className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/30 shadow-md overflow-hidden">
+                <CardContent className="p-4 sm:p-5 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500">
+                            {todayDateFormatted}
+                        </span>
+                        {todayIsFilled && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                Registado
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Situação: Se já apontou hoje vs Se ainda falta apontar */}
+                    {todayIsFilled ? (
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between bg-white/90 p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
+                                <div>
+                                    <div className="text-2xl font-black text-emerald-900 flex items-center gap-1.5">
+                                        {Number(todayEntry?.totalHoras || 0).toFixed(1)}
+                                        <span className="text-sm font-bold text-emerald-700">horas</span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 font-medium">
+                                        {todayEntry?.horasNoturnas && todayEntry.horasNoturnas > 0
+                                            ? `Nocturno (${todayEntry.horasNoturnas}h)`
+                                            : 'Turno Diurno'}
+                                        {todayEntry?.entrada && ` • ${todayEntry.entrada} às ${todayEntry.saida}`}
+                                    </p>
+                                </div>
+                                <Button
+                                    onClick={() => handleOpenDailyModal(todayDayNumber)}
+                                    variant="outline"
+                                    className="h-10 px-4 rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold text-xs gap-1.5 shadow-2xs"
+                                >
+                                    <Edit3 className="h-3.5 w-3.5" />
+                                    Editar
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-2.5">
+                            <Button
+                                onClick={() => handleOpenDailyModal(todayDayNumber)}
+                                className="w-full h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-black text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
+                            >
+                                <Plus className="h-5 w-5 stroke-[2.5]" />
+                                Apontar minhas horas de hoje
+                            </Button>
+                            <p className="text-center text-[11px] text-slate-500 font-medium">
+                                Leva apenas 5 a 10 segundos no seu telemóvel
                             </p>
                         </div>
                     )}
+                </CardContent>
+            </Card>
+
+            {/* 3. ALERTA DE DIAS PENDENTES (Se houver dias passados sem registo) */}
+            {monthlyStats.pendingDays > 0 && firstPendingDay && (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-300">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="h-8 w-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
+                            <AlertTriangle className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-amber-900 truncate">
+                                Faltam horas de dias anteriores
+                            </h4>
+                            <p className="text-[11px] text-amber-700 font-medium">
+                                {monthlyStats.pendingDays} {monthlyStats.pendingDays === 1 ? 'dia pendente' : 'dias pendentes'} no mês
+                            </p>
+                        </div>
+                    </div>
+                    <Button
+                        size="sm"
+                        onClick={() => handleOpenDailyModal(firstPendingDay)}
+                        className="h-8 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex-shrink-0 shadow-2xs"
+                    >
+                        Preencher
+                    </Button>
                 </div>
+            )}
+
+            {/* 4. MINI KPIS DE RESUMO */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
+                        Semana
+                    </span>
+                    <span className="text-lg font-black text-slate-900 block mt-0.5">
+                        {Number(activeWeek?.totalHours || 0).toFixed(1)}h
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                        {activeWeek?.daysWorked || 0} dias
+                    </span>
+                </div>
+
+                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
+                        Total Mês
+                    </span>
+                    <span className="text-lg font-black text-emerald-700 block mt-0.5">
+                        {Number(monthlyStats.totalHours || 0).toFixed(1)}h
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                        {monthlyStats.daysWorked} dias
+                    </span>
+                </div>
+
+                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                    <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider">
+                        Pendentes
+                    </span>
+                    <span className={`text-lg font-black block mt-0.5 ${
+                        monthlyStats.pendingDays > 0 ? 'text-amber-600' : 'text-slate-400'
+                    }`}>
+                        {monthlyStats.pendingDays}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                        {monthlyStats.pendingDays === 0 ? 'Em dia' : 'a lançar'}
+                    </span>
+                </div>
+            </div>
+
+            {/* 5. AÇÕES RÁPIDAS (MENUS EM CARDS) */}
+            <div className="space-y-2">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
+                    Ações Rápidas
+                </h3>
+
+                <div className="grid gap-2">
+                    {/* CARD: Minhas horas da semana */}
+                    <button
+                        type="button"
+                        onClick={() => setSubView('week')}
+                        className="w-full bg-white p-3.5 rounded-2xl border border-slate-200 hover:border-emerald-300 hover:bg-slate-50/50 transition-all flex items-center justify-between text-left shadow-2xs group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <Calendar className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-800 leading-tight">
+                                    Minhas horas da semana
+                                </h4>
+                                <p className="text-[11px] text-slate-500">
+                                    Visualizar os 7 dias e apontar horas passadas
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
+                    {/* CARD: Calendário do mês */}
+                    <button
+                        type="button"
+                        onClick={() => setSubView('calendar')}
+                        className="w-full bg-white p-3.5 rounded-2xl border border-slate-200 hover:border-emerald-300 hover:bg-slate-50/50 transition-all flex items-center justify-between text-left shadow-2xs group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <CalendarDays className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-800 leading-tight">
+                                    Calendário do mês
+                                </h4>
+                                <p className="text-[11px] text-slate-500">
+                                    Grelha completa de {MONTH_NAMES_PT[currentMonth - 1]} com pontos de status
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
+                    {/* CARD: Resumo do mês */}
+                    <button
+                        type="button"
+                        onClick={() => setSubView('summary')}
+                        className="w-full bg-white p-3.5 rounded-2xl border border-slate-200 hover:border-emerald-300 hover:bg-slate-50/50 transition-all flex items-center justify-between text-left shadow-2xs group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                <BarChart3 className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-800 leading-tight">
+                                    Resumo do mês
+                                </h4>
+                                <p className="text-[11px] text-slate-500">
+                                    Totais por semana, horas diurnas e nocturnas
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
+                    {/* CARD: Gerar PDF para assinatura */}
+                    <button
+                        type="button"
+                        onClick={() => setSubView('generate-pdf')}
+                        className="w-full bg-gradient-to-r from-emerald-50 to-teal-50/60 p-3.5 rounded-2xl border border-emerald-200 hover:border-emerald-300 transition-all flex items-center justify-between text-left shadow-2xs group"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                                <FileText className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-1.5">
+                                    <h4 className="text-sm font-bold text-emerald-950 leading-tight">
+                                        Gerar PDF para assinatura
+                                    </h4>
+                                    <span className="text-[10px] font-black bg-emerald-600 text-white px-1.5 py-0.2 rounded-full">
+                                        Oficial
+                                    </span>
+                                </div>
+                                <p className="text-[11px] text-emerald-800/80 font-medium">
+                                    Enviar para o encarregado validar digitalmente
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-emerald-700 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+
+                    {/* CARD: Enviar folha em papel (Plano B) */}
+                    <button
+                        type="button"
+                        onClick={() => setSubView('upload')}
+                        className="w-full bg-white p-3 rounded-2xl border border-dashed border-slate-300 hover:border-slate-400 hover:bg-slate-50/50 transition-all flex items-center justify-between text-left group"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className="h-8 w-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center">
+                                <UploadCloud className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <h4 className="text-xs font-semibold text-slate-700 leading-tight">
+                                    Enviar foto da folha em papel (Plano B)
+                                </h4>
+                                <p className="text-[10px] text-slate-400">
+                                    Caso tenha preenchido o modelo físico impresso
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-slate-400" />
+                    </button>
+                </div>
+            </div>
+
+            {/* STATUS DO PERÍODO ATUAL & DOWNLOAD RÁPIDO */}
+            {selectedPeriod && (
+                <div className="bg-white rounded-2xl p-3 border border-slate-200/80 flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-slate-400" />
+                        <span className="text-xs text-slate-600 font-medium">
+                            Folha de {MONTH_NAMES_PT[currentMonth - 1]}:
+                        </span>
+                        <StatusPill status={selectedPeriod.status} />
+                    </div>
+
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleQuickDownloadPdf}
+                        className="h-8 px-2.5 text-xs text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 font-semibold gap-1"
+                        title="Baixar PDF do Mês"
+                    >
+                        <Download className="h-3.5 w-3.5" />
+                        PDF
+                    </Button>
+                </div>
+            )}
+
+            {/* MODAL DIÁRIO DE 5 SEGUNDOS (Acoplado ao Dashboard) */}
+            {modalDay !== null && (
+                <DailyEntryModal
+                    isOpen={true}
+                    dayNumber={modalDay}
+                    month={currentMonth}
+                    year={currentYear}
+                    initialEntry={days.find(d => d.dia === modalDay)}
+                    defaultObra={selectedPeriod?.cliente_nombre || ''}
+                    onClose={() => setModalDay(null)}
+                    onSave={async (entry) => {
+                        await saveDayEntry(entry);
+                        setModalDay(null);
+                    }}
+                    onDelete={async (day) => {
+                        await deleteDayEntry(day);
+                        setModalDay(null);
+                    }}
+                    onNavigateDay={(nextDay) => setModalDay(nextDay)}
+                    maxDaysInMonth={days.length}
+                />
             )}
         </div>
     );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusPill({ status }: { status: string }) {
     switch (status) {
         case 'pendente':
             return (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800 border border-amber-200">
-                    <Clock className="h-3 w-3" /> Pendente
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                    Pendente
                 </span>
             );
         case 'em_andamento':
             return (
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800 border border-blue-200">
-                    <Clock className="h-3 w-3" /> Rascunho
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    Rascunho
                 </span>
             );
         case 'aguardando_assinatura':
             return (
-                <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-semibold text-purple-800 border border-purple-200">
-                    <Clock className="h-3 w-3" /> Aguard. Assinatura
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                    Aguardando Assinatura
                 </span>
             );
         case 'assinado_encarregado':
             return (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 border border-emerald-200">
-                    <CheckCircle2 className="h-3 w-3" /> Assinado
-                </span>
-            );
-        case 'enviado':
-        case 'processado':
-            return (
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-800 border border-blue-200">
-                    <CheckCircle2 className="h-3 w-3" /> Enviado
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Assinado
                 </span>
             );
         case 'validado':
             return (
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800 border border-emerald-200">
-                    <CheckCircle2 className="h-3 w-3" /> Validado
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    Validado
                 </span>
             );
         default:
-            return null;
+            return (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                    {status}
+                </span>
+            );
     }
 }
