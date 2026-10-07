@@ -5,7 +5,8 @@ import type { GeneratedDocument } from './documentGeneratorService';
 
 export const pdfExportService = {
     /**
-     * Downloads a generated document as PDF with perfect symmetric margins and exact list numbering.
+     * Downloads a generated document as PDF with perfect symmetric margins,
+     * exact list numbering, and multi-page A4 pagination.
      * Uses an isolated iframe to prevent CSS counter leaks (e.g. 2.1 turning into 2.6)
      * and eliminates wrapper padding displacement.
      */
@@ -186,76 +187,38 @@ export const pdfExportService = {
             }
 
             // Wait a moment for iframe rendering
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 250));
 
-            // 5. Generate Multi-page A4 PDF using section-by-section capture if sections exist, or whole container
+            // 5. Generate Multi-page A4 PDF using height slicing loop
+            const canvas = await html2canvas(container, {
+                scale: 1.5,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                windowWidth: 794
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.82);
             const pdf = new jsPDF('p', 'mm', 'a4', true);
             const pdfWidth = pdf.internal.pageSize.getWidth(); // 210mm
             const pageHeight = pdf.internal.pageSize.getHeight(); // 297mm
 
-            const renderedSections = Array.from(container.querySelectorAll('section.docx')) as HTMLElement[];
+            const imgWidth = pdfWidth;
+            const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-            if (renderedSections.length > 0) {
-                // Render section by section for perfect page boundaries & margin alignment
-                for (let i = 0; i < renderedSections.length; i++) {
-                    const sec = renderedSections[i];
-                    if (i > 0) {
-                        pdf.addPage();
-                    }
+            let heightLeft = imgHeight;
+            let position = 0;
 
-                    const canvas = await html2canvas(sec, {
-                        scale: 1.5,
-                        useCORS: true,
-                        logging: false,
-                        backgroundColor: '#ffffff',
-                        windowWidth: 794
-                    });
+            // Page 1
+            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
+            heightLeft -= pageHeight;
 
-                    const imgData = canvas.toDataURL('image/jpeg', 0.82);
-                    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-                    pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, Math.min(imgHeight, pageHeight), undefined, 'FAST');
-                }
-
-                // If sigBlock exists and wasn't inside a section, append it on the final page or its own page
-                const extraSigBlock = container.querySelector('div[style*="#f0fdf4"]') as HTMLElement;
-                if (extraSigBlock && !renderedSections.some(s => s.contains(extraSigBlock))) {
-                    const canvasSig = await html2canvas(extraSigBlock, {
-                        scale: 1.5,
-                        useCORS: true,
-                        logging: false,
-                        backgroundColor: '#ffffff'
-                    });
-                    const sigImgData = canvasSig.toDataURL('image/jpeg', 0.85);
-                    const sigHeight = (canvasSig.height * pdfWidth) / canvasSig.width;
-                    pdf.addPage();
-                    pdf.addImage(sigImgData, 'JPEG', 10, 20, pdfWidth - 20, sigHeight, undefined, 'FAST');
-                }
-            } else {
-                // Fallback: render whole container with height pagination
-                const canvas = await html2canvas(container, {
-                    scale: 1.5,
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: '#ffffff',
-                    windowWidth: 794
-                });
-
-                const imgData = canvas.toDataURL('image/jpeg', 0.82);
-                const imgWidth = pdfWidth;
-                const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-                let heightLeft = imgHeight;
-                let position = 0;
-
+            // Subsequent pages (Page 2, 3, 4, ..., N)
+            while (heightLeft > 0) {
+                position -= pageHeight;
+                pdf.addPage();
                 pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
                 heightLeft -= pageHeight;
-
-                while (heightLeft > 0) {
-                    position -= pageHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
-                    heightLeft -= pageHeight;
-                }
             }
 
             // Clean PDF filename
