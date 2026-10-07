@@ -1,10 +1,11 @@
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { LogOut, Clock, FileText, User, ShieldCheck } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../app/providers';
+import { supabase } from '../../shared/supabase/client';
 
 import { getCompanyBranding } from './services/companyLogos';
 
@@ -14,6 +15,11 @@ export function WorkerPortalLayout() {
     const location = useLocation();
     const { setTheme } = useTheme();
 
+    const [activeWorker, setActiveWorker] = useState<any>(() => {
+        const session = localStorage.getItem('worker_session');
+        return session ? JSON.parse(session) : null;
+    });
+
     useEffect(() => {
         setTheme('light');
         const session = localStorage.getItem('worker_session');
@@ -22,18 +28,46 @@ export function WorkerPortalLayout() {
         }
     }, [navigate, setTheme]);
 
+    // Self-healing: refresh worker profile & contratante directly from database
+    useEffect(() => {
+        const refreshProfile = async () => {
+            const session = localStorage.getItem('worker_session');
+            if (!session) return;
+            const current = JSON.parse(session);
+            if (!current?.nome || !current?.pasaporte) return;
+
+            try {
+                const { data } = await supabase.rpc('authenticate_worker', {
+                    p_nome: current.nome,
+                    p_pasaporte: current.pasaporte
+                });
+                if (data && data.length > 0) {
+                    const fresh = data.find((d: any) => d.id === current.id) || data[0];
+                    const merged = {
+                        ...current,
+                        ...fresh,
+                        empresa_nome: fresh.contratante || fresh.empresa_nome || current.empresa_nome,
+                        contratante: fresh.contratante || fresh.empresa_nome || current.contratante
+                    };
+                    setActiveWorker(merged);
+                    localStorage.setItem('worker_session', JSON.stringify(merged));
+                }
+            } catch (err) {
+                console.warn('Erro ao atualizar dados da sessão no layout:', err);
+            }
+        };
+        refreshProfile();
+    }, []);
+
     const handleLogout = () => {
         localStorage.removeItem('worker_session');
         toast.info(t('workerPortal.layout.logout.toast', { defaultValue: 'Sessão terminada.' }));
         navigate('/portal/login');
     };
 
-    const session = localStorage.getItem('worker_session');
-    const workerAuth = session ? JSON.parse(session) : null;
+    if (!activeWorker) return null;
 
-    if (!workerAuth) return null;
-
-    const branding = getCompanyBranding(workerAuth.contratante || workerAuth.empresa_nome);
+    const branding = getCompanyBranding(activeWorker.contratante || activeWorker.empresa_nome);
 
     const navItems = [
         {
@@ -77,8 +111,8 @@ export function WorkerPortalLayout() {
                                     Portal do Trabalhador
                                 </span>
                                 <span className="text-[11px] text-slate-500 font-medium block">
-                                    <strong className="text-slate-800">{branding?.name || workerAuth.contratante || 'MCS Group'}</strong>
-                                    {workerAuth.cliente && <span className="text-slate-400"> • {workerAuth.cliente}</span>}
+                                    <strong className="text-slate-800">{branding?.name || activeWorker.contratante || activeWorker.empresa_nome || 'MCS Personal'}</strong>
+                                    {activeWorker.cliente && <span className="text-slate-400"> • {activeWorker.cliente}</span>}
                                 </span>
                             </div>
                         </div>
@@ -108,10 +142,10 @@ export function WorkerPortalLayout() {
                         <div className="flex items-center gap-2 sm:gap-3">
                             <div className="text-right hidden sm:block">
                                 <span className="text-xs font-semibold text-slate-800 block truncate max-w-[150px]">
-                                    {workerAuth.nome.split(' ')[0]}
+                                    {activeWorker.nome?.split(' ')[0] || ''}
                                 </span>
                                 <span className="text-[10px] text-slate-500 font-mono block">
-                                    {workerAuth.pasaporte || workerAuth.nie || ''}
+                                    {activeWorker.pasaporte || activeWorker.nie || ''}
                                 </span>
                             </div>
 
@@ -131,7 +165,7 @@ export function WorkerPortalLayout() {
 
             {/* Main Content Area */}
             <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-5 sm:py-8 sm:px-6 pb-24 sm:pb-8">
-                <Outlet context={{ workerAuth }} />
+                <Outlet context={{ workerAuth: activeWorker }} />
             </main>
 
             {/* Mobile Bottom Navigation Bar (Fixed) */}

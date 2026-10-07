@@ -28,7 +28,22 @@ export const COMPANY_LOGOS: Record<string, { name: string; logoUrl: string; nif?
 
 export function getCompanyBranding(companyName?: string) {
     if (!companyName) return null;
-    const upper = companyName.toUpperCase();
+    const upper = companyName.toUpperCase().trim();
+    if (upper.includes('ESTOCO') || upper.includes('STOCCO') || upper === 'STO') {
+        return COMPANY_LOGOS.STOCCO;
+    }
+    if (upper.includes('LUMINOUS') || upper === 'LUM') {
+        return COMPANY_LOGOS.LUMINOUS;
+    }
+    if (upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO') || upper === 'TRI') {
+        return COMPANY_LOGOS.TRIANGULO;
+    }
+    if (upper.includes('WISEOWE') || upper === 'WIS') {
+        return COMPANY_LOGOS.WISEOWE;
+    }
+    if (upper.includes('KOTRIK') || upper === 'KOR') {
+        return COMPANY_LOGOS.KOTRIK;
+    }
     for (const [key, val] of Object.entries(COMPANY_LOGOS)) {
         if (upper.includes(key)) {
             return val;

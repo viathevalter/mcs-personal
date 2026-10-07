@@ -64,6 +64,18 @@ export function WorkerLoginPage() {
                 pasaporte: d.pasaporte,
                 status_trabajador: d.status_trabajador,
                 empresa_id: d.empresa_id,
+                empresa_nome: d.empresa_nome || d.contratante,
+                contratante: d.contratante || d.empresa_nome,
+                funcion: d.funcion,
+                email: d.email,
+                telefono: d.telefono,
+                movil: d.telefono,
+                niss: d.niss,
+                nif: d.nif,
+                nie: d.nie,
+                dni: d.dni,
+                iban: d.iban,
+                cliente: d.cliente,
                 data_ingresso: d.data_ingresso,
                 data_baixa: d.data_baixa
             }));
