@@ -93,13 +93,42 @@ export function PortalCliente() {
     return undefined;
   }, [disputedHours]);
 
-  const totalHorasCalculadas = React.useMemo(() => {
-    let sum = 0;
+  const { totalHorasCalculadas, totalNormaisCalculadas, totalNoturnasCalculadas } = React.useMemo(() => {
+    let tot = 0;
+    let norm = 0;
+    let not = 0;
     horas.forEach(h => {
+      const entryTot = Number(h.horas_totais || 0);
+      const entryNot = Number(h.horas_noturnas || 0);
+      const entryNorm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || entryNot > 0))
+        ? Number(h.horas_normais)
+        : Math.max(0, entryTot - entryNot);
+
       const proposed = getProposedHours(h.worker_id, h.obra_id || 'sem_obra', h.data_trabalho);
-      sum += proposed !== undefined ? proposed : Number(h.horas_totais || 0);
+      if (proposed !== undefined) {
+        tot += proposed;
+        if (entryNot > 0 && entryNorm === 0) {
+          not += proposed;
+        } else if (entryNot === 0) {
+          norm += proposed;
+        } else if (entryTot > 0) {
+          const pNot = Math.min(proposed, entryNot * (proposed / entryTot));
+          not += pNot;
+          norm += Math.max(0, proposed - pNot);
+        } else {
+          norm += proposed;
+        }
+      } else {
+        tot += entryTot;
+        norm += entryNorm;
+        not += entryNot;
+      }
     });
-    return sum;
+    return {
+      totalHorasCalculadas: tot,
+      totalNormaisCalculadas: norm,
+      totalNoturnasCalculadas: not
+    };
   }, [horas, getProposedHours]);
 
   useEffect(() => {
@@ -149,14 +178,24 @@ export function PortalCliente() {
         const obraKey = h.obra_id || 'no_obra';
         const key = `${wId}_${dateKey}_${obraKey}`;
         
+        const tot = Number(h.horas_totais || 0);
+        const not = Number(h.horas_noturnas || 0);
+        const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
+          ? Number(h.horas_normais)
+          : Math.max(0, tot - not);
+
         if (!groupedMap.has(key)) {
           groupedMap.set(key, {
             ...h,
             data_trabalho: dateKey,
-            horas_totais: 0
+            horas_totais: 0,
+            horas_normais: 0,
+            horas_noturnas: 0
           });
         }
-        groupedMap.get(key).horas_totais += Number(h.horas_totais || 0);
+        groupedMap.get(key).horas_totais += tot;
+        groupedMap.get(key).horas_normais += norm;
+        groupedMap.get(key).horas_noturnas += not;
       });
 
       setHoras(Array.from(groupedMap.values()));
@@ -339,7 +378,9 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                 <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Cliente: <strong>${clientName}</strong> | Periodo: <strong>${periodStr}</strong></p>
               </div>
               <div style="text-align: right;">
-                <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${obra.totalHoras.toFixed(2)}h</strong></p>
+                <p style="font-size: 13px; color: #64748b; margin: 0;">Total de Horas: <strong style="color: #1e293b; font-size: 16px;">${obra.totalHoras.toFixed(2)}h</strong>
+                  ${obra.totalHorasNoturnas > 0 ? `<span style="font-size: 11px; color: #4f46e5; margin-left: 6px; font-weight: 600;">(☀️ ${obra.totalHorasNormais.toFixed(1)}h • 🌙 ${obra.totalHorasNoturnas.toFixed(1)}h)</span>` : ''}
+                </p>
                 <p style="font-size: 13px; color: #64748b; margin: 4px 0 0 0;">Importe Base: <strong style="color: #1e293b; font-size: 16px;">€ ${obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong></p>
               </div>
             </div>
@@ -404,12 +445,16 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
           tableHtml += `
             <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 6px 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;">${w.workerName}</td>
+              <td style="padding: 6px 10px; font-weight: 600; color: #1e293b; border-right: 1px solid #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;">
+                <div>${w.workerName}</div>
+                ${w.totalHorasNoturnas > 0 ? `<div style="font-size: 8px; color: #4f46e5; font-weight: 500; margin-top: 2px;">☀️ ${w.totalHorasNormais.toFixed(1)}h • 🌙 ${w.totalHorasNoturnas.toFixed(1)}h</div>` : ''}
+              </td>
           `;
 
           daysArrayLocal.forEach(dInfo => {
             const hourObj = w.horasDiarias[dInfo.dateStr] as any;
             const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+            const nightVal = hourObj ? Number(hourObj.horas_noturnas || 0) : 0;
             
             const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
             const dayOfWeek = cellDate.getDay();
@@ -418,24 +463,34 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
             let cellStyle = 'color: #94a3b8;';
             let cellBg = '';
-            if (hoursVal > 0) {
+            if (nightVal > 0) {
+              cellBg = 'background-color: #eef2ff;';
+              cellStyle = 'color: #4338ca; font-weight: 700;';
+            } else if (hoursVal > 0) {
               cellStyle = 'color: #2563eb; font-weight: 700;';
             }
-            if (isSunday) {
+            if (isSunday && nightVal === 0) {
               cellBg = 'background-color: #fff1f2;';
-            } else if (isSaturday) {
+            } else if (isSaturday && nightVal === 0) {
               cellBg = 'background-color: #fffbeb;';
             }
 
             tableHtml += `
-              <td style="text-align: center; padding: 6px 1px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0; font-size: 10px;">
-                ${hoursVal > 0 ? hoursVal : '-'}
+              <td style="text-align: center; padding: 4px 1px; ${cellBg} ${cellStyle} border-right: 1px solid #e2e8f0; font-size: 9.5px; line-height: 1.1;">
+                ${hoursVal > 0 ? (
+                  nightVal > 0 
+                    ? `<div>${hoursVal}</div><div style="font-size: 7.5px; color: #4338ca; font-weight: 800;">🌙${nightVal}</div>`
+                    : hoursVal
+                ) : '-'}
               </td>
             `;
           });
 
           tableHtml += `
-              <td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #1e293b; font-size: 10px;">${workerTotal.toFixed(1)}h</td>
+              <td style="padding: 7px 10px; text-align: right; font-weight: 700; color: #1e293b; font-size: 10px;">
+                <div>${workerTotal.toFixed(1)}h</div>
+                ${w.totalHorasNoturnas > 0 ? `<div style="font-size: 8px; color: #4338ca; font-weight: 600;">🌙 ${w.totalHorasNoturnas.toFixed(1)}h</div>` : ''}
+              </td>
             </tr>
           `;
         });
@@ -464,7 +519,10 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
           });
 
           tableHtml += `
-                <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #0f172a;">${obra.totalHoras.toFixed(1)}h</td>
+                <td style="padding: 6px 10px; text-align: right; font-weight: 800; color: #0f172a;">
+                  <div>${obra.totalHoras.toFixed(1)}h</div>
+                  ${obra.totalHorasNoturnas > 0 ? `<div style="font-size: 8.5px; color: #4338ca; font-weight: 700;">🌙 ${obra.totalHorasNoturnas.toFixed(1)}h</div>` : ''}
+                </td>
               </tr>
             </tfoot>
           `;
@@ -596,16 +654,31 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       obraId: string;
       obraName: string;
       totalHoras: number;
+      totalHorasNormais: number;
+      totalHorasNoturnas: number;
       totalValor: number;
+      totalValorNormais: number;
+      totalValorNoturnas: number;
       workers: Array<{
         workerId: string;
         workerName: string;
         codColab: string;
         perfil: string;
         tarifa: number;
+        tarifaNoturna: number | null;
         totalHoras: number;
+        totalHorasNormais: number;
+        totalHorasNoturnas: number;
         totalValor: number;
-        horasDiarias: Record<string, { id?: string; horas_totais: number; data_trabalho: string }>;
+        horasDiarias: Record<string, { 
+          id?: string; 
+          horas_totais: number; 
+          horas_normais: number; 
+          horas_noturnas: number; 
+          tarifa_faturada?: number;
+          tarifa_faturada_noturna?: number | null;
+          data_trabalho: string 
+        }>;
       }>;
     }>();
 
@@ -621,7 +694,11 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
           obraId: oId,
           obraName: oName,
           totalHoras: 0,
+          totalHorasNormais: 0,
+          totalHorasNoturnas: 0,
           totalValor: 0,
+          totalValorNormais: 0,
+          totalValorNoturnas: 0,
           workers: []
         });
       }
@@ -634,6 +711,11 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       const wId = h.worker_id;
       if (!wId) return;
 
+      const tNorm = Number(h.tarifa_faturada || 25.00);
+      const tNot = h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined
+        ? Number(h.tarifa_faturada_noturna)
+        : null;
+
       let worker = obraGroup.workers.find(w => w.workerId === wId);
       if (!worker) {
         worker = {
@@ -641,27 +723,72 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
           workerName: h.worker?.nombrecompleto || 'Colaborador',
           codColab: h.worker?.codColab || 'N/A',
           perfil: h.worker?.perfil || 'Não Definido',
-          tarifa: h.tarifa_faturada || 27.00,
+          tarifa: tNorm,
+          tarifaNoturna: tNot,
           totalHoras: 0,
+          totalHorasNormais: 0,
+          totalHorasNoturnas: 0,
           totalValor: 0,
           horasDiarias: {}
         };
         obraGroup.workers.push(worker);
+      } else {
+        if (!worker.tarifa && tNorm) worker.tarifa = tNorm;
+        if (!worker.tarifaNoturna && tNot) worker.tarifaNoturna = tNot;
       }
 
+      const entryTot = Number(h.horas_totais || 0);
+      const entryNot = Number(h.horas_noturnas || 0);
+      const entryNorm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || entryNot > 0))
+        ? Number(h.horas_normais)
+        : Math.max(0, entryTot - entryNot);
+
       const proposed = getProposedHours(wId, oId, h.data_trabalho);
-      const hoursVal = proposed !== undefined ? proposed : Number(h.horas_totais || 0);
+      const hoursVal = proposed !== undefined ? proposed : entryTot;
+
+      let effNorm = entryNorm;
+      let effNot = entryNot;
+      if (proposed !== undefined) {
+        if (entryNot > 0 && entryNorm === 0) {
+          effNot = proposed;
+          effNorm = 0;
+        } else if (entryNot === 0) {
+          effNorm = proposed;
+          effNot = 0;
+        } else if (entryTot > 0) {
+          effNot = Math.min(proposed, (entryNot * (proposed / entryTot)));
+          effNorm = Math.max(0, proposed - effNot);
+        } else {
+          effNorm = proposed;
+          effNot = 0;
+        }
+      }
+
+      const effectiveTarifaNot = tNot || tNorm;
+      const entryValorNormais = effNorm * tNorm;
+      const entryValorNoturnas = effNot * effectiveTarifaNot;
+      const entryValorTotal = entryValorNormais + entryValorNoturnas;
 
       worker.totalHoras += hoursVal;
-      worker.totalValor += hoursVal * (h.tarifa_faturada || 27.00);
+      worker.totalHorasNormais += effNorm;
+      worker.totalHorasNoturnas += effNot;
+      worker.totalValor += entryValorTotal;
 
       obraGroup.totalHoras += hoursVal;
-      obraGroup.totalValor += hoursVal * (h.tarifa_faturada || 27.00);
+      obraGroup.totalHorasNormais += effNorm;
+      obraGroup.totalHorasNoturnas += effNot;
+      obraGroup.totalValor += entryValorTotal;
+      obraGroup.totalValorNormais += entryValorNormais;
+      obraGroup.totalValorNoturnas += entryValorNoturnas;
 
       const dateKey = h.data_trabalho;
       worker.horasDiarias[dateKey] = {
         id: h.id,
-        horas_totais: h.horas_totais,
+        horas_totais: entryTot,
+        horas_normais: entryNorm,
+        horas_noturnas: entryNot,
+        tarifa_faturada: tNorm,
+        tarifa_faturada_noturna: tNot,
         data_trabalho: h.data_trabalho
       };
     });
@@ -684,9 +811,20 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       codColab: string;
       perfil: string;
       tarifa: number;
+      tarifaNoturna: number | null;
       totalHoras: number;
+      totalHorasNormais: number;
+      totalHorasNoturnas: number;
       totalValor: number;
-      horasDiarias: Record<string, { id?: string; horas_totais: number; data_trabalho: string }>;
+      horasDiarias: Record<string, { 
+        id?: string; 
+        horas_totais: number; 
+        horas_normais: number; 
+        horas_noturnas: number; 
+        tarifa_faturada?: number;
+        tarifa_faturada_noturna?: number | null;
+        data_trabalho: string 
+      }>;
     }>();
 
     groupedObras.forEach(o => {
@@ -696,6 +834,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
         } else {
           const existing = workersMap.get(w.workerId)!;
           existing.totalHoras += w.totalHoras;
+          existing.totalHorasNormais += w.totalHorasNormais;
+          existing.totalHorasNoturnas += w.totalHorasNoturnas;
           existing.totalValor += w.totalValor;
           Object.assign(existing.horasDiarias, w.horasDiarias);
         }
@@ -720,7 +860,14 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
     return getBillingCycleDays(cycleStartDay, year, month);
   }, [year, month, fatura]);
 
-  const { finalTotalVal, adjustments, dataEmissaoStr, dataVencimentoStr, totalBaseVal } = React.useMemo(() => {
+  const { finalTotalVal, adjustments, dataEmissaoStr, dataVencimentoStr, totalBaseVal, totalValorNormaisCalculadas, totalValorNoturnasCalculadas } = React.useMemo(() => {
+    let totValNormais = 0;
+    let totValNoturnas = 0;
+    groupedObras.forEach(o => {
+      totValNormais += o.totalValorNormais;
+      totValNoturnas += o.totalValorNoturnas;
+    });
+
     const totalBaseVal = groupedWorkers.reduce((sum, w) => sum + w.totalValor, 0);
 
     const adj = fatura?.ajustes_json || {};
@@ -749,6 +896,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
     return {
       totalBaseVal,
+      totalValorNormaisCalculadas: totValNormais,
+      totalValorNoturnasCalculadas: totValNoturnas,
       finalTotalVal,
       dataEmissaoStr,
       dataVencimentoStr,
@@ -856,6 +1005,11 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
               <div className="text-left px-2">
                 <span className="text-[10px] text-slate-400 block uppercase tracking-wider">Total de Horas</span>
                 <span className="text-xl font-black text-white">{totalHorasCalculadas.toFixed(2)}h</span>
+                {totalHorasNoturnasCalculadas > 0 && (
+                  <span className="text-[11px] text-indigo-300 block font-semibold mt-0.5">
+                    ☀️ {totalHorasNormaisCalculadas.toFixed(1)}h • 🌙 {totalHorasNoturnasCalculadas.toFixed(1)}h
+                  </span>
+                )}
               </div>
               <div className="w-px bg-slate-850 self-stretch" />
               <div className="text-left px-2">
@@ -1055,13 +1209,22 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
             {/* Aba: Resumo (Folha de Ponto Horizontal) */}
             {activeTab === 'resumo' && (
               <div className="p-6 bg-white overflow-x-auto text-xs">
-                <div className="mb-4 flex justify-between items-center border-b border-slate-100 pb-3">
+                <div className="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
                   <div>
                     <h4 className="text-base font-bold text-slate-900">Informe de Horas</h4>
                     <p className="text-[11px] text-muted-foreground mt-0.5">Cliente: <span className="font-semibold text-slate-800">{fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente'}</span> | Período: <span className="font-semibold text-slate-800">{getMonthName(month)} / {year}</span></p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-slate-500">Total de Horas: <span className="text-slate-900 font-bold">{totalHorasCalculadas.toFixed(2)}h</span></p>
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-5 text-right">
+                    {totalHorasNoturnasCalculadas > 0 && (
+                      <div className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-900 dark:text-indigo-300">
+                        <span className="flex items-center gap-1">☀️ {totalHorasNormaisCalculadas.toFixed(1)}h Diurnas</span>
+                        <span className="text-indigo-300">•</span>
+                        <span className="flex items-center gap-1">🌙 {totalHorasNoturnasCalculadas.toFixed(1)}h Nocturnas</span>
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-semibold text-slate-500">Total de Horas: <span className="text-slate-900 font-bold">{totalHorasCalculadas.toFixed(2)}h</span></p>
+                    </div>
                   </div>
                 </div>
 
@@ -1153,6 +1316,11 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                       <div className="flex items-center gap-4 text-xs">
                         <span className="text-slate-600 dark:text-slate-300 font-semibold">
                           Horas Obra: <strong className="text-slate-900 dark:text-white font-bold">{obra.totalHoras.toFixed(2)}h</strong>
+                          {obra.totalHorasNoturnas > 0 && (
+                            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium ml-1.5">
+                              (☀️ {obra.totalHorasNormais.toFixed(1)}h • 🌙 {obra.totalHorasNoturnas.toFixed(1)}h)
+                            </span>
+                          )}
                         </span>
                         <span className="text-slate-600 dark:text-slate-300 font-semibold">
                           Subtotal: <strong className="text-blue-600 dark:text-blue-400 font-bold">€ {obra.totalValor.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong>
@@ -1194,11 +1362,21 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
                           return (
                             <TableRow key={worker.workerId} className="hover:bg-slate-50 transition-colors">
-                              <TableCell className="font-semibold text-slate-800 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
+                              <TableCell className="font-semibold text-slate-800 pl-4 py-3 text-xs">
+                                <div>{worker.workerName}</div>
+                                {worker.totalHorasNoturnas > 0 && (
+                                  <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-normal mt-0.5 flex items-center gap-1.5">
+                                    <span>☀️ {worker.totalHorasNormais.toFixed(1)}h diurnas</span>
+                                    <span className="text-slate-300">•</span>
+                                    <span className="font-medium">🌙 {worker.totalHorasNoturnas.toFixed(1)}h nocturnas</span>
+                                  </div>
+                                )}
+                              </TableCell>
                               {daysArray.map(dInfo => {
                                 const dateKey = dInfo.dateStr;
                                 const hourObj = worker.horasDiarias[dateKey] as any;
                                 const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+                                const nightVal = hourObj ? Number(hourObj.horas_noturnas || 0) : 0;
 
                                 const isEditing = editingCell?.workerId === worker.workerId && 
                                                   editingCell?.dateKey === dateKey && 
@@ -1244,17 +1422,21 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                                         ? 'cursor-default' 
                                         : 'hover:bg-amber-100 hover:text-amber-850 dark:hover:bg-slate-800 cursor-pointer'
                                     } ${
-                                      isWk
+                                      nightVal > 0
                                         ? hasDispute
                                           ? 'bg-amber-100/80 dark:bg-amber-950/30 font-extrabold text-blue-650'
-                                          : hoursVal > 0
-                                            ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
-                                            : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
-                                        : hasDispute
-                                          ? 'bg-amber-50 dark:bg-amber-950/20 font-extrabold text-blue-650'
-                                          : hoursVal > 0
-                                            ? 'bg-blue-50/20 dark:bg-slate-800/10 font-bold text-slate-800 dark:text-slate-200'
-                                            : 'text-slate-300'
+                                          : 'bg-indigo-50/70 dark:bg-indigo-950/30 font-bold text-indigo-700 dark:text-indigo-300'
+                                        : isWk
+                                          ? hasDispute
+                                            ? 'bg-amber-100/80 dark:bg-amber-950/30 font-extrabold text-blue-650'
+                                            : hoursVal > 0
+                                              ? 'bg-rose-100/40 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300 font-extrabold'
+                                              : 'bg-rose-50/25 dark:bg-rose-950/5 text-slate-300'
+                                          : hasDispute
+                                            ? 'bg-amber-50 dark:bg-amber-950/20 font-extrabold text-blue-650'
+                                            : hoursVal > 0
+                                              ? 'bg-blue-50/20 dark:bg-slate-800/10 font-bold text-slate-800 dark:text-slate-200'
+                                              : 'text-slate-300'
                                     }`}
                                   >
                                     {hasDispute ? (
@@ -1262,16 +1444,28 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                                         <span className="line-through text-red-500 text-[8px]">{hoursVal}</span>
                                         <span className="font-extrabold text-blue-650 text-[10px]">{proposedVal}</span>
                                       </div>
+                                    ) : hoursVal > 0 ? (
+                                      <div className="flex flex-col items-center leading-tight">
+                                        <span>{hoursVal}</span>
+                                        {nightVal > 0 && (
+                                          <span className="text-[8px] text-indigo-600 dark:text-indigo-400 font-extrabold leading-none mt-0.5" title={`Nocturnas: ${nightVal}h`}>
+                                            🌙{nightVal}
+                                          </span>
+                                        )}
+                                      </div>
                                     ) : (
-                                      <span>
-                                        {hoursVal > 0 ? hoursVal : '-'}
-                                      </span>
+                                      <span>-</span>
                                     )}
                                   </TableCell>
                                 );
                               })}
                               <TableCell className="text-right font-extrabold text-slate-900 dark:text-slate-100 pr-4 py-3 text-xs">
-                                {workerTotal.toFixed(1)}h
+                                <div>{workerTotal.toFixed(1)}h</div>
+                                {worker.totalHorasNoturnas > 0 && (
+                                  <div className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                    🌙 {worker.totalHorasNoturnas.toFixed(1)}h
+                                  </div>
+                                )}
                               </TableCell>
                             </TableRow>
                           );
@@ -1296,7 +1490,12 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                             );
                           })}
                           <TableCell className="text-right font-black pr-4 py-2.5 text-xs text-slate-900 dark:text-slate-100 font-bold">
-                            {obra.totalHoras.toFixed(1)}h
+                            <div>{obra.totalHoras.toFixed(1)}h</div>
+                            {obra.totalHorasNoturnas > 0 && (
+                              <div className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                🌙 {obra.totalHorasNoturnas.toFixed(1)}h
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       </TableFooter>
@@ -1314,7 +1513,14 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                       </span>
                     </div>
                     <div className="flex items-center gap-6 text-sm">
-                      <span>Total Horas: <strong className="text-base font-black text-white">{totalHorasCalculadas.toFixed(2)}h</strong></span>
+                      <div>
+                        <span>Total Horas: <strong className="text-base font-black text-white">{totalHorasCalculadas.toFixed(2)}h</strong></span>
+                        {totalHorasNoturnasCalculadas > 0 && (
+                          <div className="text-xs text-indigo-300 font-medium">
+                            ☀️ {totalHorasNormaisCalculadas.toFixed(1)}h • 🌙 {totalHorasNoturnasCalculadas.toFixed(1)}h
+                          </div>
+                        )}
+                      </div>
                       <span>Importe Base: <strong className="text-base font-black text-blue-400">€ {totalBaseVal.toLocaleString('es-ES', { minimumFractionDigits: 2 })}</strong></span>
                     </div>
                   </div>
@@ -1424,7 +1630,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                           OBRA: {obra.obraName.toUpperCase()}
                         </span>
                         <span className="text-[11px] font-bold text-slate-600">
-                          {obra.totalHoras.toFixed(2)}h • € {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
+                          {obra.totalHoras.toFixed(2)}h {obra.totalHorasNoturnas > 0 ? `(☀️ ${obra.totalHorasNormais.toFixed(1)}h • 🌙 ${obra.totalHorasNoturnas.toFixed(1)}h) ` : ''}• € {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
 
@@ -1438,17 +1644,54 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {obra.workers.map(w => (
-                            <TableRow key={w.workerId}>
-                              <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
-                              <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
-                              <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
-                              <TableCell className="text-right font-bold pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
-                            </TableRow>
-                          ))}
+                          {obra.workers.map(w => {
+                            const hasNight = (w.totalHorasNoturnas || 0) > 0;
+                            const tarifaNot = w.tarifaNoturna || w.tarifa;
+
+                            if (hasNight) {
+                              return (
+                                <React.Fragment key={w.workerId}>
+                                  {w.totalHorasNormais > 0 && (
+                                    <TableRow>
+                                      <TableCell className="font-semibold text-slate-800 pl-4">
+                                        {w.workerName} <span className="text-[10px] text-slate-500 font-normal">(Diurnas ☀️)</span>
+                                      </TableCell>
+                                      <TableCell className="text-right font-medium">{w.totalHorasNormais.toFixed(2)}h</TableCell>
+                                      <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
+                                      <TableCell className="text-right font-bold pr-4">€ {(w.totalHorasNormais * w.tarifa).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                    </TableRow>
+                                  )}
+                                  <TableRow className="bg-indigo-50/20">
+                                    <TableCell className="font-semibold text-indigo-950 pl-4">
+                                      {w.workerName} <span className="text-[10px] text-indigo-600 font-medium">(Nocturnas 🌙)</span>
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium text-indigo-950">{w.totalHorasNoturnas.toFixed(2)}h</TableCell>
+                                    <TableCell className="text-right font-medium text-indigo-950">€ {tarifaNot.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right font-bold pr-4 text-indigo-950">€ {(w.totalHorasNoturnas * tarifaNot).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                                  </TableRow>
+                                </React.Fragment>
+                              );
+                            }
+
+                            return (
+                              <TableRow key={w.workerId}>
+                                <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
+                                <TableCell className="text-right font-medium">{w.totalHoras.toFixed(2)}h</TableCell>
+                                <TableCell className="text-right font-medium">€ {w.tarifa.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-bold pr-4">€ {w.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
+                              </TableRow>
+                            );
+                          })}
                           <TableRow className="bg-slate-50 font-bold border-t border-slate-200">
                             <TableCell className="font-bold pl-4">Subtotal {obra.obraName}</TableCell>
-                            <TableCell className="text-right font-bold">{obra.totalHoras.toFixed(2)}h</TableCell>
+                            <TableCell className="text-right font-bold">
+                              <div>{obra.totalHoras.toFixed(2)}h</div>
+                              {obra.totalHorasNoturnas > 0 && (
+                                <div className="text-[10px] text-indigo-600 font-normal">
+                                  ☀️ {obra.totalHorasNormais.toFixed(1)}h • 🌙 {obra.totalHorasNoturnas.toFixed(1)}h
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell className="text-right">-</TableCell>
                             <TableCell className="text-right font-extrabold pr-4">€ {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>
                           </TableRow>
@@ -1582,14 +1825,37 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                         </tr>
                       </thead>
                       <tbody>
-                        <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
-                          <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
-                          <td className="text-right py-1">{totalHorasCalculadas.toFixed(2)}</td>
-                          <td className="text-right py-1">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                          <td className="text-right py-1">0,00</td>
-                          <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                          <td className="text-right font-bold pr-3 py-1">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        </tr>
+                        {totalHorasNoturnasCalculadas > 0 ? (
+                          <>
+                            {totalHorasNormaisCalculadas > 0 && (
+                              <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
+                                <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'} - Horas Diurnas</td>
+                                <td className="text-right py-1">{totalHorasNormaisCalculadas.toFixed(2)}</td>
+                                <td className="text-right py-1">{(totalValorNormaisCalculadas / (totalHorasNormaisCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                <td className="text-right py-1">0,00</td>
+                                <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                <td className="text-right font-bold pr-3 py-1">{totalValorNormaisCalculadas.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              </tr>
+                            )}
+                            <tr className="border-b border-[#ec8a5e]/30 text-indigo-950 font-medium bg-indigo-50/20">
+                              <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'} - Horas Nocturnas 🌙</td>
+                              <td className="text-right py-1">{totalHorasNoturnasCalculadas.toFixed(2)}</td>
+                              <td className="text-right py-1">{(totalValorNoturnasCalculadas / (totalHorasNoturnasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                              <td className="text-right py-1">0,00</td>
+                              <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                              <td className="text-right font-bold pr-3 py-1 text-indigo-950">{totalValorNoturnasCalculadas.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            </tr>
+                          </>
+                        ) : (
+                          <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
+                            <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
+                            <td className="text-right py-1">{totalHorasCalculadas.toFixed(2)}</td>
+                            <td className="text-right py-1">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="text-right py-1">0,00</td>
+                            <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                            <td className="text-right font-bold pr-3 py-1">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          </tr>
+                        )}
                         {Number(adjustments.incrementos) > 0 && (
                           <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
                             <td className="pl-3 py-1">{adjustments.incrementosDesc || 'Incremento Adicional'}</td>

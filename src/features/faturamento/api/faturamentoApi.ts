@@ -62,12 +62,15 @@ export interface HoraTrabalhada {
   hora_inicio: string;
   hora_fim: string;
   horas_totais: number;
+  horas_normais?: number | null;
+  horas_noturnas?: number | null;
   status: string;
   extraction_confidence: number | null;
   obra_id?: string | null;
   obra_name?: string | null;
   funcao_id?: string | null;
   tarifa_faturada?: number | null;
+  tarifa_faturada_noturna?: number | null;
   worker?: {
     nombrecompleto: string;
     codColab?: string;
