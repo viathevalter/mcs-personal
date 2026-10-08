@@ -4,24 +4,30 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { SolicitudTareaDetail } from '../types';
 
 export function useSolicitudTasks(solicitudId: string | undefined) {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, isHolding } = useEmpresa();
 
   return useQuery({
-    queryKey: ['solicitud-tasks', selectedEmpresaId, solicitudId],
+    queryKey: ['solicitud-tasks', selectedEmpresaId, isHolding, solicitudId],
     queryFn: async () => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
       if (!solicitudId) throw new Error('ID não fornecido');
 
-      const { data, error } = await supabase
+      let query = supabase
         .schema('core_operacoes')
         .from('solicitud_tareas')
         .select(`
           *,
           blocked_by_task:solicitud_tareas!blocked_by_task_id(id, title)
         `)
-        .eq('solicitud_id', solicitudId)
-        .eq('empresa_id', selectedEmpresaId)
-        .order('created_at', { ascending: true });
+        .eq('solicitud_id', solicitudId);
+
+      // Only restrict by empresa_id if user is NOT in holding mode
+      if (!isHolding && selectedEmpresaId) {
+        query = query.eq('empresa_id', selectedEmpresaId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: true });
+
+      if (error) throw error;
 
       const parentTaskIds = [...new Set((data || []).map((t: any) => t.blocked_by_task_id).filter(Boolean))];
       const { data: parentTasks } = parentTaskIds.length > 0
@@ -35,6 +41,6 @@ export function useSolicitudTasks(solicitudId: string | undefined) {
       }));
       return mapped as SolicitudTareaDetail[];
     },
-    enabled: !!selectedEmpresaId && !!solicitudId,
+    enabled: !!solicitudId,
   });
 }

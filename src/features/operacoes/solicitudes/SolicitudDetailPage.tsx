@@ -26,7 +26,7 @@ export function SolicitudDetailPage() {
 
   const [isResendModalOpen, setIsResendModalOpen] = useState(false);
   const [isRequestReplacementOpen, setIsRequestReplacementOpen] = useState(false);
-  const { data: solicitud, isLoading: loadingSolicitud, refetch: refetchSolicitud } = useSolicitudDetail(id);
+  const { data: solicitud, isLoading: loadingSolicitud, isError: errorSolicitud, refetch: refetchSolicitud } = useSolicitudDetail(id);
   const { data: tasks = [], isLoading: loadingTasks, refetch: refetchTasks } = useSolicitudTasks(id);
   const { data: timeline = [], isLoading: loadingTimeline, refetch: refetchTimeline } = useSolicitudTimeline(id);
   const { data: targets = [] } = useSolicitudTargets(id);
@@ -78,8 +78,18 @@ export function SolicitudDetailPage() {
     return <Layout><div className="p-8 text-center text-muted-foreground">{t('solicitud_detail.loading')}</div></Layout>;
   }
 
-  if (!solicitud) {
-    return <Layout><div className="p-8 text-center text-red-500">{t('solicitud_detail.not_found')}</div></Layout>;
+  if (errorSolicitud || !solicitud) {
+    return (
+      <Layout>
+        <div className="p-8 flex flex-col items-center justify-center space-y-4">
+          <p className="text-red-500 font-semibold">{t('solicitud_detail.not_found')}</p>
+          <Button variant="outline" onClick={() => navigate('/operacoes/solicitudes')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar
+          </Button>
+        </div>
+      </Layout>
+    );
   }
 
   return (

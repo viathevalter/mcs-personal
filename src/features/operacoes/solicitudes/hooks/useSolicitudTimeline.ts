@@ -4,28 +4,32 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { SolicitudTimeline } from '../types';
 
 export function useSolicitudTimeline(solicitudId: string | undefined) {
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, isHolding } = useEmpresa();
 
   return useQuery({
-    queryKey: ['solicitud-timeline', selectedEmpresaId, solicitudId],
+    queryKey: ['solicitud-timeline', selectedEmpresaId, isHolding, solicitudId],
     queryFn: async () => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
       if (!solicitudId) throw new Error('ID não fornecido');
 
-      const { data, error } = await supabase
+      let query = supabase
         .schema('core_operacoes')
         .from('solicitud_timeline')
         .select(`
           *,
           created_by_user:mcs_users!created_by(id, email)
         `)
-        .eq('solicitud_id', solicitudId)
-        .eq('empresa_id', selectedEmpresaId)
-        .order('created_at', { ascending: false });
+        .eq('solicitud_id', solicitudId);
+
+      // Only restrict by empresa_id if user is NOT in holding mode
+      if (!isHolding && selectedEmpresaId) {
+        query = query.eq('empresa_id', selectedEmpresaId);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
       return data as unknown as SolicitudTimeline[];
     },
-    enabled: !!selectedEmpresaId && !!solicitudId,
+    enabled: !!solicitudId,
   });
 }
