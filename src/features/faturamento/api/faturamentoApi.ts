@@ -379,16 +379,6 @@ export async function getHorasPendentesFaturamento(
     const clientsList = [...mappedClientsData];
     const uniqueClientNames = Array.from(new Set(activeWorkers.map(w => w.cliente_nombre).filter(Boolean)));
 
-    const normalizeName = (n?: string | null) => {
-      if (!n) return '';
-      return n
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]/g, '')
-        .replace(/(s[alr]u?|lda|unipessoal|su)$/g, '');
-    };
-
     for (const name of uniqueClientNames) {
       const exists = clientsList.some(c => {
         if (c.empresa_id !== empresaId) return false;
