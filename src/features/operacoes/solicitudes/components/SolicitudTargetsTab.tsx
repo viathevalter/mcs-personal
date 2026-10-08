@@ -4,16 +4,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { useSolicitudTargets } from '../hooks/useSolicitudTargets';
 import { useWorkerAssignments } from '../hooks/useWorkerAssignments';
+import { formatDateClean } from '@/shared/utils/dateUtils';
 
 function formatLocalDate(dateStr?: string | null): string {
     if (!dateStr) return '';
-    const cleanStr = dateStr.split('T')[0].split(' ')[0];
-    const parts = cleanStr.split('-');
-    if (parts.length === 3 && parts[0].length === 4) {
-        const [year, month, day] = parts;
-        return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
-    }
-    return dateStr;
+    return formatDateClean(dateStr);
 }
 
 export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
@@ -54,6 +49,8 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
         );
     }
 
+    const isOffboarding = solicitud?.tipo === 'offboarding' || displayItems.some((t: any) => t.action_type === 'offboard');
+
     return (
         <Card>
             <CardHeader>
@@ -73,6 +70,12 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                     <>
                                         <TableHead>Destino (Cliente / Obra)</TableHead>
                                         <TableHead>Alojamento / Logística</TableHead>
+                                    </>
+                                )}
+                                {isOffboarding && (
+                                    <>
+                                        <TableHead>Data da Saída</TableHead>
+                                        <TableHead>Motivo</TableHead>
                                     </>
                                 )}
                                 <TableHead>Ação</TableHead>
@@ -120,6 +123,16 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                                     ) : (
                                                         <span className="text-muted-foreground">Não</span>
                                                     )}
+                                                </TableCell>
+                                            </>
+                                        )}
+                                        {isOffboarding && (
+                                            <>
+                                                <TableCell className="text-xs font-bold whitespace-nowrap text-rose-700 dark:text-rose-400">
+                                                    📅 {solicitud?.due_date ? formatLocalDate(solicitud?.due_date) : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-700 dark:text-slate-300 max-w-[200px] leading-tight">
+                                                    {target.reason || solicitud?.reason || target.notes || '-'}
                                                 </TableCell>
                                             </>
                                         )}

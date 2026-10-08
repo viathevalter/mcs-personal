@@ -8,13 +8,14 @@ interface UseSolicitudesFilters {
   tipo?: string;
   priority?: string;
   search?: string;
+  empresa_id?: string;
 }
 
 export function useSolicitudes(filters?: UseSolicitudesFilters) {
   const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
 
   return useQuery({
-    queryKey: ['solicitudes', selectedEmpresaId, filters],
+    queryKey: ['solicitudes', selectedEmpresaId, activeEmpresaId, filters],
     queryFn: async () => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
 
@@ -24,7 +25,9 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (activeEmpresaId) {
+      if (filters?.empresa_id && filters.empresa_id !== 'all') {
+        query = query.eq('empresa_id', filters.empresa_id);
+      } else if (activeEmpresaId) {
         query = query.eq('empresa_id', activeEmpresaId);
       }
 
@@ -124,16 +127,32 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
 
       // Fetch date change events from timeline to identify postponements/extensions
       let dateChangesList: any[] = [];
+      let targetsList: any[] = [];
       const solicitudIds = solicitudes.map(s => s.id);
       if (solicitudIds.length > 0) {
-        const { data: dcData } = await supabase
-          .schema('core_operacoes')
-          .from('solicitud_timeline')
-          .select('solicitud_id, title')
-          .in('solicitud_id', solicitudIds)
-          .in('title', ['Início Adiado', 'Prazo Prorrogado']);
+        const [{ data: dcData }, { data: tData }] = await Promise.all([
+          supabase
+            .schema('core_operacoes')
+            .from('solicitud_timeline')
+            .select('solicitud_id, title')
+            .in('solicitud_id', solicitudIds)
+            .in('title', ['Início Adiado', 'Prazo Prorrogado']),
+          supabase
+            .schema('core_operacoes')
+            .from('solicitud_targets')
+            .select('id, solicitud_id, reason, notes, action_type, source_worker_id, target_worker_id')
+            .in('solicitud_id', solicitudIds)
+        ]);
         if (dcData) dateChangesList = dcData;
+        if (tData) targetsList = tData;
       }
+
+      const targetsMap = new Map<string, any>();
+      targetsList.forEach(t => {
+        if (!targetsMap.has(t.solicitud_id)) {
+          targetsMap.set(t.solicitud_id, t);
+        }
+      });
 
       return solicitudes.map(s => {
         const p = s.pedido_id ? pedidosMap.get(s.pedido_id) : null;
@@ -146,6 +165,8 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
         const resolvedClient = clientsMap.get(s.client_id || p?.client_id) || undefined;
         const resolvedSite = sitesMap.get(s.client_site_id || p?.client_site_id) || undefined;
         const resolvedEmpresa = empresasMap.get(s.empresa_id) || undefined;
+        const target = targetsMap.get(s.id);
+        const effectiveReason = s.reason || target?.reason || target?.notes || null;
 
         // Resolve Pedido details (fall back to Estimación details if no Pedido is created yet)
         const resolvedPedido = p ? {
@@ -168,6 +189,7 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
 
         return {
           ...s,
+          reason: effectiveReason,
           client: resolvedClient,
           client_site: resolvedSite,
           pedido: resolvedPedido,

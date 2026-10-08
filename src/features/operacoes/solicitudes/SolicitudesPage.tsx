@@ -8,6 +8,8 @@ import { ChevronDown, Search, Filter, RefreshCw } from 'lucide-react';
 import { Layout } from '@/components/layout/Layout';
 import { useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,11 +19,14 @@ import {
 
 export function SolicitudesPage() {
   const navigate = useNavigate();
+  const { empresas = [], isHolding } = useEmpresa();
+  const [selectedEmpresaFilter, setSelectedEmpresaFilter] = useState<string>('all');
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<string>('all');
   const { data: solicitudes = [], isLoading, refetch } = useSolicitudes({ 
     search, 
-    tipo: activeTab === 'all' ? undefined : activeTab 
+    tipo: activeTab === 'all' ? undefined : activeTab,
+    empresa_id: selectedEmpresaFilter === 'all' ? undefined : selectedEmpresaFilter
   });
 
   return (
@@ -110,15 +115,24 @@ export function SolicitudesPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <Button variant="outline" className="border-dashed">
-              <Filter className="mr-2 h-4 w-4" />
-              Filtros
-            </Button>
+            <div className="w-52">
+              <Select value={selectedEmpresaFilter} onValueChange={setSelectedEmpresaFilter}>
+                <SelectTrigger className="h-9 text-xs">
+                  <SelectValue placeholder="Todas as Empresas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as Empresas</SelectItem>
+                  {empresas.filter(e => !e.is_holding && e.codigo !== 'GRP').map(e => (
+                    <SelectItem key={e.id} value={e.id}>{e.trade_name || e.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
         <div className="flex-1 min-h-0">
-          <SolicitudesTable solicitudes={solicitudes} isLoading={isLoading} />
+          <SolicitudesTable solicitudes={solicitudes} isLoading={isLoading} activeTab={activeTab} />
         </div>
       </div>
     </Layout>

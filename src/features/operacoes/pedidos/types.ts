@@ -24,6 +24,7 @@ export interface Pedido {
   // Relacionamentos manuais (core_common)
   client?: any;
   client_site?: any;
+  empresa?: any;
 }
 
 export interface PedidoItem {

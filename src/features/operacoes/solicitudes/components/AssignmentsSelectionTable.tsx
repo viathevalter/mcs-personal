@@ -50,6 +50,7 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
               />
             </TableHead>
             <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Trabalhador</TableHead>
+            <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Empresa</TableHead>
             {!isCompact && <TableHead className="px-1.5 py-2 text-xs md:text-sm">Função</TableHead>}
             <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Pedido</TableHead>
             <TableHead className="px-1.5 py-2 text-xs md:text-sm">{isCompact ? 'Cliente / Obra' : 'Cliente'}</TableHead>
@@ -63,6 +64,7 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
           {assignments.map((assignment) => {
             const isSelected = selectedIds.includes(assignment.id);
             const workerName = assignment.worker?.nome || 'N/A';
+            const empresaName = assignment.empresa?.trade_name || assignment.empresa?.nome || assignment.worker?.contratante || '-';
             const clientSiteName = assignment.client_site?.name || 'N/A';
             const clientName = assignment.client?.trade_name || assignment.client?.legal_name || assignment.worker?.cliente || 'N/A';
             const jobFunctionName = assignment.job_function?.name || assignment.job_function_name_snapshot || 'N/A';
@@ -91,6 +93,11 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
                     )}
                   </div>
                   <div className="text-[10px] text-muted-foreground">ID: {assignment.worker?.cod_colab || 'N/A'}</div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap px-1.5 py-1.5 text-xs">
+                  <span className="font-semibold px-2 py-0.5 rounded text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    {empresaName}
+                  </span>
                 </TableCell>
                 {!isCompact && (
                   <TableCell className="px-1.5 py-1.5 text-xs md:text-sm leading-tight">

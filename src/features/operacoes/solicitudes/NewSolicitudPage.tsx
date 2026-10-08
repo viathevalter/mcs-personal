@@ -22,6 +22,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { useJobFunctions } from '@/features/master-data/job-functions/hooks/useJobFunctions';
 import { jobFunctionQuestionsApi } from '@/features/master-data/job-functions/api/jobFunctionQuestionsApi';
 import { formatDateClean } from '@/shared/utils/dateUtils';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 const DRAFT_STORAGE_KEY = 'mcs:new_solicitud_draft';
 
@@ -39,7 +40,8 @@ export function NewSolicitudPage() {
     const initialClientId = searchParams.get('client_id') || 'all';
     const initialSiteId = searchParams.get('site_id') || 'all';
     
-    const { selectedEmpresaId } = useEmpresa();
+    const { selectedEmpresaId, empresas = [], isHolding } = useEmpresa();
+    const [selectedEmpresaFilter, setSelectedEmpresaFilter] = useState<string>('all');
     const { user } = useAuth();
     const { data: clients = [] } = useClients();
     
@@ -173,8 +175,10 @@ export function NewSolicitudPage() {
     const [isDraftRestored, setIsDraftRestored] = useState(false);
     const [includeRecentBajas, setIncludeRecentBajas] = useState(false);
 
+    const activeEmpresaFilter = isHolding ? selectedEmpresaFilter : selectedEmpresaId;
+
     const { data: assignments = [] } = useWorkerAssignments({
-        empresa_id: selectedEmpresaId,
+        empresa_id: activeEmpresaFilter,
         client_id: null,
         client_site_id: null,
         pedido_id: null,
@@ -185,6 +189,17 @@ export function NewSolicitudPage() {
 
     const selectedClient = clients.find(c => c.id === selectedClientId);
     const selectedClientName = selectedClient?.trade_name || selectedClient?.legal_name || '';
+
+    const empresaOptions = React.useMemo(() => {
+        const operatingCompanies = empresas.filter(e => !e.is_holding && e.codigo !== 'GRP');
+        return [
+            { value: 'all', label: 'Todas as Empresas' },
+            ...operatingCompanies.map(e => ({
+                value: e.id,
+                label: e.trade_name || e.nome
+            }))
+        ];
+    }, [empresas]);
 
     const clientOptions = React.useMemo(() => {
         const list = clients
@@ -1085,6 +1100,19 @@ export function NewSolicitudPage() {
                 toast.error('Informe o motivo para continuar.');
                 return;
             }
+        } else if (actionType === 'offboarding') {
+            if (selectedAssignments.length === 0) {
+                toast.error('Selecione pelo menos um trabalhador na tabela.');
+                return;
+            }
+            if (!dueDate) {
+                toast.error('A Data Efetiva da Baixa (Data de Saída) é obrigatória.');
+                return;
+            }
+            if (!reason.trim()) {
+                toast.error('Informe o motivo do desligamento.');
+                return;
+            }
         } else {
             if (selectedAssignments.length === 0) {
                 toast.error('Selecione pelo menos um trabalhador na tabela.');
@@ -1163,15 +1191,19 @@ export function NewSolicitudPage() {
             });
         }
 
+        const effectiveEmpresaId = isHoldingId(selectedEmpresaId)
+            ? (firstAssignment?.empresa_id || (selectedEmpresaFilter !== 'all' ? selectedEmpresaFilter : null) || selectedPedido?.empresa_id || selectedEmpresaId)
+            : selectedEmpresaId;
+
         const payload = {
-            empresa_id: selectedEmpresaId,
+            empresa_id: effectiveEmpresaId,
             origin_pedido_id: originPedidoId,
             type: actionType,
             title: title || `Nova Solicitação de ${actionType}`,
             description: notes,
             reason: reason,
             priority: priority,
-            due_date: dueDate ? new Date(dueDate).toISOString() : null,
+            due_date: dueDate ? `${dueDate}T12:00:00.000Z` : null,
             client_id: clientId,
             client_site_id: clientSiteId,
             pergunta_respuesta: actionType === 'replacement' && Object.keys(pergunta_respuesta).length > 0 ? pergunta_respuesta : null,
@@ -1767,7 +1799,23 @@ export function NewSolicitudPage() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Empresa</label>
+                                        <Select 
+                                            value={selectedEmpresaFilter} 
+                                            onValueChange={setSelectedEmpresaFilter}
+                                        >
+                                            <SelectTrigger className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                                                <SelectValue placeholder="Todas as Empresas" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {empresaOptions.map(opt => (
+                                                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
                                         <Combobox
@@ -1942,9 +1990,12 @@ export function NewSolicitudPage() {
 
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                    {actionType === 'offboarding' ? 'Data Efetiva da Baixa (Data de Saída)' : 
-                                     actionType === 'relocation' ? 'Data de Início da Realocação' : 
-                                     actionType === 'order_postponement' ? (postponeOriginType === 'reemplazo' ? 'Nova Data de Início do Reemplazo' : 'Nova Data de Início da Obra') : 
+                                    {actionType === 'offboarding' ? (
+                                        <span>Data Efetiva da Baixa (Data de Saída) <span className="text-rose-500 font-bold">*</span></span>
+                                    ) : actionType === 'relocation' ? 'Data de Início da Realocação' : 
+                                     actionType === 'order_postponement' ? (
+                                        <span>{postponeOriginType === 'reemplazo' ? 'Nova Data de Início do Reemplazo' : 'Nova Data de Início da Obra'} <span className="text-amber-500 font-bold">*</span></span>
+                                     ) : 
                                      actionType === 'order_pause' ? 'Previsão Estimada de Retomada (Opcional - Deixe vazio se indefinida)' :
                                      actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
                                      actionType === 'order_termination' ? 'Data de Encerramento (Término da Obra)' : 
@@ -2244,6 +2295,7 @@ export function NewSolicitudPage() {
                                         : (selectedAssignments.length === 0)) ||
                                     !reason.trim() ||
                                     (actionType === 'order_postponement' && !dueDate) ||
+                                    (actionType === 'offboarding' && !dueDate) ||
                                     createSolicitudWithTargets.isPending ||
                                     isSubmitting
                                 }
@@ -2287,6 +2339,11 @@ export function NewSolicitudPage() {
                             {actionType === 'order_postponement' && !dueDate && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
                                     Informe a nova data de início.
+                                </p>
+                            )}
+                            {actionType === 'offboarding' && !dueDate && (
+                                <p className="text-xs text-center text-rose-600 dark:text-rose-400 mt-2 font-medium">
+                                    Informe a Data Efetiva da Baixa (Data de Saída).
                                 </p>
                             )}
                         </div>

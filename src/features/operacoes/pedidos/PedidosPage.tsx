@@ -7,17 +7,31 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { Search } from 'lucide-react';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 export function PedidosPage() {
+  const { empresas = [], isHolding } = useEmpresa();
   const [filters, setFilters] = useState({
     search: '',
     commercial_status: 'all',
     operational_status: 'all',
-    client_id: 'all'
+    client_id: 'all',
+    empresa_id: 'all'
   });
 
   const { data, isLoading } = usePedidos(filters);
   const { data: clients } = useClients();
+
+  const empresaOptions = useMemo(() => {
+    const operatingCompanies = empresas.filter(e => !e.is_holding && e.codigo !== 'GRP');
+    return [
+      { value: 'all', label: 'Todas as Empresas' },
+      ...operatingCompanies.map(e => ({
+        value: e.id,
+        label: e.trade_name || e.nome
+      }))
+    ];
+  }, [empresas]);
 
   const clientOptions = useMemo(() => {
     const list = (clients || [])
@@ -59,6 +73,23 @@ export function PedidosPage() {
               onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
             />
           </div>
+        </div>
+
+        <div className="space-y-1 w-full md:w-52">
+          <label className="text-xs font-medium text-muted-foreground">Empresa</label>
+          <Select 
+            value={filters.empresa_id} 
+            onValueChange={(val) => setFilters(f => ({ ...f, empresa_id: val }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Todas as Empresas" />
+            </SelectTrigger>
+            <SelectContent>
+              {empresaOptions.map(opt => (
+                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-1 w-full md:w-56">

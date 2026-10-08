@@ -34,6 +34,7 @@ export function PedidosTable({ pedidos, isLoading }: Props) {
           <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3 font-medium whitespace-nowrap">Código</th>
+              <th className="px-4 py-3 font-medium">Empresa</th>
               <th className="px-4 py-3 font-medium">Cliente / Obra</th>
               <th className="px-4 py-3 font-medium">Status Comercial</th>
               <th className="px-4 py-3 font-medium">Status Operacional</th>
@@ -54,6 +55,11 @@ export function PedidosTable({ pedidos, isLoading }: Props) {
                   <div className="text-xs font-normal text-muted-foreground mt-0.5">
                     {pedido.order_type === 'new_allocation' ? 'Nova Alocação' : pedido.order_type === 'expansion' ? 'Expansão' : 'Direto'}
                   </div>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap">
+                  <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    {pedido.empresa?.trade_name || pedido.empresa?.nome || '-'}
+                  </span>
                 </td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-900 dark:text-slate-200">{pedido.client?.trade_name || pedido.client?.legal_name || 'Desconhecido'}</div>

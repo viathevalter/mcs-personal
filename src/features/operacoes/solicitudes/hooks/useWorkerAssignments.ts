@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 export interface WorkerAssignmentFilters {
     empresa_id?: string | null;
@@ -13,9 +14,12 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
     return useQuery({
         queryKey: ['worker_assignments', filters],
         queryFn: async () => {
-            if (!filters.empresa_id) return [];
+            const isHolding = isHoldingId(filters.empresa_id) || filters.empresa_id === 'all';
+            const effectiveEmpresaId = isHolding ? null : filters.empresa_id;
 
-            console.log('--- DEBUG: useWorkerAssignments ---', filters);
+            if (!filters.empresa_id && !isHolding) return [];
+
+            console.log('--- DEBUG: useWorkerAssignments ---', { filters, isHolding, effectiveEmpresaId });
             let query = supabase
                 .schema('core_personal')
                 .from('worker_assignments')
@@ -27,8 +31,11 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                         worker:workers(id, nome)
                     )
                 `)
-                .eq('empresa_id', filters.empresa_id)
                 .in('status', ['planned', 'active']); // Ativos ou planejados
+
+            if (effectiveEmpresaId) {
+                query = query.eq('empresa_id', effectiveEmpresaId);
+            }
 
             if (filters.client_id) {
                 query = query.eq('client_id', filters.client_id);
@@ -74,8 +81,8 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                     .eq('action_type', 'offboard')
                     .gte('created_at', dateStr);
 
-                if (filters.empresa_id) {
-                    offboardQuery = offboardQuery.eq('empresa_id', filters.empresa_id);
+                if (effectiveEmpresaId) {
+                    offboardQuery = offboardQuery.eq('empresa_id', effectiveEmpresaId);
                 }
                 if (filters.client_id) {
                     offboardQuery = offboardQuery.eq('source_client_id', filters.client_id);
@@ -89,10 +96,12 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                         *,
                         worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, data_baixa, data_ingresso)
                     `)
-                    .eq('empresa_id', filters.empresa_id)
                     .eq('status', 'terminated')
                     .gte('updated_at', dateStr);
 
+                if (effectiveEmpresaId) {
+                    termQuery = termQuery.eq('empresa_id', effectiveEmpresaId);
+                }
                 if (filters.client_id) {
                     termQuery = termQuery.eq('client_id', filters.client_id);
                 }
@@ -113,9 +122,9 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                 siteIds.length > 0
                   ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
                   : Promise.resolve({ data: [] }),
-                supabase.schema('core_common').from('empresas').select('id, nome'),
+                supabase.schema('core_common').from('empresas').select('id, nome, trade_name'),
                 supabase.schema('core_personal').rpc('get_hours_control_workers', {
-                    p_empresa_id: filters.empresa_id,
+                    p_empresa_id: effectiveEmpresaId,
                     p_period_year: new Date().getFullYear(),
                     p_period_month: new Date().getMonth() + 1,
                     p_contratante: null,
@@ -195,10 +204,17 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                         } : null,
                         client_site: null,
                         pedido: null,
-                        empresa: {
-                            id: filters.empresa_id,
-                            nome: empresasMap.get(filters.empresa_id)?.nome || ''
-                        },
+                        empresa: (() => {
+                            const matchedWorkerEmpresa = allEmpresas.find(e => 
+                                (w.contratante && normalizeString(e.nome).includes(normalizeString(w.contratante))) ||
+                                (w.contratante && normalizeString(e.trade_name || '').includes(normalizeString(w.contratante))) ||
+                                (w.contratante && normalizeString(w.contratante).includes(normalizeString(e.nome)))
+                            ) || empresasMap.get(effectiveEmpresaId || filters.empresa_id);
+                            return matchedWorkerEmpresa || {
+                                id: effectiveEmpresaId || filters.empresa_id,
+                                nome: w.contratante || empresasMap.get(filters.empresa_id)?.nome || ''
+                            };
+                        })(),
                         replaced_assignment: null
                     };
                 })
@@ -340,10 +356,10 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                 });
 
                 // 3. Process direct worker bajas (workers marked with data_baixa in core_personal.workers)
-                const selectedEmpresaNome = empresasMap.get(filters.empresa_id)?.nome || '';
+                const selectedEmpresaNome = effectiveEmpresaId ? (empresasMap.get(effectiveEmpresaId)?.nome || '') : '';
                 directBajasWorkers.forEach((w: any) => {
                     if (w.id && !existingWorkerIds.has(w.id)) {
-                        const matchesEmpresa = !filters.empresa_id || !w.contratante || !selectedEmpresaNome || 
+                        const matchesEmpresa = isHolding || !effectiveEmpresaId || !w.contratante || !selectedEmpresaNome || 
                             normalizeString(selectedEmpresaNome).includes(normalizeString(w.contratante)) || 
                             normalizeString(w.contratante).includes(normalizeString(selectedEmpresaNome));
 
@@ -370,9 +386,15 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                                 legal_name: w.cliente
                             } : null);
 
+                            const matchedWorkerEmpresa = allEmpresas.find(e => 
+                                (w.contratante && normalizeString(e.nome).includes(normalizeString(w.contratante))) || 
+                                (w.contratante && normalizeString(e.trade_name || '').includes(normalizeString(w.contratante))) ||
+                                (w.contratante && normalizeString(w.contratante).includes(normalizeString(e.nome)))
+                            ) || empresasMap.get(effectiveEmpresaId || filters.empresa_id);
+
                             recentBajasList.push({
                                 id: `baja-worker-${w.id}`,
-                                empresa_id: filters.empresa_id,
+                                empresa_id: matchedWorkerEmpresa?.id || effectiveEmpresaId || filters.empresa_id,
                                 worker_id: w.id,
                                 job_function_name_snapshot: w.funcion || 'Trabalhador',
                                 client_id: clientObj?.id || null,
@@ -401,9 +423,9 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                                 client: clientObj,
                                 client_site: null,
                                 pedido: null,
-                                empresa: {
+                                empresa: matchedWorkerEmpresa || {
                                     id: filters.empresa_id,
-                                    nome: selectedEmpresaNome
+                                    nome: selectedEmpresaNome || w.contratante || ''
                                 },
                                 replaced_assignment: null
                             });
@@ -414,6 +436,6 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
 
             return [...mappedRealAssignments, ...virtualAssignments, ...recentBajasList];
         },
-        enabled: !!filters.empresa_id,
+        enabled: !!filters.empresa_id || isHoldingId(filters.empresa_id) || filters.empresa_id === 'all',
     });
 }

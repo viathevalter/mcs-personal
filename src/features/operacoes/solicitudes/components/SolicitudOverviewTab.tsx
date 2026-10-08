@@ -3,6 +3,7 @@ import type { SolicitudDetail } from '../types';
 import { SolicitudStatusBadge } from './SolicitudStatusBadge';
 import { SolicitudTypeBadge } from './SolicitudTypeBadge';
 import { format } from 'date-fns';
+import { formatDateClean } from '@/shared/utils/dateUtils';
 
 interface Props {
   solicitud: SolicitudDetail;
@@ -37,6 +38,34 @@ export function SolicitudOverviewTab({ solicitud }: Props) {
                 <SolicitudStatusBadge status={solicitud.status} />
               </div>
             </div>
+            {solicitud.due_date && (
+              <div className="col-span-1">
+                <p className="text-sm font-medium text-muted-foreground">
+                  {solicitud.tipo === 'offboarding' ? 'Data Efetiva da Baixa (Data de Saída)' : 'Data Prevista / Efetiva'}
+                </p>
+                <p className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 mt-0.5">
+                  📅 {formatDateClean(solicitud.due_date)}
+                </p>
+              </div>
+            )}
+            {solicitud.empresa && (
+              <div className="col-span-1">
+                <p className="text-sm font-medium text-muted-foreground">Empresa Interna</p>
+                <p className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+                  {solicitud.empresa?.trade_name || solicitud.empresa?.nome || 'N/A'}
+                </p>
+              </div>
+            )}
+            {solicitud.reason && (
+              <div className="col-span-2">
+                <p className="text-sm font-medium text-muted-foreground">
+                  {solicitud.tipo === 'offboarding' ? 'Motivo do Desligamento' : 'Motivo da Solicitação'}
+                </p>
+                <p className="text-base font-medium text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-md border border-slate-200 dark:border-slate-800 mt-1">
+                  {solicitud.reason}
+                </p>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

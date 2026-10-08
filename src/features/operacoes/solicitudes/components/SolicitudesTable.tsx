@@ -17,9 +17,10 @@ import { Button } from '@/components/ui/button';
 interface Props {
   solicitudes: SolicitudDetail[];
   isLoading: boolean;
+  activeTab?: string;
 }
 
-export function SolicitudesTable({ solicitudes, isLoading }: Props) {
+export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
   const navigate = useNavigate();
 
   if (isLoading) {
@@ -124,8 +125,8 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
             <TableHead>Pedido</TableHead>
             <TableHead>Empresa Interna</TableHead>
             <TableHead>Cliente / Obra</TableHead>
-            <TableHead>Data de Início</TableHead>
-            <TableHead>Prazo da Obra</TableHead>
+            <TableHead>{activeTab === 'offboarding' ? 'Data da Baixa (Saída)' : 'Data de Início'}</TableHead>
+            <TableHead>{activeTab === 'offboarding' ? 'Motivo do Desligamento' : 'Prazo da Obra'}</TableHead>
             <TableHead>Status Operacional</TableHead>
             <TableHead>Prioridade</TableHead>
             <TableHead className="text-right">Ações</TableHead>
@@ -184,7 +185,14 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
                   </div>
                 </TableCell>
                 <TableCell className="text-slate-700 dark:text-slate-350 font-medium font-mono text-xs">
-                  {(solicitud.tipo === 'order_postponement' || solicitud.has_postponement) && (solicitud.due_date || solicitud.pedido?.fecha_inicio_pedido) ? (
+                  {solicitud.tipo === 'offboarding' ? (
+                    <div className="flex flex-col space-y-1">
+                      <span className="text-xs font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-955/30 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900/50 w-max flex items-center gap-1 shadow-sm font-sans">
+                        📅 {solicitud.due_date ? formatDateClean(solicitud.due_date) : 'N/A'}
+                      </span>
+                      <span className="text-[9px] text-rose-600 dark:text-rose-500 font-bold uppercase tracking-wider font-sans">Data da Saída</span>
+                    </div>
+                  ) : (solicitud.tipo === 'order_postponement' || solicitud.has_postponement) && (solicitud.due_date || solicitud.pedido?.fecha_inicio_pedido) ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-955/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 w-max flex items-center gap-1 shadow-sm font-sans">
                         📅 {formatDateClean(solicitud.due_date || solicitud.pedido!.fecha_inicio_pedido)}
@@ -198,7 +206,14 @@ export function SolicitudesTable({ solicitudes, isLoading }: Props) {
                   ) : 'N/A'}
                 </TableCell>
                 <TableCell>
-                  {(solicitud.tipo === 'order_extension' || solicitud.has_extension) && (solicitud.due_date || solicitud.pedido?.fecha_fin_pedido) ? (
+                  {solicitud.tipo === 'offboarding' ? (
+                    <div className="flex flex-col space-y-0.5 max-w-[220px]" title={solicitud.reason || 'Desligamento solicitado'}>
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        {solicitud.reason || 'Desligamento solicitado'}
+                      </span>
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">Motivo</span>
+                    </div>
+                  ) : (solicitud.tipo === 'order_extension' || solicitud.has_extension) && (solicitud.due_date || solicitud.pedido?.fecha_fin_pedido) ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-955/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50 w-max flex items-center gap-1 shadow-sm">
                         📅 {formatDateClean(solicitud.due_date || solicitud.pedido!.fecha_fin_pedido)}
