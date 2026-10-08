@@ -21,8 +21,10 @@ import {
   deepMergeDisputedHours,
   normalizeDisputedHoursMap,
   getDisputedHourProposed,
-  computeDisputeTotalsAndCells
+  computeDisputeTotalsAndCells,
+  resolveWorkerStartDate
 } from '../api/faturamentoApi';
+import { formatDateClean } from '@/shared/utils/dateUtils';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -375,9 +377,40 @@ export function FaturasTracking() {
         const { data: wData } = await supabase
           .schema('core_personal')
           .from('workers')
-          .select('id, nome')
+          .select('id, nome, cod_colab, status_trabajador, data_ingresso, data_baixa, data_alta_seguridad, cliente')
           .in('id', workerIds);
-        workersMap = new Map((wData || []).map(w => [w.id, w]));
+
+        const codColabs = (wData || []).map((w: any) => w.cod_colab).filter(Boolean);
+        let disputeAllocs: any[] = [];
+        if (codColabs.length > 0) {
+          const { data: aData } = await supabase
+            .schema('core_personal')
+            .from('vw_worker_allocations')
+            .select('cod_colab, cliente_nombre, fechainiciopedido')
+            .in('cod_colab', codColabs);
+          disputeAllocs = aData || [];
+        }
+
+        const clientTradeName = fatura.client?.trade_name || fatura.client?.nombre_comercial || '';
+
+        workersMap = new Map((wData || []).map((w: any) => {
+          const wHours = (data || []).filter((h: any) => h.worker_id === w.id);
+          const dataInicio = resolveWorkerStartDate(
+            w.id,
+            w.cod_colab,
+            clientTradeName,
+            w,
+            disputeAllocs,
+            wHours
+          );
+
+          return [w.id, {
+            ...w,
+            workerStatus: w.status_trabajador || 'Ativo',
+            dataBaixa: w.data_baixa || null,
+            dataInicio: dataInicio || null
+          }];
+        }));
       }
       
       const obraIds = Array.from(new Set((data || []).map((h: any) => h.obra_id).filter(Boolean)));
@@ -3806,7 +3839,28 @@ MCS - Gestão Comercial`;
 
                                   return (
                                     <TableRow key={worker.workerId} className="hover:bg-slate-50/50">
-                                      <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4 py-3 text-xs">{worker.workerName}</TableCell>
+                                      <TableCell className="font-semibold text-slate-800 dark:text-slate-200 pl-4 py-3 text-xs align-top">
+                                        <div className="flex flex-col gap-1">
+                                          <span>{worker.workerName}</span>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            {worker.workerStatus && (
+                                              <Badge 
+                                                variant={worker.workerStatus.toUpperCase().includes('INAT') || worker.workerStatus.toUpperCase().includes('BAIXA') ? 'destructive' : 'outline'} 
+                                                className={`w-fit text-[9px] px-1.5 py-0 h-4 font-bold ${!worker.workerStatus.toUpperCase().includes('INAT') && !worker.workerStatus.toUpperCase().includes('BAIXA') ? 'text-green-600 border-green-200 bg-green-50' : ''}`}
+                                              >
+                                                {worker.workerStatus.toUpperCase().includes('INAT') || worker.workerStatus.toUpperCase().includes('BAIXA')
+                                                  ? `Inativo${worker.dataBaixa ? ` em ${formatDateClean(worker.dataBaixa)}` : ''}`
+                                                  : 'Ativo'}
+                                              </Badge>
+                                            )}
+                                            {worker.dataInicio && (
+                                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                                • Início: {formatDateClean(worker.dataInicio)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </TableCell>
                                       {disputeDaysArray.map(day => {
                                         const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                                         const originalVal = worker.horasDiariasOriginal[dateKey] || 0;
@@ -4104,7 +4158,16 @@ MCS - Gestão Comercial`;
                                     }
                                     return (
                                       <TableRow key={w.workerId}>
-                                        <TableCell className="font-semibold text-slate-800 pl-4">{w.workerName}</TableCell>
+                                        <TableCell className="font-semibold text-slate-800 pl-4 align-top">
+                                          <div className="flex flex-col gap-0.5">
+                                            <span>{w.workerName}</span>
+                                            {w.dataInicio && (
+                                              <span className="text-[9.5px] text-slate-500 font-normal">
+                                                Início: {formatDateClean(w.dataInicio)}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </TableCell>
                                         <TableCell className="text-right font-medium text-slate-800">{w.totalHoras.toFixed(2)}h</TableCell>
                                         <TableCell className="text-right font-medium text-slate-800">€ {w.tarifa.toFixed(2)}</TableCell>
                                         <TableCell className="text-right font-bold text-slate-800 pr-4">€ {(w.totalValor > 0 ? w.totalValor : (w.totalHoras * w.tarifa)).toLocaleString('pt-PT', { minimumFractionDigits: 2 })}</TableCell>

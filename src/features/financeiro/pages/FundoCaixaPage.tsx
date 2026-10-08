@@ -300,12 +300,12 @@ export default function FundoCaixaPage() {
         }
     };
 
-    // Copiar Link do Trabalhador
+    // Copiar Link do Funcionário
     const copyWorkerLink = (caixa: CaixaDespesa) => {
-        const link = `${window.location.origin}/portal/fundo-caixa?caixaId=${caixa.id}`;
+        const link = `${window.location.origin}/meu-caixa?caixaId=${caixa.id}`;
         navigator.clipboard.writeText(link);
-        toast.success('Link do Trabalhador copiado! Envie pelo WhatsApp ou E-mail.', {
-            description: link
+        toast.success('Link do Funcionário copiado!', {
+            description: `O colaborador pode acessar com login e senha: ${link}`
         });
     };
 
@@ -761,7 +761,7 @@ export default function FundoCaixaPage() {
 
                         <div>
                             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                Colaborador Responsável *
+                                Funcionário do Escritório *
                             </label>
                             <select
                                 value={formNovoCaixa.trabajador_id}
@@ -769,17 +769,10 @@ export default function FundoCaixaPage() {
                                 required
                                 className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
                             >
-                                <option value="">Selecione um colaborador...</option>
-                                <optgroup label="Escritório / Administrativo">
-                                    {colaboradores.filter(c => c.tipo === 'escritorio').map(c => (
-                                        <option key={c.id} value={c.id}>{c.nome} ({c.identificador})</option>
-                                    ))}
-                                </optgroup>
-                                <optgroup label="Trabalhadores / Motoristas">
-                                    {colaboradores.filter(c => c.tipo === 'campo').map(c => (
-                                        <option key={c.id} value={c.id}>{c.nome} ({c.identificador})</option>
-                                    ))}
-                                </optgroup>
+                                <option value="">Selecione o funcionário do escritório...</option>
+                                {colaboradores.map(c => (
+                                    <option key={c.id} value={c.id}>{c.nome} ({c.identificador})</option>
+                                ))}
                             </select>
                         </div>
 

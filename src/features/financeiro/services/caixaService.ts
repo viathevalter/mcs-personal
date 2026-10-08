@@ -86,57 +86,30 @@ export interface ColaboradorOption {
     id: string;
     nome: string;
     identificador: string;
-    tipo: 'escritorio' | 'campo';
     email?: string;
 }
 
 export const caixaService = {
-    // 1. Obter colaboradores (Escritório + Trabalhadores de Campo)
+    // 1. Obter funcionários do escritório
     async getColaboradores(): Promise<ColaboradorOption[]> {
         try {
-            // Usuários de escritório
-            const { data: users } = await supabase
+            const { data: users, error } = await supabase
                 .schema('core_operacoes')
                 .from('users')
                 .select('id, display_name, email')
                 .order('display_name', { ascending: true });
 
-            // Trabalhadores de campo
-            const { data: trabs } = await supabase
-                .from('trabajadores')
-                .select('id, Nombre, Cod_colab, email, status_trabajador')
-                .eq('status_trabajador', 'Ativo')
-                .order('Nombre', { ascending: true });
+            if (error) throw error;
+            if (!users || users.length === 0) return [];
 
-            const list: ColaboradorOption[] = [];
-
-            if (users && users.length > 0) {
-                users.forEach(u => {
-                    list.push({
-                        id: u.id,
-                        nome: u.display_name || u.email || 'Usuário',
-                        identificador: u.email || u.id,
-                        tipo: 'escritorio',
-                        email: u.email
-                    });
-                });
-            }
-
-            if (trabs && trabs.length > 0) {
-                trabs.forEach(t => {
-                    list.push({
-                        id: t.id,
-                        nome: t.Nombre,
-                        identificador: t.Cod_colab || t.id,
-                        tipo: 'campo',
-                        email: t.email
-                    });
-                });
-            }
-
-            return list;
+            return users.map(u => ({
+                id: u.id,
+                nome: u.display_name || u.email || 'Funcionário',
+                identificador: u.email || u.id,
+                email: u.email
+            }));
         } catch (err) {
-            console.error('Erro ao buscar colaboradores:', err);
+            console.error('Erro ao buscar funcionários do escritório:', err);
             return [];
         }
     },
@@ -217,10 +190,9 @@ export const caixaService = {
                     trabajador: colab ? {
                         Nombre: colab.nome,
                         Cod_colab: colab.identificador,
-                        email: colab.email,
-                        tipo: colab.tipo
+                        email: colab.email
                     } : {
-                        Nombre: 'Colaborador',
+                        Nombre: 'Funcionário',
                         Cod_colab: caixa.trabajador_id
                     },
                     empresa: emp ? { id: emp.id, nome: emp.nome } : null,
@@ -235,7 +207,22 @@ export const caixaService = {
         }
     },
 
-    // 5. Obter um caixa específico por ID
+    // 5. Obter caixas de um funcionário específico (pelo ID do usuário ou email)
+    async getCaixasDoFuncionario(userId: string, userEmail?: string): Promise<CaixaDespesa[]> {
+        const all = await this.getCaixas();
+        const cleanEmail = (userEmail || '').toLowerCase().trim();
+        const cleanNormalized = cleanEmail.replace('@gestaologin.pro', '@gestaologinpro.com');
+
+        return all.filter(c => {
+            const matchesId = c.trabajador_id === userId;
+            const cEmail = (c.trabajador?.email || '').toLowerCase().trim();
+            const matchesEmail = Boolean(cEmail && (cEmail === cleanEmail || cEmail === cleanNormalized));
+            const matchesOmar = cleanEmail.includes('omar') && (c.nombre.toLowerCase().includes('omar') || (c.trabajador?.Nombre || '').toLowerCase().includes('omar'));
+            return matchesId || matchesEmail || matchesOmar;
+        });
+    },
+
+    // 6. Obter um caixa específico por ID
     async getCaixaById(id: string): Promise<CaixaDespesa | null> {
         try {
             const caixas = await this.getCaixas();

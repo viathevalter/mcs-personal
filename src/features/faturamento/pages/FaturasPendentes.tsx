@@ -57,6 +57,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useEmpresa } from '../../../app/providers/EmpresaProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { formatDateClean } from '@/shared/utils/dateUtils';
 
 export const getBillingCycleDays = (startDay: number, year: number, monthIndex: number) => {
   const days: Array<{ day: number; month: number; year: number; dateStr: string; label: string; monthLabel: string }> = [];
@@ -3867,7 +3868,7 @@ MCS - Gestão Comercial`;
                                           </Badge>
                                         )}
                                       </div>
-                                      {/* Exibição do Status do Trabalhador */}
+                                      {/* Exibição do Status do Trabalhador e Data de Início */}
                                       {(() => {
                                         const rawStatus = worker.workerStatus?.toUpperCase() || '';
                                         let displayStatus = rawStatus;
@@ -3881,20 +3882,40 @@ MCS - Gestão Comercial`;
                                           }
                                         }
 
+                                        const formattedInicio = worker.dataInicio ? formatDateClean(worker.dataInicio) : null;
+
                                         if (displayStatus === 'INATIVO' || displayStatus === 'BAIXA') {
                                           return (
-                                            <Badge variant="destructive" className="w-fit text-[9px] px-1.5 py-0 h-4.5 font-bold">
-                                              Inativo {worker.dataBaixa ? `em ${new Date(worker.dataBaixa + 'T00:00:00').toLocaleDateString('pt-PT')}` : ''}
-                                            </Badge>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <Badge variant="destructive" className="w-fit text-[9px] px-1.5 py-0 h-4.5 font-bold">
+                                                Inativo {worker.dataBaixa ? `em ${formatDateClean(worker.dataBaixa)}` : ''}
+                                              </Badge>
+                                              {formattedInicio && (
+                                                <span className="text-[10px] text-slate-500 font-medium">
+                                                  • Início: {formattedInicio}
+                                                </span>
+                                              )}
+                                            </div>
                                           );
                                         } else if (displayStatus === 'ATIVO') {
                                           return (
-                                            <Badge variant="outline" className="w-fit text-[9px] px-1.5 py-0 h-4.5 font-bold text-green-600 border-green-200 bg-green-50" title={isHistoricalActive ? "Trabalhador inativado posteriormente" : undefined}>
-                                              {isHistoricalActive ? 'Ativo' : worker.workerStatus || 'Ativo'}
-                                            </Badge>
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <Badge variant="outline" className="w-fit text-[9px] px-1.5 py-0 h-4.5 font-bold text-green-600 border-green-200 bg-green-50" title={isHistoricalActive ? "Trabalhador inativado posteriormente" : undefined}>
+                                                {isHistoricalActive ? 'Ativo' : worker.workerStatus || 'Ativo'}
+                                              </Badge>
+                                              {formattedInicio && (
+                                                <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">
+                                                  • Início: {formattedInicio}
+                                                </span>
+                                              )}
+                                            </div>
                                           );
                                         }
-                                        return null;
+                                        return formattedInicio ? (
+                                          <span className="text-[10px] text-slate-500 font-medium">
+                                            Início: {formattedInicio}
+                                          </span>
+                                        ) : null;
                                       })()}
 
                                       {/* Exibição das Anotações / Observações */}
@@ -4126,7 +4147,25 @@ MCS - Gestão Comercial`;
                               const workerTotal = Object.values(worker.horasDiarias).reduce((sum, h: any) => sum + Number(h?.horas_totais || 0), 0);
                               return (
                                 <TableRow key={worker.workerId} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
-                                  <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200 pl-4 py-3">{worker.workerName}</TableCell>
+                                  <TableCell className="font-semibold text-xs text-slate-800 dark:text-slate-200 pl-4 py-3 align-top">
+                                    <div className="flex flex-col gap-1">
+                                      <span>{worker.workerName}</span>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        {worker.workerStatus && (
+                                          <Badge variant={worker.workerStatus.toUpperCase().includes('INAT') || worker.workerStatus.toUpperCase().includes('BAIXA') ? 'destructive' : 'outline'} className={`w-fit text-[9px] px-1.5 py-0 h-4 font-bold ${!worker.workerStatus.toUpperCase().includes('INAT') && !worker.workerStatus.toUpperCase().includes('BAIXA') ? 'text-green-600 border-green-200 bg-green-50' : ''}`}>
+                                            {worker.workerStatus.toUpperCase().includes('INAT') || worker.workerStatus.toUpperCase().includes('BAIXA')
+                                              ? `Inativo${worker.dataBaixa ? ` em ${formatDateClean(worker.dataBaixa)}` : ''}`
+                                              : 'Ativo'}
+                                          </Badge>
+                                        )}
+                                        {worker.dataInicio && (
+                                          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                                            • Início: {formatDateClean(worker.dataInicio)}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </TableCell>
                                   {daysArray.map(dInfo => {
                                     const dateKey = dInfo.dateStr;
                                     const hourObj = worker.horasDiarias[dateKey] as any;
