@@ -41,7 +41,12 @@ export function DailyEntryModal({
     if (!isOpen) return null;
 
     const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
-    const dateObj = new Date(year, month - 1, dayNumber);
+    const parsedDay = typeof dayNumber === 'object' && dayNumber !== null
+        ? Number((dayNumber as any).dia ?? (dayNumber as any).day ?? 1)
+        : Number(dayNumber);
+    const validDay = Number.isFinite(parsedDay) && parsedDay >= 1 && parsedDay <= 31 ? parsedDay : 1;
+
+    const dateObj = new Date(year, month - 1, validDay);
     const locale = isSpanish ? 'es-ES' : 'pt-PT';
     const weekdayName = dateObj.toLocaleDateString(locale, { weekday: 'long' });
     const monthName = dateObj.toLocaleDateString(locale, { month: 'long' });
@@ -86,7 +91,7 @@ export function DailyEntryModal({
             setObra(preferredObra);
             setObs(isWeekend ? (isSpanish ? 'Descanso' : 'Descanso') : '');
         }
-    }, [dayNumber, initialEntry, defaultObra, availableObras]);
+    }, [validDay, initialEntry, defaultObra, availableObras]);
 
     // Atalhos de horas
     const handleQuickHours = (hrs: number) => {
@@ -131,7 +136,7 @@ export function DailyEntryModal({
             const noturnas = isNoturno ? totalHoras : 0;
 
             const entryToSave: TimesheetDayEntry = {
-                dia: dayNumber,
+                dia: validDay,
                 entrada: entrada.trim(),
                 saida: saida.trim(),
                 horasNormais: normais,
@@ -155,7 +160,7 @@ export function DailyEntryModal({
         if (!onDelete) return;
         try {
             setSaving(true);
-            await onDelete(dayNumber);
+            await onDelete(validDay);
             onClose();
         } catch (err) {
             console.error('Erro ao eliminar:', err);
@@ -198,8 +203,8 @@ export function DailyEntryModal({
                         <div className="flex items-center justify-between bg-emerald-50/70 border border-emerald-100/80 rounded-xl px-3 py-1.5 text-emerald-950 shadow-2xs">
                             <button
                                 type="button"
-                                disabled={dayNumber <= 1}
-                                onClick={() => onNavigateDay && onNavigateDay(dayNumber - 1)}
+                                disabled={validDay <= 1}
+                                onClick={() => onNavigateDay && onNavigateDay(validDay - 1)}
                                 className="p-1 rounded-lg text-emerald-800 hover:bg-emerald-100/70 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                             >
                                 <ChevronLeft className="h-4 w-4" />
@@ -210,14 +215,14 @@ export function DailyEntryModal({
                                     {weekdayName}
                                 </span>
                                 <span className="text-sm font-black text-slate-900 leading-tight">
-                                    {String(dayNumber).padStart(2, '0')} {monthName} {year}
+                                    {String(validDay).padStart(2, '0')} {monthName} {year}
                                 </span>
                             </div>
 
                             <button
                                 type="button"
-                                disabled={dayNumber >= maxDaysInMonth}
-                                onClick={() => onNavigateDay && onNavigateDay(dayNumber + 1)}
+                                disabled={validDay >= maxDaysInMonth}
+                                onClick={() => onNavigateDay && onNavigateDay(validDay + 1)}
                                 className="p-1 rounded-lg text-emerald-800 hover:bg-emerald-100/70 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                             >
                                 <ChevronRight className="h-4 w-4" />

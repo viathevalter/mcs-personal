@@ -318,7 +318,7 @@ export function useWorkerTimesheet(workerAuth: any) {
     }, [days, selectedPeriod, now]);
 
     // Primeiro dia pendente antes de hoje (para o banner de alerta)
-    const firstPendingDay = useMemo(() => {
+    const firstPendingDay = useMemo<number | null>(() => {
         if (!selectedPeriod) return null;
         const yesterday = new Date(now);
         yesterday.setDate(now.getDate() - 1);
@@ -331,16 +331,22 @@ export function useWorkerTimesheet(workerAuth: any) {
         });
 
         if (pastPending.length === 0) return null;
-        // Retornar o mais recente pendente
-        return pastPending[pastPending.length - 1];
+        // Retornar o número do dia mais recente pendente
+        return Number(pastPending[pastPending.length - 1].dia);
     }, [days, selectedPeriod, now]);
 
     // SALVAR APONTAMENTO DIÁRIO
     const saveDayEntry = async (entry: TimesheetDayEntry) => {
         if (!selectedPeriod) return;
 
+        const targetDia = Number(entry.dia);
+        const cleanEntry: TimesheetDayEntry = {
+            ...entry,
+            dia: targetDia
+        };
+
         // Atualizar lista local de dias
-        const updatedDays = days.map(d => d.dia === entry.dia ? entry : d);
+        const updatedDays = days.map(d => Number(d.dia) === targetDia ? cleanEntry : d);
         
         // Calcular totais
         const normais = updatedDays.reduce((acc, d) => acc + Number(d.horasNormais || 0), 0);

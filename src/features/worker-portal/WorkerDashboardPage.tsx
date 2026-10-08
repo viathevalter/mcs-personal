@@ -119,9 +119,12 @@ export function WorkerDashboardPage() {
         return d.toLocaleDateString(locale, { month: 'long' });
     }, [currentYear, currentMonth, locale]);
 
-    // Abertura do modal para um dia específico
-    const handleOpenDailyModal = (day: number) => {
-        setModalDay(day);
+    // Abertura do modal para um dia específico (garantir sempre número inteiro de 1 a 31)
+    const handleOpenDailyModal = (day: number | any) => {
+        const parsed = typeof day === 'object' && day !== null 
+            ? Number(day.dia ?? day.day ?? 1) 
+            : Number(day);
+        setModalDay(Number.isFinite(parsed) ? parsed : 1);
     };
 
     // Download rápido direto do PDF
