@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { usePedidos } from './hooks/usePedidos';
 import { PedidoKpiCards } from './components/PedidoKpiCards';
 import { PedidosTable } from './components/PedidosTable';
@@ -10,6 +11,7 @@ import { useClients } from '@/features/master-data/clients/hooks/useClients';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 export function PedidosPage() {
+  const { t } = useTranslation();
   const { empresas = [], isHolding } = useEmpresa();
   const [filters, setFilters] = useState({
     search: '',
@@ -25,13 +27,13 @@ export function PedidosPage() {
   const empresaOptions = useMemo(() => {
     const operatingCompanies = empresas.filter(e => !e.is_holding && e.codigo !== 'GRP');
     return [
-      { value: 'all', label: 'Todas as Empresas' },
+      { value: 'all', label: t('cockpit_pedidos.all_companies') },
       ...operatingCompanies.map(e => ({
         value: e.id,
         label: e.trade_name || e.nome
       }))
     ];
-  }, [empresas]);
+  }, [empresas, t]);
 
   const clientOptions = useMemo(() => {
     const list = (clients || [])
@@ -42,10 +44,10 @@ export function PedidosPage() {
       .filter(c => c.value && c.label);
 
     return [
-      { value: 'all', label: 'Todos os Clientes' },
+      { value: 'all', label: t('cockpit_pedidos.all_clients') },
       ...list
     ];
-  }, [clients]);
+  }, [clients, t]);
 
   const pedidos = data?.pedidos || [];
   const itemsMap = data?.itemsMap || {};
@@ -54,8 +56,8 @@ export function PedidosPage() {
     <div className="space-y-6 animate-fade-in p-6">
       <div className="flex justify-between items-end">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cockpit de Pedidos</h1>
-          <p className="text-muted-foreground">Gerenciamento 360 de pedidos operacionais e alocações.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{t('cockpit_pedidos.title')}</h1>
+          <p className="text-muted-foreground">{t('cockpit_pedidos.subtitle')}</p>
         </div>
       </div>
 
@@ -63,11 +65,11 @@ export function PedidosPage() {
 
       <div className="bg-white dark:bg-slate-900 p-4 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-end">
         <div className="space-y-1 flex-1">
-          <label className="text-xs font-medium text-muted-foreground">Buscar</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('cockpit_pedidos.search_label')}</label>
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Código do pedido..."
+              placeholder={t('cockpit_pedidos.search_placeholder')}
               className="pl-8"
               value={filters.search}
               onChange={(e) => setFilters(f => ({ ...f, search: e.target.value }))}
@@ -76,13 +78,13 @@ export function PedidosPage() {
         </div>
 
         <div className="space-y-1 w-full md:w-52">
-          <label className="text-xs font-medium text-muted-foreground">Empresa</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('cockpit_pedidos.company_label')}</label>
           <Select 
             value={filters.empresa_id} 
             onValueChange={(val) => setFilters(f => ({ ...f, empresa_id: val }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Todas as Empresas" />
+              <SelectValue placeholder={t('cockpit_pedidos.all_companies')} />
             </SelectTrigger>
             <SelectContent>
               {empresaOptions.map(opt => (
@@ -93,27 +95,27 @@ export function PedidosPage() {
         </div>
 
         <div className="space-y-1 w-full md:w-56">
-          <label className="text-xs font-medium text-muted-foreground">Cliente</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('cockpit_pedidos.client_label')}</label>
           <Combobox
             options={clientOptions}
             value={filters.client_id === 'all' ? null : filters.client_id}
             onChange={(val) => setFilters(f => ({ ...f, client_id: val || 'all' }))}
-            placeholder="Todos os Clientes"
+            placeholder={t('cockpit_pedidos.all_clients')}
             emptyText="Nenhum cliente encontrado."
           />
         </div>
 
         <div className="space-y-1 w-full md:w-48">
-          <label className="text-xs font-medium text-muted-foreground">Status Comercial</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('cockpit_pedidos.status_commercial_label')}</label>
           <Select 
             value={filters.commercial_status} 
             onValueChange={(val) => setFilters(f => ({ ...f, commercial_status: val }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Todos" />
+              <SelectValue placeholder={t('cockpit_pedidos.all_statuses')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">{t('cockpit_pedidos.all_statuses')}</SelectItem>
               <SelectItem value="draft">Rascunho</SelectItem>
               <SelectItem value="active">Ativo</SelectItem>
               <SelectItem value="suspended">Suspenso</SelectItem>
@@ -124,16 +126,16 @@ export function PedidosPage() {
         </div>
 
         <div className="space-y-1 w-full md:w-48">
-          <label className="text-xs font-medium text-muted-foreground">Status Operacional</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('cockpit_pedidos.status_operational_label')}</label>
           <Select 
             value={filters.operational_status} 
             onValueChange={(val) => setFilters(f => ({ ...f, operational_status: val }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Todos" />
+              <SelectValue placeholder={t('cockpit_pedidos.all_statuses')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="all">{t('cockpit_pedidos.all_statuses')}</SelectItem>
               <SelectItem value="pending_operations">Pendente</SelectItem>
               <SelectItem value="partially_fulfilled">Parcialmente Atendido</SelectItem>
               <SelectItem value="fulfilled">Atendido</SelectItem>

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Clock, CheckCircle2, AlertCircle, PlayCircle, XCircle } from 'lucide-react';
@@ -9,29 +10,31 @@ interface Props {
 }
 
 export function SolicitudStatusBadge({ status, className, showIcon = true }: Props) {
+  const { t } = useTranslation();
+
   const config = {
     pending: {
-      label: 'Pendente',
+      label: t('solicitud_status.pending', 'Pendente'),
       color: 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/20',
       icon: Clock,
     },
     in_progress: {
-      label: 'Em Andamento',
+      label: t('solicitud_status.in_progress', 'Em Andamento'),
       color: 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20',
       icon: PlayCircle,
     },
     blocked: {
-      label: 'Bloqueada',
+      label: t('solicitud_status.blocked', 'Bloqueada'),
       color: 'bg-orange-500/10 text-orange-500 hover:bg-orange-500/20',
       icon: AlertCircle,
     },
     completed: {
-      label: 'Concluída',
+      label: t('solicitud_status.completed', 'Concluída'),
       color: 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20',
       icon: CheckCircle2,
     },
     cancelled: {
-      label: 'Cancelada',
+      label: t('solicitud_status.cancelled', 'Cancelada'),
       color: 'bg-red-500/10 text-red-500 hover:bg-red-500/20',
       icon: XCircle,
     },

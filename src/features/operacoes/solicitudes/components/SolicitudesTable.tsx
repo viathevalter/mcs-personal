@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Table,
   TableBody,
@@ -22,19 +23,20 @@ interface Props {
 
 export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando solicitações...</div>;
+    return <div className="p-8 text-center text-muted-foreground">{t('torre_controle.table.loading')}</div>;
   }
 
   if (solicitudes.length === 0) {
-    return <div className="p-8 text-center text-muted-foreground">Nenhuma solicitação encontrada.</div>;
+    return <div className="p-8 text-center text-muted-foreground">{t('torre_controle.table.empty')}</div>;
   }
 
   const getDaysRemainingStr = (dateFim?: string, status?: string) => {
     if (!dateFim) {
       return {
-        text: 'Sem Fim',
+        text: t('torre_controle.table.no_end_date'),
         color: 'text-slate-450 dark:text-slate-500 bg-slate-50 dark:bg-slate-800'
       };
     }
@@ -49,29 +51,29 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
     
     if (diffDays < 0) {
       return {
-        text: status === 'Ativo' ? `Excedido há ${Math.abs(diffDays)} dia(s)` : `Finalizado`,
+        text: status === 'Ativo' ? t('torre_controle.table.exceeded_days', { days: Math.abs(diffDays) }) : t('torre_controle.table.finished'),
         color: status === 'Ativo' 
           ? 'bg-rose-500/10 text-rose-600 dark:text-rose-450 border border-rose-500/20 font-bold'
           : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
       };
     } else if (diffDays === 0) {
       return {
-        text: 'Termina hoje',
+        text: t('torre_controle.table.ends_today'),
         color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 font-bold animate-pulse'
       };
     } else if (diffDays <= 15) {
       return {
-        text: `Faltam ${diffDays} dia(s)`,
+        text: t('torre_controle.table.remaining_days', { days: diffDays }),
         color: 'bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/45 font-bold'
       };
     } else if (diffDays <= 30) {
       return {
-        text: `Faltam ${diffDays} dia(s)`,
+        text: t('torre_controle.table.remaining_days', { days: diffDays }),
         color: 'bg-amber-500/10 text-amber-650 dark:text-amber-450 border border-amber-500/10'
       };
     } else {
       return {
-        text: `Faltam ${diffDays} dia(s)`,
+        text: t('torre_controle.table.remaining_days', { days: diffDays }),
         color: 'bg-emerald-500/10 text-emerald-650 dark:text-emerald-400'
       };
     }
@@ -84,14 +86,14 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
     
     if (solicitud.status === 'cancelled') {
       return {
-        label: 'Cancelada',
+        label: t('torre_controle.status.cancelled'),
         className: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
       };
     }
     
     if (solicitud.status === 'blocked') {
       return {
-        label: 'Bloqueada',
+        label: t('torre_controle.status.blocked'),
         className: 'bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-450 border border-rose-200 dark:border-rose-900/30 font-bold'
       };
     }
@@ -99,19 +101,19 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
     if (solicitud.status === 'completed') {
       if (startDate && startDate > today) {
         return {
-          label: 'Pronto / Agendado',
+          label: t('torre_controle.status.ready_scheduled'),
           className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50 font-medium'
         };
       } else {
         return {
-          label: 'Em Curso / Iniciado',
+          label: t('torre_controle.status.in_progress_started'),
           className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-250 dark:border-emerald-900/50 font-bold'
         };
       }
     }
     
     return {
-      label: 'Mobilizando',
+      label: t('torre_controle.status.mobilizing'),
       className: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-900/50 font-semibold'
     };
   };
@@ -121,15 +123,15 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
       <Table>
         <TableHeader className="sticky top-0 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-sm z-10">
           <TableRow>
-            <TableHead>Código</TableHead>
-            <TableHead>Pedido</TableHead>
-            <TableHead>Empresa Interna</TableHead>
-            <TableHead>Cliente / Obra</TableHead>
-            <TableHead>{activeTab === 'offboarding' ? 'Data da Baixa (Saída)' : 'Data de Início'}</TableHead>
-            <TableHead>{activeTab === 'offboarding' ? 'Motivo do Desligamento' : 'Prazo da Obra'}</TableHead>
-            <TableHead>Status Operacional</TableHead>
-            <TableHead>Prioridade</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
+            <TableHead>{t('torre_controle.table.code')}</TableHead>
+            <TableHead>{t('torre_controle.table.order')}</TableHead>
+            <TableHead>{t('torre_controle.table.internal_company')}</TableHead>
+            <TableHead>{t('torre_controle.table.client_site')}</TableHead>
+            <TableHead>{activeTab === 'offboarding' ? t('torre_controle.table.offboarding_date') : t('torre_controle.table.start_date')}</TableHead>
+            <TableHead>{activeTab === 'offboarding' ? t('torre_controle.table.offboarding_reason') : t('torre_controle.table.work_deadline')}</TableHead>
+            <TableHead>{t('torre_controle.table.operational_status')}</TableHead>
+            <TableHead>{t('torre_controle.table.priority')}</TableHead>
+            <TableHead className="text-right">{t('torre_controle.table.actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -169,7 +171,7 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
                           {solicitud.client?.trade_name || solicitud.client?.legal_name || 'N/A'}
                         </span>
                         <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={solicitud.client_site?.name}>
-                          {solicitud.client_site?.name || 'Local não definido'}
+                          {solicitud.client_site?.name || t('torre_controle.table.undefined_location')}
                         </span>
                       </>
                     ) : (
@@ -178,7 +180,7 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
                           {solicitud.client?.trade_name || solicitud.client?.legal_name || 'N/A'}
                         </span>
                         <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={solicitud.client_site?.name}>
-                          {solicitud.client_site?.name || 'Local não definido'}
+                          {solicitud.client_site?.name || t('torre_controle.table.undefined_location')}
                         </span>
                       </>
                     )}
@@ -190,14 +192,14 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
                       <span className="text-xs font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-955/30 px-2 py-0.5 rounded border border-rose-200 dark:border-rose-900/50 w-max flex items-center gap-1 shadow-sm font-sans">
                         📅 {solicitud.due_date ? formatDateClean(solicitud.due_date) : 'N/A'}
                       </span>
-                      <span className="text-[9px] text-rose-600 dark:text-rose-500 font-bold uppercase tracking-wider font-sans">Data da Saída</span>
+                      <span className="text-[9px] text-rose-600 dark:text-rose-500 font-bold uppercase tracking-wider font-sans">{t('torre_controle.table.departure_date_badge')}</span>
                     </div>
                   ) : (solicitud.tipo === 'order_postponement' || solicitud.has_postponement) && (solicitud.due_date || solicitud.pedido?.fecha_inicio_pedido) ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-955/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50 w-max flex items-center gap-1 shadow-sm font-sans">
                         📅 {formatDateClean(solicitud.due_date || solicitud.pedido!.fecha_inicio_pedido)}
                       </span>
-                      <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-wider font-sans">Início Adiado</span>
+                      <span className="text-[9px] text-amber-600 dark:text-amber-500 font-bold uppercase tracking-wider font-sans">{t('torre_controle.table.postponed_start')}</span>
                     </div>
                   ) : (solicitud.tipo === 'replacement' || solicitud.tipo === 'relocation' || solicitud.tipo === 'technical_test' || solicitud.tipo === 'field_trial') && solicitud.due_date ? (
                     formatDateClean(solicitud.due_date)
@@ -211,14 +213,14 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
                       <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
                         {solicitud.reason || 'Desligamento solicitado'}
                       </span>
-                      <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">Motivo</span>
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">{t('torre_controle.table.reason_label')}</span>
                     </div>
                   ) : (solicitud.tipo === 'order_extension' || solicitud.has_extension) && (solicitud.due_date || solicitud.pedido?.fecha_fin_pedido) ? (
                     <div className="flex flex-col space-y-1">
                       <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-955/30 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-900/50 w-max flex items-center gap-1 shadow-sm">
                         📅 {formatDateClean(solicitud.due_date || solicitud.pedido!.fecha_fin_pedido)}
                       </span>
-                      <span className="text-[9px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-wider">Prazo Prorrogado</span>
+                      <span className="text-[9px] text-emerald-600 dark:text-emerald-500 font-bold uppercase tracking-wider">{t('torre_controle.table.extended_deadline')}</span>
                     </div>
                   ) : solicitud.pedido?.fecha_fin_pedido ? (
                     <div className="flex flex-col space-y-1">

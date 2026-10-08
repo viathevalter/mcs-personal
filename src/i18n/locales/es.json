@@ -2148,5 +2148,190 @@
     "toastOcrError": "La IA no pudo leer la imagen con claridad. Introduzca el IBAN manualmente.",
     "toastCompSuccess": "¡Comprobante oficial enviado con éxito!",
     "toastSubmitSuccess": "¡Datos bancários enviados con éxito!"
+  },
+  "torre_controle": {
+    "title": "Torre de Control Operacional",
+    "subtitle": "Monitoree solicitudes, tareas y bloqueos operacionales en tiempo real.",
+    "new_operation": "Nueva Operación",
+    "refresh": "Actualizar",
+    "operations": {
+      "new_replacement": "Nuevo Reemplazo",
+      "new_relocation": "Nueva Reubicación",
+      "new_technical_test": "Nueva Prueba Técnica",
+      "new_offboarding": "Nueva Baja",
+      "new_postponement": "Nuevo Aplazamiento de Inicio",
+      "new_pause": "Nueva Pausa de Pedido",
+      "new_extension": "Nueva Prórroga de Obra",
+      "new_termination": "Nueva Finalización de Obra",
+      "new_cancellation": "Nuevo Cancelamiento de Pedido"
+    },
+    "kpi": {
+      "open_pending": "Abiertas (Pendientes)",
+      "in_progress": "En Curso",
+      "blocked": "Bloqueadas",
+      "completed": "Completadas"
+    },
+    "tabs": {
+      "all": "Todas",
+      "relocation": "Reubicaciones",
+      "replacement": "Reemplazos",
+      "technical_test": "Pruebas Técnicas",
+      "offboarding": "Bajas",
+      "order_pause": "Pausas",
+      "order_extension": "Prórrogas",
+      "order_termination": "Finalizaciones",
+      "order_cancellation": "Cancelaciones"
+    },
+    "filters": {
+      "search_placeholder": "Buscar por código o título...",
+      "all_empresas": "Todas las Empresas",
+      "btn_filters": "Filtros"
+    },
+    "table": {
+      "code": "Código",
+      "order": "Pedido",
+      "internal_company": "Empresa Interna",
+      "client_site": "Cliente / Obra",
+      "start_date": "Fecha de Inicio",
+      "offboarding_date": "Fecha de Baja (Salida)",
+      "work_deadline": "Plazo de la Obra",
+      "offboarding_reason": "Motivo de la Baja",
+      "operational_status": "Estado Operacional",
+      "priority": "Prioridad",
+      "actions": "Acciones",
+      "departure_date_badge": "Fecha de Salida",
+      "postponed_start": "Inicio Aplazado",
+      "extended_deadline": "Plazo Prorrogado",
+      "reason_label": "Motivo",
+      "undefined_location": "Ubicación no definida",
+      "no_end_date": "Sin Fin",
+      "exceeded_days": "Vencido hace {{days}} día(s)",
+      "ends_today": "Termina hoy",
+      "remaining_days": "Faltan {{days}} día(s)",
+      "finished": "Finalizado",
+      "empty": "No se encontraron solicitudes.",
+      "loading": "Cargando solicitudes..."
+    },
+    "status": {
+      "cancelled": "Cancelada",
+      "blocked": "Bloqueada",
+      "ready_scheduled": "Listo / Programado",
+      "in_progress_started": "En Curso / Iniciado",
+      "mobilizing": "Movilizando"
+    }
+  },
+  "solicitud_types": {
+    "new_order": "Nuevo Pedido",
+    "replacement": "Reemplazo",
+    "relocation": "Reubicación",
+    "technical_test": "Prueba Técnica",
+    "field_trial": "Prueba en Obra",
+    "offboarding": "Baja",
+    "scope_change": "Cambio de Alcance",
+    "incident": "Incidencia",
+    "order_extension": "Prórroga de Obra",
+    "order_termination": "Finalización de Obra",
+    "order_postponement": "Aplazamiento de Inicio",
+    "order_cancellation": "Cancelación de Pedido",
+    "cancellation": "Cancelación",
+    "order_pause": "Pausa de Pedido",
+    "order_resume": "Reanudación de Pedido"
+  },
+  "solicitud_status": {
+    "pending": "Pendiente",
+    "in_progress": "En Curso",
+    "blocked": "Bloqueada",
+    "completed": "Completada",
+    "cancelled": "Cancelada"
+  },
+  "solicitud_detail": {
+    "loading": "Cargando detalles...",
+    "not_found": "Solicitud no encontrada.",
+    "refresh": "Actualizar",
+    "tabs": {
+      "overview": "Visión General",
+      "tasks": "Tareas Operacionales",
+      "targets": "Trabajadores Afectados",
+      "timeline": "Historial"
+    },
+    "request_replacement": "Solicitar Reemplazo (Cubrir Puesto)",
+    "replacement_active": "Reemplazo Activo en RRHH",
+    "overview": {
+      "general_info": "Información General",
+      "title": "Título",
+      "description": "Descripción",
+      "no_description": "Sin descripción",
+      "type": "Tipo",
+      "current_status": "Estado Actual",
+      "offboarding_date": "Fecha Efectiva de la Baja (Fecha de Salida)",
+      "scheduled_date": "Fecha Prevista / Efectiva",
+      "internal_company": "Empresa Interna",
+      "offboarding_reason": "Motivo de la Baja",
+      "request_reason": "Motivo de la Solicitud",
+      "client_site": "Cliente y Obra",
+      "relocation_target": "Destino de la Reubicación",
+      "client": "Cliente",
+      "target_client": "Cliente de Destino",
+      "site": "Lugar / Obra",
+      "target_site": "Obra de Destino",
+      "linked_order": "Pedido Vinculado",
+      "created_at": "Fecha de Creación"
+    },
+    "targets": {
+      "title": "Trabajadores Vinculados",
+      "description": "Lista de asignaciones y trabajadores seleccionados en esta solicitud",
+      "empty": "Esta solicitud no tiene trabajadores vinculados.",
+      "worker": "Trabajador",
+      "origin": "Origen (Cliente / Obra)",
+      "destination": "Destino (Cliente / Obra)",
+      "housing": "Alojamiento / Logística",
+      "offboarding_date": "Fecha de Salida",
+      "reason": "Motivo",
+      "action": "Acción",
+      "status": "Estado",
+      "yes": "Sí",
+      "no": "No",
+      "undefined_end": "Fin Indefinido",
+      "actions": {
+        "relocate": "Reubicación",
+        "replace": "Reemplazo",
+        "offboard": "Baja",
+        "test": "Prueba Técnica"
+      }
+    }
+  },
+  "cockpit_pedidos": {
+    "title": "Cockpit de Pedidos",
+    "subtitle": "Gestión 360 de pedidos operacionales y asignaciones.",
+    "search_label": "Buscar",
+    "search_placeholder": "Código del pedido...",
+    "company_label": "Empresa",
+    "all_companies": "Todas las Empresas",
+    "client_label": "Cliente",
+    "all_clients": "Todos los Clientes",
+    "status_commercial_label": "Estado Comercial",
+    "status_operational_label": "Estado Operacional",
+    "all_statuses": "Todos",
+    "loading": "Cargando pedidos...",
+    "empty": "No se encontraron pedidos con los filtros actuales.",
+    "table": {
+      "code": "Código",
+      "company": "Empresa",
+      "client_site": "Cliente / Obra",
+      "commercial_status": "Estado Comercial",
+      "operational_status": "Estado Operacional",
+      "expected_start": "Inicio Previsto",
+      "total_revenue": "Ingresos Totales",
+      "margin": "Margen",
+      "actions": "Acciones",
+      "view_details": "Ver Detalles",
+      "types": {
+        "new_allocation": "Nueva Asignación",
+        "expansion": "Ampliación",
+        "direct": "Directo"
+      },
+      "unknown_client": "Desconocido",
+      "no_site": "Ninguna Obra Específica"
+    }
   }
 }

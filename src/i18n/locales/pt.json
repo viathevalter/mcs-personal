@@ -2155,5 +2155,190 @@
     "toastOcrError": "IA não conseguiu ler a imagem de forma nítida. Insira o IBAN manualmente.",
     "toastCompSuccess": "Comprovativo oficial enviado com sucesso!",
     "toastSubmitSuccess": "Dados bancários enviados com sucesso!"
+  },
+  "torre_controle": {
+    "title": "Torre de Controle Operacional",
+    "subtitle": "Acompanhe solicitações, tarefas e bloqueios operacionais em tempo real.",
+    "new_operation": "Nova Operação",
+    "refresh": "Atualizar",
+    "operations": {
+      "new_replacement": "Novo Reemplazo",
+      "new_relocation": "Nova Reubicación",
+      "new_technical_test": "Nova Prueba",
+      "new_offboarding": "Nova Baja",
+      "new_postponement": "Novo Adiamento de Início",
+      "new_pause": "Nova Pausa de Pedido",
+      "new_extension": "Nova Prorrogação de Obra",
+      "new_termination": "Nova Finalização de Obra",
+      "new_cancellation": "Novo Cancelamento de Pedido"
+    },
+    "kpi": {
+      "open_pending": "Abertas (Pendentes)",
+      "in_progress": "Em Andamento",
+      "blocked": "Bloqueadas",
+      "completed": "Concluídas"
+    },
+    "tabs": {
+      "all": "Todas",
+      "relocation": "Realocações (Reubicación)",
+      "replacement": "Substituições (Reemplazo)",
+      "technical_test": "Pruebas (Testes Técnicos)",
+      "offboarding": "Bajas (Desligamentos)",
+      "order_pause": "Pausas",
+      "order_extension": "Prorrogações",
+      "order_termination": "Finalizações",
+      "order_cancellation": "Cancelamentos"
+    },
+    "filters": {
+      "search_placeholder": "Buscar por código ou título...",
+      "all_empresas": "Todas as Empresas",
+      "btn_filters": "Filtros"
+    },
+    "table": {
+      "code": "Código",
+      "order": "Pedido",
+      "internal_company": "Empresa Interna",
+      "client_site": "Cliente / Obra",
+      "start_date": "Data de Início",
+      "offboarding_date": "Data da Baixa (Saída)",
+      "work_deadline": "Prazo da Obra",
+      "offboarding_reason": "Motivo do Desligamento",
+      "operational_status": "Status Operacional",
+      "priority": "Prioridade",
+      "actions": "Ações",
+      "departure_date_badge": "Data da Saída",
+      "postponed_start": "Início Adiado",
+      "extended_deadline": "Prazo Prorrogado",
+      "reason_label": "Motivo",
+      "undefined_location": "Local não definido",
+      "no_end_date": "Sem Fim",
+      "exceeded_days": "Excedido há {{days}} dia(s)",
+      "ends_today": "Termina hoje",
+      "remaining_days": "Faltam {{days}} dia(s)",
+      "finished": "Finalizado",
+      "empty": "Nenhuma solicitação encontrada.",
+      "loading": "Carregando solicitações..."
+    },
+    "status": {
+      "cancelled": "Cancelada",
+      "blocked": "Bloqueada",
+      "ready_scheduled": "Pronto / Agendado",
+      "in_progress_started": "Em Curso / Iniciado",
+      "mobilizing": "Mobilizando"
+    }
+  },
+  "solicitud_types": {
+    "new_order": "Novo Pedido",
+    "replacement": "Reemplazo",
+    "relocation": "Reubicación",
+    "technical_test": "Prueba Técnica",
+    "field_trial": "Prueba en Obra",
+    "offboarding": "Baja",
+    "scope_change": "Mudança de Escopo",
+    "incident": "Incidência",
+    "order_extension": "Prorrogação de Obra",
+    "order_termination": "Finalização de Obra",
+    "order_postponement": "Adiamento de Início",
+    "order_cancellation": "Cancelamento de Pedido",
+    "cancellation": "Cancelamento",
+    "order_pause": "Pausa de Pedido",
+    "order_resume": "Retomada de Pedido"
+  },
+  "solicitud_status": {
+    "pending": "Pendente",
+    "in_progress": "Em Andamento",
+    "blocked": "Bloqueada",
+    "completed": "Concluída",
+    "cancelled": "Cancelada"
+  },
+  "solicitud_detail": {
+    "loading": "Carregando detalhes...",
+    "not_found": "Solicitação não encontrada.",
+    "refresh": "Atualizar",
+    "tabs": {
+      "overview": "Visão Geral",
+      "tasks": "Tarefas Operacionais",
+      "targets": "Trabalhadores Afetados",
+      "timeline": "Histórico"
+    },
+    "request_replacement": "Solicitar Reemplazo (Repor Vaga)",
+    "replacement_active": "Reemplazo Ativo no RH",
+    "overview": {
+      "general_info": "Informações Gerais",
+      "title": "Título",
+      "description": "Descrição",
+      "no_description": "Sem descrição",
+      "type": "Tipo",
+      "current_status": "Status Atual",
+      "offboarding_date": "Data Efetiva da Baixa (Data de Saída)",
+      "scheduled_date": "Data Prevista / Efetiva",
+      "internal_company": "Empresa Interna",
+      "offboarding_reason": "Motivo do Desligamento",
+      "request_reason": "Motivo da Solicitação",
+      "client_site": "Cliente e Obra",
+      "relocation_target": "Destino da Realocação",
+      "client": "Cliente",
+      "target_client": "Cliente de Destino",
+      "site": "Local / Obra",
+      "target_site": "Obra de Destino",
+      "linked_order": "Pedido Vinculado",
+      "created_at": "Data de Criação"
+    },
+    "targets": {
+      "title": "Trabalhadores Vinculados",
+      "description": "Lista de alocações e trabalhadores selecionados nesta solicitação",
+      "empty": "Esta solicitação não possui trabalhadores vinculados.",
+      "worker": "Trabalhador",
+      "origin": "Origem (Cliente / Obra)",
+      "destination": "Destino (Cliente / Obra)",
+      "housing": "Alojamento / Logística",
+      "offboarding_date": "Data da Saída",
+      "reason": "Motivo",
+      "action": "Ação",
+      "status": "Status",
+      "yes": "Sim",
+      "no": "Não",
+      "undefined_end": "Fim Indefinido",
+      "actions": {
+        "relocate": "Realocação",
+        "replace": "Substituição",
+        "offboard": "Desligamento",
+        "test": "Teste Técnico"
+      }
+    }
+  },
+  "cockpit_pedidos": {
+    "title": "Cockpit de Pedidos",
+    "subtitle": "Gerenciamento 360 de pedidos operacionais e alocações.",
+    "search_label": "Buscar",
+    "search_placeholder": "Código do pedido...",
+    "company_label": "Empresa",
+    "all_companies": "Todas as Empresas",
+    "client_label": "Cliente",
+    "all_clients": "Todos os Clientes",
+    "status_commercial_label": "Status Comercial",
+    "status_operational_label": "Status Operacional",
+    "all_statuses": "Todos",
+    "loading": "Carregando pedidos...",
+    "empty": "Nenhum pedido encontrado com os filtros atuais.",
+    "table": {
+      "code": "Código",
+      "company": "Empresa",
+      "client_site": "Cliente / Obra",
+      "commercial_status": "Status Comercial",
+      "operational_status": "Status Operacional",
+      "expected_start": "Início Previsto",
+      "total_revenue": "Receita Total",
+      "margin": "Margem",
+      "actions": "Ações",
+      "view_details": "Ver Detalhes",
+      "types": {
+        "new_allocation": "Nova Alocação",
+        "expansion": "Expansão",
+        "direct": "Direto"
+      },
+      "unknown_client": "Desconhecido",
+      "no_site": "Nenhuma Obra Específica"
+    }
   }
 }

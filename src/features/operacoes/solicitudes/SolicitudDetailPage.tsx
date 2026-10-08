@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useSolicitudDetail } from './hooks/useSolicitudDetail';
 import { useSolicitudTasks } from './hooks/useSolicitudTasks';
 import { useSolicitudTimeline } from './hooks/useSolicitudTimeline';
@@ -21,6 +22,7 @@ import { RequestReplacementFromBajaModal } from './components/RequestReplacement
 export function SolicitudDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [isResendModalOpen, setIsResendModalOpen] = useState(false);
   const [isRequestReplacementOpen, setIsRequestReplacementOpen] = useState(false);
@@ -73,11 +75,11 @@ export function SolicitudDetailPage() {
   };
 
   if (loadingSolicitud) {
-    return <Layout><div className="p-8 text-center text-muted-foreground">Carregando detalhes...</div></Layout>;
+    return <Layout><div className="p-8 text-center text-muted-foreground">{t('solicitud_detail.loading')}</div></Layout>;
   }
 
   if (!solicitud) {
-    return <Layout><div className="p-8 text-center text-red-500">Solicitação não encontrada.</div></Layout>;
+    return <Layout><div className="p-8 text-center text-red-500">{t('solicitud_detail.not_found')}</div></Layout>;
   }
 
   return (
@@ -96,7 +98,7 @@ export function SolicitudDetailPage() {
             <div className="flex items-center space-x-2">
               <Button variant="outline" size="sm" onClick={handleRefresh}>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Atualizar
+                {t('solicitud_detail.refresh')}
               </Button>
               <Button 
                 variant="default" 
@@ -121,13 +123,13 @@ export function SolicitudDetailPage() {
                   className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center gap-1.5 font-semibold"
                 >
                   <UserPlus className="h-4 w-4" />
-                  Solicitar Reemplazo (Repor Vaga)
+                  {t('solicitud_detail.request_replacement')}
                 </Button>
               )}
               {solicitud.tipo === 'offboarding' && targets.some((t: any) => t.requires_replacement) && (
                 <div className="bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 shadow-xs">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                  Reemplazo Ativo no RH
+                  {t('solicitud_detail.replacement_active')}
                 </div>
               )}
             </div>
@@ -140,25 +142,25 @@ export function SolicitudDetailPage() {
               value="overview"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
             >
-              Visão Geral
+              {t('solicitud_detail.tabs.overview')}
             </TabsTrigger>
             <TabsTrigger 
               value="tasks"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
             >
-              Tarefas Operacionais
+              {t('solicitud_detail.tabs.tasks')}
             </TabsTrigger>
             <TabsTrigger 
               value="targets"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
             >
-              Trabalhadores Afetados
+              {t('solicitud_detail.tabs.targets')}
             </TabsTrigger>
             <TabsTrigger 
               value="timeline"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2"
             >
-              Histórico
+              {t('solicitud_detail.tabs.timeline')}
             </TabsTrigger>
           </TabsList>
 

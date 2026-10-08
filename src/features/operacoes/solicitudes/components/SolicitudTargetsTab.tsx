@@ -1,4 +1,4 @@
-
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ function formatLocalDate(dateStr?: string | null): string {
 }
 
 export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
+    const { t } = useTranslation();
     const solicitudId = solicitud?.id;
     const { data: targets = [], isLoading: isLoadingTargets } = useSolicitudTargets(solicitudId);
     
@@ -25,7 +26,7 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
     const isLoading = isLoadingTargets || (hasNoTargets && !!solicitud?.pedido_id && isLoadingAssignments);
 
     if (isLoading) {
-        return <div className="p-8 text-center text-muted-foreground">Carregando trabalhadores...</div>;
+        return <div className="p-8 text-center text-muted-foreground">{t('common.loading', 'Carregando...')}</div>;
     }
 
     const displayItems = targets.length > 0 
@@ -43,7 +44,7 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
         return (
             <Card>
                 <CardContent className="p-8 text-center text-muted-foreground">
-                    Esta solicitação não possui trabalhadores vinculados.
+                    {t('solicitud_detail.targets.empty')}
                 </CardContent>
             </Card>
         );
@@ -54,9 +55,9 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Trabalhadores Vinculados</CardTitle>
+                <CardTitle>{t('solicitud_detail.targets.title')}</CardTitle>
                 <CardDescription>
-                    Lista de alocações e trabalhadores selecionados nesta solicitação{targets.length > 0 ? ` para a ação de ${targets[0]?.action_type}` : ''}.
+                    {t('solicitud_detail.targets.description')}{targets.length > 0 ? ` (${targets[0]?.action_type})` : ''}.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -64,22 +65,22 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                     <Table>
                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50">
                             <TableRow>
-                                <TableHead>Trabalhador</TableHead>
-                                <TableHead>Origem (Cliente / Obra)</TableHead>
+                                <TableHead>{t('solicitud_detail.targets.worker')}</TableHead>
+                                <TableHead>{t('solicitud_detail.targets.origin')}</TableHead>
                                 {solicitud?.tipo === 'relocation' && (
                                     <>
-                                        <TableHead>Destino (Cliente / Obra)</TableHead>
-                                        <TableHead>Alojamento / Logística</TableHead>
+                                        <TableHead>{t('solicitud_detail.targets.destination')}</TableHead>
+                                        <TableHead>{t('solicitud_detail.targets.housing')}</TableHead>
                                     </>
                                 )}
                                 {isOffboarding && (
                                     <>
-                                        <TableHead>Data da Saída</TableHead>
-                                        <TableHead>Motivo</TableHead>
+                                        <TableHead>{t('solicitud_detail.targets.offboarding_date')}</TableHead>
+                                        <TableHead>{t('solicitud_detail.targets.reason')}</TableHead>
                                     </>
                                 )}
-                                <TableHead>Ação</TableHead>
-                                <TableHead>Status</TableHead>
+                                <TableHead>{t('solicitud_detail.targets.action')}</TableHead>
+                                <TableHead>{t('solicitud_detail.targets.status')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -111,17 +112,17 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                                 <TableCell className="text-xs">
                                                     {target.requires_housing ? (
                                                         <div className="flex flex-col space-y-1">
-                                                            <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/20 dark:text-amber-400 px-2 py-0.5 rounded max-w-fit text-[10px] border border-amber-200 dark:border-amber-900/50">
-                                                                Sim
+                                                            <span className="font-bold text-amber-600 bg-amber-50 dark:bg-amber-955/20 dark:text-amber-400 px-2 py-0.5 rounded max-w-fit text-[10px] border border-amber-200 dark:border-amber-900/50">
+                                                                {t('solicitud_detail.targets.yes')}
                                                             </span>
                                                             {target.housing_start_date && (
                                                                 <span className="text-slate-500 font-medium">
-                                                                    {formatLocalDate(target.housing_start_date)} a {target.housing_end_date ? formatLocalDate(target.housing_end_date) : 'Fim Indefinido'}
+                                                                    {formatLocalDate(target.housing_start_date)} - {target.housing_end_date ? formatLocalDate(target.housing_end_date) : t('solicitud_detail.targets.undefined_end')}
                                                                 </span>
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <span className="text-muted-foreground">Não</span>
+                                                        <span className="text-muted-foreground">{t('solicitud_detail.targets.no')}</span>
                                                     )}
                                                 </TableCell>
                                             </>
@@ -138,10 +139,10 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                         )}
                                         <TableCell>
                                             <Badge variant="outline" className="uppercase text-[10px]">
-                                                {target.action_type === 'relocate' ? 'Realocação' : 
-                                                 target.action_type === 'replace' ? 'Substituição' : 
-                                                 target.action_type === 'offboard' ? 'Desligamento' : 
-                                                 target.action_type === 'test' ? 'Teste Técnico' : target.action_type}
+                                                {target.action_type === 'relocate' ? t('solicitud_detail.targets.actions.relocate') : 
+                                                 target.action_type === 'replace' ? t('solicitud_detail.targets.actions.replace') : 
+                                                 target.action_type === 'offboard' ? t('solicitud_detail.targets.actions.offboard') : 
+                                                 target.action_type === 'test' ? t('solicitud_detail.targets.actions.test') : target.action_type}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
