@@ -1429,6 +1429,9 @@ export function computeDisputeTotalsAndCells(
   const cellRecordsMap = new Map<string, {
     wId: string;
     workerName: string;
+    workerStatus?: string | null;
+    dataBaixa?: string | null;
+    dataInicio?: string | null;
     oId: string;
     obraName: string;
     dKey: string;
@@ -1450,6 +1453,9 @@ export function computeDisputeTotalsAndCells(
       cellRecordsMap.set(key, {
         wId,
         workerName: h.worker?.nome || h.worker?.nombrecompleto || 'Colaborador',
+        workerStatus: h.worker?.workerStatus || h.worker?.status_trabajador || null,
+        dataBaixa: h.worker?.dataBaixa || h.worker?.data_baixa || null,
+        dataInicio: h.worker?.dataInicio || null,
         oId,
         obraName: h.obra_name || 'Sem Obra',
         dKey,
@@ -1494,6 +1500,9 @@ export function computeDisputeTotalsAndCells(
           cellRecordsMap.set(key, {
             wId: targetWorkerId,
             workerName: sample?.worker?.nome || sample?.worker?.nombrecompleto || 'Colaborador',
+            workerStatus: sample?.worker?.workerStatus || sample?.worker?.status_trabajador || null,
+            dataBaixa: sample?.worker?.dataBaixa || sample?.worker?.data_baixa || null,
+            dataInicio: sample?.worker?.dataInicio || null,
             oId: targetObraId,
             obraName: resolvedObraName,
             dKey,
@@ -1525,6 +1534,9 @@ export function computeDisputeTotalsAndCells(
             cellRecordsMap.set(key, {
               wId: targetWorkerId,
               workerName: sample?.worker?.nome || sample?.worker?.nombrecompleto || 'Colaborador',
+              workerStatus: sample?.worker?.workerStatus || sample?.worker?.status_trabajador || null,
+              dataBaixa: sample?.worker?.dataBaixa || sample?.worker?.data_baixa || null,
+              dataInicio: sample?.worker?.dataInicio || null,
               oId: soleObraId,
               obraName: obraCell?.obraName || sample?.obra_name || 'Obra',
               dKey,
@@ -1582,6 +1594,9 @@ export function computeDisputeTotalsAndCells(
   const enrichedMap = new Map<string, {
     workerId: string;
     workerName: string;
+    workerStatus?: string | null;
+    dataBaixa?: string | null;
+    dataInicio?: string | null;
     totalHoras: number;
     totalHorasNormais: number;
     totalHorasNoturnas: number;
@@ -1595,6 +1610,9 @@ export function computeDisputeTotalsAndCells(
       enrichedMap.set(c.wId, {
         workerId: c.wId,
         workerName: c.workerName,
+        workerStatus: c.workerStatus,
+        dataBaixa: c.dataBaixa,
+        dataInicio: c.dataInicio,
         totalHoras: 0,
         totalHorasNormais: 0,
         totalHorasNoturnas: 0,
@@ -1620,6 +1638,9 @@ export function computeDisputeTotalsAndCells(
   const matrixMap = new Map<string, {
     workerId: string;
     workerName: string;
+    workerStatus?: string | null;
+    dataBaixa?: string | null;
+    dataInicio?: string | null;
     horasDiariasOriginal: Record<string, number>;
     horasDiariasEffective: Record<string, number>;
     hasDisputePerDate: Record<string, boolean>;
@@ -1632,6 +1653,9 @@ export function computeDisputeTotalsAndCells(
       matrixMap.set(c.wId, {
         workerId: c.wId,
         workerName: c.workerName,
+        workerStatus: c.workerStatus,
+        dataBaixa: c.dataBaixa,
+        dataInicio: c.dataInicio,
         horasDiariasOriginal: {},
         horasDiariasEffective: {},
         hasDisputePerDate: {},
