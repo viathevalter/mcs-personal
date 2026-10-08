@@ -146,6 +146,8 @@ import { Cobros as FinanceiroCobros } from '../features/financeiro/pages/Cobros'
 import { Cobranca as FinanceiroCobranca } from '../features/financeiro/pages/Cobranca';
 import { TitleDetail as FinanceiroTitleDetail } from '../features/financeiro/pages/TitleDetail';
 import { Settings as FinanceiroSettings } from '../features/financeiro/pages/Settings';
+import FundoCaixaPage from '../features/financeiro/pages/FundoCaixaPage';
+import WorkerFundoCaixaPage from '../features/worker-portal/WorkerFundoCaixaPage';
 import { PatrimonioListPage, PatrimonioDetailPage } from '../features/patrimonio';
 import { 
     EscritorioLayout, 
@@ -296,10 +298,23 @@ export const router = createBrowserRouter([
                 element: <WorkerHoleritesPage />
             },
             {
+                path: 'fundo-caixa',
+                element: <WorkerFundoCaixaPage />
+            },
+            {
+                path: 'caixa',
+                element: <WorkerFundoCaixaPage />
+            },
+            {
                 path: 'perfil',
                 element: <WorkerProfilePage />
             }
         ]
+    },
+    {
+        path: '/fundo-caixa/colaborador',
+        element: <WorkerFundoCaixaPage />,
+        errorElement: <RootErrorBoundary />,
     },
     {
         path: '/',
@@ -431,6 +446,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'pagos',
                         element: <FinanceiroPagos />
+                    },
+                    {
+                        path: 'fundo-caixa',
+                        element: <FundoCaixaPage />
                     },
                     {
                         path: 'cobros',

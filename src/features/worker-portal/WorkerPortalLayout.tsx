@@ -1,6 +1,6 @@
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { LogOut, Clock, FileText, User, ShieldCheck } from 'lucide-react';
+import { LogOut, Clock, FileText, User, ShieldCheck, Wallet } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -81,6 +81,12 @@ export function WorkerPortalLayout() {
             label: t('workerPortal.layout.navNominas', 'Nóminas'),
             icon: FileText,
             isActive: location.pathname.startsWith('/portal/nominas')
+        },
+        {
+            path: '/portal/fundo-caixa',
+            label: t('workerPortal.layout.navFundoCaixa', 'Caixa'),
+            icon: Wallet,
+            isActive: location.pathname.startsWith('/portal/fundo-caixa')
         },
         {
             path: '/portal/perfil',
@@ -183,7 +189,7 @@ export function WorkerPortalLayout() {
 
             {/* Mobile Bottom Navigation Bar (Fixed) */}
             <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 px-2 py-1 shadow-lg">
-                <div className="grid grid-cols-3 max-w-md mx-auto">
+                <div className="grid grid-cols-4 max-w-md mx-auto">
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         return (

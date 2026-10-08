@@ -207,6 +207,7 @@ export interface ClientBillingSummary {
     funcaoId?: string;
     workerStatus?: string | null;
     dataBaixa?: string | null;
+    dataInicio?: string | null;
     observacoes?: string | null;
     isException?: boolean;
     horasDiarias: Record<string, {
@@ -223,6 +224,72 @@ export interface ClientBillingSummary {
     }>;
   }>;
   clientHours?: any[];
+}
+
+export function normalizeName(n?: string | null): string {
+  if (!n) return '';
+  return n
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/(s[alr]u?|lda|unipessoal|su)$/g, '');
+}
+
+export function resolveWorkerStartDate(
+  workerId?: string | null,
+  codColab?: string | null,
+  clientTradeName?: string | null,
+  workerDetail?: any,
+  allocations?: any[],
+  clientWorkerHours?: any[]
+): string | null {
+  const normClient = normalizeName(clientTradeName);
+
+  // 1. Look for client matching allocations in vw_worker_allocations
+  if (allocations && codColab) {
+    const matchingAllocs = allocations.filter(a => {
+      if (a.cod_colab !== codColab) return false;
+      const nA = normalizeName(a.cliente_nombre);
+      return nA === normClient || (normClient.length > 4 && (nA.includes(normClient) || normClient.includes(nA)));
+    });
+    if (matchingAllocs.length > 0) {
+      matchingAllocs.sort((a, b) => (a.fechainiciopedido || '').localeCompare(b.fechainiciopedido || ''));
+      const allocStart = matchingAllocs[0]?.fechainiciopedido;
+      if (allocStart) {
+        return allocStart.includes('T') ? allocStart.split('T')[0] : allocStart;
+      }
+    }
+  }
+
+  // 2. Check if workerDetail.cliente matches this client, take data_ingresso or data_alta_seguridad
+  if (workerDetail) {
+    const normWorkerClient = normalizeName(workerDetail.cliente);
+    const isSameClient = normWorkerClient === normClient || (normClient.length > 4 && (normWorkerClient.includes(normClient) || normClient.includes(normWorkerClient)));
+    if (isSameClient) {
+      const dt = workerDetail.data_ingresso || workerDetail.data_alta_seguridad;
+      if (dt) return dt.includes('T') ? dt.split('T')[0] : dt;
+    }
+  }
+
+  // 3. Fallback to earliest hour worked for this client
+  if (clientWorkerHours && clientWorkerHours.length > 0) {
+    const sortedHours = clientWorkerHours
+      .map(h => (h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : null))
+      .filter(Boolean)
+      .sort();
+    if (sortedHours.length > 0 && sortedHours[0]) {
+      return sortedHours[0];
+    }
+  }
+
+  // 4. Fallback to general worker entry / admission date
+  const fallbackDt = workerDetail?.data_ingresso || workerDetail?.data_alta_seguridad;
+  if (fallbackDt) {
+    return fallbackDt.includes('T') ? fallbackDt.split('T')[0] : fallbackDt;
+  }
+
+  return null;
 }
 
 export async function getHorasPendentesFaturamento(
@@ -486,6 +553,38 @@ export async function getHorasPendentesFaturamento(
     }
     const unknownWorkersMap = new Map(unknownWorkers.map(w => [w.id, w]));
 
+    // Fetch start dates and allocations for workers to know when each worker started with that client
+    const allWorkersToEnrich = [...activeWorkers, ...unknownWorkers];
+    const allWorkerIds = Array.from(new Set(allWorkersToEnrich.map(w => w.id).filter(Boolean)));
+    const allCodColabs = Array.from(new Set(allWorkersToEnrich.map(w => w.cod_colab).filter(Boolean)));
+
+    let workersDetails: any[] = [];
+    if (allWorkerIds.length > 0) {
+      workersDetails = await fetchInChunks(allWorkerIds, 30, async (chunk) => {
+        const { data: wdData, error: wdError } = await supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, cod_colab, data_ingresso, data_alta_seguridad, data_baixa, cliente, status_trabajador')
+          .in('id', chunk);
+        if (wdError) console.error('Error fetching workers details in billing:', wdError);
+        return wdData || [];
+      });
+    }
+    const workersDetailsMap = new Map(workersDetails.map(w => [w.id, w]));
+
+    let allocationsList: any[] = [];
+    if (allCodColabs.length > 0) {
+      allocationsList = await fetchInChunks(allCodColabs, 30, async (chunk) => {
+        const { data: alData, error: alError } = await supabase
+          .schema('core_personal')
+          .from('vw_worker_allocations')
+          .select('cod_colab, cliente_nombre, fechainiciopedido')
+          .in('cod_colab', chunk);
+        if (alError) console.error('Error fetching worker allocations in billing:', alError);
+        return alData || [];
+      });
+    }
+
     const belongsToCompany = (wId: string) => {
       if (activeWorkers.some(w => w.id === wId)) return true;
       const uw = unknownWorkersMap.get(wId);
@@ -745,6 +844,16 @@ export async function getHorasPendentesFaturamento(
 
         const isBilled = wHours.length === 0 || wHours.every(h => h.fatura_id !== null);
 
+        const wDetail = workersDetailsMap.get(w.id);
+        const dataInicio = resolveWorkerStartDate(
+          w.id,
+          w.cod_colab,
+          client.trade_name,
+          wDetail,
+          allocationsList,
+          wHours
+        );
+
         workersSummary.push({
           workerId: w.id,
           workerName: w.nome || 'Trabalhador Desconhecido',
@@ -763,6 +872,7 @@ export async function getHorasPendentesFaturamento(
           funcaoId: hourlyFuncaoId || w.funcao_id,
           workerStatus: w.status_trabajador || 'Ativo',
           dataBaixa: w.data_baixa || null,
+          dataInicio,
           observacoes,
           isException: hasException,
           horasDiarias
@@ -819,6 +929,16 @@ export async function getHorasPendentesFaturamento(
 
         const isBilled = wHours.length === 0 || wHours.every(h => h.fatura_id !== null);
 
+        const wDetail = workersDetailsMap.get(wId);
+        const dataInicio = resolveWorkerStartDate(
+          wId,
+          wCodColab,
+          client.trade_name,
+          wDetail,
+          allocationsList,
+          wHours
+        );
+
         workersSummary.push({
           workerId: wId,
           workerName: wName,
@@ -837,6 +957,7 @@ export async function getHorasPendentesFaturamento(
           funcaoId: wFuncaoId,
           workerStatus: wStatus,
           dataBaixa: wDataBaixa,
+          dataInicio,
           observacoes: null,
           isException: hasException,
           horasDiarias
