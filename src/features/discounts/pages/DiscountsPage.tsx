@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR, es } from 'date-fns/locale';
-import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2, X, Filter } from 'lucide-react';
+import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2, X, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { ImportDiscountsDialog } from '../components/ImportDiscountsDialog';
 import { EditDiscountDialog } from '../components/EditDiscountDialog';
+import { ExportDiscountsDialog } from '../components/ExportDiscountsDialog';
 import { useDeleteDiscount, useDeleteDiscountBatch } from '../hooks/useDiscountMutations';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
@@ -232,6 +233,78 @@ export function DiscountsPage() {
         return Object.entries(stats).sort((a, b) => b[1] - a[1]).slice(0, 3);
     }, [filteredDiscounts, allDiscounts, discountCategories]);
 
+    // Sorting state
+    type SortField = 'worker_nome' | 'empresa' | 'reference_date' | 'category' | 'amount' | 'status';
+    const [sortField, setSortField] = useState<SortField>('worker_nome');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+
+    const sortedDiscounts = useMemo(() => {
+        return [...filteredDiscounts].sort((a, b) => {
+            let aVal: any = '';
+            let bVal: any = '';
+
+            switch (sortField) {
+                case 'worker_nome':
+                    aVal = (a.workers?.nome || '').toLowerCase();
+                    bVal = (b.workers?.nome || '').toLowerCase();
+                    break;
+                case 'empresa':
+                    const empA = empresas?.find(e => String(e.id) === String(a.empresa_id));
+                    const empB = empresas?.find(e => String(e.id) === String(b.empresa_id));
+                    aVal = (empA?.trade_name || empA?.nome || a.workers?.contratante || '').toLowerCase();
+                    bVal = (empB?.trade_name || empB?.nome || b.workers?.contratante || '').toLowerCase();
+                    break;
+                case 'reference_date':
+                    aVal = a.reference_date || '';
+                    bVal = b.reference_date || '';
+                    break;
+                case 'category':
+                    aVal = (a.category || '').toLowerCase();
+                    bVal = (b.category || '').toLowerCase();
+                    break;
+                case 'amount':
+                    aVal = Number(a.amount || 0);
+                    bVal = Number(b.amount || 0);
+                    break;
+                case 'status':
+                    aVal = (a.status || '').toLowerCase();
+                    bVal = (b.status || '').toLowerCase();
+                    break;
+            }
+
+            if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [filteredDiscounts, sortField, sortDirection, empresas]);
+
+    const renderSortHeader = (label: string, field: SortField) => {
+        const isActive = sortField === field;
+        return (
+            <button
+                type="button"
+                onClick={() => handleSort(field)}
+                className="flex items-center gap-1.5 hover:text-indigo-600 focus:outline-none transition-colors uppercase font-semibold text-xs tracking-wider"
+            >
+                <span>{label}</span>
+                {isActive ? (
+                    sortDirection === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                ) : (
+                    <ArrowUpDown className="h-3.5 w-3.5 opacity-40 hover:opacity-100" />
+                )}
+            </button>
+        );
+    };
+
     // Recent Batches: only show batches relevant to the selected month OR created within last 48h
     const recentBatches = useMemo(() => {
         if (!allDiscounts) return [];
@@ -322,10 +395,17 @@ export function DiscountsPage() {
                             </Button>
                         }
                     />
-                    <Button variant="outline" onClick={handleExportExcel}>
-                        <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" />
-                        Exportar
-                    </Button>
+                    <ExportDiscountsDialog
+                        discounts={sortedDiscounts as any}
+                        monthFilter={monthFilter}
+                        empresas={empresas}
+                        trigger={
+                            <Button variant="outline" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                                <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />
+                                Exportar
+                            </Button>
+                        }
+                    />
                 </div>
             </div>
 
@@ -483,12 +563,24 @@ export function DiscountsPage() {
                         <table className="min-w-full divide-y divide-gray-200 relative">
                             <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                                 <tr>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Trabalhador</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Empresa / Cliente</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Data</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Categoria</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Valor (€)</th>
-                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Status</th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                        {renderSortHeader('Trabalhador', 'worker_nome')}
+                                    </th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                        {renderSortHeader('Empresa / Cliente', 'empresa')}
+                                    </th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                        {renderSortHeader('Data', 'reference_date')}
+                                    </th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                        {renderSortHeader('Categoria', 'category')}
+                                    </th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                        {renderSortHeader('Valor (€)', 'amount')}
+                                    </th>
+                                    <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                                        {renderSortHeader('Status', 'status')}
+                                    </th>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Descrição</th>
                                     <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">Ações</th>
                                 </tr>
@@ -500,8 +592,8 @@ export function DiscountsPage() {
                                             <td colSpan={8} className="px-6 py-5 bg-gray-50/50" />
                                         </tr>
                                     ))
-                                ) : filteredDiscounts.length > 0 ? (
-                                    filteredDiscounts.map((discount) => {
+                                ) : sortedDiscounts.length > 0 ? (
+                                    sortedDiscounts.map((discount) => {
                                     const discountEmpresaObj = empresas?.find(e => String(e.id) === String(discount.empresa_id));
                                     const discountEmpresaName = normalizeEmpresaName(discountEmpresaObj?.trade_name || discountEmpresaObj?.nome || discount.workers?.contratante);
 
