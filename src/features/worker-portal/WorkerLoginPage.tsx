@@ -111,20 +111,27 @@ export function WorkerLoginPage() {
 
     return (
         <div className="relative min-h-screen flex flex-col justify-between bg-slate-950 text-white overflow-hidden">
-            {/* Foto de Fundo Mais Clara com Overlay Industrial Suave */}
+            {/* Foto de Fundo Mobile (9:16 vertical otimizada para smartphones) */}
             <div 
-                className="absolute inset-0 bg-cover bg-center z-0 opacity-75 scale-105 transition-transform duration-1000"
-                style={{ backgroundImage: `url('/assets/images/hero-welder.jpg'), url('/luminous_hero_welder_mkt03.jpg')` }}
+                className="absolute inset-0 bg-cover bg-center z-0 scale-100 transition-transform duration-1000 md:hidden"
+                style={{ backgroundImage: `url('/assets/images/hero-industrial-mobile.png'), url('/assets/images/hero-welder.jpg')` }}
             />
-            {/* Overlay gradiente mais claro para valorizar o ambiente industrial da solda */}
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/40 to-slate-900/25 z-0" />
+            {/* Foto de Fundo Desktop (16:9 widescreen para telas médias e grandes) */}
+            <div 
+                className="absolute inset-0 bg-cover bg-center z-0 scale-100 transition-transform duration-1000 hidden md:block"
+                style={{ backgroundImage: `url('/assets/images/hero-industrial-desktop.png'), url('/assets/images/hero-welder.jpg')` }}
+            />
+            {/* Overlay Mobile: Scrim suave de gradiente nas extremidades para contraste impecável e destaque à indústria */}
+            <div className="absolute inset-0 bg-gradient-to-b from-slate-950/85 via-slate-950/45 to-slate-950/85 z-0 md:hidden" />
+            {/* Overlay Desktop: Gradiente lateral suave para valorizar o ambiente e a solda */}
+            <div className="absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-900/40 to-transparent z-0 hidden md:block" />
 
             {/* Barra superior de idioma */}
             <div className="relative z-20 flex justify-end p-4 max-w-md mx-auto w-full">
                 <button
                     type="button"
                     onClick={toggleLanguage}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/20 text-xs font-bold text-white hover:bg-black/60 active:scale-95 transition-all shadow-md"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/25 text-xs font-bold text-white hover:bg-slate-900 active:scale-95 transition-all shadow-lg"
                 >
                     <Globe className="h-3.5 w-3.5 text-emerald-400" />
                     <span>{currentLang === 'ES' ? '🇪🇸 Español' : '🇵🇹 Português'}</span>
@@ -133,9 +140,9 @@ export function WorkerLoginPage() {
 
             {/* Conteúdo Central */}
             <div className="relative z-10 flex-1 flex flex-col justify-center px-5 py-4 max-w-md mx-auto w-full">
-                {/* Logo e Boas-vindas */}
+                {/* Logo e Boas-vindas com contraste aprimorado */}
                 <div className="text-center mb-6">
-                    <div className="inline-flex items-center justify-center p-2.5 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 shadow-xl mb-3">
+                    <div className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-2xl bg-slate-950/75 backdrop-blur-md border border-white/20 shadow-xl mb-3">
                         <img 
                             src="/logo_mcs_transparent.png" 
                             alt="MCS MultiCompany System" 
@@ -144,25 +151,30 @@ export function WorkerLoginPage() {
                                 (e.target as HTMLElement).style.display = 'none';
                             }}
                         />
-                        <span className="font-extrabold text-xl tracking-tight ml-2">MCS</span>
+                        <span className="font-extrabold text-xl tracking-tight ml-2 text-white">MCS</span>
                     </div>
-                    <span className="text-xs uppercase tracking-widest text-emerald-400 font-extrabold block mb-1">
-                        {t('workerPortal.login.portalName', 'Portal do Trabalhador')}
-                    </span>
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight drop-shadow-md">
+
+                    <div className="flex justify-center mb-2">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/70 backdrop-blur-md border border-emerald-500/40 text-[11px] uppercase tracking-wider text-emerald-300 font-extrabold shadow-sm">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            {t('workerPortal.login.portalName', 'Portal do Trabalhador')}
+                        </span>
+                    </div>
+
+                    <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
                         {t('workerPortal.login.welcomeTitle', 'Bem-vindo')}
                     </h1>
-                    <p className="mt-1.5 text-xs sm:text-sm text-slate-200 max-w-xs mx-auto leading-relaxed drop-shadow-xs">
+                    <p className="mt-1.5 text-xs sm:text-sm text-slate-100 max-w-xs mx-auto leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] font-medium">
                         {t('workerPortal.login.welcomeSubtitle', 'Registe as suas horas de trabalho de forma rápida, simples e segura.')}
                     </p>
                 </div>
 
                 {/* Formulário de Login */}
-                <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-7 shadow-2xl text-slate-900 border border-white/20">
+                <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.45)] text-slate-900 border border-white/50 ring-1 ring-black/10">
                     <form onSubmit={handleLogin} className="space-y-4">
                         {/* Nome Completo */}
                         <div className="space-y-1">
-                            <Label htmlFor="nome" className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                            <Label htmlFor="nome" className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
                                 {t('workerPortal.login.nameLabel', 'Nome Completo')}
                             </Label>
                             <div className="relative rounded-2xl shadow-xs">
@@ -178,14 +190,14 @@ export function WorkerLoginPage() {
                                     onChange={handleChange}
                                     required
                                     autoComplete="name"
-                                    className="pl-10 h-11 rounded-xl bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 font-medium focus:bg-white focus:border-emerald-600 focus:ring-emerald-600 text-xs sm:text-sm"
+                                    className="pl-10 h-11 rounded-xl bg-slate-50/90 border-slate-300 text-slate-900 placeholder:text-slate-400 font-medium focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm"
                                 />
                             </div>
                         </div>
 
                         {/* Passaporte */}
                         <div className="space-y-1">
-                            <Label htmlFor="pasaporte" className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                            <Label htmlFor="pasaporte" className="text-[11px] font-bold text-slate-800 uppercase tracking-wider">
                                 {t('workerPortal.login.passportLabel', 'Passaporte ou Documento')}
                             </Label>
                             <div className="relative rounded-2xl shadow-xs">
@@ -201,14 +213,14 @@ export function WorkerLoginPage() {
                                     onChange={handleChange}
                                     required
                                     autoComplete="off"
-                                    className="pl-10 h-11 rounded-xl bg-slate-50 border-slate-200 text-slate-900 placeholder:text-slate-400 font-mono focus:bg-white focus:border-emerald-600 focus:ring-emerald-600 text-xs sm:text-sm uppercase"
+                                    className="pl-10 h-11 rounded-xl bg-slate-50/90 border-slate-300 text-slate-900 placeholder:text-slate-400 font-mono focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 text-xs sm:text-sm uppercase"
                                 />
                             </div>
                         </div>
 
                         {/* Lembrar-me */}
                         <div className="flex items-center justify-between pt-1">
-                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-600 font-medium">
+                            <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-700 font-semibold">
                                 <input
                                     type="checkbox"
                                     checked={rememberMe}
@@ -223,7 +235,7 @@ export function WorkerLoginPage() {
                         <Button
                             type="submit"
                             disabled={loading}
-                            className="w-full h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-2 active:scale-[0.98] text-sm"
+                            className="w-full h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-900/35 transition-all flex items-center justify-center gap-2 active:scale-[0.98] text-sm"
                         >
                             {loading ? (
                                 <>
@@ -244,7 +256,7 @@ export function WorkerLoginPage() {
                         <button
                             type="button"
                             onClick={() => setHelpOpen(true)}
-                            className="text-xs text-slate-500 hover:text-emerald-700 font-semibold inline-flex items-center gap-1.5 transition-colors"
+                            className="text-xs text-slate-600 hover:text-emerald-700 font-bold inline-flex items-center gap-1.5 transition-colors"
                         >
                             <HelpCircle className="h-3.5 w-3.5" />
                             {t('workerPortal.login.needHelp', 'Precisa de ajuda para aceder?')}
@@ -253,9 +265,11 @@ export function WorkerLoginPage() {
                 </div>
             </div>
 
-            {/* Rodapé institucional */}
-            <div className="relative z-10 py-3 text-center text-[11px] text-slate-400 font-medium max-w-md mx-auto w-full">
-                <span>MCS MultiCompany System &bull; &copy; {new Date().getFullYear()}</span>
+            {/* Rodapé institucional com badge protetor para leitura sobre reflexos */}
+            <div className="relative z-10 py-3 text-center max-w-md mx-auto w-full px-4">
+                <span className="inline-block px-3.5 py-1 rounded-full bg-slate-950/70 backdrop-blur-md border border-white/15 text-[11px] text-slate-200 font-medium shadow-md">
+                    MCS MultiCompany System &bull; &copy; {new Date().getFullYear()}
+                </span>
             </div>
 
             {/* Modal de Ajuda */}
