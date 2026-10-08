@@ -460,11 +460,45 @@ serve(async (req) => {
 
     // 6. Atualizar status do trabalhador e da alocação se necessário
     if (contract.assignment_id) {
-      await supabase
-        .schema("core_personal")
-        .from("worker_assignments")
-        .update({ status: "active", start_date: new Date().toISOString().split("T")[0] })
-        .eq("id", contract.assignment_id);
+      try {
+        const { data: currentAssignment } = await supabase
+          .schema("core_personal")
+          .from("worker_assignments")
+          .select("id, planned_start_date, start_date, status, worker_id")
+          .eq("id", contract.assignment_id)
+          .maybeSingle();
+
+        if (currentAssignment) {
+          const today = new Date().toISOString().split("T")[0];
+          const plannedStart = currentAssignment.planned_start_date;
+          const isFuture = plannedStart && plannedStart > today;
+
+          // Se a data de início da obra for futura, a alocação DEVE permanecer 'planned'
+          // e o start_date efetivo NÃO pode ser sobrescrito com a data de assinatura de contrato!
+          if (isFuture) {
+            await supabase
+              .schema("core_personal")
+              .from("worker_assignments")
+              .update({
+                status: "planned",
+                start_date: null
+              })
+              .eq("id", contract.assignment_id);
+          } else {
+            // Se a obra já iniciou ou inicia hoje, ativa a alocação com a data planejada
+            await supabase
+              .schema("core_personal")
+              .from("worker_assignments")
+              .update({
+                status: "active",
+                start_date: currentAssignment.start_date || plannedStart || today
+              })
+              .eq("id", contract.assignment_id);
+          }
+        }
+      } catch (errAssignment) {
+        console.error("Erro ao sincronizar alocação após assinatura do contrato:", errAssignment);
+      }
     }
 
     return new Response(

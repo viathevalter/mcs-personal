@@ -98,12 +98,27 @@ export function EditManualAllocationModal({ open, onOpenChange, workerCodColab, 
                     ) : (
                         <>
                             <div className="flex flex-col gap-2">
-                                <Label>Data de Início da Obra</Label>
+                                <div className="flex items-center justify-between">
+                                    <Label>Data de Início da Obra</Label>
+                                    {allocation?.tiposervico === 'Pedido' && (
+                                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold">
+                                            🔒 Vinculada ao Pedido
+                                        </span>
+                                    )}
+                                </div>
                                 <Input 
                                     type="date" 
                                     value={dataInicio} 
+                                    disabled={allocation?.tiposervico === 'Pedido'}
                                     onChange={(e) => setDataInicio(e.target.value)} 
+                                    className={allocation?.tiposervico === 'Pedido' ? "bg-muted cursor-not-allowed opacity-80" : ""}
+                                    title={allocation?.tiposervico === 'Pedido' ? "A data de início do pedido só pode ser alterada no módulo de Operações através de Prorrogação de Início de Obra." : ""}
                                 />
+                                {allocation?.tiposervico === 'Pedido' && (
+                                    <p className="text-[10px] text-muted-foreground leading-tight">
+                                        Para alterar a data de início do pedido/obra, utilize <strong>Operações &rarr; Prorrogação de Início de Obra</strong>.
+                                    </p>
+                                )}
                             </div>
 
                             <div className="flex gap-4">
