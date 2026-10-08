@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR, es } from 'date-fns/locale';
-import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2, X, Filter, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2, X, Filter, ArrowUpDown, ArrowUp, ArrowDown, Eye, CheckSquare, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import {
     Select,
@@ -19,6 +20,7 @@ import {
 import { ImportDiscountsDialog } from '../components/ImportDiscountsDialog';
 import { EditDiscountDialog } from '../components/EditDiscountDialog';
 import { ExportDiscountsDialog } from '../components/ExportDiscountsDialog';
+import { ViewDiscountDetailsModal } from '../components/ViewDiscountDetailsModal';
 import { useDeleteDiscount, useDeleteDiscountBatch } from '../hooks/useDiscountMutations';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
@@ -305,6 +307,41 @@ export function DiscountsPage() {
         );
     };
 
+    // Modal & Selection States
+    const [selectedDiscountIdForView, setSelectedDiscountIdForView] = useState<string | null>(null);
+    const [selectedDiscountIds, setSelectedDiscountIds] = useState<Set<string>>(new Set());
+
+    const isAllSelected = sortedDiscounts.length > 0 && selectedDiscountIds.size === sortedDiscounts.length;
+
+    const handleToggleSelectAll = () => {
+        if (isAllSelected) {
+            setSelectedDiscountIds(new Set());
+        } else {
+            setSelectedDiscountIds(new Set(sortedDiscounts.map(d => d.id)));
+        }
+    };
+
+    const handleToggleSelectDiscount = (id: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const newSet = new Set(selectedDiscountIds);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        setSelectedDiscountIds(newSet);
+    };
+
+    const handleBatchDeleteSelected = () => {
+        if (selectedDiscountIds.size === 0) return;
+        if (confirm(`Tem certeza que deseja excluir os ${selectedDiscountIds.size} descontos selecionados?`)) {
+            selectedDiscountIds.forEach(id => {
+                deleteDiscount(id);
+            });
+            setSelectedDiscountIds(new Set());
+        }
+    };
+
     // Recent Batches: only show batches relevant to the selected month OR created within last 48h
     const recentBatches = useMemo(() => {
         if (!allDiscounts) return [];
@@ -557,12 +594,59 @@ export function DiscountsPage() {
                     </div>
                 </div>
 
+                {/* Contextual Multi-Selection Bar */}
+                {selectedDiscountIds.size > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-indigo-50/90 dark:bg-indigo-950/80 p-3 px-6 rounded-xl border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-900 dark:text-indigo-200 animate-in fade-in shadow-sm">
+                        <div className="flex items-center gap-2 font-bold">
+                            <CheckSquare className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            <span>{selectedDiscountIds.size} desconto(s) selecionado(s)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <ExportDiscountsDialog
+                                discounts={sortedDiscounts.filter(d => selectedDiscountIds.has(d.id)) as any}
+                                monthFilter={monthFilter}
+                                empresas={empresas}
+                                trigger={
+                                    <Button variant="outline" size="sm" className="h-8 text-[11px] bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 border-emerald-200 font-semibold shadow-sm">
+                                        <FileSpreadsheet className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+                                        Exportar Selecionados ({selectedDiscountIds.size})
+                                    </Button>
+                                }
+                            />
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                className="h-8 text-[11px] font-semibold shadow-sm"
+                                onClick={handleBatchDeleteSelected}
+                            >
+                                <Trash2 className="w-3.5 h-3.5 mr-1" />
+                                Excluir Selecionados
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-[11px] text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900"
+                                onClick={() => setSelectedDiscountIds(new Set())}
+                            >
+                                Desmarcar Todos
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
                 {/* Data Table */}
                 <div className="bg-white border rounded-xl shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-260px)] min-h-[450px]">
                     <div className="overflow-auto flex-1">
                         <table className="min-w-full divide-y divide-gray-200 relative">
                             <thead className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 shadow-sm backdrop-blur-sm">
                                 <tr>
+                                    <th scope="col" className="pl-6 pr-2 py-4 text-left w-10">
+                                        <Checkbox
+                                            checked={isAllSelected}
+                                            onCheckedChange={handleToggleSelectAll}
+                                            aria-label="Selecionar todos os descontos"
+                                        />
+                                    </th>
                                     <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                                         {renderSortHeader('Trabalhador', 'worker_nome')}
                                     </th>
@@ -589,16 +673,30 @@ export function DiscountsPage() {
                                 {isLoading ? (
                                     Array.from({ length: 3 }).map((_, i) => (
                                         <tr key={i} className="animate-pulse">
-                                            <td colSpan={8} className="px-6 py-5 bg-gray-50/50" />
+                                            <td colSpan={9} className="px-6 py-5 bg-gray-50/50" />
                                         </tr>
                                     ))
                                 ) : sortedDiscounts.length > 0 ? (
                                     sortedDiscounts.map((discount) => {
                                     const discountEmpresaObj = empresas?.find(e => String(e.id) === String(discount.empresa_id));
                                     const discountEmpresaName = normalizeEmpresaName(discountEmpresaObj?.trade_name || discountEmpresaObj?.nome || discount.workers?.contratante);
+                                    const isSelected = selectedDiscountIds.has(discount.id);
 
                                     return (
-                                        <tr key={discount.id} className="hover:bg-slate-50 transition-colors">
+                                        <tr
+                                            key={discount.id}
+                                            onClick={() => setSelectedDiscountIdForView(discount.id)}
+                                            className={cn(
+                                                "cursor-pointer transition-colors",
+                                                isSelected ? "bg-indigo-50/60 dark:bg-indigo-950/30 hover:bg-indigo-100/70" : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                            )}
+                                        >
+                                            <td className="pl-6 pr-2 py-4 whitespace-nowrap w-10" onClick={(e) => e.stopPropagation()}>
+                                                <Checkbox
+                                                    checked={isSelected}
+                                                    onCheckedChange={() => handleToggleSelectDiscount(discount.id)}
+                                                />
+                                            </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <div className="flex flex-col">
                                                     <span className="text-sm font-medium text-gray-900">{discount.workers.nome}</span>
@@ -639,12 +737,21 @@ export function DiscountsPage() {
                                                     {discount.description || '-'}
                                                 </p>
                                             </td>
-                                            <td className="px-6 py-4 text-right whitespace-nowrap">
-                                                <div className="flex items-center justify-end gap-2">
+                                            <td className="px-6 py-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => setSelectedDiscountIdForView(discount.id)}
+                                                        className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                                        title="Visualizar Detalhes"
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
                                                     <EditDiscountDialog
                                                         discount={discount}
                                                         trigger={
-                                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" title="Editar">
                                                                 <Edit className="h-4 w-4" />
                                                             </Button>
                                                         }
@@ -654,6 +761,7 @@ export function DiscountsPage() {
                                                         size="icon"
                                                         onClick={() => handleDelete(discount.id)}
                                                         className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                        title="Excluir"
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -664,7 +772,7 @@ export function DiscountsPage() {
                                 })
                                 ) : (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                                        <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
                                             Nenhum desconto encontrado com os filtros atuais.
                                         </td>
                                     </tr>
@@ -674,6 +782,13 @@ export function DiscountsPage() {
                     </div>
                 </div>
 
+                {/* View Details Modal */}
+                <ViewDiscountDetailsModal
+                    discount={allDiscounts?.find(d => d.id === selectedDiscountIdForView) || null}
+                    isOpen={!!selectedDiscountIdForView}
+                    onClose={() => setSelectedDiscountIdForView(null)}
+                    empresas={empresas}
+                />
             </div>
         </div>
     );

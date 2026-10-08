@@ -24,7 +24,7 @@ import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
-import { Plus, Search, Loader2 } from 'lucide-react';
+import { Plus, Search, Loader2, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
 import { findMatchingEmpresa, normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
@@ -143,7 +143,7 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[700px]">
                 <DialogHeader>
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         Cadastrar Novo Desconto
@@ -270,16 +270,25 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                             checked={isRecurring}
                             onCheckedChange={(c) => setIsRecurring(!!c)}
                         />
-                        <Label htmlFor="is_recurring_discount" className="text-xs text-gray-700 cursor-pointer">
+                        <Label htmlFor="is_recurring_discount" className="text-xs text-gray-700 cursor-pointer font-medium">
                             Desconto recorrente (aplicar nos próximos meses)
                         </Label>
                     </div>
 
-                    {/* Description */}
-                    <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-gray-700">Descrição / Observações</Label>
-                        <Input
-                            placeholder="Motivo ou observações adicionais..."
+                    {/* Description Rich Text Area */}
+                    <div className="space-y-2 pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                                <FileText className="w-4 h-4 text-indigo-500" /> Observações & Justificativas do Desconto
+                            </Label>
+                            <span className="text-[10px] font-medium text-muted-foreground bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">
+                                Rich Text / Detalhes
+                            </span>
+                        </div>
+                        <textarea
+                            rows={3}
+                            className="flex w-full rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/20 dark:bg-slate-900 px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                            placeholder="Escreva aqui detalhadamente os motivos, notas financeiras ou justificativas deste desconto..."
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                         />

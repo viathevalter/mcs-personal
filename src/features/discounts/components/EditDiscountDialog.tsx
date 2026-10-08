@@ -84,109 +84,118 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[650px]">
                 <DialogHeader>
-                    <DialogTitle>Editar Desconto</DialogTitle>
+                    <DialogTitle className="text-xl font-bold">Editar Desconto</DialogTitle>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="empresa" className="text-right">
-                            Empresa
-                        </Label>
-                        <Select value={empresaId} onValueChange={(v: string) => setEmpresaId(v)}>
-                            <SelectTrigger className="col-span-3">
-                                <SelectValue placeholder="Selecione a empresa..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {empresas.map(emp => (
-                                    <SelectItem key={emp.id} value={emp.id}>
-                                        {normalizeEmpresaName(emp.trade_name || emp.nome)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                <div className="space-y-4 py-3">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="empresa" className="text-xs font-semibold text-gray-700">
+                                Empresa (Contratante)
+                            </Label>
+                            <Select value={empresaId} onValueChange={(v: string) => setEmpresaId(v)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione a empresa..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {empresas.map(emp => (
+                                        <SelectItem key={emp.id} value={emp.id}>
+                                            {normalizeEmpresaName(emp.trade_name || emp.nome)}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor="category" className="text-xs font-semibold text-gray-700">
+                                Categoria
+                            </Label>
+                            <Select value={category} onValueChange={(v: DiscountCategory) => setCategory(v)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {availableCategoryList.map(name => (
+                                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                                    ))}
+                                    {category && !availableCategoryList.includes(category) && (
+                                        <SelectItem value={category}>{category}</SelectItem>
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="category" className="text-right">
-                            Categoria
-                        </Label>
-                        <Select value={category} onValueChange={(v: DiscountCategory) => setCategory(v)}>
-                            <SelectTrigger className="col-span-3">
-                                <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {availableCategoryList.map(name => (
-                                    <SelectItem key={name} value={name}>{name}</SelectItem>
-                                ))}
-                                {category && !availableCategoryList.includes(category) && (
-                                    <SelectItem value={category}>{category}</SelectItem>
-                                )}
-                            </SelectContent>
-                        </Select>
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="amount" className="text-xs font-semibold text-gray-700">
+                                Valor (€)
+                            </Label>
+                            <Input
+                                id="amount"
+                                type="number"
+                                step="0.01"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor="date" className="text-xs font-semibold text-gray-700">
+                                Data
+                            </Label>
+                            <Input
+                                id="date"
+                                type="date"
+                                value={date}
+                                onChange={(e) => setDate(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label htmlFor="status" className="text-xs font-semibold text-gray-700">
+                                Status
+                            </Label>
+                            <Select value={status} onValueChange={(v: DiscountStatus) => setStatus(v)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Ativo">Ativo</SelectItem>
+                                    <SelectItem value="Pausado">Pausado</SelectItem>
+                                    <SelectItem value="Concluído">Concluído</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="amount" className="text-right">
-                            Valor (€)
-                        </Label>
-                        <Input
-                            id="amount"
-                            type="number"
-                            step="0.01"
-                            value={amount}
-                            onChange={(e) => setAmount(e.target.value)}
-                            className="col-span-3"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="date" className="text-right">
-                            Data
-                        </Label>
-                        <Input
-                            id="date"
-                            type="date"
-                            value={date}
-                            onChange={(e) => setDate(e.target.value)}
-                            className="col-span-3"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="status" className="text-right">
-                            Status
-                        </Label>
-                        <Select value={status} onValueChange={(v: DiscountStatus) => setStatus(v)}>
-                            <SelectTrigger className="col-span-3">
-                                <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="Ativo">Ativo</SelectItem>
-                                <SelectItem value="Pausado">Pausado</SelectItem>
-                                <SelectItem value="Concluído">Concluído</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="desc" className="text-right">
-                            Descrição
-                        </Label>
-                        <Input
-                            id="desc"
+                    {/* Rich Description Area */}
+                    <div className="space-y-2 pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                                Observações & Justificativas do Desconto
+                            </Label>
+                            <span className="text-[10px] font-medium text-muted-foreground bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-900">
+                                Rich Text / Detalhes
+                            </span>
+                        </div>
+                        <textarea
+                            rows={3}
+                            className="flex w-full rounded-xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/20 dark:bg-slate-900 px-3 py-2 text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 transition-colors"
+                            placeholder="Motivo ou observações adicionais sobre este lançamento..."
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="col-span-3"
                         />
                     </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="gap-2 sm:gap-0">
                     <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>
                         Cancelar
                     </Button>
-                    <Button onClick={handleSave} disabled={isPending || !amount || !date}>
-                        {isPending ? 'Salvando...' : 'Salvar'}
+                    <Button onClick={handleSave} disabled={isPending || !amount || !date} className="bg-indigo-600 hover:bg-indigo-700">
+                        {isPending ? 'Salvando...' : 'Salvar Alterações'}
                     </Button>
                 </DialogFooter>
             </DialogContent>
