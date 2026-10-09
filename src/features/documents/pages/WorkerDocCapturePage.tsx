@@ -92,32 +92,31 @@ export function WorkerDocCapturePage() {
                 setSelfieUrl(reqData.selfie_url);
 
                 const existingData = reqData.extracted_data || {};
+                const workerObj = (reqData.worker || {}) as any;
 
-                if (reqData.worker) {
-                    setFormData(prev => ({
-                        ...prev,
-                        nome: existingData.nome || reqData.worker?.nome || '',
-                        email: existingData.email || reqData.worker?.email || '',
-                        movil: existingData.movil || reqData.worker?.movil || '',
-                        direccion_actual: existingData.direccion_actual || (reqData.worker as any)?.address_line || '',
-                        ubicacion_actual: existingData.ubicacion_actual || (reqData.worker as any)?.location || '',
-                        contacto_emergencia_nombre: existingData.contacto_emergencia_nombre || '',
-                        contacto_emergencia_parentesco: existingData.contacto_emergencia_parentesco || '',
-                        contacto_emergencia_telefono: existingData.contacto_emergencia_telefono || '',
-                        talla_camisa: existingData.talla_camisa || (reqData.worker as any)?.camiseta || '',
-                        talla_pantalon: existingData.talla_pantalon || (reqData.worker as any)?.pantalones || '',
-                        banco: existingData.banco || '',
-                        iban: existingData.iban || reqData.worker?.iban || '',
-                        nif: existingData.nif || reqData.worker?.nif || '',
-                        niss: existingData.niss || reqData.worker?.niss || '',
-                        pasaporte: existingData.pasaporte || reqData.worker?.pasaporte || '',
-                        nie: existingData.nie || reqData.worker?.nie || '',
-                        dni: existingData.dni || reqData.worker?.dni || '',
-                        licencia_conducir: existingData.licencia_conducir || (reqData.worker as any)?.licencia_conducir || '',
-                        nacionalidade: existingData.nacionalidade || (reqData.worker as any)?.nacionalidade || '',
-                        fecha_nacimiento: existingData.fecha_nacimiento || (reqData.worker as any)?.fecha_nacimiento || ''
-                    }));
-                }
+                setFormData(prev => ({
+                    ...prev,
+                    nome: existingData.nome || workerObj.nome || '',
+                    email: existingData.email || workerObj.email || '',
+                    movil: existingData.movil || workerObj.movil || '',
+                    direccion_actual: existingData.direccion_actual || workerObj.address_line || '',
+                    ubicacion_actual: existingData.ubicacion_actual || workerObj.location || '',
+                    contacto_emergencia_nombre: existingData.contacto_emergencia_nombre || '',
+                    contacto_emergencia_parentesco: existingData.contacto_emergencia_parentesco || '',
+                    contacto_emergencia_telefono: existingData.contacto_emergencia_telefono || '',
+                    talla_camisa: existingData.talla_camisa || workerObj.camiseta || '',
+                    talla_pantalon: existingData.talla_pantalon || workerObj.pantalones || '',
+                    banco: existingData.banco || '',
+                    iban: existingData.iban || workerObj.iban || '',
+                    nif: existingData.nif || workerObj.nif || '',
+                    niss: existingData.niss || workerObj.niss || '',
+                    pasaporte: existingData.pasaporte || workerObj.pasaporte || '',
+                    nie: existingData.nie || workerObj.nie || '',
+                    dni: existingData.dni || workerObj.dni || '',
+                    licencia_conducir: existingData.licencia_conducir || workerObj.licencia_conducir || '',
+                    nacionalidade: existingData.nacionalidade || workerObj.nacionalidade || '',
+                    fecha_nacimiento: existingData.fecha_nacimiento || workerObj.fecha_nacimiento || ''
+                }));
             } catch (err) {
                 console.error("Erro ao carregar solicitação:", err);
                 toast.error("Link de envio inválido, expirado ou inexistente.");
@@ -131,6 +130,8 @@ export function WorkerDocCapturePage() {
     // 2. Upload de arquivo e execução do OCR
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
         const file = e.target.files?.[0];
+        // Reset input value so user can select the same file or re-try
+        e.target.value = '';
         if (!file || !token) return;
 
         // Validar tamanho (máx 15MB)
@@ -145,14 +146,30 @@ export function WorkerDocCapturePage() {
                 setOcrLoading(prev => ({ ...prev, [docType]: true }));
             }
 
-            const fileExt = file.name.split('.').pop();
+            let fileExt = (file.name.split('.').pop() || 'jpg').toLowerCase();
+            let contentType = file.type || '';
+
+            // Sanitizar/normalizar content-type para imagens comuns e formatos móveis
+            if (!contentType) {
+                if (fileExt === 'png') contentType = 'image/png';
+                else if (fileExt === 'webp') contentType = 'image/webp';
+                else if (fileExt === 'pdf') contentType = 'application/pdf';
+                else {
+                    contentType = 'image/jpeg';
+                    fileExt = 'jpg';
+                }
+            } else if (contentType === 'image/heic' || contentType === 'image/heif') {
+                contentType = 'image/jpeg';
+                fileExt = 'jpg';
+            }
+
             const filePath = `${token}/${docType}_${Date.now()}.${fileExt}`;
 
             // Upload no bucket privado worker-incoming-docs
             const { error: uploadErr } = await supabase.storage
                 .from('worker-incoming-docs')
                 .upload(filePath, file, {
-                    contentType: file.type,
+                    contentType: contentType,
                     upsert: true
                 });
 
@@ -179,7 +196,7 @@ export function WorkerDocCapturePage() {
             try {
                 const ocrRes = await processDocumentOcr({
                     file_path: filePath,
-                    mime_type: file.type,
+                    mime_type: contentType,
                     document_type: docType
                 });
 
@@ -282,6 +299,8 @@ export function WorkerDocCapturePage() {
         );
     }
 
+    const workerDisplayName = request?.worker?.nome || (request?.extracted_data as any)?.nome || '';
+
     if (success) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-white p-6 text-center space-y-6">
@@ -291,7 +310,7 @@ export function WorkerDocCapturePage() {
                 <div className="max-w-md space-y-2">
                     <h1 className="text-2xl font-bold text-slate-100">Documentos Enviados!</h1>
                     <p className="text-slate-400">
-                        Obrigado, <strong>{request.worker?.nome}</strong>. Seus documentos foram recebidos com sucesso e nossa equipe de RH fará a validação.
+                        Obrigado{workerDisplayName ? `, ${workerDisplayName}` : ''}. Seus documentos foram recebidos com sucesso e nossa equipe de RH fará a validação.
                     </p>
                     <p className="text-xs text-slate-500 pt-4">
                         Você já pode fechar esta página. O link do seu contrato será enviado assim que os dados forem verificados.
@@ -311,7 +330,7 @@ export function WorkerDocCapturePage() {
                     </div>
                     <h1 className="text-2xl font-bold tracking-tight text-white">Portal de Envio de Documentos</h1>
                     <p className="text-sm text-slate-400">
-                        Olá <strong>{request.worker?.nome}</strong>, por favor, envie fotos nítidas dos seus documentos para elaboração do seu contrato.
+                        Olá{workerDisplayName ? <strong> {workerDisplayName}</strong> : ''}, por favor, envie fotos nítidas dos seus documentos para elaboração do seu contrato.
                     </p>
                 </div>
 
@@ -332,21 +351,22 @@ export function WorkerDocCapturePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <input 
+                                id="upload-identity"
                                 type="file" 
                                 accept="image/*,application/pdf" 
                                 ref={inputRefs.identity}
                                 onChange={(e) => handleFileUpload(e, 'identity')}
-                                className="hidden"
+                                className="sr-only"
                             />
                             {!passportUrl ? (
-                                <button
-                                    type="button"
-                                    onClick={() => inputRefs.identity.current?.click()}
-                                    className="w-full h-28 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors"
+                                <label
+                                    htmlFor="upload-identity"
+                                    className="w-full h-28 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
                                 >
                                     <Camera className="h-8 w-8 mb-2 text-slate-500" />
-                                    <span className="text-sm">Tirar Foto ou Carregar Arquivo</span>
-                                </button>
+                                    <span className="text-sm font-medium">Tirar Foto ou Carregar Arquivo</span>
+                                    <span className="text-[11px] text-slate-500 mt-0.5">Câmera, Galeria de Fotos ou PDF</span>
+                                </label>
                             ) : ocrLoading.identity ? (
                                 <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <Loader2 className="h-6 w-6 animate-spin mb-1" />
@@ -366,7 +386,7 @@ export function WorkerDocCapturePage() {
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 space-y-3">
                                     <div className="flex items-center justify-between text-emerald-400 text-sm font-semibold">
                                         <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Documento Lido</span>
-                                        <Button variant="ghost" size="sm" type="button" className="text-slate-400 hover:text-white" onClick={() => inputRefs.identity.current?.click()}>Alterar</Button>
+                                        <label htmlFor="upload-identity" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-800/80">
                                         <div>
@@ -628,21 +648,21 @@ export function WorkerDocCapturePage() {
                             <div>
                                 <label className="text-xs font-semibold text-slate-300 block mb-1">Comprobante de Titularidad del IBAN / Justificante Bancario</label>
                                 <input 
+                                    id="upload-iban"
                                     type="file" 
                                     accept="image/*,application/pdf" 
                                     ref={inputRefs.iban}
                                     onChange={(e) => handleFileUpload(e, 'iban')}
-                                    className="hidden"
+                                    className="sr-only"
                                 />
                                 {!ibanUrl ? (
-                                    <button
-                                        type="button"
-                                        onClick={() => inputRefs.iban.current?.click()}
-                                        className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors"
+                                    <label
+                                        htmlFor="upload-iban"
+                                        className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
                                     >
                                         <UploadCloud className="h-6 w-6 text-slate-500" />
                                         <span className="text-sm font-medium">Adjuntar Comprobante del IBAN (Foto o PDF)</span>
-                                    </button>
+                                    </label>
                                 ) : (
                                     <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -652,7 +672,7 @@ export function WorkerDocCapturePage() {
                                                 <span className="text-xs text-emerald-400 font-semibold">{formData.banco || 'Documento bancario listo'}</span>
                                             </div>
                                         </div>
-                                        <Button variant="ghost" size="sm" type="button" className="text-slate-400" onClick={() => inputRefs.iban.current?.click()}>Alterar</Button>
+                                        <label htmlFor="upload-iban" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
                                     </div>
                                 )}
                             </div>
@@ -672,21 +692,21 @@ export function WorkerDocCapturePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <input 
+                                id="upload-nif"
                                 type="file" 
                                 accept="image/*,application/pdf" 
                                 ref={inputRefs.nif}
                                 onChange={(e) => handleFileUpload(e, 'nif')}
-                                className="hidden"
+                                className="sr-only"
                             />
                             {!nifUrl ? (
-                                <button
-                                    type="button"
-                                    onClick={() => inputRefs.nif.current?.click()}
-                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors"
+                                <label
+                                    htmlFor="upload-nif"
+                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
                                 >
                                     <UploadCloud className="h-6 w-6 text-slate-500" />
                                     <span className="text-sm font-medium">Carregue seu NIF</span>
-                                </button>
+                                </label>
                             ) : ocrLoading.nif ? (
                                 <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <div className="flex items-center gap-2">
@@ -715,7 +735,7 @@ export function WorkerDocCapturePage() {
                                             />
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="sm" type="button" className="text-slate-400" onClick={() => inputRefs.nif.current?.click()}>Alterar</Button>
+                                    <label htmlFor="upload-nif" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
                                 </div>
                             )}
                         </CardContent>
@@ -734,21 +754,21 @@ export function WorkerDocCapturePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <input 
+                                id="upload-niss"
                                 type="file" 
                                 accept="image/*,application/pdf" 
                                 ref={inputRefs.niss}
                                 onChange={(e) => handleFileUpload(e, 'niss')}
-                                className="hidden"
+                                className="sr-only"
                             />
                             {!nissUrl ? (
-                                <button
-                                    type="button"
-                                    onClick={() => inputRefs.niss.current?.click()}
-                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors"
+                                <label
+                                    htmlFor="upload-niss"
+                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
                                 >
                                     <UploadCloud className="h-6 w-6 text-slate-500" />
                                     <span className="text-sm font-medium">Carregue seu NISS</span>
-                                </button>
+                                </label>
                             ) : ocrLoading.niss ? (
                                 <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <div className="flex items-center gap-2">
@@ -777,7 +797,7 @@ export function WorkerDocCapturePage() {
                                             />
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="sm" type="button" className="text-slate-400" onClick={() => inputRefs.niss.current?.click()}>Alterar</Button>
+                                    <label htmlFor="upload-niss" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
                                 </div>
                             )}
                         </CardContent>
@@ -796,21 +816,21 @@ export function WorkerDocCapturePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <input 
+                                id="upload-license"
                                 type="file" 
                                 accept="image/*,application/pdf" 
                                 ref={inputRefs.license}
                                 onChange={(e) => handleFileUpload(e, 'license')}
-                                className="hidden"
+                                className="sr-only"
                             />
                             {!licenseUrl ? (
-                                <button
-                                    type="button"
-                                    onClick={() => inputRefs.license.current?.click()}
-                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors"
+                                <label
+                                    htmlFor="upload-license"
+                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
                                 >
                                     <UploadCloud className="h-6 w-6 text-slate-500" />
                                     <span className="text-sm font-medium">Carregue a Carta de Condução</span>
-                                </button>
+                                </label>
                             ) : ocrLoading.license ? (
                                 <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <div className="flex items-center gap-2">
@@ -839,7 +859,7 @@ export function WorkerDocCapturePage() {
                                             />
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="sm" type="button" className="text-slate-400" onClick={() => inputRefs.license.current?.click()}>Alterar</Button>
+                                    <label htmlFor="upload-license" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
                                 </div>
                             )}
                         </CardContent>
@@ -861,29 +881,29 @@ export function WorkerDocCapturePage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <input 
+                                id="upload-selfie"
                                 type="file" 
                                 accept="image/*" 
-                                capture="user"
                                 ref={inputRefs.selfie}
                                 onChange={(e) => handleFileUpload(e, 'selfie')}
-                                className="hidden"
+                                className="sr-only"
                             />
                             {!selfieUrl ? (
-                                <button
-                                    type="button"
-                                    onClick={() => inputRefs.selfie.current?.click()}
-                                    className="w-full h-24 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors"
+                                <label
+                                    htmlFor="upload-selfie"
+                                    className="w-full h-24 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
                                 >
                                     <Camera className="h-7 w-7 mb-1.5 text-slate-500" />
-                                    <span className="text-sm font-medium">Abrir Câmera para Selfie</span>
-                                </button>
+                                    <span className="text-sm font-medium">Tirar Foto ou Escolher Selfie</span>
+                                    <span className="text-[11px] text-slate-500 mt-0.5">Câmera ou Galeria de Fotos</span>
+                                </label>
                             ) : (
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center"><CheckCircle2 className="h-5 w-5 text-emerald-500" /></div>
                                         <span className="text-sm text-slate-300 font-semibold">Foto carregada com sucesso!</span>
                                     </div>
-                                    <Button variant="ghost" size="sm" type="button" className="text-slate-400" onClick={() => inputRefs.selfie.current?.click()}>Tirar Outra</Button>
+                                    <label htmlFor="upload-selfie" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Tirar Outra</label>
                                 </div>
                             )}
                         </CardContent>
