@@ -276,6 +276,12 @@ export function WorkerTariffsPage() {
     const filteredWorkersList = React.useMemo(() => {
         if (!rawWorkersList || rawWorkersList.length === 0) return [];
         return rawWorkersList.filter(worker => {
+            // Ignore orphan ghost/duplicate records created by external sync fallbacks
+            const cod = (worker.cod_colab || '').trim();
+            const nome = (worker.nome || '').trim();
+            if (cod.endsWith('-0') || cod.endsWith('-0-0')) return false;
+            if (nome.startsWith('Colaborador E') && (!worker.contratante || worker.contratante.trim() === '')) return false;
+
             // Filter by admission month if selected
             if (mesContratacao !== 'all') {
                 const isMatch = isNewWorkerInTargetMonth(worker, mesContratacao);

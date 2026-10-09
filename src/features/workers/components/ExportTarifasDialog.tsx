@@ -200,23 +200,43 @@ export function ExportTarifasDialog({
                 return;
             }
 
-            // 2. Fetch worker_beneficios_settings in chunks
+            // 2. Fetch worker_beneficios_settings and worker_assignments in chunks
             const allWorkerIds = workers.map(w => w.id).filter(Boolean);
             const settingsMap = new Map<string, any>();
+            const assignmentsMap = new Map<string, any>();
             const chunkSize = 200;
 
             for (let i = 0; i < allWorkerIds.length; i += chunkSize) {
                 const chunk = allWorkerIds.slice(i, i + chunkSize);
-                const { data: sData, error: sErr } = await supabase
-                    .schema('core_personal')
-                    .from('worker_beneficios_settings')
-                    .select('*')
-                    .in('worker_id', chunk);
+                const [{ data: sData, error: sErr }, { data: aData, error: aErr }] = await Promise.all([
+                    supabase
+                        .schema('core_personal')
+                        .from('worker_beneficios_settings')
+                        .select('*')
+                        .in('worker_id', chunk),
+                    supabase
+                        .schema('core_personal')
+                        .from('worker_assignments')
+                        .select('worker_id, tarifa_acordada, planned_start_date, created_at')
+                        .in('worker_id', chunk)
+                        .not('tarifa_acordada', 'is', null)
+                        .order('created_at', { ascending: false })
+                ]);
 
                 if (sErr) {
                     console.error('Error fetching worker settings for export:', sErr);
                 } else if (sData) {
                     sData.forEach(s => settingsMap.set(s.worker_id, s));
+                }
+
+                if (aErr) {
+                    console.error('Error fetching worker assignments for export:', aErr);
+                } else if (aData) {
+                    aData.forEach(a => {
+                        if (!assignmentsMap.has(a.worker_id)) {
+                            assignmentsMap.set(a.worker_id, a);
+                        }
+                    });
                 }
             }
 
@@ -225,13 +245,22 @@ export function ExportTarifasDialog({
             const workerFilterType = currentFilters.workerFilterType || 'all';
 
             workers = workers.filter(worker => {
+                // Ignore orphan ghost/duplicate records created by external sync fallbacks
+                const cod = (worker.cod_colab || '').trim();
+                const nome = (worker.nome || '').trim();
+                if (cod.endsWith('-0') || cod.endsWith('-0-0')) return false;
+                if (nome.startsWith('Colaborador E') && (!worker.contratante || worker.contratante.trim() === '')) return false;
+
                 if (mesContratacao !== 'all') {
                     const isMatch = isNewWorkerInTargetMonth(worker, mesContratacao);
                     if (!isMatch) return false;
                 }
 
                 const setting = settingsMap.get(worker.id);
-                const tariff = Number(setting?.tarifa_hora || 0);
+                const assignment = assignmentsMap.get(worker.id);
+                const settingTariff = Number(setting?.tarifa_hora || 0);
+                const assignmentTariff = Number(assignment?.tarifa_acordada || 0);
+                const tariff = settingTariff > 0 ? settingTariff : assignmentTariff;
 
                 if (workerFilterType === 'new_workers') {
                     const targetMonth = mesContratacao !== 'all' ? mesContratacao : format(new Date(), 'yyyy-MM');
