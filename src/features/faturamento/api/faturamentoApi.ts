@@ -712,9 +712,10 @@ export async function getHorasPendentesFaturamento(
       const calculateHourEntryValor = (h: any): number => {
         const tot = Number(h.horas_totais || 0);
         const not = Number(h.horas_noturnas || 0);
+        const maxNorm = Math.max(0, tot - not);
         const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
-          ? Number(h.horas_normais)
-          : Math.max(0, tot - not);
+          ? Math.min(Number(h.horas_normais), maxNorm)
+          : maxNorm;
         const tarifaNormal = Number(h.tarifa_faturada || 0);
         const tarifaNoturna = h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined
           ? Number(h.tarifa_faturada_noturna)
@@ -1789,9 +1790,10 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           const key = `${wId}_${dateKey}_${obraKey}`;
           const tot = Number(h.horas_totais || 0);
           const notu = Number(h.horas_noturnas || 0);
+          const maxNorm = Math.max(0, tot - notu);
           const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-            ? Number(h.horas_normais)
-            : Math.max(0, tot - notu);
+            ? Math.min(Number(h.horas_normais), maxNorm)
+            : maxNorm;
           const tfNorm = Number(h.tarifa_faturada || 0);
           const tfNotu = (h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined)
             ? Number(h.tarifa_faturada_noturna)

@@ -1402,17 +1402,19 @@ MCS - Gestão Comercial`;
       const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
         const tot = Number(h.horas_totais || 0);
         const notu = Number(h.horas_noturnas || 0);
+        const maxNorm = Math.max(0, tot - notu);
         return sum + ((h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-          ? Number(h.horas_normais)
-          : Math.max(0, tot - notu));
+          ? Math.min(Number(h.horas_normais), maxNorm)
+          : maxNorm);
       }, 0);
       const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
       const wTotalValorCalculated = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
         const tot = Number(h.horas_totais || 0);
         const notu = Number(h.horas_noturnas || 0);
+        const maxNorm = Math.max(0, tot - notu);
         const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-          ? Number(h.horas_normais)
-          : Math.max(0, tot - notu);
+          ? Math.min(Number(h.horas_normais), maxNorm)
+          : maxNorm;
         const tfNorm = Number(h.tarifa_faturada || w.tarifa || 0);
         const tfNotu = Number(h.tarifa_faturada_noturna || w.tarifaNoturna || tfNorm);
         return sum + (norm * tfNorm) + (notu * tfNotu);
@@ -2546,17 +2548,19 @@ MCS - Gestão Comercial`;
       const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
         const tot = Number(h.horas_totais || 0);
         const notu = Number(h.horas_noturnas || 0);
+        const maxNorm = Math.max(0, tot - notu);
         return sum + ((h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-          ? Number(h.horas_normais)
-          : Math.max(0, tot - notu));
+          ? Math.min(Number(h.horas_normais), maxNorm)
+          : maxNorm);
       }, 0);
       const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
       const wTotalValorCalculated = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
         const tot = Number(h.horas_totais || 0);
         const notu = Number(h.horas_noturnas || 0);
+        const maxNorm = Math.max(0, tot - notu);
         const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-          ? Number(h.horas_normais)
-          : Math.max(0, tot - notu);
+          ? Math.min(Number(h.horas_normais), maxNorm)
+          : maxNorm;
         const tfNorm = Number(h.tarifa_faturada || w.tarifa || 0);
         const tfNotu = Number(h.tarifa_faturada_noturna || w.tarifaNoturna || tfNorm);
         return sum + (norm * tfNorm) + (notu * tfNotu);
@@ -3323,9 +3327,10 @@ MCS - Gestão Comercial`;
               const wTotalValorMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
                 const totu = Number(h.horas_totais || 0);
                 const notu = Number(h.horas_noturnas || 0);
+                const maxNorm = Math.max(0, totu - notu);
                 const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-                  ? Number(h.horas_normais)
-                  : Math.max(0, totu - notu);
+                  ? Math.min(Number(h.horas_normais), maxNorm)
+                  : maxNorm;
                 const tfNorm = Number(h.tarifa_faturada || 0);
                 const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
                 return sum + (norm * tfNorm) + (notu * tfNotu);
@@ -3358,18 +3363,20 @@ MCS - Gestão Comercial`;
               const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
                 const totu = Number(h.horas_totais || 0);
                 const notu = Number(h.horas_noturnas || 0);
+                const maxNorm = Math.max(0, totu - notu);
                 const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-                  ? Number(h.horas_normais)
-                  : Math.max(0, totu - notu);
+                  ? Math.min(Number(h.horas_normais), maxNorm)
+                  : maxNorm;
                 return sum + norm;
               }, 0);
               const wTotalHorasNoturnas = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_noturnas || 0), 0);
               const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
                 const totu = Number(h.horas_totais || 0);
                 const notu = Number(h.horas_noturnas || 0);
+                const maxNorm = Math.max(0, totu - notu);
                 const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-                  ? Number(h.horas_normais)
-                  : Math.max(0, totu - notu);
+                  ? Math.min(Number(h.horas_normais), maxNorm)
+                  : maxNorm;
                 const tfNorm = Number(h.tarifa_faturada || 0);
                 const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
                 return sum + (norm * tfNorm) + (notu * tfNotu);

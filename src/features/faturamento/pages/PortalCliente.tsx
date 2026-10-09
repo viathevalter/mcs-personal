@@ -188,9 +188,10 @@ export function PortalCliente() {
         
         const tot = Number(h.horas_totais || 0);
         const not = Number(h.horas_noturnas || 0);
+        const maxNorm = Math.max(0, tot - not);
         const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
-          ? Number(h.horas_normais)
-          : Math.max(0, tot - not);
+          ? Math.min(Number(h.horas_normais), maxNorm)
+          : maxNorm;
 
         if (!groupedMap.has(key)) {
           groupedMap.set(key, {
