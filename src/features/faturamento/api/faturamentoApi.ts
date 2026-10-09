@@ -585,8 +585,16 @@ export async function getHorasPendentesFaturamento(
     const hoursList = horasTrabalhadasList.filter(h => {
       const client = clientsList.find(c => c.id === h.client_id);
       if (!client) return false;
+
+      // If the worker belongs to another specific company, reject
+      const uw = unknownWorkersMap.get(h.worker_id);
+      const isOurActiveWorker = activeWorkers.some(w => w.id === h.worker_id);
+      if (!isOurActiveWorker && uw?.empresa_id && uw.empresa_id !== empresaId) {
+        return false;
+      }
+
       const clientBelongsToCompany = client.empresa_id === empresaId;
-      const workerBelongsToCompany = belongsToCompany(h.worker_id);
+      const workerBelongsToCompany = isOurActiveWorker || (uw?.empresa_id === empresaId);
       if (!clientBelongsToCompany && !workerBelongsToCompany) return false;
 
       const cycleStartDay = client.billing_cycle_start_day || 1;
@@ -1743,7 +1751,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             return supabase
               .schema('core_finance')
               .from('horas_trabalhadas')
-              .select('fatura_id, worker_id, data_trabalho, horas_totais, tarifa_faturada, obra_id')
+              .select('fatura_id, worker_id, data_trabalho, horas_totais, horas_normais, horas_noturnas, tarifa_faturada, tarifa_faturada_noturna, obra_id')
               .in('fatura_id', chunk)
               .range(from, to);
           });
@@ -1763,24 +1771,63 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
         const processedKeys = new Set<string>();
 
         // Group by worker, obra, and day to sum duplicate registry records before applying adjustments
-        const groupedMap = new Map<string, { wId: string; obraId?: string | null; dateKey: string; hours: number; rate: number }>();
+        const groupedMap = new Map<string, {
+          wId: string;
+          obraId?: string | null;
+          dateKey: string;
+          hours: number;
+          normais: number;
+          noturnas: number;
+          rate: number;
+          rateNoturna: number;
+        }>();
         faturaHours.forEach(h => {
           const wId = h.worker_id;
           if (!wId) return;
           const dateKey = h.data_trabalho ? (h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho) : '';
           const obraKey = h.obra_id || 'sem_obra';
           const key = `${wId}_${dateKey}_${obraKey}`;
+          const tot = Number(h.horas_totais || 0);
+          const notu = Number(h.horas_noturnas || 0);
+          const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
+            ? Number(h.horas_normais)
+            : Math.max(0, tot - notu);
+          const tfNorm = Number(h.tarifa_faturada || 0);
+          const tfNotu = (h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined)
+            ? Number(h.tarifa_faturada_noturna)
+            : tfNorm;
+
           if (!groupedMap.has(key)) {
-            groupedMap.set(key, { wId, obraId: h.obra_id, dateKey, hours: 0, rate: Number(h.tarifa_faturada || 0) });
+            groupedMap.set(key, {
+              wId,
+              obraId: h.obra_id,
+              dateKey,
+              hours: 0,
+              normais: 0,
+              noturnas: 0,
+              rate: tfNorm,
+              rateNoturna: tfNotu
+            });
           }
-          groupedMap.get(key)!.hours += Number(h.horas_totais || 0);
+          const item = groupedMap.get(key)!;
+          item.hours += tot;
+          item.normais += norm;
+          item.noturnas += notu;
         });
 
         groupedMap.forEach((gVal, key) => {
           processedKeys.add(key);
           const hoursVal = getDisputedHourValue(disputedObj, gVal.wId, gVal.dateKey, gVal.hours, gVal.obraId);
           totHoras += hoursVal;
-          totValor += hoursVal * gVal.rate;
+          if (hoursVal === gVal.hours) {
+            totValor += (gVal.normais * gVal.rate) + (gVal.noturnas * gVal.rateNoturna);
+          } else if (gVal.noturnas > 0) {
+            const noturnaPortion = Math.min(hoursVal, gVal.noturnas);
+            const normalPortion = Math.max(0, hoursVal - noturnaPortion);
+            totValor += (normalPortion * gVal.rate) + (noturnaPortion * gVal.rateNoturna);
+          } else {
+            totValor += hoursVal * gVal.rate;
+          }
         });
 
         // Also check any newly added dates in disputedObj not yet in hoursSums
