@@ -114,6 +114,7 @@ export function WorkerTariffsPage() {
     const contratante = searchParams.get('contratante') || null;
     const funcion = searchParams.get('funcion') || null;
     const statusSeguridad = searchParams.get('statusSeguridad') || null;
+    const statusTrabajador = searchParams.get('statusTrabajador') || 'all';
     const mesContratacao = searchParams.get('mesContratacao') || 'all';
     const workerFilterType = searchParams.get('workerFilterType') || 'all';
     const page = parseInt(searchParams.get('page') || '1', 10);
@@ -196,6 +197,21 @@ export function WorkerTariffsPage() {
     const { data: clientsList = [] } = useUniqueClients();
     const { data: funciones = [] } = useUniqueFunciones();
 
+    // Determine statusTrabajador filter for backend query
+    const queryStatusTrabajador = React.useMemo(() => {
+        if (statusTrabajador === 'inativos' || workerFilterType === 'inativos') {
+            return ['inativos'];
+        }
+        if (statusTrabajador === 'ativos' || workerFilterType === 'ativos') {
+            return ['ativos'];
+        }
+        if (statusTrabajador === 'pendientes_ingreso') {
+            return ['pendientes_ingreso'];
+        }
+        // 'all': no filter on status, returns both active and inactive
+        return undefined;
+    }, [statusTrabajador, workerFilterType]);
+
     // Query worker tariffs list
     const { data: listData, isLoading } = useWorkersWithTariffs({
         empresaId: selectedEmpresaId || '',
@@ -204,7 +220,7 @@ export function WorkerTariffsPage() {
         contratante: contratante || undefined,
         funcion: funcion || undefined,
         statusSeguridad: statusSeguridad ? [statusSeguridad] : undefined,
-        statusTrabajador: ['ativos', 'pendientes_ingreso'], // Focus on active workers for tariff mapping
+        statusTrabajador: queryStatusTrabajador,
         sortColumn,
         sortDirection,
         page,
@@ -266,6 +282,21 @@ export function WorkerTariffsPage() {
                 if (!isMatch) return false;
             }
 
+            // Filter by statusTrabajador if explicitly set
+            if (statusTrabajador === 'inativos' || workerFilterType === 'inativos') {
+                const st = (worker.status_trabajador || '').toUpperCase();
+                const isInactive = st.includes('INATIV') || st.includes('DESLIG') || st.includes('BAIXA') || st.includes('DESIST');
+                if (!isInactive) return false;
+            } else if (statusTrabajador === 'ativos' || workerFilterType === 'ativos') {
+                const st = (worker.status_trabajador || '').toUpperCase();
+                const isActive = st.includes('ATIV') || st.includes('ACTI');
+                if (!isActive) return false;
+            } else if (statusTrabajador === 'pendientes_ingreso') {
+                const st = (worker.status_trabajador || '').toUpperCase();
+                const isPending = st.includes('PEND');
+                if (!isPending) return false;
+            }
+
             // Filter by worker type
             if (workerFilterType === 'new_workers') {
                 const targetMonth = mesContratacao !== 'all' ? mesContratacao : format(new Date(), 'yyyy-MM');
@@ -281,10 +312,19 @@ export function WorkerTariffsPage() {
 
             return true;
         });
-    }, [rawWorkersList, mesContratacao, workerFilterType]);
+    }, [rawWorkersList, mesContratacao, workerFilterType, statusTrabajador]);
 
     const totalCount = filteredWorkersList.length;
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const totalPages = Math.max(1, Math.ceil((listData?.count || totalCount) / pageSize));
+
+    const inativoCount = React.useMemo(() => {
+        return filteredWorkersList.filter(w => {
+            const st = (w.status_trabajador || '').toUpperCase();
+            return st.includes('INATIV') || st.includes('DESLIG') || st.includes('BAIXA') || st.includes('DESIST');
+        }).length;
+    }, [filteredWorkersList]);
+
+    const ativoCount = Math.max(0, totalCount - inativoCount);
 
     const altaCount = React.useMemo(() => {
         return filteredWorkersList.filter(w => w.status_seguridad === 'Alta').length;
@@ -463,6 +503,7 @@ export function WorkerTariffsPage() {
                             contratante: contratante || undefined,
                             funcion: funcion || undefined,
                             statusSeguridad: statusSeguridad ? [statusSeguridad] : undefined,
+                            statusTrabajador: queryStatusTrabajador,
                             mesContratacao,
                             workerFilterType,
                             sortColumn,
@@ -492,7 +533,11 @@ export function WorkerTariffsPage() {
                         <div className="space-y-0.5">
                             <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Trabalhadores</span>
                             <div className="text-xl font-bold text-slate-900 dark:text-white">{totalCount}</div>
-                            <span className="text-[10px] text-muted-foreground">Cadastrados no filtro</span>
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{ativoCount} Ativos</span>
+                                {' • '}
+                                <span className="text-rose-600 dark:text-rose-400 font-semibold">{inativoCount} Inativos</span>
+                            </span>
                         </div>
                         <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
                             <Users className="h-5 w-5" />
@@ -553,7 +598,7 @@ export function WorkerTariffsPage() {
             {/* Filters section */}
             <Card className="shrink-0 shadow-sm">
                 <CardContent className="p-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3">
                         {/* Mes de Admissao / Contratacao */}
                         <div className="space-y-1">
                             <span className="text-xs font-semibold text-muted-foreground">Mês de Admissão</span>
@@ -574,9 +619,28 @@ export function WorkerTariffsPage() {
                             </Select>
                         </div>
 
+                        {/* Status do Trabalhador */}
+                        <div className="space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">Status Trabalhador</span>
+                            <Select
+                                value={statusTrabajador}
+                                onValueChange={(v) => updateSearchParams({ statusTrabajador: v === 'all' ? null : v, page: '1' })}
+                            >
+                                <SelectTrigger className="w-full h-9 text-xs bg-background font-medium">
+                                    <SelectValue placeholder="Todos os status" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all" className="text-xs">Todos (Ativos e Inativos)</SelectItem>
+                                    <SelectItem value="ativos" className="text-xs">Apenas Ativos</SelectItem>
+                                    <SelectItem value="inativos" className="text-xs">Apenas Inativos / Desligados</SelectItem>
+                                    <SelectItem value="pendientes_ingreso" className="text-xs">Pendentes de Ingresso</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         {/* Exibir Trabalhadores */}
                         <div className="space-y-1">
-                            <span className="text-xs font-semibold text-muted-foreground">Exibir Trabalhadores</span>
+                            <span className="text-xs font-semibold text-muted-foreground">Exibir Tarifas</span>
                             <Select
                                 value={workerFilterType}
                                 onValueChange={(v) => updateSearchParams({ workerFilterType: v === 'all' ? null : v, page: '1' })}
@@ -586,9 +650,11 @@ export function WorkerTariffsPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all" className="text-xs">Todos os Trabalhadores</SelectItem>
-                                    <SelectItem value="new_workers" className="text-xs">Novos Contratados no Mês</SelectItem>
-                                    <SelectItem value="zero_tariffs" className="text-xs">Tarifas Zeradas (€0.00)</SelectItem>
                                     <SelectItem value="with_tariffs" className="text-xs">Com Tarifa Atribuída</SelectItem>
+                                    <SelectItem value="zero_tariffs" className="text-xs">Tarifas Zeradas (€0.00)</SelectItem>
+                                    <SelectItem value="new_workers" className="text-xs">Novos Contratados no Mês</SelectItem>
+                                    <SelectItem value="inativos" className="text-xs">Apenas Inativos / Desligados</SelectItem>
+                                    <SelectItem value="ativos" className="text-xs">Apenas Ativos</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -784,19 +850,33 @@ export function WorkerTariffsPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="font-medium text-slate-900 dark:text-slate-100">
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <span className="font-semibold">{worker.nome}</span>
                                                         {isNewWorker && (
                                                             <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 text-[10px] py-0 px-1.5 font-semibold">
                                                                 Novo no Mês
                                                             </Badge>
                                                         )}
+                                                        {Boolean(
+                                                            worker.status_trabajador &&
+                                                            (worker.status_trabajador.toUpperCase().includes('INATIV') ||
+                                                             worker.status_trabajador.toUpperCase().includes('DESLIG') ||
+                                                             worker.status_trabajador.toUpperCase().includes('BAIXA') ||
+                                                             worker.status_trabajador.toUpperCase().includes('DESIST'))
+                                                        ) && (
+                                                            <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-400 dark:border-rose-900/60 text-[10px] py-0 px-1.5 font-semibold">
+                                                                {worker.status_trabajador}
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                    {worker.data_ingresso && (
-                                                        <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
-                                                            Início: {formatDateClean(worker.data_ingresso)}
-                                                        </div>
-                                                    )}
+                                                    <div className="text-[11px] text-muted-foreground font-mono mt-0.5 flex items-center gap-2">
+                                                        {worker.data_ingresso && (
+                                                            <span>Início: {formatDateClean(worker.data_ingresso)}</span>
+                                                        )}
+                                                        {worker.data_baixa && (
+                                                            <span className="text-rose-600 dark:text-rose-400 font-semibold">• Baixa: {formatDateClean(worker.data_baixa)}</span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-muted-foreground text-xs">
                                                     {worker.funcion || '-'}
@@ -857,24 +937,28 @@ export function WorkerTariffsPage() {
                                                                         Atribuição & Histórico Contratual
                                                                     </span>
                                                                 </div>
-                                                                <div className="space-y-1.5 text-xs">
-                                                                    <div>
-                                                                        <span className="text-muted-foreground block">Função do Trabalhador</span>
-                                                                        <span className="font-bold text-slate-800 dark:text-slate-200">{worker.funcion || 'Não informada'}</span>
+                                                                    <div className="space-y-1.5 text-xs">
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Status do Trabalhador</span>
+                                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{worker.status_trabajador || 'Não informado'}</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Função do Trabalhador</span>
+                                                                            <span className="font-bold text-slate-800 dark:text-slate-200">{worker.funcion || 'Não informada'}</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Cliente Alocado</span>
+                                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.cliente_nombre || 'Não informado'}</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">Empresa Contratante</span>
+                                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.contratante || 'Não informada'}</span>
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-muted-foreground block">NISS</span>
+                                                                            <span className="font-mono text-slate-600 dark:text-slate-400">{worker.niss || 'Não informado'}</span>
+                                                                        </div>
                                                                     </div>
-                                                                    <div>
-                                                                        <span className="text-muted-foreground block">Cliente Alocado</span>
-                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.cliente_nombre || 'Não informado'}</span>
-                                                                    </div>
-                                                                    <div>
-                                                                        <span className="text-muted-foreground block">Empresa Contratante</span>
-                                                                        <span className="font-semibold text-slate-700 dark:text-slate-300">{worker.contratante || 'Não informada'}</span>
-                                                                    </div>
-                                                                    <div>
-                                                                        <span className="text-muted-foreground block">NISS</span>
-                                                                        <span className="font-mono text-slate-600 dark:text-slate-400">{worker.niss || 'Não informado'}</span>
-                                                                    </div>
-                                                                </div>
                                                             </div>
 
                                                                 {/* Remuneration Settings Card */}
@@ -1003,6 +1087,30 @@ export function WorkerTariffsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground mr-1">
+                            Página <strong>{page}</strong> de <strong>{totalPages}</strong>
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs font-medium"
+                            disabled={page <= 1}
+                            onClick={() => updateSearchParams({ page: (page - 1).toString() })}
+                        >
+                            Anterior
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2.5 text-xs font-medium"
+                            disabled={page >= totalPages}
+                            onClick={() => updateSearchParams({ page: (page + 1).toString() })}
+                        >
+                            Próxima
+                        </Button>
                     </div>
                 </div>
             </div>

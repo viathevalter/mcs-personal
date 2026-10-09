@@ -39,6 +39,7 @@ export interface ExportTarifasDialogProps {
         contratante?: string;
         funcion?: string;
         statusSeguridad?: string[];
+        statusTrabajador?: string[];
         mesContratacao?: string;
         workerFilterType?: string;
         sortColumn?: string;
@@ -92,6 +93,7 @@ const EXPORTABLE_COLUMNS: ExportableColumn[] = [
 const DEFAULT_COLUMNS = [
     'cod_colab',
     'nome',
+    'status_trabajador',
     'nif',
     'tarifa_hora',
     'funcion',
@@ -183,7 +185,7 @@ export function ExportTarifasDialog({
                 contratante: currentFilters.contratante,
                 funcion: currentFilters.funcion,
                 statusSeguridad: currentFilters.statusSeguridad,
-                statusTrabajador: ['ativos', 'pendientes_ingreso'],
+                statusTrabajador: currentFilters.statusTrabajador,
                 sortColumn: currentFilters.sortColumn || 'nome',
                 sortDirection: currentFilters.sortDirection || 'asc',
                 page: 1,
@@ -239,6 +241,14 @@ export function ExportTarifasDialog({
                     if (tariff > 0) return false;
                 } else if (workerFilterType === 'with_tariffs') {
                     if (tariff <= 0) return false;
+                } else if (workerFilterType === 'inativos') {
+                    const st = (worker.status_trabajador || '').toUpperCase();
+                    const isInactive = st.includes('INATIV') || st.includes('DESLIG') || st.includes('BAIXA') || st.includes('DESIST');
+                    if (!isInactive) return false;
+                } else if (workerFilterType === 'ativos') {
+                    const st = (worker.status_trabajador || '').toUpperCase();
+                    const isActive = st.includes('ATIV') || st.includes('ACTI');
+                    if (!isActive) return false;
                 }
 
                 return true;
