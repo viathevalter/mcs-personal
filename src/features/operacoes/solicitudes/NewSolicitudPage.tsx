@@ -1217,7 +1217,7 @@ export function NewSolicitudPage() {
             if (actionType === 'order_pause') {
                 let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_pausa_pedido', {
                     payload: {
-                        empresa_id: selectedEmpresaId,
+                        empresa_id: effectiveEmpresaId,
                         pedido_id: selectedPedidoId,
                         motivo: reason,
                         observacoes: notes,
@@ -1228,7 +1228,7 @@ export function NewSolicitudPage() {
                     console.warn("Retrying with core_operacoes schema...", rpcErr);
                     const retryRes = await supabase.schema('core_operacoes').rpc('processar_pausa_pedido', {
                         payload: {
-                            empresa_id: selectedEmpresaId,
+                            empresa_id: effectiveEmpresaId,
                             pedido_id: selectedPedidoId,
                             motivo: reason,
                             observacoes: notes,
@@ -1245,7 +1245,7 @@ export function NewSolicitudPage() {
             } else if (actionType === 'order_cancellation') {
                 let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_cancelamento_pedido', {
                     payload: {
-                        empresa_id: selectedEmpresaId,
+                        empresa_id: effectiveEmpresaId,
                         pedido_id: selectedPedidoId,
                         motivo: reason,
                         observacoes: notes,
@@ -1257,7 +1257,7 @@ export function NewSolicitudPage() {
                     console.warn("Retrying with core_operacoes schema...", rpcErr);
                     const retryRes = await supabase.schema('core_operacoes').rpc('processar_cancelamento_pedido', {
                         payload: {
-                            empresa_id: selectedEmpresaId,
+                            empresa_id: effectiveEmpresaId,
                             pedido_id: selectedPedidoId,
                             motivo: reason,
                             observacoes: notes,
@@ -1276,7 +1276,7 @@ export function NewSolicitudPage() {
                 const origemId = postponeOriginType === 'pedido' ? selectedPedidoId : selectedReemplazoId;
                 let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_adiamento_inicio', {
                     payload: {
-                        empresa_id: selectedEmpresaId,
+                        empresa_id: effectiveEmpresaId,
                         origem_tipo: postponeOriginType,
                         origem_id: origemId,
                         nova_data_inicio: dueDate,
@@ -1288,7 +1288,7 @@ export function NewSolicitudPage() {
                     console.warn("Retrying processar_adiamento_inicio with core_operacoes schema...", rpcErr);
                     const retryRes = await supabase.schema('core_operacoes').rpc('processar_adiamento_inicio', {
                         payload: {
-                            empresa_id: selectedEmpresaId,
+                            empresa_id: effectiveEmpresaId,
                             origem_tipo: postponeOriginType,
                             origem_id: origemId,
                             nova_data_inicio: dueDate,
