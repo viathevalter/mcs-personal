@@ -142,16 +142,15 @@ export function WorkerLoginPage() {
             <div className="relative z-10 flex-1 flex flex-col justify-center px-5 py-4 max-w-md mx-auto w-full">
                 {/* Logo e Boas-vindas com contraste aprimorado */}
                 <div className="text-center mb-6">
-                    <div className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-2xl bg-slate-950/75 backdrop-blur-md border border-white/20 shadow-xl mb-3">
+                    <div className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl bg-slate-950/75 backdrop-blur-md border border-white/20 shadow-xl mb-3">
                         <img 
                             src="/logo_mcs_transparent.png" 
                             alt="MCS MultiCompany System" 
-                            className="h-9 w-auto object-contain brightness-0 invert"
+                            className="h-10 sm:h-11 w-auto object-contain brightness-0 invert"
                             onError={(e) => {
                                 (e.target as HTMLElement).style.display = 'none';
                             }}
                         />
-                        <span className="font-extrabold text-xl tracking-tight ml-2 text-white">MCS</span>
                     </div>
 
                     <div className="flex justify-center mb-2">
