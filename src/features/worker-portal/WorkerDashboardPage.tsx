@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { 
     Calendar, 
@@ -35,6 +35,8 @@ import { downloadTimesheetPdf, type TimesheetPdfData, type TimesheetDayEntry } f
 
 import { InstallAppPrompt } from './components/InstallAppPrompt';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
+import { WorkerChatModal } from './components/WorkerChatModal';
+import { getWorkerPeriodMessages, type WorkerMessage } from './services/workerCommunicationService';
 
 type SubView = 'home' | 'week' | 'calendar' | 'summary' | 'generate-pdf' | 'upload';
 
@@ -78,6 +80,29 @@ export function WorkerDashboardPage() {
 
     // Diálogo de troca de obra/cliente (caso haja múltiplos períodos no mês ou múltiplas obras cadastradas)
     const [showObraSelector, setShowObraSelector] = useState(false);
+
+    // Notificações e Chat com o Gestor
+    const [chatOpen, setChatOpen] = useState(false);
+    const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+    const [latestMessage, setLatestMessage] = useState<WorkerMessage | null>(null);
+
+    const loadWorkerMessages = useCallback(async () => {
+        if (!workerAuth?.id) return;
+        try {
+            const msgs = await getWorkerPeriodMessages(workerAuth.id, currentYear, currentMonth);
+            const unread = msgs.filter(m => m.sender_type === 'gestor' && !m.read).length;
+            setUnreadMessagesCount(unread);
+            if (msgs.length > 0) {
+                setLatestMessage(msgs[msgs.length - 1]);
+            } else {
+                setLatestMessage(null);
+            }
+        } catch (_) {}
+    }, [workerAuth?.id, currentYear, currentMonth]);
+
+    useEffect(() => {
+        loadWorkerMessages();
+    }, [loadWorkerMessages]);
 
     const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
     const locale = isSpanish ? 'es-ES' : 'pt-PT';
@@ -494,22 +519,53 @@ export function WorkerDashboardPage() {
                 )}
             </div>
 
-            {/* RECADO DO GESTOR / ESCRITÓRIO SOBRE AS HORAS */}
-            {selectedPeriod?.observacoes && (
-                <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-3.5 flex items-start gap-3 text-slate-800 shadow-xs animate-in fade-in">
-                    <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 shrink-0">
-                        <MessageSquare className="h-4 w-4" />
+            {/* CENTRAL DE NOTIFICAÇÕES & CHAT COM O GESTOR */}
+            <div className={`rounded-2xl p-3.5 border transition-all ${
+                unreadMessagesCount > 0 
+                    ? 'bg-amber-500/15 border-2 border-amber-500/50 shadow-sm animate-in fade-in' 
+                    : 'bg-white border-slate-200/90 shadow-2xs'
+            }`}>
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            unreadMessagesCount > 0 
+                                ? 'bg-amber-500 text-white shadow-xs' 
+                                : 'bg-slate-100 text-slate-600'
+                        }`}>
+                            <MessageSquare className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                                <span className="font-extrabold text-xs text-slate-900 tracking-tight">
+                                    {isSpanish ? 'Mensajes y Notificaciones' : 'Mensagens e Notificações'}
+                                </span>
+                                {unreadMessagesCount > 0 && (
+                                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-600 text-white animate-pulse">
+                                        {unreadMessagesCount} {isSpanish ? 'nuevo' : 'nova'}
+                                    </span>
+                                )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                {latestMessage 
+                                    ? `${latestMessage.sender_type === 'gestor' ? 'Gestor: ' : 'Você: '} "${latestMessage.message}"`
+                                    : (isSpanish ? 'Comuníquese directamente con el gestor de horas' : 'Comunique direto com o gestor de horas')}
+                            </p>
+                        </div>
                     </div>
-                    <div className="space-y-1 min-w-0">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-full inline-block border border-amber-200">
-                            {t('workerPortal.dashboard.managerNote', 'Mensagem do Gestor')}
-                        </span>
-                        <p className="text-xs font-semibold text-slate-800 whitespace-pre-wrap leading-relaxed break-words">
-                            {selectedPeriod.observacoes}
-                        </p>
-                    </div>
+
+                    <Button
+                        type="button"
+                        onClick={() => setChatOpen(true)}
+                        className={`h-8 px-3 rounded-xl font-bold text-xs shrink-0 shadow-xs flex items-center gap-1 ${
+                            unreadMessagesCount > 0
+                                ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                                : 'bg-slate-900 hover:bg-slate-800 text-white'
+                        }`}
+                    >
+                        <span>{unreadMessagesCount > 0 ? (isSpanish ? 'Abrir y Responder' : 'Ver e Responder') : (isSpanish ? 'Abrir Chat' : 'Abrir Chat')}</span>
+                    </Button>
                 </div>
-            )}
+            </div>
 
             {/* MODAL DE SELEÇÃO DE OBRA / CLIENTE (Se houver múltiplas) */}
             {showObraSelector && (
@@ -896,6 +952,18 @@ export function WorkerDashboardPage() {
                     maxDaysInMonth={days.length}
                 />
             )}
+
+            {/* Modal de Chat & Notificações do Trabalhador */}
+            <WorkerChatModal
+                open={chatOpen}
+                onOpenChange={setChatOpen}
+                workerId={workerAuth?.id}
+                workerName={workerAuth?.nome || 'Trabalhador'}
+                periodYear={currentYear}
+                periodMonth={currentMonth}
+                hourRecordId={selectedPeriod?.id}
+                onMessagesRead={loadWorkerMessages}
+            />
         </div>
     );
 }

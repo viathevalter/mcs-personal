@@ -9,16 +9,19 @@ import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
 import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote, Search, X, Clock, Smartphone, Users, Bell, AlertCircle, CheckCircle2, MessageSquare } from 'lucide-react';
-import { toast } from 'sonner';
+import { Checkbox } from '../../components/ui/checkbox';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
 import { AdminNotesDialog } from './components/AdminNotesDialog';
 import { BroadcastReminderDialog } from './components/BroadcastReminderDialog';
+import { WorkerNotificationDialog } from './components/WorkerNotificationDialog';
+import { BatchWorkerNotificationDialog } from './components/BatchWorkerNotificationDialog';
 import { ValidationScreen } from './ValidationScreen';
 import { Dialog, DialogContent } from '../../components/ui/dialog';
 import { useRole } from '../../app/providers/RoleProvider';
 import { useTranslation } from 'react-i18next';
 import { Input } from '../../components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../components/ui/select';
+import { getBatchWorkersMessageCounts } from '../worker-portal/services/workerCommunicationService';
 
 interface WorkerDetail {
     worker_id: string;
@@ -91,6 +94,13 @@ export function ClientHoursDetail() {
         contratante: string;
     }>({ open: false, workerId: '', workerName: '', recordId: '', contratante: '' });
     const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
+    const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
+    const [workerMessageCounts, setWorkerMessageCounts] = useState<Record<string, { total: number; unreadByGestor: number }>>({});
+    const [workerNotificationDialogState, setWorkerNotificationDialogState] = useState<{
+        open: boolean;
+        worker: WorkerDetail | null;
+    }>({ open: false, worker: null });
+    const [batchNotificationOpen, setBatchNotificationOpen] = useState(false);
 
     useEffect(() => {
         setPortalNode(document.getElementById('topbar-title-portal'));
@@ -181,7 +191,16 @@ export function ClientHoursDetail() {
                 };
             }) || [];
 
-            setWorkers(merged.sort((a, b) => a.worker_name.localeCompare(b.worker_name)));
+            const sorted = merged.sort((a, b) => a.worker_name.localeCompare(b.worker_name));
+            setWorkers(sorted);
+
+            // Fetch message counts for all workers in this client & period
+            const workerIdsForCounts = sorted.map(w => w.worker_id);
+            if (workerIdsForCounts.length > 0) {
+                getBatchWorkersMessageCounts(workerIdsForCounts, year, month)
+                    .then(counts => setWorkerMessageCounts(counts))
+                    .catch(err => console.error('Error fetching message counts:', err));
+            }
 
         } catch (error) {
             console.error('Error fetching client details:', error);
@@ -403,6 +422,44 @@ export function ClientHoursDetail() {
         return true;
     });
 
+    const selectedWorkersForBatch = useMemo(() => {
+        return workers
+            .filter(w => selectedWorkerIds.includes(w.worker_id))
+            .map(w => ({
+                worker_id: w.worker_id,
+                worker_name: w.worker_name,
+                movil: w.movil
+            }));
+    }, [workers, selectedWorkerIds]);
+
+    const handleSelectAllFiltered = () => {
+        const filteredIds = filteredWorkers.map(w => w.worker_id);
+        const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedWorkerIds.includes(id));
+        if (allSelected) {
+            setSelectedWorkerIds(prev => prev.filter(id => !filteredIds.includes(id)));
+        } else {
+            setSelectedWorkerIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+        }
+    };
+
+    const handleSelectPendingOnly = () => {
+        const pendingIds = workers
+            .filter(w => w.status === 'pendente' || w.status === 'em_andamento')
+            .map(w => w.worker_id);
+        setSelectedWorkerIds(pendingIds);
+        if (pendingIds.length > 0) {
+            toast.info(`${pendingIds.length} trabalhadores com horas pendentes selecionados.`);
+        } else {
+            toast.info('Não há trabalhadores com horas pendentes neste cliente.');
+        }
+    };
+
+    const toggleWorkerSelection = (workerId: string) => {
+        setSelectedWorkerIds(prev =>
+            prev.includes(workerId) ? prev.filter(id => id !== workerId) : [...prev, workerId]
+        );
+    };
+
     const getMonthName = (m: number) => {
         const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
         return new Date(2000, m - 1, 1).toLocaleString(locale, { month: 'long' }).toUpperCase();
@@ -549,6 +606,18 @@ export function ClientHoursDetail() {
                     </p>
                 </div>
                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
+                    {/* Botão de Selecionar Pendentes */}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleSelectPendingOnly}
+                        disabled={kpis.pendentes === 0 && kpis.emAndamento === 0}
+                        className="h-9 px-3 rounded-xl text-xs font-semibold border-dashed border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                        title="Marcar caixas de seleção de todos os trabalhadores com envio de horas pendente"
+                    >
+                        Selecionar Pendentes
+                    </Button>
+
                     {/* Botão de Cobrança / Notificação para Pendentes */}
                     <Button
                         type="button"
@@ -602,16 +671,64 @@ export function ClientHoursDetail() {
                 </div>
             </div>
 
+            {/* Barra de Ação em Lote quando há Trabalhadores Selecionados */}
+            {selectedWorkerIds.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/60 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 p-3 px-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center gap-2.5">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-black shadow-xs">
+                            {selectedWorkerIds.length}
+                        </span>
+                        <div className="text-xs">
+                            <span className="font-bold text-indigo-950 dark:text-indigo-200">
+                                {selectedWorkerIds.length} {selectedWorkerIds.length === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}
+                            </span>
+                            <span className="text-muted-foreground ml-1 hidden sm:inline">
+                                ({workers.length} no total deste cliente)
+                            </span>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setBatchNotificationOpen(true)}
+                            className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 rounded-xl shadow-xs active:scale-95"
+                        >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            <span>Notificar Selecionados ({selectedWorkerIds.length})</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setSelectedWorkerIds([])}
+                            className="h-8 text-xs text-muted-foreground hover:text-foreground rounded-xl"
+                        >
+                            Limpar seleção
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             <Card className="flex-1 overflow-hidden border">
                 <div className="h-full relative overflow-auto">
                     <Table>
                         <TableHeader className="sticky top-0 bg-muted/50 shadow-sm backdrop-blur-md z-10">
                             <TableRow>
+                                <TableHead className="w-12 text-center px-3">
+                                    <Checkbox
+                                        checked={filteredWorkers.length > 0 && filteredWorkers.every(w => selectedWorkerIds.includes(w.worker_id))}
+                                        onCheckedChange={handleSelectAllFiltered}
+                                        title="Selecionar todos os listados"
+                                        aria-label="Selecionar todos os trabalhadores listados"
+                                    />
+                                </TableHead>
                                 <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.worker')}</TableHead>
                                 <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.passport')}</TableHead>
                                 <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.phone')}</TableHead>
                                 <TableHead className="font-semibold text-foreground text-center">{t('clientHoursDetail.table.status')}</TableHead>
-                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.notesTitle', 'Anotações')}</TableHead>
+                                <TableHead className="font-semibold text-foreground text-center">Chat / Notificações</TableHead>
+                                <TableHead className="font-semibold text-foreground">Anotações Internas</TableHead>
                                 <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.file')}</TableHead>
                                 <TableHead className="w-[180px] text-right">{t('clientHoursDetail.table.actions')}</TableHead>
                             </TableRow>
@@ -619,21 +736,21 @@ export function ClientHoursDetail() {
                         <TableBody>
                             {loading && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center">
+                                    <TableCell colSpan={9} className="h-32 text-center">
                                         <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                                     </TableCell>
                                 </TableRow>
                             )}
                             {!loading && workers.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                    <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                                         {t('clientHoursDetail.emptyWorkers')}
                                     </TableCell>
                                 </TableRow>
                             )}
                             {!loading && workers.length > 0 && filteredWorkers.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                    <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
                                         Nenhum trabalhador corresponde aos filtros aplicados.
                                     </TableCell>
                                 </TableRow>
@@ -651,8 +768,21 @@ export function ClientHoursDetail() {
                                     }
                                 }
 
+                                const msgCount = workerMessageCounts[worker.worker_id] || { total: 0, unreadByGestor: 0 };
+                                const isSelected = selectedWorkerIds.includes(worker.worker_id);
+
                                 return (
-                                <TableRow key={`${worker.worker_id}-${worker.contratante}`} className="hover:bg-muted/50 transition-colors">
+                                <TableRow 
+                                    key={`${worker.worker_id}-${worker.contratante}`} 
+                                    className={`hover:bg-muted/50 transition-colors ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : ''}`}
+                                >
+                                    <TableCell className="w-12 text-center align-top pt-4 px-3">
+                                        <Checkbox
+                                            checked={isSelected}
+                                            onCheckedChange={() => toggleWorkerSelection(worker.worker_id)}
+                                            aria-label={`Selecionar ${worker.worker_name}`}
+                                        />
+                                    </TableCell>
                                     <TableCell className="font-medium align-top pt-4">
                                         <div className="flex flex-col gap-1.5">
                                             <div className="flex items-center gap-2">
@@ -766,12 +896,46 @@ export function ClientHoursDetail() {
                                         )}
                                         {worker.status === 'validado' && <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">{t('clientHoursDetail.badges.validated')}</Badge>}
                                     </TableCell>
+                                    {/* Coluna 1: Chat e Notificações ao Trabalhador */}
+                                    <TableCell className="text-center align-top pt-4">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setWorkerNotificationDialogState({ open: true, worker })}
+                                            className={`h-8 px-2.5 rounded-lg flex items-center justify-center gap-1.5 mx-auto transition-all ${
+                                                msgCount.unreadByGestor > 0
+                                                    ? 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100 ring-2 ring-rose-500/20 font-bold'
+                                                    : msgCount.total > 0
+                                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-medium'
+                                                    : 'text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100'
+                                            }`}
+                                            title="Abrir chat e histórico de notificações com o trabalhador"
+                                        >
+                                            <MessageSquare className="h-3.5 w-3.5" />
+                                            <span className="text-xs">
+                                                {msgCount.unreadByGestor > 0 ? (
+                                                    <span className="flex items-center gap-1">
+                                                        Chat
+                                                        <span className="px-1.5 py-0.2 bg-rose-600 text-white text-[10px] font-black rounded-full shadow-2xs">
+                                                            +{msgCount.unreadByGestor}
+                                                        </span>
+                                                    </span>
+                                                ) : msgCount.total > 0 ? (
+                                                    <span>Chat ({msgCount.total})</span>
+                                                ) : (
+                                                    <span>Notificar</span>
+                                                )}
+                                            </span>
+                                        </Button>
+                                    </TableCell>
+                                    {/* Coluna 2: Anotações Internas do Escritório */}
                                     <TableCell className="align-top pt-4">
                                         {worker.observacoes ? (
                                             <div className="flex items-start gap-2">
                                                 <div 
-                                                    className="text-xs text-amber-800 bg-amber-50 border border-amber-200 p-2 rounded max-w-[200px] whitespace-pre-wrap break-words cursor-pointer hover:bg-amber-100 transition-colors"
-                                                    title="Clique para editar"
+                                                    className="text-xs text-amber-900 bg-amber-50/90 border border-amber-200 p-2 rounded-lg max-w-[200px] whitespace-pre-wrap break-words cursor-pointer hover:bg-amber-100 transition-colors shadow-2xs"
+                                                    title="Anotação interna do escritório (privada). Clique para editar."
                                                     onClick={() => setNotesDialogState({
                                                         open: true,
                                                         workerId: worker.worker_id,
@@ -780,11 +944,15 @@ export function ClientHoursDetail() {
                                                         existingNote: worker.observacoes || null
                                                     })}
                                                 >
+                                                    <div className="text-[9px] uppercase font-bold text-amber-700 mb-0.5 tracking-wider flex items-center gap-1">
+                                                        <StickyNote className="h-2.5 w-2.5" />
+                                                        <span>Interno</span>
+                                                    </div>
                                                     {worker.observacoes}
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="flex justify-center">
+                                            <div className="flex justify-start">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -796,7 +964,7 @@ export function ClientHoursDetail() {
                                                         hourRecordId: worker.hour_record_id || null,
                                                         existingNote: worker.observacoes || null
                                                     })}
-                                                    title={t('clientHoursDetail.notesTitle', 'Adicionar anotação')}
+                                                    title="Adicionar anotação interna do escritório (privada)"
                                                 >
                                                     <StickyNote className="h-4 w-4" />
                                                 </Button>
@@ -1005,6 +1173,40 @@ export function ClientHoursDetail() {
                 month={month}
                 year={year}
                 pendingWorkers={pendingWorkersList}
+            />
+
+            {/* Modal de Chat & Notificação Individual com o Trabalhador */}
+            {workerNotificationDialogState.worker && (
+                <WorkerNotificationDialog
+                    open={workerNotificationDialogState.open}
+                    onOpenChange={(open) => setWorkerNotificationDialogState(prev => ({ ...prev, open }))}
+                    workerId={workerNotificationDialogState.worker.worker_id}
+                    workerName={workerNotificationDialogState.worker.worker_name}
+                    workerCode={workerNotificationDialogState.worker.cod_colab}
+                    workerPassport={workerNotificationDialogState.worker.pasaporte || undefined}
+                    workerPhone={workerNotificationDialogState.worker.movil || undefined}
+                    periodYear={year}
+                    periodMonth={month}
+                    clientName={clientName || ''}
+                    hourRecordId={workerNotificationDialogState.worker.hour_record_id || undefined}
+                    onMessageSent={() => {
+                        fetchClientWorkers(true);
+                    }}
+                />
+            )}
+
+            {/* Modal de Notificação em Lote para Múltiplos Trabalhadores Selecionados */}
+            <BatchWorkerNotificationDialog
+                open={batchNotificationOpen}
+                onOpenChange={setBatchNotificationOpen}
+                clientName={clientName || ''}
+                periodYear={year}
+                periodMonth={month}
+                selectedWorkers={selectedWorkersForBatch}
+                onSuccess={() => {
+                    setSelectedWorkerIds([]);
+                    fetchClientWorkers(true);
+                }}
             />
         </div>
     );

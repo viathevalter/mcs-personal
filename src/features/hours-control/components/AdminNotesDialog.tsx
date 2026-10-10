@@ -89,9 +89,12 @@ export function AdminNotesDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Recado & Observações de Horas</DialogTitle>
+                    <DialogTitle className="flex items-center gap-2">
+                        <span>Anotações Internas</span>
+                        <span className="text-xs px-2 py-0.5 font-normal rounded-full bg-amber-100 text-amber-800 border border-amber-200">Uso Interno</span>
+                    </DialogTitle>
                     <DialogDescription className="text-xs">
-                        Adicione um recado ou observação para <strong className="text-foreground">{workerName}</strong> ({periodMonth}/{periodYear}). Esta mensagem será exibida em destaque no Portal do Trabalhador.
+                        Registro de anotações internas do escritório para <strong className="text-foreground">{workerName}</strong> ({periodMonth}/{periodYear}). Esta informação é privada e <strong>não é visível ao trabalhador</strong> no portal.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -99,7 +102,7 @@ export function AdminNotesDialog({
                     <Textarea
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder={t('clientHoursDetail.notesPlaceholder', 'Ex: Foi dispensado no dia 16...')}
+                        placeholder="Ex: Colaborador com atestado médico a partir do dia 15..."
                         className="min-h-[120px] resize-none"
                     />
                 </div>
