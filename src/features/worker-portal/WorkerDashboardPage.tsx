@@ -17,7 +17,8 @@ import {
     Download, 
     Send,
     Edit3,
-    BarChart3
+    BarChart3,
+    MessageSquare
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent } from '../../components/ui/card';
@@ -31,6 +32,9 @@ import { GeneratePdfView } from './components/GeneratePdfView';
 import { UploadComponent } from './UploadComponent';
 import { getCompanyBranding } from './services/companyLogos';
 import { downloadTimesheetPdf, type TimesheetPdfData, type TimesheetDayEntry } from './services/timesheetPdfService';
+
+import { InstallAppPrompt } from './components/InstallAppPrompt';
+import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 
 type SubView = 'home' | 'week' | 'calendar' | 'summary' | 'generate-pdf' | 'upload';
 
@@ -461,6 +465,10 @@ export function WorkerDashboardPage() {
                 </div>
             </div>
 
+            {/* Banners PWA: Instalador e Ativação de Notificações Push */}
+            <InstallAppPrompt />
+            <PushNotificationPrompt workerId={workerAuth?.id} />
+
             {/* TAG DA OBRA REAL / CLIENTE ATUAL + TROCA CASO TENHA MAIS DE UMA */}
             <div className="bg-slate-100/80 rounded-2xl px-3.5 py-2 flex items-center justify-between text-xs border border-slate-200/60">
                 <div className="flex items-center gap-2 truncate">
@@ -485,6 +493,23 @@ export function WorkerDashboardPage() {
                     </button>
                 )}
             </div>
+
+            {/* RECADO DO GESTOR / ESCRITÓRIO SOBRE AS HORAS */}
+            {selectedPeriod?.observacoes && (
+                <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl p-3.5 flex items-start gap-3 text-slate-800 shadow-xs animate-in fade-in">
+                    <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 shrink-0">
+                        <MessageSquare className="h-4 w-4" />
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100/90 px-2 py-0.5 rounded-full inline-block border border-amber-200">
+                            {t('workerPortal.dashboard.managerNote', 'Mensagem do Gestor')}
+                        </span>
+                        <p className="text-xs font-semibold text-slate-800 whitespace-pre-wrap leading-relaxed break-words">
+                            {selectedPeriod.observacoes}
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {/* MODAL DE SELEÇÃO DE OBRA / CLIENTE (Se houver múltiplas) */}
             {showObraSelector && (

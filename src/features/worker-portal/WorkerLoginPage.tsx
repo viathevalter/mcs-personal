@@ -8,6 +8,7 @@ import { User, FileText, Lock, HelpCircle, Check, Loader2, Globe } from 'lucide-
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../app/providers';
+import { InstallAppPrompt } from './components/InstallAppPrompt';
 
 export function WorkerLoginPage() {
     const { t, i18n } = useTranslation();
@@ -16,6 +17,19 @@ export function WorkerLoginPage() {
     const [loading, setLoading] = useState(false);
     const [rememberMe, setRememberMe] = useState(true);
     const [helpOpen, setHelpOpen] = useState(false);
+
+    // Auto-detectar idioma via URL param (?lang=es ou ?lang=pt)
+    useEffect(() => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const langParam = params.get('lang') || params.get('lng');
+            if (langParam) {
+                const target = langParam.toLowerCase().startsWith('es') ? 'es' : 'pt';
+                i18n.changeLanguage(target);
+                localStorage.setItem('i18nextLng', target);
+            }
+        } catch (_) {}
+    }, [i18n]);
 
     // Forçar tema light no portal do trabalhador
     useEffect(() => {
@@ -167,6 +181,9 @@ export function WorkerLoginPage() {
                         {t('workerPortal.login.welcomeSubtitle', 'Registe as suas horas de trabalho de forma rápida, simples e segura.')}
                     </p>
                 </div>
+
+                {/* Banner Inteligente de Instalação PWA (Android / iPhone) */}
+                <InstallAppPrompt />
 
                 {/* Formulário de Login */}
                 <div className="bg-white/95 backdrop-blur-xl rounded-3xl p-6 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.45)] text-slate-900 border border-white/50 ring-1 ring-black/10">

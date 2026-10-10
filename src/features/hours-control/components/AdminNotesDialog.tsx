@@ -89,9 +89,9 @@ export function AdminNotesDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>{t('clientHoursDetail.notesTitle', 'Anotações')}</DialogTitle>
-                    <DialogDescription>
-                        {t('clientHoursDetail.notesDesc', 'Adicione uma observação para ')} <strong className="text-foreground">{workerName}</strong> no período {periodMonth}/{periodYear}.
+                    <DialogTitle>Recado & Observações de Horas</DialogTitle>
+                    <DialogDescription className="text-xs">
+                        Adicione um recado ou observação para <strong className="text-foreground">{workerName}</strong> ({periodMonth}/{periodYear}). Esta mensagem será exibida em destaque no Portal do Trabalhador.
                     </DialogDescription>
                 </DialogHeader>
 

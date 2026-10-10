@@ -1,11 +1,12 @@
 {
   "name": "Portal do Trabalhador - MCS",
   "short_name": "Portal MCS",
-  "description": "Portal do Trabalhador para apontamento de horas, folhas assinadas e consulta de nóminas",
+  "description": "Portal do Trabalhador para apontamento de horas, folhas assinadas e consulta de recibos",
   "start_url": "/portal",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#2563eb",
+  "background_color": "#020617",
+  "theme_color": "#020617",
   "orientation": "portrait-primary",
   "icons": [
     {

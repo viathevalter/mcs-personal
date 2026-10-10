@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../shared/supabase/client';
@@ -8,10 +8,11 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { Badge } from '../../components/ui/badge';
-import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote, Search, X, Clock, Smartphone } from 'lucide-react';
+import { Loader2, ArrowLeft, DownloadCloud, FileText, Check, XCircle, Upload, Copy, StickyNote, Search, X, Clock, Smartphone, Users, Bell, AlertCircle, CheckCircle2, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
 import { AdminNotesDialog } from './components/AdminNotesDialog';
+import { BroadcastReminderDialog } from './components/BroadcastReminderDialog';
 import { ValidationScreen } from './ValidationScreen';
 import { Dialog, DialogContent } from '../../components/ui/dialog';
 import { useRole } from '../../app/providers/RoleProvider';
@@ -89,6 +90,7 @@ export function ClientHoursDetail() {
         recordId: string;
         contratante: string;
     }>({ open: false, workerId: '', workerName: '', recordId: '', contratante: '' });
+    const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
 
     useEffect(() => {
         setPortalNode(document.getElementById('topbar-title-portal'));
@@ -350,6 +352,25 @@ export function ClientHoursDetail() {
 
 
 
+    const kpis = useMemo(() => {
+        const total = workers.length;
+        const pendentes = workers.filter(w => w.status === 'pendente').length;
+        const emAndamento = workers.filter(w => w.status === 'em_andamento').length;
+        const assinaturas = workers.filter(w => w.status === 'aguardando_assinatura').length;
+        const validados = workers.filter(w => w.status === 'validado' || w.status === 'assinado_encarregado').length;
+        const paraValidar = workers.filter(w => w.status === 'enviado' || w.status === 'processado').length;
+        return { total, pendentes, emAndamento, assinaturas, validados, paraValidar };
+    }, [workers]);
+
+    const pendingWorkersList = useMemo(() => {
+        return workers.filter(w => w.status === 'pendente').map(w => ({
+            worker_id: w.worker_id,
+            worker_name: w.worker_name,
+            movil: w.movil,
+            status: w.status
+        }));
+    }, [workers]);
+
     const filteredWorkers = workers.filter(w => {
         // 1. Local Search Filter
         if (localSearch.trim()) {
@@ -366,11 +387,17 @@ export function ClientHoursDetail() {
             if (statusFilter === 'pendente') {
                 return w.status === 'pendente';
             }
+            if (statusFilter === 'em_andamento') {
+                return w.status === 'em_andamento';
+            }
+            if (statusFilter === 'aguardando_assinatura') {
+                return w.status === 'aguardando_assinatura';
+            }
             if (statusFilter === 'enviado') {
                 return w.status === 'enviado' || w.status === 'processado';
             }
             if (statusFilter === 'validado') {
-                return w.status === 'validado';
+                return w.status === 'validado' || w.status === 'assinado_encarregado';
             }
         }
         return true;
@@ -395,14 +422,149 @@ export function ClientHoursDetail() {
                 portalNode
             )}
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/30 p-4 rounded-lg border">
+            {/* PAINEL DE KPIS INTERATIVOS COM FILTRO DIRETO AO CLICAR */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                {/* 1. Total */}
+                <button
+                    type="button"
+                    onClick={() => setStatusFilter('all')}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                        statusFilter === 'all'
+                            ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20 dark:bg-slate-100 dark:text-slate-900'
+                            : 'bg-card text-card-foreground border-border hover:bg-muted/50'
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-70">
+                            Total Alocados
+                        </span>
+                        <Users className="h-4 w-4 opacity-70" />
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-2xl font-black">{kpis.total}</span>
+                        <span className="text-xs opacity-60">trabalhadores</span>
+                    </div>
+                </button>
+
+                {/* 2. Pendentes / Falta Enviar (Destaque Vermelho/Rose) */}
+                <button
+                    type="button"
+                    onClick={() => setStatusFilter('pendente')}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                        statusFilter === 'pendente'
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-500/20'
+                            : 'bg-rose-50/70 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-800/60 hover:bg-rose-100/70'
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
+                            Falta Enviar
+                        </span>
+                        <AlertCircle className="h-4 w-4 text-rose-500" />
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-2xl font-black">{kpis.pendentes}</span>
+                        {kpis.pendentes > 0 && (
+                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full ${
+                                statusFilter === 'pendente' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-800'
+                            }`}>
+                                Cobrar
+                            </span>
+                        )}
+                    </div>
+                </button>
+
+                {/* 3. Portal Rascunho / Em Andamento */}
+                <button
+                    type="button"
+                    onClick={() => setStatusFilter('em_andamento')}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                        statusFilter === 'em_andamento'
+                            ? 'bg-sky-600 text-white border-sky-600 shadow-md ring-2 ring-sky-500/20'
+                            : 'bg-sky-50/70 dark:bg-sky-950/30 text-sky-900 dark:text-sky-200 border-sky-200 dark:border-sky-800/60 hover:bg-sky-100/70'
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
+                            Em Andamento
+                        </span>
+                        <Clock className="h-4 w-4 text-sky-500" />
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-2xl font-black">{kpis.emAndamento}</span>
+                        <span className="text-xs opacity-60">a preencher</span>
+                    </div>
+                </button>
+
+                {/* 4. Portal Aguardando Assinatura */}
+                <button
+                    type="button"
+                    onClick={() => setStatusFilter('aguardando_assinatura')}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                        statusFilter === 'aguardando_assinatura'
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-500/20'
+                            : 'bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100/70'
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
+                            Por Assinar
+                        </span>
+                        <FileText className="h-4 w-4 text-amber-500" />
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-2xl font-black">{kpis.assinaturas}</span>
+                        <span className="text-xs opacity-60">aguardando</span>
+                    </div>
+                </button>
+
+                {/* 5. Validadas / Concluídas */}
+                <button
+                    type="button"
+                    onClick={() => setStatusFilter('validado')}
+                    className={`p-3 rounded-2xl border text-left transition-all ${
+                        statusFilter === 'validado'
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/20'
+                            : 'bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100/70'
+                    }`}
+                >
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
+                            Validados
+                        </span>
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-2xl font-black">{kpis.validados}</span>
+                        <span className="text-xs opacity-60">concluídos</span>
+                    </div>
+                </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/30 p-3.5 rounded-2xl border">
                 <div>
-                    <h2 className="text-lg font-semibold">{getMonthName(month)} {year}</h2>
-                    <p className="text-sm text-muted-foreground">
+                    <h2 className="text-base font-bold">{getMonthName(month)} {year}</h2>
+                    <p className="text-xs text-muted-foreground">
                         {filteredWorkers.length} de {workers.length} {t('clientHoursDetail.activeWorkers')}
                     </p>
                 </div>
-                <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
+                    {/* Botão de Cobrança / Notificação para Pendentes */}
+                    <Button
+                        type="button"
+                        onClick={() => setBroadcastDialogOpen(true)}
+                        disabled={kpis.pendentes === 0}
+                        className={`h-9 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all ${
+                            kpis.pendentes > 0 
+                                ? 'bg-rose-600 hover:bg-rose-700 text-white active:scale-95' 
+                                : 'bg-muted text-muted-foreground'
+                        }`}
+                        title="Disparar notificação ou mensagem aos trabalhadores com horas pendentes"
+                    >
+                        <Bell className="h-3.5 w-3.5" />
+                        <span>Notificar Pendentes ({kpis.pendentes})</span>
+                    </Button>
+
                     {/* Filtro de Busca */}
                     <div className="relative w-full sm:w-[200px]">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -411,7 +573,7 @@ export function ClientHoursDetail() {
                             placeholder="Buscar trabalhador..."
                             value={localSearch}
                             onChange={(e) => setLocalSearch(e.target.value)}
-                            className="pl-9 pr-8 h-9 text-xs dark:bg-slate-950 dark:border-slate-800"
+                            className="pl-9 pr-8 h-9 text-xs rounded-xl dark:bg-slate-950 dark:border-slate-800"
                         />
                         {localSearch && (
                             <button
@@ -425,14 +587,16 @@ export function ClientHoursDetail() {
 
                     {/* Filtro de Status */}
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full sm:w-[160px] h-9 text-xs bg-background dark:bg-slate-950 dark:border-slate-800">
+                        <SelectTrigger className="w-full sm:w-[170px] h-9 text-xs rounded-xl bg-background dark:bg-slate-950 dark:border-slate-800 font-semibold">
                             <SelectValue placeholder="Filtrar por status" />
                         </SelectTrigger>
                         <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
-                            <SelectItem value="all">Todos os Estados</SelectItem>
-                            <SelectItem value="pendente">Falta Enviar</SelectItem>
-                            <SelectItem value="enviado">Falta Validar</SelectItem>
-                            <SelectItem value="validado">Validado</SelectItem>
+                            <SelectItem value="all">Todos ({workers.length})</SelectItem>
+                            <SelectItem value="pendente">Falta Enviar ({kpis.pendentes})</SelectItem>
+                            <SelectItem value="em_andamento">Em Andamento ({kpis.emAndamento})</SelectItem>
+                            <SelectItem value="aguardando_assinatura">Por Assinar ({kpis.assinaturas})</SelectItem>
+                            <SelectItem value="enviado">Para Validar ({kpis.paraValidar})</SelectItem>
+                            <SelectItem value="validado">Validados ({kpis.validados})</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -832,6 +996,16 @@ export function ClientHoursDetail() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Modal de Disparo de Lembretes e Cobrança aos Pendentes */}
+            <BroadcastReminderDialog
+                open={broadcastDialogOpen}
+                onOpenChange={setBroadcastDialogOpen}
+                clientName={clientName || ''}
+                month={month}
+                year={year}
+                pendingWorkers={pendingWorkersList}
+            />
         </div>
     );
 }
