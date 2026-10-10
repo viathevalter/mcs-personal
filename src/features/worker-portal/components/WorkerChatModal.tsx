@@ -151,18 +151,32 @@ export function WorkerChatModal({
                         </div>
                     </div>
 
-                    <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={handleTestPush}
-                        disabled={testingPush}
-                        className="h-7 text-[11px] font-bold border-white/20 bg-white/10 text-white hover:bg-white/20 gap-1 px-2.5 rounded-lg"
-                        title={isSpanish ? 'Probar notificación en este móvil' : 'Testar notificação neste telemóvel'}
-                    >
-                        <Bell className="h-3 w-3 text-emerald-400 animate-pulse" />
-                        <span>{isSpanish ? 'Testar Push' : 'Testar Push'}</span>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={handleTestPush}
+                            disabled={testingPush}
+                            className="h-7 text-[11px] font-bold border-white/20 bg-white/10 text-white hover:bg-white/20 gap-1 px-2.5 rounded-lg"
+                            title={isSpanish ? 'Probar notificación en este móvil' : 'Testar notificação neste telemóvel'}
+                        >
+                            <Bell className="h-3 w-3 text-emerald-400 animate-pulse" />
+                            <span>{isSpanish ? 'Testar Push' : 'Testar Push'}</span>
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onOpenChange(false)}
+                            className="h-8 w-8 rounded-full bg-white/10 hover:bg-white/20 text-white shrink-0 border border-white/20 cursor-pointer shadow-xs"
+                            title={isSpanish ? 'Cerrar' : 'Fechar'}
+                            aria-label="Fechar"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Histórico de Mensagens */}

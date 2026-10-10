@@ -17,7 +17,8 @@ import {
     Loader2, 
     Bookmark, 
     Bell, 
-    Smartphone 
+    Smartphone,
+    X 
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
@@ -206,9 +207,22 @@ export function WorkerNotificationDialog({
                         </div>
                     </div>
 
-                    <div className="hidden sm:flex flex-col items-end text-xs text-slate-400">
-                        <span className="font-semibold text-slate-200">Notificações & Chat</span>
-                        <span>Rastreabilidade em tempo real</span>
+                    <div className="flex items-center gap-3">
+                        <div className="hidden sm:flex flex-col items-end text-xs text-slate-400">
+                            <span className="font-semibold text-slate-200">Notificações & Chat</span>
+                            <span>Rastreabilidade em tempo real</span>
+                        </div>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onOpenChange(false)}
+                            className="h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 text-white shrink-0 border border-white/20 cursor-pointer shadow-xs transition-colors"
+                            title="Fechar janela (Esc)"
+                            aria-label="Fechar"
+                        >
+                            <X className="h-5 w-5" />
+                        </Button>
                     </div>
                 </div>
 
@@ -422,12 +436,12 @@ export function WorkerNotificationDialog({
                         </span>
                         <Button
                             type="button"
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => onOpenChange(false)}
-                            className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                            className="h-7 px-3 text-xs font-semibold rounded-lg hover:bg-muted"
                         >
-                            Fechar
+                            Fechar Janela
                         </Button>
                     </div>
                 </div>
