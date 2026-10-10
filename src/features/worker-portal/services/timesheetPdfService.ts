@@ -9,6 +9,7 @@ export interface TimesheetDayEntry {
     horasNoturnas?: number;
     totalHoras?: number;
     obra?: string;
+    obra_id?: string;
     obs?: string;
 }
 

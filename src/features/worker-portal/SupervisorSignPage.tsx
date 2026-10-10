@@ -484,6 +484,7 @@ export function SupervisorSignPage() {
                                                 <th className="py-1.5 px-2">Dia</th>
                                                 <th className="py-1.5 px-2">Entrada</th>
                                                 <th className="py-1.5 px-2">Saída</th>
+                                                <th className="py-1.5 px-2">Obra</th>
                                                 <th className="py-1.5 px-2 text-right">Diurnas</th>
                                                 <th className="py-1.5 px-2 text-right">Nocturnas</th>
                                                 <th className="py-1.5 px-2 text-right">Total</th>
@@ -495,6 +496,13 @@ export function SupervisorSignPage() {
                                                     <td className="py-1 px-2 font-medium">Dia {String(dia.dia).padStart(2, '0')}</td>
                                                     <td className="py-1 px-2 text-slate-600">{dia.entrada || '-'}</td>
                                                     <td className="py-1 px-2 text-slate-600">{dia.saida || '-'}</td>
+                                                    <td className="py-1 px-2 text-slate-700 font-medium">
+                                                        {dia.obra ? (
+                                                            <span className="inline-block bg-slate-100 px-1.5 py-0.5 rounded text-[10px] font-semibold text-slate-800">
+                                                                {dia.obra}
+                                                            </span>
+                                                        ) : '-'}
+                                                    </td>
                                                     <td className="py-1 px-2 text-right font-mono">{Number(dia.horasNormais || 0).toFixed(1)}h</td>
                                                     <td className="py-1 px-2 text-right font-mono text-sky-700 font-semibold">
                                                         {Number(dia.horasNoturnas || 0) > 0 ? `${Number(dia.horasNoturnas).toFixed(1)}h` : '-'}

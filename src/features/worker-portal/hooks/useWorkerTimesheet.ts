@@ -20,9 +20,9 @@ export function useWorkerTimesheet(workerAuth: any) {
     const [loading, setLoading] = useState(true);
     
     // Ano e Mês selecionados (padrão: mês corrente)
-    const now = new Date();
-    const [currentYear, setCurrentYear] = useState<number>(now.getFullYear());
-    const [currentMonth, setCurrentMonth] = useState<number>(now.getMonth() + 1);
+    const [now, setNow] = useState<Date>(() => new Date());
+    const [currentYear, setCurrentYear] = useState<number>(() => new Date().getFullYear());
+    const [currentMonth, setCurrentMonth] = useState<number>(() => new Date().getMonth() + 1);
     
     // Semana selecionada (padrão: semana atual de 0 a N dentro do mês ou offset)
     const [selectedWeekIndex, setSelectedWeekIndex] = useState<number>(0);
@@ -98,6 +98,46 @@ export function useWorkerTimesheet(workerAuth: any) {
         loadPeriods();
     }, [loadPeriods]);
 
+    // Ouvintes de ciclo de vida para dispositivos móveis (especialmente iPhone / iOS Safari)
+    // Garante que ao desbloquear o ecrã ou voltar ao navegador os dados e data actual sejam recalculados
+    useEffect(() => {
+        const handleSync = () => {
+            const fresh = new Date();
+            setNow(fresh);
+            loadPeriods();
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                handleSync();
+            }
+        };
+
+        const handlePageShow = () => {
+            handleSync();
+        };
+
+        const handleFocus = () => {
+            setNow(new Date());
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('pageshow', handlePageShow);
+        window.addEventListener('focus', handleFocus);
+
+        // Timer leve a cada 30s para atualizar o relógio interno caso fique aberto
+        const intervalTimer = setInterval(() => {
+            setNow(new Date());
+        }, 30000);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('pageshow', handlePageShow);
+            window.removeEventListener('focus', handleFocus);
+            clearInterval(intervalTimer);
+        };
+    }, [loadPeriods]);
+
     // Período selecionado
     const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
 
@@ -155,10 +195,10 @@ export function useWorkerTimesheet(workerAuth: any) {
 
     const defaultObra = useMemo(() => {
         if (availableObras.length > 0) return availableObras[0].name;
-        return selectedPeriod?.cliente_nombre || '';
-    }, [availableObras, selectedPeriod?.cliente_nombre]);
+        return '';
+    }, [availableObras]);
 
-    // Parse dos dias do mês
+    // Parse dos dias do mês com saneamento rigoroso de obras
     const days = useMemo<TimesheetDayEntry[]>(() => {
         if (!selectedPeriod) return [];
         const numDays = new Date(selectedPeriod.period_year, selectedPeriod.period_month, 0).getDate();
@@ -170,7 +210,25 @@ export function useWorkerTimesheet(workerAuth: any) {
             try { existing = JSON.parse(raw); } catch { existing = []; }
         }
 
-        const fallbackObra = availableObras.length === 1 ? availableObras[0].name : (selectedPeriod.cliente_nombre || '');
+        const fallbackObra = availableObras.length > 0 ? availableObras[0].name : '';
+
+        // Função para garantir que o NOME DO CLIENTE corporativo NUNCA seja exibido como obra
+        const sanitizeObra = (rawObra?: string) => {
+            const clean = (rawObra || '').trim();
+            const clientNameClean = (selectedPeriod?.cliente_nombre || workerAuth?.cliente || '').trim().toLowerCase();
+            const isClientName = clientNameClean && clean.toLowerCase() === clientNameClean;
+
+            if (availableObras.length > 0) {
+                // Se a obra armazenada era o nome do cliente ou vazia, substitui pela primeira obra real
+                if (isClientName || !clean) {
+                    return availableObras[0].name;
+                }
+                const match = availableObras.find(s => s.name.trim().toLowerCase() === clean.toLowerCase());
+                if (match) return match.name;
+                return availableObras[0].name;
+            }
+            return isClientName ? '' : clean;
+        };
 
         const result: TimesheetDayEntry[] = [];
         for (let d = 1; d <= numDays; d++) {
@@ -182,6 +240,9 @@ export function useWorkerTimesheet(workerAuth: any) {
                 const norm = Number(found.horasNormais ?? found.horas_normais ?? 0);
                 const not = Number(found.horasNoturnas ?? found.horas_noturnas ?? 0);
                 const tot = Number(found.totalHoras ?? found.total_horas ?? (norm + not));
+                const entryObra = sanitizeObra(found.obra);
+                const matchedSite = availableObras.find(s => s.name.trim().toLowerCase() === entryObra.trim().toLowerCase());
+
                 result.push({
                     dia: d,
                     entrada: found.entrada || found.inicio || (isWeekend ? '' : '08:00'),
@@ -189,10 +250,12 @@ export function useWorkerTimesheet(workerAuth: any) {
                     horasNormais: norm,
                     horasNoturnas: not,
                     totalHoras: tot,
-                    obra: found.obra || fallbackObra,
+                    obra: entryObra,
+                    obra_id: found.obra_id || matchedSite?.id || '',
                     obs: found.obs || (isWeekend && tot === 0 ? 'Descanso' : '')
                 });
             } else {
+                const matchedSite = availableObras.find(s => s.name.trim().toLowerCase() === fallbackObra.trim().toLowerCase());
                 result.push({
                     dia: d,
                     entrada: isWeekend ? '' : '08:00',
@@ -201,12 +264,13 @@ export function useWorkerTimesheet(workerAuth: any) {
                     horasNoturnas: 0,
                     totalHoras: 0,
                     obra: fallbackObra,
+                    obra_id: matchedSite?.id || '',
                     obs: isWeekend ? 'Descanso' : ''
                 });
             }
         }
         return result;
-    }, [selectedPeriod, availableObras]);
+    }, [selectedPeriod, availableObras, workerAuth?.cliente]);
 
     // Dia de Hoje
     const todayDayNumber = now.getFullYear() === currentYear && (now.getMonth() + 1) === currentMonth ? now.getDate() : null;
@@ -353,20 +417,24 @@ export function useWorkerTimesheet(workerAuth: any) {
         const noturnas = updatedDays.reduce((acc, d) => acc + Number(d.horasNoturnas || 0), 0);
         const totais = updatedDays.reduce((acc, d) => acc + Number(d.totalHoras || 0), 0);
 
-        const formattedPayload = updatedDays.map(d => ({
-            dia: d.dia,
-            day: d.dia,
-            entrada: d.entrada || '',
-            saida: d.saida || '',
-            horasNormais: Number(d.horasNormais || 0),
-            horas_normais: Number(d.horasNormais || 0),
-            horasNoturnas: Number(d.horasNoturnas || 0),
-            horas_noturnas: Number(d.horasNoturnas || 0),
-            totalHoras: Number(d.totalHoras || 0),
-            total_horas: Number(d.totalHoras || 0),
-            obra: d.obra || '',
-            obs: d.obs || ''
-        }));
+        const formattedPayload = updatedDays.map(d => {
+            const siteMatch = availableObras.find(s => s.name.trim().toLowerCase() === (d.obra || '').trim().toLowerCase());
+            return {
+                dia: d.dia,
+                day: d.dia,
+                entrada: d.entrada || '',
+                saida: d.saida || '',
+                horasNormais: Number(d.horasNormais || 0),
+                horas_normais: Number(d.horasNormais || 0),
+                horasNoturnas: Number(d.horasNoturnas || 0),
+                horas_noturnas: Number(d.horasNoturnas || 0),
+                totalHoras: Number(d.totalHoras || 0),
+                total_horas: Number(d.totalHoras || 0),
+                obra: d.obra || '',
+                obra_id: d.obra_id || siteMatch?.id || '',
+                obs: d.obs || ''
+            };
+        });
 
         try {
             // Atualizar banco via Supabase
@@ -410,6 +478,7 @@ export function useWorkerTimesheet(workerAuth: any) {
 
     // ELIMINAR / ZERAR DIA
     const deleteDayEntry = async (dia: number) => {
+        const fallbackSite = availableObras.length > 0 ? availableObras[0].name : '';
         const cleared: TimesheetDayEntry = {
             dia,
             entrada: '',
@@ -417,7 +486,8 @@ export function useWorkerTimesheet(workerAuth: any) {
             horasNormais: 0,
             horasNoturnas: 0,
             totalHoras: 0,
-            obra: selectedPeriod?.cliente_nombre || '',
+            obra: fallbackSite,
+            obra_id: availableObras.find(s => s.name === fallbackSite)?.id || '',
             obs: ''
         };
         await saveDayEntry(cleared);

@@ -370,14 +370,22 @@ export function ValidationScreen({
                 // Fallback to worker portal draft entry if not yet inserted into horas_trabalhadas
                 const draftRec = draftsList.find((d: any) => Number(d.day ?? d.dia) === dayNum);
 
-                // Apply pre-selection logic for obra: if exactly 1 site exists, always pre-select it
+                // Apply pre-selection logic for obra: match existing db record, draftRec obra_id, or match obra name
                 let initialObra = '';
-                if (finalSites.length === 1) {
-                    initialObra = finalSites[0].id;
-                } else if (dbRec?.obra_id) {
+                if (dbRec?.obra_id) {
                     initialObra = dbRec.obra_id;
-                } else if (draftRec?.obra_id) {
+                } else if (draftRec?.obra_id && finalSites.some(s => s.id === draftRec.obra_id)) {
                     initialObra = draftRec.obra_id;
+                } else if (draftRec?.obra || draftRec?.obra_nome) {
+                    const cleanDraftObra = String(draftRec.obra || draftRec.obra_nome).trim().toLowerCase();
+                    const matchedSite = finalSites.find(s => s.name.trim().toLowerCase() === cleanDraftObra);
+                    if (matchedSite) {
+                        initialObra = matchedSite.id;
+                    }
+                }
+
+                if (!initialObra && finalSites.length === 1) {
+                    initialObra = finalSites[0].id;
                 }
 
                 const inicioVal = dbRec?.hora_inicio 
@@ -771,13 +779,29 @@ export function ValidationScreen({
                 ? String(rawTotal) 
                 : (Number(normaisVal || 0) + Number(noturnasVal || 0) > 0 ? String(Number(normaisVal || 0) + Number(noturnasVal || 0)) : '');
 
+            // Match obra
+            let matchedObra = r.obra;
+            if (draftRec?.obra_id && clientSites.some(s => s.id === draftRec.obra_id)) {
+                matchedObra = draftRec.obra_id;
+            } else if (draftRec?.obra || draftRec?.obra_nome) {
+                const cleanDraftObra = String(draftRec.obra || draftRec.obra_nome).trim().toLowerCase();
+                const foundSite = clientSites.find(s => s.name.trim().toLowerCase() === cleanDraftObra);
+                if (foundSite) {
+                    matchedObra = foundSite.id;
+                }
+            }
+            if (!matchedObra && clientSites.length === 1) {
+                matchedObra = clientSites[0].id;
+            }
+
             return {
                 ...r,
                 inicio: inicioVal,
                 fim: fimVal,
                 horasNormais: normaisVal,
                 horasNoturnas: noturnasVal,
-                totalHoras: totalHorasVal
+                totalHoras: totalHorasVal,
+                obra: matchedObra
             };
         }));
 
@@ -1125,6 +1149,7 @@ export function ValidationScreen({
                                                 <TableRow className="text-[11px] font-bold text-slate-600">
                                                     <TableHead className="w-16">Dia</TableHead>
                                                     <TableHead>Horário</TableHead>
+                                                    <TableHead className="min-w-[120px]">Obra</TableHead>
                                                     <TableHead className="text-right">Diurnas</TableHead>
                                                     <TableHead className="text-right">Noturnas</TableHead>
                                                     <TableHead className="text-right font-black">Total</TableHead>
@@ -1145,6 +1170,7 @@ export function ValidationScreen({
                                                         const norm = Number(d.horas_normais ?? d.horasNormais ?? 0);
                                                         const notu = Number(d.horas_noturnas ?? d.horasNoturnas ?? 0);
                                                         const tot = Number(d.total_horas ?? d.totalHoras ?? (norm + notu));
+                                                        const obraNome = d.obra || d.obra_nome || '';
                                                         return (
                                                             <TableRow key={dayNum} className="hover:bg-slate-50/80">
                                                                 <TableCell className="font-bold text-slate-700">
@@ -1152,6 +1178,16 @@ export function ValidationScreen({
                                                                 </TableCell>
                                                                 <TableCell className="text-slate-500 font-mono text-[11px]">
                                                                     {ini} às {fim}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {obraNome ? (
+                                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-semibold text-[11px] border border-indigo-100 max-w-[140px] truncate">
+                                                                            <Building2 className="h-3 w-3 shrink-0 text-indigo-500" />
+                                                                            <span className="truncate">{obraNome}</span>
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="text-slate-400 text-[11px]">-</span>
+                                                                    )}
                                                                 </TableCell>
                                                                 <TableCell className="text-right text-slate-700">
                                                                     {norm > 0 ? `${norm.toFixed(1)}h` : '-'}

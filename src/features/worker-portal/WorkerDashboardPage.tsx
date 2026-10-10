@@ -90,11 +90,17 @@ export function WorkerDashboardPage() {
         selectedPeriod?.contratante || workerAuth?.contratante || workerAuth?.empresa_nome
     );
 
-    // Nome da obra prioritária vinculada ao cliente
+    // Estado da obra selecionada pelo trabalhador para o dia a dia
+    const [selectedObraName, setSelectedObraName] = useState<string>('');
+
+    // Nome da obra prioritária vinculada ao cliente (sempre uma obra real)
     const currentObraName = useMemo(() => {
+        if (selectedObraName && availableObras.some(s => s.name === selectedObraName)) {
+            return selectedObraName;
+        }
         if (availableObras.length > 0) return availableObras[0].name;
-        return selectedPeriod?.cliente_nombre || workerAuth?.cliente || 'Obra Principal';
-    }, [availableObras, selectedPeriod?.cliente_nombre, workerAuth?.cliente]);
+        return 'Obra Principal';
+    }, [selectedObraName, availableObras]);
 
     // Todos os períodos disponíveis no mês atual para troca de cliente/contrato
     const currentMonthPeriods = useMemo(() => {
@@ -102,6 +108,57 @@ export function WorkerDashboardPage() {
             p => p.period_year === currentYear && p.period_month === currentMonth
         );
     }, [allPeriods, currentYear, currentMonth]);
+
+    // Notificação proativa para trabalhadores (com suporte especial a iPhone / Safari)
+    useEffect(() => {
+        if (loading || !selectedPeriod) return;
+
+        const checkPendingReminder = () => {
+            const now = new Date();
+            const dayOfWeek = now.getDay();
+            const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+            const todayKey = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
+            const sessionKey = `last_hours_reminder_${todayKey}`;
+
+            // Se ainda não notificou nesta sessão hoje e faltam horas
+            if (!sessionStorage.getItem(sessionKey)) {
+                if (isWeekday && !todayIsFilled && todayDayNumber) {
+                    sessionStorage.setItem(sessionKey, 'true');
+                    toast.info(
+                        isSpanish ? '¡Recuerda registrar tus horas de hoy!' : 'Lembrete: Aponte as suas horas de hoje!',
+                        {
+                            description: isSpanish 
+                                ? 'Solo te tomará unos segundos.' 
+                                : 'Leva apenas 5 segundos no telemóvel.',
+                            action: {
+                                label: isSpanish ? 'Registrar' : 'Apontar',
+                                onClick: () => handleOpenDailyModal(todayDayNumber)
+                            },
+                            duration: 8000
+                        }
+                    );
+                } else if (monthlyStats.pendingDays > 0 && firstPendingDay) {
+                    sessionStorage.setItem(sessionKey, 'true');
+                    toast.warning(
+                        isSpanish ? `Tienes ${monthlyStats.pendingDays} día(s) pendiente(s)` : `Tem ${monthlyStats.pendingDays} dia(s) pendente(s)`,
+                        {
+                            description: isSpanish 
+                                ? 'Completa tus horas para tener la hoja al día.' 
+                                : 'Complete as horas em falta para fechar o mês.',
+                            action: {
+                                label: isSpanish ? 'Completar' : 'Preencher',
+                                onClick: () => handleOpenDailyModal(firstPendingDay)
+                            },
+                            duration: 8000
+                        }
+                    );
+                }
+            }
+        };
+
+        const timer = setTimeout(checkPendingReminder, 1200);
+        return () => clearTimeout(timer);
+    }, [loading, selectedPeriod, todayIsFilled, todayDayNumber, monthlyStats.pendingDays, firstPendingDay, isSpanish]);
 
     // Data de hoje formatada no idioma ativo
     const todayDateFormatted = useMemo(() => {
@@ -201,7 +258,7 @@ export function WorkerDashboardPage() {
                         month={currentMonth}
                         year={currentYear}
                         initialEntry={days.find(d => d.dia === modalDay)}
-                        defaultObra={defaultObra}
+                        defaultObra={currentObraName || defaultObra}
                         availableObras={availableObras}
                         clientName={selectedPeriod?.cliente_nombre || ''}
                         onClose={() => setModalDay(null)}
@@ -255,7 +312,7 @@ export function WorkerDashboardPage() {
                         month={currentMonth}
                         year={currentYear}
                         initialEntry={days.find(d => d.dia === modalDay)}
-                        defaultObra={defaultObra}
+                        defaultObra={currentObraName || defaultObra}
                         availableObras={availableObras}
                         clientName={selectedPeriod?.cliente_nombre || ''}
                         onClose={() => setModalDay(null)}
@@ -449,19 +506,38 @@ export function WorkerDashboardPage() {
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                             {/* Obras cadastradas para o cliente */}
                             {availableObras.length > 1 && (
-                                <div className="space-y-1 mb-2">
+                                <div className="space-y-1.5 mb-3">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                         Obras Cadastradas
                                     </span>
-                                    {availableObras.map((site) => (
-                                        <div
-                                            key={site.id}
-                                            className="p-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 flex items-center justify-between"
-                                        >
-                                            <span>{site.name}</span>
-                                            <span className="text-[10px] text-slate-400">Ativa</span>
-                                        </div>
-                                    ))}
+                                    {availableObras.map((site) => {
+                                        const isSelected = currentObraName === site.name;
+                                        return (
+                                            <button
+                                                key={site.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedObraName(site.name);
+                                                    setShowObraSelector(false);
+                                                }}
+                                                className={`w-full text-left p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between transition-colors ${
+                                                    isSelected
+                                                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900 font-bold'
+                                                        : 'border-slate-200 hover:bg-slate-50 text-slate-800'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Building2 className="h-3.5 w-3.5 text-emerald-600" />
+                                                    <span>{site.name}</span>
+                                                </div>
+                                                {isSelected ? (
+                                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md">Ativa ✓</span>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-400">Selecionar</span>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             )}
 
@@ -779,7 +855,7 @@ export function WorkerDashboardPage() {
                     month={currentMonth}
                     year={currentYear}
                     initialEntry={days.find(d => d.dia === modalDay)}
-                    defaultObra={defaultObra}
+                    defaultObra={currentObraName || defaultObra}
                     availableObras={availableObras}
                     clientName={selectedPeriod?.cliente_nombre || ''}
                     onClose={() => setModalDay(null)}

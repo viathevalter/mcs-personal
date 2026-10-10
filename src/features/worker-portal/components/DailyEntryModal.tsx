@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sun, Moon, Clock, MapPin, ChevronLeft, ChevronRight, X, Trash2, Check, Building2 } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
@@ -64,15 +64,34 @@ export function DailyEntryModal({
     const [entrada, setEntrada] = useState<string>('08:00');
     const [saida, setSaida] = useState<string>('17:00');
     
-    // Obra selecionada
-    const initialObraValue = initialEntry?.obra || defaultObra || (availableObras.length > 0 ? availableObras[0].name : '');
+    // Obra selecionada com higienização estrita (NUNCA assume o nome da empresa cliente como obra)
+    const sanitizeObraChoice = useCallback((target?: string) => {
+        const clean = (target || '').trim();
+        const clientNameClean = (clientName || '').trim().toLowerCase();
+        const isClient = clientNameClean && clean.toLowerCase() === clientNameClean;
+
+        if (availableObras.length > 0) {
+            if (isClient || !clean) {
+                const def = defaultObra && availableObras.some(s => s.name.trim().toLowerCase() === defaultObra.trim().toLowerCase())
+                    ? defaultObra
+                    : availableObras[0].name;
+                return def;
+            }
+            const match = availableObras.find(s => s.name.trim().toLowerCase() === clean.toLowerCase());
+            if (match) return match.name;
+            return availableObras[0].name;
+        }
+        return isClient ? '' : clean;
+    }, [availableObras, defaultObra, clientName]);
+
+    const initialObraValue = sanitizeObraChoice(initialEntry?.obra || defaultObra);
     const [obra, setObra] = useState<string>(initialObraValue);
     const [obs, setObs] = useState<string>('');
     const [saving, setSaving] = useState(false);
 
     // Carregar dados iniciais ao abrir ou mudar dia
     useEffect(() => {
-        const preferredObra = defaultObra || (availableObras.length > 0 ? availableObras[0].name : '');
+        const preferredObra = sanitizeObraChoice(initialEntry?.obra || defaultObra);
         if (initialEntry) {
             const tot = Number(initialEntry.totalHoras || 0);
             const not = Number(initialEntry.horasNoturnas || 0);
@@ -80,7 +99,7 @@ export function DailyEntryModal({
             setTurno(not > 0 ? 'noturno' : 'diurno');
             setEntrada(initialEntry.entrada || (not > 0 ? '22:00' : '08:00'));
             setSaida(initialEntry.saida || (not > 0 ? '06:00' : '17:00'));
-            setObra(initialEntry.obra || preferredObra);
+            setObra(preferredObra);
             setObs(initialEntry.obs || '');
         } else {
             const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
@@ -91,7 +110,7 @@ export function DailyEntryModal({
             setObra(preferredObra);
             setObs(isWeekend ? (isSpanish ? 'Descanso' : 'Descanso') : '');
         }
-    }, [validDay, initialEntry, defaultObra, availableObras]);
+    }, [validDay, initialEntry, defaultObra, availableObras, sanitizeObraChoice]);
 
     // Atalhos de horas
     const handleQuickHours = (hrs: number) => {
@@ -135,6 +154,9 @@ export function DailyEntryModal({
             const normais = isNoturno ? 0 : totalHoras;
             const noturnas = isNoturno ? totalHoras : 0;
 
+            const finalObra = sanitizeObraChoice(obra || defaultObra);
+            const matchedSite = availableObras.find(s => s.name.trim().toLowerCase() === finalObra.trim().toLowerCase());
+
             const entryToSave: TimesheetDayEntry = {
                 dia: validDay,
                 entrada: entrada.trim(),
@@ -142,7 +164,8 @@ export function DailyEntryModal({
                 horasNormais: normais,
                 horasNoturnas: noturnas,
                 totalHoras: totalHoras,
-                obra: obra.trim() || defaultObra,
+                obra: finalObra,
+                obra_id: matchedSite?.id || (initialEntry as any)?.obra_id || '',
                 obs: obs.trim()
             };
 
@@ -284,22 +307,44 @@ export function DailyEntryModal({
                             </div>
 
                             {availableObras.length > 1 ? (
-                                <div className="relative">
-                                    <select
-                                        id="obra"
-                                        value={obra}
-                                        onChange={(e) => setObra(e.target.value)}
-                                        className="w-full h-9 pl-3 pr-8 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900 text-xs focus:bg-white focus:outline-emerald-500 cursor-pointer"
-                                    >
-                                        {availableObras.map((site) => (
-                                            <option key={site.id} value={site.name}>
-                                                {site.name}
-                                            </option>
-                                        ))}
-                                        {obra && !availableObras.some(s => s.name === obra) && (
-                                            <option value={obra}>{obra}</option>
-                                        )}
-                                    </select>
+                                <div className="space-y-1.5">
+                                    {/* Botões rápidos para alternar obra com 1 toque */}
+                                    {availableObras.length <= 4 && (
+                                        <div className="grid grid-cols-2 gap-1.5 mb-1">
+                                            {availableObras.map((site) => {
+                                                const isSelected = obra.trim().toLowerCase() === site.name.trim().toLowerCase();
+                                                return (
+                                                    <button
+                                                        key={site.id}
+                                                        type="button"
+                                                        onClick={() => setObra(site.name)}
+                                                        className={`px-2.5 py-1.5 rounded-xl border text-xs font-bold flex items-center justify-between transition-all ${
+                                                            isSelected
+                                                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                                                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                        }`}
+                                                    >
+                                                        <span className="truncate">{site.name}</span>
+                                                        {isSelected && <Check className="h-3 w-3 shrink-0 ml-1" />}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    <div className="relative">
+                                        <select
+                                            id="obra"
+                                            value={obra}
+                                            onChange={(e) => setObra(e.target.value)}
+                                            className="w-full h-9 pl-3 pr-8 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900 text-xs focus:bg-white focus:outline-emerald-500 cursor-pointer"
+                                        >
+                                            {availableObras.map((site) => (
+                                                <option key={site.id} value={site.name}>
+                                                    {site.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             ) : availableObras.length === 1 ? (
                                 <div className="bg-emerald-50/50 border border-emerald-200/80 rounded-xl px-3 py-2 flex items-center justify-between">
