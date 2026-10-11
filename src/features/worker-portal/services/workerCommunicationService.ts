@@ -246,8 +246,8 @@ export async function triggerLocalTestPush(title: string, body: string, url: str
 
         await reg.showNotification(title, {
             body,
-            icon: '/logo_mcs_transparent.png',
-            badge: '/logo_mcs_transparent.png',
+            icon: '/icone_mcs.png',
+            badge: '/icone_mcs.png',
             data: { url },
             tag: 'mcs-test-push'
         } as any);

@@ -50,8 +50,8 @@ export function PushNotificationPrompt({ workerId }: PushNotificationPromptProps
                     body: isSpanish 
                         ? '¡Notificaciones activadas! Recibirá avisos y recordatorios de horas aquí.' 
                         : 'Notificações ativadas! Receberá avisos e lembretes de horas aqui.',
-                    icon: '/logo_mcs_transparent.png',
-                    badge: '/logo_mcs_transparent.png',
+                    icon: '/icone_mcs.png',
+                    badge: '/icone_mcs.png',
                     tag: 'mcs-welcome'
                 });
                 toast.success(isSpanish ? '¡Notificaciones activadas!' : 'Notificações ativadas com sucesso!');

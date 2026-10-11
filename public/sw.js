@@ -1,5 +1,5 @@
 // Service Worker do Portal MCS - PWA e Push Notifications
-const CACHE_NAME = 'portal-mcs-v1';
+const CACHE_NAME = 'portal-mcs-v2';
 
 self.addEventListener('install', (event) => {
   // Ativação imediata sem esperar o término de instâncias antigas
@@ -23,7 +23,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('push', (event) => {
   let title = 'Portal MCS';
   let body = 'Tem um novo aviso sobre as suas horas de trabalho.';
-  let icon = '/logo_mcs_transparent.png';
+  let icon = '/icone_mcs.png';
   let data = { url: '/portal' };
 
   if (event.data) {
@@ -42,7 +42,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body,
     icon,
-    badge: '/logo_mcs_transparent.png',
+    badge: '/icone_mcs.png',
     data,
     vibrate: [200, 100, 200],
     requireInteraction: false,

@@ -97,9 +97,11 @@ export function InstallAppPrompt() {
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-950/90 via-slate-900/95 to-slate-950/90 border border-emerald-500/40 p-4 shadow-xl backdrop-blur-md text-white">
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-xl bg-emerald-500/20 border border-emerald-500/50 flex items-center justify-center shrink-0 text-emerald-400 shadow-inner">
-                            {isIOS ? <Apple className="h-6 w-6" /> : <Smartphone className="h-6 w-6" />}
-                        </div>
+                        <img 
+                            src="/icone_mcs.png" 
+                            alt="Portal MCS" 
+                            className="h-12 w-12 rounded-2xl object-cover shadow-lg border border-white/20 shrink-0" 
+                        />
                         <div>
                             <div className="flex items-center gap-2">
                                 <h3 className="text-sm font-black tracking-tight text-white">
@@ -221,6 +223,7 @@ export function InstallAppPrompt() {
                                 </div>
                                 <div className="space-y-0.5">
                                     <p className="font-bold text-slate-100 flex items-center gap-1.5">
+                                        <img src="/icone_mcs.png" alt="Portal MCS" className="h-5 w-5 rounded-md object-cover inline-block" />
                                         <span>{isSpanish ? 'Abra la App y disfrute' : 'Abra o App e ative avisos'}</span>
                                         <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" />
                                     </p>

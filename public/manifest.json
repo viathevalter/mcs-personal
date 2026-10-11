@@ -5,21 +5,30 @@
   "start_url": "/portal",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#020617",
-  "theme_color": "#020617",
+  "background_color": "#030712",
+  "theme_color": "#030712",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/logo_mcs_transparent.png",
-      "sizes": "192x192",
+      "src": "/icone_mcs.png",
+      "sizes": "192x192 512x512 1024x1024",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/logo_mcs.png",
-      "sizes": "512x512",
+      "src": "/icone_mcs.png",
+      "sizes": "192x192 512x512 1024x1024",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/imagem_loading.png",
+      "sizes": "941x1672",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Portal MCS"
     }
   ]
 }
