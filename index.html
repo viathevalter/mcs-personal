@@ -3,57 +3,193 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="google" content="notranslate" />
-    <link rel="icon" type="image/png" href="/icone_mcs.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#030712" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Portal MCS" />
-    <link rel="apple-touch-icon" href="/icone_mcs.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/icone_mcs.png" />
-    <link rel="apple-touch-startup-image" href="/imagem_loading.png" />
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <title>Portal MCS</title>
   </head>
   <body style="margin: 0; padding: 0; background-color: #030712; color: #ffffff;">
-    <div id="root">
-      <div id="pwa-initial-splash" style="
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        background-color: #030712;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        z-index: 999999;
-      ">
-        <img 
-          src="/imagem_loading.png" 
-          alt="Portal MCS" 
-          style="
-            width: 100%;
-            height: 100%;
-            max-width: 480px;
-            max-height: 100vh;
-            object-fit: contain;
-            object-position: center;
-            animation: splashPulse 1.8s ease-in-out infinite alternate;
-          "
-        />
-        <style>
-          @keyframes splashPulse {
-            0% { opacity: 0.95; transform: scale(1); }
-            100% { opacity: 1; transform: scale(1.015); }
-          }
-        </style>
+    <!-- Splash Screen Nativa em HTML/CSS (carregamento imediato sem flash e com animação 60fps) -->
+    <div id="pwa-initial-splash" class="splash-container">
+      <div class="splash-content">
+        <!-- Glow Aura & Aneis de Luz Neon Azul/Verde -->
+        <div class="splash-glow-backdrop"></div>
+        <div class="splash-ring splash-ring-outer"></div>
+        <div class="splash-ring splash-ring-inner"></div>
+
+        <!-- Logo MCS Centralizado -->
+        <div class="splash-logo-wrapper">
+          <img 
+            src="/icon-512.png" 
+            alt="MCS" 
+            class="splash-logo-img"
+            width="136"
+            height="136"
+          />
+        </div>
+
+        <!-- Barra de Progresso / Loading Neon -->
+        <div class="splash-loading-bar-track">
+          <div class="splash-loading-bar-fill"></div>
+        </div>
+
+        <!-- Subtítulo -->
+        <div class="splash-subtitle">PORTAL MCS</div>
       </div>
+      <style>
+        .splash-container {
+          position: fixed;
+          inset: 0;
+          width: 100vw;
+          height: 100vh;
+          background: radial-gradient(circle at 50% 48%, #07152d 0%, #030712 72%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          z-index: 999999;
+          transition: opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.45s;
+          user-select: none;
+          -webkit-user-select: none;
+        }
+        .splash-container.splash-hidden {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+        }
+        .splash-content {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 20px;
+        }
+        /* Glow Backdrop */
+        .splash-glow-backdrop {
+          position: absolute;
+          width: 320px;
+          height: 320px;
+          border-radius: 50%;
+          background: radial-gradient(circle, rgba(0, 242, 254, 0.24) 0%, rgba(16, 185, 129, 0.18) 45%, transparent 70%);
+          filter: blur(35px);
+          animation: splashAuraPulse 3s ease-in-out infinite alternate;
+          pointer-events: none;
+        }
+        /* Aneis de Neon */
+        .splash-ring {
+          position: absolute;
+          border-radius: 50%;
+          pointer-events: none;
+        }
+        .splash-ring-outer {
+          width: 290px;
+          height: 290px;
+          border: 1.5px solid rgba(0, 242, 254, 0.32);
+          box-shadow: 0 0 25px rgba(0, 242, 254, 0.25), inset 0 0 25px rgba(16, 185, 129, 0.2);
+          animation: splashRingPulse 3.5s ease-in-out infinite alternate;
+        }
+        .splash-ring-inner {
+          width: 240px;
+          height: 240px;
+          border: 1px dashed rgba(16, 185, 129, 0.4);
+          animation: splashRingRotate 24s linear infinite;
+        }
+        /* Logo Central */
+        .splash-logo-wrapper {
+          position: relative;
+          z-index: 2;
+          width: 136px;
+          height: 136px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 28px;
+          animation: splashLogoFloat 3s ease-in-out infinite alternate;
+        }
+        .splash-logo-img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          border-radius: 28px;
+          filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 18px rgba(0, 242, 254, 0.35));
+        }
+        /* Loading Bar Neon */
+        .splash-loading-bar-track {
+          position: relative;
+          z-index: 2;
+          width: 210px;
+          height: 4px;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.14);
+          border-radius: 999px;
+          overflow: hidden;
+          margin-bottom: 14px;
+          backdrop-filter: blur(4px);
+        }
+        .splash-loading-bar-fill {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 45%;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #00f2fe, #10b981);
+          box-shadow: 0 0 10px #10b981, 0 0 18px #00f2fe;
+          animation: splashBarSweep 1.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+        }
+        /* Subtítulo */
+        .splash-subtitle {
+          position: relative;
+          z-index: 2;
+          font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.22em;
+          color: #94a3b8;
+          text-transform: uppercase;
+          opacity: 0.85;
+          animation: splashTextGlow 2.5s ease-in-out infinite alternate;
+        }
+        @keyframes splashAuraPulse {
+          0% { transform: scale(0.92); opacity: 0.25; }
+          100% { transform: scale(1.08); opacity: 0.45; }
+        }
+        @keyframes splashRingPulse {
+          0% { transform: scale(0.97); opacity: 0.5; }
+          100% { transform: scale(1.03); opacity: 0.9; }
+        }
+        @keyframes splashRingRotate {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes splashLogoFloat {
+          0% { transform: translateY(0) scale(1); }
+          100% { transform: translateY(-4px) scale(1.02); }
+        }
+        @keyframes splashBarSweep {
+          0% { left: -50%; width: 35%; }
+          50% { width: 65%; }
+          100% { left: 110%; width: 35%; }
+        }
+        @keyframes splashTextGlow {
+          0% { color: #64748b; text-shadow: none; }
+          100% { color: #cbd5e1; text-shadow: 0 0 8px rgba(0, 242, 254, 0.4); }
+        }
+      </style>
     </div>
+
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

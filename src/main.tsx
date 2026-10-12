@@ -63,11 +63,26 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => {
-      console.warn('SW registration failed:', err);
-    });
+if (typeof window !== 'undefined') {
+  // Desvanecer e remover a Splash Screen nativa suavemente sem trancos visuais
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      const splash = document.getElementById('pwa-initial-splash');
+      if (splash) {
+        splash.classList.add('splash-hidden');
+        setTimeout(() => {
+          try { splash.remove(); } catch (_) {}
+        }, 500);
+      }
+    }, 350);
   });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('SW registration failed:', err);
+      });
+    });
+  }
 }
 

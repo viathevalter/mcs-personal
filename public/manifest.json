@@ -10,25 +10,39 @@
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icone_mcs.png",
-      "sizes": "192x192 512x512 1024x1024",
+      "src": "/icon-192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icone_mcs.png",
-      "sizes": "192x192 512x512 1024x1024",
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "maskable"
-    }
-  ],
-  "screenshots": [
+    },
     {
-      "src": "/imagem_loading.png",
-      "sizes": "941x1672",
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
       "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Portal MCS"
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icone_mcs.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }

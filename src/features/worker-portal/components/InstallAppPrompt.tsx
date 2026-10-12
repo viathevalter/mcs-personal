@@ -98,7 +98,7 @@ export function InstallAppPrompt() {
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <img 
-                            src="/icone_mcs.png" 
+                            src="/icon-192.png" 
                             alt="Portal MCS" 
                             className="h-12 w-12 rounded-2xl object-cover shadow-lg border border-white/20 shrink-0" 
                         />
@@ -223,7 +223,7 @@ export function InstallAppPrompt() {
                                 </div>
                                 <div className="space-y-0.5">
                                     <p className="font-bold text-slate-100 flex items-center gap-1.5">
-                                        <img src="/icone_mcs.png" alt="Portal MCS" className="h-5 w-5 rounded-md object-cover inline-block" />
+                                        <img src="/icon-192.png" alt="Portal MCS" className="h-5 w-5 rounded-md object-cover inline-block" />
                                         <span>{isSpanish ? 'Abra la App y disfrute' : 'Abra o App e ative avisos'}</span>
                                         <CheckCircle2 className="h-3.5 w-3.5 text-amber-400" />
                                     </p>
