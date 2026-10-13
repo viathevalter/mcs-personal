@@ -5,7 +5,7 @@ import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
     listContracts, generateContract, deleteContract, type Contract,
-    listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, type DocumentRequest
+    listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, type DocumentRequest
 } from '../api/contractsApi';
 import { listWorkers } from '@/features/workers/api/workersApi';
 import { Combobox } from '@/components/ui/combobox';
@@ -22,7 +22,8 @@ import {
     FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
     MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2,
-    Calendar, MapPin, Clock, AlertTriangle, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Package
+    Calendar, MapPin, Clock, AlertTriangle, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Package,
+    UploadCloud, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -189,6 +190,8 @@ export function DocumentacionTasksPage() {
     const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
     const [selectedAttachDocType, setSelectedAttachDocType] = useState<string>('passaporte');
     const [savingAttachDoc, setSavingAttachDoc] = useState(false);
+    const [uploadingDoc, setUploadingDoc] = useState(false);
+    const docFileInputRef = useRef<HTMLInputElement>(null);
 
     const handleTabChange = (tab: 'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
         setActiveDocTab(tab);
@@ -1428,6 +1431,21 @@ Muchas gracias.`;
                     .from('workers')
                     .update({ foto: targetFilePath })
                     .eq('id', selectedRequest.worker_id);
+
+                if (selectedRequest.worker?.cod_colab) {
+                    try {
+                        await supabase
+                            .schema('public')
+                            .from('colaboradores')
+                            .update({
+                                foto: targetFilePath,
+                                foto_trabalhador: targetFilePath
+                            })
+                            .eq('cod_colab', selectedRequest.worker.cod_colab);
+                    } catch (e) {
+                        console.warn("Aviso ao atualizar foto em public.colaboradores:", e);
+                    }
+                }
             }
 
             toast.success(`Documento (${docLabel}) salvo no cadastro de ${workerName} com sucesso!`);
@@ -1436,6 +1454,133 @@ Muchas gracias.`;
             toast.error(`Erro ao anexar documento: ${err.message || 'Erro desconhecido'}`);
         } finally {
             setSavingAttachDoc(false);
+        }
+    };
+
+    // 6.2 Upload / Substituição de documento diretamente da aba ativa
+    const handleUploadDocForCurrentTab = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedRequest) return;
+
+        // Reset the input value so selecting the same file triggers change again
+        e.target.value = '';
+
+        try {
+            setUploadingDoc(true);
+            const ext = file.name.split('.').pop() || 'jpg';
+            const cleanExt = ext.toLowerCase();
+            const tokenFolder = selectedRequest.token || selectedRequest.id;
+            const targetFilePath = `${tokenFolder}/${activeDocTab}_${Date.now()}.${cleanExt}`;
+
+            toast.info(`Fazendo upload do arquivo para ${activeDocTab.toUpperCase()}...`);
+
+            const { error: uploadError } = await supabase.storage
+                .from('worker-incoming-docs')
+                .upload(targetFilePath, file, {
+                    upsert: true,
+                    contentType: file.type || (cleanExt === 'pdf' ? 'application/pdf' : 'image/jpeg')
+                });
+
+            if (uploadError) throw uploadError;
+
+            // Mapeamento para coluna de document_requests
+            let updateColumn = '';
+            if (activeDocTab === 'identity') updateColumn = 'passport_url';
+            else if (activeDocTab === 'nif') updateColumn = 'nif_url';
+            else if (activeDocTab === 'niss') updateColumn = 'niss_url';
+            else if (activeDocTab === 'license') updateColumn = 'license_url';
+            else if (activeDocTab === 'iban') updateColumn = 'iban_url';
+            else if (activeDocTab === 'selfie') updateColumn = 'selfie_url';
+
+            const updatePayload: any = {
+                [updateColumn]: targetFilePath,
+                updated_at: new Date().toISOString()
+            };
+
+            if (activeDocTab === 'iban') {
+                updatePayload.extracted_data = {
+                    ...(selectedRequest.extracted_data || {}),
+                    iban_url: targetFilePath
+                };
+            }
+
+            const { error: dbErr } = await supabase
+                .schema('core_personal')
+                .from('document_requests')
+                .update(updatePayload)
+                .eq('id', selectedRequest.id);
+
+            if (dbErr) throw dbErr;
+
+            // Atualizar o selectedRequest em memória
+            const updatedRequest: DocumentRequest = {
+                ...selectedRequest,
+                [updateColumn]: targetFilePath,
+                ...(activeDocTab === 'iban' ? {
+                    extracted_data: {
+                        ...(selectedRequest.extracted_data || {}),
+                        iban_url: targetFilePath
+                    }
+                } : {})
+            };
+            setSelectedRequest(updatedRequest);
+
+            // Atualizar lista docRequests
+            setDocRequests(prev => prev.map(r => r.id === updatedRequest.id ? { ...r, ...updatedRequest } : r));
+
+            // Gerar URL assinada imediata para visualização
+            const { data: signedData } = await supabase.storage
+                .from('worker-incoming-docs')
+                .createSignedUrl(targetFilePath, 3600);
+
+            if (signedData?.signedUrl) {
+                setActiveDocUrl(signedData.signedUrl);
+            }
+
+            toast.success(`Arquivo de ${activeDocTab.toUpperCase()} anexado com sucesso!`);
+
+            // Executar OCR se for documento de identificação/NIF/NISS/Carta
+            if (['identity', 'nif', 'niss', 'license'].includes(activeDocTab)) {
+                try {
+                    toast.info("Processando leitura inteligente (OCR) do arquivo...");
+                    const ocrRes = await processDocumentOcr({
+                        file_path: targetFilePath,
+                        mime_type: file.type || (cleanExt === 'pdf' ? 'application/pdf' : 'image/jpeg'),
+                        document_type: activeDocTab
+                    });
+
+                    if (ocrRes.success && ocrRes.data) {
+                        const data = ocrRes.data;
+                        setVerifyFormData(prev => {
+                            const updated = { ...prev };
+                            if (activeDocTab === 'identity') {
+                                if (!updated.nome && data.nome_completo) updated.nome = data.nome_completo;
+                                if (!updated.nacionalidade && data.nacionalidade) updated.nacionalidade = data.nacionalidade;
+                                if (!updated.fecha_nacimiento && data.data_nascimento) updated.fecha_nacimiento = parseDateToInput(data.data_nascimento);
+                                const docNum = data.numero_documento || '';
+                                if (data.tipo_identificacao === 'passaporte' && !updated.pasaporte) updated.pasaporte = docNum;
+                                else if (data.tipo_identificacao === 'nie' && !updated.nie) updated.nie = docNum;
+                                else if (!updated.dni && !updated.pasaporte) updated.dni = docNum;
+                            } else if (activeDocTab === 'nif' && !updated.nif && data.nif) {
+                                updated.nif = data.nif;
+                            } else if (activeDocTab === 'niss' && !updated.niss && data.niss) {
+                                updated.niss = data.niss;
+                            } else if (activeDocTab === 'license' && !updated.licencia_conducir && data.licencia_conducir) {
+                                updated.licencia_conducir = data.licencia_conducir;
+                            }
+                            return updated;
+                        });
+                        toast.success("Dados cadastrais pré-preenchidos com a leitura do documento!");
+                    }
+                } catch (ocrErr: any) {
+                    console.warn("OCR não executado ou falhou:", ocrErr);
+                }
+            }
+        } catch (err: any) {
+            console.error("Erro no upload do arquivo:", err);
+            toast.error(`Falha no upload do arquivo: ${err.message || 'Erro desconhecido'}`);
+        } finally {
+            setUploadingDoc(false);
         }
     };
 
@@ -1591,7 +1736,11 @@ Muchas gracias.`;
                 fecha_nacimiento: cleanBirthDate || undefined,
                 camiseta: verifyFormData.talla_camisa || undefined,
                 pantalones: verifyFormData.talla_pantalon || undefined,
-                foto: selectedRequest.selfie_url || undefined
+                foto: selectedRequest.selfie_url 
+                    ? (selectedRequest.selfie_url.startsWith('worker-incoming-docs/') 
+                        ? selectedRequest.selfie_url 
+                        : `worker-incoming-docs/${selectedRequest.selfie_url.replace(/^\/+/, '')}`) 
+                    : undefined
             };
 
             const updatedFormData = {
@@ -3076,20 +3225,46 @@ Muchas gracias.`;
                                             <option value="outros">Outros</option>
                                         </select>
                                     </div>
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        disabled={!activeDocUrl || savingAttachDoc}
-                                        onClick={handleSaveDocToWorkerProfile}
-                                        className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 shrink-0 px-3 w-full sm:w-auto"
-                                    >
-                                        {savingAttachDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                                        Anexar ao Cadastro
-                                    </Button>
+                                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled={uploadingDoc}
+                                            onClick={() => docFileInputRef.current?.click()}
+                                            className="h-8 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold gap-1 shrink-0 px-3"
+                                            title="Carregar ou substituir o documento desta categoria"
+                                        >
+                                            {uploadingDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
+                                            {activeDocUrl ? 'Substituir Arquivo' : 'Carregar Arquivo'}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled={!activeDocUrl || savingAttachDoc}
+                                            onClick={handleSaveDocToWorkerProfile}
+                                            className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 shrink-0 px-3 w-full sm:w-auto"
+                                        >
+                                            {savingAttachDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                                            Anexar ao Cadastro
+                                        </Button>
+                                    </div>
                                 </div>
 
-                                {/* Preview da Imagem */}
-                                <div className="flex-1 flex items-center justify-center p-4 bg-slate-950 overflow-auto">
+                                {/* Preview da Imagem & Dropzone de Upload */}
+                                <div className="flex-1 flex items-center justify-center p-4 bg-slate-950 overflow-auto relative">
+                                    <input
+                                        type="file"
+                                        ref={docFileInputRef}
+                                        onChange={handleUploadDocForCurrentTab}
+                                        accept="image/*,application/pdf"
+                                        className="hidden"
+                                    />
+                                    {uploadingDoc && (
+                                        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-2 text-white">
+                                            <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+                                            <span className="text-sm font-medium">Enviando e processando arquivo...</span>
+                                        </div>
+                                    )}
                                     {activeDocUrl ? (
                                         activeDocUrl.split('?')[0].toLowerCase().endsWith('.pdf') ? (
                                             <iframe src={activeDocUrl} className="w-full h-full border-none rounded bg-white" title="PDF Document Viewer" />
@@ -3097,9 +3272,25 @@ Muchas gracias.`;
                                             <img src={activeDocUrl} className="max-w-full max-h-full object-contain rounded" alt="Document Preview" />
                                         )
                                     ) : (
-                                        <div className="text-center text-slate-600 flex flex-col items-center gap-2">
-                                            <FileText className="h-10 w-10 text-slate-700" />
-                                            <span>Nenhum arquivo enviado para esta categoria.</span>
+                                        <div 
+                                            onClick={() => docFileInputRef.current?.click()}
+                                            className="border-2 border-dashed border-slate-700 hover:border-indigo-500 hover:bg-slate-900/60 rounded-xl p-8 text-center flex flex-col items-center justify-center gap-3 cursor-pointer transition-all max-w-sm"
+                                        >
+                                            <div className="h-12 w-12 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                                                <UploadCloud className="h-6 w-6" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold text-slate-200">Nenhum arquivo enviado para {activeDocTab.toUpperCase()}</p>
+                                                <p className="text-xs text-slate-400 mt-1">Clique aqui para carregar o arquivo (Foto/PDF) enviado pelo trabalhador via WhatsApp ou e-mail</p>
+                                            </div>
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="mt-2 text-xs border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/20"
+                                            >
+                                                <Upload className="h-3.5 w-3.5 mr-1" /> Selecionar Arquivo
+                                            </Button>
                                         </div>
                                     )}
                                 </div>

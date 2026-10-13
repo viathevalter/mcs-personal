@@ -793,6 +793,14 @@ export async function approveDocumentRequest(
         if (approvedData.fecha_nacimiento) colabSync.fecha_nacimiento = approvedData.fecha_nacimiento;
         if (approvedData.nacionalidade) colabSync.nacionalidade = approvedData.nacionalidade;
         if (approvedData.licencia_conducir) colabSync.licencia_conducir = approvedData.licencia_conducir;
+        if (approvedData.foto) {
+            colabSync.foto = approvedData.foto;
+            colabSync.foto_trabalhador = approvedData.foto;
+        }
+        if (approvedData.camiseta) colabSync.camiseta = approvedData.camiseta;
+        if (approvedData.pantalones) colabSync.pantalones = approvedData.pantalones;
+        if (approvedData.address_line) colabSync.domicilio = approvedData.address_line;
+        if (approvedData.morada_contrato) colabSync.alojamiento = approvedData.morada_contrato;
 
         if (Object.keys(colabSync).length > 0) {
             try {
@@ -868,6 +876,7 @@ export async function approveDocumentRequest(
         try {
             const empresaIdForDocs = currentReq.empresa_id || 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
             const docsToArchive: Array<{ docType: string; label: string; filePath: string | null }> = [
+                { docType: 'foto', label: 'Foto do Trabalhador', filePath: currentReq.selfie_url },
                 { docType: 'passaporte', label: 'Passaporte / Identificação', filePath: currentReq.passport_url },
                 { docType: 'nif', label: 'NIF', filePath: currentReq.nif_url },
                 { docType: 'niss', label: 'NISS', filePath: currentReq.niss_url },
@@ -877,7 +886,9 @@ export async function approveDocumentRequest(
 
             for (const doc of docsToArchive) {
                 if (doc.filePath) {
-                    const ext = doc.filePath.split('.').pop() || 'pdf';
+                    const cleanPath = doc.filePath.replace(/^worker-incoming-docs\//, '');
+                    const targetFilePath = `worker-incoming-docs/${cleanPath}`;
+                    const ext = doc.filePath.split('.').pop() || 'jpg';
                     const fileName = `${doc.label} - ${approvedData.nome || 'Trabalhador'}.${ext}`;
                     
                     const { data: existingDoc } = await supabase
@@ -885,7 +896,7 @@ export async function approveDocumentRequest(
                         .from('worker_documents')
                         .select('id')
                         .eq('worker_id', workerId)
-                        .eq('file_path', doc.filePath)
+                        .or(`file_path.eq.${targetFilePath},file_path.eq.${cleanPath}`)
                         .maybeSingle();
 
                     if (!existingDoc) {
@@ -896,10 +907,10 @@ export async function approveDocumentRequest(
                                 empresa_id: empresaIdForDocs,
                                 worker_id: workerId,
                                 doc_type: doc.docType,
-                                file_path: doc.filePath,
+                                file_path: targetFilePath,
                                 file_name: fileName,
                                 file_size: 1024,
-                                mime_type: doc.filePath.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+                                mime_type: ext.toLowerCase() === 'pdf' ? 'application/pdf' : 'image/jpeg'
                             });
                     }
                 }
