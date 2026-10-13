@@ -46,7 +46,9 @@ import {
     X,
     Filter,
     Clock,
-    Trash2
+    Trash2,
+    LayoutGrid,
+    List
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -69,6 +71,7 @@ export default function FundoCaixaPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'todos' | 'Ativo' | 'Inativo'>('todos');
     const [empresaFilter, setEmpresaFilter] = useState('todas');
+    const [viewMode, setViewMode] = useState<'cards' | 'lista'>('cards');
 
     // Modais e Item Selecionado
     const [selectedCaixa, setSelectedCaixa] = useState<CaixaDespesa | null>(null);
@@ -341,113 +344,95 @@ export default function FundoCaixaPage() {
     };
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-6">
+        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-4 w-full max-w-[1850px] mx-auto">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                <div>
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 rounded-xl bg-blue-600/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                            <Wallet className="h-6 w-6" />
-                        </div>
-                        <div>
-                            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                                Fundo de Caixa & Adiantamentos
-                            </h1>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Gestão de caixas para viagens, compras e despesas operacionais dos colaboradores
-                            </p>
-                        </div>
+            <div className="flex-none space-y-4">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">
+                            Fundo de Caixa & Adiantamentos
+                        </h2>
+                        <p className="text-muted-foreground mt-0.5 text-xs md:text-sm">
+                            Gestão de caixas para viagens, missões e despesas operacionais dos colaboradores
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={loadData}
+                            disabled={loading}
+                            className="gap-2 rounded-xl text-xs font-semibold"
+                        >
+                            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                            Atualizar
+                        </Button>
+                        <Button
+                            onClick={() => setIsNovoCaixaOpen(true)}
+                            className="flex items-center gap-2 shadow-sm bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-2 px-4 font-semibold transition-all text-xs"
+                        >
+                            <Plus size={18} /> Novo Fundo de Caixa
+                        </Button>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={loadData}
-                        disabled={loading}
-                        className="gap-2"
-                    >
-                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                        Atualizar
-                    </Button>
-                    <Button
-                        onClick={() => setIsNovoCaixaOpen(true)}
-                        className="gap-2 bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/20"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Novo Fundo de Caixa
-                    </Button>
+
+                {/* KPIs Row */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                    <Card className="border-l-4 border-l-blue-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                Saldo em Aberto (Custodiado)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className={`text-2xl font-black ${totalSaldoCustodiado < 0 ? 'text-red-650' : 'text-blue-650 dark:text-blue-400'}`}>
+                                {formatMoney(totalSaldoCustodiado)}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">Saldo total em posse dos funcionários</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-emerald-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                Total Recarregado
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                                {formatMoney(totalRecarregadoGeral)}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">Adiantamentos transferidos aos caixas</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-red-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                Total Comprovado (Gastos)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-black text-red-650 dark:text-red-400">
+                                {formatMoney(totalGastoGeral)}
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">Despesas com comprovantes lançados</p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-amber-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                Caixas Ativas
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                                {caixasAtivas} <span className="text-sm font-normal text-slate-400">/ {caixas.length}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-400 mt-1">Colaboradores com viagem em andamento</p>
+                        </CardContent>
+                    </Card>
                 </div>
-            </div>
-
-            {/* KPIs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="border border-slate-200 dark:border-slate-800 shadow-xs">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                        <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Saldo em Aberto (Custodiado)
-                        </CardTitle>
-                        <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400">
-                            <Wallet className="h-4 w-4" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className={`text-2xl font-bold ${totalSaldoCustodiado < 0 ? 'text-red-600' : 'text-slate-900 dark:text-slate-100'}`}>
-                            {formatMoney(totalSaldoCustodiado)}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1">Saldo total nas mãos dos colaboradores</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-slate-200 dark:border-slate-800 shadow-xs">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                        <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Total Recarregado
-                        </CardTitle>
-                        <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-400">
-                            <TrendingUp className="h-4 w-4" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-emerald-600">
-                            {formatMoney(totalRecarregadoGeral)}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1">Adiantamentos transferidos aos caixas</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-slate-200 dark:border-slate-800 shadow-xs">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                        <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Total Comprovado (Gastos)
-                        </CardTitle>
-                        <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400">
-                            <TrendingDown className="h-4 w-4" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-red-600">
-                            {formatMoney(totalGastoGeral)}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1">Despesas com comprovantes lançados</p>
-                    </CardContent>
-                </Card>
-
-                <Card className="border border-slate-200 dark:border-slate-800 shadow-xs">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                        <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                            Caixas Ativas
-                        </CardTitle>
-                        <div className="p-2 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-950 dark:text-amber-400">
-                            <Coins className="h-4 w-4" />
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-                            {caixasAtivas} <span className="text-sm font-normal text-slate-400">/ {caixas.length}</span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1">Colaboradores com viagem em andamento</p>
-                    </CardContent>
-                </Card>
             </div>
 
             {/* Abas e Filtros */}
@@ -509,12 +494,38 @@ export default function FundoCaixaPage() {
                                         <option key={e.id} value={e.id}>{e.nome}</option>
                                     ))}
                                 </select>
+
+                                {/* Toggle Cards vs Lista */}
+                                <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 bg-slate-100 dark:bg-slate-800">
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode('cards')}
+                                        className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                                            viewMode === 'cards' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                                        }`}
+                                        title="Visualização em Galeria / Cards"
+                                    >
+                                        <LayoutGrid className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">Cards</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode('lista')}
+                                        className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                                            viewMode === 'lista' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
+                                        }`}
+                                        title="Visualização em Lista / Tabela"
+                                    >
+                                        <List className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">Lista</span>
+                                    </button>
+                                </div>
                             </>
                         )}
                     </div>
                 </div>
 
-                {/* Conteúdo Aba 1: Grid de Caixas */}
+                {/* Conteúdo Aba 1: Caixas */}
                 {activeTab === 'caixas' && (
                     <div>
                         {loading ? (
@@ -528,8 +539,113 @@ export default function FundoCaixaPage() {
                                 <p className="font-medium">Nenhum fundo de caixa encontrado.</p>
                                 <p className="text-xs text-slate-400 mt-1">Clique em "Novo Fundo de Caixa" para criar um novo adiantamento.</p>
                             </div>
+                        ) : viewMode === 'lista' ? (
+                            /* Modo Tabela / Lista */
+                            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                                            <TableHead>Caixa / Missão</TableHead>
+                                            <TableHead>Funcionário</TableHead>
+                                            <TableHead>Empresa</TableHead>
+                                            <TableHead className="text-right">Total Recarregado</TableHead>
+                                            <TableHead className="text-right">Total Gastos</TableHead>
+                                            <TableHead className="text-right">Saldo Disponível</TableHead>
+                                            <TableHead className="text-center w-24">Status</TableHead>
+                                            <TableHead className="text-center w-60">Ações Rápidas</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredCaixas.map(cx => (
+                                            <TableRow key={cx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                                                <TableCell className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                                                    {cx.nombre}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                                                    {cx.trabajador?.Nombre || 'Não especificado'}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-500">
+                                                    {cx.empresa?.nome || '—'}
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono text-xs font-semibold text-emerald-600">
+                                                    +{formatMoney(cx.total_recargas)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono text-xs font-semibold text-red-600">
+                                                    -{formatMoney(cx.total_despesas)}
+                                                </TableCell>
+                                                <TableCell className={`text-right font-mono text-sm font-bold ${
+                                                    cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'
+                                                }`}>
+                                                    {formatMoney(cx.saldo)}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
+                                                        {cx.status}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
+                                                            onClick={() => {
+                                                                setSelectedCaixa(cx);
+                                                                setIsRecargaOpen(true);
+                                                            }}
+                                                            title="Recarregar Caixa"
+                                                        >
+                                                            <TrendingUp className="h-3.5 w-3.5 mr-1" /> Recarga
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="h-7 px-2 text-xs text-red-700 hover:bg-red-50"
+                                                            onClick={() => {
+                                                                setSelectedCaixa(cx);
+                                                                setIsDespesaOpen(true);
+                                                            }}
+                                                            title="Lançar Gasto"
+                                                        >
+                                                            <TrendingDown className="h-3.5 w-3.5 mr-1" /> Gasto
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="default"
+                                                            className="h-7 px-2 text-xs bg-slate-900 hover:bg-slate-800 text-white"
+                                                            onClick={() => openExtrato(cx)}
+                                                            title="Ver Extrato Completo"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
+                                                            onClick={() => copyWorkerLink(cx)}
+                                                            title="Copiar Link do Funcionário"
+                                                        >
+                                                            <Copy className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700"
+                                                            onClick={() => toggleCaixaStatus(cx)}
+                                                            title={cx.status === 'Ativo' ? 'Encerrar Caixa' : 'Reativar Caixa'}
+                                                        >
+                                                            <Clock className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            /* Modo Cards / Galeria */
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                 {filteredCaixas.map(cx => (
                                     <div 
                                         key={cx.id} 
