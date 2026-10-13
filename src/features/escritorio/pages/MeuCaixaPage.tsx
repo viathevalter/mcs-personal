@@ -36,7 +36,8 @@ import {
     Clock,
     AlertCircle,
     UserCheck,
-    Trash2
+    Trash2,
+    CreditCard
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -410,59 +411,85 @@ export default function MeuCaixaPage() {
                                 <div className="relative z-10 space-y-4">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400 block">
-                                                Fundo de Viagem Ativo
-                                            </span>
-                                            <h2 className="text-xl font-bold text-white mt-0.5">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[11px] font-bold uppercase tracking-wider text-blue-400">
+                                                    Fundo de Viagem Ativo
+                                                </span>
+                                                {selectedCaixa.tipo_fundo === 'cartao' ? (
+                                                    <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/30 text-[10px] flex items-center gap-1">
+                                                        <CreditCard className="w-3 h-3" />
+                                                        Cartão: {selectedCaixa.cartao?.nome_cartao || 'Corporativo'}
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px] flex items-center gap-1">
+                                                        <Wallet className="w-3 h-3" />
+                                                        Adiantamento Dinheiro
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <h2 className="text-xl font-bold text-white mt-1">
                                                 {selectedCaixa.nombre}
                                             </h2>
-                                            {selectedCaixa.empresa && (
+                                            {(selectedCaixa.empresa || selectedCaixa.cartao?.empresa_nome) && (
                                                 <span className="text-xs text-slate-400 block mt-0.5">
-                                                    Empresa: {selectedCaixa.empresa.nome}
+                                                    Empresa: {selectedCaixa.empresa?.nome || selectedCaixa.cartao?.empresa_nome}
                                                 </span>
                                             )}
                                         </div>
                                         <Badge className="bg-blue-600/30 text-blue-300 border-blue-500/40 text-xs">
-                                            {selectedCaixa.status}
+                                            {selectedCaixa.fechado_em ? 'Fechado' : selectedCaixa.status}
                                         </Badge>
                                     </div>
 
-                                    {/* Saldo Restante */}
-                                    <div className="pt-2">
-                                        <span className="text-xs text-slate-400 uppercase font-medium">Saldo Restante Disponível</span>
-                                        <div className={`text-4xl font-black tracking-tight mt-1 ${
-                                            selectedCaixa.saldo >= 0 ? 'text-emerald-400' : 'text-red-400'
-                                        }`}>
-                                            {formatMoney(selectedCaixa.saldo)}
+                                    {/* Destaque Financeiro */}
+                                    {selectedCaixa.tipo_fundo === 'cartao' ? (
+                                        <div className="pt-2">
+                                            <span className="text-xs text-slate-400 uppercase font-medium">Total Utilizado na Missão</span>
+                                            <div className="text-4xl font-black tracking-tight mt-1 text-white">
+                                                {formatMoney(selectedCaixa.total_despesas)}
+                                            </div>
+                                            <p className="text-[11px] text-slate-400 mt-1">
+                                                Pagamentos realizados com o cartão corporativo fornecido pela empresa.
+                                            </p>
                                         </div>
-                                    </div>
+                                    ) : (
+                                        <>
+                                            <div className="pt-2">
+                                                <span className="text-xs text-slate-400 uppercase font-medium">Saldo Restante Disponível</span>
+                                                <div className={`text-4xl font-black tracking-tight mt-1 ${
+                                                    selectedCaixa.saldo >= 0 ? 'text-emerald-400' : 'text-red-400'
+                                                }`}>
+                                                    {formatMoney(selectedCaixa.saldo)}
+                                                </div>
+                                            </div>
 
-                                    {/* Sub-indicadores */}
-                                    <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-700/60 text-xs">
-                                        <div className="flex items-center gap-2">
-                                            <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
-                                                <TrendingUp className="h-4 w-4" />
-                                            </div>
-                                            <div>
-                                                <span className="text-slate-400 block text-[10px]">Total Recebido</span>
-                                                <span className="font-semibold text-white">
-                                                    {formatMoney(selectedCaixa.total_recargas)}
-                                                </span>
-                                            </div>
-                                        </div>
+                                            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-700/60 text-xs">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-400">
+                                                        <TrendingUp className="h-4 w-4" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400 block text-[10px]">Total Recebido</span>
+                                                        <span className="font-semibold text-white">
+                                                            {formatMoney(selectedCaixa.total_recargas)}
+                                                        </span>
+                                                    </div>
+                                                </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <div className="p-1.5 rounded-lg bg-red-500/20 text-red-400">
-                                                <TrendingDown className="h-4 w-4" />
+                                                <div className="flex items-center gap-2">
+                                                    <div className="p-1.5 rounded-lg bg-red-500/20 text-red-400">
+                                                        <TrendingDown className="h-4 w-4" />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400 block text-[10px]">Total Gasto</span>
+                                                        <span className="font-semibold text-white">
+                                                            {formatMoney(selectedCaixa.total_despesas)}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <span className="text-slate-400 block text-[10px]">Total Gasto</span>
-                                                <span className="font-semibold text-white">
-                                                    {formatMoney(selectedCaixa.total_despesas)}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}

@@ -7,6 +7,7 @@ import type {
   FinanceiroCategoria, 
   Obra, 
   Banco, 
+  CartaoCorporativo,
   Recebimento, 
   CobrancaObservacao,
   ContasPagar,
@@ -227,6 +228,71 @@ export async function saveBanco(banco: Partial<Banco>): Promise<{ success: boole
     return { success: true };
   } catch (err) {
     console.error("Error saving banco:", err);
+    return { success: false, error: err };
+  }
+}
+
+// --- CARTÕES CORPORATIVOS API ---
+
+export async function fetchCartoes(): Promise<CartaoCorporativo[]> {
+  const { data, error } = await supabase
+    .from('cartoes_corporativos')
+    .select(`
+      *,
+      empresas:empresa_id (id, nombre_comercial, razon_social),
+      bancos:banco_id (id, nome_banco)
+    `)
+    .order('criado_em', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching cartoes:', error);
+    return [];
+  }
+
+  return (data || []).map((c: any) => ({
+    id: c.id,
+    nome_cartao: c.nome_cartao,
+    empresa_id: c.empresa_id,
+    banco_id: c.banco_id,
+    ultimos_digitos: c.ultimos_digitos,
+    ativo: c.ativo ?? true,
+    criado_em: c.criado_em,
+    empresa_nome: c.empresas?.nombre_comercial || c.empresas?.razon_social || '',
+    banco_nome: c.bancos?.nome_banco || ''
+  }));
+}
+
+export async function saveCartao(cartao: Partial<CartaoCorporativo>): Promise<{ success: boolean; error?: any }> {
+  try {
+    const dbData: any = {
+      nome_cartao: cartao.nome_cartao,
+      empresa_id: cartao.empresa_id,
+      banco_id: cartao.banco_id || null,
+      ultimos_digitos: cartao.ultimos_digitos || null,
+      ativo: cartao.ativo !== false
+    };
+
+    if (cartao.id) {
+      const { error } = await supabase.from('cartoes_corporativos').update(dbData).eq('id', cartao.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('cartoes_corporativos').insert([dbData]);
+      if (error) throw error;
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("Error saving cartao:", err);
+    return { success: false, error: err };
+  }
+}
+
+export async function deleteCartao(id: string): Promise<{ success: boolean; error?: any }> {
+  try {
+    const { error } = await supabase.from('cartoes_corporativos').delete().eq('id', id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err) {
+    console.error("Error deleting cartao:", err);
     return { success: false, error: err };
   }
 }

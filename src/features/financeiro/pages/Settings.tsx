@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Mail, Send, Loader2, CheckCircle, AlertCircle, Users, Tags, Building2 } from 'lucide-react';
+import { Mail, Send, Loader2, CheckCircle, AlertCircle, Users, Tags, Building2, CreditCard } from 'lucide-react';
 import { CategoriaSettings } from '../components/CategoriaSettings';
 import { BancoSettings } from '../components/BancoSettings';
+import { CartaoSettings } from '../components/CartaoSettings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
@@ -146,6 +147,10 @@ export const Settings = () => {
                         <Building2 className="w-4 h-4 mr-2" />
                         Contas Bancárias
                     </TabsTrigger>
+                    <TabsTrigger value="cartoes" className="data-[state=active]:bg-brand-primary data-[state=active]:text-white dark:data-[state=active]:bg-brand-primary dark:text-slate-300">
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Cartões Corporativos
+                    </TabsTrigger>
                     <TabsTrigger value="usuarios" className="data-[state=active]:bg-brand-primary data-[state=active]:text-white dark:data-[state=active]:bg-brand-primary dark:text-slate-300">
                         <Users className="w-4 h-4 mr-2" />
                         Usuários
@@ -162,6 +167,10 @@ export const Settings = () => {
 
                 <TabsContent value="bancos">
                     <BancoSettings />
+                </TabsContent>
+
+                <TabsContent value="cartoes">
+                    <CartaoSettings />
                 </TabsContent>
 
                 <TabsContent value="usuarios">

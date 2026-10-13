@@ -48,9 +48,14 @@ import {
     Clock,
     Trash2,
     LayoutGrid,
-    List
+    List,
+    CreditCard,
+    CheckSquare,
+    FileCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { fetchCartoes, fetchCategorias, fetchObras } from '../data/loader';
+import type { CartaoCorporativo, FinanceiroCategoria, Obra } from '../types';
 
 export default function FundoCaixaPage() {
     // Listas principais
@@ -59,6 +64,9 @@ export default function FundoCaixaPage() {
     const [empresas, setEmpresas] = useState<{ id: string; nome: string }[]>([]);
     const [coches, setCoches] = useState<{ id: string; matricula: string; marca: string; modelo: string }[]>([]);
     const [historicoGeral, setHistoricoGeral] = useState<any[]>([]);
+    const [cartoes, setCartoes] = useState<CartaoCorporativo[]>([]);
+    const [categorias, setCategorias] = useState<FinanceiroCategoria[]>([]);
+    const [obras, setObras] = useState<Obra[]>([]);
 
     // Estados de carregamento
     const [loading, setLoading] = useState(true);
@@ -83,8 +91,20 @@ export default function FundoCaixaPage() {
     const [isDespesaOpen, setIsDespesaOpen] = useState(false);
     const [isExtratoOpen, setIsExtratoOpen] = useState(false);
 
+    // Modal Fechamento
+    const [isFechamentoOpen, setIsFechamentoOpen] = useState(false);
+    const [caixaToFechar, setCaixaToFechar] = useState<CaixaDespesa | null>(null);
+    const [formFechamento, setFormFechamento] = useState({
+        catDespesa: '',
+        centroCusto: '',
+        numDoc: '',
+        observacoes: ''
+    });
+
     // Formulários
     const [formNovoCaixa, setFormNovoCaixa] = useState({
+        tipo_fundo: 'cartao' as 'dinheiro' | 'cartao',
+        cartao_id: '',
         nombre: '',
         trabajador_id: '',
         id_empresa: '',
@@ -115,12 +135,15 @@ export default function FundoCaixaPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [caixasData, colabsData, empsData, cochesData, geralData] = await Promise.all([
+            const [caixasData, colabsData, empsData, cochesData, geralData, cartoesData, catsData, obrasData] = await Promise.all([
                 caixaService.getCaixas(),
                 caixaService.getColaboradores(),
                 caixaService.getEmpresas(),
                 caixaService.getCoches(),
-                caixaService.getTodosMovimentos()
+                caixaService.getTodosMovimentos(),
+                fetchCartoes(),
+                fetchCategorias(),
+                fetchObras()
             ]);
 
             setCaixas(caixasData);
@@ -128,6 +151,9 @@ export default function FundoCaixaPage() {
             setEmpresas(empsData);
             setCoches(cochesData);
             setHistoricoGeral(geralData);
+            setCartoes(cartoesData);
+            setCategorias(catsData);
+            setObras(obrasData);
         } catch (err) {
             console.error('Erro ao carregar dados:', err);
             toast.error('Erro ao carregar dados do Fundo de Caixa.');
@@ -140,27 +166,86 @@ export default function FundoCaixaPage() {
     const handleCreateCaixa = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formNovoCaixa.nombre.trim() || !formNovoCaixa.trabajador_id) {
-            toast.error('Informe o nome da caixa e selecione o colaborador.');
+            toast.error('Informe o nome da missão/caixa e selecione o colaborador.');
+            return;
+        }
+
+        if (formNovoCaixa.tipo_fundo === 'cartao' && !formNovoCaixa.cartao_id) {
+            toast.error('Por favor, selecione o cartão corporativo para a missão.');
             return;
         }
 
         setSubmitting(true);
         try {
+            const selectedCard = cartoes.find(c => c.id === formNovoCaixa.cartao_id);
             await caixaService.createCaixa({
                 nombre: formNovoCaixa.nombre.trim(),
                 trabajador_id: formNovoCaixa.trabajador_id,
-                id_empresa: formNovoCaixa.id_empresa || null,
+                id_empresa: formNovoCaixa.id_empresa || (selectedCard?.empresa_id ? String(selectedCard.empresa_id) : null),
                 status: 'Ativo',
-                saldo_inicial: Number(formNovoCaixa.saldo_inicial) || 0
+                tipo_fundo: formNovoCaixa.tipo_fundo,
+                cartao_id: formNovoCaixa.tipo_fundo === 'cartao' ? formNovoCaixa.cartao_id : null,
+                saldo_inicial: formNovoCaixa.tipo_fundo === 'dinheiro' ? (Number(formNovoCaixa.saldo_inicial) || 0) : 0
             });
 
             toast.success('Fundo de Caixa criado com sucesso!');
             setIsNovoCaixaOpen(false);
-            setFormNovoCaixa({ nombre: '', trabajador_id: '', id_empresa: '', saldo_inicial: '' });
+            setFormNovoCaixa({ tipo_fundo: 'cartao', cartao_id: '', nombre: '', trabajador_id: '', id_empresa: '', saldo_inicial: '' });
             await loadData();
         } catch (err: any) {
             console.error('Erro ao criar caixa:', err);
             toast.error(err?.message || 'Erro ao criar caixa.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // Abertura do Modal de Fechamento
+    const handleOpenFechamento = (cx: CaixaDespesa) => {
+        setCaixaToFechar(cx);
+        const despesaCat = categorias.find(c => c.tipo === 'Despesa')?.nome || 'Viagem/Transporte';
+        const defaultCC = cx.centro_custo || obras[0]?.nome || 'Central Cars - Frota / Operações Gerais';
+        setFormFechamento({
+            catDespesa: despesaCat,
+            centroCusto: defaultCC,
+            numDoc: `FC-${cx.id.slice(0, 6).toUpperCase()}`,
+            observacoes: ''
+        });
+        setIsFechamentoOpen(true);
+    };
+
+    // Confirmação do Fechamento de Caixa
+    const handleConfirmFechamento = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!caixaToFechar) return;
+
+        if (!formFechamento.catDespesa || !formFechamento.centroCusto) {
+            toast.error('Preencha a Categoria de Despesa e o Centro de Custo para classificação contábil.');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const res = await caixaService.fecharCaixa({
+                caixaId: caixaToFechar.id,
+                catDespesa: formFechamento.catDespesa,
+                centroCusto: formFechamento.centroCusto,
+                numDoc: formFechamento.numDoc,
+                observacoes: formFechamento.observacoes,
+                usuarioNome: 'Financeiro'
+            });
+
+            if (res.success) {
+                toast.success(`Fundo de Caixa finalizado com sucesso! Conta a Pagar #${res.contaPagarId || ''} gerada com status 'Pago'.`);
+                setIsFechamentoOpen(false);
+                setCaixaToFechar(null);
+                await loadData();
+            } else {
+                throw new Error(res.error || 'Erro no fechamento');
+            }
+        } catch (err: any) {
+            console.error('Erro ao fechar caixa:', err);
+            toast.error(err?.message || 'Erro ao finalizar caixa.');
         } finally {
             setSubmitting(false);
         }
@@ -546,69 +631,110 @@ export default function FundoCaixaPage() {
                                     <TableHeader>
                                         <TableRow className="bg-slate-50 dark:bg-slate-800/50">
                                             <TableHead>Caixa / Missão</TableHead>
+                                            <TableHead>Modalidade</TableHead>
                                             <TableHead>Funcionário</TableHead>
                                             <TableHead>Empresa</TableHead>
-                                            <TableHead className="text-right">Total Recarregado</TableHead>
                                             <TableHead className="text-right">Total Gastos</TableHead>
                                             <TableHead className="text-right">Saldo Disponível</TableHead>
-                                            <TableHead className="text-center w-24">Status</TableHead>
-                                            <TableHead className="text-center w-60">Ações Rápidas</TableHead>
+                                            <TableHead className="text-center w-28">Status</TableHead>
+                                            <TableHead className="text-center w-72">Ações</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {filteredCaixas.map(cx => (
                                             <TableRow key={cx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                                                 <TableCell className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                                                    {cx.nombre}
+                                                    <div>{cx.nombre}</div>
+                                                    {cx.fechado_em && (
+                                                        <span className="text-[10px] text-slate-400">
+                                                            Fechado em {new Date(cx.fechado_em).toLocaleDateString()}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {cx.tipo_fundo === 'cartao' ? (
+                                                        <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200 text-[10px] flex items-center gap-1 w-fit">
+                                                            <CreditCard className="w-3 h-3" />
+                                                            {cx.cartao?.nome_cartao || 'Cartão Corporativo'}
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-slate-600 text-[10px] flex items-center gap-1 w-fit">
+                                                            <Wallet className="w-3 h-3" />
+                                                            Adiantamento
+                                                        </Badge>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-xs text-slate-700 dark:text-slate-300">
                                                     {cx.trabajador?.Nombre || 'Não especificado'}
                                                 </TableCell>
                                                 <TableCell className="text-xs text-slate-500">
-                                                    {cx.empresa?.nome || '—'}
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono text-xs font-semibold text-emerald-600">
-                                                    +{formatMoney(cx.total_recargas)}
+                                                    {cx.empresa?.nome || cx.cartao?.empresa_nome || '—'}
                                                 </TableCell>
                                                 <TableCell className="text-right font-mono text-xs font-semibold text-red-600">
                                                     -{formatMoney(cx.total_despesas)}
                                                 </TableCell>
-                                                <TableCell className={`text-right font-mono text-sm font-bold ${
-                                                    cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'
-                                                }`}>
-                                                    {formatMoney(cx.saldo)}
+                                                <TableCell className="text-right font-mono text-sm font-bold">
+                                                    {cx.tipo_fundo === 'cartao' ? (
+                                                        <span className="text-xs font-normal text-slate-400">Cartão s/ Saldo</span>
+                                                    ) : (
+                                                        <span className={cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'}>
+                                                            {formatMoney(cx.saldo)}
+                                                        </span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
-                                                        {cx.status}
-                                                    </Badge>
+                                                    <div className="flex flex-col items-center gap-0.5">
+                                                        <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
+                                                            {cx.fechado_em ? 'Fechado' : cx.status}
+                                                        </Badge>
+                                                        {cx.conta_pagar_id && (
+                                                            <span className="text-[10px] text-emerald-600 font-mono font-medium">
+                                                                CP #{cx.conta_pagar_id} (Paga)
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
                                                     <div className="flex items-center justify-center gap-1">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
-                                                            onClick={() => {
-                                                                setSelectedCaixa(cx);
-                                                                setIsRecargaOpen(true);
-                                                            }}
-                                                            title="Recarregar Caixa"
-                                                        >
-                                                            <TrendingUp className="h-3.5 w-3.5 mr-1" /> Recarga
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="outline"
-                                                            className="h-7 px-2 text-xs text-red-700 hover:bg-red-50"
-                                                            onClick={() => {
-                                                                setSelectedCaixa(cx);
-                                                                setIsDespesaOpen(true);
-                                                            }}
-                                                            title="Lançar Gasto"
-                                                        >
-                                                            <TrendingDown className="h-3.5 w-3.5 mr-1" /> Gasto
-                                                        </Button>
+                                                        {cx.status === 'Ativo' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="default"
+                                                                className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                                                                onClick={() => handleOpenFechamento(cx)}
+                                                                title="Finalizar Caixa e Gerar Conta Paga"
+                                                            >
+                                                                <FileCheck className="h-3.5 w-3.5 mr-1" /> Fechar
+                                                            </Button>
+                                                        )}
+                                                        {cx.tipo_fundo !== 'cartao' && cx.status === 'Ativo' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
+                                                                onClick={() => {
+                                                                    setSelectedCaixa(cx);
+                                                                    setIsRecargaOpen(true);
+                                                                }}
+                                                                title="Recarregar Caixa"
+                                                            >
+                                                                <TrendingUp className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        )}
+                                                        {cx.status === 'Ativo' && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="h-7 px-2 text-xs text-red-700 hover:bg-red-50"
+                                                                onClick={() => {
+                                                                    setSelectedCaixa(cx);
+                                                                    setIsDespesaOpen(true);
+                                                                }}
+                                                                title="Lançar Gasto"
+                                                            >
+                                                                <TrendingDown className="h-3.5 w-3.5 mr-1" /> Gasto
+                                                            </Button>
+                                                        )}
                                                         <Button
                                                             size="sm"
                                                             variant="default"
@@ -654,15 +780,30 @@ export default function FundoCaixaPage() {
                                         <div>
                                             <div className="flex items-start justify-between gap-2 mb-3">
                                                 <div>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 flex-wrap">
                                                         <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base leading-snug">
                                                             {cx.nombre}
                                                         </h3>
                                                         <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
-                                                            {cx.status}
+                                                            {cx.fechado_em ? 'Fechado' : cx.status}
                                                         </Badge>
                                                     </div>
-                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+
+                                                    <div className="mt-1">
+                                                        {cx.tipo_fundo === 'cartao' ? (
+                                                            <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200 text-[10px] flex items-center gap-1 w-fit">
+                                                                <CreditCard className="w-3 h-3" />
+                                                                {cx.cartao?.nome_cartao || 'Cartão Corporativo'}
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="text-slate-600 text-[10px] flex items-center gap-1 w-fit">
+                                                                <Wallet className="w-3 h-3" />
+                                                                Adiantamento em Dinheiro
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1.5">
                                                         <User className="h-3.5 w-3.5 text-slate-400" />
                                                         <span className="font-medium text-slate-700 dark:text-slate-300">
                                                             {cx.trabajador?.Nombre || 'Não especificado'}
@@ -673,63 +814,118 @@ export default function FundoCaixaPage() {
                                                             </span>
                                                         )}
                                                     </div>
-                                                    {cx.empresa && (
+                                                    {(cx.empresa || cx.cartao?.empresa_nome) && (
                                                         <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
                                                             <Building2 className="h-3.5 w-3.5" />
-                                                            <span>{cx.empresa.nome}</span>
+                                                            <span>{cx.empresa?.nome || cx.cartao?.empresa_nome}</span>
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
 
-                                            {/* Saldo Destaque */}
-                                            <div className="my-4 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                                <div className="text-xs text-slate-400 font-medium">Saldo Disponível</div>
-                                                <div className={`text-2xl font-black mt-0.5 ${
-                                                    cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'
-                                                }`}>
-                                                    {formatMoney(cx.saldo)}
+                                            {/* Saldo ou Gastos Destaque */}
+                                            {cx.tipo_fundo === 'cartao' ? (
+                                                <div className="my-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                                    <div className="text-xs text-slate-400 font-medium">Total Gasto na Missão</div>
+                                                    <div className="text-2xl font-black mt-0.5 text-red-600 dark:text-red-400">
+                                                        {formatMoney(cx.total_despesas)}
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                                        <span className="flex items-center gap-1 text-indigo-600 font-medium truncate max-w-[170px]">
+                                                            <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                                                            {cx.cartao?.nome_cartao || 'Cartão da Empresa'}
+                                                        </span>
+                                                        <span className="text-slate-400 text-[11px]">Sem saldo fixo</span>
+                                                    </div>
                                                 </div>
-                                                <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                                    <span className="flex items-center gap-1 text-emerald-600">
-                                                        <ArrowUpRight className="h-3.5 w-3.5" />
-                                                        Recargas: {formatMoney(cx.total_recargas)}
-                                                    </span>
-                                                    <span className="flex items-center gap-1 text-red-600">
-                                                        <ArrowDownLeft className="h-3.5 w-3.5" />
-                                                        Gastos: {formatMoney(cx.total_despesas)}
-                                                    </span>
+                                            ) : (
+                                                <div className="my-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                                    <div className="text-xs text-slate-400 font-medium">Saldo Disponível</div>
+                                                    <div className={`text-2xl font-black mt-0.5 ${
+                                                        cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'
+                                                    }`}>
+                                                        {formatMoney(cx.saldo)}
+                                                    </div>
+                                                    <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                                        <span className="flex items-center gap-1 text-emerald-600">
+                                                            <ArrowUpRight className="h-3.5 w-3.5" />
+                                                            Recargas: {formatMoney(cx.total_recargas)}
+                                                        </span>
+                                                        <span className="flex items-center gap-1 text-red-600">
+                                                            <ArrowDownLeft className="h-3.5 w-3.5" />
+                                                            Gastos: {formatMoney(cx.total_despesas)}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
+
+                                            {/* Informações de Fechamento */}
+                                            {cx.fechado_em && (
+                                                <div className="mb-3 p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/30 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="font-semibold text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
+                                                            <FileCheck className="w-3.5 h-3.5" /> Missão Finalizada
+                                                        </span>
+                                                        {cx.conta_pagar_id && (
+                                                            <span className="font-mono text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                                                                CP #{cx.conta_pagar_id} (Paga)
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {cx.cat_despesa && (
+                                                        <div className="text-[11px] text-slate-500">
+                                                            Classificação: <span className="font-medium text-slate-700 dark:text-slate-300">{cx.cat_despesa}</span> ({cx.centro_custo || 'Geral'})
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Ações */}
                                         <div className="space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                                            {cx.status === 'Ativo' && (
+                                                <Button
+                                                    size="sm"
+                                                    className="w-full text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                                    onClick={() => handleOpenFechamento(cx)}
+                                                >
+                                                    <FileCheck className="h-3.5 w-3.5" />
+                                                    Finalizar Missão & Gerar Conta Paga
+                                                </Button>
+                                            )}
+
                                             <div className="grid grid-cols-2 gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="w-full text-xs font-semibold gap-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
-                                                    onClick={() => {
-                                                        setSelectedCaixa(cx);
-                                                        setIsRecargaOpen(true);
-                                                    }}
-                                                >
-                                                    <TrendingUp className="h-3.5 w-3.5" />
-                                                    + Recarregar
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="w-full text-xs font-semibold gap-1 text-red-700 hover:text-red-800 hover:bg-red-50"
-                                                    onClick={() => {
-                                                        setSelectedCaixa(cx);
-                                                        setIsDespesaOpen(true);
-                                                    }}
-                                                >
-                                                    <TrendingDown className="h-3.5 w-3.5" />
-                                                    + Lançar Gasto
-                                                </Button>
+                                                {cx.tipo_fundo !== 'cartao' && cx.status === 'Ativo' ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="w-full text-xs font-semibold gap-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                                        onClick={() => {
+                                                            setSelectedCaixa(cx);
+                                                            setIsRecargaOpen(true);
+                                                        }}
+                                                    >
+                                                        <TrendingUp className="h-3.5 w-3.5" />
+                                                        + Recarregar
+                                                    </Button>
+                                                ) : null}
+
+                                                {cx.status === 'Ativo' ? (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className={`text-xs font-semibold gap-1 text-red-700 hover:text-red-800 hover:bg-red-50 ${
+                                                            cx.tipo_fundo === 'cartao' ? 'col-span-2' : ''
+                                                        }`}
+                                                        onClick={() => {
+                                                            setSelectedCaixa(cx);
+                                                            setIsDespesaOpen(true);
+                                                        }}
+                                                    >
+                                                        <TrendingDown className="h-3.5 w-3.5" />
+                                                        + Lançar Gasto
+                                                    </Button>
+                                                ) : null}
                                             </div>
 
                                             <div className="flex items-center gap-2">
@@ -863,12 +1059,77 @@ export default function FundoCaixaPage() {
                         </DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleCreateCaixa} className="space-y-4 py-2">
+                        {/* Seletor de Modalidade */}
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1.5">
+                                Modalidade Operacional *
+                            </label>
+                            <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormNovoCaixa(prev => ({ ...prev, tipo_fundo: 'cartao' }))}
+                                    className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                        formNovoCaixa.tipo_fundo === 'cartao'
+                                            ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                                            : 'text-slate-500 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <CreditCard className="h-3.5 w-3.5" />
+                                    Cartão Corporativo
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFormNovoCaixa(prev => ({ ...prev, tipo_fundo: 'dinheiro' }))}
+                                    className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                                        formNovoCaixa.tipo_fundo === 'dinheiro'
+                                            ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs'
+                                            : 'text-slate-500 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <Wallet className="h-3.5 w-3.5" />
+                                    Adiantamento Dinheiro
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Se Cartão Corporativo: Selecionar o Cartão */}
+                        {formNovoCaixa.tipo_fundo === 'cartao' ? (
+                            <div>
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                    Cartão Corporativo / Recarregável *
+                                </label>
+                                <select
+                                    value={formNovoCaixa.cartao_id}
+                                    onChange={e => {
+                                        const card = cartoes.find(c => c.id === e.target.value);
+                                        setFormNovoCaixa(prev => ({
+                                            ...prev,
+                                            cartao_id: e.target.value,
+                                            id_empresa: card?.empresa_id ? String(card.empresa_id) : prev.id_empresa
+                                        }));
+                                    }}
+                                    required
+                                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                >
+                                    <option value="">Selecione o cartão...</option>
+                                    {cartoes.filter(c => c.ativo).map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.nome_cartao} — {c.empresa_nome || 'Empresa'} {c.ultimos_digitos ? `(•••• ${c.ultimos_digitos})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="text-[11px] text-slate-400 mt-1">
+                                    Sem transferência para conta pessoal. O cartão físico/recarregável é utilizado na missão.
+                                </p>
+                            </div>
+                        ) : null}
+
                         <div>
                             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                Nome do Caixa / Viagem *
+                                Nome da Missão / Viagem *
                             </label>
                             <Input
-                                placeholder="Ex: Viagem Itália - Omar"
+                                placeholder="Ex: Viagem Madri - Omar"
                                 value={formNovoCaixa.nombre}
                                 onChange={e => setFormNovoCaixa(prev => ({ ...prev, nombre: e.target.value }))}
                                 required
@@ -877,7 +1138,7 @@ export default function FundoCaixaPage() {
 
                         <div>
                             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                Funcionário do Escritório *
+                                Funcionário do Escritório Responsável *
                             </label>
                             <select
                                 value={formNovoCaixa.trabajador_id}
@@ -892,37 +1153,41 @@ export default function FundoCaixaPage() {
                             </select>
                         </div>
 
-                        <div>
-                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                Empresa Pagadora / Vinculada
-                            </label>
-                            <select
-                                value={formNovoCaixa.id_empresa}
-                                onChange={e => setFormNovoCaixa(prev => ({ ...prev, id_empresa: e.target.value }))}
-                                className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
-                            >
-                                <option value="">Selecione a empresa...</option>
-                                {empresas.map(emp => (
-                                    <option key={emp.id} value={emp.id}>{emp.nome}</option>
-                                ))}
-                            </select>
-                        </div>
+                        {formNovoCaixa.tipo_fundo === 'dinheiro' && (
+                            <>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                        Empresa Pagadora / Vinculada
+                                    </label>
+                                    <select
+                                        value={formNovoCaixa.id_empresa}
+                                        onChange={e => setFormNovoCaixa(prev => ({ ...prev, id_empresa: e.target.value }))}
+                                        className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                    >
+                                        <option value="">Selecione a empresa...</option>
+                                        {empresas.map(emp => (
+                                            <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                Saldo Inicial (€)
-                            </label>
-                            <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={formNovoCaixa.saldo_inicial}
-                                onChange={e => setFormNovoCaixa(prev => ({ ...prev, saldo_inicial: e.target.value }))}
-                            />
-                            <p className="text-[11px] text-slate-400 mt-1">
-                                O valor será lançado como recarga inicial sem necessidade de aprovação.
-                            </p>
-                        </div>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                        Saldo Inicial Adiantado (€)
+                                    </label>
+                                    <Input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0.00"
+                                        value={formNovoCaixa.saldo_inicial}
+                                        onChange={e => setFormNovoCaixa(prev => ({ ...prev, saldo_inicial: e.target.value }))}
+                                    />
+                                    <p className="text-[11px] text-slate-400 mt-1">
+                                        O valor será lançado como recarga inicial de caixa.
+                                    </p>
+                                </div>
+                            </>
+                        )}
 
                         <DialogFooter className="pt-2">
                             <Button 
@@ -1348,6 +1613,143 @@ export default function FundoCaixaPage() {
                             Fechar
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL 5: Fechamento de Fundo de Caixa */}
+            <Dialog open={isFechamentoOpen} onOpenChange={setIsFechamentoOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-emerald-600">
+                            <FileCheck className="h-5 w-5" />
+                            Fechamento de Fundo de Caixa
+                        </DialogTitle>
+                    </DialogHeader>
+                    {caixaToFechar && (
+                        <form onSubmit={handleConfirmFechamento} className="space-y-4 py-2">
+                            {/* Resumo da Missão */}
+                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
+                                <div className="flex justify-between font-semibold text-slate-800 dark:text-slate-200">
+                                    <span>{caixaToFechar.nombre}</span>
+                                    <span className="text-emerald-600 font-mono text-sm font-bold">
+                                        {formatMoney(caixaToFechar.total_despesas)}
+                                    </span>
+                                </div>
+                                <div className="text-slate-500">
+                                    Responsável: <span className="font-medium text-slate-700 dark:text-slate-300">{caixaToFechar.trabajador?.Nombre}</span>
+                                </div>
+                                <div className="text-slate-500">
+                                    Modalidade: <span className="font-medium text-slate-700 dark:text-slate-300">
+                                        {caixaToFechar.tipo_fundo === 'cartao' 
+                                            ? `Cartão Corporativo (${caixaToFechar.cartao?.nome_cartao || 'Empresa'})` 
+                                            : 'Adiantamento em Dinheiro'}
+                                    </span>
+                                </div>
+                                {(caixaToFechar.empresa || caixaToFechar.cartao?.empresa_nome) && (
+                                    <div className="text-slate-500">
+                                        Empresa Contratante: <span className="font-medium text-slate-700 dark:text-slate-300">
+                                            {caixaToFechar.empresa?.nome || caixaToFechar.cartao?.empresa_nome}
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                                    Categoria de Despesa *
+                                </label>
+                                <select
+                                    value={formFechamento.catDespesa}
+                                    onChange={e => setFormFechamento(prev => ({ ...prev, catDespesa: e.target.value }))}
+                                    required
+                                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                >
+                                    <option value="">Selecione a categoria contábil...</option>
+                                    {categorias
+                                        .filter(c => c.tipo === 'Despesa')
+                                        .map(cat => (
+                                            <option key={cat.id} value={cat.nome}>
+                                                {cat.nome} {cat.categoria_dre ? `(${cat.categoria_dre})` : ''}
+                                            </option>
+                                        ))
+                                    }
+                                    {/* Opções comuns garantidas */}
+                                    <option value="Viagem/Transporte">Viagem/Transporte</option>
+                                    <option value="Combustível">Combustível</option>
+                                    <option value="Pedágio">Pedágio</option>
+                                    <option value="Alimentação">Alimentação</option>
+                                    <option value="Alojamento">Alojamento</option>
+                                    <option value="Despesas Operacionais">Despesas Operacionais</option>
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                                    Centro de Custo / Obra *
+                                </label>
+                                <select
+                                    value={formFechamento.centroCusto}
+                                    onChange={e => setFormFechamento(prev => ({ ...prev, centroCusto: e.target.value }))}
+                                    required
+                                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                >
+                                    <option value="">Selecione o centro de custo...</option>
+                                    <option value="Central Cars - Frota / Operações Gerais">Central Cars - Frota / Operações Gerais</option>
+                                    <option value="Administrativo / Escritório">Administrativo / Escritório</option>
+                                    {obras.map(ob => (
+                                        <option key={ob.id} value={ob.nome}>{ob.nome}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                                    Nº Documento / Referência
+                                </label>
+                                <Input
+                                    value={formFechamento.numDoc}
+                                    onChange={e => setFormFechamento(prev => ({ ...prev, numDoc: e.target.value }))}
+                                    placeholder="Ex: FC-MADRID-01"
+                                />
+                            </div>
+
+                            <div className="space-y-1">
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                                    Observações do Fechamento
+                                </label>
+                                <textarea
+                                    value={formFechamento.observacoes}
+                                    onChange={e => setFormFechamento(prev => ({ ...prev, observacoes: e.target.value }))}
+                                    rows={2}
+                                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs"
+                                    placeholder="Observações complementares sobre a prestação de contas..."
+                                />
+                            </div>
+
+                            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
+                                ✓ Ao confirmar, o fundo de caixa será <b>finalizado</b> e será gerada uma conta a pagar já com status <b>'Pago'</b> no valor total de <b>{formatMoney(caixaToFechar.total_despesas)}</b> consolidada em uma única linha no módulo Contas a Pagar.
+                            </div>
+
+                            <DialogFooter className="pt-2">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setIsFechamentoOpen(false)}
+                                    disabled={submitting}
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={submitting}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                >
+                                    {submitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <FileCheck className="h-4 w-4 mr-1" />}
+                                    Confirmar Fechamento e Gerar Conta Paga
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    )}
                 </DialogContent>
             </Dialog>
 

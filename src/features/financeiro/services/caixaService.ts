@@ -1,4 +1,6 @@
 import { supabase } from '@/shared/supabase/client';
+import { fetchCartoes } from '../data/loader';
+import type { CartaoCorporativo } from '../types';
 
 export interface CaixaDespesa {
     id: string;
@@ -7,6 +9,16 @@ export interface CaixaDespesa {
     id_empresa: string | null;
     status: 'Ativo' | 'Inativo';
     created_at?: string;
+
+    // Novo modelo com Cartão Corporativo e Fechamento
+    tipo_fundo?: 'dinheiro' | 'cartao';
+    cartao_id?: string | null;
+    conta_pagar_id?: string | number | null;
+    fechado_em?: string | null;
+    fechado_por?: string | null;
+    centro_custo?: string | null;
+    cat_despesa?: string | null;
+    cartao?: CartaoCorporativo | null;
 
     // Virtual fields
     trabajador?: {
@@ -156,9 +168,10 @@ export const caixaService = {
             if (caixasErr) throw caixasErr;
             if (!caixas || caixas.length === 0) return [];
 
-            const [colabs, empresas, recargasRes, despesasRes, opsRes] = await Promise.all([
+            const [colabs, empresas, cartoes, recargasRes, despesasRes, opsRes] = await Promise.all([
                 this.getColaboradores(),
                 this.getEmpresas(),
+                fetchCartoes(),
                 supabase.from('caixas_recargas').select('*'),
                 supabase.from('caixas_despesas_registros').select('*'),
                 supabase.schema('core_finance').from('ordens_pagamento').select('id, status')
@@ -171,6 +184,7 @@ export const caixaService = {
             return caixas.map((caixa: any) => {
                 const colab = colabs.find(c => c.id === caixa.trabajador_id) || null;
                 const emp = empresas.find(e => e.id === caixa.id_empresa) || null;
+                const cartao = cartoes.find(ct => ct.id === caixa.cartao_id) || null;
 
                 // Recargas válidas (sem OP ou com OP com status 'pago')
                 const recargasCaixa = mRecargas.filter((r: any) => r.caixa_id === caixa.id);
@@ -187,6 +201,14 @@ export const caixaService = {
 
                 return {
                     ...caixa,
+                    tipo_fundo: caixa.tipo_fundo || 'dinheiro',
+                    cartao_id: caixa.cartao_id,
+                    cartao: cartao,
+                    conta_pagar_id: caixa.conta_pagar_id,
+                    fechado_em: caixa.fechado_em,
+                    fechado_por: caixa.fechado_por,
+                    centro_custo: caixa.centro_custo,
+                    cat_despesa: caixa.cat_despesa,
                     trabajador: colab ? {
                         Nombre: colab.nome,
                         Cod_colab: colab.identificador,
@@ -195,7 +217,7 @@ export const caixaService = {
                         Nombre: 'Funcionário',
                         Cod_colab: caixa.trabajador_id
                     },
-                    empresa: emp ? { id: emp.id, nome: emp.nome } : null,
+                    empresa: emp ? { id: emp.id, nome: emp.nome } : (cartao?.empresa_nome ? { id: String(cartao.empresa_id), nome: cartao.empresa_nome } : null),
                     saldo: totalRecargas - totalDespesas,
                     total_recargas: totalRecargas,
                     total_despesas: totalDespesas
@@ -240,13 +262,17 @@ export const caixaService = {
         id_empresa?: string | null;
         status?: 'Ativo' | 'Inativo';
         saldo_inicial?: number;
+        tipo_fundo?: 'dinheiro' | 'cartao';
+        cartao_id?: string | null;
     }): Promise<CaixaDespesa> {
-        const { saldo_inicial = 0, ...dadosCaixa } = caixa;
+        const { saldo_inicial = 0, tipo_fundo = 'dinheiro', cartao_id = null, ...dadosCaixa } = caixa;
 
         const { data, error } = await supabase
             .from('caixas_despesas')
             .insert([{
                 ...dadosCaixa,
+                tipo_fundo,
+                cartao_id,
                 status: dadosCaixa.status || 'Ativo'
             }])
             .select()
@@ -588,5 +614,85 @@ export const caixaService = {
             .getPublicUrl(filePath);
 
         return publicUrl;
+    },
+
+    // 16. Fechar Caixa e Gerar Conta a Pagar Consolidada (Status: Pago)
+    async fecharCaixa(params: {
+        caixaId: string;
+        catDespesa: string;
+        centroCusto: string;
+        observacoes?: string;
+        numDoc?: string;
+        usuarioNome?: string;
+    }): Promise<{ success: boolean; contaPagarId?: string; error?: any }> {
+        try {
+            const caixa = await this.getCaixaById(params.caixaId);
+            if (!caixa) throw new Error('Caixa não encontrado.');
+
+            const despesas = await this.getDespesasRegistros(params.caixaId);
+            const totalGasto = despesas.reduce((acc, d) => acc + Number(d.valor || 0), 0);
+
+            // Nome da empresa
+            const empresaNome = caixa.cartao?.empresa_nome || caixa.empresa?.nome || 'Kotrik';
+            const bancoNome = caixa.cartao 
+                ? `${caixa.cartao.nome_cartao}${caixa.cartao.banco_nome ? ' (' + caixa.cartao.banco_nome + ')' : ''}` 
+                : 'Fundo de Caixa';
+
+            const hoje = new Date().toISOString().split('T')[0];
+
+            // Inserir registro consolidado em contas_pagar com status 'Pago'
+            const { data: cpData, error: cpErr } = await supabase
+                .from('contas_pagar')
+                .insert([{
+                    empresa: empresaNome,
+                    cod_provedor: caixa.trabajador?.Cod_colab || caixa.trabajador?.Nombre || 'CAIXA',
+                    provedor: `Fundo de Caixa: ${caixa.nombre} (${caixa.trabajador?.Nombre || 'Colaborador'})`,
+                    valor_total: totalGasto > 0 ? totalGasto.toString() : '0',
+                    saldo_a_pagar: '0',
+                    status: 'Pago',
+                    origem: `Fundo de Caixa #${caixa.id.slice(0, 8)}`,
+                    cat_despesa: params.catDespesa,
+                    centro_custo: params.centroCusto,
+                    num_doc: params.numDoc || `FC-${caixa.id.slice(0, 6).toUpperCase()}`,
+                    obs: `Fechamento do Fundo de Caixa: ${caixa.nombre}. Total gasto: € ${totalGasto.toFixed(2)}. ${params.observacoes || ''}`.trim(),
+                    form_pag: caixa.tipo_fundo === 'cartao' ? 'Cartão Corporativo' : 'Adiantamento em Dinheiro',
+                    banco: bancoNome,
+                    dt_pagamento: hoje,
+                    data_emissao: hoje,
+                    dt_venc: hoje,
+                    creado: new Date().toISOString(),
+                    creado_por: params.usuarioNome || 'sistema'
+                }])
+                .select('id')
+                .single();
+
+            if (cpErr) {
+                console.error('Erro ao gerar conta a pagar no fechamento:', cpErr);
+                throw cpErr;
+            }
+
+            // Atualizar status do caixa para Inativo com registro do fechamento
+            const { error: updErr } = await supabase
+                .from('caixas_despesas')
+                .update({
+                    status: 'Inativo',
+                    fechado_em: new Date().toISOString(),
+                    fechado_por: params.usuarioNome || 'sistema',
+                    conta_pagar_id: cpData?.id || null,
+                    centro_custo: params.centroCusto,
+                    cat_despesa: params.catDespesa
+                })
+                .eq('id', params.caixaId);
+
+            if (updErr) {
+                console.error('Erro ao atualizar status do caixa após fechamento:', updErr);
+                throw updErr;
+            }
+
+            return { success: true, contaPagarId: cpData?.id };
+        } catch (err: any) {
+            console.error('Erro no fechamento do caixa:', err);
+            return { success: false, error: err?.message || err };
+        }
     }
 };

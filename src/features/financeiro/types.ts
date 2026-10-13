@@ -78,6 +78,18 @@ export interface Banco {
   ativo: boolean;
 }
 
+export interface CartaoCorporativo {
+  id?: string;
+  nome_cartao: string;
+  empresa_id: number;
+  banco_id?: string | null;
+  ultimos_digitos?: string;
+  ativo: boolean;
+  criado_em?: string;
+  empresa_nome?: string;
+  banco_nome?: string;
+}
+
 export interface Recebimento {
   id: string;
   conta_receber_id: string;
