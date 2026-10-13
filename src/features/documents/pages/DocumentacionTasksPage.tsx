@@ -105,6 +105,29 @@ const getStartDateUrgency = (dateStr?: string | null) => {
     }
 };
 
+export const resolveContratanteOption = (empresaIdOrName?: string | null): string => {
+    if (!empresaIdOrName) return 'WISEOWE UNIPESSOAL LDA';
+    const str = String(empresaIdOrName).trim();
+    const upper = str.toUpperCase();
+
+    if (str === '441f1f5d-aed3-40e3-8c77-7b1217757251' || upper.includes('STOCCO')) {
+        return 'STOCCO';
+    }
+    if (str === '847796c4-b253-4e53-9e6b-34a127ec7d85' || upper.includes('LUMINOUS') || upper.includes('LUMINUS')) {
+        return 'LUMINOUS CAPITAL UNIPESSOAL LDA';
+    }
+    if (str === 'a798620a-358a-4c6c-9db2-3a507c583cac' || upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO')) {
+        return 'TRIANGULO';
+    }
+    if (upper.includes('MASTERCORP')) {
+        return 'MASTERCORP PORTUGAL UNIPESSOAL LDA';
+    }
+    if (str === 'dae64d51-2181-4510-b14f-e63d2f111a8e' || upper.includes('WISEOWE')) {
+        return 'WISEOWE UNIPESSOAL LDA';
+    }
+    return 'WISEOWE UNIPESSOAL LDA';
+};
+
 export function DocumentacionTasksPage() {
     const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
     
@@ -963,6 +986,20 @@ Muchas gracias.`;
     }, [requestDialogOpen, selectedEmpresaId]);
 
     useEffect(() => {
+        if (generateDialogOpen) {
+            if (!selectedContractType) {
+                setSelectedContractType('contrato_termo_incerto');
+            }
+            if (!selectedContratante) {
+                setSelectedContratante(resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
+            }
+            if (workersList.length === 0) {
+                loadWorkers();
+            }
+        }
+    }, [generateDialogOpen, selectedEmpresaId, activeEmpresaId]);
+
+    useEffect(() => {
         if (previewBlob && previewContainerRef.current) {
             console.log("Renderizando visualização prévia do contrato gerado...");
             previewContainerRef.current.innerHTML = "";
@@ -1581,6 +1618,22 @@ Muchas gracias.`;
         }
     };
 
+    // 8.4 Abrir modal de gerar contrato pelo botão geral
+    const handleOpenGenerateDialog = () => {
+        setGenerationSuccess(null);
+        setPreviewBlob(null);
+        setSelectedWorkerId(null);
+        setSelectedAssignmentId(null);
+        
+        // Pré-seleciona contratante com base na empresa ativa
+        const defaultContratante = resolveContratanteOption(activeEmpresaId || selectedEmpresaId);
+        setSelectedContratante(defaultContratante);
+        setSelectedContractType('contrato_termo_incerto');
+        
+        setGenerateDialogOpen(true);
+        loadWorkers();
+    };
+
     // 8.5 Trigger para abrir modal de gerar contrato a partir de uma solicitação validada
     const handleTriggerGenerate = (workerId: string, empresaId: string, workerObj?: any) => {
         // 1. Limpar estados de sucesso e pré-visualização e definir worker
@@ -1588,21 +1641,12 @@ Muchas gracias.`;
         setPreviewBlob(null);
         setSelectedWorkerId(workerId);
         
-        // 2. Mapear empresaId para selectedContratante
-        let contratanteName = '';
-        if (empresaId === '441f1f5d-aed3-40e3-8c77-7b1217757251') {
-            contratanteName = 'STOCCO';
-        } else if (empresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
-            contratanteName = 'WISEOWE UNIPESSOAL LDA';
-        } else if (empresaId === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
-            contratanteName = 'LUMINOUS CAPITAL UNIPESSOAL LDA';
-        } else if (empresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
-            contratanteName = 'TRIANGULO';
-        }
+        // 2. Mapear empresaId para selectedContratante com função robusta
+        const contratanteName = resolveContratanteOption(empresaId || activeEmpresaId || selectedEmpresaId);
         setSelectedContratante(contratanteName);
         
-        // 3. Pré-definir modelo de contrato padrão se não houver um selecionado
-        setSelectedContractType(prev => prev || 'contrato_termo_incerto');
+        // 3. Pré-definir modelo de contrato padrão
+        setSelectedContractType('contrato_termo_incerto');
 
         // 4. Se tiver workerObj, injeta imediatamente na workersList
         if (workerObj && workerObj.nome) {
@@ -1636,7 +1680,7 @@ Muchas gracias.`;
             }
 
             try {
-                await loadWorkersForEmpresa(empresaId || activeEmpresaId, workerId);
+                await loadWorkersForEmpresa(empresaId || selectedEmpresaId || activeEmpresaId, workerId);
             } catch (e) {
                 console.error("Erro ao carregar lista de trabalhadores:", e);
             }
@@ -1882,18 +1926,25 @@ Muchas gracias.`;
                             setGenerateDialogOpen(open);
                             if (!open) {
                                 setSelectedWorkerId(null);
-                                setSelectedContratante('');
-                                setSelectedContractType('');
+                                setSelectedAssignmentId(null);
                                 setGenerationSuccess(null);
                                 setPreviewBlob(null);
+                            } else {
+                                if (!selectedContractType) {
+                                    setSelectedContractType('contrato_termo_incerto');
+                                }
+                                if (!selectedContratante) {
+                                    setSelectedContratante(resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
+                                }
                             }
                         }}>
-                            <DialogTrigger asChild>
-                                <Button className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1">
-                                    <Plus className="h-4 w-4" />
-                                    Gerar Contrato
-                                </Button>
-                            </DialogTrigger>
+                            <Button 
+                                onClick={handleOpenGenerateDialog}
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1 shadow-sm"
+                            >
+                                <Plus className="h-4 w-4" />
+                                Gerar Contrato
+                            </Button>
                             <DialogContent className={`${generationSuccess ? 'max-w-7xl h-[85vh]' : 'max-w-md'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader>
                                     <DialogTitle>Gerar Novo Contrato</DialogTitle>
@@ -1909,18 +1960,53 @@ Muchas gracias.`;
                                             <Combobox
                                                 options={workersList}
                                                 value={selectedWorkerId || ''}
-                                                onChange={(val) => setSelectedWorkerId(val || null)}
+                                                onChange={async (val) => {
+                                                    setSelectedWorkerId(val || null);
+                                                    if (val) {
+                                                        try {
+                                                            const { data: wa } = await supabase
+                                                                .schema('core_personal')
+                                                                .from('worker_assignments')
+                                                                .select('id, empresa_id')
+                                                                .eq('worker_id', val)
+                                                                .order('created_at', { ascending: false })
+                                                                .limit(1)
+                                                                .maybeSingle();
+
+                                                            if (wa) {
+                                                                setSelectedAssignmentId(wa.id);
+                                                                if (wa.empresa_id) {
+                                                                    setSelectedContratante(resolveContratanteOption(wa.empresa_id));
+                                                                }
+                                                            } else {
+                                                                const { data: dr } = await supabase
+                                                                    .schema('core_personal')
+                                                                    .from('document_requests')
+                                                                    .select('empresa_id')
+                                                                    .eq('worker_id', val)
+                                                                    .order('created_at', { ascending: false })
+                                                                    .limit(1)
+                                                                    .maybeSingle();
+                                                                if (dr?.empresa_id) {
+                                                                    setSelectedContratante(resolveContratanteOption(dr.empresa_id));
+                                                                }
+                                                            }
+                                                        } catch (err) {
+                                                            console.error("Erro ao auto-selecionar contratante do trabalhador:", err);
+                                                        }
+                                                    }
+                                                }}
                                                 placeholder="Digite o nome do trabalhador..."
                                             />
                                         </div>
 
                                         <div className="space-y-2">
                                             <Label>Empresa Contratante</Label>
-                                            <Select value={selectedContratante} onValueChange={setSelectedContratante}>
-                                                <SelectTrigger>
+                                            <Select value={selectedContratante || undefined} onValueChange={setSelectedContratante}>
+                                                <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                                                     <SelectValue placeholder="Selecione a empresa contratante..." />
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent className="z-[9999]">
                                                     <SelectItem value="STOCCO">Stocco</SelectItem>
                                                     <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
                                                     <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
@@ -1932,11 +2018,11 @@ Muchas gracias.`;
 
                                         <div className="space-y-2">
                                             <Label>Modelo de Contrato</Label>
-                                            <Select value={selectedContractType} onValueChange={setSelectedContractType}>
-                                                <SelectTrigger>
+                                            <Select value={selectedContractType || undefined} onValueChange={setSelectedContractType}>
+                                                <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                                                     <SelectValue placeholder="Selecione o tipo de contrato..." />
                                                 </SelectTrigger>
-                                                <SelectContent>
+                                                <SelectContent className="z-[9999]">
                                                     <SelectItem value="contrato_termo_incerto">Contrato a Termo Incerto (Passaporte)</SelectItem>
                                                     <SelectItem value="contrato_nis">Contrato NIS (NIF)</SelectItem>
                                                     <SelectItem value="contrato_alta">Contrato de Alta (Contabilidade - Sem Assinatura)</SelectItem>
@@ -3445,12 +3531,8 @@ Muchas gracias.`;
                                                         className="text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-slate-800"
                                                         onClick={() => {
                                                             if (isVacantReplacement) return;
-                                                            setSelectedWorkerId(item.worker.id);
-                                                            setSelectedAssignmentId(item.id);
-                                                            if (taskMetadata?.empresaId) setSelectedEmpresaId(taskMetadata.empresaId);
-                                                            if (taskMetadata?.clientId) setRequestClientId(taskMetadata.clientId);
                                                             setWorkersDialogOpen(false);
-                                                            setGenerateDialogOpen(true);
+                                                            handleTriggerGenerate(item.worker.id, taskMetadata?.empresaId || item.empresa_id || selectedEmpresaId, item.worker);
                                                         }}
                                                         title="Emitir contrato de trabalho"
                                                         disabled={isVacantReplacement}
