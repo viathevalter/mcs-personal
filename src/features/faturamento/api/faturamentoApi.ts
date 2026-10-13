@@ -375,61 +375,30 @@ export async function getHorasPendentesFaturamento(
       .select('id, name, days');
     const ptMap = new Map((ptData || []).map(pt => [pt.id, pt]));
 
-    // 4. Ensure all unique clients of the active workers exist in core_common.clients for this company
+    // 4. Do NOT auto-create duplicate clients!
+    // Log warnings for any worker client that does not match an active client in core_common.clients
     const clientsList = [...mappedClientsData];
     const uniqueClientNames = Array.from(new Set(activeWorkers.map(w => w.cliente_nombre).filter(Boolean)));
 
     for (const name of uniqueClientNames) {
-      const exists = clientsList.some(c => {
-        if (c.empresa_id !== empresaId) return false;
+      const match = clientsList.find(c => {
+        if (c.empresa_id !== empresaId || c.status === 'inactive') return false;
         const normC = normalizeName(c.trade_name);
         const normN = normalizeName(name);
         return normC === normN || (normC.length > 3 && normN.includes(normC)) || (normN.length > 3 && normC.includes(normN));
       });
-      if (!exists) {
-        console.log(`Auto-creating missing client in core_common.clients: ${name}`);
-        const { data: newClient, error: insertError } = await supabase
-          .schema('core_common')
-          .from('clients')
-          .insert({
-            trade_name: name,
-            legal_name: name,
-            vies_applicable: true
-          })
-          .select('id, trade_name, legal_name, codigo, billing_email, email, vies_applicable, vies_status, vies_valid, vies_last_checked_at, tax_id, country_id')
-          .single();
-
-        if (insertError) {
-          console.error(`Error auto-creating client ${name}:`, insertError);
-        } else if (newClient) {
-          const { error: settingsError } = await supabase
-            .schema('core_common')
-            .from('client_company_settings')
-            .insert({
-              client_id: newClient.id,
-              empresa_id: empresaId,
-              status: 'active'
-            });
-
-          if (settingsError) {
-              console.error(`Error auto-creating client settings for ${name}:`, settingsError);
-          }
-
-          clientsList.push({
-            ...newClient,
-            empresa_id: empresaId,
-            status: 'active',
-            payment_term_id: null,
-            billing_cycle_start_day: 1
-          });
-        }
+      if (!match) {
+        console.warn(`[Faturamento] Cliente "${name}" das horas não possui correspondência com cliente ativo cadastrado.`);
       }
     }
 
     if (clientsList.length === 0) return [];
 
-    // Filter candidate clients that belong to the current company or match active workers
+    // Filter candidate clients that belong to the current company or match active workers AND are ACTIVE
     const candidateClients = clientsList.filter(c => {
+      // Bloqueio rigoroso: nunca exibir/faturar cliente inativo
+      if (c.status === 'inactive') return false;
+
       if (c.empresa_id === empresaId) return true;
       const normC = normalizeName(c.trade_name);
       return uniqueClientNames.some(name => {
@@ -1088,6 +1057,21 @@ export async function solicitarAprovacaoCliente(
   customToken?: string,
   empresaId?: string
 ): Promise<string> {
+  // Trava de segurança: Bloquear faturamento se o cliente estiver inativo
+  if (empresaId) {
+    const { data: clientSettings } = await supabase
+      .schema('core_common')
+      .from('client_company_settings')
+      .select('status')
+      .eq('client_id', clientId)
+      .eq('empresa_id', empresaId)
+      .maybeSingle();
+
+    if (clientSettings?.status === 'inactive') {
+      throw new Error('Não é permitido faturar para um cliente inativo. Por favor, utilize o cadastro ativo unificado.');
+    }
+  }
+
   const token = customToken || crypto.randomUUID();
 
   let faturaNumero: string | null = null;

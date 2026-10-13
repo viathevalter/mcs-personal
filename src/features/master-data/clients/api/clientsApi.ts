@@ -40,6 +40,77 @@ export const clientsApi = {
     }) as Client[];
   },
 
+  async checkDuplicateClient(payload: {
+    tax_id?: string | null;
+    trade_name?: string | null;
+    legal_name?: string | null;
+    phone?: string | null;
+    mobile?: string | null;
+  }, excludeId?: string): Promise<{ isDuplicate: boolean; reason?: string }> {
+    const cleanTax = (t?: string | null) => t ? t.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : '';
+    const cleanName = (n?: string | null) => n ? n.toLowerCase()
+      .replace(/\b(sl|slu|sa|sau|srl|lda|unipessoal|sociedad|limitada|anonima|cv|spa|gmbh|co)\b/g, '')
+      .replace(/[^a-z0-9]/g, '')
+      .trim() : '';
+    const cleanPhone = (p?: string | null) => p ? p.replace(/[^0-9]/g, '').slice(-8) : '';
+
+    const targetTax = cleanTax(payload.tax_id);
+    const targetTrade = cleanName(payload.trade_name);
+    const targetLegal = cleanName(payload.legal_name);
+    const targetPhone = cleanPhone(payload.phone) || cleanPhone(payload.mobile);
+
+    let query = supabase
+      .schema('core_common')
+      .from('clients')
+      .select('id, codigo, trade_name, legal_name, tax_id, phone, mobile')
+      .is('deleted_at', null);
+
+    if (excludeId) {
+      query = query.neq('id', excludeId);
+    }
+
+    const { data: existing, error } = await query;
+    if (error || !existing) return { isDuplicate: false };
+
+    for (const item of existing) {
+      // 1. Check Tax ID / NIF
+      const itemTax = cleanTax(item.tax_id);
+      if (targetTax && itemTax && targetTax.length >= 6 && targetTax === itemTax) {
+        return {
+          isDuplicate: true,
+          reason: `Já existe um cliente cadastrado com este NIF/CIF: ${item.codigo || ''} - ${item.trade_name || item.legal_name}`
+        };
+      }
+
+      // 2. Check Name (Trade Name or Legal Name)
+      const itemTrade = cleanName(item.trade_name);
+      const itemLegal = cleanName(item.legal_name);
+      if (targetTrade && targetTrade.length >= 4 && (targetTrade === itemTrade || targetTrade === itemLegal)) {
+        return {
+          isDuplicate: true,
+          reason: `Já existe um cliente cadastrado com este Nome de Fantasia: ${item.codigo || ''} - ${item.trade_name}`
+        };
+      }
+      if (targetLegal && targetLegal.length >= 4 && (targetLegal === itemTrade || targetLegal === itemLegal)) {
+        return {
+          isDuplicate: true,
+          reason: `Já existe um cliente cadastrado com esta Razão Social: ${item.codigo || ''} - ${item.legal_name || item.trade_name}`
+        };
+      }
+
+      // 3. Check Phone (if provided, min 8 digits)
+      const itemPhone = cleanPhone(item.phone) || cleanPhone(item.mobile);
+      if (targetPhone && itemPhone && targetPhone.length >= 8 && targetPhone === itemPhone) {
+        return {
+          isDuplicate: true,
+          reason: `Já existe um cliente cadastrado com este Telefone: ${item.codigo || ''} - ${item.trade_name}`
+        };
+      }
+    }
+
+    return { isDuplicate: false };
+  },
+
   async createClient(empresaId: string, payload: CreateClientDTO): Promise<Client> {
     if (!empresaId) throw new Error('Empresa não selecionada');
 
@@ -50,6 +121,18 @@ export const clientsApi = {
       billing_cycle_start_day,
       ...globalPayload
     } = payload as any;
+
+    // Trava de anti-duplicidade
+    const dupCheck = await this.checkDuplicateClient({
+      tax_id: globalPayload.tax_id,
+      trade_name: globalPayload.trade_name,
+      legal_name: globalPayload.legal_name,
+      phone: globalPayload.phone,
+      mobile: globalPayload.mobile,
+    });
+    if (dupCheck.isDuplicate) {
+      throw new Error(dupCheck.reason);
+    }
 
     const { data: clientData, error: clientError } = await supabase
       .schema('core_common')
@@ -95,6 +178,19 @@ export const clientsApi = {
     } = payload as any;
 
     if (Object.keys(globalPayload).length > 0) {
+      if (globalPayload.tax_id || globalPayload.trade_name || globalPayload.legal_name || globalPayload.phone || globalPayload.mobile) {
+        const dupCheck = await this.checkDuplicateClient({
+          tax_id: globalPayload.tax_id,
+          trade_name: globalPayload.trade_name,
+          legal_name: globalPayload.legal_name,
+          phone: globalPayload.phone,
+          mobile: globalPayload.mobile,
+        }, id);
+        if (dupCheck.isDuplicate) {
+          throw new Error(dupCheck.reason);
+        }
+      }
+
       const { error: clientError } = await supabase
         .schema('core_common')
         .from('clients')

@@ -69,6 +69,7 @@ export function ClientsDataTable() {
   const [sitesFilter, setSitesFilter] = useState<string>('all');
   const [countryFilter, setCountryFilter] = useState<string>('all');
   const [viesFilter, setViesFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [sortField, setSortField] = useState<'codigo' | 'trade_name' | 'legal_name' | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   
@@ -136,6 +137,11 @@ export function ClientsDataTable() {
           if (c.vies_status !== 'not_checked' && c.vies_status !== 'stale') return false;
         }
       }
+    }
+
+    // 6. Status Filter (Ativo / Inativo)
+    if (statusFilter !== 'all') {
+      if (c.status !== statusFilter) return false;
     }
 
     return true;
@@ -244,6 +250,20 @@ export function ClientsDataTable() {
                 <SelectItem value="invalid">VIES Inválido</SelectItem>
                 <SelectItem value="not_applicable">Não Aplicável</SelectItem>
                 <SelectItem value="not_checked">Não Verificado / Outros</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Status Filter (Ativo / Inativo) */}
+          <div className="w-full sm:w-44">
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="bg-white focus-visible:ring-orange-500 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-200">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Estados</SelectItem>
+                <SelectItem value="active">Apenas Ativos</SelectItem>
+                <SelectItem value="inactive">Apenas Inativos</SelectItem>
               </SelectContent>
             </Select>
           </div>
