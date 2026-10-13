@@ -359,11 +359,15 @@ export async function getHorasPendentesFaturamento(
 
     const mappedClientsData = (clientsData || []).map((c: any) => {
       const settings = c.client_company_settings?.find((s: any) => s.empresa_id === empresaId);
+      const allInactive =
+        Array.isArray(c.client_company_settings) &&
+        c.client_company_settings.length > 0 &&
+        c.client_company_settings.every((s: any) => s.status === 'inactive');
       return {
         ...c,
         empresa_id: settings?.empresa_id || null,
         payment_term_id: settings?.payment_term_id || null,
-        status: settings?.status || 'active',
+        status: settings?.status || (allInactive ? 'inactive' : 'active'),
         billing_cycle_start_day: settings?.billing_cycle_start_day || 1
       };
     });
@@ -571,16 +575,14 @@ export async function getHorasPendentesFaturamento(
       return h.data_trabalho >= clientStart && h.data_trabalho <= clientEnd;
     });
 
-    // 6. Filter clients to only keep relevant ones for active workers and actual hours (only for the current company)
+    // 6. Filter clients to only keep relevant ones for active workers and actual hours (only for the current company and strictly active)
     const relevantClients = clientsList.filter(client => {
       if (client.empresa_id !== empresaId) return false;
+      if (client.status !== 'active') return false;
       const clientNameLower = client.trade_name?.trim().toLowerCase();
       const hasWorkers = activeWorkers.some(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
       const hasHours = hoursList.some(h => h.client_id === client.id);
       const isActuallyActive = hasWorkers || hasHours;
-
-      // Only filter out by status if they don't have actual hours or workers
-      if (client.status !== 'active' && !isActuallyActive) return false;
 
       return isActuallyActive;
     });

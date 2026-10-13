@@ -29,11 +29,15 @@ export const clientsApi = {
       const settings = client.client_company_settings?.find(
         (s: any) => s.empresa_id === empresaId
       );
+      const allInactive =
+        Array.isArray(client.client_company_settings) &&
+        client.client_company_settings.length > 0 &&
+        client.client_company_settings.every((s: any) => s.status === 'inactive');
       return {
         ...client,
         payment_term_id: settings?.payment_term_id || null,
         payment_term: settings?.payment_term || null,
-        status: settings?.status || 'active',
+        status: settings?.status || (allInactive ? 'inactive' : 'active'),
         credit_limit: settings?.credit_limit !== undefined ? Number(settings.credit_limit) : null,
         billing_cycle_start_day: settings?.billing_cycle_start_day || 1,
       };
