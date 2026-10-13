@@ -306,7 +306,7 @@ export interface TrabalhadorAlojado {
   alerta_inativo_rh?: string;
 }
 
-const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v4';
+const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v5';
 
 function formatToLocalDate(val?: string | Date | null): string {
   if (!val) return '';
