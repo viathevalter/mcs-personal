@@ -1039,8 +1039,8 @@ export function FaturasTracking() {
             <tbody>
               <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
                 <td style="padding: 6px 12px; color: #1e293b;">${descricaoServico}</td>
-                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${totalHorasCalculadas.toFixed(2)}</td>
-                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">1.00</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td style="text-align: right; padding: 6px 8px; color: #1e293b;">0,00</td>
                 <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${ivaPct.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
                 <td style="text-align: right; font-weight: 700; padding: 6px 12px; color: #0f172a;">${totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -4313,8 +4313,8 @@ MCS - Gestão Comercial`;
                                 <tbody>
                                   <tr className="border-b border-[#ec8a5e]/30">
                                     <td className="pl-3 py-1 text-slate-800">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
-                                    <td className="text-right py-1 text-slate-800">{totalHorasCalculadas.toFixed(2)}</td>
-                                    <td className="text-right py-1 text-slate-800">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="text-right py-1 text-slate-800">1.00</td>
+                                    <td className="text-right py-1 text-slate-800">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     <td className="text-right py-1 text-slate-800">0,00</td>
                                     <td className="text-right py-1 text-slate-800">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
                                     <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -5061,8 +5061,8 @@ MCS - Gestão Comercial`;
                         <tbody>
                           <tr className="border-b border-[#ec8a5e]/30">
                             <td className="pl-3 py-1 text-slate-800">{currentAdj.descricao_servico || 'Prestação de Serviços'}</td>
-                            <td className="text-right py-1 text-slate-800">{emailData.totalHoras.toFixed(2)}</td>
-                            <td className="text-right py-1 text-slate-800">{(currentTotalBase / (emailData.totalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            <td className="text-right py-1 text-slate-800">1.00</td>
+                            <td className="text-right py-1 text-slate-800">{currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                             <td className="text-right py-1 text-slate-800">0,00</td>
                             <td className="text-right py-1 text-slate-800">{Number(currentAdj.iva_pct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
                             <td className="text-right font-bold pr-3 py-1 text-slate-900">{currentTotalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -5739,8 +5739,8 @@ MCS - Gestão Comercial`;
                     <tbody>
                       <tr className="border-b border-[#ec8a5e]/30">
                         <td className="pl-3 py-1 text-slate-800">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
-                        <td className="text-right py-1 text-slate-800">{totalHorasCalculadas.toFixed(2)}</td>
-                        <td className="text-right py-1 text-slate-800">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="text-right py-1 text-slate-800">1.00</td>
+                        <td className="text-right py-1 text-slate-800">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td className="text-right py-1 text-slate-800">0,00</td>
                         <td className="text-right py-1 text-slate-800">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
                         <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>

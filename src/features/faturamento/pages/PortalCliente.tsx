@@ -1834,37 +1834,14 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                         </tr>
                       </thead>
                       <tbody>
-                        {totalHorasNoturnasCalculadas > 0 ? (
-                          <>
-                            {totalHorasNormaisCalculadas > 0 && (
-                              <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
-                                <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'} - Horas Diurnas</td>
-                                <td className="text-right py-1">{totalHorasNormaisCalculadas.toFixed(2)}</td>
-                                <td className="text-right py-1">{(totalValorNormaisCalculadas / (totalHorasNormaisCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                <td className="text-right py-1">0,00</td>
-                                <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                <td className="text-right font-bold pr-3 py-1">{totalValorNormaisCalculadas.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                              </tr>
-                            )}
-                            <tr className="border-b border-[#ec8a5e]/30 text-indigo-950 font-medium bg-indigo-50/20">
-                              <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'} - Horas Nocturnas 🌙</td>
-                              <td className="text-right py-1">{totalHorasNoturnasCalculadas.toFixed(2)}</td>
-                              <td className="text-right py-1">{(totalValorNoturnasCalculadas / (totalHorasNoturnasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                              <td className="text-right py-1">0,00</td>
-                              <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                              <td className="text-right font-bold pr-3 py-1 text-indigo-950">{totalValorNoturnasCalculadas.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            </tr>
-                          </>
-                        ) : (
-                          <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
-                            <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
-                            <td className="text-right py-1">{totalHorasCalculadas.toFixed(2)}</td>
-                            <td className="text-right py-1">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td className="text-right py-1">0,00</td>
-                            <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                            <td className="text-right font-bold pr-3 py-1">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                          </tr>
-                        )}
+                        <tr className="border-b border-[#ec8a5e]/30 text-slate-800">
+                          <td className="pl-3 py-1">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
+                          <td className="text-right py-1">1.00</td>
+                          <td className="text-right py-1">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="text-right py-1">0,00</td>
+                          <td className="text-right py-1">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                          <td className="text-right font-bold pr-3 py-1">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        </tr>
                         {Number(adjustments.incrementos) > 0 && (
                           <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
                             <td className="pl-3 py-1">{adjustments.incrementosDesc || 'Incremento Adicional'}</td>

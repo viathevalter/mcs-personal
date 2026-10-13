@@ -1230,8 +1230,8 @@ MCS - Gestão Comercial`;
             <tbody>
               <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
                 <td style="padding: 6px 12px; color: #1e293b;">${adj.descricaoServico || 'Prestação de Serviços'}</td>
-                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${displayTotalHoras.toFixed(2)}</td>
-                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">1.00</td>
+                <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                 <td style="text-align: right; padding: 6px 8px; color: #1e293b;">0,00</td>
                 <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
                 <td style="text-align: right; font-weight: 700; padding: 6px 12px; color: #0f172a;">${totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -4735,48 +4735,14 @@ MCS - Gestão Comercial`;
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {(() => {
-                                    const clientTotalNoturnas = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + (w.totalHorasNoturnas || 0), 0);
-                                    const clientTotalNormais = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + (w.totalHorasNormais ?? Math.max(0, w.totalHoras - (w.totalHorasNoturnas || 0))), 0);
-                                    const clientValorNoturnas = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + ((w.totalHorasNoturnas || 0) * (w.tarifaNoturna || w.tarifa)), 0);
-                                    const clientValorNormais = filteredWorkers.filter(w => !w.isBilled || isAlreadyInvoiced).reduce((sum, w) => sum + ((w.totalHorasNormais ?? Math.max(0, w.totalHoras - (w.totalHorasNoturnas || 0))) * w.tarifa), 0);
-
-                                    if (clientTotalNoturnas > 0) {
-                                      return (
-                                        <>
-                                          {clientTotalNormais > 0 && (
-                                            <tr className="border-b border-[#ec8a5e]/30">
-                                              <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'} - Horas Diurnas</td>
-                                              <td className="text-right py-1 text-slate-800">{clientTotalNormais.toFixed(2)}</td>
-                                              <td className="text-right py-1 text-slate-800">{(clientValorNormais / (clientTotalNormais || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                              <td className="text-right py-1 text-slate-800">0,00</td>
-                                              <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                              <td className="text-right font-bold pr-3 py-1 text-slate-900">{clientValorNormais.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                            </tr>
-                                          )}
-                                          <tr className="border-b border-[#ec8a5e]/30 bg-indigo-50/20">
-                                            <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'} - Horas Noturnas (🌙)</td>
-                                            <td className="text-right py-1 text-slate-800">{clientTotalNoturnas.toFixed(2)}</td>
-                                            <td className="text-right py-1 text-slate-800">{(clientValorNoturnas / (clientTotalNoturnas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                            <td className="text-right py-1 text-slate-800">0,00</td>
-                                            <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                            <td className="text-right font-bold pr-3 py-1 text-slate-900">{clientValorNoturnas.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                          </tr>
-                                        </>
-                                      );
-                                    }
-
-                                    return (
-                                      <tr className="border-b border-[#ec8a5e]/30">
-                                        <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'}</td>
-                                        <td className="text-right py-1 text-slate-800">{displayTotalHoras.toFixed(2)}</td>
-                                        <td className="text-right py-1 text-slate-800">{(totalBase / (displayTotalHoras || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                        <td className="text-right py-1 text-slate-800">0,00</td>
-                                        <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
-                                        <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                                      </tr>
-                                    );
-                                  })()}
+                                  <tr className="border-b border-[#ec8a5e]/30">
+                                    <td className="pl-3 py-1 text-slate-800">{adj.descricaoServico || 'Prestação de Serviços'}</td>
+                                    <td className="text-right py-1 text-slate-800">1.00</td>
+                                    <td className="text-right py-1 text-slate-800">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="text-right py-1 text-slate-800">0,00</td>
+                                    <td className="text-right py-1 text-slate-800">{Number(adj.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
+                                    <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBase.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  </tr>
                                   {Number(adj.incrementos) > 0 && (
                                     <tr className="border-b border-[#ec8a5e]/30 text-emerald-700">
                                       <td className="pl-3 py-1">{adj.incrementosDesc || 'Incremento Adicional'}</td>
@@ -5774,8 +5740,8 @@ MCS - Gestão Comercial`;
                               <tbody>
                                 <tr className="border-b border-[#ec8a5e]/30">
                                   <td className="pl-3 py-1 text-slate-800">{adjustments.descricaoServico || 'Prestação de Serviços'}</td>
-                                  <td className="text-right py-1 text-slate-800">{totalHorasCalculadas.toFixed(2)}</td>
-                                  <td className="text-right py-1 text-slate-800">{(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                  <td className="text-right py-1 text-slate-800">1.00</td>
+                                  <td className="text-right py-1 text-slate-800">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                   <td className="text-right py-1 text-slate-800">0,00</td>
                                   <td className="text-right py-1 text-slate-800">{Number(adjustments.ivaPct || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
                                   <td className="text-right font-bold pr-3 py-1 text-slate-900">{totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>

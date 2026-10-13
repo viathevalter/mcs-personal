@@ -302,8 +302,8 @@ export async function generateFacturaPDF(
           <tbody>
             <tr style="border-bottom: 1px solid rgba(236, 138, 94, 0.3);">
               <td style="padding: 6px 12px; color: #1e293b;">${descricaoServico}</td>
-              <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${totalHorasCalculadas.toFixed(2)}</td>
-              <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${(totalBaseVal / (totalHorasCalculadas || 1)).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+              <td style="text-align: right; padding: 6px 8px; color: #1e293b;">1.00</td>
+              <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
               <td style="text-align: right; padding: 6px 8px; color: #1e293b;">0,00</td>
               <td style="text-align: right; padding: 6px 8px; color: #1e293b;">${ivaPct.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} (1)</td>
               <td style="text-align: right; font-weight: 700; padding: 6px 12px; color: #0f172a;">${totalBaseVal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
