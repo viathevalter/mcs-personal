@@ -60,14 +60,14 @@ export function Combobox({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className={cn("w-full min-w-0 max-w-full overflow-hidden justify-between font-normal text-left", className)}
+                    className={cn("w-full min-w-0 max-w-full overflow-hidden justify-between font-normal text-left text-foreground bg-background", className)}
                 >
-                    <span className="truncate mr-2 text-left flex-1">
+                    <span className="truncate mr-2 text-left flex-1 text-foreground">
                         {value
                             ? options.find((option) => option.value === value)?.label
                             : placeholder}
                     </span>
-                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className={cn("w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0 shadow-lg border-slate-200 dark:border-slate-800", popoverClassName)} align="start">
