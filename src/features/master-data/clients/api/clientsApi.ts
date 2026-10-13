@@ -499,5 +499,158 @@ export const clientsApi = {
       .delete()
       .eq('id', id);
     if (error) throw error;
+  },
+
+  async cloneClientSiteTariffs({
+    empresaId,
+    clientId,
+    sourceSiteId,
+    targetSiteId,
+    copyWorkerExceptions = true,
+    replaceExisting = true,
+  }: {
+    empresaId: string;
+    clientId: string;
+    sourceSiteId: string;
+    targetSiteId: string;
+    copyWorkerExceptions?: boolean;
+    replaceExisting?: boolean;
+  }): Promise<{ clonedTariffsCount: number; clonedExceptionsCount: number }> {
+    if (!empresaId || !clientId) throw new Error('Empresa e Cliente são obrigatórios');
+    if (!sourceSiteId || !targetSiteId) throw new Error('Obras de origem e destino são obrigatórias');
+    if (sourceSiteId === targetSiteId) throw new Error('A obra de origem e a obra de destino não podem ser as mesmas');
+
+    const sourceSiteFilter = sourceSiteId === 'global' ? null : sourceSiteId;
+    const targetSiteFilter = targetSiteId === 'global' ? null : targetSiteId;
+
+    // 1. Buscar tarifas da obra de origem
+    let sourceTariffsQuery = supabase
+      .schema('core_common')
+      .from('client_tariffs')
+      .select('*')
+      .eq('empresa_id', empresaId)
+      .eq('client_id', clientId);
+
+    if (sourceSiteFilter) {
+      sourceTariffsQuery = sourceTariffsQuery.eq('client_site_id', sourceSiteFilter);
+    } else {
+      sourceTariffsQuery = sourceTariffsQuery.is('client_site_id', null);
+    }
+
+    const { data: sourceTariffs, error: tariffsError } = await sourceTariffsQuery;
+    if (tariffsError) throw tariffsError;
+
+    if (!sourceTariffs || sourceTariffs.length === 0) {
+      throw new Error('A obra de origem selecionada não possui nenhuma tarifa de função configurada.');
+    }
+
+    // 2. Se replaceExisting = true, remover tarifas existentes da obra destino
+    if (replaceExisting) {
+      let deleteTariffsQuery = supabase
+        .schema('core_common')
+        .from('client_tariffs')
+        .delete()
+        .eq('empresa_id', empresaId)
+        .eq('client_id', clientId);
+
+      if (targetSiteFilter) {
+        deleteTariffsQuery = deleteTariffsQuery.eq('client_site_id', targetSiteFilter);
+      } else {
+        deleteTariffsQuery = deleteTariffsQuery.is('client_site_id', null);
+      }
+
+      const { error: delError } = await deleteTariffsQuery;
+      if (delError) throw delError;
+
+      // Inserir todas em lote
+      const now = new Date().toISOString();
+      const recordsToInsert = sourceTariffs.map(t => ({
+        empresa_id: empresaId,
+        client_id: clientId,
+        client_site_id: targetSiteFilter,
+        job_function_id: t.job_function_id,
+        valor_tarifa: t.valor_tarifa,
+        valor_tarifa_noturna: t.valor_tarifa_noturna !== undefined ? t.valor_tarifa_noturna : null,
+        created_at: now,
+        updated_at: now
+      }));
+
+      const { error: insertError } = await supabase
+        .schema('core_common')
+        .from('client_tariffs')
+        .insert(recordsToInsert);
+
+      if (insertError) throw insertError;
+    } else {
+      // Merge: salvar uma a uma respeitando idempotência
+      for (const t of sourceTariffs) {
+        await this.saveClientTariff(
+          empresaId,
+          clientId,
+          targetSiteFilter,
+          t.job_function_id,
+          Number(t.valor_tarifa),
+          t.valor_tarifa_noturna !== null && t.valor_tarifa_noturna !== undefined ? Number(t.valor_tarifa_noturna) : null
+        );
+      }
+    }
+
+    let clonedExceptionsCount = 0;
+
+    // 3. Exceções de trabalhadores
+    if (copyWorkerExceptions) {
+      let sourceExcQuery = supabase
+        .schema('core_common')
+        .from('client_worker_tariffs')
+        .select('*')
+        .eq('empresa_id', empresaId)
+        .eq('client_id', clientId);
+
+      if (sourceSiteFilter) {
+        sourceExcQuery = sourceExcQuery.eq('client_site_id', sourceSiteFilter);
+      } else {
+        sourceExcQuery = sourceExcQuery.is('client_site_id', null);
+      }
+
+      const { data: sourceExceptions, error: excError } = await sourceExcQuery;
+      if (excError) throw excError;
+
+      if (sourceExceptions && sourceExceptions.length > 0) {
+        if (replaceExisting) {
+          let deleteExcQuery = supabase
+            .schema('core_common')
+            .from('client_worker_tariffs')
+            .delete()
+            .eq('empresa_id', empresaId)
+            .eq('client_id', clientId);
+
+          if (targetSiteFilter) {
+            deleteExcQuery = deleteExcQuery.eq('client_site_id', targetSiteFilter);
+          } else {
+            deleteExcQuery = deleteExcQuery.is('client_site_id', null);
+          }
+
+          const { error: delExcError } = await deleteExcQuery;
+          if (delExcError) throw delExcError;
+        }
+
+        for (const exc of sourceExceptions) {
+          await this.saveClientWorkerTariff(
+            empresaId,
+            clientId,
+            targetSiteFilter,
+            exc.worker_id,
+            Number(exc.valor_tarifa),
+            exc.valor_tarifa_noturna !== null && exc.valor_tarifa_noturna !== undefined ? Number(exc.valor_tarifa_noturna) : null
+          );
+          clonedExceptionsCount++;
+        }
+      }
+    }
+
+    return {
+      clonedTariffsCount: sourceTariffs.length,
+      clonedExceptionsCount
+    };
   }
 };

@@ -27,6 +27,10 @@ import {
   Trash2,
   Search,
   Check,
+  Copy,
+  Layers,
+  ArrowRight,
+  RefreshCw,
 } from 'lucide-react';
 
 interface ClientTariffsTabProps {
@@ -147,7 +151,13 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const { data: workerExceptions = [], isLoading: loadingExceptions, refetch: refetchExceptions } = useClientWorkerTariffs(clientId);
 
   // Mutations (using activeEmpresaId)
-  const { saveTariff, deleteTariff, saveWorkerTariff, deleteWorkerTariff, isSavingTariff } = useMutateClientTariffs(clientId, activeEmpresaId);
+  const { saveTariff, deleteTariff, saveWorkerTariff, deleteWorkerTariff, isSavingTariff, cloneTariffs, isCloningTariffs } = useMutateClientTariffs(clientId, activeEmpresaId);
+
+  // Clone tariffs modal state
+  const [isCloneDialogOpen, setIsCloneDialogOpen] = useState(false);
+  const [cloneSourceSiteId, setCloneSourceSiteId] = useState<string>('');
+  const [cloneCopyExceptions, setCloneCopyExceptions] = useState(true);
+  const [cloneReplaceExisting, setCloneReplaceExisting] = useState(true);
 
   // States
   const [selectedSiteId, setSelectedSiteId] = useState<string>('global'); // 'global' = Sem Obra / General
@@ -243,6 +253,71 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
       setSelectedSiteId('global');
     }
   }, [sites, selectedSiteId]);
+
+  // Available source sites for cloning (sites that are NOT the selectedSiteId)
+  const availableSourceSites = useMemo(() => {
+    return sites.filter(s => s.id !== selectedSiteId);
+  }, [sites, selectedSiteId]);
+
+  const getSiteTariffCount = (siteId: string) => {
+    return activeTariffs.filter(t => t.client_site_id === siteId && t.empresa_id === activeEmpresaId).length;
+  };
+
+  const getSiteExceptionCount = (siteId: string) => {
+    return workerExceptions.filter(e => e.client_site_id === siteId && e.empresa_id === activeEmpresaId).length;
+  };
+
+  // Pre-select recommended source site when clone dialog opens
+  useEffect(() => {
+    if (isCloneDialogOpen && availableSourceSites.length > 0) {
+      // Prioritize site named 'taller' or 'atelier', or the one with the most tariffs
+      const tallerSite = availableSourceSites.find(s => 
+        s.name.toLowerCase().includes('taller') || 
+        s.name.toLowerCase().includes('atelier')
+      );
+      if (tallerSite) {
+        setCloneSourceSiteId(tallerSite.id);
+      } else {
+        const sorted = [...availableSourceSites].sort((a, b) => 
+          getSiteTariffCount(b.id) - getSiteTariffCount(a.id)
+        );
+        setCloneSourceSiteId(sorted[0]?.id || availableSourceSites[0].id);
+      }
+    }
+  }, [isCloneDialogOpen, availableSourceSites, activeTariffs]);
+
+  const handleConfirmClone = async () => {
+    if (!cloneSourceSiteId) {
+      toast.error('Selecione a obra de origem para clonar');
+      return;
+    }
+    if (selectedSiteId === 'global' || !selectedSiteId) {
+      toast.error('Selecione uma obra de destino válida');
+      return;
+    }
+
+    try {
+      const result = await cloneTariffs({
+        sourceSiteId: cloneSourceSiteId,
+        targetSiteId: selectedSiteId,
+        copyWorkerExceptions: cloneCopyExceptions,
+        replaceExisting: cloneReplaceExisting
+      });
+
+      const sourceSiteName = sites.find(s => s.id === cloneSourceSiteId)?.name || 'origem';
+      const targetSiteName = sites.find(s => s.id === selectedSiteId)?.name || 'destino';
+
+      toast.success(
+        `Sucesso! ${result.clonedTariffsCount} tarifas ${result.clonedExceptionsCount > 0 ? `e ${result.clonedExceptionsCount} exceções ` : ''}clonadas de "${sourceSiteName}" para "${targetSiteName}"!`
+      );
+
+      setIsCloneDialogOpen(false);
+      await refetchTariffs();
+      await refetchExceptions();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao clonar tarifas');
+    }
+  };
 
   // Automatically set workerSiteId when opening the exception dialog
   useEffect(() => {
@@ -604,7 +679,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
               <div className="flex items-center gap-3 w-full md:w-auto">
                 <Label htmlFor="tariff_site_select" className="text-xs font-semibold uppercase text-slate-500 shrink-0">Obra / Local:</Label>
                 <Select value={selectedSiteId} onValueChange={setSelectedSiteId}>
-                  <SelectTrigger id="tariff_site_select" className="w-full md:w-[200px] bg-slate-50 border-slate-200 focus:ring-orange-500">
+                  <SelectTrigger id="tariff_site_select" className="w-full md:w-[220px] bg-slate-50 border-slate-200 focus:ring-orange-500 font-medium">
                     <SelectValue placeholder="Selecione o local..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -612,11 +687,37 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
                       <SelectItem value="global">Dados Gerais (Sem Obra)</SelectItem>
                     )}
                     {sites.map(s => (
-                      <SelectItem key={s.id} value={s.id}>Obra: {s.name}</SelectItem>
+                      <SelectItem key={s.id} value={s.id}>
+                        Obra: {s.name}{s.site_code ? ` (${s.site_code})` : s.city ? ` - ${s.city}` : ''}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Botão para Clonar Tarifas de Outra Obra */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedSiteId === 'global' || !selectedSiteId) {
+                    toast.warning('Selecione primeiro uma obra de destino para receber as tarifas clonadas.');
+                    return;
+                  }
+                  if (availableSourceSites.length === 0) {
+                    toast.warning('Este cliente não possui outras obras cadastradas para clonar.');
+                    return;
+                  }
+                  setIsCloneDialogOpen(true);
+                }}
+                disabled={sites.length <= 1 || selectedSiteId === 'global'}
+                className="bg-white hover:bg-orange-50 text-orange-600 border-orange-200 hover:border-orange-300 font-semibold text-xs h-9 px-3 gap-1.5 shadow-sm transition-all"
+                title="Copiar perfis e tarifas de outra obra deste cliente"
+              >
+                <Copy className="h-3.5 w-3.5 text-orange-500" />
+                Clonar de Outra Obra
+              </Button>
             </div>
         </div>
 
@@ -838,9 +939,29 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
             <div className="h-[372px] overflow-y-auto pr-1 space-y-3">
               {selectedTariffs.length === 0 ? (
-                <div className="text-center text-xs text-muted-foreground pt-16">
-                  Nenhuma função configurada para este local.<br/>
-                  Clique no botão (+) ao lado das funções para começar.
+                <div className="flex flex-col items-center justify-center h-full min-h-[280px] text-center p-6 space-y-3">
+                  <div className="p-3 bg-orange-50 text-orange-600 rounded-full dark:bg-orange-950/30">
+                    <Layers className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      Nenhuma tarifa configurada neste local
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                      Adicione perfis profissionais individualmente à esquerda ou clone todas as tarifas de uma obra existente com 1 clique.
+                    </p>
+                  </div>
+                  {availableSourceSites.length > 0 && selectedSiteId !== 'global' && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setIsCloneDialogOpen(true)}
+                      className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs h-8 px-3.5 gap-1.5 shadow-md shadow-orange-500/10"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Clonar Tarifas de Outra Obra
+                    </Button>
+                  )}
                 </div>
               ) : (
                 selectedTariffs.map(t => {
@@ -1134,6 +1255,139 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
               className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs px-4"
             >
               Adicionar Exceção
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIÁLOGO: Clonar Tarifas de Outra Obra */}
+      <Dialog open={isCloneDialogOpen} onOpenChange={setIsCloneDialogOpen}>
+        <DialogContent className="sm:max-w-[550px] w-[95vw] bg-white dark:bg-slate-950">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
+              <Copy className="h-5 w-5 text-orange-500" />
+              Clonar Tarifas de Outra Obra
+            </DialogTitle>
+            <DialogDescription>
+              Copie todos os perfis profissionais e valores praticados de uma obra de referência para a obra atual.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-3">
+            {/* Box informativo de Destino */}
+            <div className="p-3.5 rounded-lg border border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-900/40 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-400 block">
+                  Obra de Destino (Receberá as tarifas)
+                </span>
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 mt-0.5">
+                  <MapPin className="h-4 w-4 text-orange-500" />
+                  {sites.find(s => s.id === selectedSiteId)?.name || 'Local Selecionado'}
+                  {sites.find(s => s.id === selectedSiteId)?.site_code && (
+                    <span className="text-xs text-slate-400 font-mono font-normal">
+                      ({sites.find(s => s.id === selectedSiteId)?.site_code})
+                    </span>
+                  )}
+                </span>
+              </div>
+              <Badge variant="outline" className="border-orange-300 text-orange-700 bg-white font-mono text-xs">
+                {selectedTariffs.length} ativas atualmente
+              </Badge>
+            </div>
+
+            {/* Seleção de Origem */}
+            <div className="space-y-1.5">
+              <Label htmlFor="clone_source_select" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Obra de Origem (Copiar tarifas de):
+              </Label>
+              <Select value={cloneSourceSiteId} onValueChange={setCloneSourceSiteId}>
+                <SelectTrigger id="clone_source_select" className="bg-white dark:bg-slate-900 border-slate-300">
+                  <SelectValue placeholder="Selecione a obra de origem..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableSourceSites.map(s => {
+                    const count = getSiteTariffCount(s.id);
+                    const excCount = getSiteExceptionCount(s.id);
+                    return (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name} {s.site_code ? `(${s.site_code})` : ''} — {count} {count === 1 ? 'tarifa' : 'tarifas'}{excCount > 0 ? `, ${excCount} exceções` : ''}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              <p className="text-[11px] text-slate-500">
+                Geralmente a obra padrão (ex: Atelier / Taller) possui todas as tarifas e perfis já precificados.
+              </p>
+            </div>
+
+            {/* Opções de Clonagem */}
+            <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block">
+                Opções da Cópia
+              </span>
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cloneCopyExceptions}
+                  onChange={e => setCloneCopyExceptions(e.target.checked)}
+                  className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-4 w-4 mt-0.5 cursor-pointer"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 block">
+                    Copiar também exceções de colaboradores
+                  </span>
+                  <span className="text-slate-500">
+                    Se a obra de origem tiver tarifas individuais diferenciadas por pessoa, copia também para a nova obra.
+                  </span>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={cloneReplaceExisting}
+                  onChange={e => setCloneReplaceExisting(e.target.checked)}
+                  className="rounded border-slate-300 text-orange-500 focus:ring-orange-500 h-4 w-4 mt-0.5 cursor-pointer"
+                />
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300 block">
+                    Substituir tarifas existentes da obra de destino
+                  </span>
+                  <span className="text-slate-500">
+                    Se desmarcado, apenas adicionará perfis que ainda não existiam nesta obra, mantendo os já cadastrados.
+                  </span>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsCloneDialogOpen(false)}
+              disabled={isCloningTariffs}
+              className="text-xs px-4"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmClone}
+              disabled={isCloningTariffs || !cloneSourceSiteId}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-semibold text-xs px-4 gap-1.5 shadow-md shadow-orange-500/10"
+            >
+              {isCloningTariffs ? (
+                <>
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  Clonando...
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Clonar Tarifas Agora
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

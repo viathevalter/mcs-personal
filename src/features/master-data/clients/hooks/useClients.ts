@@ -121,6 +121,26 @@ export function useMutateClientTariffs(clientId: string, empresaId?: string | nu
     },
   });
 
+  const cloneTariffsMutation = useMutation({
+    mutationFn: (params: {
+      sourceSiteId: string;
+      targetSiteId: string;
+      copyWorkerExceptions?: boolean;
+      replaceExisting?: boolean;
+    }) => {
+      if (!activeEmpresaId) throw new Error('Empresa não selecionada');
+      return clientsApi.cloneClientSiteTariffs({
+        empresaId: activeEmpresaId,
+        clientId,
+        ...params,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clientTariffs', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['clientWorkerTariffs', clientId] });
+    },
+  });
+
   return {
     saveTariff: saveTariffMutation.mutateAsync,
     isSavingTariff: saveTariffMutation.isPending,
@@ -133,5 +153,8 @@ export function useMutateClientTariffs(clientId: string, empresaId?: string | nu
 
     deleteWorkerTariff: deleteWorkerTariffMutation.mutateAsync,
     isDeletingWorkerTariff: deleteWorkerTariffMutation.isPending,
+
+    cloneTariffs: cloneTariffsMutation.mutateAsync,
+    isCloningTariffs: cloneTariffsMutation.isPending,
   };
 }

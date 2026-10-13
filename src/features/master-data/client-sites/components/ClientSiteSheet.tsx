@@ -1,7 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
+import { Copy } from 'lucide-react';
 
 import {
   Sheet,
@@ -33,8 +35,10 @@ import { CountrySelector, RegionSelector } from '../../locations/components/Loca
 import { useRegions } from '../../locations/hooks/useLocations';
 import type { ClientSite, CreateClientSiteDTO } from '../types';
 import { createClientSiteSchema } from '../types';
-import { useMutateClientSite } from '../hooks/useClientSites';
+import { useMutateClientSite, useClientSites } from '../hooks/useClientSites';
 import { useClients } from '../../clients/hooks/useClients';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { clientsApi } from '../../clients/api/clientsApi';
 
 interface ClientSiteSheetProps {
   open: boolean;
@@ -47,6 +51,8 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
   const isEditing = !!site;
   const { createSite, updateSite, isCreating, isUpdating } = useMutateClientSite();
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
+  const queryClient = useQueryClient();
+  const { selectedEmpresaId } = useEmpresa();
   const isSaving = isCreating || isUpdating;
 
   const form = useForm<CreateClientSiteDTO>({
@@ -83,6 +89,28 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
       }
     }
   }, [selectedRegion, regions, form]);
+
+  const watchedClientId = useWatch({ control: form.control, name: 'client_id' });
+  const activeClientId = preSelectedClientId || watchedClientId;
+  const { data: allSites = [] } = useClientSites(activeClientId);
+  const existingClientSites = allSites.filter(s => s.client_id === activeClientId && s.status === 'active');
+  const [cloneSourceSiteId, setCloneSourceSiteId] = useState<string>('none');
+
+  useEffect(() => {
+    if (open && !isEditing && existingClientSites.length > 0) {
+      const tallerSite = existingClientSites.find(s => 
+        s.name.toLowerCase().includes('taller') || 
+        s.name.toLowerCase().includes('atelier')
+      );
+      if (tallerSite) {
+        setCloneSourceSiteId(tallerSite.id);
+      } else {
+        setCloneSourceSiteId('none');
+      }
+    } else if (!open) {
+      setCloneSourceSiteId('none');
+    }
+  }, [open, isEditing, existingClientSites.length]);
 
   useEffect(() => {
     if (open) {
@@ -145,8 +173,27 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
         await updateSite({ id: site.id, payload });
         toast.success('Obra/Local atualizado com sucesso!');
       } else {
-        await createSite(payload);
-        toast.success('Obra/Local cadastrado com sucesso!');
+        const createdSite = await createSite(payload);
+        if (cloneSourceSiteId && cloneSourceSiteId !== 'none' && createdSite?.id && selectedEmpresaId) {
+          try {
+            const cloneResult = await clientsApi.cloneClientSiteTariffs({
+              empresaId: selectedEmpresaId,
+              clientId: finalClientId,
+              sourceSiteId: cloneSourceSiteId,
+              targetSiteId: createdSite.id,
+              copyWorkerExceptions: true,
+              replaceExisting: true,
+            });
+            const sourceName = existingClientSites.find(s => s.id === cloneSourceSiteId)?.name || 'obra selecionada';
+            toast.success(`Obra cadastrada e ${cloneResult.clonedTariffsCount} tarifas clonadas de "${sourceName}" com sucesso!`);
+            queryClient.invalidateQueries({ queryKey: ['clientTariffs', finalClientId] });
+            queryClient.invalidateQueries({ queryKey: ['clientWorkerTariffs', finalClientId] });
+          } catch (cloneErr: any) {
+            toast.warning(`Obra cadastrada, mas houve aviso ao clonar tarifas: ${cloneErr.message}`);
+          }
+        } else {
+          toast.success('Obra/Local cadastrado com sucesso!');
+        }
       }
       onOpenChange(false);
     } catch (error: any) {
@@ -441,6 +488,33 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
                     </FormItem>
                   )}
                 />
+              )}
+
+              {!isEditing && existingClientSites.length > 0 && (
+                <div className="rounded-xl border border-orange-200/80 bg-orange-50/50 p-4 space-y-2.5 dark:bg-orange-950/20 dark:border-orange-900/40">
+                  <div className="flex items-center gap-2">
+                    <Copy className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-orange-900 dark:text-orange-300">
+                      Clonar Tarifas de Obra (Opcional)
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Deseja copiar automaticamente todos os perfis profissionais e tarifas praticadas de uma obra de referência (ex: Atelier / Taller) para esta nova obra?
+                  </p>
+                  <Select value={cloneSourceSiteId} onValueChange={setCloneSourceSiteId}>
+                    <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300">
+                      <SelectValue placeholder="Selecione uma obra para clonar..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Não clonar (definir tarifas manualmente depois)</SelectItem>
+                      {existingClientSites.map(s => (
+                        <SelectItem key={s.id} value={s.id}>
+                          Obra: {s.name}{s.site_code ? ` (${s.site_code})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
             </div>
 
