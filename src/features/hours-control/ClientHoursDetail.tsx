@@ -95,7 +95,7 @@ export function ClientHoursDetail() {
     }>({ open: false, workerId: '', workerName: '', recordId: '', contratante: '' });
     const [broadcastDialogOpen, setBroadcastDialogOpen] = useState(false);
     const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
-    const [workerMessageCounts, setWorkerMessageCounts] = useState<Record<string, { total: number; unreadByGestor: number }>>({});
+    const [workerMessageCounts, setWorkerMessageCounts] = useState<Record<string, { total: number; unreadByGestor: number; periodTotal?: number }>>({});
     const [workerNotificationDialogState, setWorkerNotificationDialogState] = useState<{
         open: boolean;
         worker: WorkerDetail | null;

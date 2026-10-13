@@ -36,7 +36,7 @@ import { downloadTimesheetPdf, type TimesheetPdfData, type TimesheetDayEntry } f
 import { InstallAppPrompt } from './components/InstallAppPrompt';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { WorkerChatModal } from './components/WorkerChatModal';
-import { getWorkerPeriodMessages, type WorkerMessage } from './services/workerCommunicationService';
+import { getWorkerAllMessages, subscribeToWorkerMessages, type WorkerMessage } from './services/workerCommunicationService';
 
 type SubView = 'home' | 'week' | 'calendar' | 'summary' | 'generate-pdf' | 'upload';
 
@@ -89,7 +89,7 @@ export function WorkerDashboardPage() {
     const loadWorkerMessages = useCallback(async () => {
         if (!workerAuth?.id) return;
         try {
-            const msgs = await getWorkerPeriodMessages(workerAuth.id, currentYear, currentMonth);
+            const msgs = await getWorkerAllMessages(workerAuth.id);
             const unread = msgs.filter(m => m.sender_type === 'gestor' && !m.read).length;
             setUnreadMessagesCount(unread);
             if (msgs.length > 0) {
@@ -98,11 +98,40 @@ export function WorkerDashboardPage() {
                 setLatestMessage(null);
             }
         } catch (_) {}
-    }, [workerAuth?.id, currentYear, currentMonth]);
+    }, [workerAuth?.id]);
 
     useEffect(() => {
+        if (!workerAuth?.id) return;
         loadWorkerMessages();
-    }, [loadWorkerMessages]);
+
+        // 1. Inscrição Realtime via Supabase
+        const unsubscribe = subscribeToWorkerMessages(workerAuth.id, (newMsg) => {
+            loadWorkerMessages();
+            if (newMsg.sender_type === 'gestor') {
+                const isEs = (i18n.language || '').toLowerCase().startsWith('es');
+                toast.info(newMsg.sender_name || 'Gestor (MCS)', {
+                    description: newMsg.message,
+                    action: {
+                        label: isEs ? 'Ver Chat' : 'Abrir Chat',
+                        onClick: () => setChatOpen(true)
+                    }
+                });
+                try {
+                    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                        navigator.vibrate([100, 50, 100]);
+                    }
+                } catch (_) {}
+            }
+        });
+
+        // 2. Polling inteligente a cada 8s para sincronia garantida
+        const interval = setInterval(loadWorkerMessages, 8000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(interval);
+        };
+    }, [workerAuth?.id, loadWorkerMessages, i18n.language]);
 
     const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
     const locale = isSpanish ? 'es-ES' : 'pt-PT';

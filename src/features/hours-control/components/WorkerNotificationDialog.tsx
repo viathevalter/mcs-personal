@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/textarea';
@@ -22,11 +22,13 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
+    getWorkerAllMessages,
     getWorkerPeriodMessages, 
     sendWorkerMessage, 
     getMessageTemplates, 
     createMessageTemplate, 
     markMessagesAsRead,
+    subscribeToWorkerMessages,
     type WorkerMessage, 
     type MessageTemplate 
 } from '../../worker-portal/services/workerCommunicationService';
@@ -69,6 +71,7 @@ export function WorkerNotificationDialog({
     const [newTemplateTitle, setNewTemplateTitle] = useState('');
     const [newTemplateText, setNewTemplateText] = useState('');
     const [savingTemplate, setSavingTemplate] = useState(false);
+    const [filterMode, setFilterMode] = useState<'all' | 'period'>('all');
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -78,12 +81,23 @@ export function WorkerNotificationDialog({
     ];
     const monthName = monthNames[periodMonth - 1] || `${periodMonth}`;
 
-    const loadData = async () => {
+    const periodMessagesCount = useMemo(() => {
+        return messages.filter(m => m.period_year === periodYear && m.period_month === periodMonth).length;
+    }, [messages, periodYear, periodMonth]);
+
+    const displayedMessages = useMemo(() => {
+        if (filterMode === 'period') {
+            return messages.filter(m => m.period_year === periodYear && m.period_month === periodMonth);
+        }
+        return messages;
+    }, [messages, filterMode, periodYear, periodMonth]);
+
+    const loadData = async (silent: boolean = false) => {
         if (!workerId) return;
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
             const [msgs, tmpls] = await Promise.all([
-                getWorkerPeriodMessages(workerId, periodYear, periodMonth),
+                getWorkerAllMessages(workerId),
                 getMessageTemplates()
             ]);
             setMessages(msgs);
@@ -100,15 +114,30 @@ export function WorkerNotificationDialog({
         } catch (err) {
             console.error('Erro ao carregar dados de notificação:', err);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (open) {
-            loadData();
-            setShowNewTemplateForm(false);
-        }
+        if (!open || !workerId) return;
+
+        loadData(false);
+        setShowNewTemplateForm(false);
+
+        // Inscrição em tempo real para novas mensagens do trabalhador
+        const unsubscribe = subscribeToWorkerMessages(workerId, () => {
+            loadData(true);
+        });
+
+        // Polling a cada 6s enquanto o modal estiver aberto
+        const interval = setInterval(() => {
+            loadData(true);
+        }, 6000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(interval);
+        };
     }, [open, workerId, periodYear, periodMonth]);
 
     useEffect(() => {
@@ -301,6 +330,39 @@ export function WorkerNotificationDialog({
                     </div>
                 )}
 
+                {/* Barra de Filtro de Conversa (Completa vs Período Específico) */}
+                <div className="px-4 py-1.5 bg-muted/40 border-b border-border flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-muted-foreground mr-0.5">Exibir:</span>
+                        <button
+                            type="button"
+                            onClick={() => setFilterMode('all')}
+                            className={`px-2.5 py-0.5 rounded-md font-bold text-[11px] transition-all cursor-pointer ${
+                                filterMode === 'all'
+                                    ? 'bg-blue-600 text-white shadow-2xs'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                            }`}
+                        >
+                            Conversa Completa ({messages.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFilterMode('period')}
+                            className={`px-2.5 py-0.5 rounded-md font-bold text-[11px] transition-all cursor-pointer ${
+                                filterMode === 'period'
+                                    ? 'bg-blue-600 text-white shadow-2xs'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                            }`}
+                        >
+                            Apenas {monthName}/{periodYear} ({periodMessagesCount})
+                        </button>
+                    </div>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Tempo Real Ativo
+                    </span>
+                </div>
+
                 {/* Histórico de Mensagens (Chat com Rastreabilidade) */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/20">
                     {loading && (
@@ -309,19 +371,29 @@ export function WorkerNotificationDialog({
                         </div>
                     )}
 
-                    {!loading && messages.length === 0 && (
+                    {!loading && displayedMessages.length === 0 && (
                         <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
                             <div className="h-12 w-12 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground">
                                 <MessageSquare className="h-6 w-6" />
                             </div>
-                            <h4 className="font-bold text-sm text-foreground">Nenhuma notificação enviada ainda</h4>
+                            <h4 className="font-bold text-sm text-foreground">
+                                {filterMode === 'period' 
+                                    ? `Nenhuma mensagem referente a ${monthName}/${periodYear}` 
+                                    : 'Nenhuma notificação enviada ainda'}
+                            </h4>
                             <p className="text-xs text-muted-foreground max-w-sm">
-                                Envie uma instrução, lembrete ou tire dúvidas sobre as horas de {monthName}/{periodYear} com {workerName}.
+                                {filterMode === 'period' && messages.length > 0 ? (
+                                    <span>
+                                        Existem {messages.length} mensagem(ns) em outros períodos. Clique em <strong>Conversa Completa</strong> acima para visualizar todo o histórico.
+                                    </span>
+                                ) : (
+                                    <span>Envie uma instrução, lembrete ou tire dúvidas sobre as horas de {monthName}/{periodYear} com {workerName}.</span>
+                                )}
                             </p>
                         </div>
                     )}
 
-                    {!loading && messages.map((msg) => {
+                    {!loading && displayedMessages.map((msg) => {
                         const isGestor = msg.sender_type === 'gestor';
                         const isSystem = msg.sender_type === 'sistema';
                         const dateFormatted = new Date(msg.created_at).toLocaleString('pt-PT', {
@@ -380,15 +452,20 @@ export function WorkerNotificationDialog({
                                 <div className="flex items-center gap-1.5 mt-1 px-1 text-[10px] text-muted-foreground">
                                     <Clock className="h-2.5 w-2.5" />
                                     <span>{dateFormatted}</span>
+                                    {msg.period_month && msg.period_year && (
+                                        <span className="px-1.5 py-0.2 rounded-md bg-muted text-muted-foreground font-semibold text-[8.5px] border border-border/60">
+                                            Ref: {String(msg.period_month).padStart(2, '0')}/{msg.period_year}
+                                        </span>
+                                    )}
                                     {isGestor && (
                                         <span className="flex items-center gap-0.5 ml-1">
                                             {msg.read ? (
-                                                <span className="text-emerald-500 flex items-center font-bold">
+                                                <span className="text-emerald-500 flex items-center font-bold" title="Lida pelo trabalhador">
                                                     <CheckCheck className="h-3 w-3 mr-0.5" />
                                                     Lida
                                                 </span>
                                             ) : (
-                                                <span className="text-slate-400 flex items-center">
+                                                <span className="text-slate-400 flex items-center" title="Enviada ao aplicativo">
                                                     <Check className="h-3 w-3 mr-0.5" />
                                                     Enviada
                                                 </span>

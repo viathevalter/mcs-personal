@@ -24,7 +24,28 @@ export interface MessageTemplate {
     created_at: string;
 }
 
-// 1. Buscar histórico de mensagens de um trabalhador em um período
+// 1. Buscar histórico completo de mensagens de um trabalhador (sem filtro de mês para conversa contínua)
+export async function getWorkerAllMessages(workerId: string): Promise<WorkerMessage[]> {
+    try {
+        const { data, error } = await supabase
+            .schema('core_personal')
+            .from('worker_timesheet_messages')
+            .select('*')
+            .eq('worker_id', workerId)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Erro ao buscar histórico de mensagens do trabalhador:', error);
+            return [];
+        }
+        return (data || []) as WorkerMessage[];
+    } catch (err) {
+        console.error('Falha de conexão ao buscar histórico de mensagens:', err);
+        return [];
+    }
+}
+
+// 1.1 Buscar histórico de mensagens de um trabalhador em um período específico
 export async function getWorkerPeriodMessages(workerId: string, year: number, month: number): Promise<WorkerMessage[]> {
     try {
         const { data, error } = await supabase
@@ -47,28 +68,29 @@ export async function getWorkerPeriodMessages(workerId: string, year: number, mo
     }
 }
 
-// 2. Buscar contagem de mensagens de vários trabalhadores em um período (para a tabela do gestor)
-export async function getBatchWorkersMessageCounts(workerIds: string[], year: number, month: number): Promise<Record<string, { total: number; unreadByGestor: number; unreadByWorker: number }>> {
+// 2. Buscar contagem de mensagens de vários trabalhadores (unificado para o gestor nunca perder respostas)
+export async function getBatchWorkersMessageCounts(workerIds: string[], year?: number, month?: number): Promise<Record<string, { total: number; unreadByGestor: number; unreadByWorker: number; periodTotal: number }>> {
     if (workerIds.length === 0) return {};
     try {
         const { data, error } = await supabase
             .schema('core_personal')
             .from('worker_timesheet_messages')
-            .select('worker_id, sender_type, read')
-            .in('worker_id', workerIds)
-            .eq('period_year', year)
-            .eq('period_month', month);
+            .select('worker_id, period_year, period_month, sender_type, read')
+            .in('worker_id', workerIds);
 
         if (error) {
             console.error('Erro ao buscar contagens de mensagens:', error);
             return {};
         }
 
-        const counts: Record<string, { total: number; unreadByGestor: number; unreadByWorker: number }> = {};
+        const counts: Record<string, { total: number; unreadByGestor: number; unreadByWorker: number; periodTotal: number }> = {};
         (data || []).forEach((row: any) => {
             const wid = row.worker_id;
-            if (!counts[wid]) counts[wid] = { total: 0, unreadByGestor: 0, unreadByWorker: 0 };
+            if (!counts[wid]) counts[wid] = { total: 0, unreadByGestor: 0, unreadByWorker: 0, periodTotal: 0 };
             counts[wid].total++;
+            if (year && month && row.period_year === year && row.period_month === month) {
+                counts[wid].periodTotal++;
+            }
             if (!row.read) {
                 if (row.sender_type === 'trabalhador') counts[wid].unreadByGestor++;
                 if (row.sender_type === 'gestor') counts[wid].unreadByWorker++;
@@ -78,6 +100,39 @@ export async function getBatchWorkersMessageCounts(workerIds: string[], year: nu
     } catch (err) {
         console.error('Falha ao processar contagens de mensagens:', err);
         return {};
+    }
+}
+
+// 2.1 Subscrever a mensagens em tempo real para um trabalhador
+export function subscribeToWorkerMessages(workerId: string, onNewMessage: (msg: WorkerMessage) => void) {
+    if (!workerId) return () => {};
+    try {
+        const channel = supabase
+            .channel(`worker-chat-${workerId}-${Math.random().toString(36).substring(2, 7)}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'core_personal',
+                    table: 'worker_timesheet_messages',
+                    filter: `worker_id=eq.${workerId}`
+                },
+                (payload) => {
+                    if (payload && payload.new) {
+                        onNewMessage(payload.new as WorkerMessage);
+                    }
+                }
+            )
+            .subscribe();
+
+        return () => {
+            try {
+                supabase.removeChannel(channel);
+            } catch (_) {}
+        };
+    } catch (err) {
+        console.warn('Não foi possível iniciar realtime de mensagens:', err);
+        return () => {};
     }
 }
 

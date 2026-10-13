@@ -18,10 +18,11 @@ import {
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { 
-    getWorkerPeriodMessages, 
+    getWorkerAllMessages, 
     sendWorkerMessage, 
     markMessagesAsRead,
     triggerLocalTestPush,
+    subscribeToWorkerMessages,
     type WorkerMessage 
 } from '../services/workerCommunicationService';
 
@@ -30,8 +31,8 @@ interface WorkerChatModalProps {
     onOpenChange: (open: boolean) => void;
     workerId: string;
     workerName: string;
-    periodYear: number;
-    periodMonth: number;
+    periodYear?: number;
+    periodMonth?: number;
     hourRecordId?: string;
     onMessagesRead?: () => void;
 }
@@ -41,8 +42,8 @@ export function WorkerChatModal({
     onOpenChange,
     workerId,
     workerName,
-    periodYear,
-    periodMonth,
+    periodYear = new Date().getFullYear(),
+    periodMonth = new Date().getMonth() + 1,
     hourRecordId,
     onMessagesRead
 }: WorkerChatModalProps) {
@@ -57,11 +58,11 @@ export function WorkerChatModal({
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const loadMessages = async () => {
+    const loadMessages = async (silent: boolean = false) => {
         if (!workerId) return;
         try {
-            setLoading(true);
-            const data = await getWorkerPeriodMessages(workerId, periodYear, periodMonth);
+            if (!silent) setLoading(true);
+            const data = await getWorkerAllMessages(workerId);
             setMessages(data);
 
             // Marcar mensagens do gestor como lidas pelo trabalhador
@@ -75,15 +76,29 @@ export function WorkerChatModal({
         } catch (err) {
             console.error('Erro ao buscar mensagens no portal:', err);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
     useEffect(() => {
-        if (open) {
-            loadMessages();
-        }
-    }, [open, workerId, periodYear, periodMonth]);
+        if (!open || !workerId) return;
+
+        loadMessages(false);
+
+        // Realtime no chat aberto
+        const unsubscribe = subscribeToWorkerMessages(workerId, () => {
+            loadMessages(true);
+        });
+
+        const interval = setInterval(() => {
+            loadMessages(true);
+        }, 5000);
+
+        return () => {
+            unsubscribe();
+            clearInterval(interval);
+        };
+    }, [open, workerId]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -241,9 +256,25 @@ export function WorkerChatModal({
                                     {msg.message}
                                 </div>
 
-                                <div className="flex items-center gap-1 mt-0.5 px-1 text-[9px] text-slate-400">
+                                <div className="flex items-center gap-1.5 mt-0.5 px-1 text-[9px] text-slate-400">
                                     <Clock className="h-2 w-2" />
                                     <span>{dateFormatted}</span>
+                                    {msg.period_month && msg.period_year && (
+                                        <span className="px-1.5 py-0.2 rounded-md bg-slate-200/80 text-slate-600 font-semibold text-[8.5px]">
+                                            Ref: {String(msg.period_month).padStart(2, '0')}/{msg.period_year}
+                                        </span>
+                                    )}
+                                    {isWorker && (
+                                        msg.read ? (
+                                            <span className="text-emerald-600 flex items-center gap-0.5" title="Lida pelo gestor">
+                                                <CheckCheck className="h-2.5 w-2.5" />
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-400 flex items-center gap-0.5" title="Entregue">
+                                                <Check className="h-2.5 w-2.5" />
+                                            </span>
+                                        )
+                                    )}
                                 </div>
                             </div>
                         );
