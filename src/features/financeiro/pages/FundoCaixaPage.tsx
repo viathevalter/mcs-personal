@@ -47,6 +47,7 @@ import {
     Filter,
     Clock,
     Trash2,
+    Edit2,
     LayoutGrid,
     List,
     CreditCard,
@@ -87,6 +88,8 @@ export default function FundoCaixaPage() {
     const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
     const [isNovoCaixaOpen, setIsNovoCaixaOpen] = useState(false);
+    const [isEditCaixaOpen, setIsEditCaixaOpen] = useState(false);
+    const [caixaToEdit, setCaixaToEdit] = useState<CaixaDespesa | null>(null);
     const [isRecargaOpen, setIsRecargaOpen] = useState(false);
     const [isDespesaOpen, setIsDespesaOpen] = useState(false);
     const [isExtratoOpen, setIsExtratoOpen] = useState(false);
@@ -109,6 +112,15 @@ export default function FundoCaixaPage() {
         trabajador_id: '',
         id_empresa: '',
         saldo_inicial: ''
+    });
+
+    const [formEditCaixa, setFormEditCaixa] = useState({
+        nombre: '',
+        trabajador_id: '',
+        id_empresa: '',
+        tipo_fundo: 'cartao' as 'dinheiro' | 'cartao',
+        cartao_id: '',
+        status: 'Ativo' as 'Ativo' | 'Inativo'
     });
 
     const [formRecarga, setFormRecarga] = useState({
@@ -248,6 +260,74 @@ export default function FundoCaixaPage() {
             toast.error(err?.message || 'Erro ao finalizar caixa.');
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    // Abertura do Modal de Edição
+    const handleOpenEditCaixa = (cx: CaixaDespesa) => {
+        setCaixaToEdit(cx);
+        setFormEditCaixa({
+            nombre: cx.nombre || '',
+            trabajador_id: cx.trabajador_id || '',
+            id_empresa: cx.id_empresa || '',
+            tipo_fundo: cx.tipo_fundo || 'dinheiro',
+            cartao_id: cx.cartao_id || '',
+            status: cx.status || 'Ativo'
+        });
+        setIsEditCaixaOpen(true);
+    };
+
+    // Salvar Edição do Caixa
+    const handleSaveEditCaixa = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!caixaToEdit) return;
+
+        if (!formEditCaixa.nombre.trim() || !formEditCaixa.trabajador_id) {
+            toast.error('Informe o nome da missão e selecione o colaborador.');
+            return;
+        }
+
+        if (formEditCaixa.tipo_fundo === 'cartao' && !formEditCaixa.cartao_id) {
+            toast.error('Por favor, selecione o cartão corporativo para a missão.');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const selectedCard = cartoes.find(c => c.id === formEditCaixa.cartao_id);
+            await caixaService.updateCaixa(caixaToEdit.id, {
+                nombre: formEditCaixa.nombre.trim(),
+                trabajador_id: formEditCaixa.trabajador_id,
+                id_empresa: formEditCaixa.id_empresa || (selectedCard?.empresa_id ? String(selectedCard.empresa_id) : null),
+                tipo_fundo: formEditCaixa.tipo_fundo,
+                cartao_id: formEditCaixa.tipo_fundo === 'cartao' ? formEditCaixa.cartao_id : null,
+                status: formEditCaixa.status
+            });
+
+            toast.success('Fundo de Caixa atualizado com sucesso!');
+            setIsEditCaixaOpen(false);
+            setCaixaToEdit(null);
+            await loadData();
+        } catch (err: any) {
+            console.error('Erro ao atualizar caixa:', err);
+            toast.error(err?.message || 'Erro ao atualizar dados do caixa.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    // Exclusão de Caixa
+    const handleDeleteCaixa = async (cx: CaixaDespesa) => {
+        const confirmMsg = `Deseja realmente excluir o Fundo de Caixa "${cx.nombre}"?\n\nColaborador: ${cx.trabajador?.Nombre || 'Não especificado'}\nTotal de Gastos: ${formatMoney(cx.total_despesas)}\n\nAtenção: Todas as recargas, despesas e lançamentos vinculados a este caixa também serão excluídos. Esta ação é irreversível.`;
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            await caixaService.deleteCaixa(cx.id);
+            toast.success(`Fundo de Caixa "${cx.nombre}" excluído com sucesso!`);
+            await loadData();
+        } catch (err: any) {
+            console.error('Erro ao excluir caixa:', err);
+            toast.error(err?.message || 'Não foi possível excluir o fundo de caixa.');
         }
     };
 
@@ -756,6 +836,24 @@ export default function FundoCaixaPage() {
                                                         <Button
                                                             size="sm"
                                                             variant="ghost"
+                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                                                            onClick={() => handleOpenEditCaixa(cx)}
+                                                            title="Editar Fundo de Caixa"
+                                                        >
+                                                            <Edit2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                                                            onClick={() => handleDeleteCaixa(cx)}
+                                                            title="Excluir Fundo de Caixa"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
                                                             className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700"
                                                             onClick={() => toggleCaixaStatus(cx)}
                                                             title={cx.status === 'Ativo' ? 'Encerrar Caixa' : 'Reativar Caixa'}
@@ -779,7 +877,7 @@ export default function FundoCaixaPage() {
                                     >
                                         <div>
                                             <div className="flex items-start justify-between gap-2 mb-3">
-                                                <div>
+                                                <div className="flex-1 min-w-0">
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base leading-snug">
                                                             {cx.nombre}
@@ -805,7 +903,7 @@ export default function FundoCaixaPage() {
 
                                                     <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1.5">
                                                         <User className="h-3.5 w-3.5 text-slate-400" />
-                                                        <span className="font-medium text-slate-700 dark:text-slate-300">
+                                                        <span className="font-medium text-slate-700 dark:text-slate-300 truncate">
                                                             {cx.trabajador?.Nombre || 'Não especificado'}
                                                         </span>
                                                         {cx.trabajador?.tipo && (
@@ -817,9 +915,30 @@ export default function FundoCaixaPage() {
                                                     {(cx.empresa || cx.cartao?.empresa_nome) && (
                                                         <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
                                                             <Building2 className="h-3.5 w-3.5" />
-                                                            <span>{cx.empresa?.nome || cx.cartao?.empresa_nome}</span>
+                                                            <span className="truncate">{cx.empresa?.nome || cx.cartao?.empresa_nome}</span>
                                                         </div>
                                                     )}
+                                                </div>
+
+                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                        onClick={() => handleOpenEditCaixa(cx)}
+                                                        title="Editar Fundo de Caixa"
+                                                    >
+                                                        <Edit2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                                        onClick={() => handleDeleteCaixa(cx)}
+                                                        title="Excluir Fundo de Caixa"
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
                                                 </div>
                                             </div>
 
@@ -1204,6 +1323,164 @@ export default function FundoCaixaPage() {
                                 className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
                                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar Caixa'}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* MODAL: Editar Fundo de Caixa */}
+            <Dialog open={isEditCaixaOpen} onOpenChange={setIsEditCaixaOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Edit2 className="h-5 w-5 text-blue-600" />
+                            Editar Fundo de Caixa
+                        </DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleSaveEditCaixa} className="space-y-4 py-2">
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                Modalidade Operacional *
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormEditCaixa(prev => ({ ...prev, tipo_fundo: 'cartao' }))}
+                                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
+                                        formEditCaixa.tipo_fundo === 'cartao'
+                                            ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/20 text-indigo-950 dark:text-indigo-200 shadow-sm'
+                                            : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                                        <CreditCard className="w-4 h-4 text-indigo-600" /> Cartão Corporativo
+                                    </div>
+                                    <span className="text-[10px] text-slate-500">Cartão de débito/crédito</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setFormEditCaixa(prev => ({ ...prev, tipo_fundo: 'dinheiro' }))}
+                                    className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition-all ${
+                                        formEditCaixa.tipo_fundo === 'dinheiro'
+                                            ? 'border-emerald-600 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-950 dark:text-emerald-200 shadow-sm'
+                                            : 'border-slate-200 hover:border-slate-300 text-slate-600'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                                        <Wallet className="w-4 h-4 text-emerald-600" /> Adiantamento
+                                    </div>
+                                    <span className="text-[10px] text-slate-500">Transferência de saldo</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {formEditCaixa.tipo_fundo === 'cartao' ? (
+                            <div>
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                    Cartão Corporativo Vinculado *
+                                </label>
+                                <select
+                                    value={formEditCaixa.cartao_id}
+                                    onChange={e => {
+                                        const cid = e.target.value;
+                                        const card = cartoes.find(c => c.id === cid);
+                                        setFormEditCaixa(prev => ({
+                                            ...prev,
+                                            cartao_id: cid,
+                                            id_empresa: card?.empresa_id ? String(card.empresa_id) : prev.id_empresa
+                                        }));
+                                    }}
+                                    required
+                                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                >
+                                    <option value="">Selecione o cartão...</option>
+                                    {cartoes.filter(c => c.ativo || c.id === formEditCaixa.cartao_id).map(c => (
+                                        <option key={c.id} value={c.id}>
+                                            {c.nome_cartao} — {c.empresa_nome || 'Empresa'} {c.ultimos_digitos ? `(•••• ${c.ultimos_digitos})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        ) : null}
+
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                Nome da Missão / Viagem *
+                            </label>
+                            <Input
+                                placeholder="Ex: Viagem Madri - Omar"
+                                value={formEditCaixa.nombre}
+                                onChange={e => setFormEditCaixa(prev => ({ ...prev, nombre: e.target.value }))}
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                Funcionário do Escritório Responsável *
+                            </label>
+                            <select
+                                value={formEditCaixa.trabajador_id}
+                                onChange={e => setFormEditCaixa(prev => ({ ...prev, trabajador_id: e.target.value }))}
+                                required
+                                className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                            >
+                                <option value="">Selecione o funcionário do escritório...</option>
+                                {colaboradores.map(c => (
+                                    <option key={c.id} value={c.id}>{c.nome} ({c.identificador})</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {formEditCaixa.tipo_fundo === 'dinheiro' && (
+                            <div>
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                    Empresa Pagadora / Vinculada
+                                </label>
+                                <select
+                                    value={formEditCaixa.id_empresa}
+                                    onChange={e => setFormEditCaixa(prev => ({ ...prev, id_empresa: e.target.value }))}
+                                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                >
+                                    <option value="">Selecione a empresa...</option>
+                                    {empresas.map(emp => (
+                                        <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                Status do Caixa *
+                            </label>
+                            <select
+                                value={formEditCaixa.status}
+                                onChange={e => setFormEditCaixa(prev => ({ ...prev, status: e.target.value }))}
+                                className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                            >
+                                <option value="Ativo">Ativo</option>
+                                <option value="Inativo">Inativo / Encerrado</option>
+                            </select>
+                        </div>
+
+                        <DialogFooter className="pt-2">
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                onClick={() => setIsEditCaixaOpen(false)}
+                                disabled={submitting}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button 
+                                type="submit" 
+                                disabled={submitting}
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar Alterações'}
                             </Button>
                         </DialogFooter>
                     </form>

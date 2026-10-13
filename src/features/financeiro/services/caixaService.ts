@@ -301,9 +301,9 @@ export const caixaService = {
         };
     },
 
-    // 7. Atualizar caixa (ex: ativar/desativar)
+    // 7. Atualizar caixa (ex: nome, funcionário, empresa, cartão, status)
     async updateCaixa(id: string, dados: Partial<CaixaDespesa>): Promise<any> {
-        const { trabajador, empresa, saldo, total_recargas, total_despesas, ...cleanData } = dados as any;
+        const { trabajador, empresa, saldo, total_recargas, total_despesas, cartao, ...cleanData } = dados as any;
 
         const { data, error } = await supabase
             .from('caixas_despesas')
@@ -317,6 +317,29 @@ export const caixaService = {
             throw error;
         }
         return data;
+    },
+
+    // 7.1 Excluir caixa e seus registros vinculados
+    async deleteCaixa(id: string): Promise<boolean> {
+        try {
+            // Remove registros vinculados primeiro por segurança
+            await supabase.from('caixas_despesas_registros').delete().eq('caixa_id', id);
+            await supabase.from('caixas_recargas').delete().eq('caixa_id', id);
+
+            const { error } = await supabase
+                .from('caixas_despesas')
+                .delete()
+                .eq('id', id);
+
+            if (error) {
+                console.error('Erro ao excluir caixa:', error);
+                throw error;
+            }
+            return true;
+        } catch (err) {
+            console.error('Erro no deleteCaixa:', err);
+            throw err;
+        }
     },
 
     // 8. Buscar recargas de um caixa
