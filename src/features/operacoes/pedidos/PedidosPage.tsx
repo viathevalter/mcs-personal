@@ -37,6 +37,7 @@ export function PedidosPage() {
 
   const clientOptions = useMemo(() => {
     const list = (clients || [])
+      .filter(c => c.status !== 'inactive' || c.id === filters.client_id)
       .map(c => ({
         value: c.id || '',
         label: c.trade_name || c.legal_name || ''
@@ -47,7 +48,7 @@ export function PedidosPage() {
       { value: 'all', label: t('cockpit_pedidos.all_clients') },
       ...list
     ];
-  }, [clients, t]);
+  }, [clients, filters.client_id, t]);
 
   const pedidos = data?.pedidos || [];
   const itemsMap = data?.itemsMap || {};
@@ -139,6 +140,7 @@ export function PedidosPage() {
               <SelectItem value="pending_operations">Pendente</SelectItem>
               <SelectItem value="partially_fulfilled">Parcialmente Atendido</SelectItem>
               <SelectItem value="fulfilled">Atendido</SelectItem>
+              <SelectItem value="completed">Finalizado</SelectItem>
               <SelectItem value="paused">Pausado</SelectItem>
               <SelectItem value="cancelled">Cancelado</SelectItem>
             </SelectContent>

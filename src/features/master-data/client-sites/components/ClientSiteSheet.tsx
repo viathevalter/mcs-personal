@@ -243,11 +243,13 @@ export function ClientSiteSheet({ open, onOpenChange, site, preSelectedClientId 
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {clients.map(client => (
-                          <SelectItem key={client.id} value={client.id || ''}>
-                            {client.trade_name}
-                          </SelectItem>
-                        ))}
+                        {clients
+                          .filter(c => c.status !== 'inactive' || c.id === field.value)
+                          .map(client => (
+                            <SelectItem key={client.id} value={client.id || ''}>
+                              {client.trade_name}
+                            </SelectItem>
+                          ))}
                         {clients.length === 0 && (
                           <SelectItem value="none" disabled>Nenhum cliente cadastrado</SelectItem>
                         )}

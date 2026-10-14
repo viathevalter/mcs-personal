@@ -203,6 +203,7 @@ export function NewSolicitudPage() {
 
     const clientOptions = React.useMemo(() => {
         const list = clients
+            .filter(c => c.status !== 'inactive' || c.id === selectedClientId)
             .map(c => ({
                 value: c.id || '',
                 label: c.trade_name || c.legal_name || ''
@@ -213,10 +214,11 @@ export function NewSolicitudPage() {
             { value: 'all', label: 'Todos os Clientes' },
             ...list
         ];
-    }, [clients]);
+    }, [clients, selectedClientId]);
 
     const targetClientOptions = React.useMemo(() => {
         const list = clients
+            .filter(c => c.status !== 'inactive' || c.id === targetClientId)
             .map(c => ({
                 value: c.id || '',
                 label: c.trade_name || c.legal_name || ''
@@ -227,7 +229,7 @@ export function NewSolicitudPage() {
             { value: 'all', label: 'Selecione o Cliente' },
             ...list
         ];
-    }, [clients]);
+    }, [clients, targetClientId]);
 
     const filteredDropdownPedidos = selectedClientId !== 'all' 
         ? pedidos.filter(p => {
@@ -1129,7 +1131,7 @@ export function NewSolicitudPage() {
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
         const originPedidoId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
-            ? (selectedPedidoId !== 'all' ? selectedPedidoId : null)
+            ? (selectedPedidoId !== 'all' ? selectedPedidoId : (firstAssignment?.pedido_id || null))
             : (firstAssignment?.pedido_id || null);
 
         const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
