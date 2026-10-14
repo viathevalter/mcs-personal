@@ -233,29 +233,58 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
 
         // --- PLAYBOOK TASKS LOGIC ---
         if (payload.playbook_id) {
-            const steps = await playbookStepService.listByPlaybook(payload.playbook_id);
-            const depts = await departmentService.list();
+            const schemaOps = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
+            const { data: realSteps } = await schemaOps
+                .from('playbook_steps')
+                .select('*, department:department_id(id, name, code)')
+                .eq('playbook_id', payload.playbook_id)
+                .eq('status', 'active')
+                .order('sort_order', { ascending: true });
 
-            for (const step of steps) {
-                // Calculate Due Date based on Unit
-                const slaVal = step.sla_days;
-                const unit = step.sla_unit || 'days';
-                const offsetMs = unit === 'hours' ? slaVal * 3600000 : slaVal * 86400000;
-                const dueDate = new Date(Date.now() + offsetMs).toISOString();
+            if (realSteps && realSteps.length > 0) {
+                for (let idx = 0; idx < realSteps.length; idx++) {
+                    const step = realSteps[idx];
+                    const slaVal = step.default_due_days ?? 1;
+                    const offsetMs = slaVal * 86400000;
+                    const dueDate = new Date(Date.now() + offsetMs).toISOString();
+                    const deptName = step.department?.name || 'Operações';
 
-                const deptId = depts.find(d => d.name === step.department_name)?.id;
+                    await incidentTaskService.create({
+                        incident_id: newInc.id,
+                        title: step.title,
+                        department_id: step.department_id,
+                        step_order: idx + 1,
+                        status: 'Pendente',
+                        due_at: dueDate,
+                        sla_days: slaVal
+                    } as any);
 
-                await incidentTaskService.create({
-                    incident_id: newInc.id,
-                    title: step.task_title,
-                    department_id: deptId,
-                    step_order: step.step_order,
-                    status: 'Pendente',
-                    due_at: dueDate,
-                    sla_days: slaVal
-                } as any);
+                    await notifyTaskCreated(step.title, deptName, undefined, newInc.id);
+                }
+            } else {
+                const steps = await playbookStepService.listByPlaybook(payload.playbook_id);
+                const depts = await departmentService.list();
 
-                await notifyTaskCreated(step.task_title, step.department_name, undefined, newInc.id);
+                for (const step of steps) {
+                    const slaVal = step.sla_days;
+                    const unit = step.sla_unit || 'days';
+                    const offsetMs = unit === 'hours' ? slaVal * 3600000 : slaVal * 86400000;
+                    const dueDate = new Date(Date.now() + offsetMs).toISOString();
+
+                    const deptId = depts.find(d => d.name === step.department_name)?.id;
+
+                    await incidentTaskService.create({
+                        incident_id: newInc.id,
+                        title: step.task_title,
+                        department_id: deptId,
+                        step_order: step.step_order,
+                        status: 'Pendente',
+                        due_at: dueDate,
+                        sla_days: slaVal
+                    } as any);
+
+                    await notifyTaskCreated(step.task_title, step.department_name, undefined, newInc.id);
+                }
             }
         }
     } catch (err) {
@@ -380,9 +409,44 @@ export const deleteTarefa = async (id: number | string): Promise<void> => {
     await incidentTaskService.delete(String(id));
 };
 
-// --- PLAYBOOKS ADAPTERS ---
+// --- PLAYBOOKS ADAPTERS (CONECTADO AO BANCO REAL core_operacoes.playbooks) ---
 
 export const getActivePlaybooks = async (): Promise<Playbook[]> => {
+    try {
+        const selectedEmpresaId = localStorage.getItem('mcs:selectedEmpresaId');
+        const schemaOps = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
+        let query = schemaOps
+            .from('playbooks')
+            .select('*')
+            .eq('status', 'active')
+            .order('name', { ascending: true });
+
+        if (selectedEmpresaId) {
+            query = query.eq('empresa_id', selectedEmpresaId);
+        }
+
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) {
+            const seenCodes = new Set<string>();
+            const unique = data.filter((p: any) => {
+                if (seenCodes.has(p.code)) return false;
+                seenCodes.add(p.code);
+                return true;
+            });
+            return unique.map((p: any) => ({
+                id: p.id,
+                nome: p.name,
+                tipo: p.solicitud_type,
+                ativo: p.status === 'active',
+                active: p.status === 'active',
+                descricao: p.description || '',
+                code: p.code
+            } as any));
+        }
+    } catch (e) {
+        console.warn('Fallback to mock active playbooks:', e);
+    }
+
     const pbs = await playbookService.listActive();
     return pbs.map(p => ({
         id: p.id,
@@ -394,6 +458,40 @@ export const getActivePlaybooks = async (): Promise<Playbook[]> => {
 };
 
 export const getAllPlaybooks = async (): Promise<Playbook[]> => {
+    try {
+        const selectedEmpresaId = localStorage.getItem('mcs:selectedEmpresaId');
+        const schemaOps = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
+        let query = schemaOps
+            .from('playbooks')
+            .select('*')
+            .order('name', { ascending: true });
+
+        if (selectedEmpresaId) {
+            query = query.eq('empresa_id', selectedEmpresaId);
+        }
+
+        const { data, error } = await query;
+        if (!error && data && data.length > 0) {
+            const seenCodes = new Set<string>();
+            const unique = data.filter((p: any) => {
+                if (seenCodes.has(p.code)) return false;
+                seenCodes.add(p.code);
+                return true;
+            });
+            return unique.map((p: any) => ({
+                id: p.id,
+                nome: p.name,
+                tipo: p.solicitud_type,
+                ativo: p.status === 'active',
+                descricao: p.description || '',
+                code: p.code,
+                version: 1
+            } as any));
+        }
+    } catch (e) {
+        console.warn('Fallback to mock playbooks:', e);
+    }
+
     const pbs = await playbookService.list();
     return pbs.map(p => ({
         id: p.id,
@@ -406,6 +504,29 @@ export const getAllPlaybooks = async (): Promise<Playbook[]> => {
 };
 
 export const getPlaybookTarefas = async (playbookId: string): Promise<PlaybookTarefa[]> => {
+    try {
+        const schemaOps = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
+        const { data, error } = await schemaOps
+            .from('playbook_steps')
+            .select('*, department:department_id(id, name, code)')
+            .eq('playbook_id', playbookId)
+            .eq('status', 'active')
+            .order('sort_order', { ascending: true });
+
+        if (!error && data && data.length > 0) {
+            return data.map((s: any, idx: number) => ({
+                id: s.id,
+                playbook_id: s.playbook_id,
+                ordem: idx + 1,
+                departamento: s.department?.name || 'Operações',
+                titulo: s.title,
+                sla_dias: s.default_due_days ?? 1
+            }));
+        }
+    } catch (e) {
+        console.warn('Fallback to mock playbook steps:', e);
+    }
+
     const steps = await playbookStepService.listByPlaybook(playbookId);
     return steps.map(s => ({
         id: s.id,

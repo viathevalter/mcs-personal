@@ -22,10 +22,10 @@ export function useDepartmentTasks(departmentCodes: string[]) {
           return ['LOGISTICA', 'LOGÍSTICA'];
         }
         if (upperCode === 'DOCUMENTACION' || upperCode === 'DOCUMENTACIÓN') {
-          return ['DOCUMENTACION', 'DOCUMENTACIÓN', 'CONTRATOS'];
+          return ['DOCUMENTACION', 'DOCUMENTACIÓN', 'CONTRATOS', 'SEGURIDAD_SOCIAL'];
         }
         if (upperCode === 'RH' || upperCode === 'RECURSOS_HUMANOS') {
-          return ['RH', 'RECURSOS_HUMANOS'];
+          return ['RH', 'RECURSOS_HUMANOS', 'SEGURIDAD_SOCIAL'];
         }
         return [code];
       });
