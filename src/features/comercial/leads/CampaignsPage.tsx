@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_pais_vasco_2026',
+        name: '🚀 Mailing Alex - Inéditos País Vasco (53 leads)',
+        leadCount: 53,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - País Vasco 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-14T11:20:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_pais_vasco_completo_2026',
+        name: '🎯 Mailing Alex - País Vasco Completo (138 leads)',
+        leadCount: 138,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - País Vasco 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-14T11:20:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_sevilla',
         name: '🚀 Mailing Alex - Inéditos Sevilla (216 leads)',
         leadCount: 216,
