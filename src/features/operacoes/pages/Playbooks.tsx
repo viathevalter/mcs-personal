@@ -154,7 +154,7 @@ export const Playbooks: React.FC = () => {
 
     useEffect(() => {
         if (selectedPlaybook) {
-            loadSteps(selectedPlaybook.id);
+            loadSteps(selectedPlaybook.id, departments);
             setEditedPlaybook(selectedPlaybook);
             setIsEditingPlaybook(false);
             setDeptFilter('ALL');
@@ -213,7 +213,9 @@ export const Playbooks: React.FC = () => {
             if (mappedPbs.length > 0) {
                 const targetCode = preservePlaybookCode || selectedPlaybook?.code;
                 const matched = targetCode ? mappedPbs.find(p => p.code === targetCode) : null;
-                setSelectedPlaybook(matched || mappedPbs[0]);
+                const nextPb = matched || mappedPbs[0];
+                setSelectedPlaybook(nextPb);
+                await loadSteps(nextPb.id, loadedDepts);
             } else {
                 setSelectedPlaybook(null);
             }
@@ -225,18 +227,37 @@ export const Playbooks: React.FC = () => {
         }
     };
 
-    const loadSteps = async (playbookId: string) => {
+    const loadSteps = async (playbookId: string, deptsList: DbDepartment[] = departments) => {
         try {
             const { data, error } = await supabase
                 .schema('core_operacoes')
                 .from('playbook_steps')
-                .select('*, department:department_id(id, code, name)')
+                .select('*')
                 .eq('playbook_id', playbookId)
                 .eq('status', 'active')
                 .order('sort_order', { ascending: true });
 
             if (error) throw error;
-            setSteps((data || []) as DbPlaybookStep[]);
+
+            let activeDepts = deptsList;
+            if (!activeDepts || activeDepts.length === 0) {
+                const { data: dData } = await supabase
+                    .schema('core_common')
+                    .from('departments')
+                    .select('*');
+                activeDepts = (dData || []) as DbDepartment[];
+            }
+            const deptMap = new Map(activeDepts.map(d => [d.id, d]));
+
+            const enriched = (data || []).map((s: any) => {
+                const dept = deptMap.get(s.department_id);
+                return {
+                    ...s,
+                    department: dept ? { id: dept.id, code: dept.code, name: dept.name } : undefined,
+                };
+            });
+
+            setSteps(enriched as DbPlaybookStep[]);
         } catch (err: any) {
             console.error('Erro ao carregar tarefas do playbook:', err);
             toast.error('Erro ao carregar tarefas do playbook', { description: err.message });

@@ -234,20 +234,24 @@ export const createIncidencia = async (payload: any): Promise<Incidencia | null>
         // --- PLAYBOOK TASKS LOGIC ---
         if (payload.playbook_id) {
             const schemaOps = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
-            const { data: realSteps } = await schemaOps
-                .from('playbook_steps')
-                .select('*, department:department_id(id, name, code)')
-                .eq('playbook_id', payload.playbook_id)
-                .eq('status', 'active')
-                .order('sort_order', { ascending: true });
+            const [{ data: realSteps }, depts] = await Promise.all([
+                schemaOps
+                    .from('playbook_steps')
+                    .select('*')
+                    .eq('playbook_id', payload.playbook_id)
+                    .eq('status', 'active')
+                    .order('sort_order', { ascending: true }),
+                departmentService.list(),
+            ]);
 
             if (realSteps && realSteps.length > 0) {
+                const deptMap = new Map(depts.map(d => [d.id, d.name]));
                 for (let idx = 0; idx < realSteps.length; idx++) {
                     const step = realSteps[idx];
                     const slaVal = step.default_due_days ?? 1;
                     const offsetMs = slaVal * 86400000;
                     const dueDate = new Date(Date.now() + offsetMs).toISOString();
-                    const deptName = step.department?.name || 'Operações';
+                    const deptName = deptMap.get(step.department_id) || 'Operações';
 
                     await incidentTaskService.create({
                         incident_id: newInc.id,
@@ -506,19 +510,23 @@ export const getAllPlaybooks = async (): Promise<Playbook[]> => {
 export const getPlaybookTarefas = async (playbookId: string): Promise<PlaybookTarefa[]> => {
     try {
         const schemaOps = (supabase as any).schema ? (supabase as any).schema('core_operacoes') : supabase;
-        const { data, error } = await schemaOps
-            .from('playbook_steps')
-            .select('*, department:department_id(id, name, code)')
-            .eq('playbook_id', playbookId)
-            .eq('status', 'active')
-            .order('sort_order', { ascending: true });
+        const [{ data, error }, depts] = await Promise.all([
+            schemaOps
+                .from('playbook_steps')
+                .select('*')
+                .eq('playbook_id', playbookId)
+                .eq('status', 'active')
+                .order('sort_order', { ascending: true }),
+            departmentService.list(),
+        ]);
 
         if (!error && data && data.length > 0) {
+            const deptMap = new Map(depts.map(d => [d.id, d.name]));
             return data.map((s: any, idx: number) => ({
                 id: s.id,
                 playbook_id: s.playbook_id,
                 ordem: idx + 1,
-                departamento: s.department?.name || 'Operações',
+                departamento: deptMap.get(s.department_id) || 'Operações',
                 titulo: s.title,
                 sla_dias: s.default_due_days ?? 1
             }));
