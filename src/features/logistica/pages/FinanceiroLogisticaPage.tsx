@@ -295,11 +295,21 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     setObraCentroCusto(`Obra ${aloj.municipio || aloj.provincia || 'Principal'}`);
 
     const prov = provedores.find(p => p.id === aloj.provedor_id);
+    const contMetodo = (aloj as any).contrato?.metodo_pago || prov?.metodo_pago || '';
+    const hasIban = !!((aloj as any).contrato?.iban || prov?.iban);
+    const isTemporal = aloj.tipo_alojamento === 'Temporal' || ((aloj as any).contrato?.tipo_contrato || '').includes('Temporario');
+
     if (prov) {
       setProvedorNome(prov.nome_razao_social || '');
       setIbanCobranca(prov.iban || '');
       setBancoCobranca(prov.banco || '');
       setTitularCobranca(prov.titular_conta || prov.nome_razao_social || '');
+    }
+
+    if (contMetodo.toLowerCase().includes('tarjeta') || (isTemporal && !hasIban)) {
+      setFormaPagamento('Tarjeta de Empresa');
+    } else {
+      setFormaPagamento('Transferência Bancária');
     }
 
     if (tipoGasto === 'Aluguel' && (aloj.custo_mensal_total || aloj.valor_mensal)) {
@@ -1285,15 +1295,21 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     <td className="px-4 py-3.5">
                       <p className="font-bold text-slate-800 dark:text-slate-200">{op.provedor_nome || 'Logística / Proveedor'}</p>
                       <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                        {op.forma_pagamento && (
+                        {op.forma_pagamento ? (
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold ${
-                            op.forma_pagamento.toLowerCase().includes('reserva') || op.forma_pagamento.toLowerCase().includes('cart')
+                            op.forma_pagamento.toLowerCase().includes('reserva') ||
+                            op.forma_pagamento.toLowerCase().includes('cart') ||
+                            op.forma_pagamento.toLowerCase().includes('tarjeta')
                               ? 'bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800'
                               : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                           }`}>
                             💳 {op.forma_pagamento}
                           </span>
-                        )}
+                        ) : !op.iban_cobranca && op.observacoes?.toLowerCase().includes('tarjeta') ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                            💳 Tarjeta de Empresa
+                          </span>
+                        ) : null}
                         {op.iban_cobranca ? (
                           <div className="flex items-center gap-1">
                             <span className="font-mono text-[10px] text-slate-500">
@@ -1980,18 +1996,19 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
                     required
                   >
-                    <option value="Cartão de Reserva / Corporativo">💳 Tarjeta de Reserva / Corporativa (Pagado en el acto)</option>
+                    <option value="Tarjeta de Empresa">💳 Tarjeta de Empresa (Airbnb / Booking / Hotel)</option>
+                    <option value="Cartão de Reserva / Corporativo">💳 Tarjeta de Reserva / Corporativa (Viajes / Billetes)</option>
                     <option value="Transferência Bancária">🏦 Transferencia Bancaria (A pagar por Tesorería)</option>
                   </select>
                 </div>
               </div>
 
-              {/* Informação sobre Cartão de Reserva */}
-              {formaPagamento.includes('Reserva') && (
+              {/* Informação sobre Cartão de Empresa / Reserva */}
+              {(formaPagamento.includes('Reserva') || formaPagamento.includes('Tarjeta')) && (
                 <div className="p-3 bg-purple-50 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800/60 text-purple-900 dark:text-purple-200 flex items-start gap-2.5">
                   <CreditCard size={16} className="text-purple-600 mt-0.5 flex-shrink-0" />
                   <p className="text-[11px] leading-relaxed">
-                    <strong>Liquidado con Tarjeta de Reserva:</strong> La compra fue agilizada y pagada directamente por el departamento de Logística. Se enviará a Finanzas para conciliación bancaria y aprobación del cargo corporativo.
+                    <strong>Pago mediante Tarjeta de Empresa / Corporativa:</strong> No requiere IBAN ni transferencia bancaria. Se enviará a Finanzas identificando que el pago se procesa con tarjeta de empresa (Airbnb / Booking / Hotel / Billetes).
                   </p>
                 </div>
               )}
@@ -2043,13 +2060,13 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
               {/* Proveedor / Compañía e IBAN */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
+                <div className={formaPagamento.includes('Reserva') || formaPagamento.includes('Tarjeta') ? 'sm:col-span-2 space-y-1' : 'space-y-1'}>
                   <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Proveedor / Empresa Emitente <span className="text-red-500">*</span>
+                    Proveedor / Plataforma / Establecimiento <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: Iberia, Ryanair, Renfe, Booking, Arrendador..."
+                    placeholder="Ej: Airbnb, Booking, Hotel, Iberia, Renfe, Arrendador..."
                     value={provedorNome}
                     onChange={e => setProvedorNome(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
@@ -2057,18 +2074,20 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-slate-300">
-                    IBAN / Cuenta Bancaria {formaPagamento.includes('Reserva') ? '(Opcional)' : ''}
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="ES00 0000 0000 0000 0000 0000"
-                    value={ibanCobranca}
-                    onChange={e => setIbanCobranca(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none font-mono"
-                  />
-                </div>
+                {!(formaPagamento.includes('Reserva') || formaPagamento.includes('Tarjeta')) && (
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300">
+                      IBAN / Cuenta Bancaria
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="ES00 0000 0000 0000 0000 0000"
+                      value={ibanCobranca}
+                      onChange={e => setIbanCobranca(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none font-mono"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Centros de Costo (Cliente & Obra) */}

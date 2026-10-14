@@ -930,6 +930,10 @@ export const ContratosList: React.FC = () => {
                                   {copiedIban === c.iban_cobranca ? '✓' : 'Copiar'}
                                 </button>
                               </div>
+                            ) : c.metodo_pago?.toLowerCase().includes('tarjeta') || c.metodo_pago === 'Plataforma' || c.tipo_contrato?.includes('Temporario') || c.tipo_contrato?.includes('Temporal') ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                                💳 Tarjeta de Empresa
+                              </span>
                             ) : (
                               <span className="text-[10px] text-slate-400 italic">Sin IBAN</span>
                             )}

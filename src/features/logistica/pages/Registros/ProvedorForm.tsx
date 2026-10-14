@@ -617,7 +617,7 @@ export const ProvedorForm: React.FC = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
               <CreditCard className="h-4.5 w-4.5 text-blue-600" />
-              Datos Bancarios para Pago de Alquiler
+              Datos Bancarios / Método de Pago de Alquiler
             </h3>
             <button
               type="button"
@@ -625,71 +625,111 @@ export const ProvedorForm: React.FC = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors"
             >
               <Plus size={14} />
-              Añadir Cuenta Bancaria
+              Añadir Método / Cuenta
             </button>
           </div>
 
           <div className="space-y-3">
-            {bancoFields.map((field, index) => (
-              <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Cuenta #{index + 1}</span>
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="principal_banco"
-                        checked={watchedDadosBancarios?.[index]?.principal || false}
-                        onChange={() => handleSetPrincipalBanco(index)}
-                        className="text-blue-600"
-                      />
-                      Cuenta Principal
-                    </label>
-                    {bancoFields.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeBanco(index)}
-                        className="p-1 text-rose-500 hover:bg-rose-50 rounded"
-                        title="Eliminar cuenta"
+            {bancoFields.map((field, index) => {
+              const metodoAtual = watchedDadosBancarios?.[index]?.metodo_pago || 'Transferir';
+              const isTarjeta = metodoAtual.includes('Tarjeta') || metodoAtual === 'Plataforma';
+
+              return (
+                <div key={field.id} className="p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Método / Cuenta #{index + 1}</span>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="principal_banco"
+                          checked={watchedDadosBancarios?.[index]?.principal || false}
+                          onChange={() => handleSetPrincipalBanco(index)}
+                          className="text-blue-600"
+                        />
+                        Principal
+                      </label>
+                      {bancoFields.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeBanco(index)}
+                          className="p-1 text-rose-500 hover:bg-rose-50 rounded"
+                          title="Eliminar cuenta"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Método de Pago</label>
+                      <select
+                        {...register(`dados_bancarios.${index}.metodo_pago`)}
+                        className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
                       >
-                        <Trash2 size={14} />
-                      </button>
+                        <option value="Transferir">🏦 Transferencia Bancaria</option>
+                        <option value="Tarjeta de Empresa">💳 Tarjeta de Empresa</option>
+                        <option value="Bizum">📱 Bizum</option>
+                        <option value="Efectivo">💵 Efectivo</option>
+                      </select>
+                    </div>
+
+                    {isTarjeta ? (
+                      <>
+                        <div className="sm:col-span-2 flex items-center p-2.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/70 rounded-lg text-[11px] text-purple-800 dark:text-purple-200 gap-2">
+                          <CreditCard size={15} className="text-purple-600 flex-shrink-0" />
+                          <span>
+                            <strong>Pago con Tarjeta de Empresa:</strong> Sin IBAN ni transferencia bancaria (Airbnb / Booking / Hotel).
+                          </span>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Plataforma / Establecimiento</label>
+                          <input
+                            type="text"
+                            {...register(`dados_bancarios.${index}.titular_conta`)}
+                            className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                            placeholder="Ej: Airbnb / Booking / Hotel"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">IBAN</label>
+                          <input
+                            type="text"
+                            {...register(`dados_bancarios.${index}.iban`)}
+                            onChange={e => handleIbanChange(index, e.target.value)}
+                            className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                            placeholder="ES91 2100 0418 4502 0005 1332"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Banco</label>
+                          <input
+                            type="text"
+                            {...register(`dados_bancarios.${index}.banco`)}
+                            className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                            placeholder="Ej: CaixaBank"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Titular de la Cuenta</label>
+                          <input
+                            type="text"
+                            {...register(`dados_bancarios.${index}.titular_conta`)}
+                            className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                            placeholder="Ej: PRUJA FORNIELES PARES SL"
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">IBAN *</label>
-                    <input
-                      type="text"
-                      {...register(`dados_bancarios.${index}.iban`)}
-                      onChange={e => handleIbanChange(index, e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
-                      placeholder="ES91 2100 0418 4502 0005 1332"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Banco</label>
-                    <input
-                      type="text"
-                      {...register(`dados_bancarios.${index}.banco`)}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="Ej: CaixaBank"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">Titular de la Cuenta</label>
-                    <input
-                      type="text"
-                      {...register(`dados_bancarios.${index}.titular_conta`)}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="Ej: PRUJA FORNIELES PARES SL"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </form>

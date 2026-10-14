@@ -212,6 +212,8 @@ export const AlojamentoForm: React.FC = () => {
   const watchedCapacidadePessoas = useWatch({ control, name: 'capacidade_pessoas' });
   const watchedValorMensal = useWatch({ control, name: 'valor_mensal' });
   const watchedFianzaMeses = useWatch({ control, name: 'fianza_meses' });
+  const watchedMetodoPago = useWatch({ control, name: 'metodo_pago' });
+  const watchedTipoAlojamento = useWatch({ control, name: 'tipo_alojamento' });
 
   // Comodidades Watch
   const watchedWifi = useWatch({ control, name: 'wifi' });
@@ -378,6 +380,19 @@ export const AlojamentoForm: React.FC = () => {
     }
   }, [watchedTipoContrato, watchedValorPorPessoa, watchedCapacidadePessoas, setValue]);
 
+  // SMART CALC 3: Quando for Temporal (Hotel / Airbnb / Booking), sugerir automaticamente Tarjeta de Empresa
+  useEffect(() => {
+    const isTemporal = watchedTipoAlojamento === 'Temporal' || watchedTipoContrato?.includes('Temporario');
+    if (isTemporal) {
+      const currentIban = getValues('iban');
+      const currentMetodo = getValues('metodo_pago');
+      if (!currentIban && (!currentMetodo || currentMetodo === 'Transferir')) {
+        setValue('metodo_pago', 'Tarjeta de Empresa', { shouldDirty: true });
+        setValue('tem_fianza', false, { shouldDirty: true });
+      }
+    }
+  }, [watchedTipoAlojamento, watchedTipoContrato, getValues, setValue]);
+
   // Quando o usuário seleciona um provedor, auto-preenche o título, código GLOBAL, endereço e dados bancários
   const handleProvedorChange = (provId: string) => {
     setValue('provedor_id', provId, { shouldDirty: true });
@@ -404,11 +419,15 @@ export const AlojamentoForm: React.FC = () => {
 
       // Auto-preenche dados bancários
       const principalBanco = prov.dados_bancarios?.find(b => b.principal) || prov.dados_bancarios?.[0];
+      const provIban = principalBanco?.iban || prov.iban || '';
+      const isTemporal = getValues('tipo_alojamento') === 'Temporal' || getValues('tipo_contrato')?.includes('Temporario');
+      const defaultMetodo = principalBanco?.metodo_pago || prov.metodo_pago || (isTemporal && !provIban ? 'Tarjeta de Empresa' : 'Transferir');
+
       setValue('banco', principalBanco?.banco || prov.banco || '', { shouldDirty: true });
-      setValue('iban', principalBanco?.iban || prov.iban || '', { shouldDirty: true });
+      setValue('iban', provIban, { shouldDirty: true });
       setValue('swift', principalBanco?.swift || prov.swift || '', { shouldDirty: true });
       setValue('titular_conta', principalBanco?.titular_conta || prov.titular_conta || prov.nome_razao_social, { shouldDirty: true });
-      setValue('metodo_pago', principalBanco?.metodo_pago || prov.metodo_pago || 'Transferir', { shouldDirty: true });
+      setValue('metodo_pago', defaultMetodo === 'Tarjeta' ? 'Tarjeta de Empresa' : defaultMetodo, { shouldDirty: true });
     }
   };
 
@@ -473,7 +492,16 @@ export const AlojamentoForm: React.FC = () => {
             tem_fianza: cont.tem_fianza ?? (Number(cont.fianza_valor) > 0),
             fianza_valor: cont.fianza_valor || 0,
             fianza_meses: cont.fianza_meses || 0,
-            metodo_pago: cont.metodo_pago || a.provedor?.metodo_pago || 'Transferir',
+            metodo_pago: (() => {
+              const rawMetodo = cont.metodo_pago || a.provedor?.metodo_pago;
+              if (rawMetodo === 'Tarjeta') return 'Tarjeta de Empresa';
+              const hasIban = !!(cont.iban || a.provedor?.iban);
+              const isTemp = a.tipo_alojamento === 'Temporal' || (cont.tipo_contrato || '').includes('Temporario');
+              if (isTemp && !hasIban && (!rawMetodo || rawMetodo === 'Transferir')) {
+                return 'Tarjeta de Empresa';
+              }
+              return rawMetodo || 'Transferir';
+            })(),
             banco: cont.banco || a.provedor?.banco || '',
             iban: cont.iban || a.provedor?.iban || '',
             swift: cont.swift || a.provedor?.swift || '',
@@ -1374,58 +1402,87 @@ export const AlojamentoForm: React.FC = () => {
                 <CreditCard size={13} />
                 Datos Bancarios (Proveedor)
               </span>
-              <div className="space-y-1.5 text-xs">
+              <div className="space-y-2 text-xs">
                 <div>
                   <label className="block text-[10px] text-slate-500 font-semibold mb-1">Método de Pago</label>
                   <select
                     {...register('metodo_pago')}
-                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold"
                   >
-                    <option value="Transferir">Transferencia Bancaria</option>
-                    <option value="Tarjeta">Tarjeta (Airbnb / Booking)</option>
-                    <option value="Bizum">Bizum</option>
-                    <option value="Efectivo">Efectivo</option>
-                    <option value="Plataforma">Plataforma Online</option>
+                    <option value="Transferir">🏦 Transferencia Bancaria (IBAN)</option>
+                    <option value="Tarjeta de Empresa">💳 Tarjeta de Empresa (Airbnb / Booking / Hotel)</option>
+                    <option value="Tarjeta">💳 Tarjeta de Empresa (Airbnb / Booking)</option>
+                    <option value="Bizum">📱 Bizum</option>
+                    <option value="Efectivo">💵 Efectivo</option>
+                    <option value="Plataforma">🌐 Plataforma Online</option>
                   </select>
                 </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">Banco</span>
-                  <input
-                    type="text"
-                    {...register('banco')}
-                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                    placeholder="Nombre del Banco"
-                  />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 block font-semibold">IBAN</span>
-                  <input
-                    type="text"
-                    {...register('iban')}
-                    className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
-                    placeholder="ES91 2100..."
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-semibold">SWIFT</span>
-                    <input
-                      type="text"
-                      {...register('swift')}
-                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
-                      placeholder="SWIFT/BIC"
-                    />
+
+                {watchedMetodoPago?.includes('Tarjeta') || watchedMetodoPago === 'Plataforma' ? (
+                  <div className="space-y-2 pt-1 animate-in fade-in duration-150">
+                    <div className="p-2.5 bg-purple-100/70 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800/80 rounded-lg space-y-1">
+                      <div className="flex items-center gap-1.5 font-bold text-[11px] text-purple-900 dark:text-purple-200">
+                        <CreditCard size={13} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                        <span>Pago con Tarjeta de Empresa</span>
+                      </div>
+                      <p className="text-[10px] text-purple-800 dark:text-purple-300 leading-relaxed">
+                        No requiere IBAN ni transferencia bancaria. Finanzas identificará que el pago se realiza mediante tarjeta corporativa o plataforma (Airbnb / Booking / Hotel).
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 block font-semibold mb-0.5">
+                        Plataforma / Establecimiento (Opcional)
+                      </span>
+                      <input
+                        type="text"
+                        {...register('titular_conta')}
+                        className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                        placeholder="Ej: Airbnb / Booking.com / Recepción Hotel"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-semibold">Titular</span>
-                    <input
-                      type="text"
-                      {...register('titular_conta')}
-                      className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
-                      placeholder="Titular"
-                    />
+                ) : (
+                  <div className="space-y-1.5 animate-in fade-in duration-150">
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">Banco</span>
+                      <input
+                        type="text"
+                        {...register('banco')}
+                        className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                        placeholder="Nombre del Banco"
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 block font-semibold">IBAN</span>
+                      <input
+                        type="text"
+                        {...register('iban')}
+                        className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                        placeholder="ES91 2100..."
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-semibold">SWIFT</span>
+                        <input
+                          type="text"
+                          {...register('swift')}
+                          className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono uppercase"
+                          placeholder="SWIFT/BIC"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-semibold">Titular</span>
+                        <input
+                          type="text"
+                          {...register('titular_conta')}
+                          className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs"
+                          placeholder="Titular"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           </div>

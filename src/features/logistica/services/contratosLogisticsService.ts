@@ -302,7 +302,16 @@ export const contratosLogisticsService = {
           fianza_detalhes: fianzaDetalhes,
           renovacao_automatica: cont.renovacao_automatica ?? true,
           aviso_rescisao_dias: cont.aviso_renovacao_dias || 5,
-          metodo_pago: cont.metodo_pago || prov?.metodo_pago || 'Transferir',
+          metodo_pago: (() => {
+            const rawMetodo = cont.metodo_pago || prov?.metodo_pago;
+            if (rawMetodo === 'Tarjeta') return 'Tarjeta de Empresa';
+            const hasIban = !!(cont.iban || prov?.iban);
+            const isTemp = a.tipo_alojamento === 'Temporal' || tipoContrato.includes('Temporario') || tipoContrato.includes('Temporal');
+            if (isTemp && !hasIban && (!rawMetodo || rawMetodo === 'Transferir')) {
+              return 'Tarjeta de Empresa';
+            }
+            return rawMetodo || 'Transferir';
+          })(),
           banco: cont.banco || prov?.banco || '',
           iban_cobranca: cont.iban || prov?.iban || '',
           swift: cont.swift || prov?.swift || '',

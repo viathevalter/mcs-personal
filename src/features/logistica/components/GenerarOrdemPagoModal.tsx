@@ -77,6 +77,12 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
   const [titular, setTitular] = useState<string>(contrato.titular || contrato.provedor_nome || '');
   const [iban, setIban] = useState<string>(contrato.iban_cobranca || '');
   const [banco, setBanco] = useState<string>(contrato.banco || '');
+  const [formaPagamento, setFormaPagamento] = useState<string>(() => {
+    const isCard = contrato.metodo_pago?.toLowerCase().includes('tarjeta') ||
+      contrato.metodo_pago === 'Plataforma' ||
+      (!contrato.iban_cobranca && (contrato.tipo_contrato?.includes('Temporario') || contrato.tipo_contrato?.includes('Temporal')));
+    return isCard ? 'Tarjeta de Empresa' : 'Transferencia Bancaria';
+  });
   const [observacoes, setObservacoes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -97,8 +103,13 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
       setIban(contrato.iban_cobranca || '');
       setBanco(contrato.banco || '');
 
+      const isCard = contrato.metodo_pago?.toLowerCase().includes('tarjeta') ||
+        contrato.metodo_pago === 'Plataforma' ||
+        (!contrato.iban_cobranca && (contrato.tipo_contrato?.includes('Temporario') || contrato.tipo_contrato?.includes('Temporal')));
+      setFormaPagamento(isCard ? 'Tarjeta de Empresa' : 'Transferencia Bancaria');
+
       setObservacoes(
-        `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome}) - ${contrato.tipo_contrato} - Competencia: ${d.competencia}`
+        `Alquiler mensual del contrato ${contrato.codigo} (${contrato.alojamento_nome}) - ${contrato.tipo_contrato}${isCard ? ' [Pago vía Tarjeta de Empresa]' : ''} - Competencia: ${d.competencia}`
       );
 
       // Carregar ocupantes dinâmicos atuais do imóvel
@@ -139,6 +150,7 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
     try {
       setIsSubmitting(true);
 
+      const isCard = formaPagamento.toLowerCase().includes('tarjeta');
       const payload = {
         contrato_id: contrato.codigo,
         alojamento_id: contrato.alojamento_id,
@@ -146,12 +158,13 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
         alojamento_codigo: contrato.alojamento?.codigo,
         provedor_id: contrato.provedor_id,
         provedor_nome: provedorNome,
-        iban_cobranca: iban,
-        banco,
+        iban_cobranca: isCard ? '' : iban,
+        banco: isCard ? '' : banco,
         titular,
         centro_custo_cliente: clienteCC,
         centro_custo_obra: obraCC,
         tipo_pago: tipoPago,
+        forma_pagamento: formaPagamento,
         valor: Number(valor),
         data_vencimento: dataVencimento,
         periodo_competencia: competencia,
@@ -330,10 +343,20 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
 
           {/* Dados Bancários & Provedor */}
           <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 bg-white dark:bg-slate-900/60">
-            <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-              <CreditCard size={14} className="text-emerald-600" />
-              Beneficiario y Datos Bancarios
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                <CreditCard size={14} className="text-emerald-600" />
+                Beneficiario y Método de Pago
+              </span>
+              <select
+                value={formaPagamento}
+                onChange={e => setFormaPagamento(e.target.value)}
+                className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200 outline-none"
+              >
+                <option value="Transferencia Bancaria">🏦 Transferencia Bancaria (IBAN)</option>
+                <option value="Tarjeta de Empresa">💳 Tarjeta de Empresa (Airbnb / Booking / Hotel)</option>
+              </select>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Proveedor / Propietario</label>
@@ -345,24 +368,36 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">Titular de la Cuenta</label>
+                <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">
+                  {formaPagamento.toLowerCase().includes('tarjeta') ? 'Plataforma / Establecimiento' : 'Titular de la Cuenta'}
+                </label>
                 <input
                   type="text"
                   value={titular}
                   onChange={e => setTitular(e.target.value)}
+                  placeholder={formaPagamento.toLowerCase().includes('tarjeta') ? 'Ej: Airbnb / Booking / Hotel' : ''}
                   className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">IBAN de Cobro</label>
-                <input
-                  type="text"
-                  value={iban}
-                  onChange={e => setIban(e.target.value)}
-                  placeholder="ESXX XXXX XXXX XXXX XXXX"
-                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-xs font-bold text-slate-800 dark:text-slate-200 outline-none tracking-wider"
-                />
-              </div>
+              {formaPagamento.toLowerCase().includes('tarjeta') ? (
+                <div className="sm:col-span-2 p-2.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/70 rounded-xl flex items-center gap-2 text-purple-900 dark:text-purple-200 text-[11px]">
+                  <CreditCard size={15} className="text-purple-600 flex-shrink-0" />
+                  <span>
+                    <strong>Pago mediante Tarjeta de Empresa:</strong> No requiere IBAN ni transferencia bancaria. Finanzas procesará la orden como pago con tarjeta corporativa.
+                  </span>
+                </div>
+              ) : (
+                <div className="sm:col-span-2">
+                  <label className="block text-[10px] text-slate-500 uppercase font-bold mb-1">IBAN de Cobro</label>
+                  <input
+                    type="text"
+                    value={iban}
+                    onChange={e => setIban(e.target.value)}
+                    placeholder="ESXX XXXX XXXX XXXX XXXX"
+                    className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-xs font-bold text-slate-800 dark:text-slate-200 outline-none tracking-wider"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

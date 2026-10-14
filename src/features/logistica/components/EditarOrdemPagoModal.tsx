@@ -22,6 +22,9 @@ export const EditarOrdemPagoModal: React.FC<EditarOrdemPagoModalProps> = ({
   const [dataVencimento, setDataVencimento] = useState<string>(op.data_vencimento || '');
   const [competencia, setCompetencia] = useState<string>(op.periodo_competencia || '');
   const [provedorNome, setProvedorNome] = useState<string>(op.provedor_nome || '');
+  const [formaPagamento, setFormaPagamento] = useState<string>(
+    op.forma_pagamento || (op.observacoes?.toLowerCase().includes('tarjeta') ? 'Tarjeta de Empresa' : 'Transferencia Bancaria')
+  );
   const [iban, setIban] = useState<string>(op.iban_cobranca || '');
   const [banco, setBanco] = useState<string>(op.banco || '');
   const [titular, setTitular] = useState<string>(op.titular || '');
@@ -36,6 +39,9 @@ export const EditarOrdemPagoModal: React.FC<EditarOrdemPagoModalProps> = ({
       setDataVencimento(op.data_vencimento || '');
       setCompetencia(op.periodo_competencia || '');
       setProvedorNome(op.provedor_nome || '');
+      setFormaPagamento(
+        op.forma_pagamento || (op.observacoes?.toLowerCase().includes('tarjeta') ? 'Tarjeta de Empresa' : 'Transferencia Bancaria')
+      );
       setIban(op.iban_cobranca || '');
       setBanco(op.banco || '');
       setTitular(op.titular || '');
@@ -54,13 +60,15 @@ export const EditarOrdemPagoModal: React.FC<EditarOrdemPagoModalProps> = ({
 
     try {
       setIsSaving(true);
+      const isCard = formaPagamento.toLowerCase().includes('tarjeta') || formaPagamento.toLowerCase().includes('reserva');
       await financeLogisticsService.atualizarOrdemPagamento(op.id, {
         valor,
         data_vencimento: dataVencimento,
         periodo_competencia: competencia,
         provedor_nome: provedorNome,
-        iban_cobranca: iban,
-        banco,
+        forma_pagamento: formaPagamento,
+        iban_cobranca: isCard ? '' : iban,
+        banco: isCard ? '' : banco,
         titular,
         centro_custo_cliente: clienteCC,
         centro_custo_obra: obraCC,
@@ -168,52 +176,89 @@ export const EditarOrdemPagoModal: React.FC<EditarOrdemPagoModalProps> = ({
             </div>
           </div>
 
-          {/* Dados Bancários */}
+          {/* Dados Bancários / Método de Pago */}
           <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3">
-            <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 text-[11px] uppercase tracking-wider">
-              <CreditCard size={13} className="text-emerald-500" />
-              Datos Bancarios
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2 space-y-1">
-                <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
-                  IBAN
-                </label>
-                <input
-                  type="text"
-                  value={iban}
-                  onChange={e => setIban(e.target.value)}
-                  placeholder="ESXX..."
-                  className="w-full px-2.5 py-1.5 font-mono text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
-                  Banco
-                </label>
-                <input
-                  type="text"
-                  value={banco}
-                  onChange={e => setBanco(e.target.value)}
-                  placeholder="Santander, BBVA..."
-                  className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                />
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1 text-[11px] uppercase tracking-wider">
+                <CreditCard size={13} className="text-emerald-500" />
+                Método de Pago y Datos Bancarios
+              </span>
+              <select
+                value={formaPagamento}
+                onChange={e => setFormaPagamento(e.target.value)}
+                className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[11px] font-bold text-slate-800 dark:text-slate-200"
+              >
+                <option value="Transferencia Bancaria">🏦 Transferencia Bancaria</option>
+                <option value="Tarjeta de Empresa">💳 Tarjeta de Empresa</option>
+                <option value="Cartão de Reserva / Corporativo">💳 Tarjeta de Reserva / Corporativa</option>
+              </select>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
-                Titular de la Cuenta
-              </label>
-              <input
-                type="text"
-                value={titular}
-                onChange={e => setTitular(e.target.value)}
-                placeholder="Nombre del beneficiario"
-                className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-              />
-            </div>
+            {formaPagamento.toLowerCase().includes('tarjeta') || formaPagamento.toLowerCase().includes('reserva') ? (
+              <div className="space-y-2">
+                <div className="p-2.5 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/70 rounded-xl flex items-center gap-2 text-purple-900 dark:text-purple-200 text-[11px]">
+                  <CreditCard size={14} className="text-purple-600 flex-shrink-0" />
+                  <span>
+                    <strong>Pago con Tarjeta de Empresa:</strong> No requiere IBAN ni transferencia bancaria.
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
+                    Plataforma / Establecimiento (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={titular}
+                    onChange={e => setTitular(e.target.value)}
+                    placeholder="Ej: Airbnb / Booking / Hotel"
+                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
+                      IBAN
+                    </label>
+                    <input
+                      type="text"
+                      value={iban}
+                      onChange={e => setIban(e.target.value)}
+                      placeholder="ESXX..."
+                      className="w-full px-2.5 py-1.5 font-mono text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
+                      Banco
+                    </label>
+                    <input
+                      type="text"
+                      value={banco}
+                      onChange={e => setBanco(e.target.value)}
+                      placeholder="Santander, BBVA..."
+                      className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-600 dark:text-slate-400 text-[10px]">
+                    Titular de la Cuenta
+                  </label>
+                  <input
+                    type="text"
+                    value={titular}
+                    onChange={e => setTitular(e.target.value)}
+                    placeholder="Nombre del beneficiario"
+                    className="w-full px-2.5 py-1.5 text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Centros de Coste */}

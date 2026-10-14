@@ -725,6 +725,7 @@ export const financeLogisticsService = {
       data_vencimento?: string;
       periodo_competencia?: string;
       provedor_nome?: string;
+      forma_pagamento?: string;
       iban_cobranca?: string;
       banco?: string;
       titular?: string;
@@ -741,13 +742,15 @@ export const financeLogisticsService = {
     if (updates.valor !== undefined) updateObj.valor = updates.valor;
     if (updates.data_vencimento) updateObj.data_vencimento = updates.data_vencimento;
     if (updates.provedor_nome) updateObj.cod_provedor = updates.provedor_nome;
+    if (updates.forma_pagamento !== undefined) updateObj.forma_pagamento = updates.forma_pagamento || null;
 
     if (updates.centro_custo_cliente || updates.centro_custo_obra) {
       updateObj.centro_custos = `${updates.centro_custo_cliente || ''} / ${updates.centro_custo_obra || ''}`;
     }
 
-    if (updates.observacoes !== undefined || updates.iban_cobranca || updates.periodo_competencia) {
+    if (updates.observacoes !== undefined || updates.iban_cobranca || updates.periodo_competencia || updates.forma_pagamento) {
       const obsLines: string[] = [];
+      if (updates.forma_pagamento) obsLines.push(`Forma de Pago: ${updates.forma_pagamento}`);
       if (updates.iban_cobranca) obsLines.push(`IBAN: ${updates.iban_cobranca}`);
       if (updates.banco) obsLines.push(`Banco: ${updates.banco}`);
       if (updates.titular) obsLines.push(`Titular: ${updates.titular}`);
