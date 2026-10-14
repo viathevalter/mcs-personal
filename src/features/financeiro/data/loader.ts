@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
-import { parseEuroNumber, parseDate, normalizeEmpresaName } from '../lib/utils';
+import { parseEuroNumber, parseDate, normalizeEmpresaName, normalizePeriodoFat } from '../lib/utils';
 import type { 
   ContasReceber, 
   Cliente, 
@@ -126,7 +126,7 @@ export async function fetchContasReceber(): Promise<ContasReceber[]> {
       Cliente: row.cliente || '',
       Obra: row.obra || '',
       Num_doc: row.num_doc || '',
-      periodo_fat: row.periodo_fat || '',
+      periodo_fat: normalizePeriodoFat(row.periodo_fat, row.data_emissao),
       Data_emissao: parseDate(row.data_emissao),
       Dt_venc: parseDate(row.dt_venc),
       dt_recebimento: parseDate(row.dt_recebimento),
@@ -371,7 +371,7 @@ export async function createContaReceber(data: Partial<ContasReceber>): Promise<
       cliente: data.Cliente || null,
       obra: data.Obra || null,
       num_doc: data.Num_doc || null,
-      periodo_fat: data.periodo_fat || null,
+      periodo_fat: normalizePeriodoFat(data.periodo_fat, data.Data_emissao) || null,
       banco: data.Banco || null,
       obs: data.Obs || null,
       data_emissao: data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null,
@@ -407,7 +407,7 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     if (data.Cliente !== undefined) dbData.cliente = data.Cliente;
     if (data.Obra !== undefined) dbData.obra = data.Obra;
     if (data.Num_doc !== undefined) dbData.num_doc = data.Num_doc;
-    if (data.periodo_fat !== undefined) dbData.periodo_fat = data.periodo_fat;
+    if (data.periodo_fat !== undefined) dbData.periodo_fat = normalizePeriodoFat(data.periodo_fat, data.Data_emissao) || data.periodo_fat;
     if (data.Banco !== undefined) dbData.banco = data.Banco;
     if (data.Obs !== undefined) dbData.obs = data.Obs;
     if (data.Data_emissao !== undefined) dbData.data_emissao = data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null;

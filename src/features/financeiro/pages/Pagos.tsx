@@ -311,7 +311,7 @@ export const Pagos = () => {
     });
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-4 w-full max-w-[1850px] mx-auto">
+        <div className="h-full flex flex-col p-2 md:p-6 pt-0 md:pt-0 space-y-4 w-full">
             <div className="flex-none space-y-4">
                 <div className="flex justify-between items-center">
                     <div>

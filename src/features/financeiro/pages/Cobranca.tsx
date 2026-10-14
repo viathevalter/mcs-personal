@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake } from 'lucide-react';
-import { formatCurrency, formatDate, normalizeEmpresaName } from '../lib/utils';
+import { formatCurrency, formatDate, normalizeEmpresaName, normalizePeriodoFat, sortPeriodosFatDesc, getPeriodoFatSortValue } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { ReceberCobroModal } from '../components/ReceberCobroModal';
@@ -48,7 +48,8 @@ export const Cobranca = () => {
     const [filterPeriodosFat, setFilterPeriodosFat] = useState<string[]>(() => {
         try {
             const val = sessionStorage.getItem('cobranca_filterPeriodosFat');
-            return val ? JSON.parse(val) : [];
+            const parsed: string[] = val ? JSON.parse(val) : [];
+            return Array.from(new Set(parsed.map(p => normalizePeriodoFat(p)).filter(Boolean)));
         } catch {
             return [];
         }
@@ -56,7 +57,7 @@ export const Cobranca = () => {
     const [filterPeriodoEmissao, setFilterPeriodoEmissao] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoEmissao') || 'all');
     const [startDateEmissao, setStartDateEmissao] = useState(() => sessionStorage.getItem('cobranca_startDateEmissao') || '');
     const [endDateEmissao, setEndDateEmissao] = useState(() => sessionStorage.getItem('cobranca_endDateEmissao') || '');
-    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoVencimento') || 'all');
+    const [filterPeriodoVencimento, setFilterPeriodoVencimento] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoVencimento_v2') || 'all');
     const [startDateVencimento, setStartDateVencimento] = useState(() => sessionStorage.getItem('cobranca_startDateVencimento') || '');
     const [endDateVencimento, setEndDateVencimento] = useState(() => sessionStorage.getItem('cobranca_endDateVencimento') || '');
     const [filterPeriodoAlteracao, setFilterPeriodoAlteracao] = useState(() => sessionStorage.getItem('cobranca_filterPeriodoAlteracao') || 'all');
@@ -175,7 +176,7 @@ export const Cobranca = () => {
     }, [endDateEmissao]);
 
     useEffect(() => {
-        sessionStorage.setItem('cobranca_filterPeriodoVencimento', filterPeriodoVencimento);
+        sessionStorage.setItem('cobranca_filterPeriodoVencimento_v2', filterPeriodoVencimento);
     }, [filterPeriodoVencimento]);
 
     useEffect(() => {
@@ -202,23 +203,35 @@ export const Cobranca = () => {
         sessionStorage.setItem('cobranca_endDateAlteracao', endDateAlteracao);
     }, [endDateAlteracao]);
 
-    // Sync temp states with active states when popover opens
+    // Sync temp states with active states when popover opens or when active filters are modified externally
     useEffect(() => {
-        if (showFilters) {
-            setTempFilterEmpresas(filterEmpresas);
-            setTempFilterBancos(filterBancos);
-            setTempFilterPeriodosFat(filterPeriodosFat);
-            setTempFilterPeriodoEmissao(filterPeriodoEmissao);
-            setTempStartDateEmissao(startDateEmissao);
-            setTempEndDateEmissao(endDateEmissao);
-            setTempFilterPeriodoVencimento(filterPeriodoVencimento);
-            setTempStartDateVencimento(startDateVencimento);
-            setTempEndDateVencimento(endDateVencimento);
-            setTempFilterPeriodoAlteracao(filterPeriodoAlteracao);
-            setTempStartDateAlteracao(startDateAlteracao);
-            setTempEndDateAlteracao(endDateAlteracao);
-        }
-    }, [showFilters]);
+        setTempFilterEmpresas(filterEmpresas);
+        setTempFilterBancos(filterBancos);
+        setTempFilterPeriodosFat(filterPeriodosFat);
+        setTempFilterPeriodoEmissao(filterPeriodoEmissao);
+        setTempStartDateEmissao(startDateEmissao);
+        setTempEndDateEmissao(endDateEmissao);
+        setTempFilterPeriodoVencimento(filterPeriodoVencimento);
+        setTempStartDateVencimento(startDateVencimento);
+        setTempEndDateVencimento(endDateVencimento);
+        setTempFilterPeriodoAlteracao(filterPeriodoAlteracao);
+        setTempStartDateAlteracao(startDateAlteracao);
+        setTempEndDateAlteracao(endDateAlteracao);
+    }, [
+        showFilters,
+        filterEmpresas,
+        filterBancos,
+        filterPeriodosFat,
+        filterPeriodoEmissao,
+        startDateEmissao,
+        endDateEmissao,
+        filterPeriodoVencimento,
+        startDateVencimento,
+        endDateVencimento,
+        filterPeriodoAlteracao,
+        startDateAlteracao,
+        endDateAlteracao
+    ]);
 
     const fetchUser = async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -657,7 +670,7 @@ export const Cobranca = () => {
     // Extract unique lists
     const uniqueEmpresas = Array.from(new Set(data.map(i => normalizeEmpresaName(i.Empresa)).filter(Boolean))).sort();
     const uniqueBancos = Array.from(new Set(data.map(i => i.Banco).filter(Boolean))).sort();
-    const uniquePeriodosFat = Array.from(new Set(data.map(i => i.periodo_fat).filter(Boolean))).sort();
+    const uniquePeriodosFat = sortPeriodosFatDesc(Array.from(new Set(data.map(i => normalizePeriodoFat(i.periodo_fat)).filter(Boolean))));
 
     // Filters and tabs
     const kpiData = data.filter(item => {
@@ -674,8 +687,8 @@ export const Cobranca = () => {
         // Banco filter
         if (filterBancos.length > 0 && !filterBancos.includes(item.Banco)) return false;
 
-        // Periodo Fat filter
-        if (filterPeriodosFat.length > 0 && !filterPeriodosFat.includes(item.periodo_fat)) return false;
+        // Periodo Fat filter (normalized)
+        if (filterPeriodosFat.length > 0 && !filterPeriodosFat.includes(normalizePeriodoFat(item.periodo_fat))) return false;
 
         // Periodo Emissao / Geracao filter
         if (filterPeriodoEmissao !== 'all') {
@@ -850,9 +863,18 @@ export const Cobranca = () => {
             valB = b.Saldo_a_pagar;
         }
 
-        // Keep null/undefined at the bottom
-        if (valA === undefined || valA === null) return sortDirection === 'asc' ? 1 : -1;
-        if (valB === undefined || valB === null) return sortDirection === 'asc' ? -1 : 1;
+        // Keep null/undefined at the bottom regardless of sort direction
+        if (valA === undefined || valA === null || valA === '') return 1;
+        if (valB === undefined || valB === null || valB === '') return -1;
+
+        // Chronological sorting for Mês de Faturamento
+        if (sortField === 'periodo_fat') {
+            const sortA = getPeriodoFatSortValue(String(valA));
+            const sortB = getPeriodoFatSortValue(String(valB));
+            if (sortA !== sortB) {
+                return sortDirection === 'asc' ? sortA - sortB : sortB - sortA;
+            }
+        }
 
         // String collation
         if (typeof valA === 'string' && typeof valB === 'string') {
@@ -869,8 +891,8 @@ export const Cobranca = () => {
             const isAValid = !isNaN(timeA);
             const isBValid = !isNaN(timeB);
             if (!isAValid && !isBValid) return 0;
-            if (!isAValid) return sortDirection === 'asc' ? 1 : -1;
-            if (!isBValid) return sortDirection === 'asc' ? -1 : 1;
+            if (!isAValid) return 1;
+            if (!isBValid) return -1;
             return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
         }
 
@@ -920,7 +942,7 @@ export const Cobranca = () => {
     };
 
     return (
-        <div className="h-full flex flex-col p-4 md:p-6 pt-0 md:pt-0 space-y-4 w-full max-w-[1850px] mx-auto">
+        <div className="h-full flex flex-col p-2 md:p-6 pt-0 md:pt-0 space-y-4 w-full">
             <div className="flex-none space-y-4">
                 {/* Header */}
                 <div className="flex justify-between items-center">
@@ -1772,7 +1794,7 @@ export const Cobranca = () => {
                                     return (
                                         <TableRow key={item.id} className="group hover:bg-slate-50/50 cursor-pointer transition-colors duration-150" onClick={() => openZoom(item)}>
                                             <TableCell>
-                                                <div className="font-semibold text-slate-800 dark:text-slate-100 max-w-[200px] truncate" title={item.Cliente || 'Sem Nome'}>
+                                                <div className="font-semibold text-slate-800 dark:text-slate-100 max-w-[260px] xl:max-w-[380px] truncate" title={item.Cliente || 'Sem Nome'}>
                                                     {item.Cliente || 'Sem Nome'}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground font-mono">{item.Num_doc}</div>

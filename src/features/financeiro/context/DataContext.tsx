@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { EnrichedTitulo, FilterState } from '../types';
 import { fetchEnrichedData } from '../data/loader';
 import { filterData } from '../lib/metrics';
+import { normalizePeriodoFat, sortPeriodosFatDesc } from '../lib/utils';
 
 interface DataContextType {
   rawData: EnrichedTitulo[];
@@ -52,7 +53,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Derived lists for Dropdowns
   const availableEmpresas = Array.from(new Set(rawData.map(i => i.Empresa).filter(Boolean))).sort();
   const availableBancos = Array.from(new Set(rawData.map(i => i.Banco).filter(Boolean))).sort();
-  const availablePeriodos = Array.from(new Set(rawData.map(i => i.periodo_fat).filter(Boolean))).sort();
+  const availablePeriodos = sortPeriodosFatDesc(Array.from(new Set(rawData.map(i => normalizePeriodoFat(i.periodo_fat)).filter(Boolean))));
 
   return (
     <DataContext.Provider value={{ rawData, filteredData, filters, setFilters, availableEmpresas, availableBancos, availablePeriodos }}>

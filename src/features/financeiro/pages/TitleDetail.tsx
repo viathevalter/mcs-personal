@@ -295,7 +295,7 @@ export const TitleDetail = () => {
 
     return (
         <Tooltip.Provider delayDuration={200}>
-            <div className="h-full overflow-y-auto p-4 md:p-6 pt-0 md:pt-0 space-y-6 w-full max-w-[1850px] mx-auto bg-transparent">
+            <div className="h-full overflow-y-auto p-2 md:p-6 pt-0 md:pt-0 space-y-6 w-full bg-transparent">
                 <div className="space-y-6">
                     <Link to="/financeiro/titulos" className="flex items-center text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors mb-4 w-fit text-sm font-semibold">
                         <ChevronLeft size={16} className="mr-1" /> Voltar para Ordens de Pagamento
