@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ChevronDown, CornerDownRight, ChevronsUpDown, Layers, FileText, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake } from 'lucide-react';
 import { formatCurrency, formatDate, normalizeEmpresaName, normalizePeriodoFat, sortPeriodosFatDesc, getPeriodoFatSortValue } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -80,12 +80,15 @@ export const Cobranca = () => {
 
     const [showFilters, setShowFilters] = useState(false);
     const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'em_negociacao' | 'judicial' | 'negociado'>(() => (sessionStorage.getItem('cobranca_activeTab') as any) || 'atraso');
+    const [viewMode, setViewMode] = useState<'client' | 'title'>(() => (sessionStorage.getItem('cobranca_viewMode') as 'client' | 'title') || 'client');
+    const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
     const [simulations, setSimulations] = useState<any[]>([]);
 
     // Modals
     const [isReceberOpen, setIsReceberOpen] = useState(false);
     const [isObsOpen, setIsObsOpen] = useState(false);
     const [selectedTitulo, setSelectedTitulo] = useState<EnrichedTitulo | null>(null);
+    const [emailClientTitles, setEmailClientTitles] = useState<EnrichedTitulo[]>([]);
 
     // Zoom Detail Sheet State
     const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -192,6 +195,10 @@ export const Cobranca = () => {
     }, [activeTab]);
 
     useEffect(() => {
+        sessionStorage.setItem('cobranca_viewMode', viewMode);
+    }, [viewMode]);
+
+    useEffect(() => {
         sessionStorage.setItem('cobranca_filterPeriodoAlteracao', filterPeriodoAlteracao);
     }, [filterPeriodoAlteracao]);
 
@@ -277,17 +284,32 @@ export const Cobranca = () => {
             setIsLoading(false);
         }
     };
-    // Multilingual Email Content Generator
+
+    // Multilingual Email Content Generator
     const generateAndSetEmailContent = (
         template: 'friendly' | 'overdue' | 'legal' | 'negotiation',
         lang: 'pt' | 'es' | 'fr' | 'it',
         title: EnrichedTitulo,
-        params?: typeof negotiationParams
+        params?: typeof negotiationParams,
+        titlesList?: EnrichedTitulo[]
     ) => {
+        const activeTitles = titlesList && titlesList.length > 0 ? titlesList : (emailClientTitles.length > 0 ? emailClientTitles : [title]);
+        const isMulti = activeTitles.length > 1;
         const clientName = title.Cliente || 'Cliente';
-        const docNum = title.Num_doc || 'Fatura';
-        const docValue = formatCurrency(title.Valot_total);
-        const vencDate = title.Dt_venc ? new Date(title.Dt_venc).toLocaleDateString('pt-PT') : 'N/A';
+        const docNum = isMulti
+            ? `${activeTitles.length} títulos (${activeTitles.map(t => t.Num_doc).filter(Boolean).join(', ')})`
+            : (title.Num_doc || 'Fatura');
+        const totalPendingVal = activeTitles.reduce((acc, t) => acc + (t.Saldo_a_pagar ?? t.Valot_total ?? 0), 0);
+        const docValue = isMulti ? formatCurrency(totalPendingVal) : formatCurrency(title.Saldo_a_pagar ?? title.Valot_total);
+        const vencDate = title.Dt_venc ? formatDate(title.Dt_venc) : 'N/A';
+
+        const multiDocsBlock = isMulti
+            ? '\n\n' + activeTitles.map(t => {
+                const dVenc = t.Dt_venc ? formatDate(t.Dt_venc) : 'N/A';
+                const dVal = formatCurrency(t.Saldo_a_pagar ?? t.Valot_total ?? 0);
+                return `- Doc: ${t.Num_doc || 'S/N'} | Venc.: ${dVenc} | Saldo: ${dVal}`;
+            }).join('\n') + `\nTotal Consolidado: ${docValue}`
+            : '';
 
         const toHtml = (text: string) => {
             return text.split('\n').map(line => `<p>${line || '<br>'}</p>`).join('');
@@ -298,46 +320,46 @@ export const Cobranca = () => {
 
         if (template === 'friendly') {
             const subjects = {
-                pt: `Lembrete de Vencimento: Documento ${docNum}`,
-                es: `Recordatorio de Vencimiento: Documento ${docNum}`,
-                fr: `Rappel d'échéance : Document ${docNum}`,
-                it: `Promemoria di Scadenza: Documento ${docNum}`
+                pt: `Lembrete de Vencimento: ${isMulti ? `${clientName} (${activeTitles.length} títulos)` : `Documento ${docNum}`}`,
+                es: `Recordatorio de Vencimiento: ${isMulti ? `${clientName} (${activeTitles.length} títulos)` : `Documento ${docNum}`}`,
+                fr: `Rappel d'échéance : ${isMulti ? `${clientName} (${activeTitles.length} titres)` : `Document ${docNum}`}`,
+                it: `Promemoria di Scadenza: ${isMulti ? `${clientName} (${activeTitles.length} titoli)` : `Documento ${docNum}`}`
             };
             const bodies = {
-                pt: `Olá, equipe do departamento financeiro da ${clientName}.\n\nGostaríamos de lembrar amigavelmente que o título ${docNum} no valor de ${docValue} vencerá em ${vencDate}.\n\nPor favor, confirme se o pagamento está agendado e envie o comprovativo assim que possível.\n\nAgradecemos a parceria,\nDepartamento Financeiro`,
-                es: `Hola, equipo del departamento financiero de ${clientName}.\n\nNos gustaría recordar amigablemente que el título ${docNum} por el valor de ${docValue} vencerá el ${vencDate}.\n\nPor favor, confirme si el pago está programado y envíe el comprobante tan pronto como sea posible.\n\nAgradecemos la cooperación,\nDepartamento Financiero`,
-                fr: `Bonjour, l'équipe du département financier de ${clientName}.\n\nNous vous rappelons amicalement que le titre ${docNum} d'un montant de ${docValue} arrivera à échéance le ${vencDate}.\n\nVeuillez confirmer si le paiement est planifié et nous envoyer le justificatif dès que possible.\n\nNous vous remercions pour votre collaboration,\nDépartement Financier`,
-                it: `Buongiorno, team del dipartimento finanziario di ${clientName}.\n\nDesideriamo ricordarvi cortesemente che il titolo ${docNum} del valore di ${docValue} scadrà il ${vencDate}.\n\nVi preghiamo di confermare se il pagamento è programmato e di inviarci la ricevuta il prima possibile.\n\nRingraziando per la collaborazione,\nDipartimento Finanziario`
+                pt: `Olá, equipe do departamento financeiro da ${clientName}.\n\nGostaríamos de lembrar amigavelmente sobre ${isMulti ? `os títulos abaixo no valor total de ${docValue}` : `o título ${docNum} no valor de ${docValue} com vencimento em ${vencDate}`}.${multiDocsBlock}\n\nPor favor, confirme se o pagamento está agendado e envie o comprovativo assim que possível.\n\nAgradecemos a parceria,\nDepartamento Financeiro`,
+                es: `Hola, equipo del departamento financiero de ${clientName}.\n\nNos gustaría recordar amigablemente sobre ${isMulti ? `los títulos detallados abajo por el valor total de ${docValue}` : `el título ${docNum} por el valor de ${docValue} con vencimiento el ${vencDate}`}.${multiDocsBlock}\n\nPor favor, confirme si el pago está programado y envíe el comprobante tan pronto como sea posible.\n\nAgradecemos la cooperación,\nDepartamento Financiero`,
+                fr: `Bonjour, l'équipe du département financier de ${clientName}.\n\nNous vous rappelons amicalement ${isMulti ? `les titres ci-dessous pour un montant total de ${docValue}` : `le titre ${docNum} d'un montant de ${docValue} arrivant à échéance le ${vencDate}`}.${multiDocsBlock}\n\nVeuillez confirmer si le paiement est planifié et nous envoyer le justificatif dès que possible.\n\nNous vous remercions pour votre collaboration,\nDépartement Financier`,
+                it: `Buongiorno, team del dipartimento finanziario di ${clientName}.\n\nDesideriamo ricordarvi cortesemente ${isMulti ? `i titoli elencati di seguito per un valore totale di ${docValue}` : `il titolo ${docNum} del valore di ${docValue} con scadenza il ${vencDate}`}.${multiDocsBlock}\n\nVi preghiamo di confermare se il pagamento è programmato e di inviarci la ricevuta il prima possibile.\n\nRingraziando per la collaborazione,\nDipartimento Finanziario`
             };
             subject = subjects[lang];
             bodyText = bodies[lang];
         } else if (template === 'overdue') {
             const subjects = {
-                pt: `Aviso de Cobrança - Título em Atraso: ${docNum}`,
-                es: `Aviso de Cobro - Título en Atraso: ${docNum}`,
-                fr: `Avis de Paiement - Titre en Retard : ${docNum}`,
-                it: `Avviso di Pagamento - Titolo in Ritardo: ${docNum}`
+                pt: `Aviso de Cobrança - ${isMulti ? `Títulos em Atraso (${activeTitles.length}) - ${clientName}` : `Título em Atraso: ${docNum}`}`,
+                es: `Aviso de Cobro - ${isMulti ? `Títulos en Atraso (${activeTitles.length}) - ${clientName}` : `Título en Atraso: ${docNum}`}`,
+                fr: `Avis de Paiement - ${isMulti ? `Titres en Retard (${activeTitles.length}) - ${clientName}` : `Titre en Retard : ${docNum}`}`,
+                it: `Avviso di Pagamento - ${isMulti ? `Titoli in Ritardo (${activeTitles.length}) - ${clientName}` : `Titolo in Ritardo: ${docNum}`}`
             };
             const bodies = {
-                pt: `Prezados,\n\nConstatamos em nosso sistema que o título ${docNum} no valor de ${docValue}, vencido em ${vencDate}, ainda não foi liquidado.\n\nSolicitamos a gentileza de verificar a pendência financeira e efetuar o pagamento. Caso já tenha realizado o depósito, por favor ignore este e-mail e nos envie o comprovativo.\n\nAtenciosamente,\nDepartamento de Cobrança`,
-                es: `Estimados,\n\nConstatamos en nuestro sistema que el título ${docNum} por el valor de ${docValue}, vencido el ${vencDate}, aún no ha sido liquidado.\n\nSolicitamos la amabilidad de verificar la situación financeira y realizar el pago. Si ya ha realizado el depósito, por favor ignore este correo y envíenos el comprobante.\n\nAtentamente,\nDepartamento de Cobro`,
-                fr: `Chers clients,\n\nNous constatons dans notre système que le titre ${docNum} d'un montant de ${docValue}, échu le ${vencDate}, n'a pas encore été réglé.\n\nNous vous demandons de bien vouloir vérifier cette situation financière et de procéder au paiement. Si vous avez déjà effectué le virement, veuillez ignorer cet e-mail et nous envoyer le justificatif.\n\nCordialement,\nDépartement de Recouvrement`,
-                it: `Gentili signori,\n\nAbbiamo riscontrato nel nostro sistema che il titolo ${docNum} dell'importo di ${docValue}, scaduto il ${vencDate}, non è ancora stato liquidato.\n\nVi chiediamo cortesemente di verificare la pendenza finanziaria ed effettuare il pagamento. Se avete già provveduto al bonifico, vi preghiamo di ignorare questa e-mail e di inviarci la ricevuta.\n\nCordiali saluti,\nDipartimento di Recupero Crediti`
+                pt: `Prezados,\n\nConstatamos em nosso sistema que ${isMulti ? `os títulos abaixo totalizando ${docValue} ainda não foram liquidados:` : `o título ${docNum} no valor de ${docValue}, vencido em ${vencDate}, ainda não foi liquidado.`}${multiDocsBlock}\n\nSolicitamos a gentileza de verificar a pendência financeira e efetuar o pagamento. Caso já tenha realizado o depósito, por favor ignore este e-mail e nos envie o comprovativo.\n\nAtenciosamente,\nDepartamento de Cobrança`,
+                es: `Estimados,\n\nConstatamos en nuestro sistema que ${isMulti ? `los títulos detallados abajo por un total de ${docValue} aún no han sido liquidados:` : `el título ${docNum} por el valor de ${docValue}, vencido el ${vencDate}, aún no ha sido liquidado.`}${multiDocsBlock}\n\nSolicitamos la amabilidad de verificar la situación financeira y realizar el pago. Si ya ha realizado el depósito, por favor ignore este correo y envíenos el comprobante.\n\nAtentamente,\nDepartamento de Cobro`,
+                fr: `Chers clients,\n\nNous constatons dans notre système que ${isMulti ? `les titres ci-dessous d'un montant total de ${docValue} n'ont pas encore été réglés :` : `le titre ${docNum} d'un montant de ${docValue}, échu le ${vencDate}, n'a pas encore été réglé.`}${multiDocsBlock}\n\nNous vous demandons de bien vouloir vérifier cette situation financière et de procéder au paiement. Si vous avez déjà effectué le virement, veuillez ignorer cet e-mail et nous envoyer le justificatif.\n\nCordialement,\nDépartement de Recouvrement`,
+                it: `Gentili signori,\n\nAbbiamo riscontrato nel nostro sistema che ${isMulti ? `i titoli elencati di seguito per un importo totale di ${docValue} non sono ancora stati liquidati:` : `il titolo ${docNum} dell'importo di ${docValue}, scaduto il ${vencDate}, non è ancora stato liquidato.`}${multiDocsBlock}\n\nVi chiediamo cortesemente di verificare la pendenza finanziaria ed effettuare il pagamento. Se avete già provveduto al bonifico, vi preghiamo di ignorare questa e-mail e di inviarci la ricevuta.\n\nCordiali saluti,\nDipartimento di Recupero Crediti`
             };
             subject = subjects[lang];
             bodyText = bodies[lang];
         } else if (template === 'legal') {
             const subjects = {
-                pt: `NOTIFICAÇÃO EXTRAJUDICIAL - Cobrança Urgente: Título ${docNum}`,
-                es: `NOTIFICACIÓN EXTRAJUDICIAL - Cobro Urgente: Título ${docNum}`,
-                fr: `MISE EN DEMEURE - Recouvrement Urgent : Titre ${docNum}`,
-                it: `NOTIFICA STRAGIUDIZIALE - Sollecito Urgente: Titolo ${docNum}`
+                pt: `NOTIFICAÇÃO EXTRAJUDICIAL - Cobrança Urgente: ${isMulti ? `${clientName} (${activeTitles.length} títulos)` : `Título ${docNum}`}`,
+                es: `NOTIFICACIÓN EXTRAJUDICIAL - Cobro Urgente: ${isMulti ? `${clientName} (${activeTitles.length} títulos)` : `Título ${docNum}`}`,
+                fr: `MISE EN DEMEURE - Recouvrement Urgent : ${isMulti ? `${clientName} (${activeTitles.length} titres)` : `Titre ${docNum}`}`,
+                it: `NOTIFICA STRAGIUDIZIALE - Sollecito Urgente: ${isMulti ? `${clientName} (${activeTitles.length} titoli)` : `Titolo ${docNum}`}`
             };
             const bodies = {
-                pt: `Prezada Direção da ${clientName},\n\nApesar de nossas tentativas anteriores de negociação, o título ${docNum} no valor de ${docValue} (vencido desde ${vencDate}) permanece em aberto.\n\nEsta notificação serve como aviso formal de que, caso a liquidação do valor não ocorra no prazo de 48 horas, seremos obrigados a encaminhar esta pendência ao nosso Departamento Jurídico para as devidas cobranças judiciais.\n\nEvite maiores encargos e processos legais entrando em contato imediatamente.\n\nAtenciosamente,\nDiretoria Financeira`,
-                es: `Estimada Dirección de ${clientName},\n\nA pesar de nuestros intentos anteriores de negociación, el título ${docNum} por el valor de ${docValue} (vencido desde el ${vencDate}) permanece pendiente.\n\nEsta notificación sirve como aviso formal de que, si la liquidación del valor no se realiza en un plazo de 48 horas, nos veremos obligados a remitir este asunto a nuestro Departamento Jurídico para iniciar las acciones de cobro judicial correspondientes.\n\nEvite cargos adicionales y procesos legales poniéndose en contacto de inmediato.\n\nAtentamente,\nDirección Financiera`,
-                fr: `Chère Direction de ${clientName},\n\nMalgré nos précédentes tentatives de négociation, le titre ${docNum} d'un montant de ${docValue} (échu depuis le ${vencDate}) demeure impayé.\n\nCette notification constitue une mise en demeure formelle. À défaut de règlement sous 48 heures, nous serons contraints de transmettre ce dossier à notre Département Juridique afin d'engager des poursuites judiciaires.\n\nÉvitez des frais supplémentaires et des procédures judiciaires en nous contactant immédiatement.\n\nCordialement,\nDirection Financière`,
-                it: `Spettabile Direzione di ${clientName},\n\nNonostante i nostri precedenti tentativi di accordo, il titolo ${docNum} del valore di ${docValue} (scaduto dal ${vencDate}) risulta ancora insoluto.\n\nLa presente notifica costituisce sollecito formale: in mancanza di pagamento entro 48 ore, saremo costretti a trasmettere la pratica al nostro Ufficio Legale per l'avvio delle azioni giudiziarie.\n\nEvitate ulteriori spese e procedimenti legali contattandoci immediatamente.\n\nCordiali saluti,\nDirezione Finanziaria`
+                pt: `Prezada Direção da ${clientName},\n\nApesar de nossas tentativas anteriores de negociação, ${isMulti ? `os títulos abaixo no valor consolidado de ${docValue} permanecem em aberto:` : `o título ${docNum} no valor de ${docValue} (vencido desde ${vencDate}) permanece em aberto.`}${multiDocsBlock}\n\nEsta notificação serve como aviso formal de que, caso a liquidação do valor não ocorra no prazo de 48 horas, seremos obrigados a encaminhar esta pendência ao nosso Departamento Jurídico para as devidas cobranças judiciais.\n\nEvite maiores encargos e processos legais entrando em contato imediatamente.\n\nAtenciosamente,\nDiretoria Financeira`,
+                es: `Estimada Dirección de ${clientName},\n\nA pesar de nuestros intentos anteriores de negociación, ${isMulti ? `los títulos detallados abajo por el valor consolidado de ${docValue} permanecen pendientes:` : `el título ${docNum} por el valor de ${docValue} (vencido desde el ${vencDate}) permanece pendiente.`}${multiDocsBlock}\n\nEsta notificación sirve como aviso formal de que, si la liquidación del valor no se realiza en un plazo de 48 horas, nos veremos obligados a remitir este asunto a nuestro Departamento Jurídico para iniciar las acciones de cobro judicial correspondientes.\n\nEvite cargos adicionales y procesos legales poniéndose en contacto de inmediato.\n\nAtentamente,\nDirección Financiera`,
+                fr: `Chère Direction de ${clientName},\n\nMalgré nos précédentes tentatives de négociation, ${isMulti ? `les titres ci-dessous d'un montant consolidé de ${docValue} demeurent impayés :` : `le titre ${docNum} d'un montant de ${docValue} (échu depuis le ${vencDate}) demeure impayé.`}${multiDocsBlock}\n\nCette notification constitue une mise en demeure formelle. À défaut de règlement sous 48 heures, nous serons contraints de transmettre ce dossier à notre Département Juridique afin d'engager des poursuites judiciaires.\n\nÉvitez des frais supplémentaires et des procédures judiciaires en nous contactant immédiatement.\n\nCordialement,\nDirection Financière`,
+                it: `Spettabile Direzione di ${clientName},\n\nNonostante i nostri precedenti tentativi di accordo, ${isMulti ? `i titoli di seguito elencati per un valore consolidato di ${docValue} risultano ancora insoluti:` : `il titolo ${docNum} del valore di ${docValue} (scaduto dal ${vencDate}) risulta ancora insoluto.`}${multiDocsBlock}\n\nLa presente notifica costituisce sollecito formale: in mancanza di pagamento entro 48 ore, saremo costretti a trasmettere la pratica al nostro Ufficio Legale per l'avvio delle azioni giudiziarie.\n\nEvitate ulteriori spese e procedimenti legali contattandoci immediatamente.\n\nCordiali saluti,\nDirezione Finanziaria`
             };
             subject = subjects[lang];
             bodyText = bodies[lang];
@@ -357,7 +379,7 @@ export const Cobranca = () => {
             };
 
             const docListText = params.selectedTitles.map(t => {
-                const docVenc = t.Dt_venc ? new Date(t.Dt_venc).toLocaleDateString('pt-PT') : 'N/A';
+                const docVenc = t.Dt_venc ? formatDate(t.Dt_venc) : 'N/A';
                 const docVal = formatCurrency(t.Saldo_a_pagar);
                 const formats = {
                     pt: `- Doc: ${t.Num_doc} | Vencido em: ${docVenc} | Valor: ${docVal}`,
@@ -389,15 +411,15 @@ export const Cobranca = () => {
 
             if (params.paymentType === 'single') {
                 const singleTexts = {
-                    pt: `Proposta para pagamento integral em parcela única com vencimento em: ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`,
-                    es: `Propuesta para pago integral en cuota única con vencimiento el: ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`,
-                    fr: `Proposition pour un paiement intégral en une seule fois avec échéance le : ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`,
-                    it: `Proposta di pagamento in un'unica soluzione con scadenza il: ${new Date(params.dueDate).toLocaleDateString('pt-PT')}.`
+                    pt: `Proposta para pagamento integral em parcela única com vencimento em: ${formatDate(params.dueDate)}.`,
+                    es: `Propuesta para pago integral en cuota única con vencimiento el: ${formatDate(params.dueDate)}.`,
+                    fr: `Proposition pour un paiement intégral en une seule fois avec échéance le : ${formatDate(params.dueDate)}.`,
+                    it: `Proposta di pagamento in un'unica soluzione con scadenza il: ${formatDate(params.dueDate)}.`
                 };
                 body += singleTexts[lang] + '\n\n';
             } else {
                 const instVal = formatCurrency(params.discountedTotal / params.installmentsCount);
-                const instDate = new Date(params.firstInstallmentDate).toLocaleDateString('pt-PT');
+                const instDate = formatDate(params.firstInstallmentDate);
                 const installmentsTexts = {
                     pt: `Proposta para parcelamento do saldo em ${params.installmentsCount} parcelas de ${instVal} cada, iniciando em ${instDate}.`,
                     es: `Propuesta para fraccionamiento del saldo en ${params.installmentsCount} plazos de ${instVal} cada uno, comenzando el: ${instDate}.`,
@@ -426,21 +448,24 @@ export const Cobranca = () => {
 
     const handleTemplateChange = (template: 'friendly' | 'overdue' | 'legal' | 'negotiation', title: EnrichedTitulo) => {
         setEmailTemplate(template);
-        generateAndSetEmailContent(template, emailLanguage, title, negotiationParams);
+        generateAndSetEmailContent(template, emailLanguage, title, negotiationParams, emailClientTitles);
     };
 
     const handleLanguageChange = (lang: 'pt' | 'es' | 'fr' | 'it') => {
         setEmailLanguage(lang);
         if (selectedTitulo) {
-            generateAndSetEmailContent(emailTemplate, lang, selectedTitulo, negotiationParams);
+            generateAndSetEmailContent(emailTemplate, lang, selectedTitulo, negotiationParams, emailClientTitles);
         }
     };
 
     const openEmailModal = (
         titulo: EnrichedTitulo, 
         templateKey: 'friendly' | 'overdue' | 'legal' | 'negotiation' = 'friendly',
-        params?: typeof negotiationParams
+        params?: typeof negotiationParams,
+        clientTitlesList?: EnrichedTitulo[]
     ) => {
+        const list = clientTitlesList && clientTitlesList.length > 0 ? clientTitlesList : [titulo];
+        setEmailClientTitles(list);
         setSelectedTitulo(titulo);
         setEmailTemplate(templateKey);
         setNegotiationParams(params || null);
@@ -466,7 +491,7 @@ export const Cobranca = () => {
         setEmailAttachment(null);
 
         // Generate content dynamically
-        generateAndSetEmailContent(templateKey, 'pt', titulo, params);
+        generateAndSetEmailContent(templateKey, 'pt', titulo, params, list);
         setIsEmailOpen(true);
     };
 
@@ -901,6 +926,185 @@ export const Cobranca = () => {
             ? (valA < valB ? -1 : valA > valB ? 1 : 0)
             : (valA > valB ? -1 : valA < valB ? 1 : 0);
     });
+
+    const groupedClients = useMemo(() => {
+        const groupsMap = new Map<string, {
+            clientKey: string;
+            clientName: string;
+            codCliente: string;
+            titles: EnrichedTitulo[];
+        }>();
+
+        sortedData.forEach(item => {
+            const rawName = (item.Cliente || 'Sem Nome').trim();
+            const clientKey = rawName.toUpperCase() || item.CodCliente || item.id;
+            if (!groupsMap.has(clientKey)) {
+                groupsMap.set(clientKey, {
+                    clientKey,
+                    clientName: rawName,
+                    codCliente: item.CodCliente || '',
+                    titles: []
+                });
+            }
+            const g = groupsMap.get(clientKey)!;
+            if (!g.codCliente && item.CodCliente) g.codCliente = item.CodCliente;
+            g.titles.push(item);
+        });
+
+        const nowMs = new Date().getTime();
+        const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0));
+
+        const groups = Array.from(groupsMap.values()).map(g => {
+            // Sort titles inside each client group by due date ascending (oldest first, nulls at bottom)
+            const titlesSorted = [...g.titles].sort((a, b) => {
+                const tA = a.Dt_venc ? new Date(a.Dt_venc).getTime() : NaN;
+                const tB = b.Dt_venc ? new Date(b.Dt_venc).getTime() : NaN;
+                const vA = !isNaN(tA);
+                const vB = !isNaN(tB);
+                if (!vA && !vB) return 0;
+                if (!vA) return 1;
+                if (!vB) return -1;
+                return tA - tB;
+            });
+
+            const empresas = Array.from(new Set(titlesSorted.map(t => normalizeEmpresaName(t.Empresa)).filter(Boolean)));
+            const bancos = Array.from(new Set(titlesSorted.map(t => t.Banco).filter(Boolean)));
+            const periodosFat = sortPeriodosFatDesc(Array.from(new Set(titlesSorted.map(t => normalizePeriodoFat(t.periodo_fat)).filter(Boolean))));
+
+            const validEmissoes = titlesSorted
+                .map(t => t.Data_emissao ? new Date(t.Data_emissao) : null)
+                .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+                .sort((a, b) => a.getTime() - b.getTime());
+
+            const validVencimentos = titlesSorted
+                .map(t => t.Dt_venc ? new Date(t.Dt_venc) : null)
+                .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+                .sort((a, b) => a.getTime() - b.getTime());
+
+            const earliestEmissao = validEmissoes.length > 0 ? validEmissoes[0] : null;
+            const latestEmissao = validEmissoes.length > 0 ? validEmissoes[validEmissoes.length - 1] : null;
+            const oldestVencimento = validVencimentos.length > 0 ? validVencimentos[0] : null;
+            const latestVencimento = validVencimentos.length > 0 ? validVencimentos[validVencimentos.length - 1] : null;
+
+            const maxDelayDays = oldestVencimento
+                ? Math.max(0, Math.floor((nowMs - oldestVencimento.getTime()) / (1000 * 3600 * 24)))
+                : 0;
+
+            const totalValor = titlesSorted.reduce((acc, t) => acc + (t.Valot_total || 0), 0);
+            const totalSaldo = titlesSorted.reduce((acc, t) => acc + (t.Saldo_a_pagar ?? t.Valot_total ?? 0), 0);
+
+            const overdueCount = titlesSorted.filter(t => t.Status !== 'Pago' && (t.Status === 'Negociado' || (t.Dt_venc && new Date(t.Dt_venc) < todayMidnight))).length;
+            const judicialCount = titlesSorted.filter(t => t.Status === 'Judicial').length;
+            const negociadoCount = titlesSorted.filter(t => t.Status === 'Negociado' || t.Integral_parcial === 'Negociado').length;
+            const partialCount = titlesSorted.filter(t => t.Status === 'Parcial').length;
+            const inNegotiation = titlesSorted.some(t => isClientInNegotiation(t));
+            const attachmentsCount = titlesSorted.filter(t => Boolean(t.anexo_url)).length;
+
+            return {
+                ...g,
+                titles: titlesSorted,
+                representativeTitle: titlesSorted[0],
+                empresas,
+                bancos,
+                periodosFat,
+                earliestEmissao,
+                latestEmissao,
+                oldestVencimento,
+                latestVencimento,
+                maxDelayDays,
+                totalValor,
+                totalSaldo,
+                overdueCount,
+                judicialCount,
+                negociadoCount,
+                partialCount,
+                inNegotiation,
+                attachmentsCount
+            };
+        });
+
+        // Sort client groups according to active sortField & sortDirection
+        groups.sort((a, b) => {
+            if (sortField === 'Cliente') {
+                return sortDirection === 'asc'
+                    ? a.clientName.localeCompare(b.clientName)
+                    : b.clientName.localeCompare(a.clientName);
+            }
+            if (sortField === 'Empresa') {
+                const empA = a.empresas[0] || '';
+                const empB = b.empresas[0] || '';
+                if (!empA) return 1;
+                if (!empB) return -1;
+                return sortDirection === 'asc' ? empA.localeCompare(empB) : empB.localeCompare(empA);
+            }
+            if (sortField === 'Banco') {
+                const bA = a.bancos[0] || '';
+                const bB = b.bancos[0] || '';
+                if (!bA) return 1;
+                if (!bB) return -1;
+                return sortDirection === 'asc' ? bA.localeCompare(bB) : bB.localeCompare(bA);
+            }
+            if (sortField === 'periodo_fat') {
+                const pA = a.periodosFat[0] || '';
+                const pB = b.periodosFat[0] || '';
+                if (!pA) return 1;
+                if (!pB) return -1;
+                const sA = getPeriodoFatSortValue(pA);
+                const sB = getPeriodoFatSortValue(pB);
+                if (sA !== sB) return sortDirection === 'asc' ? sA - sB : sB - sA;
+                return sortDirection === 'asc' ? pA.localeCompare(pB) : pB.localeCompare(pA);
+            }
+            if (sortField === 'Valot_total') {
+                return sortDirection === 'asc' ? a.totalValor - b.totalValor : b.totalValor - a.totalValor;
+            }
+            if (sortField === 'Saldo_a_pagar') {
+                return sortDirection === 'asc' ? a.totalSaldo - b.totalSaldo : b.totalSaldo - a.totalSaldo;
+            }
+            if (sortField === 'Data_emissao') {
+                const tA = a.earliestEmissao ? a.earliestEmissao.getTime() : NaN;
+                const tB = b.earliestEmissao ? b.earliestEmissao.getTime() : NaN;
+                if (isNaN(tA) && isNaN(tB)) return 0;
+                if (isNaN(tA)) return 1;
+                if (isNaN(tB)) return -1;
+                return sortDirection === 'asc' ? tA - tB : tB - tA;
+            }
+            if (sortField === 'Dt_venc') {
+                const tA = a.oldestVencimento ? a.oldestVencimento.getTime() : NaN;
+                const tB = b.oldestVencimento ? b.oldestVencimento.getTime() : NaN;
+                if (isNaN(tA) && isNaN(tB)) return 0;
+                if (isNaN(tA)) return 1;
+                if (isNaN(tB)) return -1;
+                if (tA !== tB) return sortDirection === 'asc' ? tA - tB : tB - tA;
+                // Secondary sort by highest balance when due dates are equal
+                return b.totalSaldo - a.totalSaldo;
+            }
+            return b.totalSaldo - a.totalSaldo;
+        });
+
+        return groups;
+    }, [sortedData, sortField, sortDirection, simulations]);
+
+    const toggleClientExpand = (clientKey: string) => {
+        setExpandedClients(prev => {
+            const next = new Set(prev);
+            if (next.has(clientKey)) {
+                next.delete(clientKey);
+            } else {
+                next.add(clientKey);
+            }
+            return next;
+        });
+    };
+
+    const allClientsExpanded = groupedClients.length > 0 && groupedClients.every(g => expandedClients.has(g.clientKey));
+
+    const toggleExpandAll = () => {
+        if (allClientsExpanded) {
+            setExpandedClients(new Set());
+        } else {
+            setExpandedClients(new Set(groupedClients.map(g => g.clientKey)));
+        }
+    };
 
     const renderSortHeader = (label: string, field: string, textAlignment: string = 'text-left') => {
         const isCurrent = sortField === field;
@@ -1710,48 +1914,85 @@ export const Cobranca = () => {
              {/* List Table Container */}
              <Card className="flex-1 flex flex-col min-h-0 overflow-hidden mt-4 shadow-md">
                 <CardHeader className="border-b py-3 px-4 bg-slate-50 dark:bg-slate-900/30">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div className="flex items-center gap-2">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2.5">
                             <Users className="w-4 h-4 text-brand-primary" />
                             <CardTitle className="text-sm font-bold text-slate-700 dark:text-slate-200">
                                 {activeTab === 'atraso' ? t('financeiro.table.list_debtors', 'Lista de Devedores em Atraso') : activeTab === 'alerta' ? t('financeiro.table.alerts_soon', 'Alertas de Vencimentos Próximos') : activeTab === 'em_negociacao' ? t('financeiro.table.in_negotiation_portfolio', 'Carteira de Clientes em Negociação') : activeTab === 'judicial' ? t('financeiro.table.judicial_portfolio', 'Carteira Jurídico / Processos') : t('financeiro.table.negotiated_portfolio', 'Carteira de Acordos / Negociados')}
                             </CardTitle>
-                            <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-bold">
-                                {activeTab === 'em_negociacao'
-                                    ? `${kpis.emNegociacaoClients} ${kpis.emNegociacaoClients === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')} (${filteredData.length} ${filteredData.length === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')})`
-                                    : filteredData.length}
+                            <span className="text-xs bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-0.5 rounded-full font-bold">
+                                {`${groupedClients.length} ${groupedClients.length === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')} • ${filteredData.length} ${filteredData.length === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}`}
                             </span>
+
+                            {/* View Mode Switcher (Por Cliente vs Por Título) & Expand All */}
+                            <div className="flex items-center gap-1.5 ml-1">
+                                <div className="flex bg-slate-200/70 dark:bg-slate-950 p-0.5 rounded-lg border text-[11px] font-semibold">
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode('client')}
+                                        className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${viewMode === 'client' ? 'bg-white dark:bg-slate-800 text-brand-primary shadow-xs font-bold' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                        title="Visualizar consolidado por cliente com expansão de títulos"
+                                    >
+                                        <Layers size={12} />
+                                        <span>{t('financeiro.table.view_by_client', 'Por Cliente')}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setViewMode('title')}
+                                        className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-all ${viewMode === 'title' ? 'bg-white dark:bg-slate-800 text-brand-primary shadow-xs font-bold' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                                        title="Visualizar títulos individualmente"
+                                    >
+                                        <FileText size={12} />
+                                        <span>{t('financeiro.table.view_by_title', 'Por Título')}</span>
+                                    </button>
+                                </div>
+
+                                {viewMode === 'client' && groupedClients.length > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={toggleExpandAll}
+                                        className="h-7 px-2.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900"
+                                    >
+                                        <ChevronsUpDown size={12} className="mr-1 text-brand-primary" />
+                                        {allClientsExpanded
+                                            ? t('financeiro.table.collapse_all', 'Recolher Títulos')
+                                            : t('financeiro.table.expand_all', 'Expandir Todos')}
+                                    </Button>
+                                )}
+                            </div>
                         </div>
 
                         {/* Navigation Tabs buttons */}
-                        <div className="flex bg-slate-200/60 dark:bg-slate-950 p-1 rounded-lg border max-w-fit text-xs font-semibold">
+                        <div className="flex bg-slate-200/60 dark:bg-slate-950 p-1 rounded-lg border max-w-fit text-xs font-semibold overflow-x-auto">
                             <button
                                 onClick={() => setActiveTab('atraso')}
-                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'atraso' ? 'bg-white dark:bg-slate-800 text-destructive shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-3.5 py-1.5 rounded-md transition-all whitespace-nowrap ${activeTab === 'atraso' ? 'bg-white dark:bg-slate-800 text-destructive shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
-                                {t('financeiro.kpis.tab_overdue', 'Em Atraso')} ({kpis.atrasoCount})
+                                {t('financeiro.kpis.tab_overdue', 'Em Atraso')} ({kpis.atrasoClients} {t('financeiro.ticker.clients', 'clientes')} • {kpis.atrasoCount})
                             </button>
                             <button
                                 onClick={() => setActiveTab('alerta')}
-                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'alerta' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-3.5 py-1.5 rounded-md transition-all whitespace-nowrap ${activeTab === 'alerta' ? 'bg-white dark:bg-slate-800 text-amber-600 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {t('financeiro.kpis.tab_due_soon', 'A Vencer')} ({kpis.alertaCount})
                             </button>
                             <button
                                 onClick={() => setActiveTab('em_negociacao')}
-                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'em_negociacao' ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-3.5 py-1.5 rounded-md transition-all whitespace-nowrap ${activeTab === 'em_negociacao' ? 'bg-white dark:bg-slate-800 text-purple-700 dark:text-purple-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')} ({kpis.emNegociacaoClients})
                             </button>
                             <button
                                 onClick={() => setActiveTab('negociado')}
-                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'negociado' ? 'bg-white dark:bg-slate-800 text-indigo-650 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-3.5 py-1.5 rounded-md transition-all whitespace-nowrap ${activeTab === 'negociado' ? 'bg-white dark:bg-slate-800 text-indigo-650 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {t('financeiro.kpis.tab_negotiated', 'Negociados')} ({kpis.negociadoCount})
                             </button>
                             <button
                                 onClick={() => setActiveTab('judicial')}
-                                className={`px-4 py-1.5 rounded-md transition-all ${activeTab === 'judicial' ? 'bg-white dark:bg-slate-800 text-red-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`px-3.5 py-1.5 rounded-md transition-all whitespace-nowrap ${activeTab === 'judicial' ? 'bg-white dark:bg-slate-800 text-red-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {t('financeiro.kpis.tab_judicial', 'Jurídico')} ({kpis.judicialCount})
                             </button>
@@ -1761,14 +2002,14 @@ export const Cobranca = () => {
                 <CardContent className="p-0 overflow-y-auto max-h-[calc(100vh-380px)] flex-1">
                     <Table>
                         <TableHeader>
-                            <TableRow>
-                                <TableHead>{renderSortHeader(t('financeiro.table.client_doc', 'Cliente / Doc'), 'Cliente')}</TableHead>
+                            <TableRow className="bg-slate-50/80 dark:bg-slate-900/50">
+                                <TableHead className="min-w-[260px]">{renderSortHeader(viewMode === 'client' ? t('financeiro.table.client_consolidated', 'Cliente / Carteira de Títulos') : t('financeiro.table.client_doc', 'Cliente / Doc'), 'Cliente')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.company', 'Empresa'), 'Empresa')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.bank', 'Banco'), 'Banco')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.billing_month', 'Mês Fat.'), 'periodo_fat')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.issued', 'Emissão'), 'Data_emissao')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.due', 'Vencimento'), 'Dt_venc')}</TableHead>
-                                <TableHead className="text-right">{renderSortHeader(t('financeiro.table.value', 'Valor'), 'Valot_total', 'text-right')}</TableHead>
+                                <TableHead className="text-right">{renderSortHeader(t('financeiro.table.value', 'Valor Total'), 'Valot_total', 'text-right')}</TableHead>
                                 <TableHead className="text-right">{renderSortHeader(t('financeiro.table.balance', 'Saldo'), 'Saldo_a_pagar', 'text-right')}</TableHead>
                                 <TableHead className="text-center">{renderSortHeader(t('financeiro.table.status', 'Status'), 'Status', 'text-center')}</TableHead>
                                 <TableHead className="text-center">{t('financeiro.table.situation', 'Situação')}</TableHead>
@@ -1788,6 +2029,416 @@ export const Cobranca = () => {
                                         {t('financeiro.table.no_pending_titles', 'Excelente! Nenhum título pendente nesta categoria.')}
                                     </TableCell>
                                 </TableRow>
+                            ) : viewMode === 'client' ? (
+                                groupedClients.map((group) => {
+                                    const isExpanded = expandedClients.has(group.clientKey);
+                                    const rep = group.representativeTitle;
+                                    const isMulti = group.titles.length > 1;
+
+                                    return (
+                                        <React.Fragment key={group.clientKey}>
+                                            {/* Master Row: Consolidated Client Summary (Aligned with all 11 columns) */}
+                                            <TableRow
+                                                onClick={() => toggleClientExpand(group.clientKey)}
+                                                className={`group cursor-pointer transition-all duration-150 ${
+                                                    isExpanded
+                                                        ? 'bg-slate-100/90 dark:bg-slate-800/80 border-b-0 shadow-xs'
+                                                        : 'hover:bg-slate-50/80 dark:hover:bg-slate-900/40'
+                                                }`}
+                                            >
+                                                {/* Col 1: Cliente + Expand Indicator + Count of Titles */}
+                                                <TableCell className="py-3.5">
+                                                    <div className="flex items-start gap-2.5">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleClientExpand(group.clientKey);
+                                                            }}
+                                                            title={isExpanded ? 'Recolher títulos deste cliente' : 'Clique para expandir e ver os títulos deste cliente'}
+                                                            className={`mt-0.5 w-6 h-6 rounded-md flex items-center justify-center shrink-0 transition-all border ${
+                                                                isExpanded
+                                                                    ? 'bg-brand-primary text-white border-brand-primary shadow-xs'
+                                                                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 group-hover:border-brand-primary/60 group-hover:text-brand-primary'
+                                                            }`}
+                                                        >
+                                                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                        </button>
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm max-w-[260px] xl:max-w-[380px] truncate" title={group.clientName}>
+                                                                    {group.clientName}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wider ${
+                                                                    isMulti
+                                                                        ? 'bg-brand-primary/10 text-brand-primary border border-brand-primary/20'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                                                                }`}>
+                                                                    <FileText size={10} />
+                                                                    {group.titles.length} {group.titles.length === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
+                                                                </span>
+                                                                {!isMulti && rep.Num_doc && (
+                                                                    <span className="text-[11px] text-muted-foreground font-mono">{rep.Num_doc}</span>
+                                                                )}
+                                                                {group.attachmentsCount > 0 && (
+                                                                    <span
+                                                                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 text-[10px] font-bold border border-blue-200/70 dark:border-blue-800/50"
+                                                                        title={`${group.attachmentsCount} fatura(s) PDF disponível(is)`}
+                                                                    >
+                                                                        <Paperclip size={10} />
+                                                                        <span>{group.attachmentsCount} PDF</span>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+
+                                                {/* Col 2: Empresa */}
+                                                <TableCell className="text-muted-foreground text-sm font-semibold">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span>{group.empresas[0] || '-'}</span>
+                                                        {group.empresas.length > 1 && (
+                                                            <span
+                                                                className="px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold"
+                                                                title={group.empresas.join(', ')}
+                                                            >
+                                                                +{group.empresas.length - 1}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+
+                                                {/* Col 3: Banco */}
+                                                <TableCell className="text-muted-foreground text-sm font-medium">
+                                                    <div className="flex items-center gap-1.5 max-w-[200px]">
+                                                        <span className="truncate" title={group.bancos.join(', ')}>{group.bancos[0] || 'Não Definido'}</span>
+                                                        {group.bancos.length > 1 && (
+                                                            <span
+                                                                className="px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold shrink-0"
+                                                                title={group.bancos.join(', ')}
+                                                            >
+                                                                +{group.bancos.length - 1}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+
+                                                {/* Col 4: Mês Fat. */}
+                                                <TableCell className="text-muted-foreground text-sm font-medium">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span>{group.periodosFat[0] || '-'}</span>
+                                                        {group.periodosFat.length > 1 && (
+                                                            <span
+                                                                className="px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold"
+                                                                title={`Meses de faturamento: ${group.periodosFat.join(', ')}`}
+                                                            >
+                                                                +{group.periodosFat.length - 1}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+
+                                                {/* Col 5: Emissão */}
+                                                <TableCell>
+                                                    <div className="text-sm">{formatDate(group.earliestEmissao)}</div>
+                                                    {isMulti && group.earliestEmissao && group.latestEmissao && formatDate(group.earliestEmissao) !== formatDate(group.latestEmissao) && (
+                                                        <span className="text-[10px] text-muted-foreground block">
+                                                            até {formatDate(group.latestEmissao)}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Col 6: Vencimento (Mais antigo) + Maior Atraso */}
+                                                <TableCell>
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-100">{formatDate(group.oldestVencimento)}</div>
+                                                    {(activeTab === 'atraso' || activeTab === 'negociado' || activeTab === 'em_negociacao' || activeTab === 'judicial') && group.maxDelayDays > 0 && (
+                                                        <span className="text-[10px] text-destructive font-bold uppercase tracking-wider block">
+                                                            ({isMulti ? `máx. ${group.maxDelayDays}` : group.maxDelayDays} {group.maxDelayDays === 1 ? t('financeiro.table.delay_day', 'dia de atraso') : t('financeiro.table.delay_days', 'dias de atraso')})
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Col 7: Valor Consolidado */}
+                                                <TableCell className="text-right">
+                                                    <div className="font-extrabold text-slate-900 dark:text-slate-100">{formatCurrency(group.totalValor)}</div>
+                                                    {isMulti && (
+                                                        <div className="text-[10px] text-muted-foreground font-semibold">
+                                                            Total ({group.titles.length} docs)
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Col 8: Saldo Consolidado */}
+                                                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="font-extrabold text-brand-primary text-sm">{formatCurrency(group.totalSaldo)}</div>
+                                                    {isMulti && (
+                                                        <div className="text-[10px] text-muted-foreground font-semibold">
+                                                            Saldo Consolidado
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Col 9: Status Consolidado */}
+                                                <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                                                    {group.overdueCount > 0 ? (
+                                                        <Badge variant="destructive">{t('financeiro.status.overdue', 'Vencido')}</Badge>
+                                                    ) : (
+                                                        <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">
+                                                            {t('financeiro.status.due_soon', 'A vencer')}
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Col 10: Situação Consolidada */}
+                                                <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                                                    {group.judicialCount > 0 ? (
+                                                        <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">
+                                                            {t('financeiro.status.judicial', 'Jurídico')}
+                                                        </Badge>
+                                                    ) : group.negociadoCount > 0 ? (
+                                                        <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">
+                                                            {t('financeiro.status.negotiated', 'Negociado')}
+                                                        </Badge>
+                                                    ) : group.inNegotiation ? (
+                                                        <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50 hover:bg-purple-100 font-bold dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-500 flex items-center justify-center gap-1 mx-auto w-fit">
+                                                            <Handshake size={11} />
+                                                            <span>{t('financeiro.status.in_negotiation', 'Em Negociação')}</span>
+                                                        </Badge>
+                                                    ) : group.partialCount > 0 ? (
+                                                        <Badge variant="warning" className="bg-amber-500 hover:bg-amber-600 text-white font-bold">
+                                                            {t('financeiro.status.partial', 'Parcial')}
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-muted-foreground">-</span>
+                                                    )}
+                                                </TableCell>
+
+                                                {/* Col 11: Ações de Cobrança Consolidadas do Cliente */}
+                                                <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        {/* Cobrar Email (envia com todos os títulos do cliente na aba atual) */}
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            title={t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                            onClick={() => openEmailModal(rep, activeTab === 'atraso' ? 'overdue' : activeTab === 'judicial' ? 'legal' : 'friendly', undefined, group.titles)}
+                                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-8 text-xs font-semibold"
+                                                        >
+                                                            <Mail size={14} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                        </Button>
+
+                                                        {/* Histórico de Observações */}
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            title={t('financeiro.actions.btn_historico', 'Histórico')}
+                                                            onClick={() => openObs(rep)}
+                                                            className="text-slate-600 hover:text-slate-700 hover:bg-slate-100 h-8 text-xs font-semibold"
+                                                        >
+                                                            <Clock size={14} className="mr-1" /> {t('financeiro.actions.btn_historico', 'Histórico')}
+                                                        </Button>
+
+                                                        {/* Negociar (abre modal com todos os títulos do cliente) */}
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            title={t('financeiro.actions.btn_negociar', 'Negociar')}
+                                                            onClick={() => openNegotiationModal(rep)}
+                                                            className="text-indigo-600 hover:text-indigo-750 hover:bg-indigo-50 border-indigo-200 h-8 text-xs font-semibold"
+                                                        >
+                                                            <Users size={14} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
+                                                        </Button>
+
+                                                        {/* Se tiver apenas 1 título, permite receber direto; se tiver múltiplos, botão expande para escolher o título ou ver detalhes */}
+                                                        {!isMulti ? (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                title={t('financeiro.actions.btn_receber', 'Receber')}
+                                                                onClick={() => openReceber(rep)}
+                                                                className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                            >
+                                                                <CheckCircle2 size={16} />
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                title={isExpanded ? 'Recolher títulos' : `Ver ${group.titles.length} títulos deste cliente`}
+                                                                onClick={() => toggleClientExpand(group.clientKey)}
+                                                                className={`h-8 w-8 transition-colors ${isExpanded ? 'text-brand-primary bg-brand-primary/10' : 'text-slate-500 hover:text-brand-primary hover:bg-slate-100'}`}
+                                                            >
+                                                                {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+
+                                            {/* Detail Sub-Rows: Individual Titles of this Client (Aligned 1:1 with the 11 columns) */}
+                                            {isExpanded && group.titles.map((item, idx) => {
+                                                const delayDays = item.Dt_venc ? Math.floor((new Date().getTime() - new Date(item.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
+                                                const isLast = idx === group.titles.length - 1;
+                                                return (
+                                                    <TableRow
+                                                        key={item.id}
+                                                        onClick={() => openZoom(item)}
+                                                        className={`group cursor-pointer bg-slate-50/90 dark:bg-slate-900/60 hover:bg-blue-50/60 dark:hover:bg-slate-800/80 border-l-4 border-l-brand-primary transition-colors duration-150 ${
+                                                            isLast ? 'border-b-2 border-b-slate-200 dark:border-b-slate-800' : ''
+                                                        }`}
+                                                    >
+                                                        {/* Sub-Col 1: Documento + PDF Anexo */}
+                                                        <TableCell className="pl-9 py-2.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <CornerDownRight size={13} className="text-brand-primary/70 shrink-0" />
+                                                                <div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-mono font-bold text-xs text-slate-800 dark:text-slate-200">
+                                                                            {item.Num_doc || 'S/N'}
+                                                                        </span>
+                                                                        {item.anexo_url && (
+                                                                            <a
+                                                                                href={item.anexo_url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                title="Visualizar / Baixar PDF da Fatura"
+                                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20 text-[10px] font-bold transition-colors"
+                                                                            >
+                                                                                <Paperclip size={11} />
+                                                                                <span>PDF</span>
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="text-[10px] text-muted-foreground">
+                                                                        Clique para abrir detalhes do título
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 2: Empresa */}
+                                                        <TableCell className="text-muted-foreground text-xs font-semibold py-2.5">
+                                                            {item.Empresa || '-'}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 3: Banco */}
+                                                        <TableCell className="text-muted-foreground text-xs font-medium py-2.5">
+                                                            {item.Banco || 'Não Definido'}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 4: Mês Fat. */}
+                                                        <TableCell className="text-muted-foreground text-xs font-medium py-2.5">
+                                                            {item.periodo_fat || '-'}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 5: Emissão */}
+                                                        <TableCell className="text-xs py-2.5">
+                                                            {formatDate(item.Data_emissao)}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 6: Vencimento */}
+                                                        <TableCell className="py-2.5">
+                                                            <div className="font-medium text-xs">{formatDate(item.Dt_venc)}</div>
+                                                            {(activeTab === 'atraso' || activeTab === 'negociado' || activeTab === 'em_negociacao' || activeTab === 'judicial') && delayDays > 0 && (
+                                                                <span className="text-[10px] text-destructive font-bold uppercase tracking-wider block">
+                                                                    ({delayDays} {delayDays === 1 ? t('financeiro.table.delay_day', 'dia de atraso') : t('financeiro.table.delay_days', 'dias de atraso')})
+                                                                </span>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 7: Valor Individual */}
+                                                        <TableCell className="text-right font-bold text-xs text-slate-700 dark:text-slate-300 py-2.5">
+                                                            {formatCurrency(item.Valot_total)}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 8: Saldo Individual */}
+                                                        <TableCell className="text-right font-bold text-xs text-brand-primary py-2.5" onClick={(e) => e.stopPropagation()}>
+                                                            {formatCurrency(item.Saldo_a_pagar)}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 9: Status Individual */}
+                                                        <TableCell className="text-center py-2.5" onClick={(e) => e.stopPropagation()}>
+                                                            {item.Status === 'Pago' ? (
+                                                                <Badge variant="default" className="text-[10px]">{t('financeiro.status.paid', 'Pago')}</Badge>
+                                                            ) : (item.Status === 'Negociado' || (item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0)))) ? (
+                                                                <Badge variant="destructive" className="text-[10px]">{t('financeiro.status.overdue', 'Vencido')}</Badge>
+                                                            ) : (
+                                                                <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold text-[10px]">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 10: Situação Individual */}
+                                                        <TableCell className="text-center py-2.5" onClick={(e) => e.stopPropagation()}>
+                                                            {item.Status === 'Parcial' ? (
+                                                                <Badge variant="warning" className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px]">{t('financeiro.status.partial', 'Parcial')}</Badge>
+                                                            ) : item.Status === 'Judicial' ? (
+                                                                <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 font-bold text-[10px]">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
+                                                            ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado') ? (
+                                                                <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 font-bold text-[10px]">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
+                                                            ) : isClientInNegotiation(item) ? (
+                                                                <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50 font-bold text-[10px] flex items-center justify-center gap-1 mx-auto w-fit">
+                                                                    <Handshake size={10} />
+                                                                    <span>{t('financeiro.status.in_negotiation', 'Em Negociação')}</span>
+                                                                </Badge>
+                                                            ) : (
+                                                                <span className="text-muted-foreground text-xs">-</span>
+                                                            )}
+                                                        </TableCell>
+
+                                                        {/* Sub-Col 11: Ações Individuais do Título */}
+                                                        <TableCell className="text-right px-6 py-2.5" onClick={(e) => e.stopPropagation()}>
+                                                            <div className="flex items-center justify-end gap-1.5">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    title={t('financeiro.actions.btn_cobrar', 'Cobrar este título')}
+                                                                    onClick={() => openEmailModal(item, activeTab === 'atraso' ? 'overdue' : activeTab === 'judicial' ? 'legal' : 'friendly', undefined, [item])}
+                                                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-7 px-2.5 text-[11px] font-semibold bg-white dark:bg-slate-900"
+                                                                >
+                                                                    <Mail size={12} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                                </Button>
+
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    title={t('financeiro.actions.btn_historico', 'Histórico deste título')}
+                                                                    onClick={() => openObs(item)}
+                                                                    className="text-slate-600 hover:text-slate-700 hover:bg-slate-100 h-7 px-2.5 text-[11px] font-semibold bg-white dark:bg-slate-900"
+                                                                >
+                                                                    <Clock size={12} className="mr-1" /> {t('financeiro.actions.btn_historico', 'Histórico')}
+                                                                </Button>
+
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    title={t('financeiro.actions.btn_negociar', 'Negociar')}
+                                                                    onClick={() => openNegotiationModal(item)}
+                                                                    className="text-indigo-600 hover:text-indigo-750 hover:bg-indigo-50 border-indigo-200 h-7 px-2.5 text-[11px] font-semibold bg-white dark:bg-slate-900"
+                                                                >
+                                                                    <Users size={12} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
+                                                                </Button>
+
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    title={t('financeiro.actions.btn_receber', 'Receber este título')}
+                                                                    onClick={() => openReceber(item)}
+                                                                    className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                >
+                                                                    <CheckCircle2 size={15} />
+                                                                </Button>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </React.Fragment>
+                                    );
+                                })
                             ) : (
                                 sortedData.map((item) => {
                                     const delayDays = item.Dt_venc ? Math.floor((new Date().getTime() - new Date(item.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
@@ -1797,7 +2448,21 @@ export const Cobranca = () => {
                                                 <div className="font-semibold text-slate-800 dark:text-slate-100 max-w-[260px] xl:max-w-[380px] truncate" title={item.Cliente || 'Sem Nome'}>
                                                     {item.Cliente || 'Sem Nome'}
                                                 </div>
-                                                <div className="text-xs text-muted-foreground font-mono">{item.Num_doc}</div>
+                                                <div className="text-xs text-muted-foreground font-mono flex items-center gap-1.5">
+                                                    <span>{item.Num_doc}</span>
+                                                    {item.anexo_url && (
+                                                        <a
+                                                            href={item.anexo_url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            title="Visualizar documento anexado"
+                                                            className="text-brand-primary hover:text-brand-primary/80 transition-colors p-0.5 rounded hover:bg-brand-primary/10"
+                                                        >
+                                                            <Paperclip size={12} />
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-sm font-semibold">{item.Empresa || '-'}</TableCell>
                                             <TableCell className="text-muted-foreground text-sm font-medium">{item.Banco || 'Não Definido'}</TableCell>
