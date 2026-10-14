@@ -62,6 +62,14 @@ const MESES_NOMES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
+const formatBaixaDate = (dateStr?: string) => {
+  if (!dateStr) return '';
+  const clean = String(dateStr).split('T')[0];
+  const parts = clean.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return clean;
+};
+
 export const DemandasAlocacaoPage: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio' | 'cliente'>('demandas');
@@ -173,12 +181,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
   // Modal de Check-out Avançado (Individual e em Grupo/Lote por Alojamento ou Obra)
   const [checkingOutData, setCheckingOutData] = useState<{
     alocacaoIds: string[];
-    workers: Array<{ id: string; nome: string; alojamento: string; alojamentoId?: string }>;
+    workers: Array<{
+      id: string;
+      nome: string;
+      alojamento: string;
+      alojamentoId?: string;
+      dataBaixa?: string;
+      alertaInativoRh?: string;
+      isInativoRh?: boolean;
+    }>;
     alojamentoNomePrincipal: string;
     alojamentoIdPrincipal?: string;
   } | null>(null);
   const [motivoCheckout, setMotivoCheckout] = useState<string>('Fin de Pedido / Obra');
   const [dataSaidaEfetiva, setDataSaidaEfetiva] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [usarDataBaixaIndividual, setUsarDataBaixaIndividual] = useState<boolean>(true);
   const [observacoesCheckout, setObservacoesCheckout] = useState<string>('');
   const [desativarAlojamento, setDesativarAlojamento] = useState<boolean>(false);
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
@@ -716,6 +733,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     { id: 'mes_referencia', label: 'Mes Referencia' },
     { id: 'data_checkin', label: 'Fecha Inicio' },
     { id: 'data_checkout_prevista', label: 'Fecha Fin / Salida' },
+    { id: 'data_baixa', label: 'Fecha Baja RRHH / Último Día' },
     { id: 'dias_activos', label: 'Días Activos en Mes' },
     { id: 'total_dias_mes', label: 'Días del Mes' },
     { id: 'valor_base', label: 'Base Mensual (€)' },
@@ -739,6 +757,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     { id: 'tipo_alojamento', label: 'Modalidad' },
     { id: 'data_checkin', label: 'Fecha Entrada' },
     { id: 'data_checkout_prevista', label: 'Fecha Fin Prevista' },
+    { id: 'data_baixa', label: 'Fecha Baja RRHH / Último Día' },
     { id: 'status', label: 'Estado' }
   ];
 
@@ -753,6 +772,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     { id: 'municipio', label: 'Localidad' },
     { id: 'data_checkin', label: 'Fecha Inicio' },
     { id: 'data_checkout_prevista', label: 'Fecha Fin Prevista' },
+    { id: 'data_baixa', label: 'Fecha Baja RRHH / Último Día' },
     { id: 'status', label: 'Estado' }
   ];
 
@@ -772,7 +792,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
       'Tipo Alojamiento',
       'Estado',
       'Fecha Inicio (Check-in)',
-      'Fecha Fin Prevista'
+      'Fecha Fin Prevista',
+      'Fecha Baja RRHH / Último Día'
     ];
 
     const rows = dataToExport.map(a => [
@@ -789,7 +810,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
       `"${(a.tipo_alojamento || 'Fijo').replace(/"/g, '""')}"`,
       `"${(a.status || 'Activo').replace(/"/g, '""')}"`,
       a.data_checkin || '',
-      a.data_checkout_prevista || ''
+      a.data_checkout_prevista || '',
+      a.data_baixa || ''
     ]);
 
     const csvContent = '\uFEFF' + [headers.join(';'), ...rows.map(e => e.join(';'))].join('\r\n');
@@ -1185,29 +1207,41 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
   // Abrir Checkout Individual
   const handleOpenSingleCheckout = (aloc: TrabalhadorAlojado) => {
+    const todayStr = new Date().toISOString().split('T')[0];
     setCheckingOutData({
       alocacaoIds: [aloc.alocacao_id || aloc.id],
       workers: [{
         id: aloc.alocacao_id || aloc.id,
         nome: aloc.worker_nome,
         alojamento: aloc.alojamento_nome,
-        alojamentoId: aloc.alojamento_id
+        alojamentoId: aloc.alojamento_id,
+        dataBaixa: aloc.data_baixa,
+        alertaInativoRh: aloc.alerta_inativo_rh,
+        isInativoRh: aloc.is_inativo_rh
       }],
       alojamentoNomePrincipal: aloc.alojamento_nome,
       alojamentoIdPrincipal: aloc.alojamento_id
     });
-    setMotivoCheckout('Fin de Pedido / Obra');
-    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
-    setObservacoesCheckout('');
+    setMotivoCheckout(aloc.is_inativo_rh ? 'Baja en Personal / Fin de Contrato' : 'Fin de Pedido / Obra');
+    setDataSaidaEfetiva(aloc.data_baixa || todayStr);
+    setUsarDataBaixaIndividual(true);
+    setObservacoesCheckout(
+      aloc.is_inativo_rh
+        ? `Baja en Personal (${aloc.alerta_inativo_rh || 'Inactivo'})${aloc.data_baixa ? ` - Último día RRHH: ${formatBaixaDate(aloc.data_baixa)}` : ''}`
+        : ''
+    );
     setDesativarAlojamento(false);
   };
 
   // Abrir Checkout em Lote dos Selecionados
   const handleOpenBatchCheckout = () => {
     if (selectedAlojadosIds.length === 0) return;
+    const todayStr = new Date().toISOString().split('T')[0];
     const selectedWorkers = filteredAlojadosEmpresa.filter(a => selectedAlojadosIds.includes(a.alocacao_id || a.id));
     const firstAlojNome = selectedWorkers[0]?.alojamento_nome || 'Alojamiento';
     const firstAlojId = selectedWorkers[0]?.alojamento_id;
+    const anyInativo = selectedWorkers.some(w => w.is_inativo_rh);
+    const firstBaixaDate = selectedWorkers.find(w => w.data_baixa)?.data_baixa;
 
     setCheckingOutData({
       alocacaoIds: selectedWorkers.map(w => w.alocacao_id || w.id),
@@ -1215,14 +1249,18 @@ export const DemandasAlocacaoPage: React.FC = () => {
         id: w.alocacao_id || w.id,
         nome: w.worker_nome,
         alojamento: w.alojamento_nome,
-        alojamentoId: w.alojamento_id
+        alojamentoId: w.alojamento_id,
+        dataBaixa: w.data_baixa,
+        alertaInativoRh: w.alerta_inativo_rh,
+        isInativoRh: w.is_inativo_rh
       })),
       alojamentoNomePrincipal: firstAlojNome,
       alojamentoIdPrincipal: firstAlojId
     });
-    setMotivoCheckout('Fin de Pedido / Obra');
-    setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
-    setObservacoesCheckout('');
+    setMotivoCheckout(anyInativo ? 'Baja en Personal / Fin de Contrato' : 'Fin de Pedido / Obra');
+    setDataSaidaEfetiva(firstBaixaDate || todayStr);
+    setUsarDataBaixaIndividual(true);
+    setObservacoesCheckout(anyInativo ? 'Check-out por baja / inactividad en Personal (RRHH)' : '');
     setDesativarAlojamento(false);
   };
 
@@ -1239,13 +1277,17 @@ export const DemandasAlocacaoPage: React.FC = () => {
         id: w.alocacao_id || w.id,
         nome: w.worker_nome,
         alojamento: w.alojamento_nome,
-        alojamentoId: w.alojamento_id
+        alojamentoId: w.alojamento_id,
+        dataBaixa: w.data_baixa,
+        alertaInativoRh: w.alerta_inativo_rh,
+        isInativoRh: w.is_inativo_rh
       })),
       alojamentoNomePrincipal: firstAlojNome,
       alojamentoIdPrincipal: firstAlojId
     });
-    setMotivoCheckout('Fin de Contrato de Arrendamiento / Desmovilización');
+    setMotivoCheckout('Fin de Contrato de Arrendamiento');
     setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
+    setUsarDataBaixaIndividual(false);
     setObservacoesCheckout('Desocupación total y cierre del alojamiento');
     setDesativarAlojamento(true);
   };
@@ -1255,11 +1297,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
     if (!checkingOutData || checkingOutData.alocacaoIds.length === 0) return;
     try {
       setIsProcessingCheckout(true);
+      const perWorkerDates: Record<string, string> = {};
+      if (checkingOutData.workers.length > 1 && usarDataBaixaIndividual) {
+        checkingOutData.workers.forEach(w => {
+          if (w.dataBaixa) {
+            perWorkerDates[w.id] = w.dataBaixa;
+          }
+        });
+      }
+
       await logisticsService.checkoutGrupoTrabalhadores(
         checkingOutData.alocacaoIds,
         motivoCheckout + (observacoesCheckout ? ` - ${observacoesCheckout}` : ''),
         dataSaidaEfetiva,
-        desativarAlojamento ? checkingOutData.alojamentoIdPrincipal : undefined
+        desativarAlojamento ? checkingOutData.alojamentoIdPrincipal : undefined,
+        Object.keys(perWorkerDates).length > 0 ? perWorkerDates : undefined
       );
 
       const alojIdForVistoria = checkingOutData.alojamentoIdPrincipal;
@@ -2238,13 +2290,26 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                           {worker.worker_nome}
                                         </p>
                                         {worker.is_inativo_rh && (
-                                          <span
-                                            title={`⚠️ ATENCIÓN: El trabajador figura como inactivo o con baja en Personal/Seguridad Social (${worker.alerta_inativo_rh}). Compruebe si corresponde realizar el check-out.`}
-                                            className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
-                                          >
-                                            <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
-                                            Inactivo en Personal ({worker.alerta_inativo_rh || 'Baja'})
-                                          </span>
+                                          <>
+                                            <span
+                                              title={`⚠️ ATENCIÓN: El trabajador figura como inactivo o con baja en Personal/Seguridad Social (${worker.alerta_inativo_rh}). Compruebe si corresponde realizar el check-out.`}
+                                              className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                                            >
+                                              <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                              Inactivo en Personal ({worker.alerta_inativo_rh || 'Baja'})
+                                            </span>
+                                            <span
+                                              title={worker.data_baixa ? `Fecha de baja / último día registrado en RRHH: ${formatBaixaDate(worker.data_baixa)}` : 'Sin fecha de baja registrada en RRHH'}
+                                              className={`inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                                worker.data_baixa
+                                                  ? 'bg-rose-600 text-white shadow-2xs'
+                                                  : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                              }`}
+                                            >
+                                              <Calendar size={10} />
+                                              {worker.data_baixa ? `Baja / Últ. Día: ${formatBaixaDate(worker.data_baixa)}` : 'Fecha baja no registrada'}
+                                            </span>
+                                          </>
                                         )}
                                       </div>
                                       
@@ -2296,6 +2361,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                         <p className="text-[10px] text-slate-400">
                                           {worker.alocacao_detalhe?.cama_identificador}
                                         </p>
+                                        {worker.data_baixa && (
+                                          <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                            🛑 Baja RRHH: {formatBaixaDate(worker.data_baixa)}
+                                          </p>
+                                        )}
                                       </div>
                                     ) : (
                                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
@@ -2309,20 +2379,29 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                     {isAllocated ? (
                                       <button
                                         onClick={() => {
+                                          const todayStr = new Date().toISOString().split('T')[0];
                                           setCheckingOutData({
                                             alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
                                             workers: [{
                                               id: worker.alocacao_detalhe!.alocacao_id,
                                               nome: worker.worker_nome,
                                               alojamento: worker.alocacao_detalhe!.alojamento_nome,
-                                              alojamentoId: worker.alocacao_detalhe!.alojamento_id
+                                              alojamentoId: worker.alocacao_detalhe!.alojamento_id,
+                                              dataBaixa: worker.data_baixa,
+                                              alertaInativoRh: worker.alerta_inativo_rh,
+                                              isInativoRh: worker.is_inativo_rh
                                             }],
                                             alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
                                             alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
                                           });
-                                          setMotivoCheckout('Fin de Pedido / Obra');
-                                          setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
-                                          setObservacoesCheckout('');
+                                          setMotivoCheckout(worker.is_inativo_rh ? 'Baja en Personal / Fin de Contrato' : 'Fin de Pedido / Obra');
+                                          setDataSaidaEfetiva(worker.data_baixa || todayStr);
+                                          setUsarDataBaixaIndividual(true);
+                                          setObservacoesCheckout(
+                                            worker.is_inativo_rh
+                                              ? `Baja en Personal (${worker.alerta_inativo_rh || 'Inactivo'})${worker.data_baixa ? ` - Último día RRHH: ${formatBaixaDate(worker.data_baixa)}` : ''}`
+                                              : ''
+                                          );
                                           setDesativarAlojamento(false);
                                         }}
                                         className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
@@ -2388,13 +2467,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                               Sustituido / Histórico
                                             </span>
                                             {worker.is_inativo_rh && (
-                                              <span
-                                                title={`⚠️ ATENCIÓN: Trabajador dado de baja o inactivo en Personal/Seguridad Social (${worker.alerta_inativo_rh}).`}
-                                                className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
-                                              >
-                                                <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
-                                                Inactivo en Personal ({worker.alerta_inativo_rh || 'Baja'})
-                                              </span>
+                                              <>
+                                                <span
+                                                  title={`⚠️ ATENCIÓN: Trabajador dado de baja o inactivo en Personal/Seguridad Social (${worker.alerta_inativo_rh}).`}
+                                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                                                >
+                                                  <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                                  Inactivo en Personal ({worker.alerta_inativo_rh || 'Baja'})
+                                                </span>
+                                                <span
+                                                  className={`inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                                    worker.data_baixa
+                                                      ? 'bg-rose-600 text-white shadow-2xs'
+                                                      : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                                  }`}
+                                                >
+                                                  <Calendar size={10} />
+                                                  {worker.data_baixa ? `Baja / Últ. Día: ${formatBaixaDate(worker.data_baixa)}` : 'Fecha baja no registrada'}
+                                                </span>
+                                              </>
                                             )}
                                             {worker.solicitud_codigo && (
                                               <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
@@ -2432,6 +2523,11 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                             <p className="text-[10px] text-amber-700 dark:text-amber-400 font-semibold">
                                               {worker.alocacao_detalhe?.cama_identificador} • Cama a desocupar
                                             </p>
+                                            {worker.data_baixa && (
+                                              <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                                🛑 Baja RRHH: {formatBaixaDate(worker.data_baixa)}
+                                              </p>
+                                            )}
                                           </div>
                                         ) : (
                                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold text-slate-400 bg-slate-100 dark:bg-slate-800">
@@ -2444,20 +2540,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                         {isAllocated ? (
                                           <button
                                             onClick={() => {
+                                              const todayStr = new Date().toISOString().split('T')[0];
                                               setCheckingOutData({
                                                 alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
                                                 workers: [{
                                                   id: worker.alocacao_detalhe!.alocacao_id,
                                                   nome: worker.worker_nome,
                                                   alojamento: worker.alocacao_detalhe!.alojamento_nome,
-                                                  alojamentoId: worker.alocacao_detalhe!.alojamento_id
+                                                  alojamentoId: worker.alocacao_detalhe!.alojamento_id,
+                                                  dataBaixa: worker.data_baixa,
+                                                  alertaInativoRh: worker.alerta_inativo_rh,
+                                                  isInativoRh: worker.is_inativo_rh
                                                 }],
                                                 alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
                                                 alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
                                               });
                                               setMotivoCheckout('Sustitución / Reemplazo de Colaborador');
-                                              setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
-                                              setObservacoesCheckout(`Check-out por solicitud de reemplazo ${worker.solicitud_codigo || ''}`);
+                                              setDataSaidaEfetiva(worker.data_baixa || todayStr);
+                                              setUsarDataBaixaIndividual(true);
+                                              setObservacoesCheckout(`Check-out por solicitud de reemplazo ${worker.solicitud_codigo || ''}${worker.data_baixa ? ` - Baja RRHH: ${formatBaixaDate(worker.data_baixa)}` : ''}`);
                                               setDesativarAlojamento(false);
                                             }}
                                             className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs transition-colors shadow-2xs inline-flex items-center gap-1.5 cursor-pointer"
@@ -2734,7 +2835,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                 {selectedAlojadosIds.length > 0 && (
                   <button
-                    onClick={handleBatchCheckout}
+                    onClick={handleOpenBatchCheckout}
                     className="px-3 py-1.5 bg-rose-800 hover:bg-rose-900 text-white rounded-xl font-bold text-xs transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer animate-in fade-in"
                   >
                     <LogOut size={13} />
@@ -2902,13 +3003,26 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
                             {aloc.is_inativo_rh && (
-                              <span
-                                title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${aloc.alerta_inativo_rh}). Se recomienda tramitar el check-out para liberar la cama.`}
-                                className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
-                              >
-                                <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
-                                Inactivo en Personal ({aloc.alerta_inativo_rh || 'Baja'})
-                              </span>
+                              <>
+                                <span
+                                  title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${aloc.alerta_inativo_rh}). Se recomienda tramitar el check-out para liberar la cama.`}
+                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                                >
+                                  <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                  Inactivo en Personal ({aloc.alerta_inativo_rh || 'Baja'})
+                                </span>
+                                <span
+                                  title={aloc.data_baixa ? `Fecha de baja / último día registrado en RRHH: ${formatBaixaDate(aloc.data_baixa)}` : 'Sin fecha de baja registrada en RRHH'}
+                                  className={`inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                    aloc.data_baixa
+                                      ? 'bg-rose-600 text-white shadow-2xs'
+                                      : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                  }`}
+                                >
+                                  <Calendar size={10} />
+                                  {aloc.data_baixa ? `Baja / Últ. Día: ${formatBaixaDate(aloc.data_baixa)}` : 'Fecha baja no registrada'}
+                                </span>
+                              </>
                             )}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
@@ -2993,6 +3107,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
                             <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
                           ) : (
                             <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
+                          )}
+                          {(aloc.is_inativo_rh || aloc.data_baixa) && (
+                            <p className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100/90 dark:bg-rose-950/70 px-1.5 py-0.5 rounded border border-rose-300 dark:border-rose-800 mt-1 w-fit flex items-center gap-1">
+                              <span>🛑 Baja RRHH:</span>
+                              <span>{aloc.data_baixa ? `${formatBaixaDate(aloc.data_baixa)} (${aloc.data_baixa})` : 'Sin fecha'}</span>
+                            </p>
                           )}
                         </td>
 
@@ -3396,13 +3516,26 @@ export const DemandasAlocacaoPage: React.FC = () => {
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
                               {a.is_inativo_rh && (
-                                <span
-                                  title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${a.alerta_inativo_rh}). Compruebe si corresponde finalizar el registro de moradía propia.`}
-                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
-                                >
-                                  <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
-                                  Inactivo en Personal ({a.alerta_inativo_rh || 'Baja'})
-                                </span>
+                                <>
+                                  <span
+                                    title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${a.alerta_inativo_rh}). Compruebe si corresponde finalizar el registro de moradía propia.`}
+                                    className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
+                                  >
+                                    <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
+                                    Inactivo en Personal ({a.alerta_inativo_rh || 'Baja'})
+                                  </span>
+                                  <span
+                                    title={a.data_baixa ? `Fecha de baja / último día registrado en RRHH: ${formatBaixaDate(a.data_baixa)}` : 'Sin fecha de baja registrada en RRHH'}
+                                    className={`inline-flex items-center gap-1 text-[9px] font-black px-2 py-0.5 rounded-full ${
+                                      a.data_baixa
+                                        ? 'bg-rose-600 text-white shadow-2xs'
+                                        : 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                    }`}
+                                  >
+                                    <Calendar size={10} />
+                                    {a.data_baixa ? `Baja / Últ. Día: ${formatBaixaDate(a.data_baixa)}` : 'Fecha baja no registrada'}
+                                  </span>
+                                </>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
@@ -3447,6 +3580,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
                             ) : (
                               <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
                             )}
+                            {(a.is_inativo_rh || a.data_baixa) && (
+                              <p className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100/90 dark:bg-rose-950/70 px-1.5 py-0.5 rounded border border-rose-300 dark:border-rose-800 mt-1 w-fit flex items-center gap-1">
+                                <span>🛑 Baja RRHH:</span>
+                                <span>{a.data_baixa ? `${formatBaixaDate(a.data_baixa)} (${a.data_baixa})` : 'Sin fecha'}</span>
+                              </p>
+                            )}
                           </td>
 
                           <td className="px-4 py-3.5">
@@ -3480,18 +3619,27 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           <td className="px-4 py-3.5 text-right">
                             <button
                               onClick={() => {
+                                const todayStr = new Date().toISOString().split('T')[0];
                                 setCheckingOutData({
                                   alocacaoIds: [a.alocacao_id || a.id],
                                   workers: [{
                                     id: a.alocacao_id || a.id,
                                     nome: a.worker_nome,
-                                    alojamento: 'Alojamiento Propio'
+                                    alojamento: 'Alojamiento Propio',
+                                    dataBaixa: a.data_baixa,
+                                    alertaInativoRh: a.alerta_inativo_rh,
+                                    isInativoRh: a.is_inativo_rh
                                   }],
                                   alojamentoNomePrincipal: 'Alojamiento Propio'
                                 });
-                                setMotivoCheckout('Fin de Pedido / Obra');
-                                setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
-                                setObservacoesCheckout('');
+                                setMotivoCheckout(a.is_inativo_rh ? 'Baja en Personal / Fin de Contrato' : 'Fin de Pedido / Obra');
+                                setDataSaidaEfetiva(a.data_baixa || todayStr);
+                                setUsarDataBaixaIndividual(true);
+                                setObservacoesCheckout(
+                                  a.is_inativo_rh
+                                    ? `Baja en Personal (${a.alerta_inativo_rh || 'Inactivo'})${a.data_baixa ? ` - Último día RRHH: ${formatBaixaDate(a.data_baixa)}` : ''}`
+                                    : ''
+                                );
                                 setDesativarAlojamento(false);
                               }}
                               className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer"
@@ -3735,11 +3883,16 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
                           {aloc.is_inativo_rh && (
                             <span
-                              title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${aloc.alerta_inativo_rh}).`}
+                              title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${aloc.alerta_inativo_rh}).${aloc.data_baixa ? ` Fecha de Baja / Último día: ${formatBaixaDate(aloc.data_baixa)}` : ''}`}
                               className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800 cursor-help"
                             >
                               <AlertTriangle size={10} className="text-rose-600 dark:text-rose-400" />
                               Inactivo en Personal ({aloc.alerta_inativo_rh || 'Baja'})
+                              {aloc.data_baixa && (
+                                <span className="ml-1 px-1.5 py-0.2 rounded bg-rose-700 text-white font-mono">
+                                  Baja / Últ. Día: {formatBaixaDate(aloc.data_baixa)}
+                                </span>
+                              )}
                             </span>
                           )}
                         </div>
@@ -3799,25 +3952,39 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         ) : (
                           <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
                         )}
+                        {aloc.is_inativo_rh && aloc.data_baixa && (
+                          <p className="text-[10px] font-bold text-rose-700 dark:text-rose-400 mt-0.5 bg-rose-100/80 dark:bg-rose-950/60 px-1.5 py-0.5 rounded w-fit">
+                            🛑 Baja RRHH: {formatBaixaDate(aloc.data_baixa)}
+                          </p>
+                        )}
                       </td>
 
                       <td className="px-4 py-3.5 text-right">
                         <button
                           onClick={() => {
+                            const baixaClean = aloc.data_baixa ? String(aloc.data_baixa).split('T')[0] : undefined;
                             setCheckingOutData({
                               alocacaoIds: [aloc.alocacao_id || aloc.id],
                               workers: [{
                                 id: aloc.alocacao_id || aloc.id,
                                 nome: aloc.worker_nome,
                                 alojamento: aloc.alojamento_nome,
-                                alojamentoId: aloc.alojamento_id
+                                alojamentoId: aloc.alojamento_id,
+                                dataBaixa: baixaClean,
+                                alertaInativoRh: aloc.alerta_inativo_rh,
+                                isInativoRh: aloc.is_inativo_rh
                               }],
                               alojamentoNomePrincipal: aloc.alojamento_nome,
                               alojamentoIdPrincipal: aloc.alojamento_id
                             });
-                            setMotivoCheckout('Fin de Pedido / Obra');
-                            setDataSaidaEfetiva(new Date().toISOString().split('T')[0]);
-                            setObservacoesCheckout('');
+                            setMotivoCheckout(aloc.is_inativo_rh ? 'Baja en Personal / Fin de Contrato' : 'Fin de Pedido / Obra');
+                            setDataSaidaEfetiva(baixaClean || new Date().toISOString().split('T')[0]);
+                            setUsarDataBaixaIndividual(Boolean(baixaClean));
+                            setObservacoesCheckout(
+                              aloc.is_inativo_rh && baixaClean
+                                ? `Baja en Personal registrada el ${formatBaixaDate(baixaClean)}`
+                                : ''
+                            );
                             setDesativarAlojamento(false);
                           }}
                           className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
@@ -4605,11 +4772,30 @@ export const DemandasAlocacaoPage: React.FC = () => {
               <label className="font-bold text-slate-700 dark:text-slate-300 text-xs block">
                 Colaboradores afectados ({checkingOutData.workers.length}):
               </label>
-              <div className="max-h-32 overflow-y-auto p-2 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+              <div className="max-h-40 overflow-y-auto p-2.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-2">
                 {checkingOutData.workers.map((w, idx) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-800 dark:text-slate-200">{w.nome}</span>
-                    <span className="text-[10px] text-slate-400 font-mono">{w.alojamento}</span>
+                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1 border-b border-slate-200/60 dark:border-slate-700/60 last:border-0 pb-1.5 last:pb-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{w.nome}</span>
+                      {w.isInativoRh && (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                          {w.alertaInativoRh || 'Inactivo en Personal'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {w.dataBaixa && (
+                        <button
+                          type="button"
+                          onClick={() => setDataSaidaEfetiva(String(w.dataBaixa).split('T')[0])}
+                          title="Haga clic para usar esta Fecha de Baja como Fecha Efectiva de Salida"
+                          className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-700 hover:bg-rose-800 text-white font-mono cursor-pointer transition-colors"
+                        >
+                          🛑 Baja / Últ. Día: {formatBaixaDate(w.dataBaixa)}
+                        </button>
+                      )}
+                      <span className="text-[10px] text-slate-400 font-mono">{w.alojamento}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -4623,6 +4809,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   onChange={e => setMotivoCheckout(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
                 >
+                  <option value="Baja en Personal / Fin de Contrato">Baja en Personal / Fin de Contrato (RRHH)</option>
                   <option value="Fin de Pedido / Obra">Fin de Pedido / Obra</option>
                   <option value="Traslado / Reubicación">Traslado / Reubicación a otro Alojamiento</option>
                   <option value="Fin de Contrato de Arrendamiento">Fin de Arrendamiento / Desmovilización</option>
@@ -4636,11 +4823,44 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <input
                   type="date"
                   value={dataSaidaEfetiva}
-                  onChange={e => setDataSaidaEfetiva(e.target.value)}
+                  onChange={e => {
+                    setDataSaidaEfetiva(e.target.value);
+                    setUsarDataBaixaIndividual(false);
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl font-semibold text-xs"
                 />
+                {checkingOutData.workers.length === 1 && checkingOutData.workers[0].dataBaixa && (
+                  <p className="text-[10px] text-rose-600 dark:text-rose-400 font-bold mt-1 flex items-center justify-between">
+                    <span>Ref. Baja RRHH: {formatBaixaDate(checkingOutData.workers[0].dataBaixa)}</span>
+                    {dataSaidaEfetiva !== String(checkingOutData.workers[0].dataBaixa).split('T')[0] && (
+                      <button
+                        type="button"
+                        onClick={() => setDataSaidaEfetiva(String(checkingOutData.workers[0].dataBaixa).split('T')[0])}
+                        className="underline hover:text-rose-800 cursor-pointer"
+                      >
+                        Usar fecha de baja
+                      </button>
+                    )}
+                  </p>
+                )}
               </div>
             </div>
+
+            {checkingOutData.workers.length > 1 && checkingOutData.workers.some(w => Boolean(w.dataBaixa)) && (
+              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 rounded-xl">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={usarDataBaixaIndividual}
+                    onChange={e => setUsarDataBaixaIndividual(e.target.checked)}
+                    className="w-4 h-4 mt-0.5 rounded text-rose-600 focus:ring-rose-500 border-rose-300"
+                  />
+                  <span className="text-[11px] font-bold text-rose-900 dark:text-rose-200">
+                    Usar automáticamente la Fecha de Baja RRHH individual de cada trabajador (si está disponible) como su fecha de Check-out
+                  </span>
+                </label>
+              </div>
+            )}
 
             <div className="space-y-1 text-xs">
               <label className="font-bold text-slate-600 dark:text-slate-400 block">Observaciones de Salida:</label>

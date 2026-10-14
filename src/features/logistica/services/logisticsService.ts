@@ -161,6 +161,7 @@ export interface Alocacao {
   status_seguridad?: string;
   is_inativo_rh?: boolean;
   alerta_inativo_rh?: string;
+  data_baixa?: string;
 }
 
 export interface TrabalhadorDemandaItem {
@@ -195,6 +196,7 @@ export interface TrabalhadorDemandaItem {
   status_seguridad?: string;
   is_inativo_rh?: boolean;
   alerta_inativo_rh?: string;
+  data_baixa?: string;
 }
 
 export interface VagaPerfilItem {
@@ -304,6 +306,7 @@ export interface TrabalhadorAlojado {
   status_seguridad?: string;
   is_inativo_rh?: boolean;
   alerta_inativo_rh?: string;
+  data_baixa?: string;
 }
 
 const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v5';
@@ -565,24 +568,144 @@ export const logisticsService = {
           .filter((wId: string) => isUuid(wId))
       ));
 
-      const [workersRes, alojamentosRes] = await Promise.all([
+      const allCodColabs = Array.from(new Set(
+        dbAlocs
+          .map((r: any) => {
+            const base = importedMap.get(r.worker_id) || importedMap.get(r.id) || {};
+            return base.codigo_colab || r.codigo_colab;
+          })
+          .filter((c: any) => Boolean(c && c !== 'E-XXXX' && String(c).toUpperCase() !== 'NO'))
+      ));
+
+      const safeQuery = async (promise: any) => {
+        try {
+          const res = await promise;
+          return res || { data: [] };
+        } catch {
+          return { data: [] };
+        }
+      };
+
+      const [
+        workersRes,
+        workersByCodeRes,
+        alojamentosRes,
+        seguridadeBaixasRes,
+        statusHistRes,
+        assignmentsEndRes,
+        colabPorPedidoRes
+      ] = await Promise.all([
         allWorkerIds.length > 0
-          ? supabase
-              .schema('core_personal')
-              .from('workers')
-              .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad')
-              .in('id', allWorkerIds)
+          ? safeQuery(
+              supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad')
+                .in('id', allWorkerIds)
+            )
           : Promise.resolve({ data: [] }),
-        supabase
-          .schema('core_logistics')
-          .from('alojamentos')
-          .select('id, codigo, nome')
+        allCodColabs.length > 0
+          ? safeQuery(
+              supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad')
+                .in('cod_colab', allCodColabs)
+            )
+          : Promise.resolve({ data: [] }),
+        safeQuery(
+          supabase
+            .schema('core_logistics')
+            .from('alojamentos')
+            .select('id, codigo, nome')
+        ),
+        allWorkerIds.length > 0
+          ? safeQuery(
+              supabase
+                .schema('core_personal')
+                .from('seguridade_status')
+                .select('worker_id, tipo_evento, data_efetiva, data_alvo_execucao, data_solicitacao')
+                .eq('tipo_evento', 'baixa')
+                .in('worker_id', allWorkerIds)
+                .order('data_solicitacao', { ascending: false })
+            )
+          : Promise.resolve({ data: [] }),
+        allWorkerIds.length > 0
+          ? safeQuery(
+              supabase
+                .schema('core_personal')
+                .from('worker_status_history')
+                .select('worker_id, change_type, new_value, effective_date, created_at')
+                .in('worker_id', allWorkerIds)
+                .order('created_at', { ascending: false })
+            )
+          : Promise.resolve({ data: [] }),
+        allWorkerIds.length > 0
+          ? safeQuery(
+              supabase
+                .schema('core_personal')
+                .from('worker_assignments')
+                .select('worker_id, end_date, status')
+                .in('worker_id', allWorkerIds)
+                .not('end_date', 'is', null)
+                .order('end_date', { ascending: false })
+            )
+          : Promise.resolve({ data: [] }),
+        allCodColabs.length > 0
+          ? safeQuery(
+              supabase
+                .from('colaborador_por_pedido')
+                .select('cod_colab, fechasalidatrabajador')
+                .in('cod_colab', allCodColabs)
+                .not('fechasalidatrabajador', 'is', null)
+                .order('fechasalidatrabajador', { ascending: false })
+            )
+          : Promise.resolve({ data: [] })
       ]);
 
       const dbWorkersMap = new Map<string, any>();
-      if (workersRes.data) {
-        workersRes.data.forEach((w: any) => dbWorkersMap.set(w.id, w));
-      }
+      const dbWorkersByCodeMap = new Map<string, any>();
+      [...(workersByCodeRes.data || []), ...(workersRes.data || [])].forEach((w: any) => {
+        if (w.id) dbWorkersMap.set(w.id, w);
+        if (w.cod_colab) dbWorkersByCodeMap.set(String(w.cod_colab).toUpperCase().trim(), w);
+      });
+
+      // Mapear datas de baixa complementares por worker_id / cod_colab
+      const segBaixaMap = new Map<string, string>();
+      (seguridadeBaixasRes.data || []).forEach((s: any) => {
+        if (s.worker_id && !segBaixaMap.has(s.worker_id)) {
+          const dt = s.data_efetiva || s.data_alvo_execucao || s.data_solicitacao;
+          if (dt) segBaixaMap.set(s.worker_id, formatToLocalDate(dt));
+        }
+      });
+
+      const histBaixaMap = new Map<string, string>();
+      (statusHistRes.data || []).forEach((h: any) => {
+        if (h.worker_id && !histBaixaMap.has(h.worker_id)) {
+          const nv = String(h.new_value || '').toUpperCase();
+          if (nv.includes('INATIV') || nv.includes('BAIX') || nv.includes('BAJA') || nv.includes('DESLIG') || nv.includes('DESIST')) {
+            const dt = h.effective_date || h.created_at;
+            if (dt) histBaixaMap.set(h.worker_id, formatToLocalDate(dt));
+          }
+        }
+      });
+
+      const assEndMap = new Map<string, string>();
+      (assignmentsEndRes.data || []).forEach((a: any) => {
+        if (a.worker_id && a.end_date && !assEndMap.has(a.worker_id)) {
+          assEndMap.set(a.worker_id, formatToLocalDate(a.end_date));
+        }
+      });
+
+      const colabSalidaMap = new Map<string, string>();
+      (colabPorPedidoRes.data || []).forEach((c: any) => {
+        if (c.cod_colab && c.fechasalidatrabajador) {
+          const codeKey = String(c.cod_colab).toUpperCase().trim();
+          if (!colabSalidaMap.has(codeKey)) {
+            colabSalidaMap.set(codeKey, formatToLocalDate(c.fechasalidatrabajador));
+          }
+        }
+      });
 
       const dbAlojMap = new Map<string, any>();
       if (alojamentosRes.data) {
@@ -595,11 +718,14 @@ export const logisticsService = {
       // Formatar cada linha do banco em Alocacao unificada
       const merged: Alocacao[] = dbAlocs.map((row: any) => {
         const base = importedMap.get(row.worker_id) || importedMap.get(row.id) || {};
-        const workerInfo = dbWorkersMap.get(row.worker_id) || {};
+        const rawCode = String(base.codigo_colab || row.codigo_colab || '').toUpperCase().trim();
+        const workerInfo = dbWorkersMap.get(row.worker_id) || (rawCode ? dbWorkersByCodeMap.get(rawCode) : undefined) || {};
         const alojInfo = dbAlojMap.get(row.alojamento_id) || {};
 
+        const resolvedWorkerId = workerInfo.id || row.worker_id || base.worker_id;
         const workerNome = base.worker_nome || workerInfo.nome || row.observacoes || 'Trabalhador';
-        const codColab = base.codigo_colab || workerInfo.cod_colab || 'E-XXXX';
+        const codColab = workerInfo.cod_colab || base.codigo_colab || 'E-XXXX';
+        const codColabKey = String(codColab).toUpperCase().trim();
         const alojCodigo = alojInfo.codigo || base.alojamento_codigo;
         const alojNome = alojInfo.nome || base.alojamento_nome || row.cliente_obra_nome || 'Alojamiento';
 
@@ -612,6 +738,17 @@ export const logisticsService = {
         const statusSeguridad = workerInfo.status_seguridad || base.status_seguridad;
         const rhCheck = checkWorkerInativoRH(statusTrabajador, statusSeguridad);
 
+        const rawDataBaixa =
+          workerInfo.data_baixa ||
+          workerInfo.data_baixa_seguridad ||
+          histBaixaMap.get(resolvedWorkerId) ||
+          segBaixaMap.get(resolvedWorkerId) ||
+          (rhCheck.isInativo ? assEndMap.get(resolvedWorkerId) : undefined) ||
+          (rhCheck.isInativo && codColabKey ? colabSalidaMap.get(codColabKey) : undefined) ||
+          base.data_baixa;
+
+        const dataBaixaFormatted = rawDataBaixa ? formatToLocalDate(rawDataBaixa) : undefined;
+
         return {
           id: row.id,
           cama_id: row.cama_id || base.cama_id || `cama-${row.id}`,
@@ -619,7 +756,7 @@ export const logisticsService = {
           alojamento_id: row.alojamento_id || base.alojamento_id,
           alojamento_codigo: alojCodigo,
           alojamento_nome: alojNome,
-          worker_id: row.worker_id || base.worker_id,
+          worker_id: resolvedWorkerId,
           worker_nome: workerNome,
           codigo_colab: codColab,
           worker_movil: base.worker_movil || workerInfo.movil || '',
@@ -643,7 +780,8 @@ export const logisticsService = {
           status_trabajador: statusTrabajador,
           status_seguridad: statusSeguridad,
           is_inativo_rh: rhCheck.isInativo,
-          alerta_inativo_rh: rhCheck.motivo
+          alerta_inativo_rh: rhCheck.motivo,
+          data_baixa: dataBaixaFormatted
         };
       });
 
@@ -1032,7 +1170,8 @@ export const logisticsService = {
     alocacaoIds: string[],
     motivo?: string,
     dataSaida?: string,
-    desativarAlojamentoId?: string
+    desativarAlojamentoId?: string,
+    perWorkerDates?: Record<string, string>
   ): Promise<void> {
     const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
     const idsSet = new Set(alocacaoIds);
@@ -1042,23 +1181,45 @@ export const logisticsService = {
 
     // 1. Atualizar no Supabase
     try {
-      const validUuids = alocacaoIds.filter(isUuid);
-      const matchingWorkerIds = alocacoes
-        .filter(a => idsSet.has(a.id) && isUuid(a.worker_id))
-        .map(a => a.worker_id);
+      const hasCustomDates = perWorkerDates && Object.keys(perWorkerDates).length > 0;
 
-      const allTargetIds = [...new Set([...validUuids, ...matchingWorkerIds])];
+      if (hasCustomDates) {
+        // Atualizar individualmente quando cada trabalhador tem sua própria data de baixa
+        for (const alocId of alocacaoIds) {
+          const alocObj = alocacoes.find(a => a.id === alocId);
+          const customDate = perWorkerDates![alocId] || effectiveDate;
+          const targets = [alocId, alocObj?.worker_id].filter(isUuid);
+          if (targets.length > 0) {
+            await client
+              .from('alocacoes')
+              .update({
+                status: 'Checkout',
+                data_fim: customDate,
+                motivo_checkout: motivo || 'Fin de Pedido / Obra',
+                updated_at: new Date().toISOString()
+              })
+              .or(`id.in.(${targets.join(',')}),worker_id.in.(${targets.join(',')})`);
+          }
+        }
+      } else {
+        const validUuids = alocacaoIds.filter(isUuid);
+        const matchingWorkerIds = alocacoes
+          .filter(a => idsSet.has(a.id) && isUuid(a.worker_id))
+          .map(a => a.worker_id);
 
-      if (allTargetIds.length > 0) {
-        await client
-          .from('alocacoes')
-          .update({
-            status: 'Checkout',
-            data_fim: effectiveDate,
-            motivo_checkout: motivo || 'Fin de Pedido / Obra',
-            updated_at: new Date().toISOString()
-          })
-          .or(`id.in.(${allTargetIds.join(',')}),worker_id.in.(${allTargetIds.join(',')})`);
+        const allTargetIds = [...new Set([...validUuids, ...matchingWorkerIds])];
+
+        if (allTargetIds.length > 0) {
+          await client
+            .from('alocacoes')
+            .update({
+              status: 'Checkout',
+              data_fim: effectiveDate,
+              motivo_checkout: motivo || 'Fin de Pedido / Obra',
+              updated_at: new Date().toISOString()
+            })
+            .or(`id.in.(${allTargetIds.join(',')}),worker_id.in.(${allTargetIds.join(',')})`);
+        }
       }
 
       // Liberar camas no core_logistics.camas
@@ -1079,10 +1240,11 @@ export const logisticsService = {
     // 2. Atualizar no cache local
     const updated = alocacoes.map(a => {
       if (idsSet.has(a.id)) {
+        const customDate = perWorkerDates?.[a.id] || effectiveDate;
         return {
           ...a,
           status: 'Checkout' as const,
-          data_fim: effectiveDate,
+          data_fim: customDate,
           motivo_checkout: motivo || 'Fin de Pedido / Obra'
         };
       }
@@ -1150,6 +1312,7 @@ export const logisticsService = {
             status,
             planned_start_date,
             start_date,
+            end_date,
             job_function_name_snapshot,
             worker:workers(
               id,
@@ -1158,7 +1321,9 @@ export const logisticsService = {
               movil,
               cod_colab,
               status_trabajador,
-              status_seguridad
+              status_seguridad,
+              data_baixa,
+              data_baixa_seguridad
             )
           `)
           .in('status', ['planned', 'active', 'replaced', 'relocated', 'terminated']),
@@ -1333,6 +1498,7 @@ export const logisticsService = {
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
 
           const rhCheck = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
+          const rawBaixa = rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || (rhCheck.isInativo ? ass.end_date : undefined);
 
           trabalhadores.push({
             assignment_id: ass.id,
@@ -1363,7 +1529,8 @@ export const logisticsService = {
             status_trabajador: rawWorker.status_trabajador,
             status_seguridad: rawWorker.status_seguridad,
             is_inativo_rh: rhCheck.isInativo,
-            alerta_inativo_rh: rhCheck.motivo
+            alerta_inativo_rh: rhCheck.motivo,
+            data_baixa: rawBaixa ? formatToLocalDate(rawBaixa) : undefined
           });
         }
 
@@ -1405,6 +1572,7 @@ export const logisticsService = {
           const solCodigo = solId ? solicitudesMap.get(solId)?.codigo : undefined;
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
           const rhCheckHist = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
+          const rawBaixaHist = rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || ass.end_date;
 
           trabalhadores.push({
             assignment_id: ass.id,
@@ -1435,7 +1603,8 @@ export const logisticsService = {
             status_trabajador: rawWorker.status_trabajador,
             status_seguridad: rawWorker.status_seguridad,
             is_inativo_rh: rhCheckHist.isInativo,
-            alerta_inativo_rh: rhCheckHist.motivo
+            alerta_inativo_rh: rhCheckHist.motivo,
+            data_baixa: rawBaixaHist ? formatToLocalDate(rawBaixaHist) : undefined
           });
         }
 
@@ -1589,7 +1758,8 @@ export const logisticsService = {
           status_trabajador: a.status_trabajador,
           status_seguridad: a.status_seguridad,
           is_inativo_rh: a.is_inativo_rh,
-          alerta_inativo_rh: a.alerta_inativo_rh
+          alerta_inativo_rh: a.alerta_inativo_rh,
+          data_baixa: a.data_baixa
         };
       });
   }
