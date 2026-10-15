@@ -2089,13 +2089,15 @@ export function HoleritesPage() {
                                                             mesReferencia={mesReferencia}
                                                             empresaName={empresaName}
                                                             empresaId={empresaId}
-                                                            currentHours={totalHoras}
+                                                            clienteNombre={cliente_nombre}
+                                                            effectiveHours={totalHoras}
                                                             faturamentoHours={faturamentoHoras}
                                                             isManualHours={isManualHours}
-                                                            currentTariff={tarifaHora}
-                                                            baseTariff={baseTarifaHora}
+                                                            effectiveTarifa={tarifaHora}
+                                                            baseTarifa={baseTarifaHora}
                                                             isManualTariff={isManualTariff}
-                                                            currentMotivo={overrideMotivo}
+                                                            initialMotivo={overrideMotivo}
+                                                            defaultFocus="tariff"
                                                             trigger={
                                                                 <button
                                                                     type="button"
@@ -2124,13 +2126,15 @@ export function HoleritesPage() {
                                                             mesReferencia={mesReferencia}
                                                             empresaName={empresaName}
                                                             empresaId={empresaId}
-                                                            currentHours={totalHoras}
+                                                            clienteNombre={cliente_nombre}
+                                                            effectiveHours={totalHoras}
                                                             faturamentoHours={faturamentoHoras}
                                                             isManualHours={isManualHours}
-                                                            currentTariff={tarifaHora}
-                                                            baseTariff={baseTarifaHora}
+                                                            effectiveTarifa={tarifaHora}
+                                                            baseTarifa={baseTarifaHora}
                                                             isManualTariff={isManualTariff}
-                                                            currentMotivo={overrideMotivo}
+                                                            initialMotivo={overrideMotivo}
+                                                            defaultFocus="hours"
                                                             trigger={
                                                                 <button
                                                                     type="button"
@@ -2326,13 +2330,15 @@ export function HoleritesPage() {
                                                                                     mesReferencia={mesReferencia}
                                                                                     empresaName={empresaName}
                                                                                     empresaId={empresaId}
-                                                                                    currentHours={totalHoras}
+                                                                                    clienteNombre={cliente_nombre}
+                                                                                    effectiveHours={totalHoras}
                                                                                     faturamentoHours={faturamentoHoras}
                                                                                     isManualHours={isManualHours}
-                                                                                    currentTariff={tarifaHora}
-                                                                                    baseTariff={baseTarifaHora}
+                                                                                    effectiveTarifa={tarifaHora}
+                                                                                    baseTarifa={baseTarifaHora}
                                                                                     isManualTariff={isManualTariff}
-                                                                                    currentMotivo={overrideMotivo}
+                                                                                    initialMotivo={overrideMotivo}
+                                                                                    defaultFocus="hours"
                                                                                     trigger={
                                                                                         <Button
                                                                                             size="sm"

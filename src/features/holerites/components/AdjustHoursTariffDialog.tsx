@@ -27,13 +27,18 @@ interface AdjustHoursTariffDialogProps {
     empresaName?: string;
     empresaId?: string;
     clienteNombre?: string;
-    effectiveHours: number;
+    effectiveHours?: number;
+    currentHours?: number;
     faturamentoHours: number;
     isManualHours: boolean;
-    effectiveTarifa: number;
-    baseTarifa: number;
+    effectiveTarifa?: number;
+    currentTariff?: number;
+    baseTarifa?: number;
+    baseTariff?: number;
     isManualTariff: boolean;
     initialMotivo?: string;
+    currentMotivo?: string;
+    defaultFocus?: 'hours' | 'tariff';
     trigger: React.ReactNode;
 }
 
@@ -44,53 +49,76 @@ export function AdjustHoursTariffDialog({
     empresaId,
     clienteNombre,
     effectiveHours,
+    currentHours,
     faturamentoHours,
     isManualHours,
     effectiveTarifa,
+    currentTariff,
     baseTarifa,
+    baseTariff,
     isManualTariff,
-    initialMotivo = '',
+    initialMotivo,
+    currentMotivo,
+    defaultFocus = 'hours',
     trigger,
 }: AdjustHoursTariffDialogProps) {
+    const resolvedCadastroTarifa = Number(
+        baseTarifa ?? baseTariff ?? worker?.worker_beneficios_settings?.tarifa_hora ?? 0
+    );
+    const resolvedEffectiveTarifa = Number(
+        effectiveTarifa ?? currentTariff ?? resolvedCadastroTarifa ?? 0
+    );
+    const resolvedEffectiveHours = Number(
+        effectiveHours ?? currentHours ?? faturamentoHours ?? 0
+    );
+    const resolvedMotivo = initialMotivo ?? currentMotivo ?? '';
+
+    const formatCleanHoursInput = (val: number) => {
+        const num = Number(val || 0);
+        if (isNaN(num)) return '0';
+        const rounded = Math.round((num + Number.EPSILON) * 100) / 100;
+        return String(rounded);
+    };
+
     const [open, setOpen] = useState(false);
-    const [hoursStr, setHoursStr] = useState<string>(String(effectiveHours || 0));
-    const [tarifaStr, setTarifaStr] = useState<string>(String(effectiveTarifa || 0));
+    const [hoursStr, setHoursStr] = useState<string>(() => formatCleanHoursInput(resolvedEffectiveHours));
+    const [tarifaStr, setTarifaStr] = useState<string>(() => resolvedEffectiveTarifa.toFixed(2));
     const [keepManualHours, setKeepManualHours] = useState<boolean>(isManualHours);
     const [updateCadastroTarifa, setUpdateCadastroTarifa] = useState<boolean>(true);
-    const [motivo, setMotivo] = useState<string>(initialMotivo);
+    const [motivo, setMotivo] = useState<string>(resolvedMotivo);
     const [isSaving, setIsSaving] = useState(false);
 
     const queryClient = useQueryClient();
 
     useEffect(() => {
         if (open) {
-            setHoursStr(String(Math.round((effectiveHours + Number.EPSILON) * 100) / 100));
-            setTarifaStr(String(Number(effectiveTarifa || 0).toFixed(2)));
+            setHoursStr(formatCleanHoursInput(resolvedEffectiveHours));
+            setTarifaStr(resolvedEffectiveTarifa.toFixed(2));
             setKeepManualHours(isManualHours);
             setUpdateCadastroTarifa(true);
-            const cleanMotivo = (initialMotivo || '').replace(/^\[[^\]]+\]\s*/, '');
+            const cleanMotivo = (resolvedMotivo || '').replace(/^\[[^\]]+\]\s*/, '');
             setMotivo(
                 cleanMotivo === 'Ajuste manual de horas na folha' || cleanMotivo === 'Ajuste manual de tarifa na folha'
                     ? ''
                     : cleanMotivo
             );
         }
-    }, [open, effectiveHours, effectiveTarifa, isManualHours, initialMotivo]);
+    }, [open, resolvedEffectiveHours, resolvedEffectiveTarifa, isManualHours, resolvedMotivo]);
 
-    const parsedHours = parseFloat(hoursStr.replace(',', '.'));
+    const parsedHours = parseFloat(String(hoursStr).replace(',', '.'));
     const validHours = isNaN(parsedHours) || parsedHours < 0 ? 0 : parsedHours;
 
-    const parsedTarifa = parseFloat(tarifaStr.replace(',', '.'));
+    const parsedTarifa = parseFloat(String(tarifaStr).replace(',', '.'));
     const validTarifa = isNaN(parsedTarifa) || parsedTarifa < 0 ? 0 : parsedTarifa;
 
-    const hoursDiffersFromFaturamento = Math.abs(validHours - (faturamentoHours || 0)) > 0.005;
+    const hoursDiffersFromFaturamento = Math.abs(validHours - Number(faturamentoHours || 0)) > 0.005;
     const willSaveManualHours = keepManualHours || hoursDiffersFromFaturamento;
 
-    const tarifaDiffersFromBase = Math.abs(validTarifa - (baseTarifa || 0)) > 0.005;
+    const tarifaDiffersFromBase = Math.abs(validTarifa - resolvedCadastroTarifa) > 0.005;
     const willSaveManualTarifa = isManualTariff || tarifaDiffersFromBase;
 
     const simulatedBase = Math.round((validHours * validTarifa + Number.EPSILON) * 100) / 100;
-    const faturamentoBase = Math.round(((faturamentoHours || 0) * (baseTarifa || 0) + Number.EPSILON) * 100) / 100;
+    const faturamentoBase = Math.round(((Number(faturamentoHours || 0)) * resolvedCadastroTarifa + Number.EPSILON) * 100) / 100;
 
     const invalidateAll = async () => {
         await Promise.all([
@@ -110,7 +138,7 @@ export function AdjustHoursTariffDialog({
                 mesReferencia,
                 manualHours: willSaveManualHours ? validHours : null,
                 manualTarifa: willSaveManualTarifa ? validTarifa : null,
-                updateCadastroTarifa: validTarifa > 0 && updateCadastroTarifa,
+                updateCadastroTarifa: tarifaDiffersFromBase && validTarifa > 0 && updateCadastroTarifa,
                 motivo: motivo.trim() || undefined,
             });
 
@@ -215,6 +243,8 @@ export function AdjustHoursTariffDialog({
                                 type="number"
                                 step="0.5"
                                 min="0"
+                                autoFocus={defaultFocus === 'hours'}
+                                placeholder={formatCleanHoursInput(resolvedEffectiveHours)}
                                 value={hoursStr}
                                 onChange={(e) => {
                                     setHoursStr(e.target.value);
@@ -229,7 +259,7 @@ export function AdjustHoursTariffDialog({
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setHoursStr(String(Math.round(((faturamentoHours || 0) + Number.EPSILON) * 100) / 100));
+                                            setHoursStr(formatCleanHoursInput(faturamentoHours));
                                             setKeepManualHours(false);
                                         }}
                                         className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold underline cursor-pointer"
@@ -259,37 +289,50 @@ export function AdjustHoursTariffDialog({
                                 type="number"
                                 step="0.01"
                                 min="0"
+                                autoFocus={defaultFocus === 'tariff'}
+                                placeholder={resolvedEffectiveTarifa.toFixed(2)}
                                 value={tarifaStr}
                                 onChange={(e) => setTarifaStr(e.target.value)}
                                 className="h-9 font-bold text-base bg-white dark:bg-slate-900 border-emerald-300 focus-visible:ring-emerald-500"
                             />
 
-                            <div className="text-[11px] text-muted-foreground pt-0.5">
-                                Cadastro atual: <strong>€ {Number(baseTarifa || 0).toFixed(2)}/h</strong>
+                            <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                                <span>Cadastro atual: <strong>€ {resolvedCadastroTarifa.toFixed(2)}/h</strong></span>
+                                {tarifaDiffersFromBase && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setTarifaStr(resolvedCadastroTarifa.toFixed(2))}
+                                        className="text-emerald-700 hover:text-emerald-900 dark:text-emerald-400 font-semibold underline cursor-pointer"
+                                    >
+                                        Usar € {resolvedCadastroTarifa.toFixed(2)}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Checkbox: Atualizar tarifa no cadastro permanente */}
-                    <div className="flex items-start space-x-2.5 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-lg border border-slate-200/70 dark:border-slate-800">
-                        <Checkbox
-                            id="update-cadastro-tarifa"
-                            checked={updateCadastroTarifa}
-                            onCheckedChange={(checked) => setUpdateCadastroTarifa(Boolean(checked))}
-                            className="mt-0.5"
-                        />
-                        <div className="grid gap-0.5 leading-none">
-                            <label
-                                htmlFor="update-cadastro-tarifa"
-                                className="text-xs font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
-                            >
-                                Atualizar também a tarifa padrão no cadastro do trabalhador
-                            </label>
-                            <p className="text-[11px] text-muted-foreground">
-                                Mantendo marcado, a tarifa de € {validTarifa.toFixed(2)}/h passa a valer também para os próximos meses.
-                            </p>
+                    {/* Checkbox: Atualizar tarifa no cadastro permanente (exibido apenas quando a tarifa é alterada) */}
+                    {tarifaDiffersFromBase && (
+                        <div className="flex items-start space-x-2.5 bg-emerald-50/50 dark:bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-200/70 dark:border-emerald-800">
+                            <Checkbox
+                                id="update-cadastro-tarifa"
+                                checked={updateCadastroTarifa}
+                                onCheckedChange={(checked) => setUpdateCadastroTarifa(Boolean(checked))}
+                                className="mt-0.5"
+                            />
+                            <div className="grid gap-0.5 leading-none">
+                                <label
+                                    htmlFor="update-cadastro-tarifa"
+                                    className="text-xs font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
+                                >
+                                    Atualizar também a tarifa padrão no cadastro do trabalhador
+                                </label>
+                                <p className="text-[11px] text-muted-foreground">
+                                    Mantendo marcado, a tarifa de € {validTarifa.toFixed(2)}/h passa a valer também para os próximos meses.
+                                </p>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Observação / Motivo */}
                     <div className="space-y-1.5">
