@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ChevronDown, CornerDownRight, ChevronsUpDown, Layers, FileText, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake, RotateCcw, Trash2 } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronsLeft, ChevronsRight, CornerDownRight, ChevronsUpDown, Layers, FileText, FileSpreadsheet, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake, RotateCcw, Trash2 } from 'lucide-react';
 import { formatCurrency, formatDate, normalizeEmpresaName, normalizePeriodoFat, sortPeriodosFatDesc, getPeriodoFatSortValue } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, deleteContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
@@ -14,6 +14,7 @@ import { CobroFormSheet } from '../components/CobroFormSheet';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { NegotiationModal } from '../components/NegotiationModal';
+import { ExportCobrosDialog } from '../components/ExportCobrosDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -83,6 +84,13 @@ export const Cobranca = () => {
     const [viewMode, setViewMode] = useState<'client' | 'title'>(() => (sessionStorage.getItem('cobranca_viewMode') as 'client' | 'title') || 'client');
     const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
     const [simulations, setSimulations] = useState<any[]>([]);
+
+    // Pagination States
+    const [currentPage, setCurrentPage] = useState<number>(1);
+    const [itemsPerPage, setItemsPerPage] = useState<number>(() => {
+        const saved = sessionStorage.getItem('cobranca_itemsPerPage');
+        return saved !== null ? Number(saved) : 15;
+    });
 
     // Modals
     const [isReceberOpen, setIsReceberOpen] = useState(false);
@@ -1097,6 +1105,66 @@ export const Cobranca = () => {
         return groups;
     }, [sortedData, sortField, sortDirection, simulations]);
 
+    // Reset page to 1 when filters, search, tab, viewMode, or itemsPerPage change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [
+        activeTab,
+        viewMode,
+        searchTerm,
+        filterEmpresas,
+        filterBancos,
+        filterPeriodosFat,
+        filterPeriodoEmissao,
+        startDateEmissao,
+        endDateEmissao,
+        filterPeriodoVencimento,
+        startDateVencimento,
+        endDateVencimento,
+        filterPeriodoAlteracao,
+        startDateAlteracao,
+        endDateAlteracao,
+        itemsPerPage
+    ]);
+
+    useEffect(() => {
+        sessionStorage.setItem('cobranca_itemsPerPage', String(itemsPerPage));
+    }, [itemsPerPage]);
+
+    // Pagination calculations (itemsPerPage === 0 means "Todos")
+    const totalItems = viewMode === 'client' ? groupedClients.length : sortedData.length;
+    const effectivePageSize = itemsPerPage > 0 ? itemsPerPage : Math.max(1, totalItems);
+    const totalPages = Math.max(1, Math.ceil(totalItems / effectivePageSize));
+    const safeCurrentPage = Math.min(currentPage, totalPages);
+    const startIndex = totalItems === 0 ? 0 : (safeCurrentPage - 1) * effectivePageSize;
+    const endIndex = totalItems === 0 ? 0 : Math.min(startIndex + effectivePageSize, totalItems);
+
+    const paginatedClientGroups = useMemo(() => {
+        if (itemsPerPage <= 0) return groupedClients;
+        return groupedClients.slice(startIndex, endIndex);
+    }, [groupedClients, itemsPerPage, startIndex, endIndex]);
+
+    const paginatedTitles = useMemo(() => {
+        if (itemsPerPage <= 0) return sortedData;
+        return sortedData.slice(startIndex, endIndex);
+    }, [sortedData, itemsPerPage, startIndex, endIndex]);
+
+    const getVisiblePageNumbers = () => {
+        const pages: (number | 'ellipsis')[] = [];
+        if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+            return pages;
+        }
+        pages.push(1);
+        if (safeCurrentPage > 3) pages.push('ellipsis');
+        const start = Math.max(2, safeCurrentPage - 1);
+        const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+        for (let i = start; i <= end; i++) pages.push(i);
+        if (safeCurrentPage < totalPages - 2) pages.push('ellipsis');
+        pages.push(totalPages);
+        return pages;
+    };
+
     const toggleClientExpand = (clientKey: string) => {
         setExpandedClients(prev => {
             const next = new Set(prev);
@@ -1109,13 +1177,21 @@ export const Cobranca = () => {
         });
     };
 
-    const allClientsExpanded = groupedClients.length > 0 && groupedClients.every(g => expandedClients.has(g.clientKey));
+    const allClientsExpanded = paginatedClientGroups.length > 0 && paginatedClientGroups.every(g => expandedClients.has(g.clientKey));
 
     const toggleExpandAll = () => {
         if (allClientsExpanded) {
-            setExpandedClients(new Set());
+            setExpandedClients(prev => {
+                const next = new Set(prev);
+                paginatedClientGroups.forEach(g => next.delete(g.clientKey));
+                return next;
+            });
         } else {
-            setExpandedClients(new Set(groupedClients.map(g => g.clientKey)));
+            setExpandedClients(prev => {
+                const next = new Set(prev);
+                paginatedClientGroups.forEach(g => next.add(g.clientKey));
+                return next;
+            });
         }
     };
 
@@ -1698,6 +1774,20 @@ export const Cobranca = () => {
                             />
                         </div>
                         <div className="flex items-center gap-2 w-full md:w-auto">
+                            <ExportCobrosDialog
+                                titulos={sortedData}
+                                activeKpiFilter={activeTab === 'alerta' ? 'a_vencer' : 'vencido'}
+                                filterEmpresas={filterEmpresas}
+                                filterBancos={filterBancos}
+                                filterPeriodosFat={filterPeriodosFat}
+                                searchTerm={searchTerm}
+                                trigger={
+                                    <Button variant="outline" className="flex items-center gap-2 text-slate-700 dark:text-slate-200 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300">
+                                        <FileSpreadsheet size={16} className="text-emerald-600" />
+                                        <span>{t('financeiro.export.btn_export', 'Exportar Excel')}</span>
+                                    </Button>
+                                }
+                            />
                             <div className="relative">
                                 <Button 
                                     variant={activeFiltersCount > 0 ? "default" : "outline"} 
@@ -2157,13 +2247,12 @@ export const Cobranca = () => {
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent className="p-0 overflow-y-auto max-h-[calc(100vh-380px)] flex-1">
+                <CardContent className="p-0 overflow-x-auto flex-1">
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-slate-50/80 dark:bg-slate-900/50">
                                 <TableHead className="min-w-[260px]">{renderSortHeader(viewMode === 'client' ? t('financeiro.table.client_consolidated', 'Cliente / Carteira de Títulos') : t('financeiro.table.client_doc', 'Cliente / Doc'), 'Cliente')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.company', 'Empresa'), 'Empresa')}</TableHead>
-                                <TableHead>{renderSortHeader(t('financeiro.table.bank', 'Banco'), 'Banco')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.billing_month', 'Mês Fat.'), 'periodo_fat')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.issued', 'Emissão'), 'Data_emissao')}</TableHead>
                                 <TableHead>{renderSortHeader(t('financeiro.table.due', 'Vencimento'), 'Dt_venc')}</TableHead>
@@ -2177,25 +2266,25 @@ export const Cobranca = () => {
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground">
+                                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                                         {t('financeiro.table.loading_data', 'Carregando dados...')}
                                     </TableCell>
                                 </TableRow>
                             ) : sortedData.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={11} className="text-center py-8 text-muted-foreground font-medium">
+                                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground font-medium">
                                         {t('financeiro.table.no_pending_titles', 'Excelente! Nenhum título pendente nesta categoria.')}
                                     </TableCell>
                                 </TableRow>
                             ) : viewMode === 'client' ? (
-                                groupedClients.map((group) => {
+                                paginatedClientGroups.map((group) => {
                                     const isExpanded = expandedClients.has(group.clientKey);
                                     const rep = group.representativeTitle;
                                     const isMulti = group.titles.length > 1;
 
                                     return (
                                         <React.Fragment key={group.clientKey}>
-                                            {/* Master Row: Consolidated Client Summary (Aligned with all 11 columns) */}
+                                            {/* Master Row: Consolidated Client Summary (Aligned with all 10 columns) */}
                                             <TableRow
                                                 onClick={() => toggleClientExpand(group.clientKey)}
                                                 className={`group cursor-pointer transition-all duration-150 ${
@@ -2224,7 +2313,7 @@ export const Cobranca = () => {
                                                         </button>
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm max-w-[260px] xl:max-w-[380px] truncate" title={group.clientName}>
+                                                                <span className="font-bold text-slate-900 dark:text-slate-100 text-sm max-w-[300px] xl:max-w-[440px] truncate" title={group.clientName}>
                                                                     {group.clientName}
                                                                 </span>
                                                             </div>
@@ -2269,22 +2358,7 @@ export const Cobranca = () => {
                                                     </div>
                                                 </TableCell>
 
-                                                {/* Col 3: Banco */}
-                                                <TableCell className="text-muted-foreground text-sm font-medium">
-                                                    <div className="flex items-center gap-1.5 max-w-[200px]">
-                                                        <span className="truncate" title={group.bancos.join(', ')}>{group.bancos[0] || 'Não Definido'}</span>
-                                                        {group.bancos.length > 1 && (
-                                                            <span
-                                                                className="px-1.5 py-0.5 rounded bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold shrink-0"
-                                                                title={group.bancos.join(', ')}
-                                                            >
-                                                                +{group.bancos.length - 1}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-
-                                                {/* Col 4: Mês Fat. */}
+                                                {/* Col 3: Mês Fat. */}
                                                 <TableCell className="text-muted-foreground text-sm font-medium">
                                                     <div className="flex items-center gap-1.5">
                                                         <span>{group.periodosFat[0] || '-'}</span>
@@ -2299,7 +2373,7 @@ export const Cobranca = () => {
                                                     </div>
                                                 </TableCell>
 
-                                                {/* Col 5: Emissão */}
+                                                {/* Col 4: Emissão */}
                                                 <TableCell>
                                                     <div className="text-sm">{formatDate(group.earliestEmissao)}</div>
                                                     {isMulti && group.earliestEmissao && group.latestEmissao && formatDate(group.earliestEmissao) !== formatDate(group.latestEmissao) && (
@@ -2309,7 +2383,7 @@ export const Cobranca = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Col 6: Vencimento (Mais antigo) + Maior Atraso */}
+                                                {/* Col 5: Vencimento (Mais antigo) + Maior Atraso */}
                                                 <TableCell>
                                                     <div className="font-semibold text-slate-800 dark:text-slate-100">{formatDate(group.oldestVencimento)}</div>
                                                     {(activeTab === 'atraso' || activeTab === 'negociado' || activeTab === 'em_negociacao' || activeTab === 'judicial') && group.maxDelayDays > 0 && (
@@ -2319,7 +2393,7 @@ export const Cobranca = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Col 7: Valor Consolidado */}
+                                                {/* Col 6: Valor Consolidado */}
                                                 <TableCell className="text-right">
                                                     <div className="font-extrabold text-slate-900 dark:text-slate-100">{formatCurrency(group.totalValor)}</div>
                                                     {isMulti && (
@@ -2329,7 +2403,7 @@ export const Cobranca = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Col 8: Saldo Consolidado */}
+                                                {/* Col 7: Saldo Consolidado */}
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                     <div className="font-extrabold text-brand-primary text-sm">{formatCurrency(group.totalSaldo)}</div>
                                                     {isMulti && (
@@ -2339,7 +2413,7 @@ export const Cobranca = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Col 9: Status Consolidado */}
+                                                {/* Col 8: Status Consolidado */}
                                                 <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                                     {group.overdueCount > 0 ? (
                                                         <Badge variant="destructive">{t('financeiro.status.overdue', 'Vencido')}</Badge>
@@ -2350,7 +2424,7 @@ export const Cobranca = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Col 10: Situação Consolidada */}
+                                                {/* Col 9: Situação Consolidada */}
                                                 <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                                                     {group.judicialCount > 0 ? (
                                                         <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">
@@ -2374,7 +2448,7 @@ export const Cobranca = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Col 11: Ações de Cobrança Consolidadas do Cliente */}
+                                                {/* Col 10: Ações de Cobrança Consolidadas do Cliente */}
                                                 <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
                                                     <div className="flex items-center justify-end gap-2">
                                                         {/* Cobrar Email (envia com todos os títulos do cliente na aba atual) */}
@@ -2449,7 +2523,7 @@ export const Cobranca = () => {
                                                 </TableCell>
                                             </TableRow>
 
-                                            {/* Detail Sub-Rows: Individual Titles of this Client (Aligned 1:1 with the 11 columns) */}
+                                            {/* Detail Sub-Rows: Individual Titles of this Client (Aligned 1:1 with the 10 columns) */}
                                             {isExpanded && group.titles.map((item, idx) => {
                                                 const delayDays = item.Dt_venc ? Math.floor((new Date().getTime() - new Date(item.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
                                                 const isLast = idx === group.titles.length - 1;
@@ -2496,22 +2570,17 @@ export const Cobranca = () => {
                                                             {item.Empresa || '-'}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 3: Banco */}
-                                                        <TableCell className="text-muted-foreground text-xs font-medium py-2.5">
-                                                            {item.Banco || 'Não Definido'}
-                                                        </TableCell>
-
-                                                        {/* Sub-Col 4: Mês Fat. */}
+                                                        {/* Sub-Col 3: Mês Fat. */}
                                                         <TableCell className="text-muted-foreground text-xs font-medium py-2.5">
                                                             {item.periodo_fat || '-'}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 5: Emissão */}
+                                                        {/* Sub-Col 4: Emissão */}
                                                         <TableCell className="text-xs py-2.5">
                                                             {formatDate(item.Data_emissao)}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 6: Vencimento */}
+                                                        {/* Sub-Col 5: Vencimento */}
                                                         <TableCell className="py-2.5">
                                                             <div className="font-medium text-xs">{formatDate(item.Dt_venc)}</div>
                                                             {(activeTab === 'atraso' || activeTab === 'negociado' || activeTab === 'em_negociacao' || activeTab === 'judicial') && delayDays > 0 && (
@@ -2521,17 +2590,17 @@ export const Cobranca = () => {
                                                             )}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 7: Valor Individual */}
+                                                        {/* Sub-Col 6: Valor Individual */}
                                                         <TableCell className="text-right font-bold text-xs text-slate-700 dark:text-slate-300 py-2.5">
                                                             {formatCurrency(item.Valot_total)}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 8: Saldo Individual */}
+                                                        {/* Sub-Col 7: Saldo Individual */}
                                                         <TableCell className="text-right font-bold text-xs text-brand-primary py-2.5" onClick={(e) => e.stopPropagation()}>
                                                             {formatCurrency(item.Saldo_a_pagar)}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 9: Status Individual */}
+                                                        {/* Sub-Col 8: Status Individual */}
                                                         <TableCell className="text-center py-2.5" onClick={(e) => e.stopPropagation()}>
                                                             {item.Status === 'Pago' ? (
                                                                 <Badge variant="default" className="text-[10px]">{t('financeiro.status.paid', 'Pago')}</Badge>
@@ -2542,7 +2611,7 @@ export const Cobranca = () => {
                                                             )}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 10: Situação Individual */}
+                                                        {/* Sub-Col 9: Situação Individual */}
                                                         <TableCell className="text-center py-2.5" onClick={(e) => e.stopPropagation()}>
                                                             {item.Status === 'Parcial' ? (
                                                                 <Badge variant="warning" className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px]">{t('financeiro.status.partial', 'Parcial')}</Badge>
@@ -2560,7 +2629,7 @@ export const Cobranca = () => {
                                                             )}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 11: Ações Individuais do Título */}
+                                                        {/* Sub-Col 10: Ações Individuais do Título */}
                                                         <TableCell className="text-right px-6 py-2.5" onClick={(e) => e.stopPropagation()}>
                                                             <div className="flex items-center justify-end gap-1.5">
                                                                 <Button
@@ -2623,12 +2692,12 @@ export const Cobranca = () => {
                                     );
                                 })
                             ) : (
-                                sortedData.map((item) => {
+                                paginatedTitles.map((item) => {
                                     const delayDays = item.Dt_venc ? Math.floor((new Date().getTime() - new Date(item.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
                                     return (
                                         <TableRow key={item.id} className="group hover:bg-slate-50/50 cursor-pointer transition-colors duration-150" onClick={() => openZoom(item)}>
                                             <TableCell>
-                                                <div className="font-semibold text-slate-800 dark:text-slate-100 max-w-[260px] xl:max-w-[380px] truncate" title={item.Cliente || 'Sem Nome'}>
+                                                <div className="font-semibold text-slate-800 dark:text-slate-100 max-w-[300px] xl:max-w-[440px] truncate" title={item.Cliente || 'Sem Nome'}>
                                                     {item.Cliente || 'Sem Nome'}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground font-mono flex items-center gap-1.5">
@@ -2648,7 +2717,6 @@ export const Cobranca = () => {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-muted-foreground text-sm font-semibold">{item.Empresa || '-'}</TableCell>
-                                            <TableCell className="text-muted-foreground text-sm font-medium">{item.Banco || 'Não Definido'}</TableCell>
                                             <TableCell className="text-muted-foreground text-sm font-medium">{item.periodo_fat || '-'}</TableCell>
                                             <TableCell>{formatDate(item.Data_emissao)}</TableCell>
                                             <TableCell>
@@ -2779,6 +2847,121 @@ export const Cobranca = () => {
                         </TableBody>
                     </Table>
                 </CardContent>
+
+                {/* Pagination Footer */}
+                {!isLoading && totalItems > 0 && (
+                    <div className="border-t bg-slate-50/80 dark:bg-slate-900/50 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        {/* Left: Showing count + Items per page selector */}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600 dark:text-slate-300">
+                            <div>
+                                {t('financeiro.pagination.showing', 'Mostrando')}{' '}
+                                <span className="font-bold text-slate-900 dark:text-slate-100">{startIndex + 1}</span>
+                                {'–'}
+                                <span className="font-bold text-slate-900 dark:text-slate-100">{endIndex}</span>{' '}
+                                {t('financeiro.pagination.of', 'de')}{' '}
+                                <span className="font-bold text-slate-900 dark:text-slate-100">{totalItems}</span>{' '}
+                                {viewMode === 'client'
+                                    ? `${totalItems === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')} (${sortedData.length} ${sortedData.length === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')})`
+                                    : (totalItems === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos'))
+                                }
+                            </div>
+
+                            <div className="h-4 w-px bg-slate-300 dark:bg-slate-700 hidden sm:block" />
+
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-muted-foreground font-medium">
+                                    {t('financeiro.pagination.per_page', 'Exibir por página:')}
+                                </span>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                                    className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={15}>15</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                    <option value={0}>{t('financeiro.pagination.all', 'Todos')}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {/* Right: Page Navigation Buttons */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    disabled={safeCurrentPage <= 1}
+                                    onClick={() => setCurrentPage(1)}
+                                    title={t('financeiro.pagination.first_page', 'Primeira página')}
+                                >
+                                    <ChevronsLeft size={14} />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2.5 text-xs font-semibold"
+                                    disabled={safeCurrentPage <= 1}
+                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                >
+                                    <ChevronLeft size={14} className="mr-0.5" />
+                                    <span>{t('financeiro.pagination.previous', 'Anterior')}</span>
+                                </Button>
+
+                                <div className="flex items-center gap-1 mx-1">
+                                    {getVisiblePageNumbers().map((p, idx) =>
+                                        p === 'ellipsis' ? (
+                                            <span key={`ellipsis-${idx}`} className="px-1.5 text-xs text-muted-foreground select-none">
+                                                ...
+                                            </span>
+                                        ) : (
+                                            <button
+                                                key={p}
+                                                type="button"
+                                                onClick={() => setCurrentPage(p)}
+                                                className={`h-8 min-w-[32px] px-2 rounded-md text-xs font-bold transition-all border ${
+                                                    safeCurrentPage === p
+                                                        ? 'bg-brand-primary text-white border-brand-primary shadow-xs'
+                                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                {p}
+                                            </button>
+                                        )
+                                    )}
+                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 px-2.5 text-xs font-semibold"
+                                    disabled={safeCurrentPage >= totalPages}
+                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                                >
+                                    <span>{t('financeiro.pagination.next', 'Próxima')}</span>
+                                    <ChevronRight size={14} className="ml-0.5" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    disabled={safeCurrentPage >= totalPages}
+                                    onClick={() => setCurrentPage(totalPages)}
+                                    title={t('financeiro.pagination.last_page', 'Última página')}
+                                >
+                                    <ChevronsRight size={14} />
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </Card>
 
             {/* Email Template Modal Dialog */}
