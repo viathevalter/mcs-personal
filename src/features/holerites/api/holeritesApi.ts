@@ -133,3 +133,140 @@ export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPay
         throw mapSupabaseError(insErr);
     }
 }
+
+export interface SaveWorkerMonthlyOverrideParams {
+    workerId: string;
+    empresaId?: string;
+    empresaName?: string;
+    mesReferencia: string; // e.g. "2026-08"
+    manualHours: number | null; // null = clear manual hours override
+    manualTarifa: number | null; // null = clear manual tariff override
+    updateCadastroTarifa?: boolean;
+    motivo?: string;
+}
+
+export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrideParams): Promise<void> {
+    const {
+        workerId,
+        empresaId,
+        empresaName,
+        mesReferencia,
+        manualHours,
+        manualTarifa,
+        updateCadastroTarifa = false,
+        motivo
+    } = params;
+
+    const monthDate = `${mesReferencia.substring(0, 7)}-01`;
+    const validEmpresaId = (empresaId && empresaId.length > 20)
+        ? empresaId
+        : 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+
+    // 1. Find existing holerites for this worker + competence month
+    const { data: existingHolerites, error: fetchErr } = await supabase
+        .schema('core_personal')
+        .from('holerites')
+        .select('id, worker_id, mes_referencia, empresa_id')
+        .eq('worker_id', workerId)
+        .eq('mes_referencia', monthDate);
+
+    if (fetchErr) throw mapSupabaseError(fetchErr);
+
+    let targetHoleriteId: string | undefined = existingHolerites?.find(
+        (h: any) => String(h.empresa_id) === String(validEmpresaId)
+    )?.id;
+
+    if (!targetHoleriteId && existingHolerites && existingHolerites.length === 1 && (!empresaId || empresaId.length <= 20)) {
+        targetHoleriteId = existingHolerites[0].id;
+    }
+
+    // 2. If we need to insert any override event and no parent holerite exists yet for this company, create it
+    const needsEventInsert = (manualHours !== null && !isNaN(manualHours)) || (manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0);
+    if (!targetHoleriteId && needsEventInsert) {
+        const { data: createdHolerite, error: createErr } = await supabase
+            .schema('core_personal')
+            .from('holerites')
+            .insert({
+                empresa_id: validEmpresaId,
+                worker_id: workerId,
+                mes_referencia: monthDate,
+                status: 'rascunho'
+            })
+            .select('id')
+            .single();
+
+        if (createErr) throw mapSupabaseError(createErr);
+        targetHoleriteId = createdHolerite?.id;
+    }
+
+    // 3. Clean up any existing manual hours/tariff override events on the target holerite (or all holerites of the worker in this month if not split)
+    const holeriteIdsToClean = targetHoleriteId
+        ? [targetHoleriteId]
+        : (existingHolerites || []).map((h: any) => h.id);
+
+    if (holeriteIdsToClean.length > 0) {
+        const { error: delErr } = await supabase
+            .schema('core_personal')
+            .from('holerite_eventos')
+            .delete()
+            .in('holerite_id', holeriteIdsToClean)
+            .in('categoria', ['ajuste_manual_horas', 'ajuste_manual_tarifa']);
+
+        if (delErr) throw mapSupabaseError(delErr);
+    }
+
+    // 4. Insert new manual override events if provided
+    if (targetHoleriteId && needsEventInsert) {
+        const eventsToInsert: any[] = [];
+        const labelPrefix = empresaName && empresaName !== '-' ? `[${empresaName}] ` : '';
+
+        if (manualHours !== null && !isNaN(manualHours)) {
+            eventsToInsert.push({
+                holerite_id: targetHoleriteId,
+                tipo_evento: 'provento',
+                categoria: 'ajuste_manual_horas',
+                descricao: motivo?.trim() ? `${labelPrefix}${motivo.trim()}` : `${labelPrefix}Ajuste manual de horas na folha`,
+                valor: 0,
+                referencia_dias_horas: manualHours
+            });
+        }
+
+        if (manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0) {
+            eventsToInsert.push({
+                holerite_id: targetHoleriteId,
+                tipo_evento: 'provento',
+                categoria: 'ajuste_manual_tarifa',
+                descricao: motivo?.trim() ? `${labelPrefix}${motivo.trim()}` : `${labelPrefix}Ajuste manual de tarifa na folha`,
+                valor: 0,
+                referencia_dias_horas: manualTarifa
+            });
+        }
+
+        if (eventsToInsert.length > 0) {
+            const { error: insErr } = await supabase
+                .schema('core_personal')
+                .from('holerite_eventos')
+                .insert(eventsToInsert);
+
+            if (insErr) throw mapSupabaseError(insErr);
+        }
+    }
+
+    // 5. Optionally update permanent worker_beneficios_settings.tarifa_hora
+    if (updateCadastroTarifa && manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0) {
+        const { error: settingsErr } = await supabase
+            .schema('core_personal')
+            .from('worker_beneficios_settings')
+            .upsert(
+                {
+                    worker_id: workerId,
+                    tarifa_hora: manualTarifa,
+                    updated_at: new Date().toISOString()
+                },
+                { onConflict: 'worker_id' }
+            );
+
+        if (settingsErr) throw mapSupabaseError(settingsErr);
+    }
+}
+

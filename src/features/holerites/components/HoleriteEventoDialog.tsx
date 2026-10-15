@@ -266,11 +266,11 @@ export function HoleriteLancamentosSheet({
                     <div>
                         <h4 className="font-semibold text-lg mb-4">Lançamentos do Mês</h4>
                         <div className="space-y-3">
-                            {eventosMensais.length === 0 && extraDiscounts.length === 0 ? (
+                            {eventosMensais.filter(ev => ev.categoria !== 'total_horas' && ev.categoria !== 'ajuste_manual_horas' && ev.categoria !== 'ajuste_manual_tarifa').length === 0 && extraDiscounts.length === 0 ? (
                                 <p className="text-muted-foreground text-sm italic">Nenhum lançamento avulso ou desconto registrado neste mês.</p>
                             ) : (
                                 <>
-                                    {eventosMensais.map(ev => {
+                                    {eventosMensais.filter(ev => ev.categoria !== 'total_horas' && ev.categoria !== 'ajuste_manual_horas' && ev.categoria !== 'ajuste_manual_tarifa').map(ev => {
                                         const isDebit = ev.tipo === 'desconto';
                                         return (
                                             <div key={ev.id} className="flex items-center justify-between p-3 border rounded-lg bg-white dark:bg-slate-950">

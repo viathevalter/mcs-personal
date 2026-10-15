@@ -22,7 +22,7 @@ interface ExportHoleritesDialogProps {
     mesReferencia: string;
     dbHoursSummary?: any;
     workerIbansMap?: Map<string, { iban: string; banco: string }>;
-    eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>;
+    eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number; tarifaHora?: number }>;
     workerMonthlyActivityMap?: Map<string, { contratante: string; cliente_nombre: string }>;
 }
 
@@ -33,7 +33,7 @@ interface ColumnOption {
     getValue: (worker: Worker & { worker_beneficios_settings?: any }, extra: {
         dbHoursSummary?: any;
         workerIbansMap?: Map<string, { iban: string; banco: string }>;
-        eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>;
+        eventosMap?: Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number; tarifaHora?: number }>;
         workerMonthlyActivityMap?: Map<string, { contratante: string; cliente_nombre: string }>;
     }) => string | number;
 }
@@ -91,7 +91,7 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         id: 'tarifa_hora',
         label: 'Tarifa Hora (€)',
         category: 'remuneracao',
-        getValue: (w) => Number(w.worker_beneficios_settings?.tarifa_hora || 0)
+        getValue: (w, { eventosMap }) => Number(eventosMap?.get(w.id)?.tarifaHora ?? w.worker_beneficios_settings?.tarifa_hora ?? 0)
     },
     {
         id: 'horas_totais',

@@ -74,7 +74,7 @@ export function BatchHoleritesExportDialog({
 
     // Filtra os trabalhadores que serão exportados
     const targetWorkers = exportScope === 'selected'
-        ? workers.filter(w => selectedWorkerIds.has(w.id))
+        ? workers.filter(w => selectedWorkerIds.has(w.id) || Array.from(selectedWorkerIds).some(k => k.startsWith(`${w.id}_`)))
         : workers;
 
     const totalAlta = targetWorkers.filter(w => {
@@ -103,19 +103,27 @@ export function BatchHoleritesExportDialog({
                 const s = (w.status_seguridad || '').toLowerCase();
                 const isAlta = s.includes('alta') || (!s.includes('regulariz') && !s.includes('baja') && !s.includes('inativ'));
 
-                // Horas
+                // Horas & Tarifa (Prioridade: Ajuste Manual na Folha -> Faturamento -> Legado)
                 const workerEventos = eventos.filter(e => e.trabalhador_id === w.id);
+                const manualHorasEvento = workerEventos.find(e => e.categoria === 'ajuste_manual_horas');
+                const manualTarifaEvento = workerEventos.find(e => e.categoria === 'ajuste_manual_tarifa');
                 const totalHorasEvento = workerEventos.find(e => e.categoria === 'total_horas');
-                const horasTrabalhadas = Number(
-                    totalHorasEvento?.horas_referencia ||
-                    totalHorasEvento?.referencia_dias_horas ||
-                    (dbHoursSummary?.sumMap ? dbHoursSummary.sumMap.get(w.id) : 0) ||
-                    0
-                );
 
-                const tarifaHora = Number(w.worker_beneficios_settings?.tarifa_hora || 0);
+                const horasTrabalhadas = (manualHorasEvento && manualHorasEvento.horas_referencia !== null && manualHorasEvento.horas_referencia !== undefined)
+                    ? Number(manualHorasEvento.horas_referencia)
+                    : Number(
+                        (dbHoursSummary?.sumMap ? dbHoursSummary.sumMap.get(w.id) : 0) ||
+                        totalHorasEvento?.horas_referencia ||
+                        totalHorasEvento?.referencia_dias_horas ||
+                        0
+                    );
+
+                const tarifaHora = (manualTarifaEvento && manualTarifaEvento.horas_referencia !== null && manualTarifaEvento.horas_referencia !== undefined && Number(manualTarifaEvento.horas_referencia) > 0)
+                    ? Number(manualTarifaEvento.horas_referencia)
+                    : Number(w.worker_beneficios_settings?.tarifa_hora || 0);
+
                 const proventosAvulsos = workerEventos
-                    .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas')
+                    .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa')
                     .reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
 
                 const workerExtraDiscounts = (allDiscounts || []).filter((d: any) => d.worker_id === w.id && d.reference_date?.startsWith(mesReferencia));

@@ -18,10 +18,12 @@ export interface Holerite {
 export interface HoleriteEvento {
     id: string;
     trabalhador_id: string;
+    empresa_id?: string;
     mes_referencia: string; // Formato YYYY-MM
     tipo: EventoTipo;
     categoria: EventoCategoria;
     valor: number;
+    horas_referencia?: number | null;
     referencia_dias_horas?: number | null;
     quantidade?: number | null;
     import_batch_id?: string | null;

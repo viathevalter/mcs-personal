@@ -32,7 +32,8 @@ interface PreviewHoleriteDialogProps {
     mesReferencia: string;
     eventosMensais?: HoleriteEvento[];
     fallbackHours?: number;
-    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string };
+    overrideTarifaHora?: number;
+    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string; clientHoursBreakdown?: Array<{ clientName: string; hours: number }> };
     housingBenefitAmount?: number;
     extraDiscounts?: any[];
     trigger?: React.ReactNode;
@@ -43,6 +44,7 @@ export function PreviewHoleriteDialog({
     mesReferencia,
     eventosMensais = [],
     fallbackHours = 0,
+    overrideTarifaHora,
     workerMonthlyActivity,
     housingBenefitAmount = 0,
     extraDiscounts = [],
@@ -65,21 +67,24 @@ export function PreviewHoleriteDialog({
     const statusSeguridad = (worker.status_seguridad || '').toLowerCase();
     const isAlta = statusSeguridad.includes('alta') || (!statusSeguridad.includes('regulariz') && !statusSeguridad.includes('baja') && !statusSeguridad.includes('inativ'));
 
-    // 1. Extração das Horas
+    // 1. Extração das Horas (Prioridade: Ajuste Manual na Folha -> Horas Apuradas na Folha -> Legado)
+    const manualHorasEvento = eventosMensais.find(e => e.categoria === 'ajuste_manual_horas');
     const totalHorasEvento = eventosMensais.find(e => e.categoria === 'total_horas');
-    const horasTrabalhadas = Number(
-        totalHorasEvento?.horas_referencia ||
-        totalHorasEvento?.referencia_dias_horas ||
-        fallbackHours ||
-        0
-    );
+    const horasTrabalhadas = (manualHorasEvento && (manualHorasEvento.horas_referencia !== null && manualHorasEvento.horas_referencia !== undefined))
+        ? Number(manualHorasEvento.horas_referencia)
+        : (fallbackHours > 0
+            ? Number(fallbackHours)
+            : Number(totalHorasEvento?.horas_referencia || totalHorasEvento?.referencia_dias_horas || 0));
 
-    // 2. Tarifa Hora
-    const tarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
+    // 2. Tarifa Hora (Prioridade: Ajuste Manual na Folha -> Override prop -> Cadastro)
+    const manualTarifaEvento = eventosMensais.find(e => e.categoria === 'ajuste_manual_tarifa');
+    const tarifaHora = (manualTarifaEvento && manualTarifaEvento.horas_referencia !== null && manualTarifaEvento.horas_referencia !== undefined && Number(manualTarifaEvento.horas_referencia) > 0)
+        ? Number(manualTarifaEvento.horas_referencia)
+        : Number(overrideTarifaHora ?? worker.worker_beneficios_settings?.tarifa_hora ?? 0);
 
     // 3. Proventos avulsos
     const proventosAvulsos = eventosMensais
-        .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas')
+        .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa')
         .reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
 
     // 4. Descontos (combina lançamentos de eventos e descontos cadastrados no mês)

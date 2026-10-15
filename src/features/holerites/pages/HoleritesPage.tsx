@@ -66,6 +66,7 @@ import { useHoleriteEventos } from '../hooks/useHoleriteEventos';
 import { HoleriteLancamentosSheet } from '../components/HoleriteEventoDialog';
 import { PreviewHoleriteDialog } from '../components/PreviewHoleriteDialog';
 import { EditHoleriteEventoDialog } from '../components/EditHoleriteEventoDialog';
+import { AdjustHoursTariffDialog } from '../components/AdjustHoursTariffDialog';
 import { EditDiscountDialog } from '../../discounts/components/EditDiscountDialog';
 import { useAllDiscounts } from '../../discounts/hooks/useAllDiscounts';
 import { useAllHousingBenefits } from '../../benefits/hooks/useAllHousingBenefits';
@@ -979,7 +980,25 @@ export function HoleritesPage() {
 
     // Helper to calc net
     function calculateWorkerTally(worker: any, targetEmpresa?: string) {
-        if (!eventos) return { proventos: 0, descontos: 0, liquido: 0, totalHoras: 0, beneficiosFixos: [], descontosExtras: [], clientBreakdown: [] };
+        const defaultBaseTarifa = Number(worker?.worker_beneficios_settings?.tarifa_hora || 0);
+        if (!eventos) {
+            return {
+                proventos: 0,
+                descontos: 0,
+                liquido: 0,
+                totalHoras: 0,
+                faturamentoHoras: 0,
+                isManualHours: false,
+                tarifaHora: defaultBaseTarifa,
+                baseTarifaHora: defaultBaseTarifa,
+                isManualTariff: false,
+                overrideMotivo: '',
+                beneficiosFixos: [],
+                descontosExtras: [],
+                workerEvents: [],
+                clientBreakdown: []
+            };
+        }
 
         const compHoursMap = dbHoursSummary?.workerCompanyHoursMap?.get(worker.id);
         const clientHoursMap = dbHoursSummary?.workerClientHoursMap?.get(worker.id);
@@ -1052,9 +1071,6 @@ export function HoleritesPage() {
                 }, 0);
         }
 
-        const tarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
-        const vencimentoBase = totalHoras * tarifaHora;
-
         // Filter events for this worker and company
         const workerEvents = (eventos || []).filter(e => {
             if (e.trabalhador_id !== worker.id) return false;
@@ -1074,8 +1090,41 @@ export function HoleritesPage() {
             return true;
         });
 
+        const faturamentoHoras = totalHoras;
+        const manualHoursEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_horas');
+        const isManualHours = Boolean(
+            manualHoursEvent &&
+            manualHoursEvent.horas_referencia !== null &&
+            manualHoursEvent.horas_referencia !== undefined
+        );
+
+        if (isManualHours) {
+            totalHoras = Number(manualHoursEvent!.horas_referencia);
+            if (clientBreakdown.length === 1) {
+                clientBreakdown = [{ ...clientBreakdown[0], hours: totalHoras }];
+            } else if (clientBreakdown.length > 1 && faturamentoHoras > 0) {
+                const ratio = totalHoras / faturamentoHoras;
+                clientBreakdown = clientBreakdown.map(cb => ({
+                    ...cb,
+                    hours: Math.round((cb.hours * ratio + Number.EPSILON) * 100) / 100
+                }));
+            }
+        }
+
+        const baseTarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
+        const manualTariffEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_tarifa');
+        const isManualTariff = Boolean(
+            manualTariffEvent &&
+            manualTariffEvent.horas_referencia !== null &&
+            manualTariffEvent.horas_referencia !== undefined &&
+            Number(manualTariffEvent.horas_referencia) > 0
+        );
+        const tarifaHora = isManualTariff ? Number(manualTariffEvent!.horas_referencia) : baseTarifaHora;
+        const vencimentoBase = totalHoras * tarifaHora;
+        const overrideMotivo = manualHoursEvent?.descricao || manualTariffEvent?.descricao || '';
+
         const proventosEventos = workerEvents
-            .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas')
+            .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa')
             .reduce((sum, e) => sum + Number(e.valor || 0), 0);
 
         const descontosEventos = workerEvents
@@ -1195,6 +1244,12 @@ export function HoleritesPage() {
             descontos: totalDescontos,
             liquido: totalProventos - totalDescontos,
             totalHoras,
+            faturamentoHoras,
+            isManualHours,
+            tarifaHora,
+            baseTarifaHora,
+            isManualTariff,
+            overrideMotivo,
             beneficiosFixos: beneficiosFixosArray,
             descontosExtras: workerExtraDiscounts,
             workerEvents,
@@ -1288,6 +1343,12 @@ export function HoleritesPage() {
                         empresaId,
                         isMultiCompanySplit: true,
                         totalHoras: tally.totalHoras,
+                        faturamentoHoras: tally.faturamentoHoras,
+                        isManualHours: tally.isManualHours,
+                        tarifaHora: tally.tarifaHora,
+                        baseTarifaHora: tally.baseTarifaHora,
+                        isManualTariff: tally.isManualTariff,
+                        overrideMotivo: tally.overrideMotivo,
                         proventos: tally.proventos,
                         descontos: tally.descontos,
                         liquido: tally.liquido,
@@ -1315,6 +1376,12 @@ export function HoleritesPage() {
                     empresaId,
                     isMultiCompanySplit: false,
                     totalHoras: tally.totalHoras,
+                    faturamentoHoras: tally.faturamentoHoras,
+                    isManualHours: tally.isManualHours,
+                    tarifaHora: tally.tarifaHora,
+                    baseTarifaHora: tally.baseTarifaHora,
+                    isManualTariff: tally.isManualTariff,
+                    overrideMotivo: tally.overrideMotivo,
                     proventos: tally.proventos,
                     descontos: tally.descontos,
                     liquido: tally.liquido,
@@ -1483,12 +1550,12 @@ export function HoleritesPage() {
     }, [sortedFolhaRows, page, effectivePageSize, pageSize]);
 
     const eventosMap = React.useMemo(() => {
-        const map = new Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number }>();
+        const map = new Map<string, { totalProventos: number; totalDescontos: number; valorLiquido: number; totalHoras: number; tarifaHora: number }>();
         if (!workers) return map;
 
         workers.forEach(w => {
-            const { proventos, descontos, liquido, totalHoras } = calculateWorkerTally(w, contratanteFilter !== 'all' ? contratanteFilter : undefined);
-            map.set(w.id, { totalProventos: proventos, totalDescontos: descontos, valorLiquido: liquido, totalHoras });
+            const { proventos, descontos, liquido, totalHoras, tarifaHora } = calculateWorkerTally(w, contratanteFilter !== 'all' ? contratanteFilter : undefined);
+            map.set(w.id, { totalProventos: proventos, totalDescontos: descontos, valorLiquido: liquido, totalHoras, tarifaHora });
         });
         return map;
     }, [workers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, contratanteFilter, empresas]);
@@ -1837,7 +1904,7 @@ export function HoleritesPage() {
                         <Button
                             size="sm"
                             variant="secondary"
-                            onClick={() => handleExportBankTransfer(selectedWorkersList)}
+                            onClick={() => handleExportBankTransfer(selectedRowsList)}
                             className="h-8 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-600"
                         >
                             <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-emerald-400" />
@@ -1909,8 +1976,9 @@ export function HoleritesPage() {
                                     </TableRow>
                                 ) : (
                                     paginatedFolhaRows?.map((row) => {
-                                        const { worker, rowKey, empresaName, empresaId, isMultiCompanySplit, totalHoras, proventos, descontos, liquido, beneficiosFixos, descontosExtras, workerEvents, clientHoursBreakdown, cliente_nombre, isNewWorker } = row;
-                                        const hasDataForMonth = workerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0;
+                                        const { worker, rowKey, empresaName, empresaId, isMultiCompanySplit, totalHoras, faturamentoHoras, isManualHours, tarifaHora, baseTarifaHora, isManualTariff, overrideMotivo, proventos, descontos, liquido, beneficiosFixos, descontosExtras, workerEvents, clientHoursBreakdown, cliente_nombre, isNewWorker } = row;
+                                        const visibleWorkerEvents = workerEvents.filter((e: any) => e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa');
+                                        const hasDataForMonth = visibleWorkerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0 || isManualHours || isManualTariff;
                                         const isExpanded = expandedRows.has(rowKey);
                                         const clientStyle = getClientStyle(cliente_nombre);
                                         const ibanInfo = workerIbansMap?.get(row.workerId);
@@ -2015,28 +2083,93 @@ export function HoleritesPage() {
                                                             );
                                                         })()}
                                                     </TableCell>
-                                                    <TableCell className="text-right">
-                                                        € {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300">
-                                                        {totalHoras > 0 ? (
-                                                            <div className="flex flex-col items-end">
-                                                                <div className="flex items-center gap-1 font-bold">
-                                                                    <span>{formatHoursClean(totalHoras)} h</span>
-                                                                    {dbHoursSummary?.adjustedWorkerIds?.has(row.workerId) && (
-                                                                        <Badge 
-                                                                            variant="outline" 
-                                                                            className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
-                                                                            title={`Ajustado pelo Faturamento`}
+                                                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                                        <AdjustHoursTariffDialog
+                                                            worker={worker}
+                                                            mesReferencia={mesReferencia}
+                                                            empresaName={empresaName}
+                                                            empresaId={empresaId}
+                                                            currentHours={totalHoras}
+                                                            faturamentoHours={faturamentoHoras}
+                                                            isManualHours={isManualHours}
+                                                            currentTariff={tarifaHora}
+                                                            baseTariff={baseTarifaHora}
+                                                            isManualTariff={isManualTariff}
+                                                            currentMotivo={overrideMotivo}
+                                                            trigger={
+                                                                <button
+                                                                    type="button"
+                                                                    className="group inline-flex flex-col items-end justify-end rounded px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+                                                                    title="Clique para ajustar Tarifa ou Horas manualmente"
+                                                                >
+                                                                    <div className="flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
+                                                                        <span>€ {Number(tarifaHora || 0).toFixed(2)}</span>
+                                                                        <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                    </div>
+                                                                    {isManualTariff && (
+                                                                        <Badge
+                                                                            variant="outline"
+                                                                            className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
                                                                         >
-                                                                            Faturamento
+                                                                            Manual
                                                                         </Badge>
                                                                     )}
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            '-'
-                                                        )}
+                                                                </button>
+                                                            }
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300" onClick={(e) => e.stopPropagation()}>
+                                                        <AdjustHoursTariffDialog
+                                                            worker={worker}
+                                                            mesReferencia={mesReferencia}
+                                                            empresaName={empresaName}
+                                                            empresaId={empresaId}
+                                                            currentHours={totalHoras}
+                                                            faturamentoHours={faturamentoHoras}
+                                                            isManualHours={isManualHours}
+                                                            currentTariff={tarifaHora}
+                                                            baseTariff={baseTarifaHora}
+                                                            isManualTariff={isManualTariff}
+                                                            currentMotivo={overrideMotivo}
+                                                            trigger={
+                                                                <button
+                                                                    type="button"
+                                                                    className="group inline-flex flex-col items-end justify-end rounded px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+                                                                    title="Clique para ajustar Horas ou Tarifa manualmente"
+                                                                >
+                                                                    {totalHoras > 0 || isManualHours ? (
+                                                                        <div className="flex flex-col items-end">
+                                                                            <div className="flex items-center gap-1 font-bold">
+                                                                                <span>{formatHoursClean(totalHoras)} h</span>
+                                                                                <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                                {isManualHours ? (
+                                                                                    <Badge 
+                                                                                        variant="outline" 
+                                                                                        className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                                        title={overrideMotivo ? `Ajustado manualmente: ${overrideMotivo} (Faturamento: ${formatHoursClean(faturamentoHoras)}h)` : `Ajustado manualmente na folha (Faturamento: ${formatHoursClean(faturamentoHoras)}h)`}
+                                                                                    >
+                                                                                        Manual
+                                                                                    </Badge>
+                                                                                ) : dbHoursSummary?.adjustedWorkerIds?.has(row.workerId) ? (
+                                                                                    <Badge 
+                                                                                        variant="outline" 
+                                                                                        className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                                        title="Ajustado pelo Faturamento"
+                                                                                    >
+                                                                                        Faturamento
+                                                                                    </Badge>
+                                                                                ) : null}
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex items-center gap-1 text-muted-foreground group-hover:text-indigo-600">
+                                                                            <span>-</span>
+                                                                            <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                        </div>
+                                                                    )}
+                                                                </button>
+                                                            }
+                                                        />
                                                     </TableCell>
                                                     <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
                                                         {proventos > 0 ? `+ € ${proventos.toFixed(2)}` : '-'}
@@ -2107,6 +2240,7 @@ export function HoleritesPage() {
                                                                 mesReferencia={mesReferencia}
                                                                 eventosMensais={workerEvents}
                                                                 fallbackHours={totalHoras}
+                                                                overrideTarifaHora={tarifaHora}
                                                                 workerMonthlyActivity={{
                                                                     contratante: empresaName,
                                                                     cliente_nombre: cliente_nombre,
@@ -2181,23 +2315,62 @@ export function HoleritesPage() {
 
                                                                     {/* Financial Breakdown Card */}
                                                                     <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/50 shadow-sm space-y-2">
-                                                                        <div className="flex items-center justify-between pb-2 border-b">
+                                                                        <div className="flex items-center justify-between pb-2 border-b gap-2">
                                                                             <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
                                                                                 <Banknote className="h-4 w-4 text-emerald-500" />
                                                                                 Resumo da Folha ({empresaName} - Competência {mesReferencia})
                                                                             </span>
-                                                                            <span className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded">
-                                                                                Líquido: € {liquido.toFixed(2)}
-                                                                            </span>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <AdjustHoursTariffDialog
+                                                                                    worker={worker}
+                                                                                    mesReferencia={mesReferencia}
+                                                                                    empresaName={empresaName}
+                                                                                    empresaId={empresaId}
+                                                                                    currentHours={totalHoras}
+                                                                                    faturamentoHours={faturamentoHoras}
+                                                                                    isManualHours={isManualHours}
+                                                                                    currentTariff={tarifaHora}
+                                                                                    baseTariff={baseTarifaHora}
+                                                                                    isManualTariff={isManualTariff}
+                                                                                    currentMotivo={overrideMotivo}
+                                                                                    trigger={
+                                                                                        <Button
+                                                                                            size="sm"
+                                                                                            variant="outline"
+                                                                                            className="h-6 px-2 text-[11px] font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
+                                                                                        >
+                                                                                            <Pencil className="h-3 w-3 mr-1" />
+                                                                                            Ajustar Horas / Tarifa
+                                                                                        </Button>
+                                                                                    }
+                                                                                />
+                                                                                <span className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded">
+                                                                                    Líquido: € {liquido.toFixed(2)}
+                                                                                </span>
+                                                                            </div>
                                                                         </div>
                                                                         <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                                                                             <div>
                                                                                 <span className="text-muted-foreground block">Total Horas</span>
-                                                                                <span className="font-bold text-slate-800 dark:text-slate-200">{formatHoursClean(totalHoras)} h</span>
+                                                                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                                                    {formatHoursClean(totalHoras)} h
+                                                                                    {isManualHours && (
+                                                                                        <span className="ml-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                                                                            (Manual • Fat: {formatHoursClean(faturamentoHoras)}h)
+                                                                                        </span>
+                                                                                    )}
+                                                                                </span>
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-muted-foreground block">Tarifa por Hora</span>
-                                                                                <span className="font-bold text-slate-800 dark:text-slate-200">€ {worker.worker_beneficios_settings?.tarifa_hora || '0.00'}</span>
+                                                                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                                                    € {Number(tarifaHora || 0).toFixed(2)}
+                                                                                    {isManualTariff && (
+                                                                                        <span className="ml-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
+                                                                                            (Manual • Cad: € {Number(baseTarifaHora || 0).toFixed(2)})
+                                                                                        </span>
+                                                                                    )}
+                                                                                </span>
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-muted-foreground block">Proventos + Benefícios</span>
@@ -2249,7 +2422,7 @@ export function HoleritesPage() {
                                                                             </TableRow>
                                                                         </TableHeader>
                                                                         <TableBody>
-                                                                            {workerEvents.map((evento) => (
+                                                                            {visibleWorkerEvents.map((evento: any) => (
                                                                                 <TableRow key={evento.id} className="hover:bg-slate-50 dark:hover:bg-slate-850">
                                                                                     <TableCell className="text-muted-foreground whitespace-nowrap">{evento.created_at ? format(new Date(evento.created_at), 'dd/MM/yyyy') : '-'}</TableCell>
                                                                                     <TableCell className="font-medium">
