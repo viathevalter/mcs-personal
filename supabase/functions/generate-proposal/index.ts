@@ -561,7 +561,12 @@ serve(async (req) => {
       CARGO_FIRMANTE_PRESTADORA: sellerName ? "Asesor Comercial" : "Administrador",
       EMPRESA_PRESTADORA: empresa.legal_name || empresa.trade_name || "",
       EMAIL_PRESTADORA: sellerEmail || senderEmail,
-      WEB_EMPRESA: "www.stoco.es",
+      WEB_EMPRESA: empresa.website || (
+        (empresa.trade_name || "").toLowerCase().includes("luminous") ? "www.luminousalley.com" :
+        (empresa.trade_name || "").toLowerCase().includes("wise") ? "www.wiseowe.com" :
+        (empresa.trade_name || "").toLowerCase().includes("triangulo") ? "www.triangulolda.com" :
+        "www.stoco.es"
+      ),
     };
 
     let generatedDoc;
