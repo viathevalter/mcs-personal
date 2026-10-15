@@ -3,9 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ChevronDown, CornerDownRight, ChevronsUpDown, Layers, FileText, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight, ChevronDown, CornerDownRight, ChevronsUpDown, Layers, FileText, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake, RotateCcw, Trash2 } from 'lucide-react';
 import { formatCurrency, formatDate, normalizeEmpresaName, normalizePeriodoFat, sortPeriodosFatDesc, getPeriodoFatSortValue } from '../lib/utils';
-import { fetchEnrichedData, updateContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
+import { fetchEnrichedData, updateContaReceber, deleteContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
 import { ReceberCobroModal } from '../components/ReceberCobroModal';
 import { ObservacoesModal } from '../components/ObservacoesModal';
@@ -629,7 +629,8 @@ export const Cobranca = () => {
     const simClientCodes = useMemo(() => {
         const set = new Set<string>();
         simulations.forEach(s => {
-            if (s.cod_cliente) set.add(s.cod_cliente.trim());
+            const hasSpecificTitles = Boolean(s.titulo_id) || (Array.isArray(s.original_ids) && s.original_ids.length > 0);
+            if (!hasSpecificTitles && s.cod_cliente) set.add(s.cod_cliente.trim());
         });
         return set;
     }, [simulations]);
@@ -637,7 +638,8 @@ export const Cobranca = () => {
     const simClientNames = useMemo(() => {
         const set = new Set<string>();
         simulations.forEach(s => {
-            if (s.cliente_nome) set.add(s.cliente_nome.trim().toLowerCase());
+            const hasSpecificTitles = Boolean(s.titulo_id) || (Array.isArray(s.original_ids) && s.original_ids.length > 0);
+            if (!hasSpecificTitles && s.cliente_nome) set.add(s.cliente_nome.trim().toLowerCase());
         });
         return set;
     }, [simulations]);
@@ -645,9 +647,10 @@ export const Cobranca = () => {
     const simTitleIds = useMemo(() => {
         const set = new Set<string>();
         simulations.forEach(s => {
-            if (s.titulo_id) set.add(s.titulo_id.toString());
-            if (Array.isArray(s.original_ids)) {
+            if (Array.isArray(s.original_ids) && s.original_ids.length > 0) {
                 s.original_ids.forEach((id: any) => set.add(id.toString()));
+            } else if (s.titulo_id) {
+                set.add(s.titulo_id.toString());
             }
         });
         return set;
@@ -655,10 +658,20 @@ export const Cobranca = () => {
 
     const isClientInNegotiation = (item: EnrichedTitulo) => {
         if (item.Status === 'Pago' || item.Status === 'Negociado' || item.Status === 'Judicial') return false;
+        if (item.id && simTitleIds.has(item.id.toString())) return true;
         if (item.CodCliente && simClientCodes.has(item.CodCliente.trim())) return true;
         if (item.Cliente && simClientNames.has(item.Cliente.trim().toLowerCase())) return true;
-        if (item.id && simTitleIds.has(item.id.toString())) return true;
         return false;
+    };
+
+    const getRestoredStatus = (item: EnrichedTitulo) => {
+        const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0));
+        const valTotal = item.Valot_total || 0;
+        const saldo = item.Saldo_a_pagar ?? valTotal;
+        if (saldo <= 0 && valTotal > 0) return 'Pago';
+        if ((item.Valor_parcial && item.Valor_parcial > 0) || (saldo > 0 && saldo < valTotal)) return 'Parcial';
+        if (item.Dt_venc && new Date(item.Dt_venc) < todayMidnight) return 'Vencido';
+        return 'A vencer';
     };
 
     const formatDateInput = (dateStr: string) => {
@@ -1143,6 +1156,151 @@ export const Cobranca = () => {
     const openObs = (titulo: EnrichedTitulo) => {
         setSelectedTitulo(titulo);
         setIsObsOpen(true);
+    };
+
+    const handleCancelNegotiationForClient = async (group: {
+        clientName: string;
+        codCliente: string;
+        titles: EnrichedTitulo[];
+        representativeTitle: EnrichedTitulo;
+    }) => {
+        if (!window.confirm(`Deseja eliminar toda a negociação iniciada para "${group.clientName}"?\n\n• As simulações salvas serão excluídas.\n• Os títulos retornarão para o apuro normal (Vencidos / A Vencer).`)) {
+            return;
+        }
+
+        try {
+            // Find all titles of this client across the entire dataset
+            const allClientTitles = data.filter(t =>
+                (group.codCliente && t.CodCliente && t.CodCliente.trim() === group.codCliente.trim()) ||
+                (t.Cliente && t.Cliente.trim().toLowerCase() === group.clientName.trim().toLowerCase())
+            );
+            const allClientTitleIds = new Set(allClientTitles.map(t => String(t.id)));
+
+            // 1. Delete matching simulations from cobranca_simulacoes
+            const matchingSimIds = simulations
+                .filter(s => {
+                    if (group.codCliente && s.cod_cliente && s.cod_cliente.trim() === group.codCliente.trim()) return true;
+                    if (s.cliente_nome && s.cliente_nome.trim().toLowerCase() === group.clientName.trim().toLowerCase()) return true;
+                    if (s.titulo_id && allClientTitleIds.has(String(s.titulo_id))) return true;
+                    if (Array.isArray(s.original_ids) && s.original_ids.some((id: any) => allClientTitleIds.has(String(id)))) return true;
+                    return false;
+                })
+                .map(s => s.id)
+                .filter(Boolean);
+
+            if (matchingSimIds.length > 0) {
+                const { error } = await supabase.from('cobranca_simulacoes').delete().in('id', matchingSimIds);
+                if (error) throw error;
+            }
+            if (group.codCliente) {
+                await supabase.from('cobranca_simulacoes').delete().eq('cod_cliente', group.codCliente.trim());
+            }
+            if (group.clientName) {
+                await supabase.from('cobranca_simulacoes').delete().ilike('cliente_nome', group.clientName.trim());
+            }
+
+            // 2. Revert any Negotiated / Judicial titles of this client back to Vencido / A vencer
+            for (const cTitle of allClientTitles) {
+                if (cTitle.Status === 'Pago') continue;
+
+                if (cTitle.Num_doc?.startsWith('NEG-') && cTitle.Integral_parcial === 'Negociado') {
+                    await deleteContaReceber(cTitle.id);
+                    continue;
+                }
+
+                if (cTitle.Status === 'Negociado' || cTitle.Status === 'Judicial' || cTitle.Integral_parcial === 'Negociado') {
+                    const restoredStatus = getRestoredStatus(cTitle);
+                    const resUpdate = await updateContaReceber(cTitle.id, {
+                        Status: restoredStatus,
+                        Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                    });
+                    if (!resUpdate.success) throw resUpdate.error;
+                }
+            }
+
+            // 3. Log in timeline
+            if (group.representativeTitle?.id) {
+                await saveObservacao({
+                    conta_receber_id: group.representativeTitle.id,
+                    usuario: currentUser,
+                    tipo: 'Negociação Cancelada',
+                    descricao: `Negociação / simulação eliminada pelo usuário na carteira de Cobros e Morosidade. Títulos retornados para apuração normal (Vencidos / A Vencer).`,
+                    data: new Date().toISOString()
+                });
+            }
+
+            toast.success('Negociação eliminada com sucesso!', {
+                description: `Os títulos de ${group.clientName} retornaram para a apuração normal.`
+            });
+            await loadData();
+        } catch (err: any) {
+            console.error('Error cancelling client negotiation:', err);
+            toast.error('Erro ao eliminar negociação: ' + (err.message || String(err)));
+        }
+    };
+
+    const handleCancelNegotiationForTitle = async (item: EnrichedTitulo) => {
+        const restoredStatus = getRestoredStatus(item);
+        if (!window.confirm(`Deseja eliminar a negociação do título ${item.Num_doc || ''} (${item.Cliente || ''}) e retorná-lo para "${restoredStatus}"?`)) {
+            return;
+        }
+
+        try {
+            // 1. Remove this title from simulations or delete simulation if it only had this title / client
+            for (const sim of simulations) {
+                const origIds = Array.isArray(sim.original_ids) ? sim.original_ids.map(String) : [];
+                const matchesTitle = String(sim.titulo_id) === String(item.id) || origIds.includes(String(item.id));
+                const matchesClientWithoutSpecificIds = origIds.length === 0 && !sim.titulo_id && (
+                    (item.CodCliente && sim.cod_cliente && sim.cod_cliente.trim() === item.CodCliente.trim()) ||
+                    (item.Cliente && sim.cliente_nome && sim.cliente_nome.trim().toLowerCase() === item.Cliente.trim().toLowerCase())
+                );
+
+                if (matchesTitle || matchesClientWithoutSpecificIds) {
+                    const remainingIds = origIds.filter((id: string) => id !== String(item.id));
+                    if (remainingIds.length === 0) {
+                        const { error } = await supabase.from('cobranca_simulacoes').delete().eq('id', sim.id);
+                        if (error) throw error;
+                    } else {
+                        const { error } = await supabase
+                            .from('cobranca_simulacoes')
+                            .update({
+                                original_ids: remainingIds,
+                                titulo_id: String(sim.titulo_id) === String(item.id) ? remainingIds[0] : sim.titulo_id
+                            })
+                            .eq('id', sim.id);
+                        if (error) throw error;
+                    }
+                }
+            }
+
+            // 2. Revert title status if Negociado / Judicial
+            if (item.Num_doc?.startsWith('NEG-') && item.Integral_parcial === 'Negociado' && item.Status !== 'Pago') {
+                await deleteContaReceber(item.id);
+            } else if (item.Status === 'Negociado' || item.Status === 'Judicial' || item.Integral_parcial === 'Negociado') {
+                const resUpdate = await updateContaReceber(item.id, {
+                    Status: restoredStatus,
+                    Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                });
+                if (!resUpdate.success) throw resUpdate.error;
+            }
+
+            // 3. Log in timeline
+            await saveObservacao({
+                conta_receber_id: item.id,
+                usuario: currentUser,
+                tipo: 'Negociação Cancelada',
+                descricao: `Negociação eliminada para o título ${item.Num_doc}. Status retornado para "${restoredStatus}".`,
+                data: new Date().toISOString()
+            });
+
+            toast.success(`Negociação eliminada!`, {
+                description: `O título ${item.Num_doc} retornou para "${restoredStatus}".`
+            });
+            await loadData();
+        } catch (err: any) {
+            console.error('Error cancelling title negotiation:', err);
+            toast.error('Erro ao eliminar negociação: ' + (err.message || String(err)));
+        }
     };
 
     return (
@@ -2252,6 +2410,19 @@ export const Cobranca = () => {
                                                             <Users size={14} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
                                                         </Button>
 
+                                                        {/* Eliminar Negociação / Reverter ao Apuro Normal */}
+                                                        {(group.inNegotiation || group.negociadoCount > 0 || group.judicialCount > 0) && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                title={t('financeiro.actions.btn_cancel_negotiation', 'Eliminar negociação / simulação iniciada e retornar os títulos ao apuro normal (Vencidos / A Vencer)')}
+                                                                onClick={() => handleCancelNegotiationForClient(group)}
+                                                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/40 h-8 text-xs font-bold"
+                                                            >
+                                                                <RotateCcw size={13} className="mr-1" /> {t('financeiro.actions.btn_delete_neg', 'Eliminar Neg.')}
+                                                            </Button>
+                                                        )}
+
                                                         {/* Se tiver apenas 1 título, permite receber direto; se tiver múltiplos, botão expande para escolher o título ou ver detalhes */}
                                                         {!isMulti ? (
                                                             <Button
@@ -2422,6 +2593,18 @@ export const Cobranca = () => {
                                                                     <Users size={12} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
                                                                 </Button>
 
+                                                                {(isClientInNegotiation(item) || item.Status === 'Negociado' || item.Integral_parcial === 'Negociado' || item.Status === 'Judicial') && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        title="Eliminar negociação deste título e retornar ao apuro normal (Vencido / A vencer)"
+                                                                        onClick={() => handleCancelNegotiationForTitle(item)}
+                                                                        className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/40 h-7 px-2.5 text-[11px] font-bold bg-white dark:bg-slate-900"
+                                                                    >
+                                                                        <RotateCcw size={12} className="mr-1" /> {t('financeiro.actions.btn_delete_neg', 'Eliminar Neg.')}
+                                                                    </Button>
+                                                                )}
+
                                                                 <Button
                                                                     variant="ghost"
                                                                     size="icon"
@@ -2563,6 +2746,19 @@ export const Cobranca = () => {
                                                     >
                                                         <Users size={14} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
                                                     </Button>
+
+                                                    {/* Eliminar Negociação */}
+                                                    {(isClientInNegotiation(item) || item.Status === 'Negociado' || item.Integral_parcial === 'Negociado' || item.Status === 'Judicial') && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            title="Eliminar negociação deste título e retornar ao apuro normal (Vencido / A vencer)"
+                                                            onClick={() => handleCancelNegotiationForTitle(item)}
+                                                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50 dark:text-rose-400 dark:hover:bg-rose-950/40 h-8 text-xs font-bold"
+                                                        >
+                                                            <RotateCcw size={13} className="mr-1" /> {t('financeiro.actions.btn_delete_neg', 'Eliminar Neg.')}
+                                                        </Button>
+                                                    )}
 
                                                     {/* Marcar Pago */}
                                                     <Button 

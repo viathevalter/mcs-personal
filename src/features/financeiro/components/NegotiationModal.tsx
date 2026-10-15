@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake, X, Clock, Maximize2, Minimize2, Edit3, Sparkles, Send, MessageSquare, RefreshCw, ChevronDown, MessageCircle, PhoneCall } from 'lucide-react';
-import { updateContaReceber, createContaReceber, saveObservacao, fetchObservacoesForTitles } from '../data/loader';
+import { Mail, Scale, CheckCircle2, AlertCircle, Phone, Calendar, Landmark, Percent, FileText, Handshake, X, Clock, Maximize2, Minimize2, Edit3, Sparkles, Send, MessageSquare, RefreshCw, ChevronDown, MessageCircle, PhoneCall, Trash2, RotateCcw } from 'lucide-react';
+import { updateContaReceber, createContaReceber, deleteContaReceber, saveObservacao, fetchObservacoesForTitles } from '../data/loader';
 import { formatCurrency, formatDate } from '../lib/utils';
 import type { EnrichedTitulo } from '../types';
 import { toast } from 'sonner';
@@ -70,6 +70,14 @@ const getTypeBadge = (tipo: string) => {
             icon: <MessageCircle size={12} className="shrink-0" />,
             badgeColor: 'bg-emerald-100 text-emerald-850 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300',
             dotColor: 'bg-emerald-500 ring-emerald-100 dark:ring-emerald-900/50'
+        };
+    }
+    if (lower.includes('cancel') || lower.includes('revert') || lower.includes('elimin') || lower.includes('exclu')) {
+        return {
+            label: 'Negociação Cancelada',
+            icon: <RotateCcw size={12} className="shrink-0" />,
+            badgeColor: 'bg-rose-100 text-rose-850 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300',
+            dotColor: 'bg-rose-500 ring-rose-100 dark:ring-rose-900/50'
         };
     }
     if (lower.includes('simula')) {
@@ -307,13 +315,24 @@ export const NegotiationModal = ({
     );
 
     const isOverdue = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Judicial' || item.Status === 'Negociado') return false;
+        if (item.Status === 'Pago') return false;
         return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
     };
 
+    const getRestoredStatus = (item: EnrichedTitulo) => {
+        const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0));
+        const valTotal = item.Valot_total || 0;
+        const saldo = item.Saldo_a_pagar ?? valTotal;
+        if (saldo <= 0 && valTotal > 0) return 'Pago';
+        if ((item.Valor_parcial && item.Valor_parcial > 0) || (saldo > 0 && saldo < valTotal)) return 'Parcial';
+        if (item.Dt_venc && new Date(item.Dt_venc) < todayMidnight) return 'Vencido';
+        return 'A vencer';
+    };
+
     const paidTitles = clientTitles.filter(t => t.Status === 'Pago');
-    const overdueTitles = clientTitles.filter(t => isOverdue(t));
-    const dueSoonTitles = clientTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Negociado' && !isOverdue(t));
+    const overdueTitles = clientTitles.filter(t => t.Status !== 'Pago' && isOverdue(t));
+    const dueSoonTitles = clientTitles.filter(t => t.Status !== 'Pago' && !isOverdue(t));
+    const negotiatedOrJudicialTitles = clientTitles.filter(t => t.Status === 'Negociado' || t.Status === 'Judicial' || t.Integral_parcial === 'Negociado');
 
     const totalPaidSum = paidTitles.reduce((acc, curr) => acc + (curr.Valot_total || 0), 0);
     const totalOverdueSum = overdueTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
@@ -340,6 +359,9 @@ export const NegotiationModal = ({
     const [simulations, setSimulations] = useState<any[]>([]);
     const [isLoadingSimulations, setIsLoadingSimulations] = useState(false);
     const [isSavingSimulation, setIsSavingSimulation] = useState(false);
+    const [isCancellingNegotiation, setIsCancellingNegotiation] = useState(false);
+
+    const hasActiveNegotiation = simulations.length > 0 || negotiatedOrJudicialTitles.length > 0;
 
     // Client History / Timeline States
     const [clientHistory, setClientHistory] = useState<any[]>([]);
@@ -476,17 +498,144 @@ export const NegotiationModal = ({
                 .eq('id', simId);
             if (error) throw error;
             toast.success(t('financeiro.negotiation.sim_deleted', 'Simulação excluída com sucesso.'));
-            loadSimulations();
-            loadClientHistory();
+            await loadSimulations();
+            await loadClientHistory();
             onRefresh();
         } catch (err: any) {
             toast.error(t('financeiro.negotiation.err_delete_sim', 'Erro ao excluir simulação: ') + err.message);
         }
     };
 
+    const handleRevertSingleTitle = async (cTitle: EnrichedTitulo, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const restoredStatus = getRestoredStatus(cTitle);
+        if (!confirm(`Deseja remover a negociação do título ${cTitle.Num_doc} e retorná-lo para "${restoredStatus}"?`)) return;
+
+        setIsCancellingNegotiation(true);
+        try {
+            // 1. Remove title from any simulations or delete simulation if it only had this title
+            for (const sim of simulations) {
+                const origIds = Array.isArray(sim.original_ids) ? sim.original_ids.map(String) : [];
+                const isTarget = String(sim.titulo_id) === String(cTitle.id) || origIds.includes(String(cTitle.id));
+                if (isTarget) {
+                    const remainingIds = origIds.filter((id: string) => id !== String(cTitle.id));
+                    if (remainingIds.length === 0) {
+                        await supabase.from('cobranca_simulacoes').delete().eq('id', sim.id);
+                    } else {
+                        await supabase
+                            .from('cobranca_simulacoes')
+                            .update({
+                                original_ids: remainingIds,
+                                titulo_id: String(sim.titulo_id) === String(cTitle.id) ? remainingIds[0] : sim.titulo_id
+                            })
+                            .eq('id', sim.id);
+                    }
+                }
+            }
+
+            // 2. If title is a generated NEG- installment and unpaid, delete it; else restore status
+            if (cTitle.Num_doc?.startsWith('NEG-') && cTitle.Integral_parcial === 'Negociado' && cTitle.Status !== 'Pago') {
+                await deleteContaReceber(cTitle.id);
+            } else if (cTitle.Status === 'Negociado' || cTitle.Status === 'Judicial' || cTitle.Integral_parcial === 'Negociado') {
+                const res = await updateContaReceber(cTitle.id, {
+                    Status: restoredStatus,
+                    Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                });
+                if (!res.success) throw res.error;
+            }
+
+            await saveObservacao({
+                conta_receber_id: cTitle.id,
+                usuario: currentUser,
+                tipo: 'Negociação Cancelada',
+                descricao: `Negociação eliminada para o título ${cTitle.Num_doc}. Status retornado para "${restoredStatus}".`,
+                data: new Date().toISOString()
+            });
+
+            toast.success(`Negociação do título ${cTitle.Num_doc} eliminada! Retornado para ${restoredStatus}.`);
+            await loadSimulations();
+            await loadClientHistory();
+            onRefresh();
+        } catch (err: any) {
+            toast.error('Erro ao reverter título: ' + (err.message || String(err)));
+        } finally {
+            setIsCancellingNegotiation(false);
+        }
+    };
+
+    const handleCancelAllClientNegotiations = async () => {
+        const clientDisplayName = titulo.Cliente || 'este cliente';
+        if (!confirm(`Deseja eliminar toda a negociação iniciada para "${clientDisplayName}"?\n\n• As simulações salvas serão excluídas.\n• Os títulos negociados retornarão para o apuro normal (Vencidos / A Vencer).`)) {
+            return;
+        }
+
+        setIsCancellingNegotiation(true);
+        try {
+            // 1. Delete all simulations of this client
+            if (simulations.length > 0) {
+                const simIds = simulations.map(s => s.id).filter(Boolean);
+                if (simIds.length > 0) {
+                    const { error } = await supabase
+                        .from('cobranca_simulacoes')
+                        .delete()
+                        .in('id', simIds);
+                    if (error) throw error;
+                }
+            }
+
+            // Also ensure any simulation matching cod_cliente or cliente_nome is deleted
+            if (titulo.CodCliente) {
+                await supabase.from('cobranca_simulacoes').delete().eq('cod_cliente', titulo.CodCliente);
+            }
+            if (titulo.Cliente) {
+                await supabase.from('cobranca_simulacoes').delete().ilike('cliente_nome', titulo.Cliente.trim());
+            }
+
+            // 2. Revert any Negotiated / Judicial titles of this client back to Vencido / A vencer
+            for (const cTitle of clientTitles) {
+                if (cTitle.Status === 'Pago') continue;
+
+                // If it's an unpaid generated installment (NEG-...), delete it so it doesn't duplicate the original debt
+                if (cTitle.Num_doc?.startsWith('NEG-') && cTitle.Integral_parcial === 'Negociado') {
+                    await deleteContaReceber(cTitle.id);
+                    continue;
+                }
+
+                if (cTitle.Status === 'Negociado' || cTitle.Status === 'Judicial' || cTitle.Integral_parcial === 'Negociado') {
+                    const restoredStatus = getRestoredStatus(cTitle);
+                    const resUpdate = await updateContaReceber(cTitle.id, {
+                        Status: restoredStatus,
+                        Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                    });
+                    if (!resUpdate.success) throw resUpdate.error;
+                }
+            }
+
+            // 3. Log in client history
+            await saveObservacao({
+                conta_receber_id: titulo.id,
+                usuario: currentUser,
+                tipo: 'Negociação Cancelada',
+                descricao: `Negociação / simulação eliminada pelo usuário. Todos os títulos pendentes do cliente retornaram ao apuro normal (Vencidos / A Vencer).`,
+                data: new Date().toISOString()
+            });
+
+            toast.success('Negociação eliminada com sucesso! Os títulos retornaram ao apuro normal.');
+            await loadSimulations();
+            await loadClientHistory();
+            onRefresh();
+            onClose();
+        } catch (err: any) {
+            console.error('Error cancelling negotiation:', err);
+            toast.error('Erro ao eliminar negociação: ' + (err.message || String(err)));
+        } finally {
+            setIsCancellingNegotiation(false);
+        }
+    };
+
     useEffect(() => {
         if (isOpen && titulo) {
-            const initialIds = titulo.Status !== 'Pago' && titulo.Status !== 'Negociado' ? [titulo.id] : [];
+            const initialIds = titulo.Status !== 'Pago' ? [titulo.id] : [];
             setCheckedIds(initialIds);
             
             // Set active tab based on selected title status
@@ -999,6 +1148,48 @@ export const NegotiationModal = ({
                                 </div>
                             </div>
 
+                            {/* Active Negotiation Alert / Elimination Bar */}
+                            {hasActiveNegotiation && (
+                                <div className="px-3.5 py-2.5 bg-rose-50/90 dark:bg-rose-950/30 border-b border-rose-200 dark:border-rose-900/50 flex flex-wrap items-center justify-between gap-2 flex-none">
+                                    <div className="flex items-center gap-2 text-xs text-rose-900 dark:text-rose-200">
+                                        <Handshake size={15} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                                        <div>
+                                            <span className="font-bold">Negociação ativa neste cliente: </span>
+                                            <span>
+                                                {simulations.length > 0 && `${simulations.length} ${simulations.length === 1 ? 'simulação salva' : 'simulações salvas'}`}
+                                                {simulations.length > 0 && negotiatedOrJudicialTitles.length > 0 && ' • '}
+                                                {negotiatedOrJudicialTitles.length > 0 && `${negotiatedOrJudicialTitles.length} ${negotiatedOrJudicialTitles.length === 1 ? 'título negociado/jurídico' : 'títulos negociados/jurídicos'}`}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        {simulations.length > 0 && activeTab !== 'simulations' && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setActiveTab('simulations')}
+                                                className="h-7 px-2.5 text-[11px] font-bold border-indigo-200 text-indigo-700 bg-white hover:bg-indigo-50 dark:bg-slate-900 dark:text-indigo-300 dark:border-indigo-800"
+                                            >
+                                                Ver Simulações ({simulations.length})
+                                            </Button>
+                                        )}
+                                        <Button
+                                            type="button"
+                                            variant="destructive"
+                                            size="sm"
+                                            disabled={isCancellingNegotiation}
+                                            onClick={handleCancelAllClientNegotiations}
+                                            className="h-7 px-2.5 text-[11px] font-bold bg-rose-600 hover:bg-rose-700 text-white gap-1 shadow-xs"
+                                            title="Eliminar qualquer negociação/simulação iniciada e retornar os títulos ao apuro normal (Vencidos / A Vencer)"
+                                        >
+                                            <RotateCcw size={12} className={isCancellingNegotiation ? 'animate-spin' : ''} />
+                                            <span>{isCancellingNegotiation ? 'Eliminando...' : 'Eliminar Negociação'}</span>
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
                             <ScrollArea className="flex-1 p-4">
                                 {activeTab === 'history' ? (
                                     <ClientTimelineView
@@ -1029,68 +1220,88 @@ export const NegotiationModal = ({
                                                 <p className="text-xs font-semibold">{t('financeiro.negotiation.no_sims_saved', 'Nenhuma simulação salva para este cliente.')}</p>
                                             </div>
                                         ) : (
-                                            simulations.map((sim) => {
-                                                const simDate = sim.creado_em ? new Date(sim.creado_em).toLocaleString('pt-PT') : 'N/A';
-                                                return (
-                                                    <div 
-                                                        key={sim.id}
-                                                        className="p-3 border dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                                            <>
+                                                <div className="flex items-center justify-between pb-2 border-b dark:border-slate-800 text-xs">
+                                                    <span className="font-bold text-slate-600 dark:text-slate-300">
+                                                        {simulations.length} {simulations.length === 1 ? 'simulação registrada' : 'simulações registradas'}
+                                                    </span>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={isCancellingNegotiation}
+                                                        onClick={handleCancelAllClientNegotiations}
+                                                        className="h-7 px-2.5 text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 gap-1"
                                                     >
-                                                        <div className="space-y-1 flex-1 min-w-0 pr-2">
-                                                            <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
-                                                                <Handshake size={14} className="text-indigo-500 shrink-0" />
-                                                                <span>Acordo de {formatCurrency(Number(sim.valor_acordado))}</span>
-                                                                <Badge variant="secondary" className="text-[10px] scale-90">
-                                                                    {sim.classificacao === 'friendly' ? 'Amigável' : 'Jurídico'}
-                                                                </Badge>
-                                                            </div>
-                                                            <div className="text-[10px] text-muted-foreground">
-                                                                <span>Salvo em {simDate} por <strong>{sim.creado_por || 'Sistema'}</strong></span>
-                                                            </div>
-                                                            <div className="text-slate-600 dark:text-slate-300 font-semibold space-x-2">
-                                                                <span>Dívida original: {formatCurrency(Number(sim.original_total))}</span>
-                                                                {Number(sim.desconto_percentual) > 0 && (
-                                                                    <span className="text-green-600 font-bold">Desconto: {sim.desconto_percentual}% (-{formatCurrency(Number(sim.desconto_valor))})</span>
-                                                                )}
-                                                                <span>• {sim.tipo_pagamento === 'single' ? 'Parcela única' : `${sim.parcelas_qtd} parcelas`}</span>
-                                                            </div>
-                                                            {sim.observacoes && (
-                                                                <div className="mt-2 p-2 rounded bg-slate-50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 text-xs">
-                                                                    <div className="flex items-center gap-1 font-bold text-[10px] text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
-                                                                        <FileText size={12} />
-                                                                        <span>{t('financeiro.negotiation.notes_label', 'Observações da Negociação:')}</span>
-                                                                    </div>
-                                                                    <div 
-                                                                        className="prose prose-xs dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 line-clamp-3 hover:line-clamp-none transition-all cursor-pointer leading-relaxed text-[11px]"
-                                                                        dangerouslySetInnerHTML={{ __html: sim.observacoes }}
-                                                                        title="Clique para expandir/recolher"
-                                                                    />
+                                                        <Trash2 size={12} />
+                                                        <span>Eliminar Todas e Retornar Títulos</span>
+                                                    </Button>
+                                                </div>
+                                                {simulations.map((sim) => {
+                                                    const simDate = sim.creado_em ? new Date(sim.creado_em).toLocaleString('pt-PT') : 'N/A';
+                                                    return (
+                                                        <div 
+                                                            key={sim.id}
+                                                            className="p-3 border dark:border-slate-800 rounded-lg bg-white dark:bg-slate-900 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                                                        >
+                                                            <div className="space-y-1 flex-1 min-w-0 pr-2">
+                                                                <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-200">
+                                                                    <Handshake size={14} className="text-indigo-500 shrink-0" />
+                                                                    <span>Acordo de {formatCurrency(Number(sim.valor_acordado))}</span>
+                                                                    <Badge variant="secondary" className="text-[10px] scale-90">
+                                                                        {sim.classificacao === 'friendly' ? 'Amigável' : 'Jurídico'}
+                                                                    </Badge>
                                                                 </div>
-                                                            )}
+                                                                <div className="text-[10px] text-muted-foreground">
+                                                                    <span>Salvo em {simDate} por <strong>{sim.creado_por || 'Sistema'}</strong></span>
+                                                                </div>
+                                                                <div className="text-slate-600 dark:text-slate-300 font-semibold space-x-2">
+                                                                    <span>Dívida original: {formatCurrency(Number(sim.original_total))}</span>
+                                                                    {Number(sim.desconto_percentual) > 0 && (
+                                                                        <span className="text-green-600 font-bold">Desconto: {sim.desconto_percentual}% (-{formatCurrency(Number(sim.desconto_valor))})</span>
+                                                                    )}
+                                                                    <span>• {sim.tipo_pagamento === 'single' ? 'Parcela única' : `${sim.parcelas_qtd} parcelas`}</span>
+                                                                </div>
+                                                                {sim.observacoes && (
+                                                                    <div className="mt-2 p-2 rounded bg-slate-50 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 text-xs">
+                                                                        <div className="flex items-center gap-1 font-bold text-[10px] text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">
+                                                                            <FileText size={12} />
+                                                                            <span>{t('financeiro.negotiation.notes_label', 'Observações da Negociação:')}</span>
+                                                                        </div>
+                                                                        <div 
+                                                                            className="prose prose-xs dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 line-clamp-3 hover:line-clamp-none transition-all cursor-pointer leading-relaxed text-[11px]"
+                                                                            dangerouslySetInnerHTML={{ __html: sim.observacoes }}
+                                                                            title="Clique para expandir/recolher"
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex gap-2 shrink-0">
+                                                                <Button 
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleApplySimulation(sim)}
+                                                                    className="text-xs h-8 text-indigo-650 hover:text-indigo-700 font-bold border-indigo-200"
+                                                                >
+                                                                    Restaurar
+                                                                </Button>
+                                                                <Button 
+                                                                    type="button"
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={(e) => handleDeleteSimulation(sim.id, e)}
+                                                                    className="text-xs h-8 px-2.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 font-bold gap-1"
+                                                                    title="Excluir esta simulação"
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                    <span>Excluir</span>
+                                                                </Button>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex gap-2 shrink-0">
-                                                            <Button 
-                                                                type="button"
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() => handleApplySimulation(sim)}
-                                                                className="text-xs h-8 text-indigo-650 hover:text-indigo-700 font-bold border-indigo-200"
-                                                            >
-                                                                Restaurar
-                                                            </Button>
-                                                            <Button 
-                                                                type="button"
-                                                                size="icon"
-                                                                variant="ghost"
-                                                                onClick={(e) => handleDeleteSimulation(sim.id, e)}
-                                                                className="text-xs h-8 w-8 text-red-650 hover:text-red-700 hover:bg-red-50"
-                                                            >
-                                                                <X size={14} />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
+                                                    );
+                                                })}
+                                            </>
                                         )}
                                     </div>
                                 ) : displayedTitles.length === 0 ? (
@@ -1103,7 +1314,7 @@ export const NegotiationModal = ({
                                         {(activeTab === 'overdue' || activeTab === 'due_soon') && (
                                             <div className="flex justify-between items-center pb-2 mb-2 border-b dark:border-slate-800 text-[11px] text-slate-500 font-semibold">
                                                 <span>
-                                                    {displayedTitles.filter(t => checkedIds.includes(t.id)).length} de {displayedTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Negociado').length} faturas selecionadas
+                                                    {displayedTitles.filter(t => checkedIds.includes(t.id)).length} de {displayedTitles.filter(t => t.Status !== 'Pago').length} faturas selecionadas
                                                 </span>
                                                 <div className="flex gap-2">
                                                     <button
@@ -1127,9 +1338,10 @@ export const NegotiationModal = ({
                                         {displayedTitles.map((cTitle) => {
                                             const delay = cTitle.Dt_venc ? Math.floor((new Date().getTime() - new Date(cTitle.Dt_venc).getTime()) / (1000 * 3600 * 24)) : 0;
                                             const isPaid = cTitle.Status === 'Pago';
-                                            const isNeg = cTitle.Status === 'Negociado';
+                                            const isNeg = cTitle.Status === 'Negociado' || cTitle.Integral_parcial === 'Negociado';
                                             const isJud = cTitle.Status === 'Judicial';
-                                            const selectDisabled = isPaid || isNeg;
+                                            const isInSim = simulations.some(s => String(s.titulo_id) === String(cTitle.id) || (Array.isArray(s.original_ids) && s.original_ids.map(String).includes(String(cTitle.id))));
+                                            const selectDisabled = isPaid;
 
                                             return (
                                                 <div 
@@ -1157,18 +1369,23 @@ export const NegotiationModal = ({
                                                             <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                                                 <span className="truncate max-w-[140px]">{cTitle.Num_doc}</span>
                                                                 <span className="text-[10px] text-muted-foreground font-mono">({cTitle.Empresa})</span>
+                                                                {isInSim && !isNeg && !isJud && (
+                                                                    <Badge variant="outline" className="border-purple-400 text-purple-700 bg-purple-50 text-[9px] py-0 px-1.5">
+                                                                        Em Simulação
+                                                                    </Badge>
+                                                                )}
                                                             </div>
                                                             <div className="text-[10px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
                                                                 <Calendar size={10} />
                                                                 <span>Venc: {cTitle.Dt_venc ? new Date(cTitle.Dt_venc).toLocaleDateString('pt-PT') : 'N/A'}</span>
-                                                                {delay > 0 && !isPaid && !isNeg && (
+                                                                {delay > 0 && !isPaid && (
                                                                     <span className="text-destructive font-semibold">({delay}d atraso)</span>
                                                                 )}
                                                             </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex items-center gap-4">
+                                                    <div className="flex items-center gap-2.5">
                                                         <div className="text-right">
                                                             <div className="font-bold text-slate-900 dark:text-slate-100">
                                                                 {formatCurrency(isPaid ? cTitle.Valot_total : cTitle.Saldo_a_pagar)}
@@ -1190,6 +1407,20 @@ export const NegotiationModal = ({
                                                                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 text-[9px] py-0">{t('financeiro.status.due_soon', 'A vencer')}</Badge>
                                                             )}
                                                         </div>
+                                                        {(isNeg || isJud || isInSim) && !isPaid && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                disabled={isCancellingNegotiation}
+                                                                onClick={(e) => handleRevertSingleTitle(cTitle, e)}
+                                                                className="h-7 px-2 text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 dark:border-rose-900/50 gap-1"
+                                                                title="Eliminar negociação deste título e retornar ao status original (Vencido / A vencer)"
+                                                            >
+                                                                <RotateCcw size={11} />
+                                                                <span>Reverter</span>
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             );
@@ -1512,47 +1743,64 @@ export const NegotiationModal = ({
                     </div>
                 )}
 
-                <DialogFooter className="flex-none gap-2 sm:gap-0 mt-3 pt-3 border-t dark:border-slate-800">
-                    <Button 
-                        variant="outline" 
-                        onClick={onClose} 
-                        className="text-xs"
-                    >
-                        {t('financeiro.negotiation.btn_cancel', 'Cancelar')}
-                    </Button>
-                    <Button 
-                        variant="outline" 
-                        onClick={handlePrepareEmail}
-                        disabled={selectedTitles.length === 0}
-                        className="text-xs text-blue-650 hover:text-blue-700 hover:bg-blue-50 border-blue-200 gap-1.5"
-                    >
-                        <Mail size={14} /> {t('financeiro.negotiation.btn_prepare_email', 'Preparar E-mail')}
-                    </Button>
-                    <Button 
-                        variant="outline" 
-                        onClick={handleSaveSimulation}
-                        disabled={isSavingSimulation || selectedTitles.length === 0}
-                        className="text-xs text-indigo-650 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 gap-1.5"
-                    >
-                        <Clock size={14} /> {isSavingSimulation ? 'Salvando...' : t('financeiro.negotiation.btn_save_simulation', 'Salvar Simulação')}
-                    </Button>
-                    <Button 
-                        onClick={classification === 'legal' ? () => setIsBurofaxOpen(true) : handleSaveAgreement} 
-                        disabled={isSaving || selectedTitles.length === 0}
-                        className={`text-xs gap-1.5 font-bold ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : 'bg-primary text-white hover:bg-primary/95'}`}
-                    >
-                        {isSaving ? (
-                            t('financeiro.negotiation.btn_saving', 'Processando...')
-                        ) : classification === 'legal' ? (
-                            <>
-                                <Scale size={14} /> {t('financeiro.negotiation.btn_confirm_legal', 'Confirmar e Gerar Burofax')}
-                            </>
-                        ) : (
-                            <>
-                                <CheckCircle2 size={14} /> {t('financeiro.negotiation.btn_confirm_agreement', 'Confirmar Acordo')}
-                            </>
+                <DialogFooter className="flex-none flex-wrap gap-2 mt-3 pt-3 border-t dark:border-slate-800 sm:justify-between">
+                    <div className="flex items-center gap-2">
+                        {hasActiveNegotiation && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleCancelAllClientNegotiations}
+                                disabled={isCancellingNegotiation}
+                                className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/60 dark:text-rose-400 dark:hover:bg-rose-950/40 font-bold gap-1.5"
+                                title="Eliminar qualquer negociação/simulação iniciada e retornar os títulos ao apuro normal (Vencidos / A Vencer)"
+                            >
+                                <RotateCcw size={14} className={isCancellingNegotiation ? 'animate-spin' : ''} />
+                                {isCancellingNegotiation ? 'Eliminando...' : t('financeiro.negotiation.btn_delete_negotiation', 'Eliminar Negociação')}
+                            </Button>
                         )}
-                    </Button>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        <Button 
+                            variant="outline" 
+                            onClick={onClose} 
+                            className="text-xs"
+                        >
+                            {t('financeiro.negotiation.btn_cancel', 'Cancelar')}
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            onClick={handlePrepareEmail}
+                            disabled={selectedTitles.length === 0}
+                            className="text-xs text-blue-650 hover:text-blue-700 hover:bg-blue-50 border-blue-200 gap-1.5"
+                        >
+                            <Mail size={14} /> {t('financeiro.negotiation.btn_prepare_email', 'Preparar E-mail')}
+                        </Button>
+                        <Button 
+                            variant="outline" 
+                            onClick={handleSaveSimulation}
+                            disabled={isSavingSimulation || selectedTitles.length === 0}
+                            className="text-xs text-indigo-650 hover:text-indigo-700 hover:bg-indigo-50 border-indigo-200 gap-1.5"
+                        >
+                            <Clock size={14} /> {isSavingSimulation ? 'Salvando...' : t('financeiro.negotiation.btn_save_simulation', 'Salvar Simulação')}
+                        </Button>
+                        <Button 
+                            onClick={classification === 'legal' ? () => setIsBurofaxOpen(true) : handleSaveAgreement} 
+                            disabled={isSaving || selectedTitles.length === 0}
+                            className={`text-xs gap-1.5 font-bold ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : 'bg-primary text-white hover:bg-primary/95'}`}
+                        >
+                            {isSaving ? (
+                                t('financeiro.negotiation.btn_saving', 'Processando...')
+                            ) : classification === 'legal' ? (
+                                <>
+                                    <Scale size={14} /> {t('financeiro.negotiation.btn_confirm_legal', 'Confirmar e Gerar Burofax')}
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle2 size={14} /> {t('financeiro.negotiation.btn_confirm_agreement', 'Confirmar Acordo')}
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
