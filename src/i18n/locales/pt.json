@@ -426,6 +426,7 @@
         "ativos": "Ativos",
         "inativos": "Inativos",
         "pendentes_ingresso": "Pendentes Ingresso",
+        "afastado": "Afastado / Licença Saúde",
         "disponiveis": "Disponíveis",
         "desistiu": "Desistiu"
       },
@@ -446,6 +447,9 @@
         "pendente_ingresso": "Pendente Ingresso",
         "pendiente_ingreso": "Pendente Ingresso",
         "pendiente_ingresar": "Pendente Ingresso",
+        "afastado": "Afastado / Licença Saúde",
+        "licenca_saude": "Licença Saúde",
+        "desligado": "Desligado",
         "desistiu": "Desistiu"
       },
       "seguridad": {

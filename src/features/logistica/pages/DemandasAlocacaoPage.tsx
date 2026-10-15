@@ -2289,6 +2289,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                         <p className="font-bold text-slate-800 dark:text-slate-100">
                                           {worker.worker_nome}
                                         </p>
+                                        {worker.is_afastado_rh && (
+                                          <span
+                                            title="Trabajador en Licencia Salud / Baja Médica / Invalidez. Permanece alojado (no requiere Check-out)."
+                                            className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border border-orange-300 dark:border-orange-800 cursor-help"
+                                          >
+                                            🏥 Licencia Salud / Afastado (Sigue Alojado)
+                                          </span>
+                                        )}
                                         {worker.is_inativo_rh && (
                                           <>
                                             <span
@@ -3002,6 +3010,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <td className="px-4 py-3.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                            {aloc.is_afastado_rh && (
+                              <span
+                                title="Trabajador en Licencia Salud / Baja Médica / Invalidez. Permanece ocupando la plaza en el alojamiento (no requiere Check-out)."
+                                className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border border-orange-300 dark:border-orange-800 cursor-help"
+                              >
+                                🏥 Licencia Salud / Afastado (Sigue Alojado)
+                              </span>
+                            )}
                             {aloc.is_inativo_rh && (
                               <>
                                 <span
@@ -3515,6 +3531,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           <td className="px-4 py-3.5">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <p className="font-bold text-slate-800 dark:text-slate-100">{a.worker_nome}</p>
+                              {a.is_afastado_rh && (
+                                <span
+                                  title="Trabajador en Licencia Salud / Baja Médica / Invalidez. Permanece alojado (no requiere Check-out)."
+                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border border-orange-300 dark:border-orange-800 cursor-help"
+                                >
+                                  🏥 Licencia Salud / Afastado (Sigue Alojado)
+                                </span>
+                              )}
                               {a.is_inativo_rh && (
                                 <>
                                   <span
@@ -3881,6 +3905,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className="font-bold text-slate-800 dark:text-slate-100">{aloc.worker_nome}</p>
+                          {aloc.is_afastado_rh && (
+                            <span
+                              title="Trabajador en Licencia Salud / Baja Médica / Invalidez. Permanece alojado (no requiere Check-out)."
+                              className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-950/70 dark:text-orange-300 border border-orange-300 dark:border-orange-800 cursor-help"
+                            >
+                              🏥 Licencia Salud / Afastado (Sigue Alojado)
+                            </span>
+                          )}
                           {aloc.is_inativo_rh && (
                             <span
                               title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${aloc.alerta_inativo_rh}).${aloc.data_baixa ? ` Fecha de Baja / Último día: ${formatBaixaDate(aloc.data_baixa)}` : ''}`}

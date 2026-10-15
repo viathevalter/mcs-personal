@@ -76,6 +76,8 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
     } else if (['ATIVO', 'ACTIVO'].includes(statusTrabUpper)) {
         updateData.data_ingresso = effectiveDate;
         updateData.data_baixa = null;
+    } else if (statusTrabUpper.includes('AFAST') || statusTrabUpper.includes('LICEN') || statusTrabUpper.includes('INVALIDEZ')) {
+        updateData.data_baixa = null;
     }
 
     // Regras para Status de Seguridade Social

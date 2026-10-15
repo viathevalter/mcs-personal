@@ -236,6 +236,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                                         <SelectItem value="Ativo">{t('editWorker.status.active')}</SelectItem>
                                                         <SelectItem value="Inativo">{t('editWorker.status.inactive')}</SelectItem>
                                                         <SelectItem value="Pendente Ingresso">{t('editWorker.status.pendingEntry')}</SelectItem>
+                                                        <SelectItem value="AFASTADO">{t('editWorker.status.medicalLeave', 'Afastado / Licença Saúde')}</SelectItem>
+                                                        <SelectItem value="Desligado">{t('editWorker.status.terminated', 'Desligado')}</SelectItem>
+                                                        <SelectItem value="Desistiu">{t('editWorker.status.quit', 'Desistiu')}</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <FormMessage />

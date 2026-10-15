@@ -235,6 +235,7 @@ export function WorkersPage() {
                                 { value: 'ativos', label: t('workersPage.filters.statusTrabOptions.ativos') },
                                 { value: 'inativos', label: t('workersPage.filters.statusTrabOptions.inativos') },
                                 { value: 'pendientes_ingreso', label: t('workersPage.filters.statusTrabOptions.pendentes_ingresso') },
+                                { value: 'AFASTADO', label: t('workersPage.filters.statusTrabOptions.afastado', 'Afastado / Licença Saúde') },
                                 { value: 'disponiveis', label: t('workersPage.filters.statusTrabOptions.disponiveis') },
                                 { value: 'desistiu', label: t('workersPage.filters.statusTrabOptions.desistiu') },
                             ]}
@@ -474,14 +475,22 @@ export function WorkersPage() {
                                             const s = (worker.status_trabajador || '').toLowerCase();
                                             const isAtivo = s.includes('ativo') || s.includes('activo');
                                             const isPendente = s.includes('pendente') || s.includes('pendiente');
+                                            const isAfastado = s.includes('afast') || s.includes('licen') || s.includes('invalidez') || s.includes('baja medica') || s.includes('baja médica');
                                             const isDesligado = s.includes('inativ') || s.includes('desligad') || s.includes('desist');
                                             
-                                            const label = worker.status_trabajador ? t(`workersPage.statusValues.trabajador.${worker.status_trabajador.toLowerCase().replace(/ /g, '_')}`) : '-';
+                                            const label = worker.status_trabajador ? t(`workersPage.statusValues.trabajador.${worker.status_trabajador.toLowerCase().replace(/ /g, '_')}`, worker.status_trabajador) : '-';
 
                                             if (isAtivo) {
                                                 return (
                                                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/60">
                                                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                                        {label}
+                                                    </span>
+                                                );
+                                            } else if (isAfastado) {
+                                                return (
+                                                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200/80 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/60">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
                                                         {label}
                                                     </span>
                                                 );

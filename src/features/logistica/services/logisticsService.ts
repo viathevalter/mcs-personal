@@ -106,6 +106,22 @@ export const checkWorkerInativoRH = (statusTrabajador?: string, statusSeguridad?
   const st = (statusTrabajador || '').toUpperCase();
   const ss = (statusSeguridad || '').toUpperCase();
 
+  const isAfastado =
+    st.includes('AFAST') ||
+    st.includes('LICEN') ||
+    st.includes('INVALIDEZ') ||
+    st.includes('BAJA MEDICA') ||
+    st.includes('BAJA MÉDICA') ||
+    st.includes('ENFERM');
+
+  if (isAfastado) {
+    return {
+      isInativo: false,
+      isAfastado: true,
+      motivo: 'Licencia Salud / Afastado (Sigue Alojado)'
+    };
+  }
+
   const isBaja = ss.includes('BAIX') || ss.includes('BAJA');
   const isInactive = st.includes('INATIV') || st.includes('DESIST') || st.includes('DESLIG');
 
@@ -117,12 +133,14 @@ export const checkWorkerInativoRH = (statusTrabajador?: string, statusSeguridad?
 
     return {
       isInativo: true,
+      isAfastado: false,
       motivo
     };
   }
 
   return {
     isInativo: false,
+    isAfastado: false,
     motivo: ''
   };
 };
@@ -160,6 +178,7 @@ export interface Alocacao {
   status_trabajador?: string;
   status_seguridad?: string;
   is_inativo_rh?: boolean;
+  is_afastado_rh?: boolean;
   alerta_inativo_rh?: string;
   data_baixa?: string;
 }
@@ -195,6 +214,7 @@ export interface TrabalhadorDemandaItem {
   status_trabajador?: string;
   status_seguridad?: string;
   is_inativo_rh?: boolean;
+  is_afastado_rh?: boolean;
   alerta_inativo_rh?: string;
   data_baixa?: string;
 }
@@ -305,6 +325,7 @@ export interface TrabalhadorAlojado {
   status_trabajador?: string;
   status_seguridad?: string;
   is_inativo_rh?: boolean;
+  is_afastado_rh?: boolean;
   alerta_inativo_rh?: string;
   data_baixa?: string;
 }
@@ -738,14 +759,17 @@ export const logisticsService = {
         const statusSeguridad = workerInfo.status_seguridad || base.status_seguridad;
         const rhCheck = checkWorkerInativoRH(statusTrabajador, statusSeguridad);
 
-        const rawDataBaixa =
-          workerInfo.data_baixa ||
-          workerInfo.data_baixa_seguridad ||
-          histBaixaMap.get(resolvedWorkerId) ||
-          segBaixaMap.get(resolvedWorkerId) ||
-          (rhCheck.isInativo ? assEndMap.get(resolvedWorkerId) : undefined) ||
-          (rhCheck.isInativo && codColabKey ? colabSalidaMap.get(codColabKey) : undefined) ||
-          base.data_baixa;
+        const rawDataBaixa = rhCheck.isAfastado
+          ? undefined
+          : (
+              workerInfo.data_baixa ||
+              workerInfo.data_baixa_seguridad ||
+              histBaixaMap.get(resolvedWorkerId) ||
+              segBaixaMap.get(resolvedWorkerId) ||
+              (rhCheck.isInativo ? assEndMap.get(resolvedWorkerId) : undefined) ||
+              (rhCheck.isInativo && codColabKey ? colabSalidaMap.get(codColabKey) : undefined) ||
+              base.data_baixa
+            );
 
         const dataBaixaFormatted = rawDataBaixa ? formatToLocalDate(rawDataBaixa) : undefined;
 
@@ -780,6 +804,7 @@ export const logisticsService = {
           status_trabajador: statusTrabajador,
           status_seguridad: statusSeguridad,
           is_inativo_rh: rhCheck.isInativo,
+          is_afastado_rh: rhCheck.isAfastado,
           alerta_inativo_rh: rhCheck.motivo,
           data_baixa: dataBaixaFormatted
         };
@@ -1498,7 +1523,7 @@ export const logisticsService = {
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
 
           const rhCheck = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
-          const rawBaixa = rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || (rhCheck.isInativo ? ass.end_date : undefined);
+          const rawBaixa = rhCheck.isAfastado ? undefined : (rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || (rhCheck.isInativo ? ass.end_date : undefined));
 
           trabalhadores.push({
             assignment_id: ass.id,
@@ -1529,6 +1554,7 @@ export const logisticsService = {
             status_trabajador: rawWorker.status_trabajador,
             status_seguridad: rawWorker.status_seguridad,
             is_inativo_rh: rhCheck.isInativo,
+            is_afastado_rh: rhCheck.isAfastado,
             alerta_inativo_rh: rhCheck.motivo,
             data_baixa: rawBaixa ? formatToLocalDate(rawBaixa) : undefined
           });
@@ -1572,7 +1598,7 @@ export const logisticsService = {
           const solCodigo = solId ? solicitudesMap.get(solId)?.codigo : undefined;
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
           const rhCheckHist = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
-          const rawBaixaHist = rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || ass.end_date;
+          const rawBaixaHist = rhCheckHist.isAfastado ? undefined : (rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || ass.end_date);
 
           trabalhadores.push({
             assignment_id: ass.id,
@@ -1603,6 +1629,7 @@ export const logisticsService = {
             status_trabajador: rawWorker.status_trabajador,
             status_seguridad: rawWorker.status_seguridad,
             is_inativo_rh: rhCheckHist.isInativo,
+            is_afastado_rh: rhCheckHist.isAfastado,
             alerta_inativo_rh: rhCheckHist.motivo,
             data_baixa: rawBaixaHist ? formatToLocalDate(rawBaixaHist) : undefined
           });
@@ -1758,6 +1785,7 @@ export const logisticsService = {
           status_trabajador: a.status_trabajador,
           status_seguridad: a.status_seguridad,
           is_inativo_rh: a.is_inativo_rh,
+          is_afastado_rh: a.is_afastado_rh,
           alerta_inativo_rh: a.alerta_inativo_rh,
           data_baixa: a.data_baixa
         };

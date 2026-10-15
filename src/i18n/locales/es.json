@@ -426,6 +426,7 @@
         "ativos": "Activos",
         "inativos": "Inactivos",
         "pendentes_ingresso": "Pendientes de Ingreso",
+        "afastado": "Baja Médica / Licencia Salud",
         "disponiveis": "Disponibles",
         "desistiu": "Desistió"
       },
@@ -446,6 +447,9 @@
         "pendente_ingresso": "Pendiente de Ingreso",
         "pendiente_ingreso": "Pendiente de Ingreso",
         "pendiente_ingresar": "Pendiente de Ingreso",
+        "afastado": "Baja Médica / Licencia Salud",
+        "licenca_saude": "Licencia Salud",
+        "desligado": "Desvinculado",
         "desistiu": "Desistió"
       },
       "seguridad": {
