@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { CommandCenterTrigger } from '@/shared/components/CommandCenterDrawer';
 
 export function Topbar() {
     const { user, signOut } = useAuth();
@@ -47,6 +48,7 @@ export function Topbar() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {user && <CommandCenterTrigger />}
                     {user && (
                         isLoading ? (
                             <Button variant="outline" className="gap-2 opacity-50 cursor-not-allowed">

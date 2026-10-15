@@ -28,10 +28,12 @@ import {
   X,
   Copy,
   PauseCircle,
-  Pencil
+  Pencil,
+  MessageSquare
 } from 'lucide-react';
 import type { OpenPosition } from './hooks/useOpenPositions';
 import { toast } from 'sonner';
+import { useCommandCenter } from '@/shared/components/CommandCenterDrawer';
 import {
   Tooltip,
   TooltipContent,
@@ -41,6 +43,7 @@ import {
 
 export const HiringDashboardPage: React.FC = () => {
   const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
+  const { openDrawer } = useCommandCenter();
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -76,7 +79,7 @@ export const HiringDashboardPage: React.FC = () => {
 
       if (error) throw error;
 
-      toast.success('Contratação cancelada e vaga reaberta com sucesso!');
+      toast.success('Desistência registrada! Vaga reaberta e Playbook de Desistência disparado para RH, Logística e Seguridade.');
       setAllocationToCancel(null);
       
       // Atualizar dados da tela
@@ -1376,15 +1379,26 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                                 </span>
                               </div>
                               {!isTerminated && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyTeamsText(alloc)}
-                                  className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 px-2.5 py-1 rounded border border-indigo-200 dark:border-indigo-900/60 transition-colors shrink-0 shadow-sm"
-                                  title="Copiar dados formatados para colar no Teams"
-                                >
-                                  <Copy className="h-3 w-3 shrink-0" />
-                                  Teams
-                                </button>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => openDrawer({ tab: 'chat', workerId: worker.id, pedidoId: selectedPedidoId || undefined })}
+                                    className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-900/60 transition-colors shrink-0 shadow-sm cursor-pointer"
+                                    title="Abrir conversa do trabalhador no MCS Chat e enviar Kit de Início (Alojamento/EPI)"
+                                  >
+                                    <MessageSquare className="h-3 w-3 shrink-0" />
+                                    MCS Chat
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyTeamsText(alloc)}
+                                    className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/20 hover:bg-indigo-100 dark:hover:bg-indigo-950/40 px-2.5 py-1 rounded border border-indigo-200 dark:border-indigo-900/60 transition-colors shrink-0 shadow-sm"
+                                    title="Copiar dados formatados para colar no Teams"
+                                  >
+                                    <Copy className="h-3 w-3 shrink-0" />
+                                    Teams
+                                  </button>
+                                </div>
                               )}
                             </div>
 

@@ -6,7 +6,7 @@ export interface SolicitudOperativa {
   target_assignment_id?: string;
   source_entity_id?: string;
   source_module: string;
-  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination' | 'order_postponement' | 'order_cancellation' | 'cancellation' | 'order_pause' | 'order_resume';
+  tipo: 'new_order' | 'replacement' | 'relocation' | 'technical_test' | 'field_trial' | 'offboarding' | 'scope_change' | 'incident' | 'order_extension' | 'order_termination' | 'order_postponement' | 'order_cancellation' | 'cancellation' | 'order_pause' | 'order_resume' | 'hiring_withdrawal' | 'worker_resignation';
   title: string;
   description?: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
@@ -23,10 +23,18 @@ export interface SolicitudOperativa {
 export interface SolicitudTarea {
   id: string;
   empresa_id: string;
-  solicitud_id: string;
+  solicitud_id?: string | null;
   playbook_step_id?: string;
   department_id: string;
   assigned_to?: string;
+  assigned_to_user_id?: string;
+  task_origin?: 'playbook' | 'manual' | 'chat' | 'email_ai';
+  scheduled_for?: string;
+  worker_id?: string;
+  pedido_id?: string;
+  client_id?: string;
+  conversation_id?: string;
+  action_metadata?: any;
   title: string;
   description?: string;
   status: 'pending' | 'in_progress' | 'blocked' | 'completed' | 'cancelled';

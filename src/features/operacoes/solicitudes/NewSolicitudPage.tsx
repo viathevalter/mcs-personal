@@ -1402,6 +1402,22 @@ export function NewSolicitudPage() {
                         .insert(notifsToInsert);
                 }
 
+                // 5. Disparar Playbook de Prorrogação (ORDER_EXTENSION) ou Finalização (ORDER_TERMINATION) para gerar as tarefas nos setores (Logística, RH, Seguridade, Financeiro)
+                const { data: pbRes, error: pbErr } = await supabase
+                    .schema('core_operacoes')
+                    .rpc('processar_prorrogacao_ou_finalizacao_obra', {
+                        p_empresa_id: selectedEmpresaId!,
+                        p_pedido_id: selectedPedidoId,
+                        p_parent_solicitud_id: parentSolicitud.id,
+                        p_tipo: actionType,
+                        p_nova_data_fim: dueDate || new Date().toISOString().split('T')[0],
+                        p_motivo: reason || title,
+                        p_user_id: user?.id || null
+                    });
+                if (!pbErr && (pbRes as any)?.solicitud_id) {
+                    targetSolicitudId = (pbRes as any).solicitud_id;
+                }
+
             } else {
                 const newId = await createSolicitudWithTargets.mutateAsync(payload);
                 targetSolicitudId = newId;

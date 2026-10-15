@@ -36,7 +36,7 @@ export function useDepartmentTasks(departmentCodes: string[]) {
         .select(`
           *,
           department:departments!inner(id, name, code),
-          solicitud:solicitudes_operativas!inner(
+          solicitud:solicitudes_operativas(
             id, codigo, title, status, priority, due_date, pedido_id, tipo, empresa_id, client_id
           ),
           assigned_user:mcs_users!assigned_to(id, email),
@@ -54,8 +54,8 @@ export function useDepartmentTasks(departmentCodes: string[]) {
       if (error) throw error;
 
       const tasks = (data || []) as any[];
-      const empresaIds = [...new Set(tasks.map(t => t.solicitud?.empresa_id).filter(Boolean))];
-      const clientIds = [...new Set(tasks.map(t => t.solicitud?.client_id).filter(Boolean))];
+      const empresaIds = [...new Set(tasks.map(t => t.solicitud?.empresa_id || t.empresa_id).filter(Boolean))];
+      const clientIds = [...new Set(tasks.map(t => t.solicitud?.client_id || t.client_id).filter(Boolean))];
       const parentTaskIds = [...new Set(tasks.map(t => t.blocked_by_task_id).filter(Boolean))];
       const [empresasRes, clientsRes, parentTasksRes] = await Promise.all([
         empresaIds.length > 0
@@ -75,7 +75,33 @@ export function useDepartmentTasks(departmentCodes: string[]) {
 
       const mappedTasks = tasks.map(t => {
         const parentTask = t.blocked_by_task_id ? parentTasksMap.get(t.blocked_by_task_id) : null;
-        if (!t.solicitud) return { ...t, blocked_by_task: parentTask || null };
+        if (!t.solicitud) {
+          const emp = empresasMap.get(t.empresa_id);
+          const cli = t.client_id ? clientsMap.get(t.client_id) : null;
+          return {
+            ...t,
+            blocked_by_task: parentTask || null,
+            solicitud: {
+              id: '',
+              codigo: t.task_origin === 'chat' ? 'MCS-CHAT' : t.task_origin === 'email_ai' ? 'EMAIL-IA' : 'TAREFA-DIRETA',
+              title: t.title,
+              status: t.status,
+              priority: t.priority,
+              due_date: t.due_date,
+              pedido_id: t.pedido_id,
+              tipo: 'incident',
+              empresa: emp ? { id: emp.id, name: emp.nome } : null,
+              pedido: cli ? {
+                id: t.pedido_id || '',
+                client: {
+                  id: cli.id,
+                  legal_name: cli.legal_name,
+                  trade_name: cli.trade_name
+                }
+              } : null
+            }
+          };
+        }
         const emp = empresasMap.get(t.solicitud.empresa_id);
         const cli = clientsMap.get(t.solicitud.client_id);
         return {

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../../../shared/supabase/client';
 import { toast } from 'sonner';
+import { CommandCenterTrigger } from '@/shared/components/CommandCenterDrawer';
 
 interface DbNotification {
     id: string;
@@ -171,7 +172,8 @@ export const NotificationBell: React.FC = () => {
     };
 
     return (
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative flex items-center gap-2" ref={dropdownRef}>
+            <CommandCenterTrigger variant="compact" />
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="relative p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"

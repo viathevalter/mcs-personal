@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arquitetura Operacional: MCS Personal + Playbooks + MCS Chat + IA</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --primary: #059669;
+      --primary-light: #ecfdf5;
+      --blue: #2563eb;
+      --blue-light: #eff6ff;
+      --amber: #d97706;
+      --amber-light: #fffbeb;
+      --rose: #e11d48;
+      --rose-light: #fff1f2;
+      --purple: #7c3aed;
+      --purple-light: #f5f3ff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 32px;
+    }
+    .container { max-width: 1180px; margin: 0 auto; }
+    .hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #ffffff;
+      border-radius: 20px;
+      padding: 36px;
+      margin-bottom: 28px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .hero-badge {
+      display: inline-block;
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.45);
+      color: #34d399;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 999px;
+      letter-spacing: 0.05em;
+      margin-bottom: 12px;
+    }
+    .hero h1 { font-size: 28px; font-weight: 800; margin-bottom: 10px; }
+    .hero p { color: #cbd5e1; font-size: 15px; max-width: 780px; }
+    .btn-print {
+      background: #10b981;
+      color: #ffffff;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    .btn-print:hover { background: #059669; }
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .pillar-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+    }
+    .pillar-tag { font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px; }
+    .pillar-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+    .pillar-card p { font-size: 12.5px; color: var(--muted); }
+    .section-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      margin-bottom: 28px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+    }
+    .section-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-sub { font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(440px, 1fr)); gap: 20px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .box {
+      border-radius: 14px;
+      padding: 18px;
+      border: 1px solid var(--border);
+    }
+    .box-green { background: var(--primary-light); border-color: #a7f3d0; }
+    .box-amber { background: var(--amber-light); border-color: #fde68a; }
+    .box-rose { background: var(--rose-light); border-color: #fecdd3; }
+    .box-blue { background: var(--blue-light); border-color: #bfdbfe; }
+    .box-purple { background: var(--purple-light); border-color: #ddd6fe; }
+    .box h4 { font-size: 14px; font-weight: 800; margin-bottom: 8px; }
+    .box ul { padding-left: 18px; font-size: 13px; color: #334155; }
+    .box ul li { margin-bottom: 6px; }
+    .process-card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px;
+      margin-bottom: 20px;
+      background: #ffffff;
+      page-break-inside: avoid;
+    }
+    .process-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .process-num {
+      background: #0f172a;
+      color: #ffffff;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+      margin-right: 12px;
+    }
+    .process-badge {
+      background: var(--blue-light);
+      color: var(--blue);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .tasks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+    }
+    .task-item {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      background: #f8fafc;
+    }
+    .task-dept {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .task-desc { font-size: 13px; color: var(--text); }
+    .steps-5 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 12px;
+    }
+    .step-box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      background: #f8fafc;
+    }
+    .step-box .st-num { font-size: 12px; font-weight: 800; color: var(--primary); margin-bottom: 4px; }
+    .step-box h5 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .step-box p { font-size: 12.5px; color: var(--muted); }
+    @media print {
+      body { padding: 0; background: #fff; }
+      .btn-print { display: none; }
+      .section-card, .process-card { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <div>
+        <div class="hero-badge">DOCUMENTO EXECUTIVO • ALINHAMENTO COM COORDENAÇÃO (V2.0)</div>
+        <h1>Arquitetura: MCS Personal + Playbooks + MCS Chat + Agente IA</h1>
+        <p>Central de Comando Flutuante (substituindo avisos soltos no Teams), Agendamento de Tarefas, Monitoramento de E-mails por Agente Pessoal IA e integração nativa em tempo real com o MCS Chat.</p>
+      </div>
+      <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar como PDF</button>
+    </div>
+
+    <div class="pillars">
+      <div class="pillar-card">
+        <div class="pillar-tag" style="color: var(--primary);">1. Regra de Ouro</div>
+        <h3>Tela Nativa vs. Playbook</h3>
+        <p>Rotinas normais seguem na tela do setor. Exceções e mudanças disparam Playbooks rastreáveis.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-tag" style="color: var(--blue);">2. Fim do Teams Solto</div>
+        <h3>Central Flutuante Premium</h3>
+        <p>Crie tarefas manuais para uma pessoa ou setor, agende lembretes e abra incidências de qualquer tela.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-tag" style="color: var(--purple);">3. WhatsApp Unificado</div>
+        <h3>Ponte Nativa MCS Chat</h3>
+        <p>Mesmo sendo outro projeto, compartilha o mesmo banco Supabase em tempo real + mini-chat na gaveta.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-tag" style="color: var(--amber);">4. Controle & Prevenção</div>
+        <h3>Radar D-10 & Aviso Prévio</h3>
+        <p>Alerta 10 dias antes do fim da obra (alojamento/fiança) e registro de Carta de Renúncia no sistema.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-tag" style="color: var(--rose);">5. Copiloto Pessoal</div>
+        <h3>E-mail + Agente IA</h3>
+        <p>Monitora a caixa de e-mail, identifica pedidos/baixas/prorrogações de clientes e sugere a ação pronta.</p>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-title">🚀 Destaque 1: A "Super Gaveta Flutuante" (Substituto do Teams + Agenda + E-mail IA + Chat)</div>
+      <div class="section-sub">Presente no topo de todos os módulos (RH, Logística, Financeiro, Comercial e Operações) em formato amplo e premium.</div>
+      <div class="grid-4">
+        <div class="box box-green">
+          <h4>1. Tarefas de Playbook & Tarefas Manuais (Fim do Teams)</h4>
+          <p style="font-size:13px;">Além das tarefas automáticas dos Playbooks, qualquer usuário pode abrir o formulário rápido e <strong>criar uma tarefa ou incidência para um Setor ou Pessoa específica</strong>, vinculando ao Trabalhador ou Pedido.</p>
+        </div>
+        <div class="box box-blue">
+          <h4>2. Agendamento & Programação Pessoal</h4>
+          <p style="font-size:13px;">Permite programar uma tarefa para uma data/hora futura (ex: <em>"Dia 20 às 10h cobrar contrato"</em>, <em>"Dia 25 revisar renovação de alojamento"</em>). Funciona como a agenda operacional do usuário.</p>
+        </div>
+        <div class="box box-purple">
+          <h4>3. Ponte Direta com o MCS Chat (Mesmo Banco)</h4>
+          <p style="font-size:13px;">Embora o MCS Chat seja outro projeto, ambos usam o mesmo Supabase Prod. A Gaveta Flutuante exibe um <strong>Mini-Chat ao vivo</strong> da conversa do trabalhador/cliente ou abre o MCS Chat completo em 1 clique.</p>
+        </div>
+        <div class="box box-rose">
+          <h4>4. Caixa de E-mail & Agente Pessoal de IA</h4>
+          <p style="font-size:13px;">O Agente Pessoal monitora os e-mails recebidos, detecta solicitações de clientes (ex: pedido de reemplazo, prorrogação ou baixa) e cria um card inteligente na gaveta: <strong>[Executar Ação com 1 Clique]</strong>.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-title">📌 Destaque 2: Quando é Rotina da Tela vs. Quando Gera Tarefa de Playbook?</div>
+      <div class="section-sub">Evita retrabalho onde o departamento já tem tela dedicada e garante que nenhuma exceção se perca.</div>
+      <div class="grid-2">
+        <div class="box box-green">
+          <h4>✅ A. Esteira Normal de Pedido Novo (Já funciona na tela do setor)</h4>
+          <ul>
+            <li><strong>Comercial cria o Pedido</strong> &rarr; As vagas já abrem direto na tela de <strong>Contratação Inicial (RH)</strong>.</li>
+            <li><strong>RH contrata o 1º trabalhador</strong> &rarr; Já cria automaticamente a <strong>Demanda de Alocação na Logística</strong>.</li>
+            <li><strong>Documentação & Contratos</strong> &rarr; Envio de link de documentos, geração de contrato, Seguridad Social e Conformidade CAE.</li>
+            <li><strong>NOVO — Onboarding via MCS Chat</strong>: Ao finalizar contrato e alojamento, um botão dispara pelo WhatsApp oficial da empresa (MCS Chat) a data de início, localização do alojamento e envio do EPI (sem criar grupos manuais).</li>
+          </ul>
+        </div>
+        <div class="box box-amber">
+          <h4>⚡ B. Eventos de Mudança / Exceção (Aciona Playbook de Tarefas)</h4>
+          <ul>
+            <li>Quando ocorre <strong>Desistência</strong>, <strong>Adiamento de Início</strong>, <strong>Reemplazo</strong>, <strong>Baixa / Demissão</strong>, <strong>Prorrogação de Obra</strong>, <strong>Finalização</strong>, <strong>Pausa</strong> ou <strong>Cancelamento</strong>.</li>
+            <li>Substitui o simples envio de e-mail ou recado solto no Teams por tarefas distribuídas em cada setor afetado (Logística, Seguridade, RH, Financeiro).</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-title">🔥 Destaque 3: Fluxo de Baixa por Iniciativa do Trabalhador + Retenção + MCS Chat</div>
+      <div class="section-sub">Como unificamos o atendimento em um único número de WhatsApp, eliminamos a planilha de aviso prévio e conectamos a decisão do cliente.</div>
+      <div class="steps-5">
+        <div class="step-box">
+          <div class="st-num">PASSO 1 • ENTRADA</div>
+          <h5>Número Único MCS Chat</h5>
+          <p>Trabalhador entra em contato com o RH pelo WhatsApp da empresa informando que deseja sair.</p>
+        </div>
+        <div class="step-box">
+          <div class="st-num">PASSO 2 • RETENÇÃO</div>
+          <h5>Transferência Interna</h5>
+          <p>Atendente não passa outro número! Ele transfere a conversa dentro do MCS Chat para o responsável de Retenção/Aviso Prévio.</p>
+        </div>
+        <div class="step-box">
+          <div class="st-num">PASSO 3 • FORMALIZAÇÃO</div>
+          <h5>Carta de Renúncia & Aviso</h5>
+          <p>Envia Carta de Renúncia no Chat e registra no sistema: cumpre os 15 dias ou terá desconto nas horas de encerramento.</p>
+        </div>
+        <div class="step-box">
+          <div class="st-num">PASSO 4 • CLIENTE</div>
+          <h5>Consulta ao Cliente</h5>
+          <p>Sistema cria tarefa para Operações/Comercial avisar o cliente do aviso prévio e perguntar se precisa de substituto.</p>
+        </div>
+        <div class="step-box">
+          <div class="st-num">PASSO 5 • DECISÃO</div>
+          <h5>Reemplazo ou Só Baixa</h5>
+          <p><strong>Se cliente quiser repor</strong>: vira Reemplazo (abre vaga na contratação).<br/><strong>Se não quiser</strong>: dispara Baixa (Seguridade, Logística e Financeiro).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-card">
+      <div class="section-title">🛠️ Detalhamento dos 8 Processos Operacionais</div>
+      <div class="section-sub">Como cada evento funciona, o que acontece hoje e quais tarefas o Playbook distribui automaticamente.</div>
+
+      <!-- P1 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">01</span><strong>Novo Pedido & Exceção de Desistência na Contratação / Contrato</strong></div>
+          <span class="process-badge">Contratação & Onboarding</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Quando o trabalhador desiste na hora de assinar o contrato, avisa-se apenas no Teams e exclui-se na contratação inicial. Não gera tarefa nem alerta formal para Logística, Seguridade ou Operações.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">Ao cancelar a contratação informando o motivo de desistência, reabre a vaga automaticamente e aciona o Playbook avisando todos os setores para desfazer reservas.</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">RH / Contratação</div><div class="task-desc">Vaga reabre imediatamente no pedido com alerta de reposição prioritária.</div></div>
+          <div class="task-item"><div class="task-dept">Logística</div><div class="task-desc">Cancelar reserva de cama no alojamento e suspender envio de EPI.</div></div>
+          <div class="task-item"><div class="task-dept">Seguridade & Contratos</div><div class="task-desc">Cancelar minuta de contrato e suspender pedido de Alta na Seguridad Social.</div></div>
+          <div class="task-item"><div class="task-dept">Operações / Comercial</div><div class="task-desc">Avaliar impacto no prazo de início da obra (acionar Prorrogação de Início se necessário).</div></div>
+        </div>
+      </div>
+
+      <!-- P2 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">02</span><strong>Prorrogação de Início de Pedido</strong></div>
+          <span class="process-badge">Pré-Obra</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Acontece por falta de tempo hábil de contratação, desistência ou documentação CAE pendente. Hoje o sistema apenas envia um e-mail informativo.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">Atualiza a data prevista de início e dispara tarefas para ajustar a data da Alta na Seguridade, o check-in do alojamento e avisar os trabalhadores pelo MCS Chat.</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">RH + MCS Chat</div><div class="task-desc">Avisar pelo MCS Chat todos os trabalhadores já contratados sobre a nova data de início e confirmar disponibilidade.</div></div>
+          <div class="task-item"><div class="task-dept">Seguridade Social</div><div class="task-desc">Reagendar data programada de Alta na Seguridad Social (evitando custo de dias parados).</div></div>
+          <div class="task-item"><div class="task-dept">Logística</div><div class="task-desc">Ajustar data de entrada (check-in) nos alojamentos e entrega de EPIs.</div></div>
+        </div>
+      </div>
+
+      <!-- P3 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">03</span><strong>Reemplazo Solicitado pelo Cliente</strong></div>
+          <span class="process-badge">Substituição em Obra</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Cliente solicita troca por qualificação/adaptação. O sistema abre a vaga para o novo trabalhador, mas a saída do trabalhador substituído (alojamento, seguridade, realocação) precisa ser coordenada.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">Fluxo duplo automático: abre a vaga na Contratação Inicial para quem entra e gera o Playbook de saída/realocação para quem sai.</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">Contratação Inicial</div><div class="task-desc">Vaga de reposição aberta automaticamente na esteira de contratação.</div></div>
+          <div class="task-item"><div class="task-dept">RH + MCS Chat</div><div class="task-desc">Comunicar trabalhador substituído via MCS Chat e definir destino (Realocação ou Baixa).</div></div>
+          <div class="task-item"><div class="task-dept">Logística</div><div class="task-desc">Programar check-out do alojamento (ou troca de cama com o substituto) e recolher EPI.</div></div>
+          <div class="task-item"><div class="task-dept">Seguridade & Financeiro</div><div class="task-desc">Baixa na Seguridad Social (se não realocado) e apuração das horas trabalhadas até a saída.</div></div>
+        </div>
+      </div>
+
+      <!-- P4 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">04</span><strong>Baixa por Iniciativa do Trabalhador (Retenção + Aviso Prévio + Decisão de Reemplazo)</strong></div>
+          <span class="process-badge">MCS Chat + RH + Cliente</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Dois números de WhatsApp diferentes para falar com o trabalhador, controle de aviso prévio (15 dias) em planilha externa e baixa que apenas envia e-mail.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">Atendimento em número único no MCS Chat, registro nativo da Carta de Renúncia/Aviso Prévio e decisão em 1 clique após consultar o cliente (Reemplazo vs. Baixa Definitiva).</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">RH (MCS Chat)</div><div class="task-desc">Recebe conversa transferida, envia Carta de Renúncia e registra no sistema se cumpre 15 dias ou se haverá desconto.</div></div>
+          <div class="task-item"><div class="task-dept">Operações / Comercial</div><div class="task-desc">Comunicar cliente sobre aviso prévio e acionar botão: [Converter em Reemplazo] ou [Executar Baixa].</div></div>
+          <div class="task-item"><div class="task-dept">Seguridade & Logística</div><div class="task-desc">Programar baixa na Seguridad Social e desalojamento para a data do último dia trabalhado.</div></div>
+          <div class="task-item"><div class="task-dept">Financeiro</div><div class="task-desc">Calcular acerto final aplicando automaticamente os dados do aviso prévio registrados no sistema.</div></div>
+        </div>
+      </div>
+
+      <!-- P5 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">05</span><strong>Radar Preventivo (D-10) & Prorrogação de Pedido / Obra</strong></div>
+          <span class="process-badge">Renovação de Obra & Alojamento</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Alojamentos são renovados mensalmente e obras têm previsão de término. Quando se prorroga no sistema hoje, apenas dispara e-mail.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">10 dias antes do vencimento (D-10), o sistema cria tarefa para consultar o cliente. Confirmada a prorrogação, dispara tarefas para Logística e RH.</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">Operações / Comercial (D-10)</div><div class="task-desc">Alerta automático 10 dias antes do fim previsto: contatar cliente para confirmar Prorrogação ou Finalização.</div></div>
+          <div class="task-item"><div class="task-dept">Logística</div><div class="task-desc">Renovar/prorrogar contrato dos alojamentos vinculados à obra pelo novo período.</div></div>
+          <div class="task-item"><div class="task-dept">RH + MCS Chat</div><div class="task-desc">Disparar comunicado via MCS Chat aos trabalhadores informando a continuidade da obra.</div></div>
+        </div>
+      </div>
+
+      <!-- P6 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">06</span><strong>Finalização de Obra</strong></div>
+          <span class="process-badge">Encerramento & Fiança</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Quando a obra encerra, é necessário garantir que o alojamento não seja renovado indevidamente, recuperar a fiança, dar baixa na Seguridade e fechar o cliente no Financeiro.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">Ao confirmar que a obra vai finalizar, o Playbook coordena a desmobilização completa entre RH, Seguridade, Logística e Financeiro.</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">RH + MCS Chat</div><div class="task-desc">Avisar trabalhadores sobre o encerramento pelo MCS Chat e definir quem será realocado vs. desligado.</div></div>
+          <div class="task-item"><div class="task-dept">Seguridade Social</div><div class="task-desc">Executar baixa na Seguridad Social dos trabalhadores que não serão realocados.</div></div>
+          <div class="task-item"><div class="task-dept">Logística</div><div class="task-desc">Encerrar contrato do alojamento, realizar vistoria de entrega e cobrar devolução da fiança.</div></div>
+          <div class="task-item"><div class="task-dept">Financeiro</div><div class="task-desc">Fechar medição final de horas do cliente e emitir faturamento de encerramento.</div></div>
+        </div>
+      </div>
+
+      <!-- P7 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">07</span><strong>Pausa de Pedido (Congelamento sem Data Definida)</strong></div>
+          <span class="process-badge">Suspensão Temporária</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Obra atrasa no cliente (ex: falta de material) sem nova data definida. Não é possível prorrogar sem data e hoje a pausa apenas envia e-mail.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">Congela imediatamente as vagas abertas na Contratação Inicial e dispara tarefas para suspender altas e reservas de alojamento.</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">Contratação Inicial</div><div class="task-desc">Congela automaticamente as vagas do pedido para o RH parar de contratar.</div></div>
+          <div class="task-item"><div class="task-dept">RH + MCS Chat</div><div class="task-desc">Comunicar candidatos/trabalhadores selecionados via MCS Chat e avaliar realocação em outra obra ativa.</div></div>
+          <div class="task-item"><div class="task-dept">Seguridade Social</div><div class="task-desc">Suspender qualquer Alta agendada para este pedido.</div></div>
+          <div class="task-item"><div class="task-dept">Logística</div><div class="task-desc">Suspender reservas de alojamento e envio de EPIs até reativação do pedido.</div></div>
+        </div>
+      </div>
+
+      <!-- P8 -->
+      <div class="process-card">
+        <div class="process-header">
+          <div><span class="process-num">08</span><strong>Cancelamento de Pedido</strong></div>
+          <span class="process-badge">Cancelamento Definitivo</span>
+        </div>
+        <div class="grid-2">
+          <div class="box box-rose">
+            <h4>Problema Atual</h4>
+            <p style="font-size:13px;">Pedido em andamento ou pré-início é cancelado antes do término. Hoje apenas dispara um e-mail informativo.</p>
+          </div>
+          <div class="box box-green">
+            <h4>Como Fica no Sistema + MCS Chat</h4>
+            <p style="font-size:13px;">Cancela vagas abertas e dispara o Playbook de Desmobilização Imediata para todos os departamentos envolvidos.</p>
+          </div>
+        </div>
+        <div class="tasks-grid">
+          <div class="task-item"><div class="task-dept">RH + MCS Chat</div><div class="task-desc">Avisar imediatamente todos os trabalhadores via MCS Chat e iniciar realocação ou baixa.</div></div>
+          <div class="task-item"><div class="task-dept">Seguridade Social</div><div class="task-desc">Dar baixa imediata na Seguridad Social dos trabalhadores alocados.</div></div>
+          <div class="task-item"><div class="task-dept">Logística</div><div class="task-desc">Desmobilizar alojamento imediatamente, negociar rescisão/fiança e recolher EPIs.</div></div>
+          <div class="task-item"><div class="task-dept">Financeiro</div><div class="task-desc">Apurar horas trabalhadas até a interrupção para faturamento proporcional e acerto final.</div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>

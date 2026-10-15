@@ -5,6 +5,7 @@ import { EmpresaProvider } from './providers/EmpresaProvider';
 import { SidebarProvider } from './providers/SidebarProvider';
 import { RoleProvider } from './providers/RoleProvider';
 import { Toaster } from '@/components/ui/sonner';
+import { CommandCenterProvider } from '@/shared/components/CommandCenterDrawer';
 
 // Setup React Query client with window focus refetching disabled to prevent state resets
 export const queryClient = new QueryClient({
@@ -26,8 +27,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     <RoleProvider>
                         <EmpresaProvider>
                             <SidebarProvider>
-                                {children}
-                                <Toaster />
+                                <CommandCenterProvider>
+                                    {children}
+                                    <Toaster />
+                                </CommandCenterProvider>
                             </SidebarProvider>
                         </EmpresaProvider>
                     </RoleProvider>
