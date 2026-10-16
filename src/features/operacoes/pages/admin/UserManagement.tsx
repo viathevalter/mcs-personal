@@ -83,6 +83,7 @@ export const UserManagement: React.FC = () => {
                     nombrecompleto, 
                     usuario, 
                     user_id,
+                    department_id,
                     mcs_departments ( name )
                 `)
                 .eq('active', true)
@@ -96,6 +97,7 @@ export const UserManagement: React.FC = () => {
                 nombrecompleto: emp.nombrecompleto,
                 usuario: emp.usuario,
                 user_id: emp.user_id,
+                department_id: emp.department_id,
                 mcs_departments: Array.isArray(emp.mcs_departments) ? emp.mcs_departments[0] : emp.mcs_departments
             })));
         } catch (error) {
@@ -149,6 +151,7 @@ export const UserManagement: React.FC = () => {
         setIsSaving(true);
         try {
             const userId = selectedUser.id;
+            const selectedEmp = employees.find(e => e.id === formData.employee_id);
 
             // Check if user exists in auth.users
             const { data: authExists, error: authCheckError } = await supabase.rpc('does_auth_user_exist', {
@@ -156,11 +159,12 @@ export const UserManagement: React.FC = () => {
             });
             if (authCheckError) throw authCheckError;
 
-            // 1. Update display_name and blocked_modules
+            // 1. Update display_name, department_id and blocked_modules (shared with MCS-Chat)
             await supabase
                 .from('mcs_users')
                 .update({ 
                     display_name: formData.display_name,
+                    department_id: (selectedEmp as any)?.department_id || selectedUser.department_id || null,
                     blocked_modules: formData.blocked_modules || []
                 })
                 .eq('id', userId);
