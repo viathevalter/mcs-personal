@@ -58,6 +58,24 @@ import { toast } from 'sonner';
 import { fetchCartoes, fetchCategorias, fetchObras } from '../data/loader';
 import type { CartaoCorporativo, FinanceiroCategoria, Obra } from '../types';
 
+export const getEmpresaUuidFromCard = (card: CartaoCorporativo | undefined | null, empresasList: { id: string; nome: string }[]): string | null => {
+    if (!card) return null;
+    const cardEmpNome = (card.empresa_nome || '').trim();
+    if (!cardEmpNome) return null;
+
+    const cleanStr = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    const targetClean = cleanStr(cardEmpNome);
+
+    const directMatch = empresasList.find(e => cleanStr(e.nome) === targetClean);
+    if (directMatch) return directMatch.id;
+
+    const partialMatch = empresasList.find(e => {
+        const eClean = cleanStr(e.nome);
+        return eClean.includes(targetClean) || targetClean.includes(eClean);
+    });
+    return partialMatch ? partialMatch.id : null;
+};
+
 export default function FundoCaixaPage() {
     // Listas principais
     const [caixas, setCaixas] = useState<CaixaDespesa[]>([]);
@@ -190,10 +208,14 @@ export default function FundoCaixaPage() {
         setSubmitting(true);
         try {
             const selectedCard = cartoes.find(c => c.id === formNovoCaixa.cartao_id);
+            const resolvedEmpresaId = formNovoCaixa.tipo_fundo === 'dinheiro'
+                ? (formNovoCaixa.id_empresa || null)
+                : getEmpresaUuidFromCard(selectedCard, empresas);
+
             await caixaService.createCaixa({
                 nombre: formNovoCaixa.nombre.trim(),
                 trabajador_id: formNovoCaixa.trabajador_id,
-                id_empresa: formNovoCaixa.id_empresa || (selectedCard?.empresa_id ? String(selectedCard.empresa_id) : null),
+                id_empresa: resolvedEmpresaId,
                 status: 'Ativo',
                 tipo_fundo: formNovoCaixa.tipo_fundo,
                 cartao_id: formNovoCaixa.tipo_fundo === 'cartao' ? formNovoCaixa.cartao_id : null,
@@ -269,7 +291,7 @@ export default function FundoCaixaPage() {
         setFormEditCaixa({
             nombre: cx.nombre || '',
             trabajador_id: cx.trabajador_id || '',
-            id_empresa: cx.id_empresa || '',
+            id_empresa: cx.id_empresa || getEmpresaUuidFromCard(cx.cartao, empresas) || '',
             tipo_fundo: cx.tipo_fundo || 'dinheiro',
             cartao_id: cx.cartao_id || '',
             status: cx.status || 'Ativo'
@@ -295,10 +317,14 @@ export default function FundoCaixaPage() {
         setSubmitting(true);
         try {
             const selectedCard = cartoes.find(c => c.id === formEditCaixa.cartao_id);
+            const resolvedEmpresaId = formEditCaixa.tipo_fundo === 'dinheiro'
+                ? (formEditCaixa.id_empresa || null)
+                : getEmpresaUuidFromCard(selectedCard, empresas);
+
             await caixaService.updateCaixa(caixaToEdit.id, {
                 nombre: formEditCaixa.nombre.trim(),
                 trabajador_id: formEditCaixa.trabajador_id,
-                id_empresa: formEditCaixa.id_empresa || (selectedCard?.empresa_id ? String(selectedCard.empresa_id) : null),
+                id_empresa: resolvedEmpresaId,
                 tipo_fundo: formEditCaixa.tipo_fundo,
                 cartao_id: formEditCaixa.tipo_fundo === 'cartao' ? formEditCaixa.cartao_id : null,
                 status: formEditCaixa.status
@@ -1220,11 +1246,13 @@ export default function FundoCaixaPage() {
                                 <select
                                     value={formNovoCaixa.cartao_id}
                                     onChange={e => {
-                                        const card = cartoes.find(c => c.id === e.target.value);
+                                        const cardId = e.target.value;
+                                        const card = cartoes.find(c => c.id === cardId);
+                                        const empUuid = getEmpresaUuidFromCard(card, empresas);
                                         setFormNovoCaixa(prev => ({
                                             ...prev,
-                                            cartao_id: e.target.value,
-                                            id_empresa: card?.empresa_id ? String(card.empresa_id) : prev.id_empresa
+                                            cartao_id: cardId,
+                                            id_empresa: empUuid || ''
                                         }));
                                     }}
                                     required
@@ -1386,10 +1414,11 @@ export default function FundoCaixaPage() {
                                     onChange={e => {
                                         const cid = e.target.value;
                                         const card = cartoes.find(c => c.id === cid);
+                                        const empUuid = getEmpresaUuidFromCard(card, empresas);
                                         setFormEditCaixa(prev => ({
                                             ...prev,
                                             cartao_id: cid,
-                                            id_empresa: card?.empresa_id ? String(card.empresa_id) : prev.id_empresa
+                                            id_empresa: empUuid || ''
                                         }));
                                     }}
                                     required

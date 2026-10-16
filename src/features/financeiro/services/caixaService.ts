@@ -267,12 +267,21 @@ export const caixaService = {
     }): Promise<CaixaDespesa> {
         const { saldo_inicial = 0, tipo_fundo = 'dinheiro', cartao_id = null, ...dadosCaixa } = caixa;
 
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const safeIdEmpresa = (dadosCaixa.id_empresa && UUID_REGEX.test(dadosCaixa.id_empresa)) 
+            ? dadosCaixa.id_empresa 
+            : null;
+        const safeCartaoId = (cartao_id && UUID_REGEX.test(cartao_id)) 
+            ? cartao_id 
+            : null;
+
         const { data, error } = await supabase
             .from('caixas_despesas')
             .insert([{
                 ...dadosCaixa,
+                id_empresa: safeIdEmpresa,
                 tipo_fundo,
-                cartao_id,
+                cartao_id: safeCartaoId,
                 status: dadosCaixa.status || 'Ativo'
             }])
             .select()
@@ -304,6 +313,18 @@ export const caixaService = {
     // 7. Atualizar caixa (ex: nome, funcionário, empresa, cartão, status)
     async updateCaixa(id: string, dados: Partial<CaixaDespesa>): Promise<any> {
         const { trabajador, empresa, saldo, total_recargas, total_despesas, cartao, ...cleanData } = dados as any;
+
+        const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if ('id_empresa' in cleanData) {
+            cleanData.id_empresa = (cleanData.id_empresa && UUID_REGEX.test(cleanData.id_empresa)) 
+                ? cleanData.id_empresa 
+                : null;
+        }
+        if ('cartao_id' in cleanData) {
+            cleanData.cartao_id = (cleanData.cartao_id && UUID_REGEX.test(cleanData.cartao_id)) 
+                ? cleanData.cartao_id 
+                : null;
+        }
 
         const { data, error } = await supabase
             .from('caixas_despesas')
