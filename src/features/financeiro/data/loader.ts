@@ -544,6 +544,7 @@ export async function fetchContasPagar(): Promise<ContasPagar[]> {
 
 export async function createContaPagar(data: Partial<ContasPagar>): Promise<{ success: boolean; error?: any }> {
   try {
+    const saldoVal = data.saldo_a_pagar !== undefined ? data.saldo_a_pagar : ((data as any).Saldo_a_pagar ?? data.Valor_total);
     const dbData = {
       empresa: data.Empresa || null,
       cod_provedor: data.CodProvedor || null,
@@ -553,8 +554,15 @@ export async function createContaPagar(data: Partial<ContasPagar>): Promise<{ su
       data_emissao: data.Data_emissao ? new Date(data.Data_emissao).toISOString().split('T')[0] : null,
       dt_venc: data.Dt_venc ? new Date(data.Dt_venc).toISOString().split('T')[0] : null,
       valor_total: data.Valor_total?.toString() || null,
-      saldo_a_pagar: data.Saldo_a_pagar?.toString() || null,
+      saldo_a_pagar: saldoVal !== undefined && saldoVal !== null ? saldoVal.toString() : null,
       status: data.Status || 'A vencer',
+      origem: data.origem || 'Manual',
+      cat_despesa: data.cat_despesa || null,
+      centro_custo: data.centro_custo || data.Obra || null,
+      obs: data.Obs || null,
+      comentarios: data.comentarios || null,
+      prev_pag: data.prev_pag || 'Manual',
+      creado_por: data.Creado_por || null,
       categoria_id: data.categoria_id || null,
       departamento_id: data.departamento_id || null,
       obra_id: data.obra_id || null,
@@ -586,13 +594,24 @@ export async function updateContaPagar(id: string, data: Partial<ContasPagar>): 
     if (data.Data_emissao !== undefined) dbData.data_emissao = data.Data_emissao ? new Date(data.Data_emissao).toISOString().split('T')[0] : null;
     if (data.Dt_venc !== undefined) dbData.dt_venc = data.Dt_venc ? new Date(data.Dt_venc).toISOString().split('T')[0] : null;
     if (data.Valor_total !== undefined) dbData.valor_total = data.Valor_total?.toString();
-    if (data.Saldo_a_pagar !== undefined) dbData.saldo_a_pagar = data.Saldo_a_pagar?.toString();
+    if (data.saldo_a_pagar !== undefined) dbData.saldo_a_pagar = data.saldo_a_pagar?.toString();
     if (data.Status !== undefined) dbData.status = data.Status;
     if (data.integral_parcial !== undefined) dbData.integral_parcial = data.integral_parcial;
     if (data.categoria_id !== undefined) dbData.categoria_id = data.categoria_id;
     if (data.departamento_id !== undefined) dbData.departamento_id = data.departamento_id;
     if (data.obra_id !== undefined) dbData.obra_id = data.obra_id;
     if (data.anexo_url !== undefined) dbData.anexo_url = data.anexo_url;
+    if (data.Obs !== undefined) dbData.obs = data.Obs;
+    if (data.comentarios !== undefined) dbData.comentarios = data.comentarios;
+    if (data.centro_custo !== undefined) dbData.centro_custo = data.centro_custo;
+    if (data.cat_despesa !== undefined) dbData.cat_despesa = data.cat_despesa;
+    if (data.Banco !== undefined) dbData.banco = data.Banco;
+    if (data.form_pag !== undefined) dbData.form_pag = data.form_pag;
+    if (data.hist_valor_parcial !== undefined) {
+      dbData.hist_valor_parcial = typeof data.hist_valor_parcial === 'string'
+        ? data.hist_valor_parcial
+        : JSON.stringify(data.hist_valor_parcial);
+    }
 
     const { error } = await supabase.from('contas_pagar').update(dbData).eq('id', id);
     if (error) throw error;
