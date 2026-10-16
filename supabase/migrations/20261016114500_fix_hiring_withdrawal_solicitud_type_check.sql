@@ -3,8 +3,12 @@
 -- Description:
 -- 1. Updates check constraint solicitudes_operativas_tipo_check to allow 'hiring_withdrawal'
 --    and 'worker_resignation' types.
--- 2. Updates core_personal.cancelar_alocacao_trabalhador to ensure collision-free SOL codigo
---    generation and global super_admin access support.
+-- 2. Updates core_personal.cancelar_alocacao_trabalhador to ensure:
+--    - collision-free SOL codigo generation
+--    - global super_admin access support
+--    - exact recalculation of quantity_fulfilled on pedido_items from active assignments
+--    - requires_replacement = false on the hiring_withdrawal target so it does not create
+--      a duplicate Reemplazo card on top of the reopened pedido_items slot.
 -- ========================================================================================
 
 BEGIN;
@@ -116,14 +120,34 @@ BEGIN
         notes = COALESCE(notes || E'\n', '') || 'Cancelado em ' || to_char(now(), 'DD/MM/YYYY HH24:MI') || COALESCE(' - Motivo: ' || v_reason, ' - Desistência do trabalhador')
     WHERE id = v_assignment_id;
 
-    -- 2. Reabrir a vaga correspondente no pedido item
-    IF v_status_anterior IN ('planned', 'active', 'paused') AND v_solicitud_id IS NULL AND v_pedido_item_id IS NOT NULL THEN
-        UPDATE core_comercial.pedido_items
-        SET quantity_fulfilled = GREATEST(0, quantity_fulfilled - 1)
-        WHERE id = v_pedido_item_id;
+    -- 2. Se a alocação era um reemplazo, reabrir o target original
+    IF v_solicitud_id IS NOT NULL THEN
+        UPDATE core_operacoes.solicitud_targets
+        SET status = 'pending',
+            target_worker_id = NULL,
+            target_assignment_id = NULL,
+            updated_at = now()
+        WHERE target_assignment_id = v_assignment_id;
+
+        UPDATE core_operacoes.solicitudes_operativas
+        SET status = 'in_progress',
+            updated_at = now()
+        WHERE id = v_solicitud_id;
     END IF;
 
-    -- 3. Recalcular o status operacional do Pedido Principal
+    -- 3. Recalcular a vaga correspondente no pedido item com base nas alocações ativas/planejadas reais
+    IF v_pedido_item_id IS NOT NULL THEN
+        UPDATE core_comercial.pedido_items pi
+        SET quantity_fulfilled = (
+            SELECT COUNT(*)::int
+            FROM core_personal.worker_assignments wa
+            WHERE wa.pedido_item_id = pi.id
+              AND wa.status IN ('planned', 'active', 'paused')
+        )
+        WHERE pi.id = v_pedido_item_id;
+    END IF;
+
+    -- 4. Recalcular o status operacional do Pedido Principal
     IF v_pedido_id IS NOT NULL THEN
         SELECT COUNT(*), COUNT(CASE WHEN quantity_fulfilled >= quantity_requested THEN 1 END)
         INTO v_total_items, v_fulfilled_items
@@ -139,46 +163,33 @@ BEGIN
         END IF;
 
         UPDATE core_comercial.pedidos
-        SET operational_status = v_new_operational_status
+        SET operational_status = v_new_operational_status,
+            updated_at = now()
         WHERE id = v_pedido_id;
     END IF;
 
-    -- 4. Atualizar o cadastro geral do trabalhador
+    -- 5. Atualizar o cadastro geral do trabalhador
     UPDATE core_personal.workers
     SET status_trabajador = 'Desistiu',
         departure_reason = COALESCE(v_reason, 'Desistência do trabalhador'),
         notes = COALESCE(notes || E'\n', '') || 'Desistiu da contratação em ' || to_char(now(), 'DD/MM/YYYY HH24:MI') || COALESCE(': ' || v_reason, '')
     WHERE id = v_worker_id;
 
-    -- 5. Cancelar registros pendentes da Seguridade Social
+    -- 6. Cancelar registros pendentes da Seguridade Social
     UPDATE core_personal.seguridade_status
     SET status = 'cancelado',
         observacoes = COALESCE(observacoes || E'\n', '') || 'Alocação cancelada: ' || COALESCE(v_reason, 'Desistência do trabalhador')
     WHERE worker_id = v_worker_id 
       AND status IN ('pendente', 'erro');
 
-    -- 6. Cancelar contratos pendentes de assinatura vinculados a esta alocação
+    -- 7. Cancelar contratos pendentes de assinatura vinculados a esta alocação
     UPDATE core_personal.contracts
     SET status = 'cancelled'
     WHERE assignment_id = v_assignment_id 
       AND signed_at IS NULL;
 
-    -- 7. Se a alocação era um reemplazo, reabrir o target
-    IF v_solicitud_id IS NOT NULL THEN
-        UPDATE core_operacoes.solicitud_targets
-        SET status = 'pending',
-            target_worker_id = NULL,
-            target_assignment_id = NULL,
-            updated_at = now()
-        WHERE target_assignment_id = v_assignment_id;
-
-        UPDATE core_operacoes.solicitudes_operativas
-        SET status = 'in_progress',
-            updated_at = now()
-        WHERE id = v_solicitud_id;
-    END IF;
-
     -- 8. Criar Solicitud Operativa 'hiring_withdrawal' e acionar o Playbook HIRING_WITHDRAWAL
+    -- IMPORTANTE: requires_replacement = false pois a vaga já foi reaberta diretamente no pedido_items!
     SELECT COUNT(*) INTO v_solicitudes_count
     FROM core_operacoes.solicitudes_operativas
     WHERE EXTRACT(YEAR FROM created_at) = EXTRACT(YEAR FROM NOW())
@@ -221,10 +232,10 @@ BEGIN
 
     INSERT INTO core_operacoes.solicitud_targets (
         empresa_id, solicitud_id, source_assignment_id, source_worker_id, source_pedido_id, source_pedido_item_id,
-        source_client_id, source_client_site_id, action_type, status, reason
+        source_client_id, source_client_site_id, action_type, requires_replacement, status, reason
     ) VALUES (
         v_empresa_id, v_withdrawal_solicitud_id, v_assignment_id, v_worker_id, v_pedido_id, v_pedido_item_id,
-        v_client_id, v_client_site_id, 'offboard', 'pending', v_reason
+        v_client_id, v_client_site_id, 'offboard', false, 'completed', v_reason
     );
 
     PERFORM core_operacoes.iniciar_playbook(v_withdrawal_solicitud_id);
