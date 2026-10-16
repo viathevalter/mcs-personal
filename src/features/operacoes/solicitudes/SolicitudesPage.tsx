@@ -134,7 +134,7 @@ export function SolicitudesPage() {
         </div>
 
         <div className="flex-1 min-h-0">
-          <SolicitudesTable solicitudes={solicitudes} isLoading={isLoading} activeTab={activeTab} />
+          <SolicitudesTable solicitudes={solicitudes} isLoading={isLoading} activeTab={activeTab} onRefresh={refetch} />
         </div>
       </div>
     </Layout>

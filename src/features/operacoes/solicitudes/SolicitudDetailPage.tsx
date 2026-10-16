@@ -7,7 +7,7 @@ import { useSolicitudTimeline } from './hooks/useSolicitudTimeline';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, RefreshCw, Printer, Mail, UserPlus, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Printer, Mail, UserPlus, CheckCircle2, CalendarClock } from 'lucide-react';
 import { SolicitudOverviewTab } from './components/SolicitudOverviewTab';
 import { SolicitudTasksTab } from './components/SolicitudTasksTab';
 import { SolicitudTimelineTab } from './components/SolicitudTimelineTab';
@@ -18,23 +18,27 @@ import { useSolicitudTargets } from './hooks/useSolicitudTargets';
 import { printReplacementDoc } from './utils/printReplacement';
 import { ResendNotificationModal } from './components/ResendNotificationModal';
 import { RequestReplacementFromBajaModal } from './components/RequestReplacementFromBajaModal';
+import { EditSolicitudModal } from './components/EditSolicitudModal';
 
 export function SolicitudDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
 
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResendModalOpen, setIsResendModalOpen] = useState(false);
+  const [emailDateContext, setEmailDateContext] = useState<{ oldDueDate?: string | null; newDueDate?: string | null }>({});
   const [isRequestReplacementOpen, setIsRequestReplacementOpen] = useState(false);
   const { data: solicitud, isLoading: loadingSolicitud, isError: errorSolicitud, refetch: refetchSolicitud } = useSolicitudDetail(id);
   const { data: tasks = [], isLoading: loadingTasks, refetch: refetchTasks } = useSolicitudTasks(id);
   const { data: timeline = [], isLoading: loadingTimeline, refetch: refetchTimeline } = useSolicitudTimeline(id);
-  const { data: targets = [] } = useSolicitudTargets(id);
+  const { data: targets = [], refetch: refetchTargets } = useSolicitudTargets(id);
 
   const handleRefresh = () => {
     refetchSolicitud();
     refetchTasks();
     refetchTimeline();
+    refetchTargets();
   };
 
   const handlePrintPDF = () => {
@@ -110,10 +114,22 @@ export function SolicitudDetailPage() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 {t('solicitud_detail.refresh')}
               </Button>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setIsEditModalOpen(true)}
+                className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm flex items-center gap-1.5 font-medium"
+              >
+                <CalendarClock className="h-4 w-4" />
+                Alterar Data / Editar
+              </Button>
               <Button 
                 variant="default" 
                 size="sm" 
-                onClick={() => setIsResendModalOpen(true)} 
+                onClick={() => {
+                  setEmailDateContext({});
+                  setIsResendModalOpen(true);
+                }} 
                 className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 font-medium"
               >
                 <Mail className="h-4 w-4" />
@@ -176,7 +192,7 @@ export function SolicitudDetailPage() {
 
           <div className="mt-6">
             <TabsContent value="overview">
-              <SolicitudOverviewTab solicitud={solicitud} />
+              <SolicitudOverviewTab solicitud={solicitud} onEditClick={() => setIsEditModalOpen(true)} />
             </TabsContent>
             
             <TabsContent value="tasks">
@@ -195,10 +211,30 @@ export function SolicitudDetailPage() {
       </div>
 
       {solicitud && (
+        <EditSolicitudModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          solicitud={solicitud}
+          onSuccess={(result) => {
+            handleRefresh();
+            if (result?.openEmailModal) {
+              setEmailDateContext({
+                oldDueDate: result.oldDueDate,
+                newDueDate: result.newDueDate
+              });
+              setIsResendModalOpen(true);
+            }
+          }}
+        />
+      )}
+
+      {solicitud && (
         <ResendNotificationModal
           isOpen={isResendModalOpen}
           onClose={() => setIsResendModalOpen(false)}
           solicitud={solicitud}
+          previousDueDate={emailDateContext.oldDueDate}
+          overrideDueDate={emailDateContext.newDueDate}
           onSuccess={handleRefresh}
         />
       )}

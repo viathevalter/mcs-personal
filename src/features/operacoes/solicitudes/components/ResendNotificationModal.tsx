@@ -17,9 +17,11 @@ interface Props {
     onClose: () => void;
     solicitud: SolicitudDetail;
     onSuccess?: () => void;
+    previousDueDate?: string | null;
+    overrideDueDate?: string | null;
 }
 
-export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess }: Props) {
+export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess, previousDueDate, overrideDueDate }: Props) {
     const { selectedEmpresaId } = useEmpresa();
     const { user } = useAuth();
     const { data: targets = [] } = useSolicitudTargets(solicitud.id);
@@ -47,6 +49,14 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess 
         order_termination: 'pedido'
     };
     const eventType = eventTypeMap[solicitud.tipo] || 'reemplazo';
+
+    // Reset manual edit flags when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setIsSubjectEdited(false);
+            setIsBodyEdited(false);
+        }
+    }, [isOpen, previousDueDate, overrideDueDate]);
 
     // Fetch configured emails when modal opens or empresa/solicitud type changes
     useEffect(() => {
@@ -93,10 +103,14 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess 
             .filter(Boolean)
             .join(', ');
 
-        const dateStr = solicitud.due_date ? formatDateClean(solicitud.due_date) : '';
+        const effectiveDueDate = overrideDueDate || solicitud.due_date;
+        const dateStr = effectiveDueDate ? formatDateClean(effectiveDueDate) : '';
         const expectedStartStr = dateStr && dateStr !== 'N/A'
             ? dateStr
             : (emailLanguage === 'en' ? 'Not informed' : 'Não informado');
+
+        const prevDateStr = previousDueDate ? formatDateClean(previousDueDate) : '';
+        const hasDateChange = Boolean(prevDateStr && prevDateStr !== 'N/A' && dateStr && prevDateStr !== dateStr);
 
         let dateLabel = '';
         if (emailLanguage === 'es') {
@@ -141,7 +155,15 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess 
         }
 
         let subject = '';
-        if (emailLanguage === 'es') {
+        if (hasDateChange) {
+            if (emailLanguage === 'es') {
+                subject = `[ACTUALIZACIÓN DE FECHA] ${typeLabel} - ${solicitud.codigo} - ${clientName} (Nueva fecha: ${expectedStartStr})`;
+            } else if (emailLanguage === 'en') {
+                subject = `[DATE UPDATE] ${typeLabel} - ${solicitud.codigo} - ${clientName} (New date: ${expectedStartStr})`;
+            } else {
+                subject = `[ATUALIZAÇÃO DE DATA] ${typeLabel} - ${solicitud.codigo} - ${clientName} (Nova data: ${expectedStartStr})`;
+            }
+        } else if (emailLanguage === 'es') {
             subject = `Notificación Operativa: ${typeLabel} - ${solicitud.codigo} - ${clientName}`;
         } else if (emailLanguage === 'en') {
             subject = `Operational Notification: ${typeLabel} - ${solicitud.codigo} - ${clientName}`;
@@ -151,57 +173,66 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess 
 
         const firstTargetReason = targets[0]?.reason || '';
         const firstTargetNotes = targets[0]?.notes || '';
-        const displayReason = firstTargetReason || solicitud.description || 'Não informado';
-        const displayNotes = firstTargetNotes || 'Nenhuma';
+        const displayReason = (solicitud as any).reason || firstTargetReason || solicitud.description || 'Não informado';
+        const displayNotes = solicitud.description || firstTargetNotes || 'Nenhuma';
 
         let body = '';
         if (emailLanguage === 'es') {
             body = `<p>Hola Equipo,</p>
-<p>Se notifica nuevamente la solicitud de <strong>${typeLabel}</strong> (${solicitud.codigo}).</p>
+<p>${hasDateChange
+    ? `Se informa una <strong>ACTUALIZACIÓN / PRÓRROGA DE FECHA</strong> en la solicitud de <strong>${typeLabel}</strong> (${solicitud.codigo}).`
+    : `Se notifica nuevamente la solicitud de <strong>${typeLabel}</strong> (${solicitud.codigo}).`}</p>
 <p><strong>Detalles de la Operación:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
   <li><strong>Código del Pedido:</strong> ${pedidoCodigo}</li>
   <li><strong>Trabajador(es) Afectado(s):</strong> ${workerNames || solicitud.title || 'Ninguno seleccionado'}</li>
-  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
+  ${hasDateChange ? `<li><strong>Fecha Anterior:</strong> <span style="text-decoration: line-through; color: #64748b;">${prevDateStr}</span></li>` : ''}
+  <li><strong>${dateLabel} (Actualizada):</strong> <strong style="color: #d97706;">${expectedStartStr}</strong></li>
   <li><strong>Motivo:</strong> ${displayReason}</li>
   <li><strong>Observaciones Extras:</strong> ${displayNotes}</li>
 </ul>
-<p>Por favor, realicen los trámites necesarios en sus respectivos sectores.</p>
+<p>Por favor, ajusten los trámites y reservas necesarios en sus respectivos sectores considerando la nueva fecha.</p>
 <p>Atentamente,<br/><strong>Operaciones</strong></p>`;
         } else if (emailLanguage === 'en') {
             body = `<p>Hello Team,</p>
-<p>Notification resent for <strong>${typeLabel}</strong> request (${solicitud.codigo}).</p>
+<p>${hasDateChange
+    ? `Please note a <strong>DATE UPDATE / POSTPONEMENT</strong> for the <strong>${typeLabel}</strong> request (${solicitud.codigo}).`
+    : `Notification resent for <strong>${typeLabel}</strong> request (${solicitud.codigo}).`}</p>
 <p><strong>Operation Details:</strong></p>
 <ul>
   <li><strong>Client:</strong> ${clientName}</li>
   <li><strong>Order Code:</strong> ${pedidoCodigo}</li>
   <li><strong>Affected Worker(s):</strong> ${workerNames || solicitud.title || 'None selected'}</li>
-  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
+  ${hasDateChange ? `<li><strong>Previous Date:</strong> <span style="text-decoration: line-through; color: #64748b;">${prevDateStr}</span></li>` : ''}
+  <li><strong>${dateLabel} (Updated):</strong> <strong style="color: #d97706;">${expectedStartStr}</strong></li>
   <li><strong>Reason:</strong> ${displayReason}</li>
   <li><strong>Extra Observations:</strong> ${displayNotes}</li>
 </ul>
-<p>Please carry out the necessary procedures in your respective departments.</p>
+<p>Please carry out the necessary adjustments in your respective departments.</p>
 <p>Best regards,<br/><strong>Operations</strong></p>`;
         } else {
             body = `<p>Olá Equipe,</p>
-<p>Notificação reenviada referente à solicitação de <strong>${typeLabel}</strong> (${solicitud.codigo}).</p>
+<p>${hasDateChange
+    ? `Informamos uma <strong>ATUALIZAÇÃO / PRORROGAÇÃO DE DATA</strong> referente à solicitação de <strong>${typeLabel}</strong> (${solicitud.codigo}).`
+    : `Notificação reenviada referente à solicitação de <strong>${typeLabel}</strong> (${solicitud.codigo}).`}</p>
 <p><strong>Detalhes da Operação:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
   <li><strong>Código do Pedido:</strong> ${pedidoCodigo}</li>
   <li><strong>Trabalhador(es) Afetado(s):</strong> ${workerNames || solicitud.title || 'Nenhum selecionado'}</li>
-  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
+  ${hasDateChange ? `<li><strong>Data Anterior:</strong> <span style="text-decoration: line-through; color: #64748b;">${prevDateStr}</span></li>` : ''}
+  <li><strong>${dateLabel} (Atualizada):</strong> <strong style="color: #d97706;">${expectedStartStr}</strong></li>
   <li><strong>Motivo:</strong> ${displayReason}</li>
   <li><strong>Observações Extras:</strong> ${displayNotes}</li>
 </ul>
-<p>Por favor, realizem os trâmites necessários nos seus respectivos setores.</p>
+<p>Por favor, ajustem os trâmites e reservas necessários nos seus respectivos setores considerando a nova data.</p>
 <p>Atentamente,<br/><strong>Operações</strong></p>`;
         }
 
         if (!isSubjectEdited) setEmailSubject(subject);
         if (!isBodyEdited) setEmailBody(body);
-    }, [isOpen, solicitud, targets, isSubjectEdited, isBodyEdited, emailLanguage]);
+    }, [isOpen, solicitud, targets, isSubjectEdited, isBodyEdited, emailLanguage, previousDueDate, overrideDueDate]);
 
     const handleLanguageChange = (lang: 'pt' | 'es' | 'en') => {
         setEmailLanguage(lang);

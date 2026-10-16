@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Pencil } from 'lucide-react';
 import type { SolicitudDetail } from '../types';
 import { SolicitudStatusBadge } from './SolicitudStatusBadge';
 import { SolicitudTypeBadge } from './SolicitudTypeBadge';
@@ -8,16 +10,28 @@ import { formatDateClean } from '@/shared/utils/dateUtils';
 
 interface Props {
   solicitud: SolicitudDetail;
+  onEditClick?: () => void;
 }
 
-export function SolicitudOverviewTab({ solicitud }: Props) {
+export function SolicitudOverviewTab({ solicitud, onEditClick }: Props) {
   const { t } = useTranslation();
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card className="col-span-2">
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <CardTitle>{t('solicitud_detail.overview.general_info')}</CardTitle>
+          {onEditClick && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onEditClick}
+              className="h-8 text-xs font-semibold border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/30 flex items-center gap-1.5"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Editar / Prorrogar Data
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -41,16 +55,26 @@ export function SolicitudOverviewTab({ solicitud }: Props) {
                 <SolicitudStatusBadge status={solicitud.status} />
               </div>
             </div>
-            {solicitud.due_date && (
-              <div className="col-span-1">
-                <p className="text-sm font-medium text-muted-foreground">
-                  {solicitud.tipo === 'offboarding' ? t('solicitud_detail.overview.offboarding_date') : t('solicitud_detail.overview.scheduled_date')}
+            <div className="col-span-1">
+              <p className="text-sm font-medium text-muted-foreground">
+                {solicitud.tipo === 'offboarding' ? t('solicitud_detail.overview.offboarding_date') : t('solicitud_detail.overview.scheduled_date')}
+              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  📅 {solicitud.due_date ? formatDateClean(solicitud.due_date) : 'Não definida'}
                 </p>
-                <p className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 mt-0.5">
-                  📅 {formatDateClean(solicitud.due_date)}
-                </p>
+                {onEditClick && (
+                  <button
+                    type="button"
+                    onClick={onEditClick}
+                    className="text-xs font-semibold text-amber-600 hover:text-amber-700 dark:text-amber-400 underline flex items-center gap-1"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Alterar
+                  </button>
+                )}
               </div>
-            )}
+            </div>
             {solicitud.empresa && (
               <div className="col-span-1">
                 <p className="text-sm font-medium text-muted-foreground">{t('solicitud_detail.overview.internal_company')}</p>

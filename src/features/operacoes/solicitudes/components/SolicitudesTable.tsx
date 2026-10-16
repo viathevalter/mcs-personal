@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -8,22 +9,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { format } from 'date-fns';
 import { formatDateClean } from '@/shared/utils/dateUtils';
 import type { SolicitudDetail } from '../types';
 import { SolicitudTypeBadge } from './SolicitudTypeBadge';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, CalendarClock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EditSolicitudModal } from './EditSolicitudModal';
+import { ResendNotificationModal } from './ResendNotificationModal';
 
 interface Props {
   solicitudes: SolicitudDetail[];
   isLoading: boolean;
   activeTab?: string;
+  onRefresh?: () => void;
 }
 
-export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
+export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh }: Props) {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const [editingSolicitud, setEditingSolicitud] = useState<SolicitudDetail | null>(null);
+  const [resendingSolicitud, setResendingSolicitud] = useState<SolicitudDetail | null>(null);
+  const [emailDateContext, setEmailDateContext] = useState<{ oldDueDate?: string | null; newDueDate?: string | null }>({});
 
   if (isLoading) {
     return <div className="p-8 text-center text-muted-foreground">{t('torre_controle.table.loading')}</div>;
@@ -256,18 +262,71 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab }: Props) {
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/operacoes/solicitudes/${solicitud.id}`);
-                  }}>
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Alterar Data / Editar Operação"
+                      className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSolicitud(solicitud);
+                      }}
+                    >
+                      <CalendarClock className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Ver Detalhes"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/operacoes/solicitudes/${solicitud.id}`);
+                      }}
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
+
+      {editingSolicitud && (
+        <EditSolicitudModal
+          isOpen={!!editingSolicitud}
+          onClose={() => setEditingSolicitud(null)}
+          solicitud={editingSolicitud}
+          onSuccess={(result) => {
+            const targetSol = editingSolicitud;
+            setEditingSolicitud(null);
+            if (onRefresh) onRefresh();
+            if (result?.openEmailModal && targetSol) {
+              setEmailDateContext({
+                oldDueDate: result.oldDueDate,
+                newDueDate: result.newDueDate
+              });
+              setResendingSolicitud(targetSol);
+            }
+          }}
+        />
+      )}
+
+      {resendingSolicitud && (
+        <ResendNotificationModal
+          isOpen={!!resendingSolicitud}
+          onClose={() => setResendingSolicitud(null)}
+          solicitud={resendingSolicitud}
+          previousDueDate={emailDateContext.oldDueDate}
+          overrideDueDate={emailDateContext.newDueDate}
+          onSuccess={() => {
+            setResendingSolicitud(null);
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -68,15 +68,63 @@ export function NewSolicitudPage() {
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Postponement (Adiamento de Início) State: Pedido vs Reemplazo
-    const [postponeOriginType, setPostponeOriginType] = useState<'pedido' | 'reemplazo'>('pedido');
+    // Postponement (Adiamento de Início) State: Pedido vs Reemplazo vs Reubicación
+    const [postponeOriginType, setPostponeOriginType] = useState<'pedido' | 'reemplazo' | 'relocation'>('pedido');
     const [selectedReemplazoId, setSelectedReemplazoId] = useState<string>('all');
 
-    // Query Reemplazos for Postponement
+    // Query Reemplazos / Reubicaciones for Postponement
     const { data: reemplazos = [], isLoading: isLoadingReemplazos } = useQuery({
-        queryKey: ['reemplazos_para_adiamento', selectedEmpresaId],
+        queryKey: ['solicitudes_para_adiamento', selectedEmpresaId, postponeOriginType],
         queryFn: async () => {
             if (!selectedEmpresaId) return [];
+
+            if (postponeOriginType === 'relocation') {
+                let { data, error } = await supabase.rpc('listar_reubicacoes_para_adiamento', {
+                    p_empresa_id: selectedEmpresaId
+                });
+                if (error) {
+                    const res = await supabase.schema('core_operacoes').rpc('listar_reubicacoes_para_adiamento', {
+                        p_empresa_id: selectedEmpresaId
+                    });
+                    data = res.data;
+                    error = res.error;
+                }
+                if (!error && data) return data as any[];
+
+                const { data: fbData } = await supabase
+                    .schema('core_operacoes')
+                    .from('solicitudes_operativas')
+                    .select(`
+                        id, codigo, title, due_date, status, client_id, created_at,
+                        client:client_id(trade_name, legal_name),
+                        targets:solicitud_targets(
+                            housing_start_date,
+                            source_worker:source_worker_id(id, cod_colab, nome)
+                        )
+                    `)
+                    .eq('tipo', 'relocation')
+                    .eq('empresa_id', selectedEmpresaId)
+                    .order('created_at', { ascending: false });
+
+                return (fbData || []).map((s: any) => {
+                    const target = s.targets?.[0] || {};
+                    return {
+                        id: s.id,
+                        codigo: s.codigo,
+                        title: s.title,
+                        due_date: s.due_date || target.housing_start_date,
+                        status: s.status,
+                        client_id: s.client_id,
+                        client_name: s.client?.trade_name || s.client?.legal_name || 'Cliente',
+                        source_worker_id: target.source_worker?.id,
+                        source_worker_cod: target.source_worker?.cod_colab,
+                        source_worker_nome: target.source_worker?.nome,
+                        target_worker_nome: target.source_worker?.nome,
+                        created_at: s.created_at
+                    };
+                });
+            }
+
             // Try public RPC first, with fallback to core_operacoes schema
             let { data, error } = await supabase.rpc('listar_reemplazos_para_adiamento', {
                 p_empresa_id: selectedEmpresaId
@@ -500,7 +548,7 @@ export function NewSolicitudPage() {
                          actionType === 'order_cancellation' ? 'Cancelamento de Pedido' : 'Operação';
         
         if (actionType === 'order_postponement') {
-            if (postponeOriginType === 'reemplazo' && selectedReemplazo) {
+            if ((postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') && selectedReemplazo) {
                 setTitle(`${selectedReemplazo.codigo} - ${selectedReemplazo.client_name || 'Cliente'} - Adiamento de Início`);
                 return;
             } else if (postponeOriginType === 'pedido' && selectedPedidoId !== 'all') {
@@ -749,7 +797,7 @@ export function NewSolicitudPage() {
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
         
-        const clientName = (actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazo)
+        const clientName = (actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') && selectedReemplazo)
             ? (selectedReemplazo.client_name || 'Cliente')
             : (selectedPedido?.client?.trade_name 
                 || selectedPedido?.client?.legal_name 
@@ -758,7 +806,7 @@ export function NewSolicitudPage() {
                 || selectedClientName 
                 || 'Cliente');
 
-        const pedidoCodigo = (actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazo)
+        const pedidoCodigo = (actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') && selectedReemplazo)
             ? selectedReemplazo.codigo
             : (selectedPedido?.codigo 
                 || firstAssignment?.pedido?.codigo 
@@ -766,7 +814,7 @@ export function NewSolicitudPage() {
                 || 'N/A');
 
         let workerNames = selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
-        if (!workerNames && actionType === 'order_postponement' && postponeOriginType === 'reemplazo' && selectedReemplazo?.target_worker_nome) {
+        if (!workerNames && actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') && selectedReemplazo?.target_worker_nome) {
             workerNames = selectedReemplazo.target_worker_nome;
         }
 
@@ -1556,6 +1604,7 @@ export function NewSolicitudPage() {
                                             type="button"
                                             onClick={() => {
                                                 setPostponeOriginType('reemplazo');
+                                                setSelectedReemplazoId('all');
                                                 setSelectedAssignments([]);
                                             }}
                                             className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-md transition-all ${
@@ -1566,10 +1615,25 @@ export function NewSolicitudPage() {
                                         >
                                             Reemplazo (Substituição)
                                         </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPostponeOriginType('relocation');
+                                                setSelectedReemplazoId('all');
+                                                setSelectedAssignments([]);
+                                            }}
+                                            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-md transition-all ${
+                                                postponeOriginType === 'relocation'
+                                                    ? 'bg-amber-500 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Reubicación (Realocação)
+                                        </button>
                                     </div>
                                 )}
 
-                                {actionType === 'order_postponement' && postponeOriginType === 'reemplazo' ? (
+                                {actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Filtrar por Cliente</label>
@@ -1584,14 +1648,14 @@ export function NewSolicitudPage() {
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                Reemplazo (Substituição) <span className="text-amber-500 font-bold">*</span>
+                                                {postponeOriginType === 'relocation' ? 'Reubicación (Realocação)' : 'Reemplazo (Substituição)'} <span className="text-amber-500 font-bold">*</span>
                                             </label>
                                             <Combobox
                                                 options={reemplazoOptions}
                                                 value={selectedReemplazoId === 'all' ? null : selectedReemplazoId}
                                                 onChange={(val) => setSelectedReemplazoId(val || 'all')}
-                                                placeholder="Selecione o Reemplazo..."
-                                                emptyText={isLoadingReemplazos ? "Carregando reemplazos..." : "Nenhum reemplazo encontrado."}
+                                                placeholder={postponeOriginType === 'relocation' ? 'Selecione a Reubicación...' : 'Selecione o Reemplazo...'}
+                                                emptyText={isLoadingReemplazos ? "Carregando..." : "Nenhuma solicitação encontrada."}
                                                 className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
                                             />
                                         </div>
@@ -1600,7 +1664,9 @@ export function NewSolicitudPage() {
                                             <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-lg space-y-2.5">
                                                 <div className="flex justify-between items-center border-b pb-2 border-slate-200 dark:border-slate-800">
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Reemplazo Selecionado</span>
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                            {postponeOriginType === 'relocation' ? 'Reubicación Selecionada' : 'Reemplazo Selecionado'}
+                                                        </span>
                                                         <span className="text-xs font-mono font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50">
                                                             {selectedReemplazo.codigo}
                                                         </span>
@@ -2012,7 +2078,7 @@ export function NewSolicitudPage() {
                                         <span>Data Efetiva da Baixa (Data de Saída) <span className="text-rose-500 font-bold">*</span></span>
                                     ) : actionType === 'relocation' ? 'Data de Início da Realocação' : 
                                      actionType === 'order_postponement' ? (
-                                        <span>{postponeOriginType === 'reemplazo' ? 'Nova Data de Início do Reemplazo' : 'Nova Data de Início da Obra'} <span className="text-amber-500 font-bold">*</span></span>
+                                        <span>{postponeOriginType === 'reemplazo' ? 'Nova Data de Início do Reemplazo' : postponeOriginType === 'relocation' ? 'Nova Data de Início da Reubicación' : 'Nova Data de Início da Obra'} <span className="text-amber-500 font-bold">*</span></span>
                                      ) : 
                                      actionType === 'order_pause' ? 'Previsão Estimada de Retomada (Opcional - Deixe vazio se indefinida)' :
                                      actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
@@ -2036,9 +2102,9 @@ export function NewSolicitudPage() {
                                         let entityLabel = 'da obra';
 
                                         if (actionType === 'order_postponement') {
-                                            if (postponeOriginType === 'reemplazo') {
+                                            if (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') {
                                                 originalDateStr = selectedReemplazo?.due_date || selectedReemplazo?.target_start_date || selectedReemplazo?.target_planned_start;
-                                                entityLabel = `do Reemplazo (${selectedReemplazo?.codigo || ''})`;
+                                                entityLabel = `${postponeOriginType === 'relocation' ? 'da Reubicación' : 'do Reemplazo'} (${selectedReemplazo?.codigo || ''})`;
                                             } else {
                                                 const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
                                                 originalDateStr = p?.expected_start_date;
