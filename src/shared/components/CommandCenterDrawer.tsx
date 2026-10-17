@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase } from '@/shared/supabase/client';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -28,7 +28,10 @@ import {
   FileText,
   Radar,
   Briefcase,
-  User
+  User,
+  GripVertical,
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -745,6 +748,111 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     }
   };
 
+  // Draggable & Minimizable Floating Trigger State
+  const [floatingPos, setFloatingPos] = useState<{ x: number; y: number } | null>(null);
+  const [isFloatingMinimized, setIsFloatingMinimized] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('mcs_command_center_minimized') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const dragStateRef = useRef<{
+    isDragging: boolean;
+    hasMoved: boolean;
+    startX: number;
+    startY: number;
+    initialX: number;
+    initialY: number;
+  }>({
+    isDragging: false,
+    hasMoved: false,
+    startX: 0,
+    startY: 0,
+    initialX: 0,
+    initialY: 0
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('mcs_command_center_floating_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          const clampedX = Math.max(12, Math.min(window.innerWidth - 80, parsed.x));
+          const clampedY = Math.max(12, Math.min(window.innerHeight - 80, parsed.y));
+          setFloatingPos({ x: clampedX, y: clampedY });
+          return;
+        }
+      }
+    } catch {}
+    // Default position: right side, vertically centered/upper-half so it NEVER covers bottom-right "Salvar" buttons
+    if (typeof window !== 'undefined') {
+      setFloatingPos({
+        x: Math.max(20, window.innerWidth - 275),
+        y: Math.max(80, Math.round(window.innerHeight * 0.45))
+      });
+    }
+  }, []);
+
+  const handleFloatingPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest('[data-no-drag="true"]')) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const currentX = floatingPos?.x ?? rect.left;
+    const currentY = floatingPos?.y ?? rect.top;
+
+    dragStateRef.current = {
+      isDragging: true,
+      hasMoved: false,
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: currentX,
+      initialY: currentY
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handleFloatingPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStateRef.current.isDragging) return;
+    const dx = e.clientX - dragStateRef.current.startX;
+    const dy = e.clientY - dragStateRef.current.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      dragStateRef.current.hasMoved = true;
+    }
+    if (!dragStateRef.current.hasMoved) return;
+
+    const maxW = typeof window !== 'undefined' ? window.innerWidth - 65 : 1200;
+    const maxH = typeof window !== 'undefined' ? window.innerHeight - 60 : 800;
+    const nextX = Math.max(8, Math.min(maxW, dragStateRef.current.initialX + dx));
+    const nextY = Math.max(8, Math.min(maxH, dragStateRef.current.initialY + dy));
+    setFloatingPos({ x: nextX, y: nextY });
+  };
+
+  const handleFloatingPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragStateRef.current.isDragging) return;
+    dragStateRef.current.isDragging = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+
+    if (dragStateRef.current.hasMoved && floatingPos) {
+      try {
+        localStorage.setItem('mcs_command_center_floating_pos', JSON.stringify(floatingPos));
+      } catch {}
+    } else {
+      openDrawer();
+    }
+  };
+
+  const toggleFloatingMinimized = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = !isFloatingMinimized;
+    setIsFloatingMinimized(next);
+    try {
+      localStorage.setItem('mcs_command_center_minimized', String(next));
+    } catch {}
+  };
+
   return (
     <CommandCenterContext.Provider
       value={{
@@ -761,15 +869,24 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     >
       {children}
 
-      {/* Botão Flutuante Global (Canto Inferior Direito) para acesso rápido em qualquer tela */}
+      {/* Botão Flutuante Global Arrastável (Pode mover para qualquer lugar da tela e minimizar) */}
       {user && !isOpen && (
-        <div className="fixed bottom-5 right-5 z-40">
-          <button
-            type="button"
-            onClick={() => openDrawer()}
-            className="group flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 dark:from-indigo-600 dark:to-blue-600 text-white shadow-2xl border border-indigo-500/30 hover:scale-105 transition-all cursor-pointer"
-          >
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/30">
+        <div
+          onPointerDown={handleFloatingPointerDown}
+          onPointerMove={handleFloatingPointerMove}
+          onPointerUp={handleFloatingPointerUp}
+          style={
+            floatingPos
+              ? { left: `${floatingPos.x}px`, top: `${floatingPos.y}px` }
+              : { right: '20px', top: '45%' }
+          }
+          title="Arraste para mover de lugar ou clique para abrir a Super Gaveta Operacional"
+          className="fixed z-40 select-none touch-none"
+        >
+          <div className="group flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 dark:from-indigo-600 dark:to-blue-600 text-white shadow-2xl border border-indigo-500/30 hover:border-indigo-400/60 transition-shadow cursor-grab active:cursor-grabbing">
+            <GripVertical className="w-3.5 h-3.5 text-indigo-300/60 group-hover:text-indigo-200 shrink-0 -ml-1" />
+
+            <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/30 shrink-0">
               <Layers className="w-4 h-4 text-indigo-300 group-hover:text-white" />
               {pendingTasksCount + unreadChatCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-rose-500 text-white rounded-full leading-none">
@@ -777,13 +894,26 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                 </span>
               )}
             </div>
-            <div className="text-left pr-1">
-              <div className="text-xs font-bold tracking-tight">Super Gaveta Operacional</div>
-              <div className="text-[10px] text-indigo-200/80">
-                {pendingTasksCount} tarefas • {unreadChatCount} msgs chat
+
+            {!isFloatingMinimized && (
+              <div className="text-left pr-1">
+                <div className="text-xs font-bold tracking-tight whitespace-nowrap">Super Gaveta Operacional</div>
+                <div className="text-[10px] text-indigo-200/80 whitespace-nowrap">
+                  {pendingTasksCount} tarefas • {unreadChatCount} msgs chat
+                </div>
               </div>
-            </div>
-          </button>
+            )}
+
+            <button
+              type="button"
+              data-no-drag="true"
+              onClick={toggleFloatingMinimized}
+              title={isFloatingMinimized ? 'Expandir botão' : 'Compactar botão'}
+              className="p-1 rounded-lg text-indigo-300/70 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+            >
+              {isFloatingMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+            </button>
+          </div>
         </div>
       )}
 
