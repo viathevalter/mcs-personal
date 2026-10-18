@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from '../../app/providers';
 import { InstallAppPrompt } from './components/InstallAppPrompt';
+import { HowToUseGuideButton } from './components/HowToUseGuideButton';
 
 export function WorkerLoginPage() {
     const { t, i18n } = useTranslation();
@@ -267,8 +268,9 @@ export function WorkerLoginPage() {
                         </Button>
                     </form>
 
-                    {/* Ajuda */}
-                    <div className="mt-4 pt-3 border-t border-slate-100 text-center">
+                    {/* Guia de Como Usar (em todos os idiomas) + Ajuda */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 space-y-2.5 text-center">
+                        <HowToUseGuideButton variant="login" />
                         <button
                             type="button"
                             onClick={() => setHelpOpen(true)}
@@ -312,6 +314,7 @@ export function WorkerLoginPage() {
                             <p className="font-semibold text-emerald-800">Dica:</p>
                             <p>{t('workerPortal.login.helpDocTip', 'Certifique-se de digitar o nome exatamente como no contrato e o mesmo número de passaporte/NIE cadastrado.')}</p>
                         </div>
+                        <HowToUseGuideButton variant="login" />
                         <Button
                             onClick={() => setHelpOpen(false)}
                             className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold"

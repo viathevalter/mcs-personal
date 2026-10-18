@@ -8,6 +8,7 @@ import { useTheme } from '../../app/providers';
 import { supabase } from '../../shared/supabase/client';
 
 import { getCompanyBranding } from './services/companyLogos';
+import { HowToUseGuideButton } from './components/HowToUseGuideButton';
 
 export function WorkerPortalLayout() {
     const { t, i18n } = useTranslation();
@@ -148,6 +149,9 @@ export function WorkerPortalLayout() {
                                     {activeWorker.pasaporte || activeWorker.nie || ''}
                                 </span>
                             </div>
+
+                            {/* Botão Rápido: Guia de Como Usar */}
+                            <HowToUseGuideButton variant="header" />
 
                             {/* Seletor Rápido de Idioma PT / ES */}
                             <button

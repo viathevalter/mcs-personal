@@ -36,6 +36,7 @@ import { downloadTimesheetPdf, type TimesheetPdfData, type TimesheetDayEntry } f
 import { InstallAppPrompt } from './components/InstallAppPrompt';
 import { PushNotificationPrompt } from './components/PushNotificationPrompt';
 import { WorkerChatModal } from './components/WorkerChatModal';
+import { HowToUseGuideButton } from './components/HowToUseGuideButton';
 import { getWorkerAllMessages, subscribeToWorkerMessages, type WorkerMessage } from './services/workerCommunicationService';
 
 type SubView = 'home' | 'week' | 'calendar' | 'summary' | 'generate-pdf' | 'upload';
@@ -930,6 +931,9 @@ export function WorkerDashboardPage() {
                         </div>
                         <ChevronRight className="h-4 w-4 text-slate-400" />
                     </button>
+
+                    {/* CARD: 📖 Ver Guia de Como Usar (5 Idiomas: PT, ES, FR, NL, EN) */}
+                    <HowToUseGuideButton variant="card" />
                 </div>
             </div>
 

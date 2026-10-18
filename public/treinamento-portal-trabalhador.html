@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Manual Visual — Portal do Trabalhador | MCS Personal</title>
+  <title>Manual Visual Completo — Portal do Trabalhador | MCS Personal</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
@@ -13,7 +13,7 @@
       color: #0f172a;
     }
     .phone-mockup {
-      width: 310px;
+      width: 320px;
       border-radius: 36px;
       border: 8px solid #0f172a;
       background: #f8fafc;
@@ -71,25 +71,28 @@
 </head>
 <body class="min-h-screen pb-16">
 
-  <!-- BARRA FLUTUANTE DE CONTROLE (IDIOMAS + EXPORTAR PDF) -->
+  <!-- BARRA FLUTUANTE DE CONTROLE (IDIOMAS + VOLTAR AO PORTAL + EXPORTAR PDF) -->
   <div class="no-print sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800 px-4 py-3 shadow-lg">
     <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
+        <a href="/portal" class="h-8 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold flex items-center gap-1 text-xs border border-slate-700 transition-colors">
+          <span>←</span> <span data-i18n="btnBackPortal">Voltar ao Portal</span>
+        </a>
         <div class="h-8 w-8 rounded-lg bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-sm">MCS</div>
         <div>
-          <span class="font-bold text-sm block leading-none" data-i18n="toolbarTitle">Guia Visual de Treinamento — Portal do Trabalhador</span>
-          <span class="text-[11px] text-slate-400" data-i18n="toolbarSub">Selecione o idioma abaixo e clique em "Salvar PDF" para enviar no WhatsApp</span>
+          <span class="font-bold text-sm block leading-none" data-i18n="toolbarTitle">Guia Visual de Como Usar — Portal do Trabalhador</span>
+          <span class="text-[11px] text-slate-400" data-i18n="toolbarSub">Selecione o idioma abaixo ou clique em "Salvar em PDF" para enviar no WhatsApp</span>
         </div>
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
         <!-- Seletor de Idiomas -->
         <div class="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
-          <button onclick="setLang('pt')" id="btn-pt" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950">🇵🇹 PT</button>
-          <button onclick="setLang('es')" id="btn-es" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇪🇸 ES</button>
-          <button onclick="setLang('fr')" id="btn-fr" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇫🇷 FR</button>
-          <button onclick="setLang('nl')" id="btn-nl" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇳🇱 NL</button>
-          <button onclick="setLang('en')" id="btn-en" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇬🇧 EN</button>
+          <button onclick="setLang('pt')" id="btn-pt" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950 cursor-pointer">🇵🇹 PT</button>
+          <button onclick="setLang('es')" id="btn-es" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer">🇪🇸 ES</button>
+          <button onclick="setLang('fr')" id="btn-fr" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer">🇫🇷 FR</button>
+          <button onclick="setLang('nl')" id="btn-nl" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer">🇳🇱 NL</button>
+          <button onclick="setLang('en')" id="btn-en" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer">🇬🇧 EN</button>
         </div>
 
         <!-- Botão Imprimir / Gerar PDF -->
@@ -109,17 +112,18 @@
       <div class="space-y-3 max-w-xl">
         <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-extrabold uppercase tracking-wider">
           <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-          <span data-i18n="coverBadge">Guia Rápido Oficial • MCS Personal</span>
+          <span data-i18n="coverBadge">Manual Oficial Ilustrado • MCS Personal</span>
         </span>
         <h1 class="text-2xl sm:text-4xl font-black tracking-tight leading-tight" data-i18n="coverTitle">
-          Como Apontar suas Horas pelo Telemóvel em 5 Segundos
+          Como Apontar suas Horas, Consultar o Mês e Falar com o Gestor
         </h1>
         <p class="text-sm text-slate-300 leading-relaxed" data-i18n="coverDesc">
-          Agora você registra suas horas todos os dias direto pelo telemóvel, acompanha o resumo do mês, consulta seus recibos (Nóminas) e envia sua folha para assinatura digital do encarregado.
+          Guia passo a passo para registrar suas horas diárias em 5 segundos, preencher dias pendentes, receber notificações e tirar dúvidas pelo Chat, consultar seu calendário semanal/mensal e validar sua folha digitalmente.
         </p>
-        <div class="pt-2 flex flex-wrap gap-3 text-xs font-semibold text-emerald-300">
-          <span class="bg-white/10 px-3 py-1.5 rounded-xl">⚡ <span data-i18n="pill1">Rápido (5 segundos/dia)</span></span>
-          <span class="bg-white/10 px-3 py-1.5 rounded-xl">📱 <span data-i18n="pill2">Funciona como App no Telemóvel</span></span>
+        <div class="pt-2 flex flex-wrap gap-2.5 text-xs font-semibold text-emerald-300">
+          <span class="bg-white/10 px-3 py-1.5 rounded-xl">⚡ <span data-i18n="pill1">Apontamento em 5s</span></span>
+          <span class="bg-white/10 px-3 py-1.5 rounded-xl">💬 <span data-i18n="pillChat">Chat e Alertas em Tempo Real</span></span>
+          <span class="bg-white/10 px-3 py-1.5 rounded-xl">📊 <span data-i18n="pillConsult">Consulta Semanal e Mensal</span></span>
           <span class="bg-white/10 px-3 py-1.5 rounded-xl">✍️ <span data-i18n="pill3">Assinatura Digital sem Papel</span></span>
         </div>
       </div>
@@ -128,18 +132,19 @@
         <div class="text-xs font-bold uppercase tracking-wider text-emerald-300 mb-1" data-i18n="accessBoxTitle">Acesso Direto</div>
         <div class="text-xs text-slate-300 mb-3" data-i18n="accessBoxSub">Use seu Nome + Passaporte/NIE</div>
         <div class="bg-emerald-500 text-slate-950 font-black text-xs px-3 py-2 rounded-xl">
-          app.mcspersonal.com/portal
+          /portal/login
         </div>
       </div>
     </div>
 
-    <!-- PASSO 1: LOGIN E INSTALAÇÃO DO APP -->
+    <!-- =====================================================================
+         PASSO 1: LOGIN E INSTALAÇÃO DO APP
+    ====================================================================== -->
     <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
       <div class="flex flex-col lg:flex-row items-center gap-8">
-        <!-- Explicação Passo a Passo -->
         <div class="flex-1 space-y-5">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
-            <span data-i18n="step1Tag">Passo 1 de 4 • Primeiro Acesso</span>
+            <span data-i18n="step1Tag">Passo 1 de 6 • Primeiro Acesso</span>
           </div>
           <h2 class="text-2xl font-black text-slate-900" data-i18n="step1Title">
             Entrar no Portal e Instalar no Telemóvel
@@ -148,20 +153,20 @@
             Você não precisa decorar senhas complicadas. Basta usar seu nome e número de documento:
           </p>
 
-          <div class="space-y-4">
+          <div class="space-y-3.5">
             <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span class="step-badge">1</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b1_t">Escolha o seu Idioma no topo</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b1_d">Toque no botão no canto superior direito para alternar entre Português e Espanhol.</p>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b1_t">Escolha o seu Idioma e veja este Guia quando quiser</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b1_d">No topo da tela você pode alternar o idioma e clicar em "📖 Ver Guia de Como Usar" a qualquer momento.</p>
               </div>
             </div>
 
             <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span class="step-badge">2</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b2_t">Instale o Aplicativo na Tela Inicial</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b2_d">Toque em "Instalar" no banner superior para criar o ícone do Portal direto na tela do seu Android ou iPhone.</p>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b2_t">Instale o Aplicativo e Ative as Notificações</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b2_d">Toque em "Instalar" no banner superior para criar o ícone do Portal na tela inicial do seu Android ou iPhone e receber avisos importantes.</p>
               </div>
             </div>
 
@@ -169,29 +174,29 @@
               <span class="step-badge">3</span>
               <div>
                 <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b3_t">Digite seu Nome Completo e Passaporte / NIE</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b3_d">Escreva exatamente como consta no seu documento e mantenha marcada a opção "Lembrar neste aparelho" para entrar com 1 toque nos próximos dias.</p>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b3_d">Escreva exatamente como consta no seu documento e mantenha marcada a opção "Lembrar neste aparelho" para entrar automaticamente nos próximos dias.</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Mockup Ilustrativo da Tela 1 (Login) -->
+        <!-- Mockup Tela 1 (Login) -->
         <div class="phone-mockup bg-slate-950 text-white">
           <div class="phone-notch"></div>
           <div class="p-4 space-y-3">
-            <!-- Topo Idioma -->
-            <div class="flex justify-end items-center gap-1">
-              <span class="step-badge">1</span>
-              <span class="px-2.5 py-1 rounded-full bg-slate-900 border border-white/25 text-[10px] font-bold">🌐 🇵🇹 Português</span>
+            <div class="flex justify-between items-center gap-1">
+              <span class="px-2 py-1 rounded-full bg-emerald-950/90 border border-emerald-500/40 text-[9px] font-bold text-emerald-300" data-i18n="m_guideBtn">📖 Guia de Uso</span>
+              <div class="flex items-center gap-1">
+                <span class="step-badge">1</span>
+                <span class="px-2.5 py-1 rounded-full bg-slate-900 border border-white/25 text-[10px] font-bold">🌐 PT / ES</span>
+              </div>
             </div>
 
-            <!-- Logo -->
             <div class="text-center py-1">
               <span class="inline-block px-2.5 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-[9px] text-emerald-300 font-extrabold uppercase" data-i18n="m_portalBadge">● Portal do Trabalhador</span>
               <h3 class="text-lg font-black mt-1" data-i18n="m_welcome">Bem-vindo</h3>
             </div>
 
-            <!-- Banner Instalar App -->
             <div class="bg-emerald-950/90 border border-emerald-500/40 rounded-2xl p-2.5 flex items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="step-badge">2</span>
@@ -203,7 +208,6 @@
               <span class="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-1 rounded-lg" data-i18n="m_installBtn">Instalar</span>
             </div>
 
-            <!-- Card Branco Login -->
             <div class="bg-white text-slate-900 rounded-2xl p-4 space-y-3 shadow-lg">
               <div>
                 <div class="flex items-center justify-between">
@@ -236,19 +240,20 @@
       </div>
     </section>
 
-    <!-- PASSO 2: TELA PRINCIPAL E APONTAMENTO DE HOJE -->
+    <!-- =====================================================================
+         PASSO 2: TELA PRINCIPAL, BOTÃO DE HOJE E ALERTA DE DIAS FALTANTES
+    ====================================================================== -->
     <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
       <div class="flex flex-col lg:flex-row items-center gap-8">
-        <!-- Explicação Passo a Passo -->
         <div class="flex-1 space-y-5">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
-            <span data-i18n="step2Tag">Passo 2 de 4 • Rotina Diária</span>
+            <span data-i18n="step2Tag">Passo 2 de 6 • Painel Diário e Alertas</span>
           </div>
           <h2 class="text-2xl font-black text-slate-900" data-i18n="step2Title">
-            Visão Geral, Obra, Chat e Apontamento Rápido
+            Apontamento de Hoje e Alerta Automático de Dias Faltantes
           </h2>
           <p class="text-sm text-slate-600" data-i18n="step2Intro">
-            Ao entrar no aplicativo, tudo o que você precisa está na tela inicial:
+            Logo ao abrir o aplicativo, o sistema mostra sua obra ativa, o botão para apontar o dia de hoje e avisa automaticamente se ficou algum dia anterior sem preencher:
           </p>
 
           <div class="space-y-3.5">
@@ -256,52 +261,40 @@
               <span class="step-badge">1</span>
               <div>
                 <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_b1_t">Confira o Mês e a Obra Atual</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b1_d">No topo você vê o mês selecionado e a Obra onde está alocado. Se mudou de obra no mês, toque em "Trocar".</p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
-              <span class="step-badge">2</span>
-              <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_b2_t">Mensagens e Chat com o Gestor</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b2_d">Dúvidas sobre horas ou obras? Toque em "Abrir Chat" para falar direto com a equipe de controle de horas.</p>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b1_d">No topo você vê o mês selecionado e a Obra onde está alocado. Se mudou de obra durante o mês, toque em "Trocar".</p>
               </div>
             </div>
 
             <div class="flex items-start gap-3 bg-emerald-50/80 p-3.5 rounded-2xl border border-emerald-200">
+              <span class="step-badge">2</span>
+              <div>
+                <h4 class="font-bold text-sm text-emerald-950" data-i18n="s2_b3_t">Botão Verde: "+ Apontar minhas horas de hoje"</h4>
+                <p class="text-xs text-emerald-900/80 mt-0.5" data-i18n="s2_b3_d">Toque neste botão todos os dias ao finalizar o trabalho. Leva apenas 5 a 10 segundos no telemóvel!</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-amber-50 p-3.5 rounded-2xl border border-amber-200">
               <span class="step-badge">3</span>
               <div>
-                <h4 class="font-bold text-sm text-emerald-950" data-i18n="s2_b3_t">Botão Verde: "Apontar minhas horas de hoje"</h4>
-                <p class="text-xs text-emerald-900/80 mt-0.5" data-i18n="s2_b3_d">Toque neste botão todos os dias ao finalizar o expediente. Se esquecer algum dia anterior, um alerta amarelo aparecerá logo abaixo com o botão "Preencher".</p>
+                <h4 class="font-bold text-sm text-amber-950" data-i18n="s2_alert_t">Alerta Amarelo: "Faltam horas de dias anteriores"</h4>
+                <p class="text-xs text-amber-900/80 mt-0.5" data-i18n="s2_alert_d">Esqueceu de apontar ontem ou dias passados? O sistema exibe este aviso amarelo indicando quantos dias estão pendentes no mês. Basta tocar no botão laranja "Preencher / Completar" que ele já abre direto no primeiro dia que falta!</p>
               </div>
             </div>
 
             <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span class="step-badge">4</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_b4_t">Menu Inferior: Horas, Nóminas e Meu Perfil</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b4_d">Na barra inferior você alterna entre suas Horas, seus Recibos de Pagamento (Nóminas) e seus Dados/IBAN (Meu Perfil).</p>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_kpi_t">3 Cartões de Resumo em Tempo Real (Semana, Total Mês e Pendentes)</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_kpi_d">Acompanhe na hora quantas horas você já somou na Semana, o Total do Mês acumulado e quantos dias úteis ainda estão Pendentes de apontamento.</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Mockup Ilustrativo da Tela 2 (Dashboard) -->
+        <!-- Mockup Tela 2 (Fiel ao Print 1 do usuário) -->
         <div class="phone-mockup">
           <div class="phone-notch"></div>
           <div class="p-3 space-y-2.5 text-slate-900">
-            <!-- Header Worker -->
-            <div class="bg-white rounded-2xl p-2.5 border border-slate-200 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div class="h-8 w-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">CS</div>
-                <div>
-                  <div class="text-xs font-bold leading-none">Carlos Silva</div>
-                  <div class="text-[9px] text-slate-500 mt-0.5">Y9876543Z • MCS</div>
-                </div>
-              </div>
-              <div class="bg-slate-100 px-2 py-1 rounded-lg border text-[10px] font-bold">📅 Out 2026</div>
-            </div>
-
             <!-- Obra Atual -->
             <div class="bg-slate-200/70 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[10px]">
               <div class="flex items-center gap-1.5">
@@ -311,87 +304,91 @@
               <span class="text-blue-600 font-bold underline" data-i18n="m_changeBtn">Trocar</span>
             </div>
 
-            <!-- Chat -->
-            <div class="bg-white rounded-xl p-2.5 border border-slate-200 flex items-center justify-between">
-              <div class="flex items-center gap-1.5">
-                <span class="step-badge">2</span>
-                <div class="text-[10px]">
-                  <strong class="block" data-i18n="m_chatTitle">Mensagens e Notificações</strong>
-                  <span class="text-slate-500 text-[9px]" data-i18n="m_chatSub">Fale com o gestor de horas</span>
+            <!-- Card Mensagens -->
+            <div class="bg-white rounded-2xl p-2.5 border border-slate-200 flex items-center justify-between shadow-2xs">
+              <div class="flex items-center gap-2">
+                <div class="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center text-xs">💬</div>
+                <div class="text-[10px] leading-tight">
+                  <strong class="block text-slate-900" data-i18n="m_chatTitle">Mensagens e Notificações</strong>
+                  <span class="text-slate-500 text-[9px]" data-i18n="m_chatSub">Comunique direto com o gestor de horas</span>
                 </div>
               </div>
-              <span class="bg-slate-900 text-white text-[9px] font-bold px-2 py-1 rounded-lg">Chat</span>
+              <span class="bg-slate-900 text-white text-[9px] font-bold px-2.5 py-1.5 rounded-xl" data-i18n="m_openChatBtn">Abrir Chat</span>
             </div>
 
             <!-- Card Principal Hoje -->
-            <div class="rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/40 p-3 space-y-2">
+            <div class="rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/30 p-3 space-y-2">
               <div class="flex items-center justify-between">
-                <span class="text-[10px] font-semibold text-slate-600" data-i18n="m_todayDate">Hoje, Segunda-feira</span>
-                <span class="step-badge">3</span>
+                <span class="text-[10px] font-semibold text-slate-600" data-i18n="m_todayDate">Hoje, Segunda-feira · 19 De Outubro</span>
+                <span class="step-badge">2</span>
               </div>
-              <div class="h-10 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center gap-1 shadow-md">
+              <div class="h-11 rounded-xl bg-teal-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-md">
                 <span>＋</span>
                 <span data-i18n="m_pointTodayBtn">Apontar minhas horas de hoje</span>
               </div>
+              <div class="text-center text-[9px] text-slate-500" data-i18n="m_quick5s">Leva apenas 5 a 10 segundos no seu telemóvel</div>
             </div>
 
-            <!-- Alerta Pendentes -->
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-2 flex items-center justify-between">
-              <div class="text-[9px] text-amber-900">
-                <strong class="block" data-i18n="m_pendingAlert">⚠️ Faltam horas anteriores</strong>
-                <span>1 dia pendente no mês</span>
+            <!-- Alerta Pendentes (Idêntico ao Print 1) -->
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-2.5 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="step-badge">3</span>
+                <div class="text-[10px] leading-tight">
+                  <strong class="block text-amber-950" data-i18n="m_pendingAlert">Faltam horas de dias anteriores</strong>
+                  <span class="text-amber-700 font-medium" data-i18n="m_pendingSub">22 dia(s) pendente(s) no mês</span>
+                </div>
               </div>
-              <span class="bg-amber-600 text-white font-bold text-[9px] px-2 py-1 rounded-lg" data-i18n="m_fillBtn">Preencher</span>
+              <span class="bg-amber-600 text-white font-bold text-[10px] px-2.5 py-1.5 rounded-xl shrink-0" data-i18n="m_fillBtn">Preencher</span>
             </div>
 
-            <!-- Mini KPIs -->
-            <div class="grid grid-cols-3 gap-1.5 text-center">
-              <div class="bg-white p-1.5 rounded-xl border border-slate-200">
-                <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiWeek">Semana</span>
-                <span class="text-xs font-black">40,0h</span>
+            <!-- 3 Mini KPIs (Idêntico ao Print 1) -->
+            <div class="relative">
+              <div class="absolute -top-2 -right-1 z-10"><span class="step-badge">4</span></div>
+              <div class="grid grid-cols-3 gap-1.5 text-center">
+                <div class="bg-white p-2 rounded-xl border border-slate-200">
+                  <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiWeek">SEMANA</span>
+                  <span class="text-sm font-black text-slate-900 block">40,0h</span>
+                  <span class="text-[8px] text-slate-500" data-i18n="m_5days">5 dias</span>
+                </div>
+                <div class="bg-white p-2 rounded-xl border border-slate-200">
+                  <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiMonth">TOTAL MÊS</span>
+                  <span class="text-sm font-black text-emerald-700 block">168,0h</span>
+                  <span class="text-[8px] text-slate-500" data-i18n="m_21days">21 dias</span>
+                </div>
+                <div class="bg-white p-2 rounded-xl border border-slate-200">
+                  <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiPend">PENDENTES</span>
+                  <span class="text-sm font-black text-amber-600 block">2</span>
+                  <span class="text-[8px] text-slate-500" data-i18n="m_toFill">a lançar</span>
+                </div>
               </div>
-              <div class="bg-white p-1.5 rounded-xl border border-slate-200">
-                <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiMonth">Total Mês</span>
-                <span class="text-xs font-black text-emerald-700">168,0h</span>
-              </div>
-              <div class="bg-white p-1.5 rounded-xl border border-slate-200">
-                <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiPend">Pendentes</span>
-                <span class="text-xs font-black text-amber-600">1</span>
-              </div>
-            </div>
-
-            <!-- Barra Inferior -->
-            <div class="bg-white border-t border-slate-200 pt-2 pb-1 px-2 flex items-center justify-around text-[9px] font-bold rounded-b-2xl">
-              <div class="text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">🕒 <span data-i18n="m_navHours">Horas</span></div>
-              <div class="text-slate-500">📄 <span data-i18n="m_navNominas">Nóminas</span></div>
-              <div class="text-slate-500 flex items-center gap-1">👤 <span data-i18n="m_navProfile">Perfil</span> <span class="step-badge">4</span></div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- PASSO 3: JANELA DE APONTAMENTO DIÁRIO COM PRECISÃO -->
+    <!-- =====================================================================
+         PASSO 3: JANELA DE APONTAMENTO DIÁRIO COM PRECISÃO
+    ====================================================================== -->
     <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
       <div class="flex flex-col lg:flex-row items-center gap-8">
-        <!-- Explicação Passo a Passo -->
         <div class="flex-1 space-y-5">
           <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
-            <span data-i18n="step3Tag">Passo 3 de 4 • Lançamento Diário</span>
+            <span data-i18n="step3Tag">Passo 3 de 6 • Lançamento Diário</span>
           </div>
           <h2 class="text-2xl font-black text-slate-900" data-i18n="step3Title">
             Como Preencher as Horas do Dia com Precisão
           </h2>
           <p class="text-sm text-slate-600" data-i18n="step3Intro">
-            Na janela de apontamento, você tem atalhos rápidos para não perder tempo digitando:
+            Ao tocar em "Apontar minhas horas de hoje" ou em "Preencher" nos dias pendentes, abre-se esta janela com atalhos de 1 toque:
           </p>
 
           <div class="space-y-3.5">
             <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span class="step-badge">1</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b1_t">Navegue entre os Dias (◀ ▶)</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b1_d">Use as setas no topo verde para mudar de dia rapidamente caso queira lançar vários dias seguidos.</p>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b1_t">Navegue entre os Dias (◀ ▶) sem fechar a janela</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b1_d">Use as setas no topo verde para mudar de dia rapidamente caso queira colocar vários dias pendentes em dia de uma só vez.</p>
               </div>
             </div>
 
@@ -399,40 +396,38 @@
               <span class="step-badge">2</span>
               <div>
                 <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b2_t">Escolha o Turno (☀️ Diurno ou 🌙 Noturno) e a Obra</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b2_d">Por padrão já vem em Diurno e com sua Obra vinculada. Se trabalhou à noite, basta tocar em Noturno.</p>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b2_d">Por padrão já vem em Diurno (07:00–18:00) e com sua Obra vinculada. Se trabalhou à noite, basta tocar em Noturno (18:00–06:00).</p>
               </div>
             </div>
 
             <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span class="step-badge">3</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b3_t">Selecione o Total de Horas ou Folga</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b3_d">Use os botões rápidos (8h, 9h, 10h, 12h), ajuste de meia em meia hora nos botões (– / +), ou toque em "Folga/Descanso" nos dias sem trabalho.</p>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b3_t">Atalhos de Horas (8h, 9h, 10h, 12h), Botões (– / +) ou Folga</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b3_d">Toque direto nos botões rápidos (8h, 9h, 10h, 12h), ajuste de meia em meia hora nos botões (– / +), ou toque em "Folga/Descanso" nos dias em que não trabalhou.</p>
               </div>
             </div>
 
             <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span class="step-badge">4</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b4_t">Toque em "Guardar Apontamento"</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b4_d">Os horários de Entrada e Saída são calculados automaticamente (você pode ajustar se precisar) e você também pode anotar uma observação. Depois é só tocar em Guardar!</p>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b4_t">Horário Automático, Observações e "Guardar Apontamento"</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b4_d">A Entrada e Saída são calculadas automaticamente (você pode editar se precisar) e há um campo para Observações (ex: chuva, manutenção). Finalize tocando no botão verde Guardar!</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Mockup Ilustrativo da Tela 3 (Modal Diário) -->
+        <!-- Mockup Tela 3 (Modal Diário) -->
         <div class="phone-mockup">
           <div class="phone-notch"></div>
           <div class="p-3.5 space-y-2.5 text-slate-900">
-            <!-- Header Modal -->
             <div class="flex items-center justify-between border-b pb-2">
               <span class="text-xs font-bold text-slate-400">◀</span>
               <span class="text-xs font-extrabold" data-i18n="m_modalTitle">Novo Apontamento</span>
               <span class="text-xs font-bold text-slate-400">✕</span>
             </div>
 
-            <!-- Barra Data -->
             <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 flex items-center justify-between">
               <span class="text-xs font-bold text-emerald-800">◀</span>
               <div class="text-center">
@@ -445,7 +440,6 @@
               </div>
             </div>
 
-            <!-- Turno -->
             <div>
               <div class="flex items-center justify-between mb-1">
                 <span class="text-[9px] font-bold text-slate-500 uppercase" data-i18n="m_shiftLbl">Turno de Trabalho</span>
@@ -463,13 +457,11 @@
               </div>
             </div>
 
-            <!-- Obra -->
             <div class="bg-emerald-50/60 border border-emerald-200 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[10px]">
               <span class="font-bold">🏢 Planta Solar Sul</span>
               <span class="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-0.5 rounded" data-i18n="m_linkedSite">Obra Vinculada</span>
             </div>
 
-            <!-- Stepper Horas -->
             <div class="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 text-center space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-[9px] font-extrabold text-slate-400 uppercase" data-i18n="m_totalHrsLbl">Total de Horas do Dia</span>
@@ -489,13 +481,11 @@
               </div>
             </div>
 
-            <!-- Entrada / Saída -->
             <div class="grid grid-cols-2 gap-1.5 text-[10px]">
               <div class="bg-slate-50 border rounded-lg px-2 py-1">🕒 <span class="text-slate-400">In:</span> <strong>07:00</strong></div>
               <div class="bg-slate-50 border rounded-lg px-2 py-1">🕒 <span class="text-slate-400">Out:</span> <strong>16:00</strong></div>
             </div>
 
-            <!-- Botão Salvar -->
             <div class="pt-1 flex items-center gap-1.5">
               <div class="flex-1 h-9 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-md">
                 ✓ <span data-i18n="m_saveBtn">Guardar Apontamento</span>
@@ -507,116 +497,332 @@
       </div>
     </section>
 
-    <!-- PASSO 4: FECHAMENTO DO MÊS E ASSINATURA DO ENCARREGADO -->
+    <!-- =====================================================================
+         PASSO 4: CENTRAL DE MENSAGENS, NOTIFICAÇÕES PUSH E CHAT COM O GESTOR
+    ====================================================================== -->
     <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
       <div class="flex flex-col lg:flex-row items-center gap-8">
-        <!-- Explicação Passo a Passo -->
         <div class="flex-1 space-y-5">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
-            <span data-i18n="step4Tag">Passo 4 de 4 • Fechamento do Mês</span>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 text-amber-900 text-xs font-black uppercase">
+            <span data-i18n="stepChatTag">Passo 4 de 6 • Chat Direto e Notificações</span>
           </div>
-          <h2 class="text-2xl font-black text-slate-900" data-i18n="step4Title">
-            Gerar PDF Oficial e Assinatura Digital do Encarregado
+          <h2 class="text-2xl font-black text-slate-900" data-i18n="stepChatTitle">
+            Mensagens, Notificações do Gestor e Canal para Tirar Dúvidas
           </h2>
-          <p class="text-sm text-slate-600" data-i18n="step4Intro">
-            No final do mês (ou quando finalizar a obra), você valida sua folha sem precisar imprimir papel:
+          <p class="text-sm text-slate-600" data-i18n="stepChatIntro">
+            Você tem um canal de comunicação direto dentro do aplicativo para receber avisos sobre suas horas e também enviar perguntas para a empresa:
           </p>
 
           <div class="space-y-3.5">
-            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+            <div class="flex items-start gap-3 bg-amber-50/90 p-3.5 rounded-2xl border border-amber-200">
               <span class="step-badge">1</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_b1_t">Toque em "Gerar PDF para assinatura (Oficial)"</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_b1_d">Na tela inicial, role até Ações Rápidas e escolha o card verde "Gerar PDF para assinatura".</p>
+                <h4 class="font-bold text-sm text-amber-950" data-i18n="sc_b1_t">Avisos e Notificações em Tempo Real</h4>
+                <p class="text-xs text-amber-900/80 mt-0.5" data-i18n="sc_b1_d">Sempre que o Gestor de Horas enviar uma mensagem ou lembrete, você recebe uma notificação no telemóvel e o card no topo fica destacado em amarelo com o selo vermelho "1 nova".</p>
               </div>
             </div>
 
             <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
               <span class="step-badge">2</span>
               <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_b2_t">Informe o Nome do Encarregado e Envie</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_b2_d">Confira o total de horas do mês, digite o nome do seu Encarregado de Obra (e telefone/e-mail se desejar) e gere o link de assinatura.</p>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="sc_b2_t">Botão "🔔 Testar Push" (Ativar Alertas no Telemóvel)</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="sc_b2_d">No cabeçalho do Chat você pode tocar em "Testar Push" para garantir que os alertas sonoros estão chegando no seu aparelho.</p>
               </div>
             </div>
 
             <div class="flex items-start gap-3 bg-emerald-50/80 p-3.5 rounded-2xl border border-emerald-200">
               <span class="step-badge">3</span>
               <div>
-                <h4 class="font-bold text-sm text-emerald-950" data-i18n="s4_b3_t">Envie o Link + Código OTP de 6 dígitos ao Encarregado</h4>
-                <p class="text-xs text-emerald-900/80 mt-0.5" data-i18n="s4_b3_d">O sistema gera um Link Direto e um Código de Segurança (OTP). O encarregado abre o link no telemóvel dele, digita o código, assina com o dedo na tela e sua folha fica 100% validada!</p>
-              </div>
-            </div>
-
-            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-dashed border-slate-300">
-              <span class="step-badge">4</span>
-              <div>
-                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_b4_t">Plano B: Enviar Foto da Folha em Papel</h4>
-                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_b4_d">Se a sua obra exigir folha física assinada na caneta, use a opção "Enviar foto da folha em papel (Plano B)" para tirar uma foto nítida do documento.</p>
+                <h4 class="font-bold text-sm text-emerald-950" data-i18n="sc_b3_t">Faça Perguntas ou Envie Respostas ao Gestor</h4>
+                <p class="text-xs text-emerald-900/80 mt-0.5" data-i18n="sc_b3_d">Tem alguma dúvida sobre suas horas, mudou de obra, teve falta justificada ou quer responder a um aviso? Basta digitar no campo inferior ("Escreva uma resposta ou dúvida para o gestor...") e tocar no botão verde de enviar (➤)!</p>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Mockup Ilustrativo da Tela 4 (Fechamento e Assinatura) -->
+        <!-- Mockup Tela 4 (Fiel ao Print 2 do Chat enviado pelo usuário) -->
+        <div class="phone-mockup bg-slate-900">
+          <div class="phone-notch"></div>
+          <div class="p-3 space-y-2.5">
+            <!-- Card de Notificação Nova no Topo -->
+            <div class="bg-amber-500/20 border-2 border-amber-400 rounded-2xl p-2.5 flex items-center justify-between text-white">
+              <div class="flex items-center gap-2">
+                <span class="step-badge">1</span>
+                <div class="text-[10px] leading-tight">
+                  <div class="flex items-center gap-1">
+                    <strong data-i18n="m_chatTitle">Mensagens e Notificações</strong>
+                    <span class="bg-rose-600 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full uppercase" data-i18n="m_newBadge">1 nova</span>
+                  </div>
+                  <span class="text-amber-200 text-[9px] block truncate" data-i18n="m_msgPreview">Gestor: "Por favor, confirme a sexta-feira"</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Modal do Chat Aberto (Fiel ao Print 2) -->
+            <div class="bg-white rounded-2xl overflow-hidden shadow-2xl border border-slate-700 text-slate-900">
+              <!-- Header Escuro do Modal -->
+              <div class="bg-slate-950 text-white p-3 flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="h-7 w-7 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-xs">💬</div>
+                  <div>
+                    <strong class="text-[11px] block leading-none" data-i18n="m_chatTitle">Mensagens e Notificações</strong>
+                    <span class="text-[8px] text-slate-400" data-i18n="m_chatHeaderSub">Comunicação direta com o Gestor de Horas</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="step-badge">2</span>
+                  <span class="border border-slate-700 bg-slate-900 text-emerald-400 text-[8px] font-bold px-2 py-1 rounded-full">🔔 Testar Push</span>
+                </div>
+              </div>
+
+              <!-- Corpo das Mensagens -->
+              <div class="p-3 bg-slate-50 space-y-2 min-h-[150px] flex flex-col justify-center">
+                <!-- Balão do Gestor -->
+                <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-xs p-2.5 max-w-[88%] shadow-2xs">
+                  <span class="text-[8px] font-extrabold text-emerald-700 uppercase block">Gestor (MCS) • 10:15</span>
+                  <p class="text-[10px] text-slate-700 mt-0.5" data-i18n="m_bubbleGestor">Olá Carlos! Faltou apontar as horas da última sexta-feira. Pode verificar?</p>
+                </div>
+
+                <!-- Balão do Trabalhador -->
+                <div class="bg-emerald-600 text-white rounded-2xl rounded-tr-xs p-2.5 max-w-[88%] self-end shadow-2xs">
+                  <span class="text-[8px] font-bold text-emerald-100 uppercase block" data-i18n="m_youLbl">Você • 10:17</span>
+                  <p class="text-[10px] mt-0.5" data-i18n="m_bubbleWorker">Bom dia! Acabei de lançar as 8h de sexta. Tenho uma dúvida sobre o feriado.</p>
+                </div>
+              </div>
+
+              <!-- Rodapé de Digitação (Fiel ao Print 2) -->
+              <div class="p-2.5 bg-white border-t border-slate-200 space-y-1.5">
+                <div class="flex items-center gap-1.5 border border-slate-300 rounded-xl p-2 bg-slate-50/60">
+                  <span class="text-[9px] text-slate-400 flex-1" data-i18n="m_chatInputPlaceholder">Escreva uma resposta ou dúvida para o gestor...</span>
+                  <span class="step-badge">3</span>
+                  <span class="h-6 w-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">➤</span>
+                </div>
+                <div class="flex items-center justify-between text-[8px] text-slate-400 px-1">
+                  <span data-i18n="m_chatAudit">Histórico auditado e registrado com data e hora.</span>
+                  <span class="font-bold text-slate-600" data-i18n="m_closeBtn">Fechar</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         PASSO 5: CONSULTAS SEMANAL, CALENDÁRIO MENSAL E RESUMO DO MÊS
+    ====================================================================== -->
+    <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+      <div class="flex flex-col lg:flex-row items-center gap-8">
+        <div class="flex-1 space-y-5">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-black uppercase">
+            <span data-i18n="stepConsultTag">Passo 5 de 6 • Consultas Semanal e Mensal</span>
+          </div>
+          <h2 class="text-2xl font-black text-slate-900" data-i18n="stepConsultTitle">
+            Como Consultar Horas da Semana, Calendário e Resumo do Mês
+          </h2>
+          <p class="text-sm text-slate-600" data-i18n="stepConsultIntro">
+            Na seção "Ações Rápidas" da tela inicial, você tem 3 ferramentas completas para conferir e editar qualquer dia do mês:
+          </p>
+
+          <div class="space-y-3.5">
+            <div class="flex items-start gap-3 bg-blue-50/60 p-3.5 rounded-2xl border border-blue-200">
+              <span class="step-badge">1</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s5_b1_t">Minhas horas da semana ("Ver os 7 dias e apontar horas passadas")</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s5_b1_d">Mostra os 7 dias da semana (Segunda a Domingo) um abaixo do outro. Você pode avançar ou voltar semanas e tocar em qualquer dia para lançar ou corrigir horas passadas.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-purple-50/60 p-3.5 rounded-2xl border border-purple-200">
+              <span class="step-badge">2</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s5_b2_t">Calendário do mês ("Grelha completa com pontos de status")</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s5_b2_d">Abre o calendário completo do mês com indicadores coloridos: Verde (horas lançadas), Amarelo (dia pendente) e Cinza (folga/fim de semana). Toque em qualquer número do calendário para abrir aquele dia!</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200">
+              <span class="step-badge">3</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s5_b3_t">Resumo do mês ("Totais por semana, horas diurnas e noturnas")</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s5_b3_d">Exibe o balanço geral do seu mês separando Dias Trabalhados, Horas Totais, Horas Diurnas e Horas Noturnas, além da soma detalhada da Semana 1, Semana 2, Semana 3, etc.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mockup Tela 5 (Ações Rápidas de Consulta do Print 1 + Mini Preview Calendário) -->
         <div class="phone-mockup">
           <div class="phone-notch"></div>
           <div class="p-3.5 space-y-2.5 text-slate-900">
-            <!-- Card Ação Gerar PDF -->
-            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 p-2.5 rounded-2xl border border-emerald-300 flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div class="h-8 w-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs">📄</div>
+            <span class="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block" data-i18n="m_quickActionsHdr">AÇÕES RÁPIDAS</span>
+
+            <!-- Card 1: Minhas horas da semana -->
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
+              <div class="flex items-center gap-2.5">
+                <div class="h-9 w-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm">📅</div>
                 <div>
-                  <div class="text-[10px] font-black text-emerald-950 flex items-center gap-1">
-                    <span data-i18n="m_pdfActionTitle">Gerar PDF para assinatura</span>
-                  </div>
-                  <span class="text-[9px] text-emerald-800" data-i18n="m_pdfActionSub">Validação digital do encarregado</span>
+                  <strong class="text-xs text-slate-800 block leading-tight" data-i18n="m_actWeekTitle">Minhas horas da semana</strong>
+                  <span class="text-[9px] text-slate-500" data-i18n="m_actWeekSub">Visualizar os 7 dias e apontar horas passadas</span>
                 </div>
               </div>
               <span class="step-badge">1</span>
             </div>
 
-            <!-- Card Sucesso / Link Encarregado -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-3 text-center space-y-2 shadow-xs">
-              <div class="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto font-black text-base">✓</div>
-              <div class="text-xs font-black" data-i18n="m_sentTitle">Folha Pronta para Assinar!</div>
-
-              <div class="bg-slate-50 border rounded-xl p-2 text-left flex items-center justify-between text-[10px]">
+            <!-- Card 2: Calendário do mês -->
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
+              <div class="flex items-center gap-2.5">
+                <div class="h-9 w-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center text-sm">🗓️</div>
                 <div>
-                  <span class="text-slate-400 font-bold uppercase block text-[8px]" data-i18n="m_supervisorLbl">Encarregado</span>
-                  <strong class="text-slate-800">Roberto Gómez</strong>
-                </div>
-                <div class="flex items-center gap-1">
-                  <span class="step-badge">2</span>
-                  <span class="font-black text-emerald-700">168,0 h</span>
+                  <strong class="text-xs text-slate-800 block leading-tight" data-i18n="m_actCalTitle">Calendário do mês</strong>
+                  <span class="text-[9px] text-slate-500" data-i18n="m_actCalSub">Grelha completa com pontos de status</span>
                 </div>
               </div>
+              <span class="step-badge">2</span>
+            </div>
 
-              <!-- Link + OTP -->
-              <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-left space-y-1.5">
-                <div class="flex items-center justify-between">
-                  <span class="text-[9px] font-bold text-emerald-900" data-i18n="m_linkLbl">Link e Código para o Encarregado:</span>
-                  <span class="step-badge">3</span>
+            <!-- Card 3: Resumo do mês -->
+            <div class="bg-white p-3 rounded-2xl border border-slate-200 flex items-center justify-between shadow-2xs">
+              <div class="flex items-center gap-2.5">
+                <div class="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-sm">📊</div>
+                <div>
+                  <strong class="text-xs text-slate-800 block leading-tight" data-i18n="m_actSumTitle">Resumo do mês</strong>
+                  <span class="text-[9px] text-slate-500" data-i18n="m_actSumSub">Totais por semana, horas diurnas e noturnas</span>
                 </div>
-                <div class="bg-white border border-emerald-300 rounded-lg px-2 py-1 text-[9px] font-mono text-slate-600 truncate">
-                  https://.../assinar-folha/8f92a...
-                </div>
-                <div class="flex items-center justify-between bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black">
-                  <span>🔑 OTP: 482910</span>
-                  <span class="underline text-[9px]" data-i18n="m_copyLink">Copiar Link</span>
-                </div>
+              </div>
+              <span class="step-badge">3</span>
+            </div>
+
+            <!-- Mini Preview da Grelha / Resumo quando clica -->
+            <div class="bg-slate-100 border border-slate-200 rounded-2xl p-2.5 space-y-2">
+              <div class="flex items-center justify-between text-[9px] font-bold text-slate-600">
+                <span data-i18n="m_previewTitle">Exemplo da Grelha Mensal:</span>
+                <span class="text-emerald-700">☀️ 144h | 🌙 24h</span>
+              </div>
+              <div class="grid grid-cols-7 gap-1 text-center text-[9px] font-bold">
+                <div class="bg-emerald-100 text-emerald-900 rounded p-1">12<span class="block text-[7px]">8h</span></div>
+                <div class="bg-emerald-100 text-emerald-900 rounded p-1">13<span class="block text-[7px]">8h</span></div>
+                <div class="bg-emerald-100 text-emerald-900 rounded p-1">14<span class="block text-[7px]">9h</span></div>
+                <div class="bg-amber-100 text-amber-900 border border-amber-400 rounded p-1">15<span class="block text-[7px]">!</span></div>
+                <div class="bg-emerald-100 text-emerald-900 rounded p-1">16<span class="block text-[7px]">8h</span></div>
+                <div class="bg-slate-200 text-slate-500 rounded p-1">17<span class="block text-[7px]">-</span></div>
+                <div class="bg-slate-200 text-slate-500 rounded p-1">18<span class="block text-[7px]">-</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         PASSO 6: FECHAMENTO DO MÊS, ASSINATURA DIGITAL, PLANO B E DOWNLOAD PDF
+    ====================================================================== -->
+    <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+      <div class="flex flex-col lg:flex-row items-center gap-8">
+        <div class="flex-1 space-y-5">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
+            <span data-i18n="step4Tag">Passo 6 de 6 • Fechamento, Assinatura e Recibos</span>
+          </div>
+          <h2 class="text-2xl font-black text-slate-900" data-i18n="step4Title">
+            Gerar PDF para Assinatura, Plano B em Papel e Status da Folha
+          </h2>
+          <p class="text-sm text-slate-600" data-i18n="step4Intro">
+            No final do mês (ou ao concluir sua alocação na obra), você fecha sua folha com validação oficial:
+          </p>
+
+          <div class="space-y-3.5">
+            <div class="flex items-start gap-3 bg-emerald-50/80 p-3.5 rounded-2xl border border-emerald-200">
+              <span class="step-badge">1</span>
+              <div>
+                <h4 class="font-bold text-sm text-emerald-950" data-i18n="s4_b1_t">Toque em "Gerar PDF para assinatura (Oficial)"</h4>
+                <p class="text-xs text-emerald-900/80 mt-0.5" data-i18n="s4_b1_d">Informe o nome do seu Encarregado de Obra. O sistema gera um Link Direto e um Código OTP de 6 dígitos para o encarregado abrir no telemóvel dele e assinar com o dedo na tela!</p>
               </div>
             </div>
 
-            <!-- Plano B -->
-            <div class="bg-white p-2.5 rounded-xl border border-dashed border-slate-300 flex items-center justify-between">
-              <div class="flex items-center gap-2 text-[10px]">
-                <span>☁️</span>
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-dashed border-slate-300">
+              <span class="step-badge">2</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_b4_t">Enviar foto da folha em papel (Plano B)</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_b4_d">Caso tenha preenchido e assinado o modelo físico impresso em papel, toque nesta opção para enviar uma foto nítida ou PDF da folha.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">3</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_status_t">Acompanhe o Status da Folha e Baixe o PDF</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_status_d">Na barra inferior da tela você vê o status atual da sua folha (Rascunho, Aguardando Assinatura, Assinado ou Validado) e pode tocar em "⬇️ PDF" para baixar sua cópia oficial a qualquer momento.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">4</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_b4_t">Menu Inferior: Horas, Nóminas e Meu Perfil</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b4_d">Use a barra fixa no rodapé para consultar e baixar seus recibos de pagamento mensais (Nóminas) e conferir seus dados cadastrais e conta bancária IBAN (Meu Perfil).</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mockup Tela 6 (Fechamento + Plano B + Barra Status Validado do Print 1) -->
+        <div class="phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="p-3.5 space-y-2.5 text-slate-900">
+            <!-- Card Ação Gerar PDF (Fiel ao Print 1) -->
+            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 p-3 rounded-2xl border border-emerald-300 flex items-center justify-between">
+              <div class="flex items-center gap-2.5">
+                <div class="h-9 w-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs">📄</div>
                 <div>
-                  <strong class="block text-slate-700" data-i18n="m_planBTitle">Enviar folha em papel (Plano B)</strong>
-                  <span class="text-[8px] text-slate-400" data-i18n="m_planBSub">Foto da folha assinada na caneta</span>
+                  <div class="text-[11px] font-black text-emerald-950 flex items-center gap-1">
+                    <span data-i18n="m_pdfActionTitle">Gerar PDF para assinatura</span>
+                    <span class="bg-emerald-600 text-white text-[8px] px-1.5 py-0.2 rounded-full">Oficial</span>
+                  </div>
+                  <span class="text-[9px] text-emerald-800 block" data-i18n="m_pdfActionSub">Enviar para o encarregado validar digitalmente</span>
                 </div>
               </div>
-              <span class="step-badge">4</span>
+              <span class="step-badge">1</span>
+            </div>
+
+            <!-- Link + OTP Resumo -->
+            <div class="bg-emerald-50/70 border border-emerald-200 rounded-xl p-2.5 text-left space-y-1">
+              <span class="text-[9px] font-bold text-emerald-900 block" data-i18n="m_linkLbl">Link e Código OTP para o Encarregado:</span>
+              <div class="flex items-center justify-between bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black">
+                <span>🔑 OTP: 482910</span>
+                <span class="underline text-[9px]" data-i18n="m_copyLink">Copiar Link</span>
+              </div>
+            </div>
+
+            <!-- Plano B (Fiel ao Print 1) -->
+            <div class="bg-white p-2.5 rounded-2xl border border-dashed border-slate-300 flex items-center justify-between">
+              <div class="flex items-center gap-2 text-[10px]">
+                <span class="h-7 w-7 rounded-lg bg-slate-100 flex items-center justify-center">☁️</span>
+                <div>
+                  <strong class="block text-slate-700 leading-tight" data-i18n="m_planBTitle">Enviar foto da folha em papel (Plano B)</strong>
+                  <span class="text-[8px] text-slate-400" data-i18n="m_planBSub">Caso tenha preenchido o modelo físico impresso</span>
+                </div>
+              </div>
+              <span class="step-badge">2</span>
+            </div>
+
+            <!-- Barra Status da Folha + Botão PDF (Fiel ao Print 1) -->
+            <div class="bg-white rounded-2xl p-2.5 border border-slate-200 flex items-center justify-between shadow-2xs">
+              <div class="flex items-center gap-1.5 text-[10px]">
+                <span>🕒</span>
+                <span class="text-slate-600 font-medium" data-i18n="m_sheetMonth">Folha de Outubro:</span>
+                <span class="bg-emerald-100 text-emerald-800 font-bold text-[9px] px-2 py-0.5 rounded-full border border-emerald-200" data-i18n="m_statusValid">Validado</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="step-badge">3</span>
+                <span class="text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-1 rounded-lg">⬇️ PDF</span>
+              </div>
+            </div>
+
+            <!-- Barra Inferior -->
+            <div class="bg-white border-t border-slate-200 pt-2 pb-1 px-2 flex items-center justify-around text-[9px] font-bold rounded-b-2xl">
+              <div class="text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">🕒 <span data-i18n="m_navHours">Horas</span></div>
+              <div class="text-slate-500">📄 <span data-i18n="m_navNominas">Nóminas</span></div>
+              <div class="text-slate-500 flex items-center gap-1">👤 <span data-i18n="m_navProfile">Perfil</span> <span class="step-badge">4</span></div>
             </div>
           </div>
         </div>
@@ -625,30 +831,33 @@
 
   </div>
 
-  <!-- SCRIPT DE TRADUÇÃO INSTANTÂNEA (PT, ES, FR, NL, EN) -->
+  <!-- SCRIPT DE TRADUÇÃO INSTANTÂNEA (PT, ES, FR, NL, EN) + AUTO-DETECÇÃO VIA URL -->
   <script>
     const translations = {
       pt: {
-        toolbarTitle: "Guia Visual de Treinamento — Portal do Trabalhador",
-        toolbarSub: "Selecione o idioma abaixo e clique em 'Salvar em PDF' para enviar no WhatsApp",
+        btnBackPortal: "Voltar ao Portal",
+        toolbarTitle: "Guia Visual de Como Usar — Portal do Trabalhador",
+        toolbarSub: "Selecione o idioma abaixo ou clique em 'Salvar em PDF' para enviar no WhatsApp",
         btnPrint: "Salvar em PDF / Imprimir",
-        coverBadge: "Guia Rápido Oficial • MCS Personal",
-        coverTitle: "Como Apontar suas Horas pelo Telemóvel em 5 Segundos",
-        coverDesc: "Agora você registra suas horas todos os dias direto pelo telemóvel, acompanha o resumo do mês, consulta seus recibos (Nóminas) e envia sua folha para assinatura digital do encarregado.",
-        pill1: "Rápido (5 segundos/dia)",
-        pill2: "Funciona como App no Telemóvel",
+        coverBadge: "Manual Oficial Ilustrado • MCS Personal",
+        coverTitle: "Como Apontar suas Horas, Consultar o Mês e Falar com o Gestor",
+        coverDesc: "Guia passo a passo para registrar suas horas diárias em 5 segundos, preencher dias pendentes, receber notificações e tirar dúvidas pelo Chat, consultar seu calendário semanal/mensal e validar sua folha digitalmente.",
+        pill1: "Apontamento em 5s",
+        pillChat: "Chat e Alertas em Tempo Real",
+        pillConsult: "Consulta Semanal e Mensal",
         pill3: "Assinatura Digital sem Papel",
         accessBoxTitle: "Acesso Direto",
         accessBoxSub: "Use seu Nome + Passaporte/NIE",
-        step1Tag: "Passo 1 de 4 • Primeiro Acesso",
+        step1Tag: "Passo 1 de 6 • Primeiro Acesso",
         step1Title: "Entrar no Portal e Instalar no Telemóvel",
         step1Intro: "Você não precisa decorar senhas complicadas. Basta usar seu nome e número de documento:",
-        s1_b1_t: "Escolha o seu Idioma no topo",
-        s1_b1_d: "Toque no botão no canto superior direito para alternar entre Português e Espanhol.",
-        s1_b2_t: "Instale o Aplicativo na Tela Inicial",
-        s1_b2_d: "Toque em 'Instalar' no banner superior para criar o ícone do Portal direto na tela do seu Android ou iPhone.",
+        s1_b1_t: "Escolha o seu Idioma e veja este Guia quando quiser",
+        s1_b1_d: "No topo da tela você pode alternar o idioma e clicar em '📖 Ver Guia de Como Usar' a qualquer momento.",
+        s1_b2_t: "Instale o Aplicativo e Ative as Notificações",
+        s1_b2_d: "Toque em 'Instalar' no banner superior para criar o ícone do Portal na tela inicial do seu Android ou iPhone e receber avisos importantes.",
         s1_b3_t: "Digite seu Nome Completo e Passaporte / NIE",
-        s1_b3_d: "Escreva exatamente como consta no seu documento e mantenha marcada a opção 'Lembrar neste aparelho' para entrar com 1 toque nos próximos dias.",
+        s1_b3_d: "Escreva exatamente como consta no seu documento e mantenha marcada a opção 'Lembrar neste aparelho' para entrar automaticamente nos próximos dias.",
+        m_guideBtn: "📖 Guia de Uso",
         m_portalBadge: "● Portal do Trabalhador",
         m_welcome: "Bem-vindo",
         m_installTitle: "Instalar Aplicativo MCS",
@@ -658,42 +867,45 @@
         m_passLbl: "Passaporte ou Documento",
         m_remember: "Lembrar neste aparelho",
         m_loginBtn: "Entrar no Portal →",
-        step2Tag: "Passo 2 de 4 • Rotina Diária",
-        step2Title: "Visão Geral, Obra, Chat e Apontamento Rápido",
-        step2Intro: "Ao entrar no aplicativo, tudo o que você precisa está na tela inicial:",
+        step2Tag: "Passo 2 de 6 • Painel Diário e Alertas",
+        step2Title: "Apontamento de Hoje e Alerta Automático de Dias Faltantes",
+        step2Intro: "Logo ao abrir o aplicativo, o sistema mostra sua obra ativa, o botão para apontar o dia de hoje e avisa automaticamente se ficou algum dia anterior sem preencher:",
         s2_b1_t: "Confira o Mês e a Obra Atual",
-        s2_b1_d: "No topo você vê o mês selecionado e a Obra onde está alocado. Se mudou de obra no mês, toque em 'Trocar'.",
-        s2_b2_t: "Mensagens e Chat com o Gestor",
-        s2_b2_d: "Dúvidas sobre horas ou obras? Toque em 'Abrir Chat' para falar direto com a equipe de controle de horas.",
-        s2_b3_t: "Botão Verde: 'Apontar minhas horas de hoje'",
-        s2_b3_d: "Toque neste botão todos os dias ao finalizar o expediente. Se esquecer algum dia anterior, um alerta amarelo aparecerá logo abaixo com o botão 'Preencher'.",
-        s2_b4_t: "Menu Inferior: Horas, Nóminas e Meu Perfil",
-        s2_b4_d: "Na barra inferior você alterna entre suas Horas, seus Recibos de Pagamento (Nóminas) e seus Dados/IBAN (Meu Perfil).",
+        s2_b1_d: "No topo você vê o mês selecionado e a Obra onde está alocado. Se mudou de obra durante o mês, toque em 'Trocar'.",
+        s2_b3_t: "Botão Verde: '+ Apontar minhas horas de hoje'",
+        s2_b3_d: "Toque neste botão todos os dias ao finalizar o trabalho. Leva apenas 5 a 10 segundos no telemóvel!",
+        s2_alert_t: "Alerta Amarelo: 'Faltam horas de dias anteriores'",
+        s2_alert_d: "Esqueceu de apontar ontem ou dias passados? O sistema exibe este aviso amarelo indicando quantos dias estão pendentes no mês. Basta tocar no botão laranja 'Preencher' que ele já abre direto no primeiro dia que falta!",
+        s2_kpi_t: "3 Cartões de Resumo em Tempo Real (Semana, Total Mês e Pendentes)",
+        s2_kpi_d: "Acompanhe na hora quantas horas você já somou na Semana, o Total do Mês acumulado e quantos dias úteis ainda estão Pendentes de apontamento.",
         m_siteLbl: "Obra atual:",
         m_changeBtn: "Trocar",
         m_chatTitle: "Mensagens e Notificações",
-        m_chatSub: "Fale com o gestor de horas",
-        m_todayDate: "Hoje, Segunda-feira",
+        m_chatSub: "Comunique direto com o gestor de horas",
+        m_openChatBtn: "Abrir Chat",
+        m_todayDate: "Hoje, Segunda-feira · 19 De Outubro",
         m_pointTodayBtn: "Apontar minhas horas de hoje",
-        m_pendingAlert: "⚠️ Faltam horas anteriores",
+        m_quick5s: "Leva apenas 5 a 10 segundos no seu telemóvel",
+        m_pendingAlert: "Faltam horas de dias anteriores",
+        m_pendingSub: "22 dia(s) pendente(s) no mês",
         m_fillBtn: "Preencher",
-        m_kpiWeek: "Semana",
-        m_kpiMonth: "Total Mês",
-        m_kpiPend: "Pendentes",
-        m_navHours: "Horas",
-        m_navNominas: "Nóminas",
-        m_navProfile: "Perfil",
-        step3Tag: "Passo 3 de 4 • Lançamento Diário",
+        m_kpiWeek: "SEMANA",
+        m_kpiMonth: "TOTAL MÊS",
+        m_kpiPend: "PENDENTES",
+        m_5days: "5 dias",
+        m_21days: "21 dias",
+        m_toFill: "a lançar",
+        step3Tag: "Passo 3 de 6 • Lançamento Diário",
         step3Title: "Como Preencher as Horas do Dia com Precisão",
-        step3Intro: "Na janela de apontamento, você tem atalhos rápidos para não perder tempo digitando:",
-        s3_b1_t: "Navegue entre os Dias (◀ ▶)",
-        s3_b1_d: "Use as setas no topo verde para mudar de dia rapidamente caso queira lançar vários dias seguidos.",
+        step3Intro: "Ao tocar em 'Apontar minhas horas de hoje' ou em 'Preencher' nos dias pendentes, abre-se esta janela com atalhos de 1 toque:",
+        s3_b1_t: "Navegue entre os Dias (◀ ▶) sem fechar a janela",
+        s3_b1_d: "Use as setas no topo verde para mudar de dia rapidamente caso queira colocar vários dias pendentes em dia de uma só vez.",
         s3_b2_t: "Escolha o Turno (☀️ Diurno ou 🌙 Noturno) e a Obra",
-        s3_b2_d: "Por padrão já vem em Diurno e com sua Obra vinculada. Se trabalhou à noite, basta tocar em Noturno.",
-        s3_b3_t: "Selecione o Total de Horas ou Folga",
-        s3_b3_d: "Use os botões rápidos (8h, 9h, 10h, 12h), ajuste de meia em meia hora nos botões (– / +), ou toque em 'Folga/Descanso' nos dias sem trabalho.",
-        s3_b4_t: "Toque em 'Guardar Apontamento'",
-        s3_b4_d: "Os horários de Entrada e Saída são calculados automaticamente (você pode ajustar se precisar) e você também pode anotar uma observação. Depois é só tocar em Guardar!",
+        s3_b2_d: "Por padrão já vem em Diurno (07:00–18:00) e com sua Obra vinculada. Se trabalhou à noite, basta tocar em Noturno (18:00–06:00).",
+        s3_b3_t: "Atalhos de Horas (8h, 9h, 10h, 12h), Botões (– / +) ou Folga",
+        s3_b3_d: "Toque direto nos botões rápidos (8h, 9h, 10h, 12h), ajuste de meia em meia hora nos botões (– / +), ou toque em 'Folga/Descanso' nos dias em que não trabalhou.",
+        s3_b4_t: "Horário Automático, Observações e 'Guardar Apontamento'",
+        s3_b4_d: "A Entrada e Saída são calculadas automaticamente (você pode editar se precisar) e há um campo para Observações (ex: chuva, manutenção). Finalize tocando no botão verde Guardar!",
         m_modalTitle: "Novo Apontamento",
         m_monday: "Segunda-feira",
         m_shiftLbl: "Turno de Trabalho",
@@ -703,47 +915,88 @@
         m_totalHrsLbl: "Total de Horas do Dia",
         m_restBtn: "Folga/Descanso",
         m_saveBtn: "Guardar Apontamento",
-        step4Tag: "Passo 4 de 4 • Fechamento do Mês",
-        step4Title: "Gerar PDF Oficial e Assinatura Digital do Encarregado",
-        step4Intro: "No final do mês (ou quando finalizar a obra), você valida sua folha sem precisar imprimir papel:",
+        stepChatTag: "Passo 4 de 6 • Chat Direto e Notificações",
+        stepChatTitle: "Mensagens, Notificações do Gestor e Canal para Tirar Dúvidas",
+        stepChatIntro: "Você tem um canal de comunicação direto dentro do aplicativo para receber avisos sobre suas horas e também enviar perguntas para a empresa:",
+        sc_b1_t: "Avisos e Notificações em Tempo Real",
+        sc_b1_d: "Sempre que o Gestor de Horas enviar uma mensagem ou lembrete, você recebe uma notificação no telemóvel e o card no topo fica destacado em amarelo com o selo vermelho '1 nova'.",
+        sc_b2_t: "Botão '🔔 Testar Push' (Ativar Alertas no Telemóvel)",
+        sc_b2_d: "No cabeçalho do Chat você pode tocar em 'Testar Push' para garantir que os alertas sonoros estão chegando no seu aparelho.",
+        sc_b3_t: "Faça Perguntas ou Envie Respostas ao Gestor",
+        sc_b3_d: "Tem alguma dúvida sobre suas horas, mudou de obra, teve falta justificada ou quer responder a um aviso? Basta digitar no campo inferior ('Escreva uma resposta ou dúvida para o gestor...') e tocar no botão verde de enviar (➤)!",
+        m_newBadge: "1 nova",
+        m_msgPreview: "Gestor: 'Por favor, confirme a sexta-feira'",
+        m_chatHeaderSub: "Comunicação direta com o Gestor de Horas",
+        m_bubbleGestor: "Olá Carlos! Faltou apontar as horas da última sexta-feira. Pode verificar?",
+        m_youLbl: "Você • 10:17",
+        m_bubbleWorker: "Bom dia! Acabei de lançar as 8h de sexta. Tenho uma dúvida sobre o feriado.",
+        m_chatInputPlaceholder: "Escreva uma resposta ou dúvida para o gestor...",
+        m_chatAudit: "Histórico auditado e registrado com data e hora.",
+        m_closeBtn: "Fechar",
+        stepConsultTag: "Passo 5 de 6 • Consultas Semanal e Mensal",
+        stepConsultTitle: "Como Consultar Horas da Semana, Calendário e Resumo do Mês",
+        stepConsultIntro: "Na seção 'Ações Rápidas' da tela inicial, você tem 3 ferramentas completas para conferir e editar qualquer dia do mês:",
+        s5_b1_t: "Minhas horas da semana ('Visualizar os 7 dias e apontar horas passadas')",
+        s5_b1_d: "Mostra os 7 dias da semana (Segunda a Domingo) um abaixo do outro. Você pode avançar ou voltar semanas e tocar em qualquer dia para lançar ou corrigir horas passadas.",
+        s5_b2_t: "Calendário do mês ('Grelha completa com pontos de status')",
+        s5_b2_d: "Abre o calendário completo do mês com indicadores coloridos: Verde (horas lançadas), Amarelo (dia pendente) e Cinza (folga/fim de semana). Toque em qualquer número do calendário para abrir aquele dia!",
+        s5_b3_t: "Resumo do mês ('Totais por semana, horas diurnas e noturnas')",
+        s5_b3_d: "Exibe o balanço geral do seu mês separando Dias Trabalhados, Horas Totais, Horas Diurnas e Horas Noturnas, além da soma detalhada da Semana 1, Semana 2, Semana 3, etc.",
+        m_quickActionsHdr: "AÇÕES RÁPIDAS",
+        m_actWeekTitle: "Minhas horas da semana",
+        m_actWeekSub: "Visualizar os 7 dias e apontar horas passadas",
+        m_actCalTitle: "Calendário do mês",
+        m_actCalSub: "Grelha completa com pontos de status",
+        m_actSumTitle: "Resumo do mês",
+        m_actSumSub: "Totais por semana, horas diurnas e noturnas",
+        m_previewTitle: "Exemplo da Grelha Mensal:",
+        step4Tag: "Passo 6 de 6 • Fechamento, Assinatura e Recibos",
+        step4Title: "Gerar PDF para Assinatura, Plano B em Papel e Status da Folha",
+        step4Intro: "No final do mês (ou ao concluir sua alocação na obra), você fecha sua folha com validação oficial:",
         s4_b1_t: "Toque em 'Gerar PDF para assinatura (Oficial)'",
-        s4_b1_d: "Na tela inicial, role até Ações Rápidas e escolha o card verde 'Gerar PDF para assinatura'.",
-        s4_b2_t: "Informe o Nome do Encarregado e Envie",
-        s4_b2_d: "Confira o total de horas do mês, digite o nome do seu Encarregado de Obra (e telefone/e-mail se desejar) e gere o link de assinatura.",
-        s4_b3_t: "Envie o Link + Código OTP de 6 dígitos ao Encarregado",
-        s4_b3_d: "O sistema gera um Link Direto e um Código de Segurança (OTP). O encarregado abre o link no telemóvel dele, digita o código, assina com o dedo na tela e sua folha fica 100% validada!",
-        s4_b4_t: "Plano B: Enviar Foto da Folha em Papel",
-        s4_b4_d: "Se a sua obra exigir folha física assinada na caneta, use a opção 'Enviar foto da folha em papel (Plano B)' para tirar uma foto nítida do documento.",
+        s4_b1_d: "Informe o nome do seu Encarregado de Obra. O sistema gera um Link Direto e um Código OTP de 6 dígitos para o encarregado abrir no telemóvel dele e assinar com o dedo na tela!",
+        s4_b4_t: "Enviar foto da folha em papel (Plano B)",
+        s4_b4_d: "Caso tenha preenchido e assinado o modelo físico impresso em papel, toque nesta opção para enviar uma foto nítida ou PDF da folha.",
+        s4_status_t: "Acompanhe o Status da Folha e Baixe o PDF",
+        s4_status_d: "Na barra inferior da tela você vê o status atual da sua folha (Rascunho, Aguardando Assinatura, Assinado ou Validado) e pode tocar em '⬇️ PDF' para baixar sua cópia oficial a qualquer momento.",
+        s2_b4_t: "Menu Inferior: Horas, Nóminas e Meu Perfil",
+        s2_b4_d: "Use a barra fixa no rodapé para consultar e baixar seus recibos de pagamento mensais (Nóminas) e conferir seus dados cadastrais e conta bancária IBAN (Meu Perfil).",
         m_pdfActionTitle: "Gerar PDF para assinatura",
-        m_pdfActionSub: "Validação digital do encarregado",
-        m_sentTitle: "Folha Pronta para Assinar!",
-        m_supervisorLbl: "Encarregado",
-        m_linkLbl: "Link e Código para o Encarregado:",
+        m_pdfActionSub: "Enviar para o encarregado validar digitalmente",
+        m_linkLbl: "Link e Código OTP para o Encarregado:",
         m_copyLink: "Copiar Link",
-        m_planBTitle: "Enviar folha em papel (Plano B)",
-        m_planBSub: "Foto da folha assinada na caneta"
+        m_planBTitle: "Enviar foto da folha em papel (Plano B)",
+        m_planBSub: "Caso tenha preenchido o modelo físico impresso",
+        m_sheetMonth: "Folha de Outubro:",
+        m_statusValid: "Validado",
+        m_navHours: "Horas",
+        m_navNominas: "Nóminas",
+        m_navProfile: "Perfil"
       },
       es: {
-        toolbarTitle: "Guía Visual de Formación — Portal del Trabajador",
-        toolbarSub: "Seleccione el idioma abajo y haga clic en 'Guardar en PDF' para enviar por WhatsApp",
+        btnBackPortal: "Volver al Portal",
+        toolbarTitle: "Guía Visual de Cómo Usar — Portal del Trabajador",
+        toolbarSub: "Seleccione el idioma abajo o haga clic en 'Guardar en PDF' para enviar por WhatsApp",
         btnPrint: "Guardar en PDF / Imprimir",
-        coverBadge: "Guía Rápida Oficial • MCS Personal",
-        coverTitle: "Cómo Registrar tus Horas desde el Móvil en 5 Segundos",
-        coverDesc: "Ahora puedes registrar tus horas todos los días directamente desde tu móvil, ver el resumen del mes, consultar tus Nóminas y enviar tu hoja para la firma digital del encargado.",
-        pill1: "Rápido (5 segundos/día)",
-        pill2: "Funciona como App en el Móvil",
+        coverBadge: "Manual Oficial Ilustrado • MCS Personal",
+        coverTitle: "Cómo Registrar tus Horas, Consultar el Mes y Hablar con el Gestor",
+        coverDesc: "Guía paso a paso para registrar tus horas diarias en 5 segundos, completar días pendientes, recibir notificaciones y resolver dudas por el Chat, consultar tu calendario semanal/mensual y validar tu hoja digitalmente.",
+        pill1: "Registro en 5s",
+        pillChat: "Chat y Alertas en Tiempo Real",
+        pillConsult: "Consulta Semanal y Mensual",
         pill3: "Firma Digital sin Papel",
         accessBoxTitle: "Acceso Directo",
         accessBoxSub: "Usa tu Nombre + Pasaporte/NIE",
-        step1Tag: "Paso 1 de 4 • Primer Acceso",
+        step1Tag: "Paso 1 de 6 • Primer Acceso",
         step1Title: "Entrar al Portal e Instalar en el Móvil",
         step1Intro: "No necesitas recordar contraseñas complicadas. Solo usa tu nombre y documento:",
-        s1_b1_t: "Elige tu Idioma arriba",
-        s1_b1_d: "Toca el botón en la esquina superior derecha para cambiar entre Español y Portugués.",
-        s1_b2_t: "Instala la Aplicación en tu Pantalla de Inicio",
-        s1_b2_d: "Toca en 'Instalar' en el aviso superior para añadir el icono del Portal en tu Android o iPhone.",
+        s1_b1_t: "Elige tu Idioma y abre esta Guía cuando quieras",
+        s1_b1_d: "En la parte superior puedes cambiar el idioma y tocar en '📖 Ver Guía de Cómo Usar' en cualquier momento.",
+        s1_b2_t: "Instala la Aplicación y Activa las Notificaciones",
+        s1_b2_d: "Toca en 'Instalar' en el banner superior para añadir el icono del Portal a tu pantalla de inicio y recibir avisos importantes.",
         s1_b3_t: "Introduce tu Nombre Completo y Pasaporte / NIE",
         s1_b3_d: "Escríbelo tal como aparece en tu documento y deja marcada la opción 'Recordar en este dispositivo' para entrar con 1 toque.",
+        m_guideBtn: "📖 Guía de Uso",
         m_portalBadge: "● Portal del Trabajador",
         m_welcome: "Bienvenido",
         m_installTitle: "Instalar Aplicación MCS",
@@ -753,42 +1006,45 @@
         m_passLbl: "Pasaporte o Documento",
         m_remember: "Recordar en este dispositivo",
         m_loginBtn: "Entrar al Portal →",
-        step2Tag: "Paso 2 de 4 • Rutina Diaria",
-        step2Title: "Vista General, Obra, Chat y Registro Rápido",
-        step2Intro: "Al entrar en la aplicación, todo lo que necesitas está en la pantalla principal:",
+        step2Tag: "Paso 2 de 6 • Panel Diario y Alertas",
+        step2Title: "Registro de Hoy y Alerta Automática de Días Faltantes",
+        step2Intro: "Al abrir la aplicación, el sistema muestra tu obra activa, el botón para registrar el día de hoy y te avisa automáticamente si quedó algún día anterior sin rellenar:",
         s2_b1_t: "Verifica el Mes y la Obra Actual",
-        s2_b1_d: "Arriba verás el mes activo y la Obra asignada. Si cambiaste de obra durante el mes, toca en 'Cambiar'.",
-        s2_b2_t: "Mensajes y Chat con el Gestor",
-        s2_b2_d: "¿Dudas sobre tus horas u obras? Toca en 'Abrir Chat' para hablar directamente con el gestor de horas.",
-        s2_b3_t: "Botón Verde: 'Registrar mis horas de hoy'",
-        s2_b3_d: "Toca este botón cada día al terminar tu jornada. Si olvidaste algún día anterior, aparecerá una alerta amarilla debajo con el botón 'Completar'.",
-        s2_b4_t: "Menú Inferior: Horas, Nóminas y Mi Perfil",
-        s2_b4_d: "En la barra inferior puedes consultar tus Horas, descargar tus Nóminas y revisar tus datos o IBAN (Mi Perfil).",
+        s2_b1_d: "Arriba verás el mes seleccionado y la Obra asignada. Si cambiaste de obra durante el mes, toca en 'Cambiar'.",
+        s2_b3_t: "Botón Verde: '+ Registrar mis horas de hoy'",
+        s2_b3_d: "Toca este botón todos los días al terminar tu jornada. ¡Toma solo 5 a 10 segundos en tu móvil!",
+        s2_alert_t: "Alerta Amarilla: 'Faltan horas de días anteriores'",
+        s2_alert_d: "¿Olvidaste registrar ayer o días pasados? El sistema muestra este aviso amarillo indicando cuántos días están pendientes en el mes. ¡Solo toca el botón naranja 'Completar' y se abrirá directamente el primer día pendiente!",
+        s2_kpi_t: "3 Tarjetas de Resumen en Tiempo Real (Semana, Total Mes y Pendientes)",
+        s2_kpi_d: "Consulta al instante cuántas horas llevas en la Semana, el Total del Mes acumulado y cuántos días laborables siguen Pendientes de imputar.",
         m_siteLbl: "Obra actual:",
         m_changeBtn: "Cambiar",
         m_chatTitle: "Mensajes y Notificaciones",
-        m_chatSub: "Habla con el gestor de horas",
-        m_todayDate: "Hoy, Lunes",
+        m_chatSub: "Comuníquese directamente con el gestor de horas",
+        m_openChatBtn: "Abrir Chat",
+        m_todayDate: "Hoy, Lunes · 19 De Octubre",
         m_pointTodayBtn: "Registrar mis horas de hoy",
-        m_pendingAlert: "⚠️ Faltan horas anteriores",
+        m_quick5s: "Toma solo 5 a 10 segundos en tu móvil",
+        m_pendingAlert: "Faltan horas de días anteriores",
+        m_pendingSub: "22 día(s) pendiente(s) en el mes",
         m_fillBtn: "Completar",
-        m_kpiWeek: "Semana",
-        m_kpiMonth: "Total Mes",
-        m_kpiPend: "Pendientes",
-        m_navHours: "Horas",
-        m_navNominas: "Nóminas",
-        m_navProfile: "Perfil",
-        step3Tag: "Paso 3 de 4 • Registro Diario",
+        m_kpiWeek: "SEMANA",
+        m_kpiMonth: "TOTAL MES",
+        m_kpiPend: "PENDIENTES",
+        m_5days: "5 días",
+        m_21days: "21 días",
+        m_toFill: "a imputar",
+        step3Tag: "Paso 3 de 6 • Registro Diario",
         step3Title: "Cómo Completar las Horas del Día con Precisión",
-        step3Intro: "En la ventana de registro tienes atajos rápidos para hacerlo en segundos:",
-        s3_b1_t: "Navega entre los Días (◀ ▶)",
-        s3_b1_d: "Usa las flechas en la barra superior verde para cambiar de día sin salir de la ventana.",
+        step3Intro: "Al tocar en 'Registrar mis horas de hoy' o en 'Completar' los días pendientes, se abre esta ventana con atajos de 1 toque:",
+        s3_b1_t: "Navega entre los Días (◀ ▶) sin cerrar la ventana",
+        s3_b1_d: "Usa las flechas en la barra superior verde para cambiar de día rápidamente si quieres poner varios días al día de una vez.",
         s3_b2_t: "Elige el Turno (☀️ Diurno o 🌙 Nocturno) y la Obra",
-        s3_b2_d: "Por defecto viene en Turno Diurno y con tu Obra vinculada. Si trabajaste de noche, toca en Nocturno.",
-        s3_b3_t: "Selecciona el Total de Horas o Descanso",
-        s3_b3_d: "Usa los botones rápidos (8h, 9h, 10h, 12h), ajusta media hora con (– / +), o toca en 'Descanso/Festivo' los días libres.",
-        s3_b4_t: "Toca en 'Guardar Registro'",
-        s3_b4_d: "La hora de Entrada y Salida se calcula automáticamente y puedes añadir observaciones si lo necesitas. ¡Luego toca en Guardar!",
+        s3_b2_d: "Por defecto viene en Diurno (07:00–18:00) y con tu Obra vinculada. Si trabajaste de noche, toca en Nocturno (18:00–06:00).",
+        s3_b3_t: "Atajos de Horas (8h, 9h, 10h, 12h), Botones (– / +) o Descanso",
+        s3_b3_d: "Toca directamente los botones rápidos (8h, 9h, 10h, 12h), ajusta media hora con (– / +), o toca en 'Descanso/Festivo' los días que no trabajaste.",
+        s3_b4_t: "Horario Automático, Observaciones y 'Guardar Registro'",
+        s3_b4_d: "La Entrada y Salida se calculan automáticamente (puedes editarlas si es necesario) y puedes añadir Observaciones. ¡Finaliza tocando el botón verde Guardar!",
         m_modalTitle: "Nuevo Registro",
         m_monday: "Lunes",
         m_shiftLbl: "Turno de Trabajo",
@@ -798,47 +1054,88 @@
         m_totalHrsLbl: "Total de Horas del Día",
         m_restBtn: "Descanso/Festivo",
         m_saveBtn: "Guardar Registro",
-        step4Tag: "Paso 4 de 4 • Cierre de Mes",
-        step4Title: "Generar PDF Oficial y Firma Digital del Encargado",
-        step4Intro: "Al final del mes (o al terminar en una obra), valida tu hoja sin necesidad de papel:",
+        stepChatTag: "Paso 4 de 6 • Chat Directo y Notificaciones",
+        stepChatTitle: "Mensajes, Notificaciones del Gestor y Canal para Consultas",
+        stepChatIntro: "Tienes un canal de comunicación directo dentro de la app para recibir avisos sobre tus horas y también hacer preguntas a la empresa:",
+        sc_b1_t: "Avisos y Notificaciones en Tiempo Real",
+        sc_b1_d: "Cada vez que el Gestor de Horas te envíe un mensaje o recordatorio, recibirás una notificación en tu móvil y la tarjeta superior se iluminará en amarillo con el aviso rojo '1 nuevo'.",
+        sc_b2_t: "Botón '🔔 Testar Push' (Activar Alertas en el Móvil)",
+        sc_b2_d: "En la cabecera del Chat puedes tocar en 'Testar Push' para comprobar que las notificaciones llegan correctamente a tu teléfono.",
+        sc_b3_t: "Haz Preguntas o Envía Respuestas al Gestor",
+        sc_b3_d: "¿Tienes alguna duda sobre tus horas, cambiaste de obra, tuviste una baja o quieres responder a un aviso? Solo escribe en el campo inferior ('Escriba una respuesta o duda para el gestor...') y toca el botón verde de enviar (➤).",
+        m_newBadge: "1 nuevo",
+        m_msgPreview: "Gestor: 'Por favor, confirma el viernes'",
+        m_chatHeaderSub: "Comunicación directa con el Gestor de Horas",
+        m_bubbleGestor: "¡Hola Carlos! Faltó registrar las horas del último viernes. ¿Puedes revisarlo?",
+        m_youLbl: "Tú • 10:17",
+        m_bubbleWorker: "¡Buenos días! Acabo de registrar las 8h del viernes. Tengo una duda sobre el festivo.",
+        m_chatInputPlaceholder: "Escriba una respuesta o duda para el gestor...",
+        m_chatAudit: "Historial auditado y registrado con fecha y hora.",
+        m_closeBtn: "Cerrar",
+        stepConsultTag: "Paso 5 de 6 • Consultas Semanal y Mensual",
+        stepConsultTitle: "Cómo Consultar Horas de la Semana, Calendario y Resumen del Mes",
+        stepConsultIntro: "En la sección 'Acciones Rápidas' de la pantalla principal tienes 3 herramientas completas para revisar y editar cualquier día del mes:",
+        s5_b1_t: "Mis horas de la semana ('Ver los 7 días e imputar horas pasadas')",
+        s5_b1_d: "Muestra los 7 días de la semana (Lunes a Domingo) en lista. Puedes cambiar de semana y tocar cualquier día para registrar o corregir horas pasadas.",
+        s5_b2_t: "Calendario del mes ('Cuadrícula completa con puntos de estado')",
+        s5_b2_d: "Abre el calendario completo del mes con puntos de colores: Verde (registrado), Amarillo (día pendiente) y Gris (descanso/fin de semana). ¡Toca cualquier día del calendario para abrirlo!",
+        s5_b3_t: "Resumen del mes ('Totales por semana, horas diurnas y nocturnas')",
+        s5_b3_d: "Muestra el balance general del mes separando Días Trabajados, Horas Totales, Horas Diurnas y Horas Nocturnas, además del desglose por Semana 1, Semana 2, etc.",
+        m_quickActionsHdr: "ACCIONES RÁPIDAS",
+        m_actWeekTitle: "Mis horas de la semana",
+        m_actWeekSub: "Ver los 7 días e imputar horas pasadas",
+        m_actCalTitle: "Calendario del mes",
+        m_actCalSub: "Cuadrícula completa con puntos de estado",
+        m_actSumTitle: "Resumen del mes",
+        m_actSumSub: "Totales por semana, horas diurnas y nocturnas",
+        m_previewTitle: "Ejemplo de Cuadrícula Mensual:",
+        step4Tag: "Paso 6 de 6 • Cierre de Mes, Firma y Nóminas",
+        step4Title: "Generar PDF para Firma, Plan B en Papel y Estado de la Hoja",
+        step4Intro: "Al final del mes (o al terminar en una obra), cierras tu hoja con validación oficial:",
         s4_b1_t: "Toca en 'Generar PDF para firma (Oficial)'",
-        s4_b1_d: "En la pantalla de inicio, baja hasta Acciones Rápidas y selecciona 'Generar PDF para firma'.",
-        s4_b2_t: "Indica el Nombre del Encargado y Envía",
-        s4_b2_d: "Revisa el total de horas del mes, escribe el nombre de tu Encargado de Obra y genera el enlace de firma.",
-        s4_b3_t: "Envía el Enlace + Código OTP de 6 dígitos al Encargado",
-        s4_b3_d: "El sistema genera un Enlace Directo y un Código OTP. El encargado abre el enlace en su móvil, introduce el código, firma con el dedo en pantalla y tu hoja queda validada.",
-        s4_b4_t: "Plan B: Subir Foto de la Hoja en Papel",
-        s4_b4_d: "Si la obra exige hoja impresa firmada a mano, usa 'Subir foto de hoja en papel (Plan B)' para enviar una foto clara.",
+        s4_b1_d: "Indica el nombre de tu Encargado de Obra. El sistema genera un Enlace Directo y un Código OTP de 6 dígitos para que el encargado lo abra en su móvil y firme con el dedo en pantalla.",
+        s4_b4_t: "Enviar foto de la hoja en papel (Plan B)",
+        s4_b4_d: "En caso de haber rellenado y firmado el modelo físico impreso, toca esta opción para subir una foto clara o PDF de la hoja.",
+        s4_status_t: "Consulta el Estado de tu Hoja y Descarga el PDF",
+        s4_status_d: "En la barra inferior de la pantalla verás el estado actual de tu hoja (Borrador, Esperando Firma, Firmado o Validado) y podrás tocar en '⬇️ PDF' para descargar tu copia oficial.",
+        s2_b4_t: "Menú Inferior: Horas, Nóminas y Mi Perfil",
+        s2_b4_d: "Usa la barra inferior fija para descargar tus recibos de pago mensuales (Nóminas) y revisar tus datos personales e IBAN (Mi Perfil).",
         m_pdfActionTitle: "Generar PDF para firma",
-        m_pdfActionSub: "Validación digital del encargado",
-        m_sentTitle: "¡Hoja Lista para Firmar!",
-        m_supervisorLbl: "Encargado",
-        m_linkLbl: "Enlace y Código para el Encargado:",
+        m_pdfActionSub: "Enviar al encargado para validar digitalmente",
+        m_linkLbl: "Enlace y Código OTP para el Encargado:",
         m_copyLink: "Copiar Enlace",
-        m_planBTitle: "Subir hoja en papel (Plan B)",
-        m_planBSub: "Foto de la hoja firmada a mano"
+        m_planBTitle: "Enviar foto de la hoja en papel (Plan B)",
+        m_planBSub: "En caso de haber rellenado el modelo físico impreso",
+        m_sheetMonth: "Hoja De Octubre:",
+        m_statusValid: "Validado",
+        m_navHours: "Horas",
+        m_navNominas: "Nóminas",
+        m_navProfile: "Perfil"
       },
       fr: {
-        toolbarTitle: "Guide Visuel de Formation — Portail du Travailleur",
-        toolbarSub: "Sélectionnez la langue ci-dessous et cliquez sur 'Enregistrer en PDF' pour partager sur WhatsApp",
+        btnBackPortal: "Retour au Portail",
+        toolbarTitle: "Guide Visuel d'Utilisation — Portail du Travailleur",
+        toolbarSub: "Sélectionnez la langue ci-dessous ou cliquez sur 'Enregistrer en PDF' pour partager sur WhatsApp",
         btnPrint: "Enregistrer en PDF / Imprimer",
-        coverBadge: "Guide Rapide Officiel • MCS Personal",
-        coverTitle: "Comment Pointer vos Heures sur Mobile en 5 Secondes",
-        coverDesc: "Enregistrez désormais vos heures chaque jour depuis votre téléphone, suivez votre récapitulatif mensuel, consultez vos fiches de paie (Nóminas) et faites signer votre feuille numériquement par le chef de chantier.",
-        pill1: "Rapide (5 secondes/jour)",
-        pill2: "Fonctionne comme une App Mobile",
+        coverBadge: "Manuel Officiel Illustré • MCS Personal",
+        coverTitle: "Comment Pointer vos Heures, Consulter le Mois et Écrire au Gestionnaire",
+        coverDesc: "Guide étape par étape pour enregistrer vos heures en 5 secondes, compléter les jours manquants, recevoir des notifications et poser vos questions via le Chat, consulter votre calendrier hebdomadaire/mensuel et faire signer votre feuille.",
+        pill1: "Pointage en 5s",
+        pillChat: "Chat et Alertes en Temps Réel",
+        pillConsult: "Consultation Semaine & Mois",
         pill3: "Signature Numérique sans Papier",
         accessBoxTitle: "Accès Direct",
         accessBoxSub: "Nom Complet + Passeport/NIE",
-        step1Tag: "Étape 1 sur 4 • Première Connexion",
-        step1Title: "Se Connecter au Portail et Installer l'App",
+        step1Tag: "Étape 1 sur 6 • Première Connexion",
+        step1Title: "Se Connecter au Portail et Installer l'Application",
         step1Intro: "Aucun mot de passe compliqué à retenir. Utilisez simplement votre nom et votre numéro de document :",
-        s1_b1_t: "Choisissez votre langue en haut",
-        s1_b1_d: "Appuyez sur le bouton en haut à droite pour changer la langue de l'interface.",
-        s1_b2_t: "Installez l'application sur l'écran d'accueil",
-        s1_b2_d: "Appuyez sur 'Installer' dans la bannière pour ajouter l'icône du Portail sur votre téléphone Android ou iPhone.",
+        s1_b1_t: "Choisissez votre Langue et consultez ce Guide à tout moment",
+        s1_b1_d: "En haut de l'écran, vous pouvez changer de langue et cliquer sur '📖 Voir le Guide d'Utilisation' à tout moment.",
+        s1_b2_t: "Installez l'Application et Activez les Notifications",
+        s1_b2_d: "Appuyez sur 'Installer' dans la bannière supérieure pour ajouter l'icône du Portail sur l'écran d'accueil de votre téléphone.",
         s1_b3_t: "Saisissez votre Nom Complet et Passeport / NIE",
-        s1_b3_d: "Écrivez votre nom comme sur votre document et cochez 'Se souvenir sur cet appareil' pour vous connecter en 1 clic.",
+        s1_b3_d: "Écrivez votre nom exactement comme sur votre document et cochez 'Se souvenir sur cet appareil' pour entrer en 1 clic.",
+        m_guideBtn: "📖 Guide",
         m_portalBadge: "● Portail du Travailleur",
         m_welcome: "Bienvenue",
         m_installTitle: "Installer l'App MCS",
@@ -848,42 +1145,45 @@
         m_passLbl: "Passeport ou Document",
         m_remember: "Se souvenir sur cet appareil",
         m_loginBtn: "Entrer sur le Portail →",
-        step2Tag: "Étape 2 sur 4 • Routine Quotidienne",
-        step2Title: "Tableau de Bord, Chantier, Chat et Pointage Rapide",
-        step2Intro: "Dès l'ouverture de l'application, tout est accessible sur l'écran principal :",
+        step2Tag: "Étape 2 sur 6 • Tableau de Bord et Alertes",
+        step2Title: "Pointage du Jour et Alerte Automatique des Jours Manquants",
+        step2Intro: "Dès l'ouverture de l'application, vous voyez votre chantier actif, le bouton pour pointer aujourd'hui et une alerte automatique si des jours précédents sont incomplets :",
         s2_b1_t: "Vérifiez le Mois et le Chantier Actuel",
-        s2_b1_d: "En haut s'affichent le mois et le chantier affecté. Si vous changez de chantier, appuyez sur 'Changer'.",
-        s2_b2_t: "Messages et Chat avec le Gestionnaire",
-        s2_b2_d: "Une question sur vos heures ? Appuyez sur 'Chat' pour écrire directement au gestionnaire.",
-        s2_b3_t: "Bouton Vert : 'Pointer mes heures d'aujourd'hui'",
-        s2_b3_d: "Appuyez sur ce bouton chaque jour à la fin du travail. Si un jour précédent manque, une alerte jaune vous permettra de le compléter.",
-        s2_b4_t: "Menu du Bas : Heures, Fiches de Paie et Profil",
-        s2_b4_d: "Naviguez facilement entre vos Heures, vos Fiches de paie (Nóminas) et vos informations/IBAN (Profil).",
+        s2_b1_d: "En haut s'affichent le mois sélectionné et votre chantier. Si vous avez changé de chantier, appuyez sur 'Changer'.",
+        s2_b3_t: "Bouton Vert : '+ Pointer mes heures d'aujourd'hui'",
+        s2_b3_d: "Appuyez sur ce bouton chaque jour à la fin de votre service. Cela ne prend que 5 à 10 secondes !",
+        s2_alert_t: "Alerte Jaune : 'Heures de jours précédents manquantes'",
+        s2_alert_d: "Vous avez oublié de pointer hier ou un jour précédent ? Cette bannière jaune indique le nombre de jours en attente dans le mois. Appuyez sur 'Compléter' pour ouvrir directement le premier jour manquant !",
+        s2_kpi_t: "3 Cartes Récapitulatives (Semaine, Total Mois et En Attente)",
+        s2_kpi_d: "Suivez en temps réel vos heures de la Semaine, le Total du Mois et le nombre de jours ouvrés encore En Attente.",
         m_siteLbl: "Chantier actuel :",
         m_changeBtn: "Changer",
         m_chatTitle: "Messages et Notifications",
-        m_chatSub: "Parler au gestionnaire d'heures",
-        m_todayDate: "Aujourd'hui, Lundi",
+        m_chatSub: "Communiquez directement avec le gestionnaire",
+        m_openChatBtn: "Ouvrir Chat",
+        m_todayDate: "Aujourd'hui, Lundi · 19 Octobre",
         m_pointTodayBtn: "Pointer mes heures d'aujourd'hui",
-        m_pendingAlert: "⚠️ Heures précédentes manquantes",
+        m_quick5s: "Prend seulement 5 à 10 secondes sur mobile",
+        m_pendingAlert: "Heures de jours précédents manquantes",
+        m_pendingSub: "22 jour(s) en attente ce mois-ci",
         m_fillBtn: "Compléter",
-        m_kpiWeek: "Semaine",
-        m_kpiMonth: "Total Mois",
-        m_kpiPend: "En attente",
-        m_navHours: "Heures",
-        m_navNominas: "Paies",
-        m_navProfile: "Profil",
-        step3Tag: "Étape 3 sur 4 • Saisie Quotidienne",
+        m_kpiWeek: "SEMAINE",
+        m_kpiMonth: "TOTAL MOIS",
+        m_kpiPend: "EN ATTENTE",
+        m_5days: "5 jours",
+        m_21days: "21 jours",
+        m_toFill: "à saisir",
+        step3Tag: "Étape 3 sur 6 • Saisie Quotidienne",
         step3Title: "Comment Saisir vos Heures du Jour avec Précision",
-        step3Intro: "Dans la fenêtre de pointage, utilisez les raccourcis rapides :",
-        s3_b1_t: "Naviguez entre les Jours (◀ ▶)",
-        s3_b1_d: "Utilisez les flèches en haut pour passer rapidement d'un jour à l'autre.",
-        s3_b2_t: "Choisissez l'Équipe (☀️ Jour ou 🌙 Nuit) et le Chantier",
-        s3_b2_d: "Par défaut sur Jour et sur votre chantier actif. Si vous avez travaillé de nuit, sélectionnez Nuit.",
-        s3_b3_t: "Sélectionnez le Total d'Heures ou Repos",
-        s3_b3_d: "Touchez directement 8h, 9h, 10h, 12h, ajustez par demi-heure avec (– / +), ou touchez 'Repos' les jours non travaillés.",
-        s3_b4_t: "Appuyez sur 'Enregistrer'",
-        s3_b4_d: "Les heures d'entrée et de sortie sont calculées automatiquement. Ajoutez une note si besoin puis enregistrez !",
+        step3Intro: "En appuyant sur 'Pointer mes heures d'aujourd'hui' ou 'Compléter', cette fenêtre s'ouvre avec des raccourcis rapides :",
+        s3_b1_t: "Naviguez entre les Jours (◀ ▶) sans fermer la fenêtre",
+        s3_b1_d: "Utilisez les flèches en haut pour passer rapidement d'un jour à l'autre et compléter plusieurs jours d'affilée.",
+        s3_b2_t: "Choisissez le Poste (☀️ Jour ou 🌙 Nuit) et le Chantier",
+        s3_b2_d: "Par défaut sur Jour (07:00–18:00) et sur votre chantier lié. Si vous avez travaillé de nuit, sélectionnez Nuit (18:00–06:00).",
+        s3_b3_t: "Raccourcis d'Heures (8h, 9h, 10h, 12h), Boutons (– / +) ou Repos",
+        s3_b3_d: "Touchez directement 8h, 9h, 10h, 12h, ajustez par demi-heure avec (– / +), ou touchez 'Repos/Congé' les jours non travaillés.",
+        s3_b4_t: "Horaires Automatiques, Observations et 'Enregistrer'",
+        s3_b4_d: "Les heures d'entrée et de sortie sont calculées automatiquement et vous pouvez ajouter une observation. Terminez en appuyant sur Enregistrer !",
         m_modalTitle: "Nouveau Pointage",
         m_monday: "Lundi",
         m_shiftLbl: "Poste de Travail",
@@ -893,47 +1193,88 @@
         m_totalHrsLbl: "Total des Heures du Jour",
         m_restBtn: "Repos/Congé",
         m_saveBtn: "Enregistrer le Pointage",
-        step4Tag: "Étape 4 sur 4 • Clôture du Mois",
-        step4Title: "Générer le PDF Officiel et Signature du Chef de Chantier",
-        step4Intro: "En fin de mois, faites valider votre feuille d'heures sans papier :",
-        s4_b1_t: "Appuyez sur 'Générer le PDF pour signature'",
-        s4_b1_d: "Sur l'écran d'accueil, choisissez la carte verte 'Générer le PDF pour signature'.",
-        s4_b2_t: "Indiquez le Nom du Chef de Chantier",
-        s4_b2_d: "Vérifiez le total mensuel, entrez le nom du responsable de chantier et générez le lien.",
-        s4_b3_t: "Partagez le Lien + Code OTP à 6 chiffres",
-        s4_b3_d: "Le responsable ouvre le lien sur son téléphone, saisit le code OTP à 6 chiffres et signe avec le doigt sur l'écran.",
-        s4_b4_t: "Plan B : Envoyer une Photo de la Feuille Papier",
-        s4_b4_d: "Si une feuille papier signée est exigée sur le chantier, utilisez l'option Plan B pour envoyer une photo nette.",
+        stepChatTag: "Étape 4 sur 6 • Chat Direct et Notifications",
+        stepChatTitle: "Messages, Notifications du Gestionnaire et Questions",
+        stepChatIntro: "Vous disposez d'une messagerie directe dans l'application pour recevoir les avis sur vos heures et poser vos questions à l'entreprise :",
+        sc_b1_t: "Alertes et Notifications en Temps Réel",
+        sc_b1_d: "Lorsqu'un gestionnaire vous envoie un message, vous recevez une notification sur votre téléphone et la carte en haut s'illumine en jaune avec le badge rouge '1 nouveau'.",
+        sc_b2_t: "Bouton '🔔 Tester Push' (Activer les Alertes Mobile)",
+        sc_b2_d: "Dans l'en-tête du Chat, appuyez sur 'Tester Push' pour vérifier que les notifications arrivent bien sur votre appareil.",
+        sc_b3_t: "Posez vos Questions ou Répondez au Gestionnaire",
+        sc_b3_d: "Une question sur vos heures, un changement de chantier ou une absence à signaler ? Écrivez votre message dans le champ du bas ('Écrivez une réponse ou une question...') et appuyez sur le bouton vert (➤) !",
+        m_newBadge: "1 nouveau",
+        m_msgPreview: "Gestionnaire : 'Merci de confirmer vendredi'",
+        m_chatHeaderSub: "Communication directe avec le Gestionnaire d'Heures",
+        m_bubbleGestor: "Bonjour Carlos ! Il manque les heures de vendredi dernier. Pouvez-vous vérifier ?",
+        m_youLbl: "Vous • 10:17",
+        m_bubbleWorker: "Bonjour ! Je viens d'enregistrer les 8h de vendredi. J'ai une question sur le jour férié.",
+        m_chatInputPlaceholder: "Écrivez une réponse ou une question pour le gestionnaire...",
+        m_chatAudit: "Historique audité et horodaté.",
+        m_closeBtn: "Fermer",
+        stepConsultTag: "Étape 5 sur 6 • Consultations Semaine & Mois",
+        stepConsultTitle: "Comment Consulter la Semaine, le Calendrier et le Résumé du Mois",
+        stepConsultIntro: "Dans la section 'Actions Rapides' de l'écran d'accueil, 3 outils vous permettent de vérifier et modifier n'importe quel jour :",
+        s5_b1_t: "Mes heures de la semaine ('Voir les 7 jours et pointer les heures passées')",
+        s5_b1_d: "Affiche les 7 jours de la semaine (Lundi à Dimanche). Vous pouvez changer de semaine et toucher n'importe quel jour pour le compléter.",
+        s5_b2_t: "Calendrier du mois ('Grille complète avec points de statut')",
+        s5_b2_d: "Ouvre le calendrier mensuel complet avec des points de couleur : Vert (pointé), Jaune (en attente) et Gris (repos). Touchez n'importe quel jour pour l'ouvrir !",
+        s5_b3_t: "Résumé du mois ('Totaux par semaine, heures de jour et de nuit')",
+        s5_b3_d: "Affiche le bilan complet du mois : Jours Travaillés, Heures Totales, Heures de Jour, Heures de Nuit et total détaillé par semaine.",
+        m_quickActionsHdr: "ACTIONS RAPIDES",
+        m_actWeekTitle: "Mes heures de la semaine",
+        m_actWeekSub: "Voir les 7 jours et saisir les heures passées",
+        m_actCalTitle: "Calendrier du mois",
+        m_actCalSub: "Grille complète avec points de statut",
+        m_actSumTitle: "Résumé du mois",
+        m_actSumSub: "Totaux par semaine, heures de jour et de nuit",
+        m_previewTitle: "Exemple de Grille Mensuelle :",
+        step4Tag: "Étape 6 sur 6 • Clôture, Signature et Fiches de Paie",
+        step4Title: "Générer le PDF pour Signature, Plan B Papier et Statut",
+        step4Intro: "En fin de mois (ou en fin de mission sur un chantier), validez officiellement votre feuille d'heures :",
+        s4_b1_t: "Appuyez sur 'Générer le PDF pour signature (Officiel)'",
+        s4_b1_d: "Indiquez le nom de votre Chef de Chantier. Le système génère un Lien Direct et un Code OTP à 6 chiffres pour qu'il signe au doigt sur son téléphone !",
+        s4_b4_t: "Envoyer une photo de la feuille papier (Plan B)",
+        s4_b4_d: "Si vous avez rempli et fait signer le modèle papier imprimé, utilisez cette option pour envoyer une photo nette ou un PDF.",
+        s4_status_t: "Suivez le Statut de votre Feuille et Téléchargez le PDF",
+        s4_status_d: "En bas de l'écran, vérifiez le statut de votre feuille (Brouillon, En attente, Signé ou Validé) et appuyez sur '⬇️ PDF' pour télécharger votre copie.",
+        s2_b4_t: "Menu Inférieur : Heures, Fiches de Paie (Nóminas) et Profil",
+        s2_b4_d: "Utilisez la barre du bas pour télécharger vos fiches de paie mensuelles (Nóminas) et vérifier vos informations et IBAN (Profil).",
         m_pdfActionTitle: "Générer PDF pour signature",
-        m_pdfActionSub: "Validation numérique du responsable",
-        m_sentTitle: "Feuille Prête à Signer !",
-        m_supervisorLbl: "Responsable",
-        m_linkLbl: "Lien et Code pour le Responsable :",
+        m_pdfActionSub: "Envoyer au responsable pour validation numérique",
+        m_linkLbl: "Lien et Code OTP pour le Responsable :",
         m_copyLink: "Copier le Lien",
-        m_planBTitle: "Envoyer feuille papier (Plan B)",
-        m_planBSub: "Photo de la feuille signée à la main"
+        m_planBTitle: "Envoyer photo feuille papier (Plan B)",
+        m_planBSub: "Si vous avez rempli le modèle physique imprimé",
+        m_sheetMonth: "Feuille d'Octobre :",
+        m_statusValid: "Validé",
+        m_navHours: "Heures",
+        m_navNominas: "Paies",
+        m_navProfile: "Profil"
       },
       nl: {
-        toolbarTitle: "Visuele Trainingsgids — Werknemersportaal",
-        toolbarSub: "Selecteer hieronder de taal en klik op 'Opslaan als PDF' om via WhatsApp te delen",
+        btnBackPortal: "Terug naar Portaal",
+        toolbarTitle: "Visuele Gebruikersgids — Werknemersportaal",
+        toolbarSub: "Selecteer hieronder de taal of klik op 'Opslaan als PDF' om via WhatsApp te delen",
         btnPrint: "Opslaan als PDF / Afdrukken",
-        coverBadge: "Officiële Snelstartgids • MCS Personal",
-        coverTitle: "Hoe u uw Gewerkte Uren in 5 Seconden via uw Telefoon Registreert",
-        coverDesc: "Registreer uw uren nu dagelijks via uw smartphone, bekijk uw maandoverzicht, download uw loonstroken (Nóminas) en laat uw urenstaat digitaal ondertekenen door de uitvoerder.",
-        pill1: "Snel (5 seconden/dag)",
-        pill2: "Werkt als App op uw Telefoon",
+        coverBadge: "Officiële Geïllustreerde Handleiding • MCS Personal",
+        coverTitle: "Hoe u uw Uren Registreert, de Maand Bekijkt en Chat met de Beheerder",
+        coverDesc: "Stapsgewijze gids om dagelijks in 5 seconden uw uren in te voeren, openstaande dagen aan te vullen, meldingen te ontvangen en vragen te stellen via de Chat, uw week-/maandkalender te bekijken en uw urenstaat digitaal te laten tekenen.",
+        pill1: "Invoer in 5s",
+        pillChat: "Live Chat & Meldingen",
+        pillConsult: "Week- & Maandoverzicht",
         pill3: "Digitale Handtekening zonder Papier",
         accessBoxTitle: "Directe Toegang",
-        accessBoxSub: "Gebruik Naam + Paspoort/NIE",
-        step1Tag: "Stap 1 van 4 • Eerste Toegang",
-        step1Title: "Inloggen en App Installeren op uw Telefoon",
+        accessBoxSub: "Volledige Naam + Paspoort/NIE",
+        step1Tag: "Stap 1 van 6 • Eerste Toegang",
+        step1Title: "Inloggen en de App op uw Telefoon Installeren",
         step1Intro: "Geen ingewikkelde wachtwoorden nodig. Gebruik eenvoudig uw naam en documentnummer:",
-        s1_b1_t: "Kies bovenaan uw Taal",
-        s1_b1_d: "Tik rechtsboven op de taalknop om te wisselen van taal.",
-        s1_b2_t: "Installeer de App op uw Startscherm",
-        s1_b2_d: "Tik op 'Installeren' in de bovenste balk om het icoon direct op uw Android of iPhone te plaatsen.",
+        s1_b1_t: "Kies uw Taal en open deze Gids wanneer u wilt",
+        s1_b1_d: "Bovenaan het scherm kunt u van taal wisselen en op elk moment op '📖 Gebruikersgids bekijken' tikken.",
+        s1_b2_t: "Installeer de App en Schakel Meldingen in",
+        s1_b2_d: "Tik op 'Installeren' in de bovenste balk om het icoon op uw startscherm te plaatsen en belangrijke meldingen te ontvangen.",
         s1_b3_t: "Vul uw Volledige Naam en Paspoort / NIE in",
-        s1_b3_d: "Typ uw naam exact zoals op uw document en vink 'Onthoud op dit toestel' aan om voortaan met 1 tik in te loggen.",
+        s1_b3_d: "Typ uw naam exact zoals op uw document en laat 'Onthoud op dit toestel' aangevinkt om voortaan met 1 tik in te loggen.",
+        m_guideBtn: "📖 Handleiding",
         m_portalBadge: "● Werknemersportaal",
         m_welcome: "Welkom",
         m_installTitle: "MCS App Installeren",
@@ -943,42 +1284,45 @@
         m_passLbl: "Paspoort of Document",
         m_remember: "Onthoud op dit toestel",
         m_loginBtn: "Inloggen op Portaal →",
-        step2Tag: "Stap 2 van 4 • Dagelijkse Routine",
-        step2Title: "Overzicht, Projectlocatie, Chat en Snel Uren Invoeren",
-        step2Intro: "Alles wat u nodig heeft staat direct op het hoofdscherm:",
+        step2Tag: "Stap 2 van 6 • Dagelijks Paneel & Meldingen",
+        step2Title: "Uren van Vandaag Invoeren & Automatische Melding Ontbrekende Dagen",
+        step2Intro: "Zodra u de app opent, ziet u uw huidige project, de knop voor vandaag én een automatische waarschuwing als er nog eerdere dagen openstaan:",
         s2_b1_t: "Controleer de Maand en Huidige Projectlocatie (Obra)",
-        s2_b1_d: "Bovenaan ziet u de maand en uw huidige werklocatie. Werkt u op een ander project? Tik op 'Wijzigen'.",
-        s2_b2_t: "Berichten en Chat met de Planner/Beheerder",
-        s2_b2_d: "Vragen over uw uren? Tik op 'Chat' om direct een bericht te sturen.",
-        s2_b3_t: "Groene Knop: 'Mijn uren van vandaag invoeren'",
-        s2_b3_d: "Tik elke dag na het werk op deze knop. Als u een eerdere werkdag bent vergeten, verschijnt er een gele melding om deze direct in te vullen.",
-        s2_b4_t: "Menu Onderaan: Uren, Loonstroken en Mijn Profiel",
-        s2_b4_d: "Wissel onderaan eenvoudig tussen uw Uren, Loonstroken (Nóminas) en uw Profiel/IBAN.",
+        s2_b1_d: "Bovenaan ziet u de geselecteerde maand en uw project. Bent u van project gewisseld? Tik op 'Wijzigen'.",
+        s2_b3_t: "Groene Knop: '+ Mijn uren van vandaag invoeren'",
+        s2_b3_d: "Tik elke dag na uw dienst op deze knop. Het duurt slechts 5 tot 10 seconden op uw telefoon!",
+        s2_alert_t: "Gele Waarschuwing: 'Er ontbreken uren van eerdere dagen'",
+        s2_alert_d: "Vergeten gisteren of eerdere dagen in te vullen? Deze gele balk toont hoeveel dagen er deze maand nog openstaan. Tik op de oranje knop 'Invullen' om direct naar de eerste ontbrekende dag te gaan!",
+        s2_kpi_t: "3 Live Overzichtskaarten (Week, Totaal Maand en Openstaand)",
+        s2_kpi_d: "Bekijk direct hoeveel uren u deze Week heeft gewerkt, het Maandtotaal en hoeveel werkdagen nog Openstaan.",
         m_siteLbl: "Huidig project:",
         m_changeBtn: "Wijzigen",
         m_chatTitle: "Berichten & Meldingen",
-        m_chatSub: "Chat met de urenbeheerder",
-        m_todayDate: "Vandaag, Maandag",
+        m_chatSub: "Communiceer direct met de urenbeheerder",
+        m_openChatBtn: "Chat Openen",
+        m_todayDate: "Vandaag, Maandag · 19 Oktober",
         m_pointTodayBtn: "Mijn uren van vandaag invoeren",
-        m_pendingAlert: "⚠️ Eerdere uren ontbreken",
+        m_quick5s: "Duurt slechts 5 tot 10 seconden op uw mobiel",
+        m_pendingAlert: "Uren van eerdere dagen ontbreken",
+        m_pendingSub: "22 dag(en) openstaand in de maand",
         m_fillBtn: "Invullen",
-        m_kpiWeek: "Week",
-        m_kpiMonth: "Totaal Maand",
-        m_kpiPend: "Openstaand",
-        m_navHours: "Uren",
-        m_navNominas: "Loonstrook",
-        m_navProfile: "Profiel",
-        step3Tag: "Stap 3 van 4 • Dagelijkse Invoer",
+        m_kpiWeek: "WEEK",
+        m_kpiMonth: "TOTAAL MAAND",
+        m_kpiPend: "OPENSTAAND",
+        m_5days: "5 dagen",
+        m_21days: "21 dagen",
+        m_toFill: "in te vullen",
+        step3Tag: "Stap 3 van 6 • Dagelijkse Invoer",
         step3Title: "Hoe u de Uren van de Dag Nauwkeurig Invoert",
-        step3Intro: "Gebruik de handige snelknoppen in het invoerscherm:",
-        s3_b1_t: "Blader tussen Dagen (◀ ▶)",
-        s3_b1_d: "Gebruik de pijltjes bovenaan om snel meerdere dagen achter elkaar in te vullen.",
+        step3Intro: "Wanneer u op 'Mijn uren van vandaag invoeren' of op 'Invullen' tikt, opent dit scherm met handige snelknoppen:",
+        s3_b1_t: "Blader tussen Dagen (◀ ▶) zonder het venster te sluiten",
+        s3_b1_d: "Gebruik de pijltjes in de groene balk bovenaan om snel meerdere achterstallige dagen achter elkaar in te vullen.",
         s3_b2_t: "Kies uw Dienst (☀️ Dagdienst of 🌙 Nachtdienst) & Project",
-        s3_b2_d: "Standaard ingesteld op Dagdienst en uw gekoppelde project. Tik op Nachtdienst als u 's nachts heeft gewerkt.",
-        s3_b3_t: "Selecteer het Totaal Aantal Uren of Vrije Dag",
-        s3_b3_d: "Tik op 8u, 9u, 10u, 12u, pas per half uur aan met (– / +), of kies 'Vrij/Rustdag' op vrije dagen.",
-        s3_b4_t: "Tik op 'Uren Opslaan'",
-        s3_b4_d: "Begin- en eindtijd worden automatisch berekend. Voeg indien nodig een opmerking toe en tik op Opslaan!",
+        s3_b2_d: "Standaard ingesteld op Dagdienst (07:00–18:00) en uw gekoppelde project. Tik op Nachtdienst (18:00–06:00) als u 's nachts heeft gewerkt.",
+        s3_b3_t: "Snelknoppen (8u, 9u, 10u, 12u), Knoppen (– / +) of Vrije Dag",
+        s3_b3_d: "Tik direct op 8u, 9u, 10u, 12u, pas per half uur aan met (– / +), of kies 'Vrij/Rustdag' op dagen dat u niet heeft gewerkt.",
+        s3_b4_t: "Automatische Tijden, Opmerkingen & 'Uren Opslaan'",
+        s3_b4_d: "Begin- en eindtijd worden automatisch berekend en u kunt een opmerking toevoegen. Rond af door op de groene knop Opslaan te tikken!",
         m_modalTitle: "Nieuwe Registratie",
         m_monday: "Maandag",
         m_shiftLbl: "Werktijd / Dienst",
@@ -988,47 +1332,88 @@
         m_totalHrsLbl: "Totaal Uren van de Dag",
         m_restBtn: "Vrij/Rustdag",
         m_saveBtn: "Uren Opslaan",
-        step4Tag: "Stap 4 van 4 • Maandafsluiting",
-        step4Title: "Officiële PDF Genereren & Digitale Handtekening Uitvoerder",
-        step4Intro: "Aan het einde van de maand laat u uw urenstaat digitaal goedkeuren:",
-        s4_b1_t: "Tik op 'PDF genereren voor ondertekening'",
-        s4_b1_d: "Kies op het startscherm onder Snelle Acties de groene kaart 'PDF genereren voor ondertekening'.",
-        s4_b2_t: "Vul de Naam van de Uitvoerder / Voorman in",
-        s4_b2_d: "Controleer uw maandtotaal, vul de naam van de uitvoerder in en maak de ondertekeningslink aan.",
-        s4_b3_t: "Deel de Link + 6-cijferige OTP-code met de Uitvoerder",
-        s4_b3_d: "De uitvoerder opent de link op zijn telefoon, vult de 6-cijferige OTP-code in en zet zijn handtekening met zijn vinger op het scherm.",
-        s4_b4_t: "Plan B: Foto van Papieren Urenstaat Uploaden",
-        s4_b4_d: "Vereist de bouwplaats een papieren formulier? Gebruik dan 'Papieren urenstaat uploaden (Plan B)' om een duidelijke foto te sturen.",
+        stepChatTag: "Stap 4 van 6 • Directe Chat & Meldingen",
+        stepChatTitle: "Berichten, Meldingen van de Beheerder & Vragen Stellen",
+        stepChatIntro: "U heeft een direct communicatiekanaal in de app om berichten over uw uren te ontvangen én zelf vragen te stellen aan kantoor:",
+        sc_b1_t: "Meldingen en Berichten in Realtime",
+        sc_b1_d: "Zodra de urenbeheerder u een bericht of herinnering stuurt, ontvangt u een pushmelding op uw telefoon en kleurt de balk bovenaan geel met het rode label '1 nieuw'.",
+        sc_b2_t: "Knop '🔔 Test Push' (Mobiele Meldingen Testen)",
+        sc_b2_d: "Bovenaan in de Chat kunt u op 'Testar Push' tikken om te controleren of meldingen goed binnenkomen op uw toestel.",
+        sc_b3_t: "Stel Vragen of Stuur een Antwoord naar de Beheerder",
+        sc_b3_d: "Heeft u een vraag over uw uren, bent u van project gewisseld of wilt u reageren op een bericht? Typ uw bericht onderaan ('Schrijf een antwoord of vraag voor de beheerder...') en tik op de groene verzendknop (➤)!",
+        m_newBadge: "1 nieuw",
+        m_msgPreview: "Beheerder: 'Bevestig a.u.b. de uren van vrijdag'",
+        m_chatHeaderSub: "Directe communicatie met de Urenbeheerder",
+        m_bubbleGestor: "Hallo Carlos! De uren van afgelopen vrijdag ontbreken nog. Kun je dit nakijken?",
+        m_youLbl: "U • 10:17",
+        m_bubbleWorker: "Goedemorgen! Ik heb net de 8u van vrijdag ingevoerd. Ik heb nog een vraag over de feestdag.",
+        m_chatInputPlaceholder: "Schrijf een antwoord of vraag voor de beheerder...",
+        m_chatAudit: "Geregistreerde chatgeschiedenis met datum en tijd.",
+        m_closeBtn: "Sluiten",
+        stepConsultTag: "Stap 5 van 6 • Week- en Maandoverzichten",
+        stepConsultTitle: "Hoe u Weekuren, de Maandkalender en het Maandoverzicht Bekijkt",
+        stepConsultIntro: "Onder 'Snelle Acties' op het startscherm vindt u 3 overzichtelijke weergaven om elke dag van de maand te bekijken of aan te passen:",
+        s5_b1_t: "Mijn uren van de week ('Bekijk de 7 dagen en voer eerdere uren in')",
+        s5_b1_d: "Toont alle 7 dagen van de week (Maandag t/m Zondag) onder elkaar. Blader tussen weken en tik op een dag om uren in te voeren of te wijzigen.",
+        s5_b2_t: "Kalender van de maand ('Volledig overzicht met statuspunten')",
+        s5_b2_d: "Opent de volledige maandkalender met gekleurde stippen: Groen (ingevoerd), Geel (openstaand) en Grijs (vrij/weekend). Tik op een dag in de kalender om deze direct te openen!",
+        s5_b3_t: "Overzicht van de maand ('Totalen per week, dag- en nachturen')",
+        s5_b3_d: "Toont de volledige balans van de maand: Gewerkte Dagen, Totaal Uren, Daguren, Nachturen én het subtotaal per week (Week 1, Week 2, enz.).",
+        m_quickActionsHdr: "SNELLE ACTIES",
+        m_actWeekTitle: "Mijn uren van de week",
+        m_actWeekSub: "Bekijk de 7 dagen en voer eerdere uren in",
+        m_actCalTitle: "Kalender van de maand",
+        m_actCalSub: "Volledig rooster met statuspunten",
+        m_actSumTitle: "Overzicht van de maand",
+        m_actSumSub: "Totalen per week, dag- en nachturen",
+        m_previewTitle: "Voorbeeld Maandkalender:",
+        step4Tag: "Stap 6 van 6 • Maandafsluiting, Handtekening & Loonstroken",
+        step4Title: "PDF Genereren voor Handtekening, Plan B op Papier & Status",
+        step4Intro: "Aan het einde van de maand sluit u uw urenstaat af met officiële goedkeuring:",
+        s4_b1_t: "Tik op 'PDF genereren voor handtekening (Officieel)'",
+        s4_b1_d: "Vul de naam van uw Uitvoerder in. Het systeem maakt een Directe Link en 6-cijferige OTP-code aan waarmee de uitvoerder op zijn telefoon met zijn vinger kan tekenen!",
+        s4_b4_t: "Foto van papieren urenstaat sturen (Plan B)",
+        s4_b4_d: "Heeft u een geprint papieren formulier ingevuld en laten aftekenen? Gebruik deze optie om een duidelijke foto of PDF te uploaden.",
+        s4_status_t: "Volg de Status van uw Urenstaat & Download de PDF",
+        s4_status_d: "Onderaan ziet u de actuele status (Concept, Wacht op Handtekening, Ondertekend of Gevalideerd) en kunt u op '⬇️ PDF' tikken om uw officiële kopie te downloaden.",
+        s2_b4_t: "Menu Onderaan: Uren, Loonstroken (Nóminas) & Profiel",
+        s2_b4_d: "Gebruik de balk onderaan om uw maandelijkse loonstroken (Nóminas) te downloaden en uw persoonsgegevens en IBAN te bekijken (Profiel).",
         m_pdfActionTitle: "PDF genereren voor handtekening",
-        m_pdfActionSub: "Digitale validatie door uitvoerder",
-        m_sentTitle: "Klaar voor Ondertekening!",
-        m_supervisorLbl: "Uitvoerder",
-        m_linkLbl: "Link en Code voor Uitvoerder:",
+        m_pdfActionSub: "Stuur naar uitvoerder voor digitale validatie",
+        m_linkLbl: "Link en OTP-code voor Uitvoerder:",
         m_copyLink: "Link Kopiëren",
-        m_planBTitle: "Papieren formulier (Plan B)",
-        m_planBSub: "Foto van handgetekend formulier"
+        m_planBTitle: "Foto van papieren staat sturen (Plan B)",
+        m_planBSub: "Als u het fysieke formulier op papier heeft ingevuld",
+        m_sheetMonth: "Urenstaat Oktober:",
+        m_statusValid: "Gevalideerd",
+        m_navHours: "Uren",
+        m_navNominas: "Loonstrook",
+        m_navProfile: "Profiel"
       },
       en: {
-        toolbarTitle: "Visual Training Guide — Worker Portal",
-        toolbarSub: "Select a language below and click 'Save as PDF' to share on WhatsApp",
+        btnBackPortal: "Back to Portal",
+        toolbarTitle: "Visual How-To Guide — Worker Portal",
+        toolbarSub: "Select your language below or click 'Save as PDF' to share on WhatsApp",
         btnPrint: "Save as PDF / Print",
-        coverBadge: "Official Quick Guide • MCS Personal",
-        coverTitle: "How to Log Your Daily Hours on Your Phone in 5 Seconds",
-        coverDesc: "Now you can log your working hours daily right from your phone, track your monthly totals, download your payslips (Nóminas), and get your timesheet digitally signed by your site supervisor.",
-        pill1: "Fast (5 seconds/day)",
-        pill2: "Works as a Mobile App",
+        coverBadge: "Official Illustrated Manual • MCS Personal",
+        coverTitle: "How to Log Hours, Check Monthly Views & Chat with Your Manager",
+        coverDesc: "Step-by-step guide to logging your daily hours in 5 seconds, filling in missing days, receiving notifications and asking questions via Chat, checking your weekly/monthly calendar, and getting your timesheet digitally signed.",
+        pill1: "5-Second Logging",
+        pillChat: "Live Chat & Push Alerts",
+        pillConsult: "Weekly & Monthly Views",
         pill3: "Paperless Digital Signature",
         accessBoxTitle: "Direct Access",
         accessBoxSub: "Full Name + Passport/NIE",
-        step1Tag: "Step 1 of 4 • First Login",
+        step1Tag: "Step 1 of 6 • First Login",
         step1Title: "Sign In and Install the App on Your Phone",
         step1Intro: "No complicated passwords needed. Simply log in using your full name and ID/Passport number:",
-        s1_b1_t: "Select Your Language at the Top",
-        s1_b1_d: "Tap the language button in the top-right corner to switch languages.",
-        s1_b2_t: "Install the App on Your Home Screen",
-        s1_b2_d: "Tap 'Install' on the top banner to add the Worker Portal icon directly to your Android or iPhone home screen.",
+        s1_b1_t: "Choose Your Language & Open This Guide Anytime",
+        s1_b1_d: "At the top of the screen you can switch languages and tap '📖 View How-To Guide' whenever you need help.",
+        s1_b2_t: "Install the App and Enable Notifications",
+        s1_b2_d: "Tap 'Install' on the top banner to add the Portal icon to your Android or iPhone home screen and receive instant alerts.",
         s1_b3_t: "Enter Your Full Name and Passport / NIE",
-        s1_b3_d: "Type your name exactly as shown on your ID document and keep 'Remember on this device' checked for 1-tap login.",
+        s1_b3_d: "Type your name exactly as shown on your ID document and keep 'Remember on this device' checked for automatic 1-tap login.",
+        m_guideBtn: "📖 User Guide",
         m_portalBadge: "● Worker Portal",
         m_welcome: "Welcome",
         m_installTitle: "Install MCS App",
@@ -1038,42 +1423,45 @@
         m_passLbl: "Passport or ID Document",
         m_remember: "Remember on this device",
         m_loginBtn: "Sign In to Portal →",
-        step2Tag: "Step 2 of 4 • Daily Routine",
-        step2Title: "Dashboard Overview, Work Site, Chat & Quick Log",
-        step2Intro: "Everything you need is right on the main screen as soon as you open the app:",
+        step2Tag: "Step 2 of 6 • Daily Dashboard & Alerts",
+        step2Title: "Today's Entry & Automatic Missing Days Alert",
+        step2Intro: "As soon as you open the app, it displays your active work site, the button to log today's hours, and an automatic warning if any past workdays are missing:",
         s2_b1_t: "Check the Month and Current Work Site",
-        s2_b1_d: "At the top you can see the selected month and your assigned Work Site. If you changed sites, tap 'Change'.",
-        s2_b2_t: "Messages & Direct Chat with Manager",
-        s2_b2_d: "Have questions about your hours? Tap 'Chat' to message the hours management team directly.",
-        s2_b3_t: "Green Button: 'Log my hours for today'",
-        s2_b3_d: "Tap this button every day after work. If you missed any previous workday, a yellow alert will appear right below to fill it in.",
-        s2_b4_t: "Bottom Menu: Hours, Payslips (Nóminas) & Profile",
-        s2_b4_d: "Use the bottom bar to switch between your Hours, your Payslips, and your Personal/IBAN details.",
+        s2_b1_d: "At the top you see the active month and your assigned Work Site. If you changed sites during the month, tap 'Change'.",
+        s2_b3_t: "Green Button: '+ Log my hours for today'",
+        s2_b3_d: "Tap this button every day when finishing your shift. It takes only 5 to 10 seconds on your phone!",
+        s2_alert_t: "Yellow Alert: 'Missing hours from previous days'",
+        s2_alert_d: "Forgot to log yesterday or earlier days? This yellow alert shows how many days are pending in the month. Simply tap the orange 'Fill Now' button and it opens right on the first missing day!",
+        s2_kpi_t: "3 Live Summary Cards (Week, Month Total & Pending)",
+        s2_kpi_d: "Track at a glance how many hours you have logged this Week, your accumulated Month Total, and how many workdays are still Pending.",
         m_siteLbl: "Current site:",
         m_changeBtn: "Change",
         m_chatTitle: "Messages & Notifications",
-        m_chatSub: "Chat with the hours manager",
-        m_todayDate: "Today, Monday",
+        m_chatSub: "Communicate directly with the hours manager",
+        m_openChatBtn: "Open Chat",
+        m_todayDate: "Today, Monday · October 19",
         m_pointTodayBtn: "Log my hours for today",
-        m_pendingAlert: "⚠️ Missing previous days",
+        m_quick5s: "Takes only 5 to 10 seconds on your phone",
+        m_pendingAlert: "Missing hours from previous days",
+        m_pendingSub: "22 pending day(s) in the month",
         m_fillBtn: "Fill Now",
-        m_kpiWeek: "Week",
-        m_kpiMonth: "Month Total",
-        m_kpiPend: "Pending",
-        m_navHours: "Hours",
-        m_navNominas: "Payslips",
-        m_navProfile: "Profile",
-        step3Tag: "Step 3 of 4 • Daily Entry",
+        m_kpiWeek: "WEEK",
+        m_kpiMonth: "MONTH TOTAL",
+        m_kpiPend: "PENDING",
+        m_5days: "5 days",
+        m_21days: "21 days",
+        m_toFill: "to log",
+        step3Tag: "Step 3 of 6 • Daily Time Entry",
         step3Title: "How to Log Your Daily Hours Accurately",
-        step3Intro: "Inside the daily entry window, use quick shortcuts to log in seconds:",
-        s3_b1_t: "Switch Between Days (◀ ▶)",
-        s3_b1_d: "Use the arrows in the green header to quickly move to the previous or next day.",
+        step3Intro: "When you tap 'Log my hours for today' or 'Fill Now', this window opens with 1-tap shortcuts:",
+        s3_b1_t: "Navigate Between Days (◀ ▶) Without Closing the Window",
+        s3_b1_d: "Use the arrows in the green header to quickly move between days if you want to catch up on several past days at once.",
         s3_b2_t: "Choose Shift (☀️ Day or 🌙 Night) & Work Site",
-        s3_b2_d: "Defaults to Day Shift and your linked work site. Tap Night Shift if you worked overnight.",
-        s3_b3_t: "Select Total Hours or Day Off",
-        s3_b3_d: "Tap the 1-touch buttons (8h, 9h, 10h, 12h), adjust by 0.5h using (– / +), or tap 'Day Off/Rest' on non-working days.",
-        s3_b4_t: "Tap 'Save Entry'",
-        s3_b4_d: "Start and End times are calculated automatically (and can be edited). Add optional notes if needed and tap Save!",
+        s3_b2_d: "Defaults to Day Shift (07:00–18:00) and your linked work site. Tap Night Shift (18:00–06:00) if you worked overnight.",
+        s3_b3_t: "Quick Hour Shortcuts (8h, 9h, 10h, 12h), (– / +) or Day Off",
+        s3_b3_d: "Tap the quick buttons (8h, 9h, 10h, 12h), adjust by half-hour increments using (– / +), or tap 'Day Off/Rest' on non-working days.",
+        s3_b4_t: "Auto Start/End Times, Notes & 'Save Entry'",
+        s3_b4_d: "Start and End times are calculated automatically (and can be edited) plus you can add optional notes. Finish by tapping the green Save button!",
         m_modalTitle: "New Time Entry",
         m_monday: "Monday",
         m_shiftLbl: "Work Shift",
@@ -1083,30 +1471,72 @@
         m_totalHrsLbl: "Total Hours for the Day",
         m_restBtn: "Day Off/Rest",
         m_saveBtn: "Save Entry",
-        step4Tag: "Step 4 of 4 • Month Closing",
-        step4Title: "Generate Official PDF & Supervisor Digital Signature",
-        step4Intro: "At the end of the month, validate your timesheet digitally without printing paper:",
+        stepChatTag: "Step 4 of 6 • Direct Chat & Notifications",
+        stepChatTitle: "Messages, Manager Notifications & Asking Questions",
+        stepChatIntro: "You have a direct communication channel inside the app to receive alerts about your hours and ask questions to the office:",
+        sc_b1_t: "Real-Time Alerts & Notifications",
+        sc_b1_d: "Whenever the Hours Manager sends you a message or reminder, you get a push notification on your phone and the top card highlights in yellow with a red '1 new' badge.",
+        sc_b2_t: "'🔔 Test Push' Button (Verify Mobile Alerts)",
+        sc_b2_d: "In the Chat header you can tap 'Test Push' to make sure notifications are arriving on your phone.",
+        sc_b3_t: "Ask Questions or Reply Directly to the Manager",
+        sc_b3_d: "Have a question about your hours, changed sites, had a medical absence, or want to reply to an alert? Type your message in the bottom box ('Write a reply or question for the manager...') and tap the green send button (➤)!",
+        m_newBadge: "1 new",
+        m_msgPreview: "Manager: 'Please confirm last Friday'",
+        m_chatHeaderSub: "Direct communication with the Hours Manager",
+        m_bubbleGestor: "Hi Carlos! Last Friday's hours are still missing. Could you check?",
+        m_youLbl: "You • 10:17",
+        m_bubbleWorker: "Good morning! I just logged the 8h for Friday. I also have a question about the holiday.",
+        m_chatInputPlaceholder: "Write a reply or question for the manager...",
+        m_chatAudit: "Audited history logged with date and time.",
+        m_closeBtn: "Close",
+        stepConsultTag: "Step 5 of 6 • Weekly & Monthly Views",
+        stepConsultTitle: "How to Check Weekly Hours, Monthly Calendar & Summary",
+        stepConsultIntro: "Under 'Quick Actions' on the home screen, you have 3 complete tools to review and edit any day of the month:",
+        s5_b1_t: "My week's hours ('View all 7 days and log past hours')",
+        s5_b1_d: "Lists all 7 days of the week (Monday to Sunday). You can switch weeks and tap any day to log or edit past hours.",
+        s5_b2_t: "Month calendar ('Full grid with status dots')",
+        s5_b2_d: "Opens the full monthly calendar with color-coded status dots: Green (logged), Yellow (pending), and Gray (day off/weekend). Tap any day on the calendar to open it!",
+        s5_b3_t: "Month summary ('Weekly totals, day and night hours')",
+        s5_b3_d: "Displays your complete monthly balance: Days Worked, Total Hours, Day Hours, Night Hours, plus a week-by-week breakdown (Week 1, Week 2, etc.).",
+        m_quickActionsHdr: "QUICK ACTIONS",
+        m_actWeekTitle: "My week's hours",
+        m_actWeekSub: "View all 7 days and log past hours",
+        m_actCalTitle: "Month calendar",
+        m_actCalSub: "Full grid with status dots",
+        m_actSumTitle: "Month summary",
+        m_actSumSub: "Weekly totals, day and night hours",
+        m_previewTitle: "Monthly Calendar Grid Example:",
+        step4Tag: "Step 6 of 6 • Month Closing, Signature & Payslips",
+        step4Title: "Generate PDF for Signature, Paper Plan B & Sheet Status",
+        step4Intro: "At the end of the month (or when finishing at a site), close your timesheet with official validation:",
         s4_b1_t: "Tap 'Generate PDF for signature (Official)'",
-        s4_b1_d: "On the home screen, scroll to Quick Actions and tap the green card 'Generate PDF for signature'.",
-        s4_b2_t: "Enter Your Site Supervisor's Name",
-        s4_b2_d: "Review your monthly hours summary, type your Site Supervisor's name, and generate the signing link.",
-        s4_b3_t: "Share the Link + 6-Digit OTP Code with Your Supervisor",
-        s4_b3_d: "Your supervisor opens the link on their phone, enters the 6-digit OTP security code, signs with their finger on screen, and your sheet is officially approved!",
-        s4_b4_t: "Plan B: Upload Photo of Paper Timesheet",
-        s4_b4_d: "If your work site strictly requires a pen-signed paper sheet, use 'Upload paper sheet photo (Plan B)' to send a clear photo.",
+        s4_b1_d: "Enter your Site Supervisor's name. The system generates a Direct Link and a 6-digit OTP Code so your supervisor can open it on their phone and sign with their finger on screen!",
+        s4_b4_t: "Upload photo of paper sheet (Plan B)",
+        s4_b4_d: "If you filled out and signed a printed paper timesheet, use this option to upload a clear photo or PDF.",
+        s4_status_t: "Track Your Timesheet Status & Download PDF",
+        s4_status_d: "At the bottom of the screen you can see your current timesheet status (Draft, Awaiting Signature, Signed, or Validated) and tap '⬇️ PDF' to download your official copy anytime.",
+        s2_b4_t: "Bottom Menu: Hours, Payslips (Nóminas) & My Profile",
+        s2_b4_d: "Use the bottom navigation bar to download your monthly payslips (Nóminas) and check your personal details and IBAN bank account (My Profile).",
         m_pdfActionTitle: "Generate PDF for signature",
-        m_pdfActionSub: "Supervisor digital validation",
-        m_sentTitle: "Timesheet Ready to Sign!",
-        m_supervisorLbl: "Supervisor",
+        m_pdfActionSub: "Send to supervisor for digital validation",
         m_linkLbl: "Link & OTP Code for Supervisor:",
         m_copyLink: "Copy Link",
-        m_planBTitle: "Upload paper sheet (Plan B)",
-        m_planBSub: "Photo of hand-signed paper sheet"
+        m_planBTitle: "Upload photo of paper sheet (Plan B)",
+        m_planBSub: "If you filled out the printed physical form",
+        m_sheetMonth: "October Sheet:",
+        m_statusValid: "Validated",
+        m_navHours: "Hours",
+        m_navNominas: "Payslips",
+        m_navProfile: "Profile"
       }
     };
 
     function setLang(lang) {
-      const dict = translations[lang] || translations.pt;
+      const normalized = (lang || 'pt').toLowerCase().slice(0, 2);
+      const target = translations[normalized] ? normalized : 'pt';
+      const dict = translations[target];
+      document.documentElement.lang = target;
+
       document.querySelectorAll('[data-i18n]').forEach(el => {
         const key = el.getAttribute('data-i18n');
         if (dict[key]) {
@@ -1115,13 +1545,24 @@
       });
 
       document.querySelectorAll('.lang-btn').forEach(btn => {
-        btn.className = "lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white";
+        btn.className = "lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white cursor-pointer";
       });
-      const activeBtn = document.getElementById('btn-' + lang);
+      const activeBtn = document.getElementById('btn-' + target);
       if (activeBtn) {
-        activeBtn.className = "lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950";
+        activeBtn.className = "lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950 cursor-pointer";
       }
     }
+
+    // Auto-detectar idioma via ?lang=xx na URL ou localStorage
+    (function initLang() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlLang = params.get('lang') || params.get('lng') || localStorage.getItem('i18nextLng') || 'pt';
+        setLang(urlLang);
+      } catch (_) {
+        setLang('pt');
+      }
+    })();
   </script>
 </body>
 </html>
