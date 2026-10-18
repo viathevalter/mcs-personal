@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manual Visual — Portal do Trabalhador | MCS Personal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+    }
+    .phone-mockup {
+      width: 310px;
+      border-radius: 36px;
+      border: 8px solid #0f172a;
+      background: #f8fafc;
+      box-shadow: 0 20px 40px -15px rgba(15, 23, 42, 0.25);
+      overflow: hidden;
+      position: relative;
+      flex-shrink: 0;
+    }
+    .phone-notch {
+      width: 110px;
+      height: 18px;
+      background: #0f172a;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      margin: 0 auto;
+    }
+    .step-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 9999px;
+      background: #e11d48;
+      color: #fff;
+      font-weight: 900;
+      font-size: 12px;
+      box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(225, 29, 72, 0.5);
+      flex-shrink: 0;
+    }
+    @media print {
+      body {
+        background: #ffffff !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .print-page {
+        page-break-after: always;
+        break-after: page;
+        box-shadow: none !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-bottom: 0 !important;
+      }
+      .print-page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+      .phone-mockup {
+        box-shadow: none !important;
+        border-width: 6px !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+
+  <!-- BARRA FLUTUANTE DE CONTROLE (IDIOMAS + EXPORTAR PDF) -->
+  <div class="no-print sticky top-0 z-50 bg-slate-900/95 backdrop-blur-md text-white border-b border-slate-800 px-4 py-3 shadow-lg">
+    <div class="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2.5">
+        <div class="h-8 w-8 rounded-lg bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-sm">MCS</div>
+        <div>
+          <span class="font-bold text-sm block leading-none" data-i18n="toolbarTitle">Guia Visual de Treinamento — Portal do Trabalhador</span>
+          <span class="text-[11px] text-slate-400" data-i18n="toolbarSub">Selecione o idioma abaixo e clique em "Salvar PDF" para enviar no WhatsApp</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <!-- Seletor de Idiomas -->
+        <div class="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700">
+          <button onclick="setLang('pt')" id="btn-pt" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950">🇵🇹 PT</button>
+          <button onclick="setLang('es')" id="btn-es" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇪🇸 ES</button>
+          <button onclick="setLang('fr')" id="btn-fr" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇫🇷 FR</button>
+          <button onclick="setLang('nl')" id="btn-nl" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇳🇱 NL</button>
+          <button onclick="setLang('en')" id="btn-en" class="lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white">🇬🇧 EN</button>
+        </div>
+
+        <!-- Botão Imprimir / Gerar PDF -->
+        <button onclick="window.print()" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs px-4 py-2 rounded-xl shadow-md flex items-center gap-1.5 transition-all cursor-pointer">
+          <span>🖨️</span>
+          <span data-i18n="btnPrint">Salvar em PDF / Imprimir</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONTEÚDO PRINCIPAL -->
+  <div class="max-w-5xl mx-auto px-4 pt-6 space-y-8">
+
+    <!-- CAPA / CABEÇALHO DO GUIA -->
+    <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="space-y-3 max-w-xl">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-xs font-extrabold uppercase tracking-wider">
+          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+          <span data-i18n="coverBadge">Guia Rápido Oficial • MCS Personal</span>
+        </span>
+        <h1 class="text-2xl sm:text-4xl font-black tracking-tight leading-tight" data-i18n="coverTitle">
+          Como Apontar suas Horas pelo Telemóvel em 5 Segundos
+        </h1>
+        <p class="text-sm text-slate-300 leading-relaxed" data-i18n="coverDesc">
+          Agora você registra suas horas todos os dias direto pelo telemóvel, acompanha o resumo do mês, consulta seus recibos (Nóminas) e envia sua folha para assinatura digital do encarregado.
+        </p>
+        <div class="pt-2 flex flex-wrap gap-3 text-xs font-semibold text-emerald-300">
+          <span class="bg-white/10 px-3 py-1.5 rounded-xl">⚡ <span data-i18n="pill1">Rápido (5 segundos/dia)</span></span>
+          <span class="bg-white/10 px-3 py-1.5 rounded-xl">📱 <span data-i18n="pill2">Funciona como App no Telemóvel</span></span>
+          <span class="bg-white/10 px-3 py-1.5 rounded-xl">✍️ <span data-i18n="pill3">Assinatura Digital sem Papel</span></span>
+        </div>
+      </div>
+
+      <div class="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-4 text-center min-w-[220px]">
+        <div class="text-xs font-bold uppercase tracking-wider text-emerald-300 mb-1" data-i18n="accessBoxTitle">Acesso Direto</div>
+        <div class="text-xs text-slate-300 mb-3" data-i18n="accessBoxSub">Use seu Nome + Passaporte/NIE</div>
+        <div class="bg-emerald-500 text-slate-950 font-black text-xs px-3 py-2 rounded-xl">
+          app.mcspersonal.com/portal
+        </div>
+      </div>
+    </div>
+
+    <!-- PASSO 1: LOGIN E INSTALAÇÃO DO APP -->
+    <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+      <div class="flex flex-col lg:flex-row items-center gap-8">
+        <!-- Explicação Passo a Passo -->
+        <div class="flex-1 space-y-5">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
+            <span data-i18n="step1Tag">Passo 1 de 4 • Primeiro Acesso</span>
+          </div>
+          <h2 class="text-2xl font-black text-slate-900" data-i18n="step1Title">
+            Entrar no Portal e Instalar no Telemóvel
+          </h2>
+          <p class="text-sm text-slate-600" data-i18n="step1Intro">
+            Você não precisa decorar senhas complicadas. Basta usar seu nome e número de documento:
+          </p>
+
+          <div class="space-y-4">
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">1</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b1_t">Escolha o seu Idioma no topo</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b1_d">Toque no botão no canto superior direito para alternar entre Português e Espanhol.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">2</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b2_t">Instale o Aplicativo na Tela Inicial</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b2_d">Toque em "Instalar" no banner superior para criar o ícone do Portal direto na tela do seu Android ou iPhone.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">3</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s1_b3_t">Digite seu Nome Completo e Passaporte / NIE</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s1_b3_d">Escreva exatamente como consta no seu documento e mantenha marcada a opção "Lembrar neste aparelho" para entrar com 1 toque nos próximos dias.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mockup Ilustrativo da Tela 1 (Login) -->
+        <div class="phone-mockup bg-slate-950 text-white">
+          <div class="phone-notch"></div>
+          <div class="p-4 space-y-3">
+            <!-- Topo Idioma -->
+            <div class="flex justify-end items-center gap-1">
+              <span class="step-badge">1</span>
+              <span class="px-2.5 py-1 rounded-full bg-slate-900 border border-white/25 text-[10px] font-bold">🌐 🇵🇹 Português</span>
+            </div>
+
+            <!-- Logo -->
+            <div class="text-center py-1">
+              <span class="inline-block px-2.5 py-0.5 rounded-full bg-emerald-950 border border-emerald-500/40 text-[9px] text-emerald-300 font-extrabold uppercase" data-i18n="m_portalBadge">● Portal do Trabalhador</span>
+              <h3 class="text-lg font-black mt-1" data-i18n="m_welcome">Bem-vindo</h3>
+            </div>
+
+            <!-- Banner Instalar App -->
+            <div class="bg-emerald-950/90 border border-emerald-500/40 rounded-2xl p-2.5 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="step-badge">2</span>
+                <div class="text-[10px] leading-tight">
+                  <strong class="text-white block" data-i18n="m_installTitle">Instalar Aplicativo MCS</strong>
+                  <span class="text-emerald-300" data-i18n="m_installSub">Acesso rápido na tela inicial</span>
+                </div>
+              </div>
+              <span class="bg-emerald-500 text-slate-950 font-black text-[10px] px-2 py-1 rounded-lg" data-i18n="m_installBtn">Instalar</span>
+            </div>
+
+            <!-- Card Branco Login -->
+            <div class="bg-white text-slate-900 rounded-2xl p-4 space-y-3 shadow-lg">
+              <div>
+                <div class="flex items-center justify-between">
+                  <label class="text-[9px] font-bold text-slate-700 uppercase" data-i18n="m_nameLbl">Nome Completo</label>
+                  <span class="step-badge">3</span>
+                </div>
+                <div class="mt-1 h-8 rounded-lg bg-slate-100 border border-slate-300 px-2.5 flex items-center text-[11px] font-semibold text-slate-800">
+                  👤 Carlos Eduardo Silva
+                </div>
+              </div>
+
+              <div>
+                <label class="text-[9px] font-bold text-slate-700 uppercase" data-i18n="m_passLbl">Passaporte ou Documento</label>
+                <div class="mt-1 h-8 rounded-lg bg-slate-100 border border-slate-300 px-2.5 flex items-center text-[11px] font-mono font-bold text-slate-800">
+                  📄 Y9876543Z
+                </div>
+              </div>
+
+              <div class="flex items-center gap-1.5 text-[10px] font-semibold text-slate-700">
+                <span class="h-3.5 w-3.5 rounded bg-emerald-600 text-white flex items-center justify-center text-[9px]">✓</span>
+                <span data-i18n="m_remember">Lembrar neste aparelho</span>
+              </div>
+
+              <div class="h-9 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center shadow-md" data-i18n="m_loginBtn">
+                Entrar no Portal →
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PASSO 2: TELA PRINCIPAL E APONTAMENTO DE HOJE -->
+    <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+      <div class="flex flex-col lg:flex-row items-center gap-8">
+        <!-- Explicação Passo a Passo -->
+        <div class="flex-1 space-y-5">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
+            <span data-i18n="step2Tag">Passo 2 de 4 • Rotina Diária</span>
+          </div>
+          <h2 class="text-2xl font-black text-slate-900" data-i18n="step2Title">
+            Visão Geral, Obra, Chat e Apontamento Rápido
+          </h2>
+          <p class="text-sm text-slate-600" data-i18n="step2Intro">
+            Ao entrar no aplicativo, tudo o que você precisa está na tela inicial:
+          </p>
+
+          <div class="space-y-3.5">
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">1</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_b1_t">Confira o Mês e a Obra Atual</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b1_d">No topo você vê o mês selecionado e a Obra onde está alocado. Se mudou de obra no mês, toque em "Trocar".</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">2</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_b2_t">Mensagens e Chat com o Gestor</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b2_d">Dúvidas sobre horas ou obras? Toque em "Abrir Chat" para falar direto com a equipe de controle de horas.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-emerald-50/80 p-3.5 rounded-2xl border border-emerald-200">
+              <span class="step-badge">3</span>
+              <div>
+                <h4 class="font-bold text-sm text-emerald-950" data-i18n="s2_b3_t">Botão Verde: "Apontar minhas horas de hoje"</h4>
+                <p class="text-xs text-emerald-900/80 mt-0.5" data-i18n="s2_b3_d">Toque neste botão todos os dias ao finalizar o expediente. Se esquecer algum dia anterior, um alerta amarelo aparecerá logo abaixo com o botão "Preencher".</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">4</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s2_b4_t">Menu Inferior: Horas, Nóminas e Meu Perfil</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s2_b4_d">Na barra inferior você alterna entre suas Horas, seus Recibos de Pagamento (Nóminas) e seus Dados/IBAN (Meu Perfil).</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mockup Ilustrativo da Tela 2 (Dashboard) -->
+        <div class="phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="p-3 space-y-2.5 text-slate-900">
+            <!-- Header Worker -->
+            <div class="bg-white rounded-2xl p-2.5 border border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="h-8 w-8 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center">CS</div>
+                <div>
+                  <div class="text-xs font-bold leading-none">Carlos Silva</div>
+                  <div class="text-[9px] text-slate-500 mt-0.5">Y9876543Z • MCS</div>
+                </div>
+              </div>
+              <div class="bg-slate-100 px-2 py-1 rounded-lg border text-[10px] font-bold">📅 Out 2026</div>
+            </div>
+
+            <!-- Obra Atual -->
+            <div class="bg-slate-200/70 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[10px]">
+              <div class="flex items-center gap-1.5">
+                <span class="step-badge">1</span>
+                <span>📍 <span data-i18n="m_siteLbl">Obra atual:</span> <strong>Planta Solar Sul</strong></span>
+              </div>
+              <span class="text-blue-600 font-bold underline" data-i18n="m_changeBtn">Trocar</span>
+            </div>
+
+            <!-- Chat -->
+            <div class="bg-white rounded-xl p-2.5 border border-slate-200 flex items-center justify-between">
+              <div class="flex items-center gap-1.5">
+                <span class="step-badge">2</span>
+                <div class="text-[10px]">
+                  <strong class="block" data-i18n="m_chatTitle">Mensagens e Notificações</strong>
+                  <span class="text-slate-500 text-[9px]" data-i18n="m_chatSub">Fale com o gestor de horas</span>
+                </div>
+              </div>
+              <span class="bg-slate-900 text-white text-[9px] font-bold px-2 py-1 rounded-lg">Chat</span>
+            </div>
+
+            <!-- Card Principal Hoje -->
+            <div class="rounded-2xl border-2 border-emerald-500/40 bg-emerald-50/40 p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[10px] font-semibold text-slate-600" data-i18n="m_todayDate">Hoje, Segunda-feira</span>
+                <span class="step-badge">3</span>
+              </div>
+              <div class="h-10 rounded-xl bg-emerald-600 text-white font-black text-xs flex items-center justify-center gap-1 shadow-md">
+                <span>＋</span>
+                <span data-i18n="m_pointTodayBtn">Apontar minhas horas de hoje</span>
+              </div>
+            </div>
+
+            <!-- Alerta Pendentes -->
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-2 flex items-center justify-between">
+              <div class="text-[9px] text-amber-900">
+                <strong class="block" data-i18n="m_pendingAlert">⚠️ Faltam horas anteriores</strong>
+                <span>1 dia pendente no mês</span>
+              </div>
+              <span class="bg-amber-600 text-white font-bold text-[9px] px-2 py-1 rounded-lg" data-i18n="m_fillBtn">Preencher</span>
+            </div>
+
+            <!-- Mini KPIs -->
+            <div class="grid grid-cols-3 gap-1.5 text-center">
+              <div class="bg-white p-1.5 rounded-xl border border-slate-200">
+                <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiWeek">Semana</span>
+                <span class="text-xs font-black">40,0h</span>
+              </div>
+              <div class="bg-white p-1.5 rounded-xl border border-slate-200">
+                <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiMonth">Total Mês</span>
+                <span class="text-xs font-black text-emerald-700">168,0h</span>
+              </div>
+              <div class="bg-white p-1.5 rounded-xl border border-slate-200">
+                <span class="text-[8px] text-slate-400 font-bold uppercase block" data-i18n="m_kpiPend">Pendentes</span>
+                <span class="text-xs font-black text-amber-600">1</span>
+              </div>
+            </div>
+
+            <!-- Barra Inferior -->
+            <div class="bg-white border-t border-slate-200 pt-2 pb-1 px-2 flex items-center justify-around text-[9px] font-bold rounded-b-2xl">
+              <div class="text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg">🕒 <span data-i18n="m_navHours">Horas</span></div>
+              <div class="text-slate-500">📄 <span data-i18n="m_navNominas">Nóminas</span></div>
+              <div class="text-slate-500 flex items-center gap-1">👤 <span data-i18n="m_navProfile">Perfil</span> <span class="step-badge">4</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PASSO 3: JANELA DE APONTAMENTO DIÁRIO COM PRECISÃO -->
+    <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+      <div class="flex flex-col lg:flex-row items-center gap-8">
+        <!-- Explicação Passo a Passo -->
+        <div class="flex-1 space-y-5">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
+            <span data-i18n="step3Tag">Passo 3 de 4 • Lançamento Diário</span>
+          </div>
+          <h2 class="text-2xl font-black text-slate-900" data-i18n="step3Title">
+            Como Preencher as Horas do Dia com Precisão
+          </h2>
+          <p class="text-sm text-slate-600" data-i18n="step3Intro">
+            Na janela de apontamento, você tem atalhos rápidos para não perder tempo digitando:
+          </p>
+
+          <div class="space-y-3.5">
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">1</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b1_t">Navegue entre os Dias (◀ ▶)</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b1_d">Use as setas no topo verde para mudar de dia rapidamente caso queira lançar vários dias seguidos.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">2</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b2_t">Escolha o Turno (☀️ Diurno ou 🌙 Noturno) e a Obra</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b2_d">Por padrão já vem em Diurno e com sua Obra vinculada. Se trabalhou à noite, basta tocar em Noturno.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">3</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b3_t">Selecione o Total de Horas ou Folga</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b3_d">Use os botões rápidos (8h, 9h, 10h, 12h), ajuste de meia em meia hora nos botões (– / +), ou toque em "Folga/Descanso" nos dias sem trabalho.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">4</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s3_b4_t">Toque em "Guardar Apontamento"</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s3_b4_d">Os horários de Entrada e Saída são calculados automaticamente (você pode ajustar se precisar) e você também pode anotar uma observação. Depois é só tocar em Guardar!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mockup Ilustrativo da Tela 3 (Modal Diário) -->
+        <div class="phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="p-3.5 space-y-2.5 text-slate-900">
+            <!-- Header Modal -->
+            <div class="flex items-center justify-between border-b pb-2">
+              <span class="text-xs font-bold text-slate-400">◀</span>
+              <span class="text-xs font-extrabold" data-i18n="m_modalTitle">Novo Apontamento</span>
+              <span class="text-xs font-bold text-slate-400">✕</span>
+            </div>
+
+            <!-- Barra Data -->
+            <div class="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-1.5 flex items-center justify-between">
+              <span class="text-xs font-bold text-emerald-800">◀</span>
+              <div class="text-center">
+                <span class="text-[9px] font-extrabold uppercase text-emerald-700 block" data-i18n="m_monday">Segunda-feira</span>
+                <span class="text-xs font-black">19 Outubro 2026</span>
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="step-badge">1</span>
+                <span class="text-xs font-bold text-emerald-800">▶</span>
+              </div>
+            </div>
+
+            <!-- Turno -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <span class="text-[9px] font-bold text-slate-500 uppercase" data-i18n="m_shiftLbl">Turno de Trabalho</span>
+                <span class="step-badge">2</span>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5">
+                <div class="bg-emerald-600 text-white rounded-xl p-1.5 text-center text-[10px] font-bold">
+                  ☀️ <span data-i18n="m_dayShift">Diurno</span>
+                  <span class="block text-[8px] text-emerald-100 font-normal">07:00 – 18:00</span>
+                </div>
+                <div class="bg-white border border-slate-200 text-slate-700 rounded-xl p-1.5 text-center text-[10px] font-bold">
+                  🌙 <span data-i18n="m_nightShift">Noturno</span>
+                  <span class="block text-[8px] text-slate-400 font-normal">18:00 – 06:00</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Obra -->
+            <div class="bg-emerald-50/60 border border-emerald-200 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[10px]">
+              <span class="font-bold">🏢 Planta Solar Sul</span>
+              <span class="bg-emerald-100 text-emerald-800 text-[8px] font-bold px-1.5 py-0.5 rounded" data-i18n="m_linkedSite">Obra Vinculada</span>
+            </div>
+
+            <!-- Stepper Horas -->
+            <div class="bg-slate-50 border border-slate-200 rounded-2xl p-2.5 text-center space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-extrabold text-slate-400 uppercase" data-i18n="m_totalHrsLbl">Total de Horas do Dia</span>
+                <span class="step-badge">3</span>
+              </div>
+              <div class="flex items-center justify-center gap-4">
+                <span class="h-8 w-8 rounded-full bg-white border border-slate-300 flex items-center justify-center font-bold">–</span>
+                <span class="text-2xl font-black">8,0 <small class="text-xs text-slate-400">h</small></span>
+                <span class="h-8 w-8 rounded-full bg-white border border-slate-300 flex items-center justify-center font-bold">+</span>
+              </div>
+              <div class="flex flex-wrap justify-center gap-1">
+                <span class="px-2 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-black">8h</span>
+                <span class="px-2 py-0.5 rounded bg-white border text-[10px] font-bold">9h</span>
+                <span class="px-2 py-0.5 rounded bg-white border text-[10px] font-bold">10h</span>
+                <span class="px-2 py-0.5 rounded bg-white border text-[10px] font-bold">12h</span>
+                <span class="px-2 py-0.5 rounded bg-white border text-slate-500 text-[10px] font-bold" data-i18n="m_restBtn">Folga/Descanso</span>
+              </div>
+            </div>
+
+            <!-- Entrada / Saída -->
+            <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+              <div class="bg-slate-50 border rounded-lg px-2 py-1">🕒 <span class="text-slate-400">In:</span> <strong>07:00</strong></div>
+              <div class="bg-slate-50 border rounded-lg px-2 py-1">🕒 <span class="text-slate-400">Out:</span> <strong>16:00</strong></div>
+            </div>
+
+            <!-- Botão Salvar -->
+            <div class="pt-1 flex items-center gap-1.5">
+              <div class="flex-1 h-9 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-md">
+                ✓ <span data-i18n="m_saveBtn">Guardar Apontamento</span>
+              </div>
+              <span class="step-badge">4</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PASSO 4: FECHAMENTO DO MÊS E ASSINATURA DO ENCARREGADO -->
+    <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
+      <div class="flex flex-col lg:flex-row items-center gap-8">
+        <!-- Explicação Passo a Passo -->
+        <div class="flex-1 space-y-5">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black uppercase">
+            <span data-i18n="step4Tag">Passo 4 de 4 • Fechamento do Mês</span>
+          </div>
+          <h2 class="text-2xl font-black text-slate-900" data-i18n="step4Title">
+            Gerar PDF Oficial e Assinatura Digital do Encarregado
+          </h2>
+          <p class="text-sm text-slate-600" data-i18n="step4Intro">
+            No final do mês (ou quando finalizar a obra), você valida sua folha sem precisar imprimir papel:
+          </p>
+
+          <div class="space-y-3.5">
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">1</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_b1_t">Toque em "Gerar PDF para assinatura (Oficial)"</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_b1_d">Na tela inicial, role até Ações Rápidas e escolha o card verde "Gerar PDF para assinatura".</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+              <span class="step-badge">2</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_b2_t">Informe o Nome do Encarregado e Envie</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_b2_d">Confira o total de horas do mês, digite o nome do seu Encarregado de Obra (e telefone/e-mail se desejar) e gere o link de assinatura.</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-emerald-50/80 p-3.5 rounded-2xl border border-emerald-200">
+              <span class="step-badge">3</span>
+              <div>
+                <h4 class="font-bold text-sm text-emerald-950" data-i18n="s4_b3_t">Envie o Link + Código OTP de 6 dígitos ao Encarregado</h4>
+                <p class="text-xs text-emerald-900/80 mt-0.5" data-i18n="s4_b3_d">O sistema gera um Link Direto e um Código de Segurança (OTP). O encarregado abre o link no telemóvel dele, digita o código, assina com o dedo na tela e sua folha fica 100% validada!</p>
+              </div>
+            </div>
+
+            <div class="flex items-start gap-3 bg-slate-50 p-3.5 rounded-2xl border border-dashed border-slate-300">
+              <span class="step-badge">4</span>
+              <div>
+                <h4 class="font-bold text-sm text-slate-900" data-i18n="s4_b4_t">Plano B: Enviar Foto da Folha em Papel</h4>
+                <p class="text-xs text-slate-600 mt-0.5" data-i18n="s4_b4_d">Se a sua obra exigir folha física assinada na caneta, use a opção "Enviar foto da folha em papel (Plano B)" para tirar uma foto nítida do documento.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mockup Ilustrativo da Tela 4 (Fechamento e Assinatura) -->
+        <div class="phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="p-3.5 space-y-2.5 text-slate-900">
+            <!-- Card Ação Gerar PDF -->
+            <div class="bg-gradient-to-r from-emerald-50 to-teal-50 p-2.5 rounded-2xl border border-emerald-300 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="h-8 w-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-xs">📄</div>
+                <div>
+                  <div class="text-[10px] font-black text-emerald-950 flex items-center gap-1">
+                    <span data-i18n="m_pdfActionTitle">Gerar PDF para assinatura</span>
+                  </div>
+                  <span class="text-[9px] text-emerald-800" data-i18n="m_pdfActionSub">Validação digital do encarregado</span>
+                </div>
+              </div>
+              <span class="step-badge">1</span>
+            </div>
+
+            <!-- Card Sucesso / Link Encarregado -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-3 text-center space-y-2 shadow-xs">
+              <div class="h-10 w-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto font-black text-base">✓</div>
+              <div class="text-xs font-black" data-i18n="m_sentTitle">Folha Pronta para Assinar!</div>
+
+              <div class="bg-slate-50 border rounded-xl p-2 text-left flex items-center justify-between text-[10px]">
+                <div>
+                  <span class="text-slate-400 font-bold uppercase block text-[8px]" data-i18n="m_supervisorLbl">Encarregado</span>
+                  <strong class="text-slate-800">Roberto Gómez</strong>
+                </div>
+                <div class="flex items-center gap-1">
+                  <span class="step-badge">2</span>
+                  <span class="font-black text-emerald-700">168,0 h</span>
+                </div>
+              </div>
+
+              <!-- Link + OTP -->
+              <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2 text-left space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <span class="text-[9px] font-bold text-emerald-900" data-i18n="m_linkLbl">Link e Código para o Encarregado:</span>
+                  <span class="step-badge">3</span>
+                </div>
+                <div class="bg-white border border-emerald-300 rounded-lg px-2 py-1 text-[9px] font-mono text-slate-600 truncate">
+                  https://.../assinar-folha/8f92a...
+                </div>
+                <div class="flex items-center justify-between bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-black">
+                  <span>🔑 OTP: 482910</span>
+                  <span class="underline text-[9px]" data-i18n="m_copyLink">Copiar Link</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Plano B -->
+            <div class="bg-white p-2.5 rounded-xl border border-dashed border-slate-300 flex items-center justify-between">
+              <div class="flex items-center gap-2 text-[10px]">
+                <span>☁️</span>
+                <div>
+                  <strong class="block text-slate-700" data-i18n="m_planBTitle">Enviar folha em papel (Plano B)</strong>
+                  <span class="text-[8px] text-slate-400" data-i18n="m_planBSub">Foto da folha assinada na caneta</span>
+                </div>
+              </div>
+              <span class="step-badge">4</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- SCRIPT DE TRADUÇÃO INSTANTÂNEA (PT, ES, FR, NL, EN) -->
+  <script>
+    const translations = {
+      pt: {
+        toolbarTitle: "Guia Visual de Treinamento — Portal do Trabalhador",
+        toolbarSub: "Selecione o idioma abaixo e clique em 'Salvar em PDF' para enviar no WhatsApp",
+        btnPrint: "Salvar em PDF / Imprimir",
+        coverBadge: "Guia Rápido Oficial • MCS Personal",
+        coverTitle: "Como Apontar suas Horas pelo Telemóvel em 5 Segundos",
+        coverDesc: "Agora você registra suas horas todos os dias direto pelo telemóvel, acompanha o resumo do mês, consulta seus recibos (Nóminas) e envia sua folha para assinatura digital do encarregado.",
+        pill1: "Rápido (5 segundos/dia)",
+        pill2: "Funciona como App no Telemóvel",
+        pill3: "Assinatura Digital sem Papel",
+        accessBoxTitle: "Acesso Direto",
+        accessBoxSub: "Use seu Nome + Passaporte/NIE",
+        step1Tag: "Passo 1 de 4 • Primeiro Acesso",
+        step1Title: "Entrar no Portal e Instalar no Telemóvel",
+        step1Intro: "Você não precisa decorar senhas complicadas. Basta usar seu nome e número de documento:",
+        s1_b1_t: "Escolha o seu Idioma no topo",
+        s1_b1_d: "Toque no botão no canto superior direito para alternar entre Português e Espanhol.",
+        s1_b2_t: "Instale o Aplicativo na Tela Inicial",
+        s1_b2_d: "Toque em 'Instalar' no banner superior para criar o ícone do Portal direto na tela do seu Android ou iPhone.",
+        s1_b3_t: "Digite seu Nome Completo e Passaporte / NIE",
+        s1_b3_d: "Escreva exatamente como consta no seu documento e mantenha marcada a opção 'Lembrar neste aparelho' para entrar com 1 toque nos próximos dias.",
+        m_portalBadge: "● Portal do Trabalhador",
+        m_welcome: "Bem-vindo",
+        m_installTitle: "Instalar Aplicativo MCS",
+        m_installSub: "Acesso rápido na tela inicial",
+        m_installBtn: "Instalar",
+        m_nameLbl: "Nome Completo",
+        m_passLbl: "Passaporte ou Documento",
+        m_remember: "Lembrar neste aparelho",
+        m_loginBtn: "Entrar no Portal →",
+        step2Tag: "Passo 2 de 4 • Rotina Diária",
+        step2Title: "Visão Geral, Obra, Chat e Apontamento Rápido",
+        step2Intro: "Ao entrar no aplicativo, tudo o que você precisa está na tela inicial:",
+        s2_b1_t: "Confira o Mês e a Obra Atual",
+        s2_b1_d: "No topo você vê o mês selecionado e a Obra onde está alocado. Se mudou de obra no mês, toque em 'Trocar'.",
+        s2_b2_t: "Mensagens e Chat com o Gestor",
+        s2_b2_d: "Dúvidas sobre horas ou obras? Toque em 'Abrir Chat' para falar direto com a equipe de controle de horas.",
+        s2_b3_t: "Botão Verde: 'Apontar minhas horas de hoje'",
+        s2_b3_d: "Toque neste botão todos os dias ao finalizar o expediente. Se esquecer algum dia anterior, um alerta amarelo aparecerá logo abaixo com o botão 'Preencher'.",
+        s2_b4_t: "Menu Inferior: Horas, Nóminas e Meu Perfil",
+        s2_b4_d: "Na barra inferior você alterna entre suas Horas, seus Recibos de Pagamento (Nóminas) e seus Dados/IBAN (Meu Perfil).",
+        m_siteLbl: "Obra atual:",
+        m_changeBtn: "Trocar",
+        m_chatTitle: "Mensagens e Notificações",
+        m_chatSub: "Fale com o gestor de horas",
+        m_todayDate: "Hoje, Segunda-feira",
+        m_pointTodayBtn: "Apontar minhas horas de hoje",
+        m_pendingAlert: "⚠️ Faltam horas anteriores",
+        m_fillBtn: "Preencher",
+        m_kpiWeek: "Semana",
+        m_kpiMonth: "Total Mês",
+        m_kpiPend: "Pendentes",
+        m_navHours: "Horas",
+        m_navNominas: "Nóminas",
+        m_navProfile: "Perfil",
+        step3Tag: "Passo 3 de 4 • Lançamento Diário",
+        step3Title: "Como Preencher as Horas do Dia com Precisão",
+        step3Intro: "Na janela de apontamento, você tem atalhos rápidos para não perder tempo digitando:",
+        s3_b1_t: "Navegue entre os Dias (◀ ▶)",
+        s3_b1_d: "Use as setas no topo verde para mudar de dia rapidamente caso queira lançar vários dias seguidos.",
+        s3_b2_t: "Escolha o Turno (☀️ Diurno ou 🌙 Noturno) e a Obra",
+        s3_b2_d: "Por padrão já vem em Diurno e com sua Obra vinculada. Se trabalhou à noite, basta tocar em Noturno.",
+        s3_b3_t: "Selecione o Total de Horas ou Folga",
+        s3_b3_d: "Use os botões rápidos (8h, 9h, 10h, 12h), ajuste de meia em meia hora nos botões (– / +), ou toque em 'Folga/Descanso' nos dias sem trabalho.",
+        s3_b4_t: "Toque em 'Guardar Apontamento'",
+        s3_b4_d: "Os horários de Entrada e Saída são calculados automaticamente (você pode ajustar se precisar) e você também pode anotar uma observação. Depois é só tocar em Guardar!",
+        m_modalTitle: "Novo Apontamento",
+        m_monday: "Segunda-feira",
+        m_shiftLbl: "Turno de Trabalho",
+        m_dayShift: "Diurno",
+        m_nightShift: "Noturno",
+        m_linkedSite: "Obra Vinculada",
+        m_totalHrsLbl: "Total de Horas do Dia",
+        m_restBtn: "Folga/Descanso",
+        m_saveBtn: "Guardar Apontamento",
+        step4Tag: "Passo 4 de 4 • Fechamento do Mês",
+        step4Title: "Gerar PDF Oficial e Assinatura Digital do Encarregado",
+        step4Intro: "No final do mês (ou quando finalizar a obra), você valida sua folha sem precisar imprimir papel:",
+        s4_b1_t: "Toque em 'Gerar PDF para assinatura (Oficial)'",
+        s4_b1_d: "Na tela inicial, role até Ações Rápidas e escolha o card verde 'Gerar PDF para assinatura'.",
+        s4_b2_t: "Informe o Nome do Encarregado e Envie",
+        s4_b2_d: "Confira o total de horas do mês, digite o nome do seu Encarregado de Obra (e telefone/e-mail se desejar) e gere o link de assinatura.",
+        s4_b3_t: "Envie o Link + Código OTP de 6 dígitos ao Encarregado",
+        s4_b3_d: "O sistema gera um Link Direto e um Código de Segurança (OTP). O encarregado abre o link no telemóvel dele, digita o código, assina com o dedo na tela e sua folha fica 100% validada!",
+        s4_b4_t: "Plano B: Enviar Foto da Folha em Papel",
+        s4_b4_d: "Se a sua obra exigir folha física assinada na caneta, use a opção 'Enviar foto da folha em papel (Plano B)' para tirar uma foto nítida do documento.",
+        m_pdfActionTitle: "Gerar PDF para assinatura",
+        m_pdfActionSub: "Validação digital do encarregado",
+        m_sentTitle: "Folha Pronta para Assinar!",
+        m_supervisorLbl: "Encarregado",
+        m_linkLbl: "Link e Código para o Encarregado:",
+        m_copyLink: "Copiar Link",
+        m_planBTitle: "Enviar folha em papel (Plano B)",
+        m_planBSub: "Foto da folha assinada na caneta"
+      },
+      es: {
+        toolbarTitle: "Guía Visual de Formación — Portal del Trabajador",
+        toolbarSub: "Seleccione el idioma abajo y haga clic en 'Guardar en PDF' para enviar por WhatsApp",
+        btnPrint: "Guardar en PDF / Imprimir",
+        coverBadge: "Guía Rápida Oficial • MCS Personal",
+        coverTitle: "Cómo Registrar tus Horas desde el Móvil en 5 Segundos",
+        coverDesc: "Ahora puedes registrar tus horas todos los días directamente desde tu móvil, ver el resumen del mes, consultar tus Nóminas y enviar tu hoja para la firma digital del encargado.",
+        pill1: "Rápido (5 segundos/día)",
+        pill2: "Funciona como App en el Móvil",
+        pill3: "Firma Digital sin Papel",
+        accessBoxTitle: "Acceso Directo",
+        accessBoxSub: "Usa tu Nombre + Pasaporte/NIE",
+        step1Tag: "Paso 1 de 4 • Primer Acceso",
+        step1Title: "Entrar al Portal e Instalar en el Móvil",
+        step1Intro: "No necesitas recordar contraseñas complicadas. Solo usa tu nombre y documento:",
+        s1_b1_t: "Elige tu Idioma arriba",
+        s1_b1_d: "Toca el botón en la esquina superior derecha para cambiar entre Español y Portugués.",
+        s1_b2_t: "Instala la Aplicación en tu Pantalla de Inicio",
+        s1_b2_d: "Toca en 'Instalar' en el aviso superior para añadir el icono del Portal en tu Android o iPhone.",
+        s1_b3_t: "Introduce tu Nombre Completo y Pasaporte / NIE",
+        s1_b3_d: "Escríbelo tal como aparece en tu documento y deja marcada la opción 'Recordar en este dispositivo' para entrar con 1 toque.",
+        m_portalBadge: "● Portal del Trabajador",
+        m_welcome: "Bienvenido",
+        m_installTitle: "Instalar Aplicación MCS",
+        m_installSub: "Acceso rápido en pantalla de inicio",
+        m_installBtn: "Instalar",
+        m_nameLbl: "Nombre Completo",
+        m_passLbl: "Pasaporte o Documento",
+        m_remember: "Recordar en este dispositivo",
+        m_loginBtn: "Entrar al Portal →",
+        step2Tag: "Paso 2 de 4 • Rutina Diaria",
+        step2Title: "Vista General, Obra, Chat y Registro Rápido",
+        step2Intro: "Al entrar en la aplicación, todo lo que necesitas está en la pantalla principal:",
+        s2_b1_t: "Verifica el Mes y la Obra Actual",
+        s2_b1_d: "Arriba verás el mes activo y la Obra asignada. Si cambiaste de obra durante el mes, toca en 'Cambiar'.",
+        s2_b2_t: "Mensajes y Chat con el Gestor",
+        s2_b2_d: "¿Dudas sobre tus horas u obras? Toca en 'Abrir Chat' para hablar directamente con el gestor de horas.",
+        s2_b3_t: "Botón Verde: 'Registrar mis horas de hoy'",
+        s2_b3_d: "Toca este botón cada día al terminar tu jornada. Si olvidaste algún día anterior, aparecerá una alerta amarilla debajo con el botón 'Completar'.",
+        s2_b4_t: "Menú Inferior: Horas, Nóminas y Mi Perfil",
+        s2_b4_d: "En la barra inferior puedes consultar tus Horas, descargar tus Nóminas y revisar tus datos o IBAN (Mi Perfil).",
+        m_siteLbl: "Obra actual:",
+        m_changeBtn: "Cambiar",
+        m_chatTitle: "Mensajes y Notificaciones",
+        m_chatSub: "Habla con el gestor de horas",
+        m_todayDate: "Hoy, Lunes",
+        m_pointTodayBtn: "Registrar mis horas de hoy",
+        m_pendingAlert: "⚠️ Faltan horas anteriores",
+        m_fillBtn: "Completar",
+        m_kpiWeek: "Semana",
+        m_kpiMonth: "Total Mes",
+        m_kpiPend: "Pendientes",
+        m_navHours: "Horas",
+        m_navNominas: "Nóminas",
+        m_navProfile: "Perfil",
+        step3Tag: "Paso 3 de 4 • Registro Diario",
+        step3Title: "Cómo Completar las Horas del Día con Precisión",
+        step3Intro: "En la ventana de registro tienes atajos rápidos para hacerlo en segundos:",
+        s3_b1_t: "Navega entre los Días (◀ ▶)",
+        s3_b1_d: "Usa las flechas en la barra superior verde para cambiar de día sin salir de la ventana.",
+        s3_b2_t: "Elige el Turno (☀️ Diurno o 🌙 Nocturno) y la Obra",
+        s3_b2_d: "Por defecto viene en Turno Diurno y con tu Obra vinculada. Si trabajaste de noche, toca en Nocturno.",
+        s3_b3_t: "Selecciona el Total de Horas o Descanso",
+        s3_b3_d: "Usa los botones rápidos (8h, 9h, 10h, 12h), ajusta media hora con (– / +), o toca en 'Descanso/Festivo' los días libres.",
+        s3_b4_t: "Toca en 'Guardar Registro'",
+        s3_b4_d: "La hora de Entrada y Salida se calcula automáticamente y puedes añadir observaciones si lo necesitas. ¡Luego toca en Guardar!",
+        m_modalTitle: "Nuevo Registro",
+        m_monday: "Lunes",
+        m_shiftLbl: "Turno de Trabajo",
+        m_dayShift: "Diurno",
+        m_nightShift: "Nocturno",
+        m_linkedSite: "Obra Vinculada",
+        m_totalHrsLbl: "Total de Horas del Día",
+        m_restBtn: "Descanso/Festivo",
+        m_saveBtn: "Guardar Registro",
+        step4Tag: "Paso 4 de 4 • Cierre de Mes",
+        step4Title: "Generar PDF Oficial y Firma Digital del Encargado",
+        step4Intro: "Al final del mes (o al terminar en una obra), valida tu hoja sin necesidad de papel:",
+        s4_b1_t: "Toca en 'Generar PDF para firma (Oficial)'",
+        s4_b1_d: "En la pantalla de inicio, baja hasta Acciones Rápidas y selecciona 'Generar PDF para firma'.",
+        s4_b2_t: "Indica el Nombre del Encargado y Envía",
+        s4_b2_d: "Revisa el total de horas del mes, escribe el nombre de tu Encargado de Obra y genera el enlace de firma.",
+        s4_b3_t: "Envía el Enlace + Código OTP de 6 dígitos al Encargado",
+        s4_b3_d: "El sistema genera un Enlace Directo y un Código OTP. El encargado abre el enlace en su móvil, introduce el código, firma con el dedo en pantalla y tu hoja queda validada.",
+        s4_b4_t: "Plan B: Subir Foto de la Hoja en Papel",
+        s4_b4_d: "Si la obra exige hoja impresa firmada a mano, usa 'Subir foto de hoja en papel (Plan B)' para enviar una foto clara.",
+        m_pdfActionTitle: "Generar PDF para firma",
+        m_pdfActionSub: "Validación digital del encargado",
+        m_sentTitle: "¡Hoja Lista para Firmar!",
+        m_supervisorLbl: "Encargado",
+        m_linkLbl: "Enlace y Código para el Encargado:",
+        m_copyLink: "Copiar Enlace",
+        m_planBTitle: "Subir hoja en papel (Plan B)",
+        m_planBSub: "Foto de la hoja firmada a mano"
+      },
+      fr: {
+        toolbarTitle: "Guide Visuel de Formation — Portail du Travailleur",
+        toolbarSub: "Sélectionnez la langue ci-dessous et cliquez sur 'Enregistrer en PDF' pour partager sur WhatsApp",
+        btnPrint: "Enregistrer en PDF / Imprimer",
+        coverBadge: "Guide Rapide Officiel • MCS Personal",
+        coverTitle: "Comment Pointer vos Heures sur Mobile en 5 Secondes",
+        coverDesc: "Enregistrez désormais vos heures chaque jour depuis votre téléphone, suivez votre récapitulatif mensuel, consultez vos fiches de paie (Nóminas) et faites signer votre feuille numériquement par le chef de chantier.",
+        pill1: "Rapide (5 secondes/jour)",
+        pill2: "Fonctionne comme une App Mobile",
+        pill3: "Signature Numérique sans Papier",
+        accessBoxTitle: "Accès Direct",
+        accessBoxSub: "Nom Complet + Passeport/NIE",
+        step1Tag: "Étape 1 sur 4 • Première Connexion",
+        step1Title: "Se Connecter au Portail et Installer l'App",
+        step1Intro: "Aucun mot de passe compliqué à retenir. Utilisez simplement votre nom et votre numéro de document :",
+        s1_b1_t: "Choisissez votre langue en haut",
+        s1_b1_d: "Appuyez sur le bouton en haut à droite pour changer la langue de l'interface.",
+        s1_b2_t: "Installez l'application sur l'écran d'accueil",
+        s1_b2_d: "Appuyez sur 'Installer' dans la bannière pour ajouter l'icône du Portail sur votre téléphone Android ou iPhone.",
+        s1_b3_t: "Saisissez votre Nom Complet et Passeport / NIE",
+        s1_b3_d: "Écrivez votre nom comme sur votre document et cochez 'Se souvenir sur cet appareil' pour vous connecter en 1 clic.",
+        m_portalBadge: "● Portail du Travailleur",
+        m_welcome: "Bienvenue",
+        m_installTitle: "Installer l'App MCS",
+        m_installSub: "Accès rapide sur l'écran d'accueil",
+        m_installBtn: "Installer",
+        m_nameLbl: "Nom Complet",
+        m_passLbl: "Passeport ou Document",
+        m_remember: "Se souvenir sur cet appareil",
+        m_loginBtn: "Entrer sur le Portail →",
+        step2Tag: "Étape 2 sur 4 • Routine Quotidienne",
+        step2Title: "Tableau de Bord, Chantier, Chat et Pointage Rapide",
+        step2Intro: "Dès l'ouverture de l'application, tout est accessible sur l'écran principal :",
+        s2_b1_t: "Vérifiez le Mois et le Chantier Actuel",
+        s2_b1_d: "En haut s'affichent le mois et le chantier affecté. Si vous changez de chantier, appuyez sur 'Changer'.",
+        s2_b2_t: "Messages et Chat avec le Gestionnaire",
+        s2_b2_d: "Une question sur vos heures ? Appuyez sur 'Chat' pour écrire directement au gestionnaire.",
+        s2_b3_t: "Bouton Vert : 'Pointer mes heures d'aujourd'hui'",
+        s2_b3_d: "Appuyez sur ce bouton chaque jour à la fin du travail. Si un jour précédent manque, une alerte jaune vous permettra de le compléter.",
+        s2_b4_t: "Menu du Bas : Heures, Fiches de Paie et Profil",
+        s2_b4_d: "Naviguez facilement entre vos Heures, vos Fiches de paie (Nóminas) et vos informations/IBAN (Profil).",
+        m_siteLbl: "Chantier actuel :",
+        m_changeBtn: "Changer",
+        m_chatTitle: "Messages et Notifications",
+        m_chatSub: "Parler au gestionnaire d'heures",
+        m_todayDate: "Aujourd'hui, Lundi",
+        m_pointTodayBtn: "Pointer mes heures d'aujourd'hui",
+        m_pendingAlert: "⚠️ Heures précédentes manquantes",
+        m_fillBtn: "Compléter",
+        m_kpiWeek: "Semaine",
+        m_kpiMonth: "Total Mois",
+        m_kpiPend: "En attente",
+        m_navHours: "Heures",
+        m_navNominas: "Paies",
+        m_navProfile: "Profil",
+        step3Tag: "Étape 3 sur 4 • Saisie Quotidienne",
+        step3Title: "Comment Saisir vos Heures du Jour avec Précision",
+        step3Intro: "Dans la fenêtre de pointage, utilisez les raccourcis rapides :",
+        s3_b1_t: "Naviguez entre les Jours (◀ ▶)",
+        s3_b1_d: "Utilisez les flèches en haut pour passer rapidement d'un jour à l'autre.",
+        s3_b2_t: "Choisissez l'Équipe (☀️ Jour ou 🌙 Nuit) et le Chantier",
+        s3_b2_d: "Par défaut sur Jour et sur votre chantier actif. Si vous avez travaillé de nuit, sélectionnez Nuit.",
+        s3_b3_t: "Sélectionnez le Total d'Heures ou Repos",
+        s3_b3_d: "Touchez directement 8h, 9h, 10h, 12h, ajustez par demi-heure avec (– / +), ou touchez 'Repos' les jours non travaillés.",
+        s3_b4_t: "Appuyez sur 'Enregistrer'",
+        s3_b4_d: "Les heures d'entrée et de sortie sont calculées automatiquement. Ajoutez une note si besoin puis enregistrez !",
+        m_modalTitle: "Nouveau Pointage",
+        m_monday: "Lundi",
+        m_shiftLbl: "Poste de Travail",
+        m_dayShift: "Jour",
+        m_nightShift: "Nuit",
+        m_linkedSite: "Chantier Lié",
+        m_totalHrsLbl: "Total des Heures du Jour",
+        m_restBtn: "Repos/Congé",
+        m_saveBtn: "Enregistrer le Pointage",
+        step4Tag: "Étape 4 sur 4 • Clôture du Mois",
+        step4Title: "Générer le PDF Officiel et Signature du Chef de Chantier",
+        step4Intro: "En fin de mois, faites valider votre feuille d'heures sans papier :",
+        s4_b1_t: "Appuyez sur 'Générer le PDF pour signature'",
+        s4_b1_d: "Sur l'écran d'accueil, choisissez la carte verte 'Générer le PDF pour signature'.",
+        s4_b2_t: "Indiquez le Nom du Chef de Chantier",
+        s4_b2_d: "Vérifiez le total mensuel, entrez le nom du responsable de chantier et générez le lien.",
+        s4_b3_t: "Partagez le Lien + Code OTP à 6 chiffres",
+        s4_b3_d: "Le responsable ouvre le lien sur son téléphone, saisit le code OTP à 6 chiffres et signe avec le doigt sur l'écran.",
+        s4_b4_t: "Plan B : Envoyer une Photo de la Feuille Papier",
+        s4_b4_d: "Si une feuille papier signée est exigée sur le chantier, utilisez l'option Plan B pour envoyer une photo nette.",
+        m_pdfActionTitle: "Générer PDF pour signature",
+        m_pdfActionSub: "Validation numérique du responsable",
+        m_sentTitle: "Feuille Prête à Signer !",
+        m_supervisorLbl: "Responsable",
+        m_linkLbl: "Lien et Code pour le Responsable :",
+        m_copyLink: "Copier le Lien",
+        m_planBTitle: "Envoyer feuille papier (Plan B)",
+        m_planBSub: "Photo de la feuille signée à la main"
+      },
+      nl: {
+        toolbarTitle: "Visuele Trainingsgids — Werknemersportaal",
+        toolbarSub: "Selecteer hieronder de taal en klik op 'Opslaan als PDF' om via WhatsApp te delen",
+        btnPrint: "Opslaan als PDF / Afdrukken",
+        coverBadge: "Officiële Snelstartgids • MCS Personal",
+        coverTitle: "Hoe u uw Gewerkte Uren in 5 Seconden via uw Telefoon Registreert",
+        coverDesc: "Registreer uw uren nu dagelijks via uw smartphone, bekijk uw maandoverzicht, download uw loonstroken (Nóminas) en laat uw urenstaat digitaal ondertekenen door de uitvoerder.",
+        pill1: "Snel (5 seconden/dag)",
+        pill2: "Werkt als App op uw Telefoon",
+        pill3: "Digitale Handtekening zonder Papier",
+        accessBoxTitle: "Directe Toegang",
+        accessBoxSub: "Gebruik Naam + Paspoort/NIE",
+        step1Tag: "Stap 1 van 4 • Eerste Toegang",
+        step1Title: "Inloggen en App Installeren op uw Telefoon",
+        step1Intro: "Geen ingewikkelde wachtwoorden nodig. Gebruik eenvoudig uw naam en documentnummer:",
+        s1_b1_t: "Kies bovenaan uw Taal",
+        s1_b1_d: "Tik rechtsboven op de taalknop om te wisselen van taal.",
+        s1_b2_t: "Installeer de App op uw Startscherm",
+        s1_b2_d: "Tik op 'Installeren' in de bovenste balk om het icoon direct op uw Android of iPhone te plaatsen.",
+        s1_b3_t: "Vul uw Volledige Naam en Paspoort / NIE in",
+        s1_b3_d: "Typ uw naam exact zoals op uw document en vink 'Onthoud op dit toestel' aan om voortaan met 1 tik in te loggen.",
+        m_portalBadge: "● Werknemersportaal",
+        m_welcome: "Welkom",
+        m_installTitle: "MCS App Installeren",
+        m_installSub: "Snelle toegang vanaf startscherm",
+        m_installBtn: "Installeren",
+        m_nameLbl: "Volledige Naam",
+        m_passLbl: "Paspoort of Document",
+        m_remember: "Onthoud op dit toestel",
+        m_loginBtn: "Inloggen op Portaal →",
+        step2Tag: "Stap 2 van 4 • Dagelijkse Routine",
+        step2Title: "Overzicht, Projectlocatie, Chat en Snel Uren Invoeren",
+        step2Intro: "Alles wat u nodig heeft staat direct op het hoofdscherm:",
+        s2_b1_t: "Controleer de Maand en Huidige Projectlocatie (Obra)",
+        s2_b1_d: "Bovenaan ziet u de maand en uw huidige werklocatie. Werkt u op een ander project? Tik op 'Wijzigen'.",
+        s2_b2_t: "Berichten en Chat met de Planner/Beheerder",
+        s2_b2_d: "Vragen over uw uren? Tik op 'Chat' om direct een bericht te sturen.",
+        s2_b3_t: "Groene Knop: 'Mijn uren van vandaag invoeren'",
+        s2_b3_d: "Tik elke dag na het werk op deze knop. Als u een eerdere werkdag bent vergeten, verschijnt er een gele melding om deze direct in te vullen.",
+        s2_b4_t: "Menu Onderaan: Uren, Loonstroken en Mijn Profiel",
+        s2_b4_d: "Wissel onderaan eenvoudig tussen uw Uren, Loonstroken (Nóminas) en uw Profiel/IBAN.",
+        m_siteLbl: "Huidig project:",
+        m_changeBtn: "Wijzigen",
+        m_chatTitle: "Berichten & Meldingen",
+        m_chatSub: "Chat met de urenbeheerder",
+        m_todayDate: "Vandaag, Maandag",
+        m_pointTodayBtn: "Mijn uren van vandaag invoeren",
+        m_pendingAlert: "⚠️ Eerdere uren ontbreken",
+        m_fillBtn: "Invullen",
+        m_kpiWeek: "Week",
+        m_kpiMonth: "Totaal Maand",
+        m_kpiPend: "Openstaand",
+        m_navHours: "Uren",
+        m_navNominas: "Loonstrook",
+        m_navProfile: "Profiel",
+        step3Tag: "Stap 3 van 4 • Dagelijkse Invoer",
+        step3Title: "Hoe u de Uren van de Dag Nauwkeurig Invoert",
+        step3Intro: "Gebruik de handige snelknoppen in het invoerscherm:",
+        s3_b1_t: "Blader tussen Dagen (◀ ▶)",
+        s3_b1_d: "Gebruik de pijltjes bovenaan om snel meerdere dagen achter elkaar in te vullen.",
+        s3_b2_t: "Kies uw Dienst (☀️ Dagdienst of 🌙 Nachtdienst) & Project",
+        s3_b2_d: "Standaard ingesteld op Dagdienst en uw gekoppelde project. Tik op Nachtdienst als u 's nachts heeft gewerkt.",
+        s3_b3_t: "Selecteer het Totaal Aantal Uren of Vrije Dag",
+        s3_b3_d: "Tik op 8u, 9u, 10u, 12u, pas per half uur aan met (– / +), of kies 'Vrij/Rustdag' op vrije dagen.",
+        s3_b4_t: "Tik op 'Uren Opslaan'",
+        s3_b4_d: "Begin- en eindtijd worden automatisch berekend. Voeg indien nodig een opmerking toe en tik op Opslaan!",
+        m_modalTitle: "Nieuwe Registratie",
+        m_monday: "Maandag",
+        m_shiftLbl: "Werktijd / Dienst",
+        m_dayShift: "Dagdienst",
+        m_nightShift: "Nachtdienst",
+        m_linkedSite: "Gekoppeld Project",
+        m_totalHrsLbl: "Totaal Uren van de Dag",
+        m_restBtn: "Vrij/Rustdag",
+        m_saveBtn: "Uren Opslaan",
+        step4Tag: "Stap 4 van 4 • Maandafsluiting",
+        step4Title: "Officiële PDF Genereren & Digitale Handtekening Uitvoerder",
+        step4Intro: "Aan het einde van de maand laat u uw urenstaat digitaal goedkeuren:",
+        s4_b1_t: "Tik op 'PDF genereren voor ondertekening'",
+        s4_b1_d: "Kies op het startscherm onder Snelle Acties de groene kaart 'PDF genereren voor ondertekening'.",
+        s4_b2_t: "Vul de Naam van de Uitvoerder / Voorman in",
+        s4_b2_d: "Controleer uw maandtotaal, vul de naam van de uitvoerder in en maak de ondertekeningslink aan.",
+        s4_b3_t: "Deel de Link + 6-cijferige OTP-code met de Uitvoerder",
+        s4_b3_d: "De uitvoerder opent de link op zijn telefoon, vult de 6-cijferige OTP-code in en zet zijn handtekening met zijn vinger op het scherm.",
+        s4_b4_t: "Plan B: Foto van Papieren Urenstaat Uploaden",
+        s4_b4_d: "Vereist de bouwplaats een papieren formulier? Gebruik dan 'Papieren urenstaat uploaden (Plan B)' om een duidelijke foto te sturen.",
+        m_pdfActionTitle: "PDF genereren voor handtekening",
+        m_pdfActionSub: "Digitale validatie door uitvoerder",
+        m_sentTitle: "Klaar voor Ondertekening!",
+        m_supervisorLbl: "Uitvoerder",
+        m_linkLbl: "Link en Code voor Uitvoerder:",
+        m_copyLink: "Link Kopiëren",
+        m_planBTitle: "Papieren formulier (Plan B)",
+        m_planBSub: "Foto van handgetekend formulier"
+      },
+      en: {
+        toolbarTitle: "Visual Training Guide — Worker Portal",
+        toolbarSub: "Select a language below and click 'Save as PDF' to share on WhatsApp",
+        btnPrint: "Save as PDF / Print",
+        coverBadge: "Official Quick Guide • MCS Personal",
+        coverTitle: "How to Log Your Daily Hours on Your Phone in 5 Seconds",
+        coverDesc: "Now you can log your working hours daily right from your phone, track your monthly totals, download your payslips (Nóminas), and get your timesheet digitally signed by your site supervisor.",
+        pill1: "Fast (5 seconds/day)",
+        pill2: "Works as a Mobile App",
+        pill3: "Paperless Digital Signature",
+        accessBoxTitle: "Direct Access",
+        accessBoxSub: "Full Name + Passport/NIE",
+        step1Tag: "Step 1 of 4 • First Login",
+        step1Title: "Sign In and Install the App on Your Phone",
+        step1Intro: "No complicated passwords needed. Simply log in using your full name and ID/Passport number:",
+        s1_b1_t: "Select Your Language at the Top",
+        s1_b1_d: "Tap the language button in the top-right corner to switch languages.",
+        s1_b2_t: "Install the App on Your Home Screen",
+        s1_b2_d: "Tap 'Install' on the top banner to add the Worker Portal icon directly to your Android or iPhone home screen.",
+        s1_b3_t: "Enter Your Full Name and Passport / NIE",
+        s1_b3_d: "Type your name exactly as shown on your ID document and keep 'Remember on this device' checked for 1-tap login.",
+        m_portalBadge: "● Worker Portal",
+        m_welcome: "Welcome",
+        m_installTitle: "Install MCS App",
+        m_installSub: "Quick access from home screen",
+        m_installBtn: "Install",
+        m_nameLbl: "Full Name",
+        m_passLbl: "Passport or ID Document",
+        m_remember: "Remember on this device",
+        m_loginBtn: "Sign In to Portal →",
+        step2Tag: "Step 2 of 4 • Daily Routine",
+        step2Title: "Dashboard Overview, Work Site, Chat & Quick Log",
+        step2Intro: "Everything you need is right on the main screen as soon as you open the app:",
+        s2_b1_t: "Check the Month and Current Work Site",
+        s2_b1_d: "At the top you can see the selected month and your assigned Work Site. If you changed sites, tap 'Change'.",
+        s2_b2_t: "Messages & Direct Chat with Manager",
+        s2_b2_d: "Have questions about your hours? Tap 'Chat' to message the hours management team directly.",
+        s2_b3_t: "Green Button: 'Log my hours for today'",
+        s2_b3_d: "Tap this button every day after work. If you missed any previous workday, a yellow alert will appear right below to fill it in.",
+        s2_b4_t: "Bottom Menu: Hours, Payslips (Nóminas) & Profile",
+        s2_b4_d: "Use the bottom bar to switch between your Hours, your Payslips, and your Personal/IBAN details.",
+        m_siteLbl: "Current site:",
+        m_changeBtn: "Change",
+        m_chatTitle: "Messages & Notifications",
+        m_chatSub: "Chat with the hours manager",
+        m_todayDate: "Today, Monday",
+        m_pointTodayBtn: "Log my hours for today",
+        m_pendingAlert: "⚠️ Missing previous days",
+        m_fillBtn: "Fill Now",
+        m_kpiWeek: "Week",
+        m_kpiMonth: "Month Total",
+        m_kpiPend: "Pending",
+        m_navHours: "Hours",
+        m_navNominas: "Payslips",
+        m_navProfile: "Profile",
+        step3Tag: "Step 3 of 4 • Daily Entry",
+        step3Title: "How to Log Your Daily Hours Accurately",
+        step3Intro: "Inside the daily entry window, use quick shortcuts to log in seconds:",
+        s3_b1_t: "Switch Between Days (◀ ▶)",
+        s3_b1_d: "Use the arrows in the green header to quickly move to the previous or next day.",
+        s3_b2_t: "Choose Shift (☀️ Day or 🌙 Night) & Work Site",
+        s3_b2_d: "Defaults to Day Shift and your linked work site. Tap Night Shift if you worked overnight.",
+        s3_b3_t: "Select Total Hours or Day Off",
+        s3_b3_d: "Tap the 1-touch buttons (8h, 9h, 10h, 12h), adjust by 0.5h using (– / +), or tap 'Day Off/Rest' on non-working days.",
+        s3_b4_t: "Tap 'Save Entry'",
+        s3_b4_d: "Start and End times are calculated automatically (and can be edited). Add optional notes if needed and tap Save!",
+        m_modalTitle: "New Time Entry",
+        m_monday: "Monday",
+        m_shiftLbl: "Work Shift",
+        m_dayShift: "Day Shift",
+        m_nightShift: "Night Shift",
+        m_linkedSite: "Linked Site",
+        m_totalHrsLbl: "Total Hours for the Day",
+        m_restBtn: "Day Off/Rest",
+        m_saveBtn: "Save Entry",
+        step4Tag: "Step 4 of 4 • Month Closing",
+        step4Title: "Generate Official PDF & Supervisor Digital Signature",
+        step4Intro: "At the end of the month, validate your timesheet digitally without printing paper:",
+        s4_b1_t: "Tap 'Generate PDF for signature (Official)'",
+        s4_b1_d: "On the home screen, scroll to Quick Actions and tap the green card 'Generate PDF for signature'.",
+        s4_b2_t: "Enter Your Site Supervisor's Name",
+        s4_b2_d: "Review your monthly hours summary, type your Site Supervisor's name, and generate the signing link.",
+        s4_b3_t: "Share the Link + 6-Digit OTP Code with Your Supervisor",
+        s4_b3_d: "Your supervisor opens the link on their phone, enters the 6-digit OTP security code, signs with their finger on screen, and your sheet is officially approved!",
+        s4_b4_t: "Plan B: Upload Photo of Paper Timesheet",
+        s4_b4_d: "If your work site strictly requires a pen-signed paper sheet, use 'Upload paper sheet photo (Plan B)' to send a clear photo.",
+        m_pdfActionTitle: "Generate PDF for signature",
+        m_pdfActionSub: "Supervisor digital validation",
+        m_sentTitle: "Timesheet Ready to Sign!",
+        m_supervisorLbl: "Supervisor",
+        m_linkLbl: "Link & OTP Code for Supervisor:",
+        m_copyLink: "Copy Link",
+        m_planBTitle: "Upload paper sheet (Plan B)",
+        m_planBSub: "Photo of hand-signed paper sheet"
+      }
+    };
+
+    function setLang(lang) {
+      const dict = translations[lang] || translations.pt;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) {
+          el.textContent = dict[key];
+        }
+      });
+
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.className = "lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all text-slate-300 hover:text-white";
+      });
+      const activeBtn = document.getElementById('btn-' + lang);
+      if (activeBtn) {
+        activeBtn.className = "lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950";
+      }
+    }
+  </script>
+</body>
+</html>
