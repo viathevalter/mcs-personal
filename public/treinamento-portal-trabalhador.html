@@ -138,6 +138,72 @@
     </div>
 
     <!-- =====================================================================
+         SEÇÃO DE VÍDEO TUTORIAL NARRADO (ES, PT, FR, EN) + DOWNLOAD MP4
+    ====================================================================== -->
+    <section id="video-section" class="no-print bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border-2 border-emerald-500/40">
+      <div class="flex flex-col lg:flex-row items-center justify-between gap-8">
+        <div class="flex-1 space-y-4">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-black uppercase">
+            <span>🎬</span>
+            <span id="vid-badge">Vídeo Tutorial Narrado • Passo a Passo (1 min)</span>
+          </div>
+          <h2 id="vid-title" class="text-2xl sm:text-3xl font-black text-white leading-tight">
+            Assista ao Vídeo Explicativo com Voz e Legendas
+          </h2>
+          <p id="vid-desc" class="text-sm text-slate-300 leading-relaxed">
+            Aperte o Play para assistir ao treinamento completo no formato de telemóvel (Login, Instalação no Android e iPhone, Chat com Gestor, Apontamento em 5s, Alerta de Dias Faltantes, Consultas Semanal/Mensal e Assinatura Digital).
+          </p>
+
+          <!-- Seletor de Idioma do Vídeo -->
+          <div class="space-y-2 pt-1">
+            <span id="vid-choose-lbl" class="text-xs font-bold uppercase tracking-wider text-emerald-300 block">
+              Escolha o idioma do áudio e legenda do vídeo:
+            </span>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="setVideoLang('es')" id="vbtn-es" class="vlang-btn px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
+                🇪🇸 Español (Voz Neural)
+              </button>
+              <button type="button" onclick="setVideoLang('pt')" id="vbtn-pt" class="vlang-btn px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer bg-emerald-500 text-slate-950 border-emerald-400 shadow-md">
+                🇵🇹 Português (Voz Neural)
+              </button>
+              <button type="button" onclick="setVideoLang('fr')" id="vbtn-fr" class="vlang-btn px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
+                🇫🇷 Français (Voz Neural)
+              </button>
+              <button type="button" onclick="setVideoLang('en')" id="vbtn-en" class="vlang-btn px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700">
+                🇬🇧 English (Voz Neural)
+              </button>
+            </div>
+          </div>
+
+          <!-- Botão de Download direto para WhatsApp -->
+          <div class="pt-3 flex flex-wrap items-center gap-3">
+            <a id="vid-download-link" href="/videos/tutorial-pt.mp4" download="Tutorial-Portal-MCS-PT.mp4" class="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs px-4 py-3 rounded-2xl shadow-lg transition-all">
+              <span>⬇️</span>
+              <span id="vid-download-txt">Baixar Vídeo (.MP4) para enviar no WhatsApp</span>
+            </a>
+            <span class="text-[11px] text-slate-400 font-medium">
+              📦 Arquivo leve (~2 MB) • Formato vertical 9:16
+            </span>
+          </div>
+        </div>
+
+        <!-- Player Vertical Mobile -->
+        <div class="w-full max-w-[300px] shrink-0 mx-auto">
+          <div class="rounded-[32px] p-2.5 bg-slate-950 border-4 border-slate-700 shadow-2xl">
+            <video
+              id="tutorial-video-player"
+              src="/videos/tutorial-pt.mp4"
+              controls
+              playsinline
+              preload="metadata"
+              class="w-full rounded-[22px] bg-black aspect-[9/16] shadow-inner"
+            ></video>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
          PASSO 1: LOGIN E INSTALAÇÃO DO APP
     ====================================================================== -->
     <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200">
@@ -1882,6 +1948,74 @@
       }
     };
 
+    const videoCopy = {
+      pt: {
+        badge: "Vídeo Tutorial Narrado • Passo a Passo (1 min)",
+        title: "Assista ao Vídeo Explicativo com Voz e Legendas",
+        desc: "Aperte o Play para assistir ao treinamento completo no formato de telemóvel (Login, Instalação no Android e iPhone, Chat com Gestor, Apontamento em 5s, Alerta de Dias Faltantes, Consultas Semanal/Mensal e Assinatura Digital).",
+        choose: "Escolha o idioma do áudio e legenda do vídeo:",
+        dl: "Baixar Vídeo (.MP4) em Português para WhatsApp"
+      },
+      es: {
+        badge: "Vídeo Tutorial Narrado • Paso a Paso (1 min)",
+        title: "Mira el Vídeo Explicativo con Voz y Subtítulos",
+        desc: "Pulsa Play para ver el entrenamiento completo en formato móvil (Acceso, Instalación en Android y iPhone, Chat con el Gestor, Registro en 5s, Alerta de Días Pendientes, Consultas Semanal/Mensual y Firma Digital).",
+        choose: "Elige el idioma del audio y subtítulos del vídeo:",
+        dl: "Descargar Vídeo (.MP4) en Español para WhatsApp"
+      },
+      fr: {
+        badge: "Vidéo Tutoriel Narrée • Étape par Étape (1 min)",
+        title: "Regardez la Vidéo Explicative avec Voix et Sous-titres",
+        desc: "Appuyez sur Play pour voir la formation complète sur mobile (Connexion, Installation Android et iPhone, Chat avec le Gestionnaire, Pointage en 5s, Alerte des Jours Manquants, Consultations et Signature Numérique).",
+        choose: "Choisissez la langue audio et sous-titres de la vidéo :",
+        dl: "Télécharger la Vidéo (.MP4) en Français pour WhatsApp"
+      },
+      en: {
+        badge: "Narrated Video Tutorial • Step-by-Step (1 min)",
+        title: "Watch the Walkthrough Video with Voice & Subtitles",
+        desc: "Press Play to watch the full mobile training (Sign-In, Android & iPhone App Install, Manager Chat, 5-Second Entry, Missing Days Alert, Weekly/Monthly Consultations & Digital Signature).",
+        choose: "Choose the video audio & subtitle language:",
+        dl: "Download Video (.MP4) in English for WhatsApp"
+      }
+    };
+
+    function setVideoLang(vlang) {
+      const code = (vlang === 'es' || vlang === 'fr' || vlang === 'en') ? vlang : 'pt';
+      const player = document.getElementById('tutorial-video-player');
+      const dlLink = document.getElementById('vid-download-link');
+      const dlTxt = document.getElementById('vid-download-txt');
+      const vc = videoCopy[code] || videoCopy.pt;
+
+      if (player) {
+        const wasPlaying = !player.paused;
+        player.src = '/videos/tutorial-' + code + '.mp4';
+        if (wasPlaying) player.play().catch(() => {});
+      }
+      if (dlLink) {
+        dlLink.href = '/videos/tutorial-' + code + '.mp4';
+        dlLink.setAttribute('download', 'Tutorial-Portal-MCS-' + code.toUpperCase() + '.mp4');
+      }
+      if (dlTxt) dlTxt.textContent = vc.dl;
+
+      const bEl = document.getElementById('vid-badge');
+      const tEl = document.getElementById('vid-title');
+      const dEl = document.getElementById('vid-desc');
+      const cEl = document.getElementById('vid-choose-lbl');
+      if (bEl) bEl.textContent = vc.badge;
+      if (tEl) tEl.textContent = vc.title;
+      if (dEl) dEl.textContent = vc.desc;
+      if (cEl) cEl.textContent = vc.choose;
+
+      ['es', 'pt', 'fr', 'en'].forEach(k => {
+        const btn = document.getElementById('vbtn-' + k);
+        if (btn) {
+          btn.className = (k === code)
+            ? "vlang-btn px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer bg-emerald-500 text-slate-950 border-emerald-400 shadow-md"
+            : "vlang-btn px-3.5 py-2 rounded-xl text-xs font-extrabold border transition-all cursor-pointer bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700";
+        }
+      });
+    }
+
     function setLang(lang) {
       const normalized = (lang || 'pt').toLowerCase().slice(0, 2);
       const target = translations[normalized] ? normalized : 'pt';
@@ -1902,6 +2036,8 @@
       if (activeBtn) {
         activeBtn.className = "lang-btn px-2.5 py-1 rounded-lg text-xs font-bold transition-all bg-emerald-500 text-slate-950 cursor-pointer";
       }
+
+      setVideoLang(target === 'nl' ? 'en' : target);
     }
 
     // Auto-detectar idioma via ?lang=xx na URL ou localStorage
@@ -1910,6 +2046,10 @@
         const params = new URLSearchParams(window.location.search);
         const urlLang = params.get('lang') || params.get('lng') || localStorage.getItem('i18nextLng') || 'pt';
         setLang(urlLang);
+        if (params.get('video') === '1') {
+          const sec = document.getElementById('video-section');
+          if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+        }
       } catch (_) {
         setLang('pt');
       }
