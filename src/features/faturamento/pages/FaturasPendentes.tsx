@@ -253,7 +253,7 @@ export function FaturasPendentes() {
       ? faturamento.obras.find(o => o.id === selectedObraId)
       : null;
 
-    const adj = clientAdjustments[emailData.cardId] || initAdjustments(faturamento);
+    const adj = getClientAdj(faturamento, emailData.cardId, selectedObraId);
     const finalTotal = (emailData.totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
     const monthStr = getTranslatedMonthName(faturamento.month, lang);
@@ -450,7 +450,7 @@ MCS - Gestão Comercial`;
     return months[mIndex] || '';
   };
 
-  const initAdjustments = (f: ClientBillingSummary) => {
+  const initAdjustments = (f: ClientBillingSummary, selectedObra?: { id: string | null; name: string } | null) => {
     const condPay = f.paymentTermName || 'Pronto Pagamento';
     const payDays = f.paymentTermDays ?? 0;
     
@@ -475,7 +475,11 @@ MCS - Gestão Comercial`;
     if (f.empresaBankDetails && ibanVal && (!ibanVal.includes('\n') || ibanVal.startsWith('IBAN:'))) {
       ibanVal = f.empresaBankDetails;
     }
-    const defaultDesc = `Prestação de Serviços - ${getMonthName(f.month)} ${f.year} - Obra: Sin Obra`;
+    
+    let defaultDesc = `Prestação de Serviços - ${getMonthName(f.month)} ${f.year}`;
+    if (selectedObra && selectedObra.name) {
+      defaultDesc += ` - Obra: ${selectedObra.name}`;
+    }
 
     return {
       incrementos: f.ajustesJson?.incrementos ?? 0,
@@ -487,7 +491,32 @@ MCS - Gestão Comercial`;
       dataEmissao: f.dataEmissaoFatura || f.ajustesJson?.dataEmissao || emissionStr,
       dataVencimento: f.ajustesJson?.data_vencimento || dueStr,
       condicoesPagamento: f.ajustesJson?.condicoes_pagamento || condPay,
-      descricaoServico: f.ajustesJson?.descricao_servico || defaultDesc,
+      descricaoServico: (f.ajustesJson?.descricao_servico && (!selectedObra || f.ajustesJson?.obra === selectedObra.name)) ? f.ajustesJson.descricao_servico : defaultDesc,
+    };
+  };
+
+  const getAdjKey = (cardId: string, obraId?: string | null) => {
+    return obraId ? `${cardId}::${obraId}` : cardId;
+  };
+
+  const getClientAdj = (f: ClientBillingSummary, cardId: string, obraId?: string | null): ClientAdjustments => {
+    const key = getAdjKey(cardId, obraId);
+    if (clientAdjustments[key]) {
+      return clientAdjustments[key];
+    }
+    const selectedObra = (obraId !== undefined && obraId !== null)
+      ? f.obras.find(o => o.id === obraId)
+      : null;
+    const baseAdj = clientAdjustments[cardId] || initAdjustments(f, null);
+    
+    let defaultDesc = `Prestação de Serviços - ${getMonthName(f.month)} ${f.year}`;
+    if (selectedObra && selectedObra.name) {
+      defaultDesc += ` - Obra: ${selectedObra.name}`;
+    }
+
+    return {
+      ...baseAdj,
+      descricaoServico: selectedObra ? defaultDesc : (baseAdj.descricaoServico || defaultDesc),
     };
   };
 
@@ -590,14 +619,17 @@ MCS - Gestão Comercial`;
       setFaturamentos(data);
 
       // Initialize adjustments state, keeping user changes from session state if present
-      const initialAdjustments: Record<string, ClientAdjustments> = {};
       const saved = sessionStorage.getItem('mcs:clientAdjustments');
       const savedAdjustments = saved ? JSON.parse(saved) : {};
+      const mergedAdjustments: Record<string, ClientAdjustments> = { ...savedAdjustments, ...clientAdjustments };
       
       data.forEach(f => {
-        initialAdjustments[f.clientId] = savedAdjustments[f.clientId] || clientAdjustments[f.clientId] || initAdjustments(f);
+        const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.clientId}-pending`;
+        if (!mergedAdjustments[cardId]) {
+          mergedAdjustments[cardId] = mergedAdjustments[f.clientId] || initAdjustments(f, null);
+        }
       });
-      setClientAdjustments(initialAdjustments);
+      setClientAdjustments(mergedAdjustments);
     } catch (error: any) {
       toast.error('Erro ao carregar faturamentos', { description: error.message });
     } finally {
@@ -647,7 +679,7 @@ MCS - Gestão Comercial`;
       return;
     }
 
-    const adj = clientAdjustments[cardId] || initAdjustments(faturamento);
+    const adj = getClientAdj(faturamento, cardId, selectedObraId);
     const totalBase = workers.reduce((sum, w) => sum + w.totalValor, 0);
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
@@ -690,7 +722,8 @@ MCS - Gestão Comercial`;
     addEmails(faturamento.billingEmail);
     addEmails(faturamento.clientEmail);
 
-    const cached = emailCache[cardId];
+    const emailCacheKey = selectedObraId ? `${cardId}::${selectedObraId}` : cardId;
+    const cached = emailCache[emailCacheKey];
     if (cached) {
       setSelectedEmails(cached.selectedEmails);
       setAdditionalEmails(cached.additionalEmails);
@@ -726,7 +759,7 @@ MCS - Gestão Comercial`;
         totalBase
       });
 
-      updateEmailCache(cardId, {
+      updateEmailCache(emailCacheKey, {
         selectedEmails: defaultEmails,
         additionalEmails: "",
         sendEmailCheckbox: true,
@@ -1129,7 +1162,7 @@ MCS - Gestão Comercial`;
       ? (f.obras.find(o => o.id === selectedObraId)?.totalValor || 0)
       : f.totalValor;
 
-    const adj = clientAdjustments[cardId] || initAdjustments(f);
+    const adj = getClientAdj(f, cardId, selectedObraId);
     const totalBase = displayTotalValor;
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
@@ -1440,7 +1473,7 @@ MCS - Gestão Comercial`;
       : f.totalValor;
 
     const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
-    const adj = clientAdjustments[cardId] || initAdjustments(f);
+    const adj = getClientAdj(f, cardId, selectedObraId);
     const totalBase = displayTotalValor;
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
@@ -2010,12 +2043,12 @@ MCS - Gestão Comercial`;
       const faturamento = faturamentos.find(f => f.clientId === emailData.clientId);
       if (!faturamento) return;
 
-      const adj = clientAdjustments[emailData.cardId] || initAdjustments(faturamento);
-
       const selectedObraId = selectedObraByClient[emailData.cardId];
       const selectedObra = selectedObraId !== undefined
         ? faturamento.obras.find(o => o.id === selectedObraId)
         : null;
+
+      const adj = getClientAdj(faturamento, emailData.cardId, selectedObraId);
 
       // Save adjustments to the DB by calling solicitarAprovacaoCliente
       await solicitarAprovacaoCliente(
@@ -2032,7 +2065,8 @@ MCS - Gestão Comercial`;
           data_vencimento: adj.dataVencimento,
           condicoes_pagamento: adj.condicoesPagamento,
           descricao_servico: adj.descricaoServico,
-          obra: selectedObra ? selectedObra.name : null
+          obra: selectedObra ? selectedObra.name : null,
+          obra_id: selectedObra ? selectedObra.id : null
         },
         emailData.token,
         selectedEmpresaId
@@ -2586,7 +2620,7 @@ MCS - Gestão Comercial`;
       : f.totalValor;
 
     const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
-    const adj = clientAdjustments[cardId] || initAdjustments(f);
+    const adj = getClientAdj(f, cardId, selectedObraId);
     const totalBase = displayTotalValor;
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
@@ -4233,10 +4267,11 @@ MCS - Gestão Comercial`;
 
                     {/* Aba 3: Importe */}
                     {getActiveTab(cardId) === 'importe' && (() => {
-                      const adj = clientAdjustments[cardId] || initAdjustments(f);
+                      const adj = getClientAdj(f, cardId, selectedObraId);
                       const handleFieldChange = (field: keyof ClientAdjustments, val: any) => {
+                        const adjKey = getAdjKey(cardId, selectedObraId);
                         setClientAdjustments(prev => {
-                          const current = prev[cardId] || initAdjustments(f);
+                          const current = prev[adjKey] || getClientAdj(f, cardId, selectedObraId);
                           const updated = { ...current, [field]: val };
                           
                           if (field === 'dataEmissao' || field === 'condicoesPagamento') {
@@ -4246,7 +4281,7 @@ MCS - Gestão Comercial`;
                             dueDate.setDate(emissionDate.getDate() + days);
                             updated.dataVencimento = dueDate.toISOString().split('T')[0];
                           }
-                          return { ...prev, [cardId]: updated };
+                          return { ...prev, [adjKey]: updated };
                         });
                       };
 
@@ -4415,7 +4450,7 @@ MCS - Gestão Comercial`;
 
                     {/* Aba 4: Informe Pró-forma */}
                     {(() => {
-                      const adj = clientAdjustments[cardId] || initAdjustments(f);
+                      const adj = getClientAdj(f, cardId, selectedObraId);
                       const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
                       const periodStr = `${getMonthName(f.month)} / ${f.year}`;
@@ -4628,7 +4663,7 @@ MCS - Gestão Comercial`;
 
                     {/* Aba 5: Factura Única */}
                     {(() => {
-                      const adj = clientAdjustments[cardId] || initAdjustments(f);
+                      const adj = getClientAdj(f, cardId, selectedObraId);
                       const totalBase = displayTotalValor;
                       const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
@@ -4893,7 +4928,8 @@ MCS - Gestão Comercial`;
             const currentFaturamento = faturamentos.find(f => f.clientId === emailData?.clientId);
             if (!emailData || !currentFaturamento) return null;
 
-            const currentAdj = clientAdjustments[emailData.cardId] || initAdjustments(currentFaturamento);
+            const selectedObraId = selectedObraByClient[emailData.cardId];
+            const currentAdj = getClientAdj(currentFaturamento, emailData.cardId, selectedObraId);
             const currentTotalBase = emailData.totalBase;
             const currentFinalTotal = (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.ivaPct || 0)/100);
 
@@ -5214,7 +5250,10 @@ MCS - Gestão Comercial`;
             const dataVencimentoStr = dueDate.toISOString().split('T')[0];
             const year = new Date(dataEmissaoStr).getFullYear();
 
-            const adjustments = selectedFatura.ajustes_json || {
+            const adjustments = selectedFatura.ajustes_json ? {
+              ...selectedFatura.ajustes_json,
+              descricaoServico: selectedFatura.ajustes_json.descricao_servico || selectedFatura.ajustes_json.descricaoServico || 'Prestação de Serviços'
+            } : {
               incrementos: 0,
               incrementosDesc: '',
               reducoes: 0,

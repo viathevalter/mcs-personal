@@ -2344,7 +2344,7 @@ export async function desmembrarFaturaPorObras(
       ...(financialAdjustments || {}),
       obra: gName,
       obra_id: g?.obraId || originalFat.ajustes_json?.obra_id || null,
-      descricao_servico: `Prestação de Serviços - ${periodLabel} - Obra: ${gName}`,
+      descricao_servico: financialAdjustments?.descricao_servico || originalFat.ajustes_json?.descricao_servico || `Prestação de Serviços - ${periodLabel} - Obra: ${gName}`,
       disputed_hours: null
     };
 
@@ -2379,7 +2379,7 @@ export async function desmembrarFaturaPorObras(
     ...(financialAdjustments || {}),
     obra: group1.obraName,
     obra_id: group1.obraId,
-    descricao_servico: `Prestação de Serviços - ${periodLabel} - Obra: ${group1.obraName}`,
+    descricao_servico: financialAdjustments?.descricao_servico || originalFat.ajustes_json?.descricao_servico || `Prestação de Serviços - ${periodLabel} - Obra: ${group1.obraName}`,
     disputed_hours: null
   };
 

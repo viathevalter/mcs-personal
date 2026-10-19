@@ -132,6 +132,7 @@ export function FaturasTracking() {
   const [disputeReductions, setDisputeReductions] = useState<number>(0);
   const [disputeReductionsDesc, setDisputeReductionsDesc] = useState<string>('');
   const [disputeIvaPct, setDisputeIvaPct] = useState<number>(0);
+  const [disputeDescricaoServico, setDisputeDescricaoServico] = useState<string>('');
   const [isSavingAdjustments, setIsSavingAdjustments] = useState(false);
   const [isSplittingObras, setIsSplittingObras] = useState(false);
   const [disputeActiveTab, setDisputeActiveTab] = useState<'resumo' | 'informe' | 'factura'>('resumo');
@@ -359,6 +360,7 @@ export function FaturasTracking() {
     setDisputeReductions(Number(adj.reducoes || 0));
     setDisputeReductionsDesc(adj.reducoes_desc || adj.reducoesDesc || '');
     setDisputeIvaPct(Number(adj.iva_pct ?? 0));
+    setDisputeDescricaoServico(adj.descricao_servico || adj.descricaoServico || 'Prestação de Serviços');
     setDisputeHours([]);
     setLoadingDisputeHours(true);
     try {
@@ -2131,6 +2133,7 @@ export function FaturasTracking() {
         reducoes: disputeReductions,
         reducoes_desc: disputeReductionsDesc,
         iva_pct: disputeIvaPct,
+        descricao_servico: disputeDescricaoServico,
         disputed_hours: activeEdits,
         total_horas: effH,
         total_valor_base: effBaseV,
@@ -2144,6 +2147,7 @@ export function FaturasTracking() {
         reducoes: disputeReductions,
         reducoes_desc: disputeReductionsDesc,
         iva_pct: disputeIvaPct,
+        descricao_servico: disputeDescricaoServico,
         disputed_hours: activeEdits
       };
 
@@ -2182,7 +2186,8 @@ export function FaturasTracking() {
         incrementos_desc: disputeIncrementsDesc,
         reducoes: disputeReductions,
         reducoes_desc: disputeReductionsDesc,
-        iva_pct: disputeIvaPct
+        iva_pct: disputeIvaPct,
+        descricao_servico: disputeDescricaoServico
       };
 
       const activeEdits = Object.keys(adminModifiedHoursRef.current).length > 0
@@ -2227,7 +2232,8 @@ export function FaturasTracking() {
         incrementos_desc: disputeIncrementsDesc,
         reducoes: disputeReductions,
         reducoes_desc: disputeReductionsDesc,
-        iva_pct: disputeIvaPct
+        iva_pct: disputeIvaPct,
+        descricao_servico: disputeDescricaoServico
       };
 
       const activeEdits = Object.keys(adminModifiedHoursRef.current).length > 0
@@ -3430,7 +3436,9 @@ MCS - Gestão Comercial`;
                 reducoesDesc: disputeReductionsDesc !== undefined ? disputeReductionsDesc : (adj.reducoes_desc || ''),
                 ivaPct: disputeIvaPct !== undefined ? Number(disputeIvaPct) : (adj.iva_pct !== undefined ? Number(adj.iva_pct) : 21),
                 iban: adj.iban || 'BANCO COMERCIAL PORTUGUÊS (BCP)\nIBAN: PT50 0033 0000 1234 5678 9012 3\nSWIFT: BCPTPLPT',
-                descricaoServico: adj.descricao_servico || 'Prestação de serviços de mão de obra temporária especializada nas instalações do cliente.'
+                descricaoServico: (disputeDescricaoServico !== undefined && disputeDescricaoServico !== '')
+                  ? disputeDescricaoServico
+                  : (adj.descricao_servico || adj.descricaoServico || 'Prestação de Serviços')
               };
             })();
 
@@ -3688,6 +3696,28 @@ MCS - Gestão Comercial`;
                                 />
                               </div>
                             </div>
+                          </div>
+
+                          {/* Descrição do Serviço de Facturação */}
+                          <div className="space-y-1.5 bg-slate-50/70 dark:bg-slate-900/40 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                            <label className="text-[10px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                              Descrição do Serviço de Facturação
+                            </label>
+                            <textarea
+                              rows={2}
+                              placeholder="Descrição do serviço na fatura..."
+                              value={disputeDescricaoServico}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setDisputeDescricaoServico(val);
+                                if (selectedDispute) {
+                                  const updatedAdj = { ...(selectedDispute.ajustes_json || {}), descricao_servico: val };
+                                  setSelectedDispute((prev: any) => prev ? { ...prev, ajustes_json: updatedAdj } : null);
+                                  setFaturas((prevList: any[]) => prevList.map(f => f.id === selectedDispute.id ? { ...f, ajustes_json: updatedAdj } : f));
+                                }
+                              }}
+                              className="w-full text-xs p-2 rounded bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium text-slate-800 dark:text-slate-200"
+                            />
                           </div>
                         </div>
 
