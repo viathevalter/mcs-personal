@@ -125,6 +125,7 @@ import { ProvedorForm } from '../features/logistica/pages/Registros/ProvedorForm
 import { DemandasAlocacaoPage } from '../features/logistica/pages/DemandasAlocacaoPage';
 import { ContratosList } from '../features/logistica/pages/Contratos/ContratosList';
 import { FinanceiroLogisticaPage } from '../features/logistica/pages/FinanceiroLogisticaPage';
+import { FinanceiroRhPage } from '../features/personal/pages/FinanceiroRhPage';
 
 import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
 import { FaturamentoDashboard } from '../features/faturamento/pages/FaturamentoDashboard';
@@ -814,6 +815,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'personal/tarefas',
                         element: <RhTasksPage />,
+                    },
+                    {
+                        path: 'personal/ordens-pagamento',
+                        element: <FinanceiroRhPage />,
                     },
                     {
                         path: 'documentacion/tarefas',

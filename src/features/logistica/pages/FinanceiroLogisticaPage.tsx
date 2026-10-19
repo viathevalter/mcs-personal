@@ -38,6 +38,7 @@ import {
   Plane,
   Ticket,
   User,
+  Receipt,
   FileUp,
   Paperclip,
   MapPin,
@@ -90,12 +91,12 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
   // Lista de Trabalhadores, Alocações e Pedidos
   const [alocacoes, setAlocacoes] = useState<any[]>([]);
-  const [workers, setWorkers] = useState<Array<{ id: string; nome: string; cod_colab?: string; nif?: string; funcion?: string; cliente?: string; obra?: string; pedido_codigo?: string; cidade?: string }>>([]);
+  const [workers, setWorkers] = useState<Array<{ id: string; nome: string; cod_colab?: string; nif?: string; funcion?: string; cliente?: string; obra?: string; pedido_codigo?: string; cidade?: string; iban?: string | null }>>([]);
   const [pedidosDemanda, setPedidosDemanda] = useState<PedidoDemandaLogistica[]>([]);
 
   // Modal Nueva OP / Gasto (Ampliado e Completo)
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modoVinculacao, setModoVinculacao] = useState<'trabalhador' | 'alojamento' | 'geral'>('trabalhador');
+  const [modoVinculacao, setModoVinculacao] = useState<'trabalhador' | 'alojamento' | 'geral' | 'reembolso'>('trabalhador');
 
   // Trabalhador & Deslocamento
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
@@ -163,7 +164,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
         const personalClient = (supabase as any).schema ? (supabase as any).schema('core_personal') : supabase;
         const res = await personalClient
           .from('workers')
-          .select('id, nome, cod_colab, nif, funcion, cliente')
+          .select('id, nome, cod_colab, nif, funcion, cliente, iban')
           .order('nome', { ascending: true })
           .limit(2000);
         if (!res.error && res.data && res.data.length > 0) {
@@ -178,7 +179,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
         try {
           const resPub = await supabase
             .from('workers')
-            .select('id, nome, cod_colab, nif, funcion, cliente')
+            .select('id, nome, cod_colab, nif, funcion, cliente, iban')
             .order('nome', { ascending: true })
             .limit(2000);
           if (!resPub.error && resPub.data && resPub.data.length > 0) {
@@ -372,6 +373,12 @@ export const FinanceiroLogisticaPage: React.FC = () => {
         setRotaDeslocamento(`Madrid ➔ ${w.cidade}`);
       }
     }
+
+    if (modoVinculacao === 'reembolso') {
+      setProvedorNome(`Reembolso: ${w.nome}`);
+      setTitularCobranca(w.nome);
+      if (w.iban) setIbanCobranca(w.iban);
+    }
   };
 
   // Limpar seleção do Trabalhador
@@ -412,7 +419,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     setPedidoSearchTerm('');
   };
 
-  const resetModalForm = (novoModo?: 'trabalhador' | 'alojamento' | 'geral') => {
+  const resetModalForm = (novoModo?: 'trabalhador' | 'alojamento' | 'geral' | 'reembolso') => {
     const modo = novoModo || modoVinculacao;
     setSelectedAlojamentoId('');
     setSelectedWorkerId('');
@@ -423,12 +430,32 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     setPedidoCodigo('');
     setPedidoSearchTerm('');
     setRotaDeslocamento('');
-    setProvedorNome(modo === 'trabalhador' ? 'Iberia / Renfe / Transporte' : '');
+    setProvedorNome(
+      modo === 'trabalhador' 
+        ? 'Iberia / Renfe / Transporte' 
+        : modo === 'reembolso' 
+        ? 'Reembolso a Trabajador' 
+        : ''
+    );
     setIbanCobranca('');
     setBancoCobranca('');
     setTitularCobranca('');
-    setTipoGasto(modo === 'trabalhador' ? 'Passagens_Transporte' : modo === 'alojamento' ? 'Aluguel' : 'Outros_Gastos');
-    setFormaPagamento(modo === 'trabalhador' ? 'Cartão de Reserva / Corporativo' : 'Transferência Bancária / Fatura');
+    setTipoGasto(
+      modo === 'trabalhador' 
+        ? 'Passagens_Transporte' 
+        : modo === 'alojamento' 
+        ? 'Aluguel' 
+        : modo === 'reembolso'
+        ? 'Reembolso_Combustivel'
+        : 'Outros_Gastos'
+    );
+    setFormaPagamento(
+      modo === 'trabalhador' 
+        ? 'Cartão de Reserva / Corporativo' 
+        : modo === 'reembolso'
+        ? 'Transferência Bancária'
+        : 'Transferência Bancária / Fatura'
+    );
     setValorGasto(0);
     setVencimentoGasto(new Date().toISOString().split('T')[0]);
     setCompetenciaGasto('10/2026');
@@ -632,8 +659,8 @@ export const FinanceiroLogisticaPage: React.FC = () => {
       return;
     }
 
-    if (modoVinculacao === 'deslocamento' && !selectedWorkerNome && !workerSearchTerm) {
-      alert('Indique o busque el trabajador que realizará el viaje o desplazamiento.');
+    if ((modoVinculacao === 'trabalhador' || modoVinculacao === 'reembolso') && !selectedWorkerNome && !workerSearchTerm) {
+      alert('Indique o busque el trabajador vinculado a esta orden de pago / reembolso.');
       return;
     }
 
@@ -643,7 +670,12 @@ export const FinanceiroLogisticaPage: React.FC = () => {
       const prov = provedores.find(p => p.id === aloj?.provedor_id);
 
       const finalWorkerNome = selectedWorkerNome || workerSearchTerm;
-      const finalProvedorNome = provedorNome.trim() || prov?.nome_razao_social || (modoVinculacao === 'deslocamento' ? 'Agencia / Transporte' : 'Proveedor Logístico');
+      const defaultProvedor = modoVinculacao === 'reembolso'
+        ? `Reembolso: ${finalWorkerNome || 'Trabajador'}`
+        : modoVinculacao === 'trabalhador'
+        ? 'Agencia / Transporte'
+        : 'Proveedor Logístico';
+      const finalProvedorNome = provedorNome.trim() || prov?.nome_razao_social || defaultProvedor;
 
       const novaOp = await financeLogisticsService.gerarOrdemPagamento({
         alojamento_id: modoVinculacao === 'alojamento' ? selectedAlojamentoId : undefined,
@@ -1535,9 +1567,9 @@ export const FinanceiroLogisticaPage: React.FC = () => {
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/80">
               <div className="flex items-center gap-3">
                 <div className={`p-2.5 text-white rounded-2xl shadow-sm ${
-                  modoVinculacao === 'trabalhador' ? 'bg-indigo-600' : modoVinculacao === 'alojamento' ? 'bg-blue-600' : 'bg-emerald-600'
+                  modoVinculacao === 'trabalhador' ? 'bg-indigo-600' : modoVinculacao === 'alojamento' ? 'bg-blue-600' : modoVinculacao === 'reembolso' ? 'bg-amber-600' : 'bg-emerald-600'
                 }`}>
-                  {modoVinculacao === 'trabalhador' ? <Plane size={22} /> : modoVinculacao === 'alojamento' ? <Home size={22} /> : <DollarSign size={22} />}
+                  {modoVinculacao === 'trabalhador' ? <Plane size={22} /> : modoVinculacao === 'alojamento' ? <Home size={22} /> : modoVinculacao === 'reembolso' ? <Receipt size={22} /> : <DollarSign size={22} />}
                 </div>
                 <div>
                   <h2 className="text-base font-black text-slate-900 dark:text-white">
@@ -1563,7 +1595,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                 <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5 uppercase text-[10px] tracking-wider">
                   Tipo de Actividad / Destino del Gasto
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -1626,16 +1658,59 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                       </span>
                     </div>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoVinculacao('reembolso');
+                      setTipoGasto('Reembolso_Combustivel');
+                      setFormaPagamento('Transferência Bancária');
+                      if (selectedWorkerNome) {
+                        setProvedorNome(`Reembolso: ${selectedWorkerNome}`);
+                        setTitularCobranca(selectedWorkerNome);
+                        const w = workers.find(work => work.id === selectedWorkerId || work.nome === selectedWorkerNome);
+                        if (w?.iban) setIbanCobranca(w.iban);
+                      }
+                    }}
+                    className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
+                      modoVinculacao === 'reembolso'
+                        ? 'border-amber-600 bg-amber-50/60 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    <Receipt size={18} className={modoVinculacao === 'reembolso' ? 'text-amber-600 mt-0.5' : 'text-slate-400 mt-0.5'} />
+                    <div>
+                      <span className="font-bold block text-xs">Reembolso a Trabajador</span>
+                      <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">
+                        Combustible semanal (tickets), peajes, dietas o anticipos
+                      </span>
+                    </div>
+                  </button>
                 </div>
               </div>
 
               {/* SEÇÃO CONFORME O MODO */}
-              {modoVinculacao === 'trabalhador' && (
-                <div className="p-4 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-4">
+              {(modoVinculacao === 'trabalhador' || modoVinculacao === 'reembolso') && (
+                <div className={`p-4 rounded-2xl border space-y-4 ${
+                  modoVinculacao === 'reembolso'
+                    ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40'
+                    : 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-100 dark:border-indigo-900/40'
+                }`}>
+                  {modoVinculacao === 'reembolso' && (
+                    <div className="p-3 bg-amber-100/70 dark:bg-amber-950/60 rounded-xl border border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-200 flex items-start gap-2.5">
+                      <Receipt size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="text-[11px] leading-relaxed">
+                        <span className="font-bold">Reembolso Semanal de Gastos / Combustible:</span> Al seleccionar el trabajador a continuación, su nombre e IBAN registrado se vincularán como beneficiario para que Tesorería realice la transferencia de reembolso de los tickets adjuntos.
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300 font-bold text-xs">
+                    <div className={`flex items-center gap-2 font-bold text-xs ${
+                      modoVinculacao === 'reembolso' ? 'text-amber-900 dark:text-amber-300' : 'text-indigo-900 dark:text-indigo-300'
+                    }`}>
                       <User size={15} />
-                      <span>Trabajador y Pedido Vinculado (Imputación y Conciliación)</span>
+                      <span>{modoVinculacao === 'reembolso' ? 'Trabajador Beneficiario del Reembolso' : 'Trabajador y Pedido Vinculado (Imputación y Conciliación)'}</span>
                     </div>
                     <span className="text-[10px] text-slate-400">
                       {workers.length} trabajadores • {pedidosDemanda.length} pedidos activos
@@ -1958,7 +2033,15 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
                     required
                   >
-                    {modoVinculacao === 'trabalhador' ? (
+                    {modoVinculacao === 'reembolso' ? (
+                      <>
+                        <option value="Reembolso_Combustivel">⛽ Reembolso de Combustible (Tickets semanales)</option>
+                        <option value="Reembolso_Peajes">🛣️ Reembolso de Peajes / Portajes</option>
+                        <option value="Diarias_Alimentacao">🍽️ Reembolso de Dietas / Manutención</option>
+                        <option value="Passagens_Transporte">🎫 Reembolso de Billetes / Transporte Local</option>
+                        <option value="Outros_Gastos">📦 Otros Reembolsos de Operaciones</option>
+                      </>
+                    ) : modoVinculacao === 'trabalhador' ? (
                       <>
                         <option value="Passagens_Transporte">✈️ Billetes de Avión / Tren / Autobús</option>
                         <option value="Viagem_Deslocamento">🚗 Desplazamiento / Viajes</option>
@@ -1996,9 +2079,10 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 font-semibold"
                     required
                   >
+                    <option value="Transferência Bancária">🏦 Transferencia Bancaria al Beneficiario (IBAN)</option>
+                    <option value="Adelanto en Efectivo / Caja">💵 Adelanto en Efectivo / Caja Chica</option>
                     <option value="Tarjeta de Empresa">💳 Tarjeta de Empresa (Airbnb / Booking / Hotel)</option>
                     <option value="Cartão de Reserva / Corporativo">💳 Tarjeta de Reserva / Corporativa (Viajes / Billetes)</option>
-                    <option value="Transferência Bancária">🏦 Transferencia Bancaria (A pagar por Tesorería)</option>
                   </select>
                 </div>
               </div>
@@ -2062,11 +2146,11 @@ export const FinanceiroLogisticaPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className={formaPagamento.includes('Reserva') || formaPagamento.includes('Tarjeta') ? 'sm:col-span-2 space-y-1' : 'space-y-1'}>
                   <label className="font-bold text-slate-700 dark:text-slate-300">
-                    Proveedor / Plataforma / Establecimiento <span className="text-red-500">*</span>
+                    {modoVinculacao === 'reembolso' ? 'Beneficiario / Favorecido del Reembolso' : 'Proveedor / Plataforma / Establecimiento'} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: Airbnb, Booking, Hotel, Iberia, Renfe, Arrendador..."
+                    placeholder={modoVinculacao === 'reembolso' ? 'Ej: Reembolso: Juan Pérez...' : 'Ej: Airbnb, Booking, Hotel, Iberia, Renfe, Arrendador...'}
                     value={provedorNome}
                     onChange={e => setProvedorNome(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none"
@@ -2124,7 +2208,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                     <Paperclip size={14} className="text-blue-500" />
-                    Billete / Pasaje / Factura Adjunta
+                    {modoVinculacao === 'reembolso' ? 'Tickets de Combustible / Recibos / Factura Adjunta' : 'Billete / Pasaje / Factura Adjunta'}
                   </label>
                   <span className="text-[10px] text-slate-400">PDF, JPG o PNG (máx. 10MB)</span>
                 </div>
