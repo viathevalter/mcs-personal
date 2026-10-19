@@ -4842,6 +4842,8 @@ export function CampaignsPage() {
                       .replace(/\{\{\s*presupuesto_url\s*\}\}/g, testPresupuestoUrl)
                       .replace(/\{\{\s*opt_out_url\s*\}\}/g, testOptOutUrl)
                       .replace(/\{\{\s*unsubscribe_url\s*\}\}/g, testOptOutUrl)
+                      .replace(/\{\{\{\s*RESEND_UNSUBSCRIBE_URL\s*\}\}\}/gi, testOptOutUrl)
+                      .replace(/\{\{\s*RESEND_UNSUBSCRIBE_URL\s*\}\}/gi, testOptOutUrl)
                       .replace(/\*\|UNSUB\|\*/gi, testOptOutUrl)
                     const waOmarUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour Omar, je souhaite plus d'informations sur vos services")}`;
                     const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Michelle, quisiera más información sobre sus servicios")}`;
