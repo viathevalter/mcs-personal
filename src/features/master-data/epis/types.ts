@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const epiSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   code: z.string().nullable().optional(),
   name: z.string().min(2, 'O nome do EPI é obrigatório'),
   description: z.string().nullable().optional(),

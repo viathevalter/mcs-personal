@@ -147,9 +147,16 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
     }
   };
 
+  const onInvalid = (errors: Record<string, any>) => {
+    console.error('Erros de validação do formulário de cliente:', errors);
+    const firstError = Object.values(errors)[0];
+    const message = firstError?.message || 'Verifique os campos obrigatórios do formulário.';
+    toast.error(`Não foi possível salvar: ${message}`);
+  };
+
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
         
         {/* BLOCO 1: Identificação */}
         <div className="bg-slate-50/40 p-6 rounded-xl border border-slate-100 dark:bg-slate-900/40 dark:border-slate-800 space-y-4 shadow-sm">

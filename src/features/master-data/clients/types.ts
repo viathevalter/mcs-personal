@@ -4,8 +4,8 @@ export const clientStatusSchema = z.enum(['active', 'inactive', 'archived']);
 export type ClientStatus = z.infer<typeof clientStatusSchema>;
 
 export const clientSchema = z.object({
-  id: z.string().uuid().optional(),
-  empresa_id: z.string().uuid().optional(),
+  id: z.string().optional(),
+  empresa_id: z.string().optional(),
   trade_name: z.string().min(2, 'Nome fantasia é obrigatório e deve ter no mínimo 2 caracteres'),
   legal_name: z.string().min(2, 'Razão social é obrigatória'),
   tax_id: z.string().min(5, 'NIF/Tax ID é obrigatório'),
@@ -13,8 +13,8 @@ export const clientSchema = z.object({
   email: z.string().email('E-mail inválido').or(z.literal('')).nullable().optional(),
   billing_email: z.string().email('E-mail inválido').or(z.literal('')).nullable().optional(),
   phone: z.string().nullable().optional(),
-  country_id: z.string().uuid().nullable().optional(),
-  region_id: z.string().uuid().nullable().optional(),
+  country_id: z.string().nullable().optional(),
+  region_id: z.string().nullable().optional(),
   province: z.string().nullable().optional(),
   city: z.string().nullable().optional(),
   postal_code: z.string().nullable().optional(),
@@ -24,7 +24,7 @@ export const clientSchema = z.object({
   financial_status: z.enum(['active', 'debtor', 'blocked']).default('active'),
   credit_limit: z.coerce.number().nullable().optional(),
   current_debt: z.coerce.number().nullable().optional(),
-  payment_term_id: z.string().uuid().or(z.literal('')).nullable().optional(),
+  payment_term_id: z.string().nullable().optional(),
   billing_cycle_start_day: z.coerce.number().min(1).max(31).nullable().optional(),
   vies_applicable: z.boolean().default(false).optional(),
   vies_status: z.string().default('not_checked').optional(),

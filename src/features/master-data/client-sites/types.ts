@@ -5,8 +5,8 @@ export const siteStatusSchema = z.enum(['active', 'inactive', 'archived']);
 export type SiteStatus = z.infer<typeof siteStatusSchema>;
 
 export const clientSiteSchema = z.object({
-  id: z.string().uuid().optional(),
-  empresa_id: z.string().uuid().optional(),
+  id: z.string().optional(),
+  empresa_id: z.string().optional(),
   client_id: z.string().optional().or(z.literal('')).nullable(),
   site_code: z.string().nullable().optional(),
   name: z.string().min(2, 'Nome do local é obrigatório'),

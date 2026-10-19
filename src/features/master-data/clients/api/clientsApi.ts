@@ -211,8 +211,6 @@ export const clientsApi = {
     if (billing_cycle_start_day !== undefined) settingsUpdate.billing_cycle_start_day = billing_cycle_start_day;
 
     if (Object.keys(settingsUpdate).length > 0) {
-      const holdingId = 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
-
       const { error: settingsError } = await supabase
         .schema('core_common')
         .from('client_company_settings')
@@ -224,8 +222,8 @@ export const clientsApi = {
 
       if (settingsError) throw settingsError;
 
-      // Se a alteração de status for feita na Holding (GRP - Login Pro), propagar o status para todas as empresas do grupo
-      if (empresaId === holdingId && status !== undefined) {
+      // Propagar a alteração de status de cadastro para todas as empresas do grupo
+      if (status !== undefined) {
         await supabase
           .schema('core_common')
           .from('client_company_settings')
@@ -246,8 +244,7 @@ export const clientsApi = {
       .schema('core_common')
       .from('client_company_settings')
       .update({ status: 'archived' })
-      .eq('client_id', id)
-      .eq('empresa_id', empresaId);
+      .eq('client_id', id);
 
     if (error) throw error;
   },

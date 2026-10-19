@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const empresaSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().optional(),
   codigo: z.string().min(1, 'Código é obrigatório'),
   nome: z.string().min(2, 'Nome da empresa é obrigatório'),
   trade_name: z.string().nullable().optional(),
@@ -12,8 +12,8 @@ export const empresaSchema = z.object({
   postal_code: z.string().nullable().optional(),
   city: z.string().nullable().optional(),
   province: z.string().nullable().optional(),
-  country_id: z.string().uuid().nullable().optional(),
-  region_id: z.string().uuid().nullable().optional(),
+  country_id: z.string().nullable().optional(),
+  region_id: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   mobile: z.string().nullable().optional(),
   email: z.string().email('E-mail inválido').or(z.literal('')).nullable().optional(),

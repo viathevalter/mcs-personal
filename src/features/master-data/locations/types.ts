@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const countrySchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(),
   iso2: z.string().length(2, 'ISO2 deve ter 2 caracteres'),
   iso3: z.string().length(3, 'ISO3 deve ter 3 caracteres'),
   name: z.string().min(1, 'Nome é obrigatório'),
@@ -16,8 +16,8 @@ export type CreateCountryDTO = z.infer<typeof createCountrySchema>;
 export type UpdateCountryDTO = Partial<CreateCountryDTO>;
 
 export const regionSchema = z.object({
-  id: z.string().uuid(),
-  country_id: z.string().uuid('País é obrigatório'),
+  id: z.string(),
+  country_id: z.string().min(1, 'País é obrigatório'),
   name: z.string().min(1, 'Nome é obrigatório'),
   code: z.string().nullable().optional(),
   status: z.enum(['active', 'inactive', 'archived']).default('active'),
