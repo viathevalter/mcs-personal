@@ -235,6 +235,207 @@
                 Entrar no Portal →
               </div>
             </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         SEÇÃO ESPECIAL: COMO INSTALAR O APP NO ANDROID VS. IPHONE (iOS)
+    ====================================================================== -->
+    <section class="print-page bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-200 space-y-6">
+      <div class="text-center max-w-2xl mx-auto space-y-2">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal-100 text-teal-900 text-xs font-black uppercase">
+          <span data-i18n="instTag">Instalação do Aplicativo • Android e iPhone</span>
+        </div>
+        <h2 class="text-2xl font-black text-slate-900" data-i18n="instTitle">
+          Como Instalar o Aplicativo na Tela Inicial (Android vs. iPhone)
+        </h2>
+        <p class="text-sm text-slate-600" data-i18n="instIntro">
+          O procedimento é diferente dependendo da marca do seu telemóvel. Siga o passo a passo abaixo para o seu aparelho:
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- ================= CARD 1: ANDROID (CHROME) ================= -->
+        <div class="rounded-3xl border-2 border-emerald-200 bg-emerald-50/30 p-5 flex flex-col justify-between gap-5">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between border-b border-emerald-200/80 pb-3">
+              <div class="flex items-center gap-2.5">
+                <div class="h-10 w-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-lg font-black shadow-xs">🤖</div>
+                <div>
+                  <h3 class="font-black text-base text-slate-900" data-i18n="andTitle">Telemóvel Android (Chrome)</h3>
+                  <span class="text-[11px] text-emerald-800 font-semibold" data-i18n="andSub">Samsung, Xiaomi, Motorola, Redmi, etc.</span>
+                </div>
+              </div>
+              <span class="bg-emerald-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase">Android</span>
+            </div>
+
+            <div class="space-y-2.5">
+              <div class="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-emerald-200/80 shadow-2xs">
+                <span class="step-badge">1</span>
+                <div class="text-xs">
+                  <strong class="text-slate-900 block" data-i18n="and_s1_t">Pelo Banner Automático (1 toque)</strong>
+                  <span class="text-slate-600" data-i18n="and_s1_d">Ao abrir o Portal no navegador Chrome, toque direto no botão verde "📥 Instalar Aplicativo" no topo da tela e confirme em "Instalar".</span>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-emerald-200/80 shadow-2xs">
+                <span class="step-badge">2</span>
+                <div class="text-xs">
+                  <strong class="text-slate-900 block" data-i18n="and_s2_t">Ou pelos 3 Pontinhos do Chrome (⋮)</strong>
+                  <span class="text-slate-600" data-i18n="and_s2_d">Se o banner não aparecer, toque nos 3 pontinhos (⋮) no canto superior direito do Chrome e escolha "📲 Instalar aplicativo" ou "Adicionar à tela inicial".</span>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-emerald-200/80 shadow-2xs">
+                <span class="step-badge">3</span>
+                <div class="text-xs">
+                  <strong class="text-slate-900 block" data-i18n="and_s3_t">Abra pelo Ícone MCS e Ative as Notificações</strong>
+                  <span class="text-slate-600" data-i18n="and_s3_d">O ícone verde da MCS será criado junto aos seus aplicativos. Abra por ele e toque em "Permitir" para receber avisos do gestor!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mockup Android Chrome -->
+          <div class="phone-mockup mx-auto bg-slate-900 text-white">
+            <div class="phone-notch"></div>
+            <div class="p-3 space-y-2.5">
+              <!-- Barra Superior do Chrome com 3 pontinhos -->
+              <div class="bg-slate-800 rounded-xl px-2.5 py-1.5 flex items-center justify-between text-[10px] border border-slate-700">
+                <span class="text-slate-300 font-mono truncate">🔒 mcs-personal.../portal</span>
+                <div class="flex items-center gap-1">
+                  <span class="step-badge">2</span>
+                  <span class="h-6 w-6 rounded-lg bg-emerald-500 text-slate-950 font-black flex items-center justify-center text-sm">⋮</span>
+                </div>
+              </div>
+
+              <!-- Banner de Instalação Direta -->
+              <div class="bg-emerald-950 border border-emerald-500/50 rounded-2xl p-2.5 space-y-2">
+                <div class="flex items-center gap-2">
+                  <div class="h-8 w-8 rounded-xl bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center">MCS</div>
+                  <div class="text-[10px] leading-tight">
+                    <strong class="block text-white" data-i18n="m_andBannerTitle">Instalar App no Telemóvel</strong>
+                    <span class="text-emerald-300 text-[9px]">Android (PWA)</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="step-badge">1</span>
+                  <div class="flex-1 h-7 rounded-lg bg-emerald-500 text-slate-950 font-black text-[10px] flex items-center justify-center gap-1">
+                    📥 <span data-i18n="m_andBtn">Instalar Aplicativo</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Menu Dropdown 3 pontinhos do Chrome -->
+              <div class="bg-white text-slate-900 rounded-2xl p-2.5 space-y-1.5 shadow-lg border border-slate-200 text-[10px]">
+                <div class="text-[9px] font-bold text-slate-400 uppercase px-1" data-i18n="m_andMenuHdr">Menu do Chrome (⋮):</div>
+                <div class="px-2 py-1 text-slate-500">⭐ Favoritos</div>
+                <div class="px-2 py-1.5 rounded-xl bg-emerald-50 border-2 border-emerald-500 font-black text-emerald-950 flex items-center justify-between">
+                  <span>📲 <span data-i18n="m_andMenuOpt">Instalar aplicativo / Tela inicial</span></span>
+                  <span>✓</span>
+                </div>
+                <div class="flex items-center justify-between bg-slate-100 rounded-xl p-2 mt-1">
+                  <span class="font-bold text-[9px] text-slate-700" data-i18n="m_andDone">Ícone criado na Tela Inicial!</span>
+                  <span class="step-badge">3</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= CARD 2: IPHONE / IPAD (SAFARI) ================= -->
+        <div class="rounded-3xl border-2 border-blue-200 bg-blue-50/30 p-5 flex flex-col justify-between gap-5">
+          <div class="space-y-4">
+            <div class="flex items-center justify-between border-b border-blue-200/80 pb-3">
+              <div class="flex items-center gap-2.5">
+                <div class="h-10 w-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center text-lg font-black shadow-xs">🍎</div>
+                <div>
+                  <h3 class="font-black text-base text-slate-900" data-i18n="iosTitle">iPhone / iPad (Navegador Safari)</h3>
+                  <span class="text-[11px] text-blue-800 font-semibold" data-i18n="iosSub">No iPhone a instalação é feita pelo botão Partilhar do Safari</span>
+                </div>
+              </div>
+              <span class="bg-slate-900 text-white text-[10px] font-black px-2.5 py-1 rounded-full uppercase">iPhone iOS</span>
+            </div>
+
+            <div class="space-y-2.5">
+              <div class="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-blue-200/80 shadow-2xs">
+                <span class="step-badge">1</span>
+                <div class="text-xs">
+                  <strong class="text-slate-900 block" data-i18n="ios_s1_t">Toque no Botão "Partilhar / Compartilhar" (📤)</strong>
+                  <span class="text-slate-600" data-i18n="ios_s1_d">Abra o Portal no Safari do iPhone e toque no ícone de Partilhar (o quadrado com uma seta apontando para cima 📤) na barra inferior.</span>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-blue-200/80 shadow-2xs">
+                <span class="step-badge">2</span>
+                <div class="text-xs">
+                  <strong class="text-slate-900 block" data-i18n="ios_s2_t">Escolha "➕ Adicionar à Tela de Início / Ecrã Principal"</strong>
+                  <span class="text-slate-600" data-i18n="ios_s2_d">Role a lista de opções que abrir para baixo e toque em "Adicionar à Tela de Início" (ou "Adicionar ao Ecrã Principal").</span>
+                </div>
+              </div>
+
+              <div class="flex items-start gap-2.5 bg-white p-3 rounded-2xl border border-blue-200/80 shadow-2xs">
+                <span class="step-badge">3</span>
+                <div class="text-xs">
+                  <strong class="text-slate-900 block" data-i18n="ios_s3_t">Toque em "Adicionar" no canto superior direito</strong>
+                  <span class="text-slate-600" data-i18n="ios_s3_d">Confirme tocando em "Adicionar". O ícone da MCS aparecerá na tela do seu iPhone igual a um aplicativo da App Store (com suporte a notificações)!</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mockup iPhone Safari -->
+          <div class="phone-mockup mx-auto bg-slate-900 text-white">
+            <div class="phone-notch"></div>
+            <div class="p-3 space-y-2.5">
+              <!-- Topo Confirmação iOS -->
+              <div class="bg-slate-800 rounded-xl px-3 py-1.5 flex items-center justify-between text-[10px] border border-slate-700">
+                <span class="text-slate-400" data-i18n="m_iosCancel">Cancelar</span>
+                <strong class="text-white" data-i18n="m_iosTopTitle">Tela de Início</strong>
+                <div class="flex items-center gap-1">
+                  <span class="step-badge">3</span>
+                  <span class="text-blue-400 font-black" data-i18n="m_iosAddBtn">Adicionar</span>
+                </div>
+              </div>
+
+              <!-- Folha de Compartilhamento do Safari -->
+              <div class="bg-white text-slate-900 rounded-2xl p-3 space-y-2 shadow-lg">
+                <div class="flex items-center gap-2 border-b pb-2">
+                  <div class="h-7 w-7 rounded-lg bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center">MCS</div>
+                  <div class="text-[10px] leading-tight">
+                    <strong class="block">Portal do Trabalhador MCS</strong>
+                    <span class="text-[8px] text-slate-400">Safari • iPhone</span>
+                  </div>
+                </div>
+
+                <div class="px-2 py-1 text-[10px] text-slate-500 flex items-center justify-between">
+                  <span data-i18n="m_iosCopy">Copiar Link</span>
+                  <span>📄</span>
+                </div>
+
+                <!-- Opção Adicionar à Tela de Início Destacada -->
+                <div class="px-2.5 py-2 rounded-xl bg-blue-50 border-2 border-blue-500 font-black text-blue-950 text-[10px] flex items-center justify-between">
+                  <div class="flex items-center gap-1.5">
+                    <span class="step-badge">2</span>
+                    <span data-i18n="m_iosAddHome">➕ Adicionar à Tela de Início</span>
+                  </div>
+                  <span class="text-sm">⊞</span>
+                </div>
+              </div>
+
+              <!-- Barra Inferior do Safari com botão Partilhar -->
+              <div class="bg-slate-800 border border-slate-700 rounded-2xl px-4 py-2 flex items-center justify-between text-xs">
+                <span class="text-slate-400">◀</span>
+                <span class="text-slate-400">▶</span>
+                <div class="flex items-center gap-1.5 bg-blue-600 text-white px-3 py-1 rounded-xl font-black text-[10px] shadow-md">
+                  <span class="step-badge">1</span>
+                  <span>📤 <span data-i18n="m_iosShareBtn">Partilhar</span></span>
+                </div>
+                <span class="text-slate-400">📖</span>
+                <span class="text-slate-400">❐</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -971,7 +1172,37 @@
         m_statusValid: "Validado",
         m_navHours: "Horas",
         m_navNominas: "Nóminas",
-        m_navProfile: "Perfil"
+        m_navProfile: "Perfil",
+        instTag: "Instalação do Aplicativo • Android e iPhone",
+        instTitle: "Como Instalar o Aplicativo na Tela Inicial (Android vs. iPhone)",
+        instIntro: "O procedimento é diferente dependendo da marca do seu telemóvel. Siga o passo a passo abaixo para o seu aparelho:",
+        andTitle: "Telemóvel Android (Chrome)",
+        andSub: "Samsung, Xiaomi, Motorola, Redmi, etc.",
+        and_s1_t: "Pelo Banner Automático (1 toque)",
+        and_s1_d: "Ao abrir o Portal no navegador Chrome, toque direto no botão verde '📥 Instalar Aplicativo' no topo da tela e confirme em 'Instalar'.",
+        and_s2_t: "Ou pelos 3 Pontinhos do Chrome (⋮)",
+        and_s2_d: "Se o banner não aparecer, toque nos 3 pontinhos (⋮) no canto superior direito do Chrome e escolha '📲 Instalar aplicativo' ou 'Adicionar à tela inicial'.",
+        and_s3_t: "Abra pelo Ícone MCS e Ative as Notificações",
+        and_s3_d: "O ícone verde da MCS será criado junto aos seus aplicativos. Abra por ele e toque em 'Permitir' para receber avisos do gestor!",
+        m_andBannerTitle: "Instalar App no Telemóvel",
+        m_andBtn: "Instalar Aplicativo",
+        m_andMenuHdr: "Menu do Chrome (⋮):",
+        m_andMenuOpt: "Instalar aplicativo / Tela inicial",
+        m_andDone: "Ícone criado na Tela Inicial!",
+        iosTitle: "iPhone / iPad (Navegador Safari)",
+        iosSub: "No iPhone a instalação é feita pelo botão Partilhar do Safari",
+        ios_s1_t: "Toque no Botão 'Partilhar / Compartilhar' (📤)",
+        ios_s1_d: "Abra o Portal no Safari do iPhone e toque no ícone de Partilhar (o quadrado com uma seta apontando para cima 📤) na barra inferior.",
+        ios_s2_t: "Escolha '➕ Adicionar à Tela de Início / Ecrã Principal'",
+        ios_s2_d: "Role a lista de opções que abrir para baixo e toque em 'Adicionar à Tela de Início' (ou 'Adicionar ao Ecrã Principal').",
+        ios_s3_t: "Toque em 'Adicionar' no canto superior direito",
+        ios_s3_d: "Confirme tocando em 'Adicionar'. O ícone da MCS aparecerá na tela do seu iPhone igual a um aplicativo da App Store (com suporte a notificações)!",
+        m_iosCancel: "Cancelar",
+        m_iosTopTitle: "Tela de Início",
+        m_iosAddBtn: "Adicionar",
+        m_iosCopy: "Copiar Link",
+        m_iosAddHome: "➕ Adicionar à Tela de Início",
+        m_iosShareBtn: "Partilhar"
       },
       es: {
         btnBackPortal: "Volver al Portal",
@@ -1110,7 +1341,37 @@
         m_statusValid: "Validado",
         m_navHours: "Horas",
         m_navNominas: "Nóminas",
-        m_navProfile: "Perfil"
+        m_navProfile: "Perfil",
+        instTag: "Instalación de la App • Android y iPhone",
+        instTitle: "Cómo Instalar la Aplicación en Pantalla de Inicio (Android vs. iPhone)",
+        instIntro: "El procedimiento es diferente según la marca de tu móvil. Sigue el paso a paso para tu dispositivo:",
+        andTitle: "Móvil Android (Navegador Chrome)",
+        andSub: "Samsung, Xiaomi, Motorola, Redmi, etc.",
+        and_s1_t: "Desde el Banner Automático (1 toque)",
+        and_s1_d: "Al abrir el Portal en Chrome, toca directamente el botón verde '📥 Instalar Aplicación' arriba y confirma en 'Instalar'.",
+        and_s2_t: "O desde los 3 Puntos de Chrome (⋮)",
+        and_s2_d: "Si no aparece el aviso, toca los 3 puntos (⋮) en la esquina superior derecha de Chrome y selecciona '📲 Instalar aplicación' o 'Añadir a pantalla de inicio'.",
+        and_s3_t: "Abre desde el Icono MCS y Activa las Notificaciones",
+        and_s3_d: "El icono verde de MCS aparecerá junto a tus aplicaciones. ¡Ábrelo y toca en 'Permitir' para recibir avisos del gestor!",
+        m_andBannerTitle: "Instalar App en el Móvil",
+        m_andBtn: "Instalar Aplicación",
+        m_andMenuHdr: "Menú de Chrome (⋮):",
+        m_andMenuOpt: "Instalar aplicación / Pantalla de inicio",
+        m_andDone: "¡Icono creado en Pantalla de Inicio!",
+        iosTitle: "iPhone / iPad (Navegador Safari)",
+        iosSub: "En iPhone la instalación se realiza con el botón Compartir de Safari",
+        ios_s1_t: "Toca el Botón 'Compartir' (📤)",
+        ios_s1_d: "Abre el Portal en el navegador Safari de tu iPhone y toca el icono de Compartir (el cuadrado con la flecha hacia arriba 📤) en la barra inferior.",
+        ios_s2_t: "Elige '➕ Añadir a la pantalla de inicio'",
+        ios_s2_d: "Desliza el menú hacia abajo y selecciona la opción 'Añadir a la pantalla de inicio'.",
+        ios_s3_t: "Toca en 'Añadir' arriba a la derecha",
+        ios_s3_d: "Confirma tocando en 'Añadir'. ¡El icono de MCS aparecerá en la pantalla de tu iPhone como una app nativa y con notificaciones!",
+        m_iosCancel: "Cancelar",
+        m_iosTopTitle: "Pantalla de inicio",
+        m_iosAddBtn: "Añadir",
+        m_iosCopy: "Copiar enlace",
+        m_iosAddHome: "➕ Añadir a pantalla de inicio",
+        m_iosShareBtn: "Compartir"
       },
       fr: {
         btnBackPortal: "Retour au Portail",
@@ -1249,7 +1510,37 @@
         m_statusValid: "Validé",
         m_navHours: "Heures",
         m_navNominas: "Paies",
-        m_navProfile: "Profil"
+        m_navProfile: "Profil",
+        instTag: "Installation de l'App • Android et iPhone",
+        instTitle: "Comment Installer l'App sur l'Écran d'Accueil (Android vs. iPhone)",
+        instIntro: "La procédure diffère selon la marque de votre téléphone. Suivez les étapes correspondant à votre appareil :",
+        andTitle: "Téléphone Android (Chrome)",
+        andSub: "Samsung, Xiaomi, Motorola, Redmi, etc.",
+        and_s1_t: "Via la Bannière Automatique (1 clic)",
+        and_s1_d: "En ouvrant le Portail sur Chrome, appuyez directement sur le bouton vert '📥 Installer l'Application' en haut et confirmez sur 'Installer'.",
+        and_s2_t: "Ou via les 3 Petits Points de Chrome (⋮)",
+        and_s2_d: "Si la bannière n'apparaît pas, appuyez sur les 3 points (⋮) en haut à droite de Chrome et choisissez '📲 Installer l'application' ou 'Ajouter à l'écran d'accueil'.",
+        and_s3_t: "Ouvrez via l'Icône MCS et Activez les Notifications",
+        and_s3_d: "L'icône verte MCS sera créée sur votre écran d'accueil. Ouvrez-la et appuyez sur 'Autoriser' pour recevoir les alertes du gestionnaire !",
+        m_andBannerTitle: "Installer l'App sur Mobile",
+        m_andBtn: "Installer l'Application",
+        m_andMenuHdr: "Menu Chrome (⋮) :",
+        m_andMenuOpt: "Installer l'application / Écran d'accueil",
+        m_andDone: "Icône créée sur l'Écran d'Accueil !",
+        iosTitle: "iPhone / iPad (Navigateur Safari)",
+        iosSub: "Sur iPhone, l'installation se fait via le bouton Partager de Safari",
+        ios_s1_t: "Appuyez sur le Bouton 'Partager' (📤)",
+        ios_s1_d: "Ouvrez le Portail dans Safari sur votre iPhone et appuyez sur l'icône Partager (le carré avec une flèche vers le haut 📤) dans la barre inférieure.",
+        ios_s2_t: "Choisissez '➕ Sur l'écran d'accueil'",
+        ios_s2_d: "Faites défiler le menu vers le bas et appuyez sur 'Sur l'écran d'accueil' ('Ajouter à l'écran d'accueil').",
+        ios_s3_t: "Appuyez sur 'Ajouter' en haut à droite",
+        ios_s3_d: "Confirmez en appuyant sur 'Ajouter'. L'icône MCS apparaîtra sur votre iPhone comme une application normale avec notifications !",
+        m_iosCancel: "Annuler",
+        m_iosTopTitle: "Écran d'accueil",
+        m_iosAddBtn: "Ajouter",
+        m_iosCopy: "Copier le lien",
+        m_iosAddHome: "➕ Sur l'écran d'accueil",
+        m_iosShareBtn: "Partager"
       },
       nl: {
         btnBackPortal: "Terug naar Portaal",
@@ -1388,7 +1679,37 @@
         m_statusValid: "Gevalideerd",
         m_navHours: "Uren",
         m_navNominas: "Loonstrook",
-        m_navProfile: "Profiel"
+        m_navProfile: "Profiel",
+        instTag: "App Installeren • Android en iPhone",
+        instTitle: "Hoe u de App op uw Startscherm Installeert (Android vs. iPhone)",
+        instIntro: "De installatie verschilt per type telefoon. Volg hieronder de stappen voor uw toestel:",
+        andTitle: "Android Telefoon (Chrome)",
+        andSub: "Samsung, Xiaomi, Motorola, Redmi, enz.",
+        and_s1_t: "Via de Automatische Balk (1 tik)",
+        and_s1_d: "Wanneer u het Portaal in Chrome opent, tikt u bovenaan direct op de groene knop '📥 App Installeren' en bevestigt u met 'Installeren'.",
+        and_s2_t: "Of via de 3 Puntjes van Chrome (⋮)",
+        and_s2_d: "Verschijnt de balk niet? Tik dan rechtsboven in Chrome op de 3 puntjes (⋮) en kies '📲 App installeren' of 'Toevoegen aan startscherm'.",
+        and_s3_t: "Open via het MCS-icoon & Zet Meldingen Aan",
+        and_s3_d: "Het groene MCS-icoon staat nu tussen uw apps. Open de app en tik op 'Toestaan' om berichten van de beheerder te ontvangen!",
+        m_andBannerTitle: "App Installeren op Telefoon",
+        m_andBtn: "App Installeren",
+        m_andMenuHdr: "Chrome Menu (⋮):",
+        m_andMenuOpt: "App installeren / Startscherm",
+        m_andDone: "Icoon toegevoegd aan Startscherm!",
+        iosTitle: "iPhone / iPad (Safari Browser)",
+        iosSub: "Op iPhone installeert u de app via de Deelknop in Safari",
+        ios_s1_t: "Tik op de 'Deelknop' (📤) onderaan",
+        ios_s1_d: "Open het Portaal in Safari op uw iPhone en tik onderaan op het Deel-icoon (het vierkantje met het pijltje omhoog 📤).",
+        ios_s2_t: "Kies '➕ Zet op beginscherm'",
+        ios_s2_d: "Scroll in het menu naar beneden en tik op de optie 'Zet op beginscherm'.",
+        ios_s3_t: "Tik rechtsboven op 'Voeg toe'",
+        ios_s3_d: "Bevestig met 'Voeg toe'. Het MCS-icoon verschijnt nu op het beginscherm van uw iPhone als een echte app (inclusief pushmeldingen)!",
+        m_iosCancel: "Annuleer",
+        m_iosTopTitle: "Beginscherm",
+        m_iosAddBtn: "Voeg toe",
+        m_iosCopy: "Kopieer link",
+        m_iosAddHome: "➕ Zet op beginscherm",
+        m_iosShareBtn: "Delen"
       },
       en: {
         btnBackPortal: "Back to Portal",
@@ -1527,7 +1848,37 @@
         m_statusValid: "Validated",
         m_navHours: "Hours",
         m_navNominas: "Payslips",
-        m_navProfile: "Profile"
+        m_navProfile: "Profile",
+        instTag: "App Installation • Android & iPhone",
+        instTitle: "How to Install the App on Your Home Screen (Android vs. iPhone)",
+        instIntro: "The installation steps are different depending on your phone model. Follow the instructions for your device below:",
+        andTitle: "Android Phone (Chrome Browser)",
+        andSub: "Samsung, Xiaomi, Motorola, Redmi, etc.",
+        and_s1_t: "Using the Automatic Banner (1 tap)",
+        and_s1_d: "When opening the Portal in Chrome, tap the green '📥 Install App' button on the top banner and confirm by tapping 'Install'.",
+        and_s2_t: "Or via Chrome's 3-Dot Menu (⋮)",
+        and_s2_d: "If the banner doesn't appear, tap the 3 dots (⋮) in the top-right corner of Chrome and select '📲 Install app' or 'Add to Home screen'.",
+        and_s3_t: "Open from the MCS Icon & Allow Notifications",
+        and_s3_d: "The green MCS icon will appear on your home screen. Open it and tap 'Allow' to receive notifications from the manager!",
+        m_andBannerTitle: "Install App on Your Phone",
+        m_andBtn: "Install App",
+        m_andMenuHdr: "Chrome Menu (⋮):",
+        m_andMenuOpt: "Install app / Add to Home screen",
+        m_andDone: "Icon added to Home Screen!",
+        iosTitle: "iPhone / iPad (Safari Browser)",
+        iosSub: "On iPhone, install the app using Safari's Share button",
+        ios_s1_t: "Tap the 'Share' Button (📤) at the Bottom",
+        ios_s1_d: "Open the Portal in Safari on your iPhone and tap the Share icon (the square with an upward arrow 📤) on the bottom bar.",
+        ios_s2_t: "Select '➕ Add to Home Screen'",
+        ios_s2_d: "Scroll down the share menu and tap 'Add to Home Screen'.",
+        ios_s3_t: "Tap 'Add' in the Top-Right Corner",
+        ios_s3_d: "Confirm by tapping 'Add'. The MCS icon will appear on your iPhone home screen just like a native app with push notifications!",
+        m_iosCancel: "Cancel",
+        m_iosTopTitle: "Add to Home",
+        m_iosAddBtn: "Add",
+        m_iosCopy: "Copy Link",
+        m_iosAddHome: "➕ Add to Home Screen",
+        m_iosShareBtn: "Share"
       }
     };
 
