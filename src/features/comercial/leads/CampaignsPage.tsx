@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_huelva_zaragoza_granada_2026',
+        name: '🚀 Mailing Alex - Inéditos Huelva, Zaragoza & Granada (83 leads)',
+        leadCount: 83,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Huelva Zaragoza Granada 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-19T13:10:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_huelva_zaragoza_granada_completo_2026',
+        name: '🎯 Mailing Alex - Huelva, Zaragoza & Granada Completo (212 leads)',
+        leadCount: 212,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - Huelva Zaragoza Granada 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-19T13:10:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_pais_vasco_2026',
         name: '🚀 Mailing Alex - Inéditos País Vasco (53 leads)',
         leadCount: 53,
