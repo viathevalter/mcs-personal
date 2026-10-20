@@ -76,6 +76,9 @@ export function SolicitudesPage() {
                 <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=order_cancellation')} className="cursor-pointer text-red-600 focus:text-red-700">
                   {t('torre_controle.operations.new_cancellation')}
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/operacoes/solicitudes/nova?tipo=order_cancellation&origin=reemplazo')} className="cursor-pointer text-rose-600 focus:text-rose-700">
+                  {t('torre_controle.operations.new_reemplazo_cancellation')}
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button variant="outline" onClick={() => refetch()}>

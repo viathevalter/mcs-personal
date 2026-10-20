@@ -70,11 +70,13 @@ export function NewSolicitudPage() {
 
     // Postponement (Adiamento de Início) State: Pedido vs Reemplazo vs Reubicación
     const [postponeOriginType, setPostponeOriginType] = useState<'pedido' | 'reemplazo' | 'relocation'>('pedido');
+    // Cancellation (Cancelamento) State: Pedido vs Reemplazo
+    const [cancellationOriginType, setCancellationOriginType] = useState<'pedido' | 'reemplazo'>((searchParams.get('origin') as any) === 'reemplazo' ? 'reemplazo' : 'pedido');
     const [selectedReemplazoId, setSelectedReemplazoId] = useState<string>('all');
 
     // Query Reemplazos / Reubicaciones for Postponement
     const { data: reemplazos = [], isLoading: isLoadingReemplazos } = useQuery({
-        queryKey: ['solicitudes_para_adiamento', selectedEmpresaId, postponeOriginType],
+        queryKey: ['solicitudes_para_adiamento', selectedEmpresaId, postponeOriginType, actionType],
         queryFn: async () => {
             if (!selectedEmpresaId) return [];
 
@@ -184,7 +186,7 @@ export function NewSolicitudPage() {
             }
             return (data || []) as any[];
         },
-        enabled: Boolean(selectedEmpresaId) && actionType === 'order_postponement'
+        enabled: Boolean(selectedEmpresaId) && (actionType === 'order_postponement' || actionType === 'order_cancellation')
     });
 
     // Job Function and Question States
@@ -301,11 +303,15 @@ export function NewSolicitudPage() {
     }, [filteredDropdownPedidos]);
 
     const filteredReemplazos = React.useMemo(() => {
-        if (selectedClientId !== 'all') {
-            return (reemplazos as any[]).filter(r => r.client_id === selectedClientId);
+        let list = (reemplazos as any[]);
+        if (actionType === 'order_cancellation') {
+            list = list.filter(r => r.status !== 'completed' && r.status !== 'cancelled');
         }
-        return (reemplazos as any[]);
-    }, [reemplazos, selectedClientId]);
+        if (selectedClientId !== 'all') {
+            return list.filter(r => r.client_id === selectedClientId);
+        }
+        return list;
+    }, [reemplazos, selectedClientId, actionType]);
 
     const reemplazoOptions = React.useMemo(() => {
         const list = filteredReemplazos.map((r: any) => ({
@@ -573,6 +579,14 @@ export function NewSolicitudPage() {
         }
 
         if (actionType === 'order_cancellation') {
+            if (cancellationOriginType === 'reemplazo') {
+                if (selectedReemplazo) {
+                    setTitle(`${selectedReemplazo.codigo} - ${selectedReemplazo.client_name || 'Cliente'} - Cancelamento de Reemplazo`);
+                    return;
+                }
+                setTitle('Cancelamento de Reemplazo pelo Cliente');
+                return;
+            }
             if (selectedPedidoId !== 'all') {
                 const p = pedidos.find(item => item.id?.toString() === selectedPedidoId);
                 if (p) {
@@ -635,6 +649,13 @@ export function NewSolicitudPage() {
                     setActionType(urlTipo);
                 } else if (draft.actionType) {
                     setActionType(draft.actionType);
+                }
+
+                const urlOrigin = searchParams.get('origin');
+                if (urlOrigin === 'reemplazo') {
+                    setCancellationOriginType('reemplazo');
+                } else if (urlOrigin === 'pedido') {
+                    setCancellationOriginType('pedido');
                 }
 
                 const urlClient = searchParams.get('client_id');
@@ -797,7 +818,7 @@ export function NewSolicitudPage() {
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
         
-        const clientName = (actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') && selectedReemplazo)
+        const clientName = ((actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation')) || (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')) && selectedReemplazo
             ? (selectedReemplazo.client_name || 'Cliente')
             : (selectedPedido?.client?.trade_name 
                 || selectedPedido?.client?.legal_name 
@@ -806,7 +827,7 @@ export function NewSolicitudPage() {
                 || selectedClientName 
                 || 'Cliente');
 
-        const pedidoCodigo = (actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') && selectedReemplazo)
+        const pedidoCodigo = ((actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation')) || (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')) && selectedReemplazo
             ? selectedReemplazo.codigo
             : (selectedPedido?.codigo 
                 || firstAssignment?.pedido?.codigo 
@@ -874,7 +895,9 @@ export function NewSolicitudPage() {
 
         let subject = '';
         if (actionType === 'order_cancellation') {
-            subject = `[CANCELAMENTO DE PEDIDO] ${pedidoCodigo} - ${clientName}`;
+            subject = cancellationOriginType === 'reemplazo'
+                ? `[CANCELAMENTO DE REEMPLAZO] ${pedidoCodigo} - ${clientName}`
+                : `[CANCELAMENTO DE PEDIDO] ${pedidoCodigo} - ${clientName}`;
         } else if (actionType === 'order_pause') {
             subject = `[PAUSA DE PEDIDO] ${pedidoCodigo} - ${clientName} - Suspensão Temporária de Início`;
         } else if (emailLanguage === 'es') {
@@ -1133,13 +1156,24 @@ export function NewSolicitudPage() {
                 return;
             }
         } else if (actionType === 'order_cancellation') {
-            if (!selectedPedidoId || selectedPedidoId === 'all') {
-                toast.error('Selecione o Pedido (Obra) a ser cancelado.');
-                return;
-            }
-            if (!reason.trim()) {
-                toast.error('Informe o motivo do cancelamento pelo cliente.');
-                return;
+            if (cancellationOriginType === 'reemplazo') {
+                if (!selectedReemplazoId || selectedReemplazoId === 'all') {
+                    toast.error('Selecione o Reemplazo (Substituição) a ser cancelado.');
+                    return;
+                }
+                if (!reason.trim()) {
+                    toast.error('Informe o motivo do cancelamento do reemplazo.');
+                    return;
+                }
+            } else {
+                if (!selectedPedidoId || selectedPedidoId === 'all') {
+                    toast.error('Selecione o Pedido (Obra) a ser cancelado.');
+                    return;
+                }
+                if (!reason.trim()) {
+                    toast.error('Informe o motivo do cancelamento pelo cliente.');
+                    return;
+                }
             }
         } else if (actionType === 'order_extension' || actionType === 'order_termination') {
             if ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0) {
@@ -1179,17 +1213,23 @@ export function NewSolicitudPage() {
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
         const originPedidoId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
-            ? (selectedPedidoId !== 'all' ? selectedPedidoId : (firstAssignment?.pedido_id || null))
+            ? (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
+                ? (selectedReemplazo?.pedido_id || null)
+                : (selectedPedidoId !== 'all' ? selectedPedidoId : (firstAssignment?.pedido_id || null))
             : (firstAssignment?.pedido_id || null);
 
         const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
-            ? (selectedPedido?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null)
+            ? (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
+                ? (selectedReemplazo?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || null)
+                : (selectedPedido?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null)
             : (actionType === 'relocation')
                 ? (targetClientId !== 'all' ? targetClientId : null)
                 : ((selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null);
 
         const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
-            ? (selectedPedido?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null)
+            ? (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
+                ? (selectedReemplazo?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || null)
+                : (selectedPedido?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null)
             : (actionType === 'relocation')
                 ? (targetClientSiteId !== 'all' ? targetClientSiteId : null)
                 : ((selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null);
@@ -1293,19 +1333,34 @@ export function NewSolicitudPage() {
                 targetSolicitudId = (rpcRes as any)?.solicitud_id || '';
                 toast.success('Pausa de Pedido registrada com sucesso! Tarefas operacionais criadas.');
             } else if (actionType === 'order_cancellation') {
-                let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_cancelamento_pedido', {
-                    payload: {
-                        empresa_id: effectiveEmpresaId,
-                        pedido_id: selectedPedidoId,
-                        motivo: reason,
-                        observacoes: notes,
-                        cancel_assignments: true,
-                        worker_destination_status: 'Disponível'
+                if (cancellationOriginType === 'reemplazo') {
+                    let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_cancelamento_reemplazo', {
+                        payload: {
+                            empresa_id: effectiveEmpresaId,
+                            solicitud_id: selectedReemplazoId,
+                            motivo: reason,
+                            observacoes: notes
+                        }
+                    });
+                    if (rpcErr) {
+                        console.warn("Retrying with core_operacoes schema...", rpcErr);
+                        const retryRes = await supabase.schema('core_operacoes').rpc('processar_cancelamento_reemplazo', {
+                            payload: {
+                                empresa_id: effectiveEmpresaId,
+                                solicitud_id: selectedReemplazoId,
+                                motivo: reason,
+                                observacoes: notes
+                            }
+                        });
+                        rpcRes = retryRes.data;
+                        rpcErr = retryRes.error;
                     }
-                });
-                if (rpcErr) {
-                    console.warn("Retrying with core_operacoes schema...", rpcErr);
-                    const retryRes = await supabase.schema('core_operacoes').rpc('processar_cancelamento_pedido', {
+                    if (rpcErr) throw rpcErr;
+
+                    targetSolicitudId = (rpcRes as any)?.solicitud_id || selectedReemplazoId;
+                    toast.success('Reemplazo cancelado com sucesso!');
+                } else {
+                    let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_cancelamento_pedido', {
                         payload: {
                             empresa_id: effectiveEmpresaId,
                             pedido_id: selectedPedidoId,
@@ -1315,6 +1370,18 @@ export function NewSolicitudPage() {
                             worker_destination_status: 'Disponível'
                         }
                     });
+                    if (rpcErr) {
+                        console.warn("Retrying with core_operacoes schema...", rpcErr);
+                        const retryRes = await supabase.schema('core_operacoes').rpc('processar_cancelamento_pedido', {
+                            payload: {
+                                empresa_id: effectiveEmpresaId,
+                                pedido_id: selectedPedidoId,
+                                motivo: reason,
+                                observacoes: notes,
+                                cancel_assignments: true,
+                                worker_destination_status: 'Disponível'
+                        }
+                    });
                     rpcRes = retryRes.data;
                     rpcErr = retryRes.error;
                 }
@@ -1322,6 +1389,7 @@ export function NewSolicitudPage() {
 
                 targetSolicitudId = (rpcRes as any)?.solicitud_id || '';
                 toast.success('Pedido cancelado com sucesso! Contratações e alocações desmobilizadas.');
+                }
             } else if (actionType === 'order_postponement') {
                 const origemId = postponeOriginType === 'pedido' ? selectedPedidoId : selectedReemplazoId;
                 let { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_adiamento_inicio', {
@@ -1512,7 +1580,15 @@ export function NewSolicitudPage() {
             }
             await queryClient.invalidateQueries({ queryKey: ['worker_assignments'] });
             await queryClient.invalidateQueries({ queryKey: ['reemplazos_para_adiamento'] });
-            if ((actionType === 'order_cancellation' || actionType === 'order_pause') && selectedPedidoId && selectedPedidoId !== 'all') {
+            if (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo') {
+                await queryClient.invalidateQueries({ queryKey: ['solicitudes'] });
+                await queryClient.invalidateQueries({ queryKey: ['solicitud', selectedReemplazoId] });
+                await queryClient.invalidateQueries({ queryKey: ['solicitudes_para_adiamento'] });
+                if (selectedReemplazo?.pedido_id) {
+                    await queryClient.invalidateQueries({ queryKey: ['pedido', selectedReemplazo.pedido_id] });
+                }
+                navigate('/operacoes/solicitudes');
+            } else if ((actionType === 'order_cancellation' || actionType === 'order_pause') && selectedPedidoId && selectedPedidoId !== 'all') {
                 navigate(`/operacoes/pedidos/${selectedPedidoId}`);
             } else if (targetSolicitudId) {
                 navigate(`/operacoes/solicitudes/${targetSolicitudId}`);
@@ -1584,6 +1660,39 @@ export function NewSolicitudPage() {
                         
                         {(actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause') ? (
                             <div className="space-y-4">
+                                {actionType === 'order_cancellation' && (
+                                    <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCancellationOriginType('pedido');
+                                                setSelectedAssignments([]);
+                                            }}
+                                            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-md transition-all ${
+                                                cancellationOriginType === 'pedido'
+                                                    ? 'bg-rose-600 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Pedido (Obra Completa)
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCancellationOriginType('reemplazo');
+                                                setSelectedReemplazoId('all');
+                                                setSelectedAssignments([]);
+                                            }}
+                                            className={`flex-1 py-1.5 px-3 text-xs font-bold rounded-md transition-all ${
+                                                cancellationOriginType === 'reemplazo'
+                                                    ? 'bg-rose-600 text-white shadow-xs'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                                            }`}
+                                        >
+                                            Reemplazo (Substituição)
+                                        </button>
+                                    </div>
+                                )}
                                 {actionType === 'order_postponement' && (
                                     <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800">
                                         <button
@@ -1633,7 +1742,7 @@ export function NewSolicitudPage() {
                                     </div>
                                 )}
 
-                                {actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') ? (
+                                {(actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation')) || (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo') ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Filtrar por Cliente</label>
@@ -1648,7 +1757,7 @@ export function NewSolicitudPage() {
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                                {postponeOriginType === 'relocation' ? 'Reubicación (Realocação)' : 'Reemplazo (Substituição)'} <span className="text-amber-500 font-bold">*</span>
+                                                {actionType === 'order_cancellation' ? 'Reemplazo a Cancelar' : postponeOriginType === 'relocation' ? 'Reubicación (Realocação)' : 'Reemplazo (Substituição)'} <span className={`${actionType === 'order_cancellation' ? 'text-rose-500' : 'text-amber-500'} font-bold`}>*</span>
                                             </label>
                                             <Combobox
                                                 options={reemplazoOptions}
@@ -1665,9 +1774,9 @@ export function NewSolicitudPage() {
                                                 <div className="flex justify-between items-center border-b pb-2 border-slate-200 dark:border-slate-800">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                            {postponeOriginType === 'relocation' ? 'Reubicación Selecionada' : 'Reemplazo Selecionado'}
+                                                            {actionType === 'order_cancellation' ? 'Reemplazo a ser Cancelado' : postponeOriginType === 'relocation' ? 'Reubicación Selecionada' : 'Reemplazo Selecionado'}
                                                         </span>
-                                                        <span className="text-xs font-mono font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50">
+                                                        <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${actionType === 'order_cancellation' ? 'bg-rose-50 text-rose-700 dark:bg-rose-955/40 dark:text-rose-400 border-rose-200 dark:border-rose-900/50' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200 dark:border-amber-900/50'}`}>
                                                             {selectedReemplazo.codigo}
                                                         </span>
                                                     </div>
@@ -1702,41 +1811,53 @@ export function NewSolicitudPage() {
                                                             {selectedReemplazo.source_worker_nome || 'N/A'}
                                                         </span>
                                                     </div>
-                                                    <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-lg border bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 shadow-xs">
-                                                        <div>
-                                                            <span className="block text-[10px] uppercase tracking-wider font-bold text-amber-800 dark:text-amber-400">
-                                                                Data de Início Original do Reemplazo:
-                                                            </span>
-                                                            <span className="font-extrabold text-sm text-amber-900 dark:text-amber-300">
-                                                                {selectedReemplazo.due_date
-                                                                    ? formatLocalDate(selectedReemplazo.due_date)
-                                                                    : selectedReemplazo.target_start_date || selectedReemplazo.target_planned_start
-                                                                    ? formatLocalDate(selectedReemplazo.target_start_date || selectedReemplazo.target_planned_start)
-                                                                    : 'Não informada'}
-                                                            </span>
-                                                        </div>
-                                                        {selectedReemplazo.target_planned_start && (
-                                                            <div>
-                                                                <span className="block text-[10px] uppercase tracking-wider font-semibold text-slate-600 dark:text-slate-400">
-                                                                    Previsão na Alocação ({selectedReemplazo.target_worker_nome ? selectedReemplazo.target_worker_nome.split(' ')[0] : 'Candidato'}):
-                                                                </span>
-                                                                <div className="flex items-center gap-2 mt-0.5">
-                                                                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                                                                        {formatLocalDate(selectedReemplazo.target_planned_start)}
-                                                                    </span>
-                                                                    {dueDate !== selectedReemplazo.target_planned_start.split('T')[0] && (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setDueDate(selectedReemplazo.target_planned_start!.split('T')[0])}
-                                                                            className="text-[10px] text-amber-700 dark:text-amber-400 underline hover:text-amber-800 font-medium cursor-pointer"
-                                                                        >
-                                                                            (Usar como nova data)
-                                                                        </button>
-                                                                    )}
-                                                                </div>
+                                                    {actionType === 'order_cancellation' ? (
+                                                        <div className="col-span-2 p-3 rounded-lg border bg-rose-50/90 dark:bg-rose-955/40 border-rose-300 dark:border-rose-900/60 shadow-xs space-y-1">
+                                                            <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300 font-bold text-xs">
+                                                                <AlertCircle className="w-4 h-4 shrink-0" />
+                                                                <span>Atenção: Cancelamento Direto de Reemplazo</span>
                                                             </div>
-                                                        )}
-                                                    </div>
+                                                            <p className="text-[11px] text-rose-800 dark:text-rose-300/90 leading-relaxed">
+                                                                Ao confirmar, o Reemplazo <strong>{selectedReemplazo.codigo}</strong> será cancelado. Caso haja pedido de origem associado ({selectedReemplazo.pedido_codigo || 'Obra'}), suas metas serão atualizadas e, se não houver outras substituições pendentes, o pedido será concluído automaticamente.
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-2 p-2.5 rounded-lg border bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/40 shadow-xs">
+                                                            <div>
+                                                                <span className="block text-[10px] uppercase tracking-wider font-bold text-amber-800 dark:text-amber-400">
+                                                                    Data de Início Original do Reemplazo:
+                                                                </span>
+                                                                <span className="font-extrabold text-sm text-amber-900 dark:text-amber-300">
+                                                                    {selectedReemplazo.due_date
+                                                                        ? formatLocalDate(selectedReemplazo.due_date)
+                                                                        : selectedReemplazo.target_start_date || selectedReemplazo.target_planned_start
+                                                                        ? formatLocalDate(selectedReemplazo.target_start_date || selectedReemplazo.target_planned_start)
+                                                                        : 'Não informada'}
+                                                                </span>
+                                                            </div>
+                                                            {selectedReemplazo.target_planned_start && (
+                                                                <div>
+                                                                    <span className="block text-[10px] uppercase tracking-wider font-semibold text-slate-600 dark:text-slate-400">
+                                                                        Previsão na Alocação ({selectedReemplazo.target_worker_nome ? selectedReemplazo.target_worker_nome.split(' ')[0] : 'Candidato'}):
+                                                                    </span>
+                                                                    <div className="flex items-center gap-2 mt-0.5">
+                                                                        <span className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                                                                            {formatLocalDate(selectedReemplazo.target_planned_start)}
+                                                                        </span>
+                                                                        {dueDate !== selectedReemplazo.target_planned_start.split('T')[0] && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setDueDate(selectedReemplazo.target_planned_start!.split('T')[0])}
+                                                                                className="text-[10px] text-amber-700 dark:text-amber-400 underline hover:text-amber-800 font-medium cursor-pointer"
+                                                                            >
+                                                                                (Usar como nova data)
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
@@ -1971,25 +2092,37 @@ export function NewSolicitudPage() {
                             </div>
                         )}
 
-                        <div className="flex-1 min-h-0 flex flex-col pt-2 overflow-hidden">
-                            <div className="flex justify-between items-center mb-3 shrink-0">
-                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Resultados ({filteredAssignments.length})</span>
-                                {selectedAssignments.length > 0 && (
-                                    <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                                        {selectedAssignments.length} selecionado(s)
-                                    </span>
-                                )}
+                        {actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo' ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center border rounded-xl bg-slate-50/50 dark:bg-slate-900/40 border-dashed border-slate-200 dark:border-slate-800">
+                                <div className="p-3 bg-rose-100 dark:bg-rose-955/40 text-rose-600 dark:text-rose-400 rounded-full mb-3 shadow-xs">
+                                    <XCircle className="w-8 h-8" />
+                                </div>
+                                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">Cancelamento Direto da Substituição</h3>
+                                <p className="text-xs text-muted-foreground max-w-md mt-1.5 leading-relaxed">
+                                    Nesta modalidade, você cancela a solicitação de reemplazo pendente diretamente. Não é necessário selecionar trabalhadores na tabela. Preencha o motivo ao lado e confirme.
+                                </p>
                             </div>
-                            <div className="flex-1 min-h-0 overflow-y-auto rounded-md border bg-card">
-                                <AssignmentsSelectionTable 
-                                    assignments={filteredAssignments}
-                                    selectedIds={selectedAssignments}
-                                    onToggleSelection={handleToggleSelection}
-                                    onToggleAll={handleToggleAll}
-                                    isCompact={actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause'}
-                                />
+                        ) : (
+                            <div className="flex-1 min-h-0 flex flex-col pt-2 overflow-hidden">
+                                <div className="flex justify-between items-center mb-3 shrink-0">
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Resultados ({filteredAssignments.length})</span>
+                                    {selectedAssignments.length > 0 && (
+                                        <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                                            {selectedAssignments.length} selecionado(s)
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-h-0 overflow-y-auto rounded-md border bg-card">
+                                    <AssignmentsSelectionTable 
+                                        assignments={filteredAssignments}
+                                        selectedIds={selectedAssignments}
+                                        onToggleSelection={handleToggleSelection}
+                                        onToggleAll={handleToggleAll}
+                                        isCompact={actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause'}
+                                    />
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </div>
 
@@ -2374,7 +2507,11 @@ export function NewSolicitudPage() {
                                         ? (postponeOriginType === 'reemplazo' 
                                             ? (!selectedReemplazoId || selectedReemplazoId === 'all')
                                             : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
-                                        : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_cancellation' || actionType === 'order_pause')
+                                        : actionType === 'order_cancellation'
+                                        ? (cancellationOriginType === 'reemplazo'
+                                            ? (!selectedReemplazoId || selectedReemplazoId === 'all')
+                                            : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
+                                        : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_pause')
                                         ? ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0)
                                         : (selectedAssignments.length === 0)) ||
                                     !reason.trim() ||
@@ -2395,7 +2532,7 @@ export function NewSolicitudPage() {
                                 {createSolicitudWithTargets.isPending || isSubmitting 
                                     ? 'Processando...' 
                                     : actionType === 'order_cancellation'
-                                    ? 'Confirmar Cancelamento do Pedido'
+                                    ? (cancellationOriginType === 'reemplazo' ? 'Confirmar Cancelamento do Reemplazo' : 'Confirmar Cancelamento do Pedido')
                                     : actionType === 'order_pause'
                                     ? 'Confirmar Pausa do Pedido'
                                     : 'Iniciar Operação'}
@@ -2404,11 +2541,15 @@ export function NewSolicitudPage() {
                                 ? (postponeOriginType === 'reemplazo' 
                                     ? (!selectedReemplazoId || selectedReemplazoId === 'all')
                                     : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
-                                : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_cancellation' || actionType === 'order_pause')
+                                : actionType === 'order_cancellation'
+                                ? (cancellationOriginType === 'reemplazo'
+                                    ? (!selectedReemplazoId || selectedReemplazoId === 'all')
+                                    : ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0))
+                                : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_pause')
                                 ? ((!selectedPedidoId || selectedPedidoId === 'all') && selectedAssignments.length === 0)
                                 : (selectedAssignments.length === 0)) && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
-                                    {actionType === 'order_postponement' && postponeOriginType === 'reemplazo'
+                                    {(actionType === 'order_postponement' && postponeOriginType === 'reemplazo') || (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
                                         ? 'Selecione um Reemplazo (Substituição) para continuar.'
                                         : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
                                         ? 'Selecione um Pedido (Obra) ou pelo menos um trabalhador para continuar.'

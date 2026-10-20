@@ -2174,7 +2174,8 @@
       "new_pause": "Nova Pausa de Pedido",
       "new_extension": "Nova Prorrogação de Obra",
       "new_termination": "Nova Finalização de Obra",
-      "new_cancellation": "Novo Cancelamento de Pedido"
+      "new_cancellation": "Novo Cancelamento de Pedido",
+      "new_reemplazo_cancellation": "Novo Cancelamento de Reemplazo"
     },
     "kpi": {
       "open_pending": "Abertas (Pendentes)",
