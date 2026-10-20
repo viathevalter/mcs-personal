@@ -188,6 +188,13 @@ export interface ClientBillingSummary {
     totalHoras: number;
     totalValor: number;
     horasIds: string[];
+    faturaId?: string | null;
+    faturaNumero?: string | null;
+    atcud?: string | null;
+    magicLinkToken?: string | null;
+    dataEmissaoFatura?: string | null;
+    ajustesJson?: any | null;
+    statusFatura?: string | null;
   }>;
   workers: Array<{
     workerId: string;
@@ -666,15 +673,17 @@ export async function getHorasPendentesFaturamento(
       } else {
         const clientFaturas = Array.from(faturasMap.values()).filter(f => f.client_id === client.id);
         const pendingFaturas = clientFaturas.filter(f => f.status === 'pending_client_approval' || f.status === 'disputed');
+        const sortByFaturaNumDesc = (a: any, b: any) =>
+          String(b.fatura_numero || b.id || '').localeCompare(String(a.fatura_numero || a.id || ''), undefined, { numeric: true });
         
         if (pendingFaturas.length > 0) {
-          const latestPending = pendingFaturas.sort((a, b) => b.id.localeCompare(a.id))[0];
+          const latestPending = pendingFaturas.sort(sortByFaturaNumDesc)[0];
           activeFatura = latestPending;
-          activeSessionHours = clientHours.filter(h => h.fatura_id === latestPending.id);
+          activeSessionHours = clientHours.filter(h => h.fatura_id !== null);
         } else if (clientFaturas.length > 0) {
-          const latestFinalized = clientFaturas.sort((a, b) => b.id.localeCompare(a.id))[0];
+          const latestFinalized = clientFaturas.sort(sortByFaturaNumDesc)[0];
           activeFatura = latestFinalized;
-          activeSessionHours = clientHours.filter(h => h.fatura_id === latestFinalized.id);
+          activeSessionHours = clientHours.filter(h => h.fatura_id !== null);
         } else {
           activeSessionHours = [];
         }
@@ -694,7 +703,22 @@ export async function getHorasPendentesFaturamento(
         return (norm * tarifaNormal) + (not * tarifaNoturna);
       };
 
-      const obrasMap = new Map<string | null, { id: string | null; name: string; totalHoras: number; totalValor: number; totalNormais: number; totalNoturnas: number; horasIds: string[] }>();
+      const obrasMap = new Map<string | null, {
+        id: string | null;
+        name: string;
+        totalHoras: number;
+        totalValor: number;
+        totalNormais: number;
+        totalNoturnas: number;
+        horasIds: string[];
+        faturaId?: string | null;
+        faturaNumero?: string | null;
+        atcud?: string | null;
+        magicLinkToken?: string | null;
+        dataEmissaoFatura?: string | null;
+        ajustesJson?: any | null;
+        statusFatura?: string | null;
+      }>();
       
       activeSessionHours.forEach(h => {
         const oId = h.obra_id || null;
@@ -707,10 +731,29 @@ export async function getHorasPendentesFaturamento(
             totalValor: 0,
             totalNormais: 0,
             totalNoturnas: 0,
-            horasIds: []
+            horasIds: [],
+            faturaId: null,
+            faturaNumero: null,
+            atcud: null,
+            magicLinkToken: null,
+            dataEmissaoFatura: null,
+            ajustesJson: null,
+            statusFatura: null,
           });
         }
         const entry = obrasMap.get(oId)!;
+        if (h.fatura_id && !entry.faturaId) {
+          const obraFatura = faturasMap.get(h.fatura_id);
+          if (obraFatura) {
+            entry.faturaId = obraFatura.id;
+            entry.faturaNumero = obraFatura.fatura_numero || null;
+            entry.atcud = obraFatura.atcud || null;
+            entry.magicLinkToken = obraFatura.magic_link_token || null;
+            entry.dataEmissaoFatura = obraFatura.data_emissao || null;
+            entry.ajustesJson = obraFatura.ajustes_json || null;
+            entry.statusFatura = obraFatura.status || null;
+          }
+        }
         const entryTot = Number(h.horas_totais || 0);
         const entryNot = Number(h.horas_noturnas || 0);
         const entryNorm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || entryNot > 0))

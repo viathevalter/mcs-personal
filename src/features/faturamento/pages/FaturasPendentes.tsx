@@ -508,10 +508,26 @@ MCS - Gestão Comercial`;
       ? f.obras.find(o => o.id === obraId)
       : null;
     const baseAdj = clientAdjustments[cardId] || initAdjustments(f, null);
-    
+    const obraSavedAdj = selectedObra?.ajustesJson;
+
     let defaultDesc = `Prestação de Serviços - ${getMonthName(f.month)} ${f.year}`;
     if (selectedObra && selectedObra.name) {
       defaultDesc += ` - Obra: ${selectedObra.name}`;
+    }
+
+    if (obraSavedAdj) {
+      return {
+        ...baseAdj,
+        incrementos: obraSavedAdj.incrementos ?? baseAdj.incrementos,
+        incrementosDesc: obraSavedAdj.incrementos_desc ?? baseAdj.incrementosDesc,
+        reducoes: obraSavedAdj.reducoes ?? baseAdj.reducoes,
+        reducoesDesc: obraSavedAdj.reducoes_desc ?? baseAdj.reducoesDesc,
+        ivaPct: obraSavedAdj.iva_pct ?? baseAdj.ivaPct,
+        dataEmissao: selectedObra?.dataEmissaoFatura || obraSavedAdj.dataEmissao || baseAdj.dataEmissao,
+        dataVencimento: obraSavedAdj.data_vencimento || baseAdj.dataVencimento,
+        condicoesPagamento: obraSavedAdj.condicoes_pagamento || baseAdj.condicoesPagamento,
+        descricaoServico: obraSavedAdj.descricao_servico || defaultDesc,
+      };
     }
 
     return {
@@ -1418,12 +1434,13 @@ MCS - Gestão Comercial`;
     const selectedObraId = selectedObraByClient[cardId];
     const hasObraFilter = selectedObraId !== undefined;
     const selectedObra = hasObraFilter ? f.obras.find(o => o.id === selectedObraId) : null;
+    const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
     
     const filteredWorkers = f.workers.map(w => {
       const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-        const belongsToActiveSession = f.activeFaturaId
-          ? h.fatura_id === f.activeFaturaId
-          : h.fatura_id === null;
+        const belongsToActiveSession = isAlreadyInvoiced
+          ? h.fatura_id !== null
+          : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
 
         if (belongsToActiveSession && (!hasObraFilter || h.obra_id === selectedObraId)) {
           acc[date] = h;
@@ -1472,7 +1489,6 @@ MCS - Gestão Comercial`;
       ? (f.obras.find(o => o.id === selectedObraId)?.totalValor || 0)
       : f.totalValor;
 
-    const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
     const adj = getClientAdj(f, cardId, selectedObraId);
     const totalBase = displayTotalValor;
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
@@ -1489,7 +1505,8 @@ MCS - Gestão Comercial`;
       ? `<div style="height: 56px; display: flex; align-items: center; margin-bottom: 8px;"><img src="${f.empresaInvoiceLogoUrl}" style="max-height: 100%; max-width: 220px; object-fit: contain;" /></div>`
       : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; tracking: -0.025em;">${f.empresaNome.toUpperCase()}</h3>`;
 
-    const docNumber = `IF-${f.year}/${String(f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}`;
+    const effectiveFaturaNum = selectedObra?.faturaNumero || f.faturaNumero;
+    const docNumber = `IF-${f.year}/${String(effectiveFaturaNum || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}`;
     const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
     const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
 
@@ -2254,12 +2271,13 @@ MCS - Gestão Comercial`;
     ];
     const periodStr = `${months[f.month]} / ${f.year}`;
     
+    const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
     // Filter active workers and their hours (only unbilled / active session hours)
     const activeWorkersCombined = f.workers.map(w => {
       const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-        const belongsToActiveSession = f.activeFaturaId
-          ? h.fatura_id === f.activeFaturaId
-          : h.fatura_id === null;
+        const belongsToActiveSession = isAlreadyInvoiced
+          ? h.fatura_id !== null
+          : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
 
         if (belongsToActiveSession) {
           acc[date] = h;
@@ -2294,9 +2312,9 @@ MCS - Gestão Comercial`;
       f.obras.forEach(obra => {
         const oWorkers = f.workers.map(w => {
           const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-            const belongsToActiveSession = f.activeFaturaId
-              ? h.fatura_id === f.activeFaturaId
-              : h.fatura_id === null;
+            const belongsToActiveSession = isAlreadyInvoiced
+              ? h.fatura_id !== null
+              : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
 
             if (belongsToActiveSession && h.obra_id === obra.id) {
               acc[date] = h;
@@ -3383,11 +3401,11 @@ MCS - Gestão Comercial`;
             // 2. Active billing session workers (for invoicing, previews, and PDFs)
             const filteredWorkers = f.workers.map(w => {
               const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-                const belongsToActiveSession = f.activeFaturaId
-                  ? h.fatura_id === f.activeFaturaId
-                  : h.fatura_id === null;
+                const belongsToActiveSession = isAlreadyInvoiced
+                  ? h.fatura_id !== null
+                  : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
 
-                if (belongsToActiveSession && (!hasObraFilter || h.obra_id === selectedObraId)) {
+                if ((belongsToActiveSession || isAlreadyInvoiced) && (!hasObraFilter || h.obra_id === selectedObraId)) {
                   acc[date] = h;
                 }
                 return acc;
@@ -3528,7 +3546,7 @@ MCS - Gestão Comercial`;
                     <div className="flex items-center gap-2">
                       <Clock size={16} className="text-slate-400 shrink-0" />
                       <div className="text-sm">
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Horas a Faturar</p>
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">{isAlreadyInvoiced ? 'Horas Faturadas' : 'Horas a Faturar'}</p>
                         <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
                           {displayTotalHoras.toFixed(2)}h
                         </p>
@@ -3544,7 +3562,7 @@ MCS - Gestão Comercial`;
                     <div className="flex items-center gap-2">
                       <DollarSign size={16} className={isBlocked ? 'text-slate-400' : 'text-emerald-500'} />
                       <div className="text-sm">
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Faturamento Pendente</p>
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">{isAlreadyInvoiced ? 'Total Faturado' : 'Faturamento Pendente'}</p>
                         <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
                           € {displayTotalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
@@ -3627,13 +3645,13 @@ MCS - Gestão Comercial`;
                           onClick={() => {
                             const faturaObj = {
                               ...f,
-                              id: f.activeFaturaId,
-                              status: 'pending_client_approval',
-                              magic_link_token: f.magicLinkToken,
-                              data_emissao: f.dataEmissaoFatura,
-                              ajustes_json: f.ajustesJson,
-                              fatura_numero: f.faturaNumero,
-                              atcud: f.atcud
+                              id: selectedObra?.faturaId || f.activeFaturaId,
+                              status: selectedObra?.statusFatura || 'pending_client_approval',
+                              magic_link_token: selectedObra?.magicLinkToken || f.magicLinkToken,
+                              data_emissao: selectedObra?.dataEmissaoFatura || f.dataEmissaoFatura,
+                              ajustes_json: selectedObra?.ajustesJson || f.ajustesJson,
+                              fatura_numero: selectedObra?.faturaNumero || f.faturaNumero,
+                              atcud: selectedObra?.atcud || f.atcud
                             };
                             handleOpenFaturaDetails(faturaObj);
                           }}
@@ -3669,13 +3687,13 @@ MCS - Gestão Comercial`;
                           e.stopPropagation();
                           const faturaObj = {
                             ...f,
-                            id: f.activeFaturaId,
-                            status: 'approved',
-                            magic_link_token: f.magicLinkToken,
-                            data_emissao: f.dataEmissaoFatura,
-                            ajustes_json: f.ajustesJson,
-                            fatura_numero: f.faturaNumero,
-                            atcud: f.atcud
+                            id: selectedObra?.faturaId || f.activeFaturaId,
+                            status: selectedObra?.statusFatura || 'approved',
+                            magic_link_token: selectedObra?.magicLinkToken || f.magicLinkToken,
+                            data_emissao: selectedObra?.dataEmissaoFatura || f.dataEmissaoFatura,
+                            ajustes_json: selectedObra?.ajustesJson || f.ajustesJson,
+                            fatura_numero: selectedObra?.faturaNumero || f.faturaNumero,
+                            atcud: selectedObra?.atcud || f.atcud
                           };
                           handleOpenFaturaDetails(faturaObj);
                         }}
@@ -3809,7 +3827,9 @@ MCS - Gestão Comercial`;
                                   <span className="text-xs font-bold truncate" title={obra.name}>
                                     {obra.name}
                                   </span>
-                                  <span className="text-[10px] opacity-75 mt-0.5">{obra.totalHoras.toFixed(2)} hrs</span>
+                                  <span className="text-[10px] opacity-75 mt-0.5">
+                                    {obra.totalHoras.toFixed(2)} hrs{obra.faturaNumero ? ` • ${obra.faturaNumero}` : ''}
+                                  </span>
                                 </div>
                                 <span className="font-extrabold text-sm shrink-0">
                                   € {obra.totalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -4487,7 +4507,7 @@ MCS - Gestão Comercial`;
                               </div>
                               <div className="text-right text-xs space-y-1">
                                 <p className="font-bold text-slate-500 uppercase text-[10px]">Documento</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">IF-{f.year}/{String(f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">IF-{f.year}/{String(selectedObra?.faturaNumero || f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}</p>
                                 <p className="text-muted-foreground mt-2">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                                 <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                               </div>
@@ -4695,18 +4715,18 @@ MCS - Gestão Comercial`;
                               <div className="flex justify-between items-start mb-8">
                                 <div>
                                   <h3 className="text-2xl font-extrabold text-slate-900 font-sans tracking-tight">
-                                    {f.faturaNumero || `Factura nº${f.empresaInvoiceSeries || '1'} ${new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
+                                    {selectedObra?.faturaNumero || f.faturaNumero || `Factura nº${f.empresaInvoiceSeries || '1'} ${new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
                                   </h3>
                                   <p className="text-xs font-bold text-slate-950 mt-1 uppercase tracking-wider">ORIGINAL</p>
                                 </div>
                                 {/* QR Code dinâmico */}
                                 <div className="flex flex-col items-end gap-1.5">
                                   <span className="text-[9px] font-bold text-slate-700 font-sans">
-                                    ATCUD: {f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}
+                                    ATCUD: {selectedObra?.atcud || f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}
                                   </span>
                                   <div className="border border-slate-200 p-1.5 bg-white rounded shadow-sm">
                                     <QRCodeSVG
-                                      value={`${window.location.origin}/aprovacao-cliente/${f.magicLinkToken || 'draft'}`}
+                                      value={`${window.location.origin}/aprovacao-cliente/${selectedObra?.magicLinkToken || f.magicLinkToken || 'draft'}`}
                                       size={90}
                                       level="H"
                                       includeMargin={false}
@@ -4734,7 +4754,7 @@ MCS - Gestão Comercial`;
                                 {/* Coluna 2: Detalhes */}
                                 <div>
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">ATCUD</p>
-                                  <p className="font-semibold text-slate-900">{f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}</p>
+                                  <p className="font-semibold text-slate-900">{selectedObra?.atcud || f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}</p>
                                   
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Emissão</p>
                                   <p className="text-slate-700">{new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
