@@ -52,6 +52,7 @@ import { SupervisorSignPage } from '../features/worker-portal/SupervisorSignPage
 import { HoursControlPage } from '../features/hours-control/HoursControlPage';
 import { ClientHoursDetail } from '../features/hours-control/ClientHoursDetail';
 import { GlobalHubPage } from '../features/hub/GlobalHubPage';
+import { ExecutiveBIPage } from '../features/bi/ExecutiveBIPage';
 import { ComingSoonPage } from '../shared/components/ComingSoonPage';
 import { Navigate, useParams } from 'react-router-dom';
 
@@ -327,6 +328,10 @@ export const router = createBrowserRouter([
             {
                 path: '/hub',
                 element: <GlobalHubPage />,
+            },
+            {
+                path: '/bi',
+                element: <ExecutiveBIPage />,
             },
             {
                 path: '/escritorio',

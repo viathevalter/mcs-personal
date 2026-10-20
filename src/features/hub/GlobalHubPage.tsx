@@ -16,7 +16,8 @@ import {
     LogOut,
     Lock,
     Car,
-    ShieldCheck
+    ShieldCheck,
+    BarChart3
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -137,6 +138,15 @@ const MODULES: ModuleDef[] = [
         title: 'MCS Activos y Patrimonio',
         icon: ShieldCheck,
         path: '/escritorio/patrimonio',
+        color: 'text-cyan-600',
+        bgHover: 'hover:bg-cyan-50',
+        allowedRoles: ['admin', 'admin_rh', 'operacoes', 'rh', 'finance', 'commercial']
+    },
+    {
+        id: 'bi',
+        title: 'MCS BI & Diretoria',
+        icon: BarChart3,
+        path: '/bi',
         color: 'text-cyan-600',
         bgHover: 'hover:bg-cyan-50',
         allowedRoles: ['admin', 'admin_rh', 'operacoes', 'rh', 'finance', 'commercial']
