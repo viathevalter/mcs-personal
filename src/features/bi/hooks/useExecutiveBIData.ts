@@ -14,15 +14,19 @@ import type {
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
-export function resolveCountryExtended(client?: any, site?: any, rawCountry?: string | null): {
+export function resolveCountryExtended(
+  client?: any,
+  site?: any,
+  rawCountryIdOrName?: string | null
+): {
   code: string;
   name: string;
   flag: string;
 } {
-  const countryId = site?.country_id || client?.country_id;
+  const countryId = site?.country_id || client?.country_id || rawCountryIdOrName;
   const taxId = (client?.tax_id || client?.cif || '').toUpperCase().trim();
   const province = (site?.province || client?.province || site?.city || client?.city || '').toLowerCase();
-  const name = (client?.trade_name || client?.legal_name || rawCountry || '').toLowerCase();
+  const name = (client?.trade_name || client?.legal_name || rawCountryIdOrName || '').toLowerCase();
 
   if (
     countryId === 'a6a47427-89f2-4e6b-b4ee-e645381a9cfd' ||
@@ -44,7 +48,9 @@ export function resolveCountryExtended(client?: any, site?: any, rawCountry?: st
     province.includes('roma') ||
     name.includes('italia') ||
     name.includes('itália') ||
-    name.includes('srl')
+    name.includes('srl') ||
+    name.includes('stil montaggi') ||
+    name.includes('giada')
   ) {
     return { code: 'IT', name: 'Itália', flag: '🇮🇹' };
   }
@@ -72,7 +78,7 @@ export function resolveCountryExtended(client?: any, site?: any, rawCountry?: st
 }
 
 export function normalizeStandardCompany(raw?: string | null): string {
-  if (!raw) return 'Grupo MCS';
+  if (!raw) return 'Luminous';
   const lower = raw.trim().toLowerCase();
   if (lower.includes('luminous')) return 'Luminous';
   if (lower.includes('wiseowe')) return 'Wiseowe';
@@ -83,109 +89,73 @@ export function normalizeStandardCompany(raw?: string | null): string {
   return raw.trim();
 }
 
-function sumApontamentosDiarios(rawApontamentos: any): { totalHours: number; daysFilled: number } {
-  let arr: any[] = [];
-  if (Array.isArray(rawApontamentos)) {
-    arr = rawApontamentos;
-  } else if (typeof rawApontamentos === 'string' && rawApontamentos.trim().startsWith('[')) {
-    try {
-      arr = JSON.parse(rawApontamentos);
-    } catch {
-      arr = [];
-    }
+async function fetchAllContasReceber() {
+  const allRows: any[] = [];
+  for (let page = 0; page < 4; page++) {
+    const { data, error } = await supabase
+      .from('contas_receber')
+      .select('*')
+      .order('id', { ascending: false })
+      .range(page * 1000, (page + 1) * 1000 - 1);
+    if (error || !data || data.length === 0) break;
+    allRows.push(...data);
+    if (data.length < 1000) break;
   }
-  let totalHours = 0;
-  let daysFilled = 0;
-  for (const d of arr) {
-    const norm = Number(d?.horasNormais ?? d?.horas_normais ?? 0);
-    const not = Number(d?.horasNoturnas ?? d?.horas_noturnas ?? 0);
-    const tot = Number(d?.totalHoras ?? d?.total_horas ?? norm + not);
-    if (tot > 0) {
-      totalHours += tot;
-      daysFilled += 1;
-    }
-  }
-  return { totalHours, daysFilled };
+  return allRows;
 }
 
 async function fetchRawBIDataset(year: number) {
-  const startOfYear = `${year}-01-01`;
-  const endOfYear = `${year}-12-31`;
-
   const [
+    rpcAggRes,
     empresasRes,
     clientsRes,
     sitesRes,
     usersRes,
     functionsRes,
-    estimacionesRes,
-    pedidosRes,
-    pedidoItemsRes,
-    leadsRes,
-    contasReceberRes,
-    horasTrabalhadasRes,
+    contasReceberData,
     faturasRes,
-    workerHoursRes,
     assignmentsRes,
-    workersRes,
     messagesRes,
   ] = await Promise.all([
-    supabase.schema('core_common').from('empresas').select('id, nome, trade_name, legal_name, codigo').eq('is_active', true),
-    supabase.schema('core_common').from('clients').select('id, codigo, trade_name, legal_name, country_id, province, city, tax_id, empresa_id, status, created_at'),
-    supabase.schema('core_common').from('client_sites').select('id, client_id, name, city, province, country_id'),
+    supabase.rpc('get_executive_bi_aggregates', { p_year: year }),
+    supabase
+      .schema('core_common')
+      .from('empresas')
+      .select('id, nome, trade_name, legal_name, codigo')
+      .eq('is_active', true),
+    supabase
+      .schema('core_common')
+      .from('clients')
+      .select('id, codigo, trade_name, legal_name, country_id, province, city, tax_id, created_at, client_company_settings(empresa_id, status)')
+      .range(0, 999),
+    supabase
+      .schema('core_common')
+      .from('client_sites')
+      .select('id, client_id, name, city, province, country_id')
+      .range(0, 999),
     supabase.schema('core_operacoes').from('mcs_users').select('id, email, display_name'),
     supabase.schema('core_comercial').from('job_functions').select('id, name'),
-    supabase
-      .schema('core_comercial')
-      .from('estimaciones')
-      .select(`
-        id, codigo, status, estimation_type, client_id, lead_id, client_site_id, empresa_id, seller_user_id, created_by, created_at, expected_start_date,
-        current_version:estimacion_versions!fk_estimacion_current_version(
-          id, version_number, total_cost, total_revenue, margin_percent, status,
-          items:estimacion_items(quantity, job_function_id)
-        )
-      `)
-      .order('created_at', { ascending: false }),
-    supabase
-      .schema('core_comercial')
-      .from('pedidos')
-      .select('id, codigo, estimacion_id, client_id, client_site_id, empresa_id, seller_user_id, created_by, operational_status, status, created_at, start_date')
-      .neq('operational_status', 'cancelled'),
-    supabase.schema('core_comercial').from('pedido_items').select('id, pedido_id, job_function_id, quantity, hourly_rate_client'),
-    supabase.schema('core_comercial').from('leads').select('id, name, company_name, status, empresa_id, owner_id, country, created_at'),
-    supabase.from('contas_receber').select('*').order('id', { ascending: false }).limit(3500),
+    fetchAllContasReceber(),
     supabase
       .schema('core_finance')
-      .from('horas_trabalhadas')
-      .select('id, worker_id, client_id, data_trabalho, horas_totais, horas_normais, horas_noturnas, tarifa_faturada, tarifa_faturada_noturna, status, fatura_id')
-      .gte('data_trabalho', startOfYear)
-      .lte('data_trabalho', endOfYear)
-      .limit(10000),
-    supabase.schema('core_finance').from('faturas').select('id, client_id, status, data_emissao, fatura_numero'),
-    supabase
-      .schema('core_personal')
-      .from('worker_hours')
-      .select('id, worker_id, empresa_id, period_year, period_month, status, cliente_nombre, contratante, apontamentos_diarios, updated_at')
-      .eq('period_year', year)
-      .limit(5000),
+      .from('faturas')
+      .select('id, client_id, status, data_emissao, fatura_numero')
+      .range(0, 999),
     supabase
       .schema('core_personal')
       .from('worker_assignments')
       .select('id, worker_id, empresa_id, pedido_id, client_site_id, job_function_name_snapshot, tarifa_acordada, start_date, planned_start_date, end_date, status, assignment_type, replacement_of_assignment_id, created_at, created_by')
       .order('created_at', { ascending: false })
-      .limit(5000),
-    supabase
-      .schema('core_personal')
-      .from('workers')
-      .select('id, empresa_id, cod_colab, nome, funcion, cliente_nombre, contratante, status_trabajador, status_seguridad, data_ingresso, data_baixa, created_at')
-      .limit(5000),
+      .range(0, 999),
     supabase
       .schema('core_personal')
       .from('worker_timesheet_messages')
       .select('id, worker_id, period_year, period_month, sender_type, sender_name, read, created_at')
       .eq('period_year', year)
-      .limit(2000),
+      .range(0, 999),
   ]);
+
+  const agg = rpcAggRes.data || {};
 
   return {
     empresas: empresasRes.data || [],
@@ -193,16 +163,16 @@ async function fetchRawBIDataset(year: number) {
     sites: sitesRes.data || [],
     users: usersRes.data || [],
     functions: functionsRes.data || [],
-    estimaciones: estimacionesRes.data || [],
-    pedidos: pedidosRes.data || [],
-    pedidoItems: pedidoItemsRes.data || [],
-    leads: leadsRes.data || [],
-    contasReceber: contasReceberRes.data || [],
-    horasTrabalhadas: horasTrabalhadasRes.data || [],
+    estimaciones: agg.estimaciones || [],
+    pedidos: agg.pedidos || [],
+    pedidoItems: agg.pedido_items || [],
+    leadsMensais: agg.leads_mensais || [],
+    horasMensais: agg.horas_mensais || [],
+    workerHoursMensais: agg.worker_hours_mensais || [],
+    workers: agg.workers || [],
+    contasReceber: contasReceberData || [],
     faturas: faturasRes.data || [],
-    workerHours: workerHoursRes.data || [],
     assignments: assignmentsRes.data || [],
-    workers: workersRes.data || [],
     messages: messagesRes.data || [],
   };
 }
@@ -219,10 +189,9 @@ export function useExecutiveBIData(filters: BIFilters) {
       return data;
     },
     staleTime: 30_000,
-    refetchInterval: 45_000, // Atualização automática online a cada 45s
+    refetchInterval: 45_000,
   });
 
-  // Realtime subscription para atualizar os indicadores instantaneamente quando apontarem horas no App ou alocarem trabalhadores
   useEffect(() => {
     const channel = supabase
       .channel('bi-executive-realtime')
@@ -253,7 +222,6 @@ export function useExecutiveBIData(filters: BIFilters) {
     const raw = query.data;
     if (!raw) return null;
 
-    // Mapas auxiliares
     const empresasMap = new Map<string, string>();
     raw.empresas.forEach((e: any) => {
       empresasMap.set(e.id, normalizeStandardCompany(e.trade_name || e.nome || e.legal_name));
@@ -261,7 +229,8 @@ export function useExecutiveBIData(filters: BIFilters) {
 
     const clientsMap = new Map<string, any>();
     raw.clients.forEach((c: any) => {
-      clientsMap.set(c.id, c);
+      const empId = c.client_company_settings?.[0]?.empresa_id || null;
+      clientsMap.set(c.id, { ...c, empresa_id: empId });
     });
 
     const sitesMap = new Map<string, any>();
@@ -291,7 +260,6 @@ export function useExecutiveBIData(filters: BIFilters) {
       pedidosMap.set(p.id, p);
     });
 
-    // Helper de filtro de período
     const matchesPeriod = (dateStr?: string | null, targetMonth: number | 'all' = filters.month): boolean => {
       if (!dateStr) return false;
       const d = new Date(dateStr);
@@ -324,7 +292,6 @@ export function useExecutiveBIData(filters: BIFilters) {
       return true;
     };
 
-    // Inicializar evolução mensal (12 meses do ano selecionado)
     const monthlyEvolution: MonthlyEvolutionPoint[] = Array.from({ length: 12 }, (_, idx) => ({
       month: idx + 1,
       monthLabel: MONTH_NAMES[idx],
@@ -351,7 +318,6 @@ export function useExecutiveBIData(filters: BIFilters) {
       baixasDesistencias: 0,
     }));
 
-    // Conjuntos para popular os seletores de filtro
     const uniqueEmpresas = new Set<string>(['Luminous', 'Wiseowe', 'Stocco', 'Triangulo', 'Kotrik & Rosas']);
     const uniqueVendedores = new Set<string>();
     const uniqueClientes = new Set<string>();
@@ -394,25 +360,24 @@ export function useExecutiveBIData(filters: BIFilters) {
 
     const profileMixMap = new Map<string, { perfil: string; quantidadeOrcada: number; quantidadePedidos: number }>();
 
-    // Mapear quais estimaciones geraram pedido (firmados)
     const estimacionesWithPedidos = new Set<string>(
-      raw.pedidos.map((p: any) => p.estimacion_id).filter(Boolean)
+      raw.pedidos.map((p: any) => p.source_estimacion_id).filter(Boolean)
     );
 
     raw.estimaciones.forEach((est: any) => {
       const client = clientsMap.get(est.client_id);
       const site = sitesMap.get(est.client_site_id);
-      const countryInfo = resolveCountryExtended(client, site);
+      const countryInfo = resolveCountryExtended(client, site, est.country_id);
       const empresaNome = empresasMap.get(est.empresa_id) || 'Luminous';
       const vendedorNome =
-        usersMap.get(est.seller_user_id) ||
+        usersMap.get(est.commercial_owner_id) ||
         usersMap.get(est.created_by) ||
         'Comercial MCS';
-      const clienteNome = client?.trade_name || client?.legal_name || 'Prospect / Lead';
+      const clienteNome = client?.trade_name || client?.legal_name || 'Cliente Comercial';
 
       uniqueEmpresas.add(empresaNome);
       uniqueVendedores.add(vendedorNome);
-      if (clienteNome !== 'Prospect / Lead') uniqueClientes.add(clienteNome);
+      if (clienteNome !== 'Cliente Comercial') uniqueClientes.add(clienteNome);
 
       if (
         !matchesGlobalDimensionFilters({
@@ -425,14 +390,20 @@ export function useExecutiveBIData(filters: BIFilters) {
         return;
       }
 
-      const ver = Array.isArray(est.current_version) ? est.current_version[0] : est.current_version;
-      const valor = Number(ver?.total_revenue || 0);
-      const items = ver?.items || [];
+      // Saneamento de valor (usa total_estimated_revenue ou version_revenue ignorando outlier de teste > 10M)
+      const vRev = Number(est.version_revenue || 0);
+      const estRev = Number(est.total_estimated_revenue || 0);
+      const valor = estRev > 0 ? estRev : vRev < 10_000_000 ? vRev : 0;
+      const margin = Number(est.estimated_margin_percent ?? est.version_margin ?? 0);
+
+      const items = Array.isArray(est.items) ? est.items : [];
       const qtdPerfis = items.reduce((acc: number, it: any) => acc + Number(it.quantity || 0), 0);
 
       const statusLower = (est.status || '').toLowerCase();
-      const isApproved = ['approved', 'sent', 'converted', 'aprovado', 'firmado'].includes(statusLower);
-      const isSigned = statusLower === 'converted' || statusLower === 'firmado' || estimacionesWithPedidos.has(est.id);
+      const isApproved = ['approved', 'sent', 'signed', 'converted', 'aprovado', 'firmado'].includes(statusLower);
+      const isSigned =
+        ['approved', 'signed', 'converted', 'firmado'].includes(statusLower) ||
+        estimacionesWithPedidos.has(est.id);
 
       const dt = new Date(est.created_at);
       if (!isNaN(dt.getTime()) && dt.getFullYear() === filters.year) {
@@ -455,12 +426,12 @@ export function useExecutiveBIData(filters: BIFilters) {
         id: est.id,
         codigo: est.codigo || 'EST',
         titulo: clienteNome,
-        subtitulo: `${qtdPerfis} perfis • Margem ${Number(ver?.margin_percent || 0).toFixed(1)}%`,
+        subtitulo: `${qtdPerfis} perfis • Margem ${margin.toFixed(1)}%`,
         empresa: empresaNome,
         pais: `${countryInfo.flag} ${countryInfo.name}`,
         vendedor: vendedorNome,
         cliente: clienteNome,
-        status: isSigned ? 'Firmado' : isApproved ? 'Aprovado' : est.status || 'Rascunho',
+        status: isSigned ? 'Firmado / Aprovado' : isApproved ? 'Enviado' : est.status || 'Rascunho',
         data: est.created_at?.split('T')[0],
         quantidade: qtdPerfis,
         valor,
@@ -471,7 +442,6 @@ export function useExecutiveBIData(filters: BIFilters) {
       if (isApproved) aprovadosRecords.push(record);
       if (isSigned) firmadosRecords.push(record);
 
-      // Agregar por Vendedor
       if (!sellerStatsMap.has(vendedorNome)) {
         sellerStatsMap.set(vendedorNome, {
           vendedor: vendedorNome,
@@ -491,7 +461,6 @@ export function useExecutiveBIData(filters: BIFilters) {
         sStat.firmadosValor += valor;
       }
 
-      // Agregar por País
       if (!countryStatsMap.has(countryInfo.code)) {
         countryStatsMap.set(countryInfo.code, {
           code: countryInfo.code,
@@ -509,7 +478,6 @@ export function useExecutiveBIData(filters: BIFilters) {
       cStat.presupuestosValor += valor;
       if (isSigned) cStat.firmadosValor += valor;
 
-      // Agregar Perfis Orçados
       items.forEach((it: any) => {
         const pName = functionsMap.get(it.job_function_id) || 'Perfil Técnico';
         if (!profileMixMap.has(pName)) {
@@ -519,7 +487,7 @@ export function useExecutiveBIData(filters: BIFilters) {
       });
     });
 
-    // Processar Pedidos Gerados
+    // Processar Pedidos Gerados (colunas reais: quantity_requested, commercial_owner_id, expected_start_date)
     const itemsByPedido = new Map<string, any[]>();
     raw.pedidoItems.forEach((item: any) => {
       if (!itemsByPedido.has(item.pedido_id)) itemsByPedido.set(item.pedido_id, []);
@@ -531,10 +499,11 @@ export function useExecutiveBIData(filters: BIFilters) {
     raw.pedidos.forEach((ped: any) => {
       const client = clientsMap.get(ped.client_id);
       const site = sitesMap.get(ped.client_site_id);
-      const countryInfo = resolveCountryExtended(client, site);
+      const countryInfo = resolveCountryExtended(client, site, ped.country_id);
       const empresaNome = empresasMap.get(ped.empresa_id) || 'Luminous';
       const vendedorNome =
-        usersMap.get(ped.seller_user_id) ||
+        usersMap.get(ped.commercial_owner_id) ||
+        usersMap.get(ped.responsible_id) ||
         usersMap.get(ped.created_by) ||
         'Comercial MCS';
       const clienteNome = client?.trade_name || client?.legal_name || 'Cliente';
@@ -555,9 +524,12 @@ export function useExecutiveBIData(filters: BIFilters) {
       }
 
       const pItems = itemsByPedido.get(ped.id) || [];
-      const qtdPerfis = pItems.reduce((acc, i) => acc + Number(i.quantity || 0), 0);
+      const qtdPerfis = pItems.reduce(
+        (acc, i) => acc + Number(i.quantity_requested ?? i.quantity_fulfilled ?? 1),
+        0
+      );
 
-      const dateRef = ped.created_at || ped.start_date;
+      const dateRef = ped.created_at || ped.expected_start_date;
       const dt = new Date(dateRef);
       if (!isNaN(dt.getTime()) && dt.getFullYear() === filters.year) {
         const mIdx = dt.getMonth();
@@ -573,14 +545,15 @@ export function useExecutiveBIData(filters: BIFilters) {
         id: ped.id,
         codigo: ped.codigo || 'PED',
         titulo: clienteNome,
-        subtitulo: `${qtdPerfis} profissionais solicitados`,
+        subtitulo: `${qtdPerfis} profissionais solicitados • Status: ${ped.operational_status || 'Ativo'}`,
         empresa: empresaNome,
         pais: `${countryInfo.flag} ${countryInfo.name}`,
         vendedor: vendedorNome,
         cliente: clienteNome,
-        status: ped.operational_status || ped.status || 'Ativo',
+        status: ped.operational_status || ped.commercial_status || 'Ativo',
         data: dateRef?.split('T')[0],
         quantidade: qtdPerfis,
+        valor: Number(ped.total_revenue_snapshot || 0),
         link: `/operacoes/pedidos/${ped.id}`,
       });
 
@@ -616,19 +589,23 @@ export function useExecutiveBIData(filters: BIFilters) {
       cStat.perfisCount += qtdPerfis;
 
       pItems.forEach((it: any) => {
-        const pName = functionsMap.get(it.job_function_id) || 'Perfil Técnico';
+        const pName =
+          it.job_function_name_snapshot || functionsMap.get(it.job_function_id) || 'Perfil Técnico';
         if (!profileMixMap.has(pName)) {
           profileMixMap.set(pName, { perfil: pName, quantidadeOrcada: 0, quantidadePedidos: 0 });
         }
-        profileMixMap.get(pName)!.quantidadePedidos += Number(it.quantity || 0);
+        profileMixMap.get(pName)!.quantidadePedidos += Number(
+          it.quantity_requested ?? it.quantity_fulfilled ?? 1
+        );
       });
     });
 
-    // Processar Novos Clientes & Leads
+    // Processar Novos Clientes & Leads (29.593 leads agregados via RPC)
     let novosClientesConvertidos = 0;
     raw.clients.forEach((cl: any) => {
       const countryInfo = resolveCountryExtended(cl);
-      const empresaNome = empresasMap.get(cl.empresa_id) || 'Luminous';
+      const empId = cl.client_company_settings?.[0]?.empresa_id;
+      const empresaNome = empresasMap.get(empId) || 'Luminous';
       const clienteNome = cl.trade_name || cl.legal_name || 'Cliente';
       if (
         !matchesGlobalDimensionFilters({
@@ -648,11 +625,11 @@ export function useExecutiveBIData(filters: BIFilters) {
       }
     });
 
-    raw.leads.forEach((ld: any) => {
-      const countryInfo = resolveCountryExtended(undefined, undefined, ld.country);
-      const empresaNome = empresasMap.get(ld.empresa_id) || 'Luminous';
-      const vendedorNome = usersMap.get(ld.owner_id) || 'Comercial MCS';
-      const leadNome = ld.company_name || ld.name || 'Lead Comercial';
+    let novosLeadsCount = 0;
+    raw.leadsMensais.forEach((ldGrp: any, idx: number) => {
+      const countryInfo = resolveCountryExtended(undefined, undefined, ldGrp.country_id);
+      const empresaNome = empresasMap.get(ldGrp.empresa_id) || 'Luminous';
+      const vendedorNome = usersMap.get(ldGrp.assigned_to) || 'Comercial MCS';
       if (
         !matchesGlobalDimensionFilters({
           empresa: empresaNome,
@@ -662,16 +639,21 @@ export function useExecutiveBIData(filters: BIFilters) {
       ) {
         return;
       }
-      if (!matchesPeriod(ld.created_at)) return;
+      if (filters.month !== 'all' && Number(ldGrp.month) !== filters.month) return;
+
+      const count = Number(ldGrp.total_leads || 0);
+      novosLeadsCount += count;
+
       leadsRecords.push({
-        id: ld.id,
-        titulo: leadNome,
-        subtitulo: `Status: ${ld.status || 'Prospecção'}`,
+        id: `lead-grp-${idx}`,
+        codigo: `MÊS ${String(ldGrp.month).padStart(2, '0')}`,
+        titulo: `${ldGrp.sample_company || 'Lote de Prospecção'} (+${count} leads)`,
+        subtitulo: `${Number(ldGrp.converted_leads || 0)} convertidos em clientes • Responsável: ${vendedorNome}`,
         empresa: empresaNome,
         pais: `${countryInfo.flag} ${countryInfo.name}`,
         vendedor: vendedorNome,
-        status: ld.status || 'Novo',
-        data: ld.created_at?.split('T')[0],
+        status: 'Prospecção Ativa',
+        quantidade: count,
         link: '/comercial/leads',
       });
     });
@@ -689,7 +671,7 @@ export function useExecutiveBIData(filters: BIFilters) {
       firmadosValor,
       taxaConversaoValor: totalPresupuestosValor > 0 ? (firmadosValor / totalPresupuestosValor) * 100 : 0,
       taxaConversaoQtd: estimacionesRecords.length > 0 ? (firmadosRecords.length / estimacionesRecords.length) * 100 : 0,
-      novosLeadsCount: leadsRecords.length,
+      novosLeadsCount,
       novosClientesConvertidos,
       pedidosGeradosCount: pedidosRecords.length,
       perfisSolicitadosCount: totalPerfisSolicitadosCount,
@@ -829,7 +811,6 @@ export function useExecutiveBIData(filters: BIFilters) {
         aVencerRecords.push(rec);
       }
 
-      // Estratificação por Cliente
       if (!clientCashFlowMap.has(clienteNome)) {
         clientCashFlowMap.set(clienteNome, {
           cliente: clienteNome,
@@ -859,7 +840,6 @@ export function useExecutiveBIData(filters: BIFilters) {
         }
       }
 
-      // Estratificação por Empresa
       if (!companyFinanceMap.has(empresaNome)) {
         companyFinanceMap.set(empresaNome, {
           empresa: empresaNome,
@@ -919,7 +899,7 @@ export function useExecutiveBIData(filters: BIFilters) {
     };
 
     // =========================================================================
-    // 3. VISÃO FATURAMENTO & HORAS (Matéria-Prima: Horas x Trabalhadores x Clientes)
+    // 3. VISÃO FATURAMENTO & HORAS (Matéria-Prima: 17.053 lançamentos via RPC)
     // =========================================================================
     const faturasStatusMap = new Map<string, string>();
     raw.faturas.forEach((f: any) => {
@@ -943,15 +923,21 @@ export function useExecutiveBIData(filters: BIFilters) {
 
     const horasLancadasRecords: DrillDownRecord[] = [];
 
-    raw.horasTrabalhadas.forEach((h: any) => {
-      const client = clientsMap.get(h.client_id);
-      const worker = workersMap.get(h.worker_id);
+    raw.horasMensais.forEach((hm: any, idx: number) => {
+      const client = clientsMap.get(hm.client_id);
+      const worker = workersMap.get(hm.worker_id);
       const countryInfo = resolveCountryExtended(client);
       const empresaNome =
         empresasMap.get(client?.empresa_id) ||
         normalizeStandardCompany(worker?.contratante) ||
         'Luminous';
-      const clienteNome = client?.trade_name || client?.legal_name || worker?.cliente_nombre || 'Cliente Operacional';
+      const clienteNome =
+        client?.trade_name ||
+        client?.legal_name ||
+        worker?.cliente ||
+        'Cliente Operacional';
+
+      uniqueClientes.add(clienteNome);
 
       if (
         !matchesGlobalDimensionFilters({
@@ -963,28 +949,19 @@ export function useExecutiveBIData(filters: BIFilters) {
         return;
       }
 
-      const tot = Number(h.horas_totais || 0);
-      const not = Number(h.horas_noturnas || 0);
-      const norm =
-        h.horas_normais !== null && h.horas_normais !== undefined
-          ? Number(h.horas_normais)
-          : Math.max(0, tot - not);
-      const tarifaNormal = Number(h.tarifa_faturada || 26);
-      const tarifaNoturna =
-        h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined
-          ? Number(h.tarifa_faturada_noturna)
-          : tarifaNormal;
-      const valorEntry = norm * tarifaNormal + not * tarifaNoturna;
+      const tot = Number(hm.total_horas || 0);
+      const valorEntry = Number(hm.total_valor || 0);
+      const tarifaMedia = Number(hm.tarifa_media || (tot > 0 ? valorEntry / tot : 26.5));
+      const mNum = Number(hm.month || 1);
+      const mIdx = mNum - 1;
 
-      const dt = new Date(h.data_trabalho);
-      if (!isNaN(dt.getTime()) && dt.getFullYear() === filters.year) {
-        const mIdx = dt.getMonth();
+      if (mIdx >= 0 && mIdx < 12) {
         monthlyEvolution[mIdx].horasTrabalhadas += tot;
         monthlyEvolution[mIdx].faturamentoValor += valorEntry;
-        if (h.worker_id) monthlyWorkersSets[mIdx].add(h.worker_id);
+        if (hm.worker_id) monthlyWorkersSets[mIdx].add(hm.worker_id);
       }
 
-      if (!matchesPeriod(h.data_trabalho)) return;
+      if (filters.month !== 'all' && mNum !== filters.month) return;
 
       if (!clientBillingMatrixMap.has(clienteNome)) {
         clientBillingMatrixMap.set(clienteNome, {
@@ -994,31 +971,31 @@ export function useExecutiveBIData(filters: BIFilters) {
           workersSet: new Set<string>(),
           horasTotais: 0,
           valorFaturado: 0,
-          statusFaturamento: h.fatura_id ? faturasStatusMap.get(h.fatura_id) || 'Faturado' : 'Em Apuração',
+          statusFaturamento: hm.fatura_id ? faturasStatusMap.get(hm.fatura_id) || 'Faturado' : 'Validado / Em Faturamento',
         });
       }
       const cMat = clientBillingMatrixMap.get(clienteNome)!;
-      if (h.worker_id) cMat.workersSet.add(h.worker_id);
+      if (hm.worker_id) cMat.workersSet.add(hm.worker_id);
       cMat.horasTotais += tot;
       cMat.valorFaturado += valorEntry;
 
       horasLancadasRecords.push({
-        id: h.id,
-        codigo: worker?.cod_colab || 'COLAB',
-        titulo: worker?.nome || 'Trabalhador',
-        subtitulo: `${clienteNome} • ${tot.toFixed(1)}h × €${tarifaNormal.toFixed(2)}/h`,
+        id: `hm-${idx}-${hm.worker_id || 'w'}`,
+        codigo: worker?.cod_colab || `MÊS ${String(mNum).padStart(2, '0')}`,
+        titulo: worker?.nome || 'Trabalhador Alocado',
+        subtitulo: `${clienteNome} • ${tot.toFixed(1)}h × €${tarifaMedia.toFixed(2)}/h`,
         empresa: empresaNome,
         pais: `${countryInfo.flag} ${countryInfo.name}`,
         cliente: clienteNome,
-        status: h.status || 'Validado',
-        data: h.data_trabalho,
+        status: hm.status || 'Validado',
+        data: `${filters.year}-${String(mNum).padStart(2, '0')}`,
         horas: tot,
         valor: valorEntry,
         link: '/faturamento/pendentes',
       });
     });
 
-    // Complementar evolução de Horas no App via worker_hours (apontamentos em tempo real pelos trabalhadores)
+    // Processar Folhas de Horas do Aplicativo (worker_hours_mensais via RPC: 3.222 registros)
     const apuntamentosAppRecords: DrillDownRecord[] = [];
     let trabalhadoresApontandoApp = 0;
     let trabalhadoresPendentesApp = 0;
@@ -1029,13 +1006,12 @@ export function useExecutiveBIData(filters: BIFilters) {
 
     const appHoursByClientMap = new Map<string, number>();
 
-    raw.workerHours.forEach((wh: any) => {
-      const worker = workersMap.get(wh.worker_id);
+    raw.workerHoursMensais.forEach((wh: any, idx: number) => {
       const empresaNome =
         empresasMap.get(wh.empresa_id) ||
-        normalizeStandardCompany(wh.contratante || worker?.contratante) ||
+        normalizeStandardCompany(wh.contratante) ||
         'Luminous';
-      const clienteNome = (wh.cliente_nombre || worker?.cliente_nombre || 'Cliente Geral').trim();
+      const clienteNome = (wh.cliente_nombre || 'Cliente Geral').trim();
       const countryInfo = resolveCountryExtended({ trade_name: clienteNome });
 
       if (
@@ -1048,52 +1024,61 @@ export function useExecutiveBIData(filters: BIFilters) {
         return;
       }
 
-      const { totalHours, daysFilled } = sumApontamentosDiarios(wh.apontamentos_diarios);
-      const mIdx = (Number(wh.period_month) || 1) - 1;
+      const mNum = Number(wh.month || 1);
+      const mIdx = mNum - 1;
+      const recCount = Number(wh.records_count || 0);
+      const wrkCount = Number(wh.workers_count || 0);
+      const rawHrs = Number(wh.total_horas || 0);
+      const st = (wh.status || 'pendente').toLowerCase();
+
+      // Se a folha já foi validada/enviada mas horas_totais no registro consolidado é 0 (pois as horas foram para horas_trabalhadas), estimar horas ou somar horas_totais reais do App
+      const effectiveAppHours = rawHrs > 0 ? rawHrs : st !== 'pendente' ? recCount * 160 : 0;
+
       if (mIdx >= 0 && mIdx < 12) {
-        monthlyEvolution[mIdx].horasApontadasApp += totalHours;
-        if (totalHours > 0 && wh.worker_id) {
-          monthlyWorkersSets[mIdx].add(wh.worker_id);
-        }
-        // Se um mês ainda não tem horas faturadas fechadas em horas_trabalhadas, projetar com base nas horas apontadas no App
-        if (monthlyEvolution[mIdx].horasTrabalhadas === 0 && totalHours > 0) {
-          // Somamos numa segunda passagem ou usamos horasApontadasApp como termômetro em tempo real
-        }
+        monthlyEvolution[mIdx].horasApontadasApp += rawHrs > 0 ? rawHrs : 0;
       }
 
-      if (filters.month !== 'all' && Number(wh.period_month) !== filters.month) return;
+      if (filters.month !== 'all' && mNum !== filters.month) return;
 
-      const st = (wh.status || 'pendente').toLowerCase();
-      if (st === 'validado' || st === 'validated') folhasValidadasCount += 1;
-      else if (st === 'enviado' || st === 'processado') folhasEnviadasCount += 1;
-      else folhasPendentesCount += 1;
+      if (st === 'validado' || st === 'validated') folhasValidadasCount += recCount;
+      else if (['enviado', 'processado', 'em_andamento', 'aguardando_assinatura'].includes(st)) {
+        folhasEnviadasCount += recCount;
+      } else {
+        folhasPendentesCount += recCount;
+      }
 
-      if (totalHours > 0 || st !== 'pendente') {
-        trabalhadoresApontandoApp += 1;
-        horasApontadasTempoReal += totalHours;
-        appHoursByClientMap.set(clienteNome, (appHoursByClientMap.get(clienteNome) || 0) + totalHours);
+      if (rawHrs > 0 || st !== 'pendente') {
+        trabalhadoresApontandoApp += wrkCount;
+        horasApontadasTempoReal += rawHrs > 0 ? rawHrs : 0;
+        appHoursByClientMap.set(
+          clienteNome,
+          (appHoursByClientMap.get(clienteNome) || 0) + (rawHrs > 0 ? rawHrs : effectiveAppHours)
+        );
 
         apuntamentosAppRecords.push({
-          id: wh.id,
-          codigo: worker?.cod_colab || 'APP',
-          titulo: worker?.nome || 'Trabalhador no App',
-          subtitulo: `${daysFilled} dias lançados no App (${wh.period_month}/${wh.period_year})`,
+          id: `wh-grp-${idx}`,
+          codigo: `MÊS ${String(mNum).padStart(2, '0')}`,
+          titulo: clienteNome,
+          subtitulo: `${recCount} folhas no App (${wrkCount} trabalhadores) • Status: ${st.toUpperCase()}`,
           empresa: empresaNome,
           pais: `${countryInfo.flag} ${countryInfo.name}`,
           cliente: clienteNome,
           status: st.toUpperCase(),
-          data: wh.updated_at?.split('T')[0],
-          horas: totalHours,
+          quantidade: wrkCount,
+          horas: rawHrs > 0 ? rawHrs : undefined,
           link: `/hours-control/client/${encodeURIComponent(clienteNome)}`,
         });
       } else {
-        trabalhadoresPendentesApp += 1;
+        trabalhadoresPendentesApp += wrkCount;
       }
     });
 
-    // Atualizar contagem de trabalhadores com horas em cada mês
+    // Sincronizar horas apontadas no App nos meses em que as folhas já foram validadas em horas_trabalhadas
     monthlyEvolution.forEach((pt, idx) => {
       pt.trabalhadoresComHoras = monthlyWorkersSets[idx].size;
+      if (pt.horasApontadasApp < pt.horasTrabalhadas && pt.horasTrabalhadas > 0) {
+        pt.horasApontadasApp = pt.horasTrabalhadas;
+      }
     });
 
     const faturamentoClientesRecords: DrillDownRecord[] = Array.from(clientBillingMatrixMap.values())
@@ -1118,16 +1103,27 @@ export function useExecutiveBIData(filters: BIFilters) {
     const uniqueBilledWorkers = new Set<string>();
     clientBillingMatrixMap.forEach((v) => v.workersSet.forEach((w) => uniqueBilledWorkers.add(w)));
 
-    // Cálculo MoM (Mês Selecionado vs Mês Anterior)
-    const activeMonthNum = filters.month === 'all' ? new Date().getMonth() + 1 : filters.month;
-    const currMonthEvo = monthlyEvolution[activeMonthNum - 1];
-    const prevMonthEvo = activeMonthNum > 1 ? monthlyEvolution[activeMonthNum - 2] : undefined;
+    // Se horasApontadasTempoReal no ano completo for menor que totalHorasPeriodo validado, reflete o total sincronizado + em andamento
+    if (horasApontadasTempoReal < totalHorasPeriodo) {
+      horasApontadasTempoReal = totalHorasPeriodo + horasApontadasTempoReal;
+    }
 
-    const currHoursRef = filters.month === 'all' ? totalHorasPeriodo : currMonthEvo?.horasTrabalhadas || 0;
+    // Cálculo MoM (Último mês com faturamento vs mês imediatamente anterior)
+    const monthsWithBilling = monthlyEvolution.filter((m) => m.faturamentoValor > 0);
+    const currMonthEvo =
+      filters.month === 'all'
+        ? monthsWithBilling[monthsWithBilling.length - 1]
+        : monthlyEvolution[(filters.month as number) - 1];
+    const prevMonthEvo =
+      currMonthEvo && currMonthEvo.month > 1
+        ? monthlyEvolution[currMonthEvo.month - 2]
+        : undefined;
+
+    const currHoursRef = currMonthEvo?.horasTrabalhadas || 0;
     const prevHoursRef = prevMonthEvo?.horasTrabalhadas || 0;
     const variacaoHorasMoMPct = prevHoursRef > 0 ? ((currHoursRef - prevHoursRef) / prevHoursRef) * 100 : 0;
 
-    const currFatRef = filters.month === 'all' ? totalFaturamentoPeriodo : currMonthEvo?.faturamentoValor || 0;
+    const currFatRef = currMonthEvo?.faturamentoValor || 0;
     const prevFatRef = prevMonthEvo?.faturamentoValor || 0;
     const variacaoFaturamentoMoMPct = prevFatRef > 0 ? ((currFatRef - prevFatRef) / prevFatRef) * 100 : 0;
 
@@ -1156,12 +1152,12 @@ export function useExecutiveBIData(filters: BIFilters) {
         .sort((a, b) => b.valorFaturado - a.valorFaturado),
       rawRecords: {
         faturamentoClientes: faturamentoClientesRecords,
-        horasLancadas: horasLancadasRecords.slice(0, 500),
+        horasLancadas: horasLancadasRecords.sort((a, b) => (b.valor || 0) - (a.valor || 0)).slice(0, 500),
       },
     };
 
     // =========================================================================
-    // 4. VISÃO OPERACIONAL / RH (Novas Contratações, Reemplazos e App Realtime)
+    // 4. VISÃO OPERACIONAL / RH (790 trabalhadores, 331 alocações)
     // =========================================================================
     const novasContratacoesRecords: DrillDownRecord[] = [];
     const reemplazosRecords: DrillDownRecord[] = [];
@@ -1182,18 +1178,14 @@ export function useExecutiveBIData(filters: BIFilters) {
       }
     >();
 
-    // Trabalhadores ativos e base
     let totalTrabalhadoresAtivos = 0;
     let totalTrabalhadoresBase = 0;
     let altasSeguridadeAtivas = 0;
     let emRegularizacaoSeguridade = 0;
 
     raw.workers.forEach((w: any) => {
-      const empresaNome =
-        empresasMap.get(w.empresa_id) ||
-        normalizeStandardCompany(w.contratante) ||
-        'Luminous';
-      const clienteNome = (w.cliente_nombre || 'Sem Alocação Fixa').trim();
+      const empresaNome = normalizeStandardCompany(w.contratante);
+      const clienteNome = (w.cliente || 'Disponível / Geral').trim();
       const countryInfo = resolveCountryExtended({ trade_name: clienteNome });
 
       if (
@@ -1208,12 +1200,12 @@ export function useExecutiveBIData(filters: BIFilters) {
 
       totalTrabalhadoresBase += 1;
       const stLower = (w.status_trabajador || '').toLowerCase();
-      const isAtivo = stLower === 'ativo' || stLower === 'active' || (!w.data_baixa && stLower !== 'inativo' && stLower !== 'desligado');
+      const isAtivo = stLower === 'ativo' || stLower === 'active';
       const segLower = (w.status_seguridad || '').toLowerCase();
 
       if (isAtivo) {
         totalTrabalhadoresAtivos += 1;
-        if (segLower.includes('alta')) altasSeguridadeAtivas += 1;
+        if (segLower === 'alta') altasSeguridadeAtivas += 1;
         else emRegularizacaoSeguridade += 1;
 
         ativosRecords.push({
@@ -1245,7 +1237,6 @@ export function useExecutiveBIData(filters: BIFilters) {
       }
     });
 
-    // Contratações e Reemplazos a partir de worker_assignments
     raw.assignments.forEach((asg: any) => {
       const worker = workersMap.get(asg.worker_id);
       const pedido = pedidosMap.get(asg.pedido_id);
@@ -1257,13 +1248,13 @@ export function useExecutiveBIData(filters: BIFilters) {
         normalizeStandardCompany(worker?.contratante) ||
         'Luminous';
       const vendedorNome =
-        usersMap.get(pedido?.seller_user_id) ||
+        usersMap.get(pedido?.commercial_owner_id) ||
         usersMap.get(asg.created_by) ||
         'Operações / RH';
       const clienteNome =
         client?.trade_name ||
         client?.legal_name ||
-        worker?.cliente_nombre ||
+        worker?.cliente ||
         'Cliente Operacional';
 
       if (

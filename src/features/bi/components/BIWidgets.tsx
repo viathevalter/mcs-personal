@@ -10,7 +10,6 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Line,
-  Area,
   Cell,
   PieChart,
   Pie,
@@ -25,16 +24,15 @@ import {
   TrendingDown,
   Pin,
   CheckCircle2,
-  AlertTriangle,
   Smartphone,
   MessageCircle,
   Globe2,
   UserPlus,
-  RefreshCw,
   Eye,
   Award,
   Layers,
 } from 'lucide-react';
+import { useTheme } from '@/app/providers';
 import { formatCurrency, formatCompactCurrency } from '@/features/financeiro/lib/utils';
 import type {
   BillingHoursBIMetrics,
@@ -46,6 +44,15 @@ import type {
   WallboardWidgetDef,
   WallboardWidgetId,
 } from '../types';
+
+function useIsDarkTheme(): boolean {
+  const { theme } = useTheme();
+  if (typeof window === 'undefined') return false;
+  return (
+    theme === 'dark' ||
+    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  );
+}
 
 export const WALLBOARD_WIDGET_CATALOG: WallboardWidgetDef[] = [
   {
@@ -162,12 +169,12 @@ const PinButton: React.FC<{
       }}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all border ${
         isPinned
-          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 hover:bg-emerald-500/30'
-          : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:text-white hover:border-slate-500'
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/50 dark:hover:bg-emerald-500/30'
+          : 'bg-slate-100 text-slate-600 border-slate-200 hover:text-slate-900 hover:border-slate-300 dark:bg-slate-800/80 dark:text-slate-400 dark:border-slate-700 dark:hover:text-white dark:hover:border-slate-500'
       }`}
       title={isPinned ? 'Remover do Painel / Projetor' : 'Fixar este gráfico no Painel / Projetor'}
     >
-      <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-emerald-400 text-emerald-400' : ''}`} />
+      <Pin className={`w-3.5 h-3.5 ${isPinned ? 'fill-emerald-500 text-emerald-600 dark:fill-emerald-400 dark:text-emerald-400' : ''}`} />
       <span>{isPinned ? 'No Projetor' : 'Fixar no Projetor'}</span>
     </button>
   );
@@ -184,11 +191,11 @@ export const GlobalKpiStripWidget: React.FC<WidgetCommonProps> = ({
   isTvMode,
 }) => {
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl transition-colors">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <h3 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
             Visão Consolidada da Diretoria — 4 Pilares Estratégicos (Clique em qualquer número para Conferência)
           </h3>
         </div>
@@ -212,21 +219,23 @@ export const GlobalKpiStripWidget: React.FC<WidgetCommonProps> = ({
               records: commercial.rawRecords.estimaciones,
             })
           }
-          className="cursor-pointer group bg-gradient-to-br from-amber-500/10 via-slate-950 to-slate-950 border border-amber-500/30 hover:border-amber-400 rounded-xl p-4 transition-all"
+          className="cursor-pointer group bg-gradient-to-br from-amber-50/90 via-white to-white dark:from-amber-500/10 dark:via-slate-950 dark:to-slate-950 border border-amber-200 dark:border-amber-500/30 hover:border-amber-400 dark:hover:border-amber-400 rounded-xl p-4 shadow-sm transition-all"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">1. Comercial & Pedidos</span>
-            <Briefcase className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              1. Comercial & Pedidos
+            </span>
+            <Briefcase className="w-4 h-4 text-amber-600 dark:text-amber-400" />
           </div>
-          <div className="text-2xl font-extrabold text-white">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
             {formatCompactCurrency(commercial.firmadosValor)}
-            <span className="text-xs font-semibold text-amber-300 ml-2">
+            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300 ml-2">
               ({commercial.firmadosCount} firmados)
             </span>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+          <div className="mt-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>Orçado: {formatCompactCurrency(commercial.totalPresupuestosValor)}</span>
-            <span className="font-bold text-slate-200">
+            <span className="font-bold text-slate-700 dark:text-slate-200">
               {commercial.pedidosGeradosCount} Pedidos ({commercial.perfisSolicitadosCount} perfis)
             </span>
           </div>
@@ -243,19 +252,21 @@ export const GlobalKpiStripWidget: React.FC<WidgetCommonProps> = ({
               records: financial.rawRecords.todosTitulos,
             })
           }
-          className="cursor-pointer group bg-gradient-to-br from-blue-500/10 via-slate-950 to-slate-950 border border-blue-500/30 hover:border-blue-400 rounded-xl p-4 transition-all"
+          className="cursor-pointer group bg-gradient-to-br from-blue-50/90 via-white to-white dark:from-blue-500/10 dark:via-slate-950 dark:to-slate-950 border border-blue-200 dark:border-blue-500/30 hover:border-blue-400 dark:hover:border-blue-400 rounded-xl p-4 shadow-sm transition-all"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-400">2. Financeiro & Cobrança</span>
-            <Landmark className="w-4 h-4 text-blue-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+              2. Financeiro & Cobrança
+            </span>
+            <Landmark className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="text-2xl font-extrabold text-white">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
             {formatCompactCurrency(financial.recebidoValor)}
-            <span className="text-xs font-semibold text-emerald-400 ml-2">Recebido</span>
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 ml-2">Recebido</span>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+          <div className="mt-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>A Vencer: {formatCompactCurrency(financial.aVencerValor)}</span>
-            <span className="font-bold text-rose-400">
+            <span className="font-bold text-rose-600 dark:text-rose-400">
               Vencido: {formatCompactCurrency(financial.vencidoValor)} ({financial.vencidoCount})
             </span>
           </div>
@@ -272,27 +283,29 @@ export const GlobalKpiStripWidget: React.FC<WidgetCommonProps> = ({
               records: billingHours.rawRecords.faturamentoClientes,
             })
           }
-          className="cursor-pointer group bg-gradient-to-br from-emerald-500/10 via-slate-950 to-slate-950 border border-emerald-500/30 hover:border-emerald-400 rounded-xl p-4 transition-all"
+          className="cursor-pointer group bg-gradient-to-br from-emerald-50/90 via-white to-white dark:from-emerald-500/10 dark:via-slate-950 dark:to-slate-950 border border-emerald-200 dark:border-emerald-500/30 hover:border-emerald-400 dark:hover:border-emerald-400 rounded-xl p-4 shadow-sm transition-all"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
               3. Faturamento & Horas
             </span>
-            <Receipt className="w-4 h-4 text-emerald-400" />
+            <Receipt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div className="text-2xl font-extrabold text-white">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
             {formatCompactCurrency(billingHours.totalFaturamentoPeriodo)}
-            <span className="text-xs font-semibold text-sky-400 ml-2">
+            <span className="text-xs font-semibold text-sky-600 dark:text-sky-400 ml-2">
               ({billingHours.totalHorasPeriodo.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}h)
             </span>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+          <div className="mt-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
             <span>
               {billingHours.totalTrabalhadoresFaturados} Trab. • {billingHours.totalClientesAtendidos} Clientes
             </span>
             <span
               className={`font-bold inline-flex items-center gap-0.5 ${
-                billingHours.variacaoFaturamentoMoMPct >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                billingHours.variacaoFaturamentoMoMPct >= 0
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-rose-600 dark:text-rose-400'
               }`}
             >
               {billingHours.variacaoFaturamentoMoMPct >= 0 ? (
@@ -315,31 +328,32 @@ export const GlobalKpiStripWidget: React.FC<WidgetCommonProps> = ({
               category: 'operacional',
               metricLabel: 'Movimentações Operacionais',
               records: [
+                ...operational.rawRecords.ativos,
                 ...operational.rawRecords.novasContratacoes,
                 ...operational.rawRecords.reemplazos,
               ],
             })
           }
-          className="cursor-pointer group bg-gradient-to-br from-purple-500/10 via-slate-950 to-slate-950 border border-purple-500/30 hover:border-purple-400 rounded-xl p-4 transition-all"
+          className="cursor-pointer group bg-gradient-to-br from-purple-50/90 via-white to-white dark:from-purple-500/10 dark:via-slate-950 dark:to-slate-950 border border-purple-200 dark:border-purple-500/30 hover:border-purple-400 dark:hover:border-purple-400 rounded-xl p-4 shadow-sm transition-all"
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-purple-400">
+            <span className="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">
               4. Operacional (RH & App)
             </span>
-            <Users className="w-4 h-4 text-purple-400" />
+            <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
           </div>
-          <div className="text-2xl font-extrabold text-white">
+          <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
             {operational.totalTrabalhadoresAtivos}{' '}
-            <span className="text-sm font-semibold text-slate-300">Ativos</span>
-            <span className="text-xs font-bold text-emerald-400 ml-2">
+            <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">Ativos</span>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 ml-2">
               +{operational.novasContratacoesPeriodo} novos
             </span>
           </div>
-          <div className="mt-2 pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-            <span className="text-amber-400 font-semibold">
+          <div className="mt-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            <span className="text-amber-600 dark:text-amber-400 font-semibold">
               {operational.reemplazosPeriodo} Reemplazos
             </span>
-            <span className="font-bold text-sky-400">
+            <span className="font-bold text-sky-600 dark:text-sky-400">
               App: {operational.horasApontadasTempoReal.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}h apontadas
             </span>
           </div>
@@ -357,16 +371,18 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
   onDrillDown,
   isTvMode,
 }) => {
+  const isDark = useIsDarkTheme();
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-amber-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-amber-500 dark:text-amber-400" />
               Funil Comercial: Presupuestos, Aprovados, Firmados & Pedidos
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Prospecção de novos clientes, propostas aprovadas/firmadas e geração de pedidos
             </p>
           </div>
@@ -390,11 +406,15 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
                 records: commercial.rawRecords.estimaciones,
               })
             }
-            className="text-left p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-amber-500/50 transition-all"
+            className="text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 hover:border-amber-500/60 transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Presupuestos</span>
-            <span className="text-lg font-extrabold text-white">{commercial.totalPresupuestosCount}</span>
-            <span className="text-xs text-amber-400 font-semibold block">
+            <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+              Presupuestos
+            </span>
+            <span className="text-lg font-extrabold text-slate-900 dark:text-white">
+              {commercial.totalPresupuestosCount}
+            </span>
+            <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold block">
               {formatCompactCurrency(commercial.totalPresupuestosValor)}
             </span>
           </button>
@@ -409,13 +429,15 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
                 records: commercial.rawRecords.firmados,
               })
             }
-            className="text-left p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-emerald-500/50 transition-all"
+            className="text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/60 transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Aprov. / Firmados</span>
-            <span className="text-lg font-extrabold text-emerald-400">
+            <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+              Aprov. / Firmados
+            </span>
+            <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
               {commercial.aprovadosCount} / {commercial.firmadosCount}
             </span>
-            <span className="text-xs text-emerald-300 font-semibold block">
+            <span className="text-xs text-emerald-700 dark:text-emerald-300 font-semibold block">
               {formatCompactCurrency(commercial.firmadosValor)} ({commercial.taxaConversaoQtd.toFixed(0)}%)
             </span>
           </button>
@@ -430,11 +452,15 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
                 records: commercial.rawRecords.pedidos,
               })
             }
-            className="text-left p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-sky-500/50 transition-all"
+            className="text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 hover:border-sky-500/60 transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Pedidos / Perfis</span>
-            <span className="text-lg font-extrabold text-sky-400">{commercial.pedidosGeradosCount} ped.</span>
-            <span className="text-xs text-slate-300 font-semibold block">
+            <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+              Pedidos / Perfis
+            </span>
+            <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">
+              {commercial.pedidosGeradosCount} ped.
+            </span>
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold block">
               {commercial.perfisSolicitadosCount} perfis solicitados
             </span>
           </button>
@@ -449,14 +475,16 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
                 records: commercial.rawRecords.leads,
               })
             }
-            className="text-left p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-purple-500/50 transition-all"
+            className="text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 hover:border-purple-500/60 transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-slate-400 block">Novos Clientes</span>
-            <span className="text-lg font-extrabold text-purple-400">
+            <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+              Novos Clientes
+            </span>
+            <span className="text-lg font-extrabold text-purple-600 dark:text-purple-400">
               +{commercial.novosClientesConvertidos} clientes
             </span>
-            <span className="text-xs text-slate-300 font-semibold block">
-              {commercial.novosLeadsCount} leads em prospecção
+            <span className="text-xs text-slate-600 dark:text-slate-300 font-semibold block">
+              {commercial.novosLeadsCount.toLocaleString('pt-BR')} leads em prospecção
             </span>
           </button>
         </div>
@@ -465,11 +493,16 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={monthlyEvolution} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="monthLabel" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} vertical={false} />
+              <XAxis
+                dataKey="monthLabel"
+                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                axisLine={false}
+                tickLine={false}
+              />
               <YAxis
                 yAxisId="left"
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
                 tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
@@ -477,17 +510,18 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
               <YAxis
                 yAxisId="right"
                 orientation="right"
-                tick={{ fill: '#38bdf8', fontSize: 11 }}
+                tick={{ fill: isDark ? '#38bdf8' : '#0284c7', fontSize: 11 }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#334155',
+                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                  borderColor: isDark ? '#334155' : '#e2e8f0',
                   borderRadius: '12px',
-                  color: '#f8fafc',
+                  color: isDark ? '#f8fafc' : '#0f172a',
                   fontSize: '12px',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                 }}
                 formatter={(val: any, name: string) =>
                   name.includes('€') ? formatCurrency(Number(val)) : val
@@ -515,7 +549,7 @@ export const ComercialFunnelWidget: React.FC<WidgetCommonProps> = ({
                 type="monotone"
                 dataKey="perfisDemandados"
                 name="Qtd. Perfis Demandados"
-                stroke="#38bdf8"
+                stroke="#0284c7"
                 strokeWidth={2.5}
                 dot={{ r: 3 }}
               />
@@ -535,15 +569,15 @@ export const ComercialVendedoresWidget: React.FC<WidgetCommonProps> = ({
   isTvMode,
 }) => {
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Award className="w-4 h-4 text-amber-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Award className="w-4 h-4 text-amber-500 dark:text-amber-400" />
               Performance por Vendedor (Comercial)
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Presupuestos, valor firmado, pedidos gerados e quantidade de perfis por vendedor
             </p>
           </div>
@@ -557,7 +591,7 @@ export const ComercialVendedoresWidget: React.FC<WidgetCommonProps> = ({
 
         <div className="overflow-x-auto max-h-[340px]">
           <table className="w-full text-xs text-left">
-            <thead className="bg-slate-950/90 text-slate-400 uppercase tracking-wider sticky top-0">
+            <thead className="bg-slate-50 dark:bg-slate-950/90 text-slate-500 dark:text-slate-400 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th className="py-2.5 px-3">Vendedor</th>
                 <th className="py-2.5 px-3 text-center">Presupuestos</th>
@@ -566,7 +600,7 @@ export const ComercialVendedoresWidget: React.FC<WidgetCommonProps> = ({
                 <th className="py-2.5 px-3 text-center">Pedidos / Perfis</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/70">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/70">
               {commercial.bySeller.map((s, idx) => (
                 <tr
                   key={idx}
@@ -582,21 +616,23 @@ export const ComercialVendedoresWidget: React.FC<WidgetCommonProps> = ({
                       ],
                     })
                   }
-                  className="hover:bg-slate-800/60 cursor-pointer transition-colors"
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                 >
-                  <td className="py-2.5 px-3 font-bold text-white">{s.vendedor}</td>
-                  <td className="py-2.5 px-3 text-center text-slate-300">
+                  <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">{s.vendedor}</td>
+                  <td className="py-2.5 px-3 text-center text-slate-600 dark:text-slate-300">
                     {s.presupuestosCount}{' '}
-                    <span className="text-[10px] text-emerald-400">({s.firmadosCount} firm.)</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                      ({s.firmadosCount} firm.)
+                    </span>
                   </td>
-                  <td className="py-2.5 px-3 text-right text-slate-300">
+                  <td className="py-2.5 px-3 text-right text-slate-600 dark:text-slate-300">
                     {formatCompactCurrency(s.presupuestosValor)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-extrabold text-emerald-400">
+                  <td className="py-2.5 px-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400">
                     {formatCompactCurrency(s.firmadosValor)}
                   </td>
                   <td className="py-2.5 px-3 text-center">
-                    <span className="px-2 py-0.5 rounded-full bg-sky-500/15 text-sky-300 font-bold border border-sky-500/30">
+                    <span className="px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-500/15 text-sky-700 dark:text-sky-300 font-bold border border-sky-200 dark:border-sky-500/30">
                       {s.pedidosCount} ped • {s.perfisCount} perfis
                     </span>
                   </td>
@@ -624,16 +660,18 @@ export const ComercialPaisesPerfisWidget: React.FC<WidgetCommonProps> = ({
   onDrillDown,
   isTvMode,
 }) => {
+  const isDark = useIsDarkTheme();
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Globe2 className="w-4 h-4 text-sky-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Globe2 className="w-4 h-4 text-sky-500 dark:text-sky-400" />
               Visão Multi-Sede / País & Quantidade por Perfil
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Distribuição geográfica (Espanha, França, Itália, Dubai/EAU) e perfis mais demandados
             </p>
           </div>
@@ -661,18 +699,20 @@ export const ComercialPaisesPerfisWidget: React.FC<WidgetCommonProps> = ({
                   ),
                 })
               }
-              className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-sky-500/50 text-left transition-all"
+              className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 hover:border-sky-500/60 text-left transition-all"
             >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-white">
+                <span className="text-sm font-bold text-slate-900 dark:text-white">
                   {c.flag} {c.name}
                 </span>
-                <span className="text-[11px] font-bold text-sky-400">{c.pedidosCount} pedidos</span>
+                <span className="text-[11px] font-bold text-sky-600 dark:text-sky-400">
+                  {c.pedidosCount} pedidos
+                </span>
               </div>
-              <div className="mt-1.5 text-base font-extrabold text-emerald-400">
+              <div className="mt-1.5 text-base font-extrabold text-emerald-600 dark:text-emerald-400">
                 {formatCompactCurrency(c.presupuestosValor)}
               </div>
-              <div className="text-[11px] text-slate-400 mt-0.5">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                 {c.presupuestosCount} presupuestos • {c.perfisCount} perfis
               </div>
             </button>
@@ -687,26 +727,43 @@ export const ComercialPaisesPerfisWidget: React.FC<WidgetCommonProps> = ({
               layout="vertical"
               margin={{ top: 5, right: 15, left: 10, bottom: 5 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
-              <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                axisLine={false}
+              />
               <YAxis
                 dataKey="perfil"
                 type="category"
                 width={130}
-                tick={{ fill: '#e2e8f0', fontSize: 11 }}
+                tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 11 }}
                 axisLine={false}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#334155',
+                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                  borderColor: isDark ? '#334155' : '#e2e8f0',
                   borderRadius: '10px',
+                  color: isDark ? '#f8fafc' : '#0f172a',
                   fontSize: '12px',
                 }}
               />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Bar dataKey="quantidadeOrcada" name="Qtd. em Presupuesto" fill="#f59e0b" radius={[0, 4, 4, 0]} barSize={10} />
-              <Bar dataKey="quantidadePedidos" name="Qtd. em Pedidos" fill="#38bdf8" radius={[0, 4, 4, 0]} barSize={10} />
+              <Bar
+                dataKey="quantidadeOrcada"
+                name="Qtd. em Presupuesto"
+                fill="#f59e0b"
+                radius={[0, 4, 4, 0]}
+                barSize={10}
+              />
+              <Bar
+                dataKey="quantidadePedidos"
+                name="Qtd. em Pedidos"
+                fill="#0284c7"
+                radius={[0, 4, 4, 0]}
+                barSize={10}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -722,16 +779,18 @@ export const FinanceiroCobrancaStatusWidget: React.FC<WidgetCommonProps> = ({
   onDrillDown,
   isTvMode,
 }) => {
+  const isDark = useIsDarkTheme();
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Landmark className="w-4 h-4 text-blue-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Landmark className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               Cobrança: Quantidade, Valor & Performance por Empresa
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Visão de títulos recebidos, carteira a vencer e inadimplência por empresa do grupo
             </p>
           </div>
@@ -754,12 +813,12 @@ export const FinanceiroCobrancaStatusWidget: React.FC<WidgetCommonProps> = ({
                 records: financial.rawRecords.recebidos,
               })
             }
-            className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all"
+            className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 hover:border-emerald-400 text-left transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-emerald-300 block">
+            <span className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300 block">
               Recebido ({financial.recebidoCount} tít.)
             </span>
-            <span className="text-lg font-extrabold text-emerald-400">
+            <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
               {formatCompactCurrency(financial.recebidoValor)}
             </span>
           </button>
@@ -774,12 +833,12 @@ export const FinanceiroCobrancaStatusWidget: React.FC<WidgetCommonProps> = ({
                 records: financial.rawRecords.aVencer,
               })
             }
-            className="p-3 rounded-xl bg-sky-500/10 border border-sky-500/30 hover:border-sky-400 text-left transition-all"
+            className="p-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 border border-sky-200 dark:border-sky-500/30 hover:border-sky-400 text-left transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-sky-300 block">
+            <span className="text-[10px] font-bold uppercase text-sky-700 dark:text-sky-300 block">
               A Vencer ({financial.aVencerCount} tít.)
             </span>
-            <span className="text-lg font-extrabold text-sky-400">
+            <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">
               {formatCompactCurrency(financial.aVencerValor)}
             </span>
           </button>
@@ -794,12 +853,12 @@ export const FinanceiroCobrancaStatusWidget: React.FC<WidgetCommonProps> = ({
                 records: financial.rawRecords.vencidos,
               })
             }
-            className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 hover:border-rose-400 text-left transition-all"
+            className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 hover:border-rose-400 text-left transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-rose-300 block">
+            <span className="text-[10px] font-bold uppercase text-rose-700 dark:text-rose-300 block">
               Vencido ({financial.vencidoCount} tít.)
             </span>
-            <span className="text-lg font-extrabold text-rose-400">
+            <span className="text-lg font-extrabold text-rose-600 dark:text-rose-400">
               {formatCompactCurrency(financial.vencidoValor)}
             </span>
           </button>
@@ -808,26 +867,38 @@ export const FinanceiroCobrancaStatusWidget: React.FC<WidgetCommonProps> = ({
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={financial.byCompany} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="empresa" tick={{ fill: '#e2e8f0', fontSize: 11 }} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} vertical={false} />
+              <XAxis
+                dataKey="empresa"
+                tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 11 }}
+                axisLine={false}
+              />
               <YAxis
-                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
                 axisLine={false}
                 tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#334155',
+                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                  borderColor: isDark ? '#334155' : '#e2e8f0',
                   borderRadius: '10px',
+                  color: isDark ? '#f8fafc' : '#0f172a',
                   fontSize: '12px',
                 }}
                 formatter={(v: any) => formatCurrency(Number(v))}
               />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
               <Bar dataKey="recebido" name="Recebido (€)" stackId="a" fill="#10b981" barSize={26} />
-              <Bar dataKey="aVencer" name="A Vencer (€)" stackId="a" fill="#38bdf8" barSize={26} />
-              <Bar dataKey="vencido" name="Vencido (€)" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={26} />
+              <Bar dataKey="aVencer" name="A Vencer (€)" stackId="a" fill="#0284c7" barSize={26} />
+              <Bar
+                dataKey="vencido"
+                name="Vencido (€)"
+                stackId="a"
+                fill="#f43f5e"
+                radius={[4, 4, 0, 0]}
+                barSize={26}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -844,15 +915,15 @@ export const FinanceiroCashFlowClientesWidget: React.FC<WidgetCommonProps> = ({
   isTvMode,
 }) => {
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Layers className="w-4 h-4 text-blue-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               Fluxo de Caixa Estratificado por Cliente (Cobrança)
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Estratificação por cliente de valores emitidos, recebidos, a vencer e vencidos
             </p>
           </div>
@@ -866,7 +937,7 @@ export const FinanceiroCashFlowClientesWidget: React.FC<WidgetCommonProps> = ({
 
         <div className="overflow-x-auto max-h-[330px]">
           <table className="w-full text-xs text-left">
-            <thead className="bg-slate-950/90 text-slate-400 uppercase tracking-wider sticky top-0">
+            <thead className="bg-slate-50 dark:bg-slate-950/90 text-slate-500 dark:text-slate-400 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th className="py-2.5 px-3">Cliente</th>
                 <th className="py-2.5 px-2">Empresa</th>
@@ -876,7 +947,7 @@ export const FinanceiroCashFlowClientesWidget: React.FC<WidgetCommonProps> = ({
                 <th className="py-2.5 px-3 text-right">Vencido</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/70">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/70">
               {financial.byClientCashFlow.slice(0, 25).map((cf, i) => (
                 <tr
                   key={i}
@@ -889,20 +960,25 @@ export const FinanceiroCashFlowClientesWidget: React.FC<WidgetCommonProps> = ({
                       records: financial.rawRecords.todosTitulos.filter((r) => r.cliente === cf.cliente),
                     })
                   }
-                  className="hover:bg-slate-800/60 cursor-pointer transition-colors"
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                 >
-                  <td className="py-2.5 px-3 font-bold text-white truncate max-w-[170px]" title={cf.cliente}>
+                  <td
+                    className="py-2.5 px-3 font-bold text-slate-900 dark:text-white truncate max-w-[170px]"
+                    title={cf.cliente}
+                  >
                     {cf.cliente}
                   </td>
-                  <td className="py-2.5 px-2 text-slate-400">{cf.empresa}</td>
-                  <td className="py-2.5 px-2 text-center text-slate-300">{cf.titulosCount}</td>
-                  <td className="py-2.5 px-2 text-right font-semibold text-emerald-400">
+                  <td className="py-2.5 px-2 text-slate-500 dark:text-slate-400">{cf.empresa}</td>
+                  <td className="py-2.5 px-2 text-center text-slate-600 dark:text-slate-300">
+                    {cf.titulosCount}
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-semibold text-emerald-600 dark:text-emerald-400">
                     {formatCompactCurrency(cf.recebido)}
                   </td>
-                  <td className="py-2.5 px-2 text-right font-semibold text-sky-400">
+                  <td className="py-2.5 px-2 text-right font-semibold text-sky-600 dark:text-sky-400">
                     {formatCompactCurrency(cf.aVencer)}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-extrabold text-rose-400">
+                  <td className="py-2.5 px-3 text-right font-extrabold text-rose-600 dark:text-rose-400">
                     {cf.vencido > 0 ? formatCompactCurrency(cf.vencido) : '—'}
                   </td>
                 </tr>
@@ -930,15 +1006,17 @@ export const FaturamentoEvolucaoAnualWidget: React.FC<WidgetCommonProps> = ({
   onDrillDown,
   isTvMode,
 }) => {
+  const isDark = useIsDarkTheme();
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl transition-colors">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <Receipt className="w-4 h-4 text-emerald-400" />
+          <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             Evolução Anual Mês a Mês: Faturamento (€) × Horas Trabalhadas × Trabalhadores
           </h3>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Nossa matéria-prima: cruzamento de horas trabalhadas, efetivo faturado e receita gerada mês a mês
           </p>
         </div>
@@ -950,13 +1028,13 @@ export const FaturamentoEvolucaoAnualWidget: React.FC<WidgetCommonProps> = ({
                 subtitle: 'Detalhamento de todas as horas e valores apurados por trabalhador e cliente',
                 category: 'faturamento',
                 metricLabel: 'Faturamento & Horas',
-                records: billingHours.rawRecords.horasLancadas,
+                records: billingHours.rawRecords.faturamentoClientes,
               })
             }
-            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-emerald-400 border border-slate-700"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-bold dark:text-emerald-400 dark:border-slate-700 transition-colors"
           >
             <Eye className="w-3.5 h-3.5" />
-            Conferir Lançamentos
+            Conferir Faturamento
           </button>
           <PinButton
             id="faturamento_evolucao_anual"
@@ -969,57 +1047,75 @@ export const FaturamentoEvolucaoAnualWidget: React.FC<WidgetCommonProps> = ({
 
       {/* KPIs de Faturamento & Horas com Comparativo Mês a Mês */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
-        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Faturamento Período</span>
-          <span className="text-lg font-extrabold text-emerald-400">
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+            Faturamento Período
+          </span>
+          <span className="text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
             {formatCompactCurrency(billingHours.totalFaturamentoPeriodo)}
           </span>
-          <span className="text-[11px] text-slate-400 block">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
             MoM: {billingHours.variacaoFaturamentoMoMPct >= 0 ? '+' : ''}
             {billingHours.variacaoFaturamentoMoMPct.toFixed(1)}%
           </span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Horas Trabalhadas</span>
-          <span className="text-lg font-extrabold text-sky-400">
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+            Horas Trabalhadas
+          </span>
+          <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400">
             {billingHours.totalHorasPeriodo.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}h
           </span>
-          <span className="text-[11px] text-slate-400 block">
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
             MoM: {billingHours.variacaoHorasMoMPct >= 0 ? '+' : ''}
             {billingHours.variacaoHorasMoMPct.toFixed(1)}%
           </span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Trabalhadores Faturados</span>
-          <span className="text-lg font-extrabold text-white">{billingHours.totalTrabalhadoresFaturados}</span>
-          <span className="text-[11px] text-slate-400 block">
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+            Trabalhadores Faturados
+          </span>
+          <span className="text-lg font-extrabold text-slate-900 dark:text-white">
+            {billingHours.totalTrabalhadoresFaturados}
+          </span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
             Média {billingHours.mediaHorasPorTrabalhador.toFixed(0)}h / trab.
           </span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Clientes Faturados</span>
-          <span className="text-lg font-extrabold text-amber-400">{billingHours.totalClientesAtendidos}</span>
-          <span className="text-[11px] text-slate-400 block">Empresas/Obras ativas</span>
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+            Clientes Faturados
+          </span>
+          <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">
+            {billingHours.totalClientesAtendidos}
+          </span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Empresas/Obras ativas</span>
         </div>
 
-        <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800">
-          <span className="text-[10px] font-bold uppercase text-slate-400 block">Tarifa Média Hora</span>
-          <span className="text-lg font-extrabold text-purple-400">
+        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800">
+          <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">
+            Tarifa Média Hora
+          </span>
+          <span className="text-lg font-extrabold text-purple-600 dark:text-purple-400">
             {formatCurrency(billingHours.tarifaMediaHora)}/h
           </span>
-          <span className="text-[11px] text-slate-400 block">Receita média por hora</span>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Receita média por hora</span>
         </div>
       </div>
 
-      {/* Gráfico Combinado BI: Faturamento (€) + Horas Trabalhadas + Horas App + Trabalhadores */}
+      {/* Gráfico Combinado BI: Faturamento (€) + Horas Trabalhadas + Horas App */}
       <div className="h-72 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={monthlyEvolution} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-            <XAxis dataKey="monthLabel" tick={{ fill: '#e2e8f0', fontSize: 12 }} axisLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} vertical={false} />
+            <XAxis
+              dataKey="monthLabel"
+              tick={{ fill: isDark ? '#e2e8f0' : '#334155', fontSize: 12 }}
+              axisLine={false}
+            />
             <YAxis
               yAxisId="eur"
               tick={{ fill: '#10b981', fontSize: 11 }}
@@ -1029,20 +1125,22 @@ export const FaturamentoEvolucaoAnualWidget: React.FC<WidgetCommonProps> = ({
             <YAxis
               yAxisId="hrs"
               orientation="right"
-              tick={{ fill: '#38bdf8', fontSize: 11 }}
+              tick={{ fill: '#0284c7', fontSize: 11 }}
               axisLine={false}
               tickFormatter={(v) => `${(v / 1000).toFixed(1)}k h`}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: '#0f172a',
-                borderColor: '#334155',
+                backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                borderColor: isDark ? '#334155' : '#e2e8f0',
                 borderRadius: '12px',
+                color: isDark ? '#f8fafc' : '#0f172a',
                 fontSize: '12px',
               }}
               formatter={(val: any, name: string) => {
                 if (name.includes('€')) return formatCurrency(Number(val));
-                if (name.includes('Horas')) return `${Number(val).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h`;
+                if (name.includes('Horas'))
+                  return `${Number(val).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h`;
                 return val;
               }}
             />
@@ -1060,7 +1158,7 @@ export const FaturamentoEvolucaoAnualWidget: React.FC<WidgetCommonProps> = ({
               type="monotone"
               dataKey="horasTrabalhadas"
               name="Horas Faturadas (h)"
-              stroke="#38bdf8"
+              stroke="#0284c7"
               strokeWidth={3}
               dot={{ r: 4 }}
             />
@@ -1069,7 +1167,7 @@ export const FaturamentoEvolucaoAnualWidget: React.FC<WidgetCommonProps> = ({
               type="monotone"
               dataKey="horasApontadasApp"
               name="Horas Apontadas no App (h)"
-              stroke="#a855f7"
+              stroke="#9333ea"
               strokeWidth={2}
               strokeDasharray="4 4"
               dot={{ r: 3 }}
@@ -1089,15 +1187,15 @@ export const FaturamentoMatrizClientesWidget: React.FC<WidgetCommonProps> = ({
   isTvMode,
 }) => {
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Clock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               Matriz de Faturamento: Cliente × Trabalhadores × Horas
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Cruzamento de horas trabalhadas, quantidade de trabalhadores e valor por cliente
             </p>
           </div>
@@ -1111,7 +1209,7 @@ export const FaturamentoMatrizClientesWidget: React.FC<WidgetCommonProps> = ({
 
         <div className="overflow-x-auto max-h-[330px]">
           <table className="w-full text-xs text-left">
-            <thead className="bg-slate-950/90 text-slate-400 uppercase tracking-wider sticky top-0">
+            <thead className="bg-slate-50 dark:bg-slate-950/90 text-slate-500 dark:text-slate-400 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th className="py-2.5 px-3">Cliente</th>
                 <th className="py-2.5 px-2">Empresa</th>
@@ -1121,7 +1219,7 @@ export const FaturamentoMatrizClientesWidget: React.FC<WidgetCommonProps> = ({
                 <th className="py-2.5 px-3 text-right">Faturamento</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/70">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/70">
               {billingHours.byClientMatrix.map((c, idx) => (
                 <tr
                   key={idx}
@@ -1134,18 +1232,25 @@ export const FaturamentoMatrizClientesWidget: React.FC<WidgetCommonProps> = ({
                       records: billingHours.rawRecords.horasLancadas.filter((r) => r.cliente === c.cliente),
                     })
                   }
-                  className="hover:bg-slate-800/60 cursor-pointer transition-colors"
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                 >
-                  <td className="py-2.5 px-3 font-bold text-white truncate max-w-[160px]" title={c.cliente}>
+                  <td
+                    className="py-2.5 px-3 font-bold text-slate-900 dark:text-white truncate max-w-[160px]"
+                    title={c.cliente}
+                  >
                     {c.cliente}
                   </td>
-                  <td className="py-2.5 px-2 text-slate-400">{c.empresa}</td>
-                  <td className="py-2.5 px-2 text-center font-bold text-amber-400">{c.trabalhadoresCount}</td>
-                  <td className="py-2.5 px-2 text-right font-bold text-sky-400">
+                  <td className="py-2.5 px-2 text-slate-500 dark:text-slate-400">{c.empresa}</td>
+                  <td className="py-2.5 px-2 text-center font-bold text-amber-600 dark:text-amber-400">
+                    {c.trabalhadoresCount}
+                  </td>
+                  <td className="py-2.5 px-2 text-right font-bold text-sky-600 dark:text-sky-400">
                     {c.horasTotais.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h
                   </td>
-                  <td className="py-2.5 px-2 text-right text-slate-300">€{c.tarifaMedia.toFixed(2)}</td>
-                  <td className="py-2.5 px-3 text-right font-extrabold text-emerald-400">
+                  <td className="py-2.5 px-2 text-right text-slate-600 dark:text-slate-300">
+                    €{c.tarifaMedia.toFixed(2)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-extrabold text-emerald-600 dark:text-emerald-400">
                     {formatCompactCurrency(c.valorFaturado)}
                   </td>
                 </tr>
@@ -1173,16 +1278,18 @@ export const OperacionalContratacoesReemplazosWidget: React.FC<WidgetCommonProps
   onDrillDown,
   isTvMode,
 }) => {
+  const isDark = useIsDarkTheme();
+
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <UserPlus className="w-4 h-4 text-purple-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               Operacional (RH): Novas Contratações vs Reemplazos (Substituições)
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Acompanhamento de contratações iniciais, substituições em obra e baixas
             </p>
           </div>
@@ -1205,10 +1312,12 @@ export const OperacionalContratacoesReemplazosWidget: React.FC<WidgetCommonProps
                 records: operational.rawRecords.novasContratacoes,
               })
             }
-            className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-400 text-left transition-all"
+            className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 hover:border-emerald-400 text-left transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-emerald-300 block">Novas Contratações</span>
-            <span className="text-xl font-extrabold text-emerald-400">
+            <span className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300 block">
+              Novas Contratações
+            </span>
+            <span className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
               {operational.novasContratacoesPeriodo}
             </span>
           </button>
@@ -1223,12 +1332,14 @@ export const OperacionalContratacoesReemplazosWidget: React.FC<WidgetCommonProps
                 records: operational.rawRecords.reemplazos,
               })
             }
-            className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 hover:border-amber-400 text-left transition-all"
+            className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 hover:border-amber-400 text-left transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-amber-300 block">
+            <span className="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-300 block">
               Reemplazos ({operational.taxaSubstituicaoPct.toFixed(0)}%)
             </span>
-            <span className="text-xl font-extrabold text-amber-400">{operational.reemplazosPeriodo}</span>
+            <span className="text-xl font-extrabold text-amber-600 dark:text-amber-400">
+              {operational.reemplazosPeriodo}
+            </span>
           </button>
 
           <button
@@ -1241,12 +1352,12 @@ export const OperacionalContratacoesReemplazosWidget: React.FC<WidgetCommonProps
                 records: operational.rawRecords.baixas,
               })
             }
-            className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 hover:border-rose-400 text-left transition-all"
+            className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 hover:border-rose-400 text-left transition-all"
           >
-            <span className="text-[10px] font-bold uppercase text-rose-300 block">
+            <span className="text-[10px] font-bold uppercase text-rose-700 dark:text-rose-300 block">
               Baixas / Desist. (Ret. {operational.taxaRetencaoPct.toFixed(0)}%)
             </span>
-            <span className="text-xl font-extrabold text-rose-400">
+            <span className="text-xl font-extrabold text-rose-600 dark:text-rose-400">
               {operational.baixasDesistenciasPeriodo}
             </span>
           </button>
@@ -1255,21 +1366,44 @@ export const OperacionalContratacoesReemplazosWidget: React.FC<WidgetCommonProps
         <div className="h-56 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={monthlyEvolution} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-              <XAxis dataKey="monthLabel" tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} axisLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#1e293b' : '#e2e8f0'} vertical={false} />
+              <XAxis
+                dataKey="monthLabel"
+                tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }}
+                axisLine={false}
+              />
+              <YAxis tick={{ fill: isDark ? '#94a3b8' : '#64748b', fontSize: 11 }} axisLine={false} />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: '#0f172a',
-                  borderColor: '#334155',
+                  backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                  borderColor: isDark ? '#334155' : '#e2e8f0',
                   borderRadius: '10px',
+                  color: isDark ? '#f8fafc' : '#0f172a',
                   fontSize: '12px',
                 }}
               />
               <Legend wrapperStyle={{ fontSize: '11px' }} />
-              <Bar dataKey="novasContratacoes" name="Novas Contratações" fill="#10b981" radius={[4, 4, 0, 0]} barSize={14} />
-              <Bar dataKey="reemplazos" name="Reemplazos (Substituições)" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={14} />
-              <Bar dataKey="baixasDesistencias" name="Baixas / Desistências" fill="#f43f5e" radius={[4, 4, 0, 0]} barSize={14} />
+              <Bar
+                dataKey="novasContratacoes"
+                name="Novas Contratações"
+                fill="#10b981"
+                radius={[4, 4, 0, 0]}
+                barSize={14}
+              />
+              <Bar
+                dataKey="reemplazos"
+                name="Reemplazos (Substituições)"
+                fill="#f59e0b"
+                radius={[4, 4, 0, 0]}
+                barSize={14}
+              />
+              <Bar
+                dataKey="baixasDesistencias"
+                name="Baixas / Desistências"
+                fill="#f43f5e"
+                radius={[4, 4, 0, 0]}
+                barSize={14}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -1285,22 +1419,24 @@ export const OperacionalAppHorasRealtimeWidget: React.FC<WidgetCommonProps> = ({
   onDrillDown,
   isTvMode,
 }) => {
+  const isDark = useIsDarkTheme();
+
   const pieData = [
     { name: 'Validadas', value: operational.folhasValidadasCount, color: '#10b981' },
-    { name: 'Enviadas no App', value: operational.folhasEnviadasCount, color: '#38bdf8' },
+    { name: 'Enviadas no App', value: operational.folhasEnviadasCount, color: '#0284c7' },
     { name: 'Apontando / Pendentes', value: Math.max(1, operational.folhasPendentesCount), color: '#f59e0b' },
   ];
 
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Smartphone className="w-4 h-4 text-sky-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Smartphone className="w-4 h-4 text-sky-600 dark:text-sky-400" />
               Apontamento de Horas no Aplicativo (Tempo Real)
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Volume de horas apontadas pelos colaboradores no Portal/App conforme trabalham
             </p>
           </div>
@@ -1324,35 +1460,49 @@ export const OperacionalAppHorasRealtimeWidget: React.FC<WidgetCommonProps> = ({
                   records: operational.rawRecords.apontamentosApp,
                 })
               }
-              className="p-4 rounded-xl bg-gradient-to-r from-sky-500/15 to-purple-500/10 border border-sky-500/30 hover:border-sky-400 cursor-pointer transition-all"
+              className="p-4 rounded-xl bg-gradient-to-r from-sky-50 to-purple-50 dark:from-sky-500/15 dark:to-purple-500/10 border border-sky-200 dark:border-sky-500/30 hover:border-sky-400 cursor-pointer transition-all"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase text-sky-300">Horas Apontadas no App</span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-xs font-bold uppercase text-sky-700 dark:text-sky-300">
+                  Horas Apontadas no App
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
                   ONLINE
                 </span>
               </div>
-              <div className="text-3xl font-extrabold text-white mt-1">
+              <div className="text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
                 {operational.horasApontadasTempoReal.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}h
               </div>
-              <div className="text-xs text-slate-300 mt-1">
+              <div className="text-xs text-slate-600 dark:text-slate-300 mt-1">
                 {operational.trabalhadoresApontandoApp} colaboradores com apontamento ativo
               </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[10px] uppercase text-emerald-400 font-bold block">Validadas</span>
-                <span className="text-base font-extrabold text-white">{operational.folhasValidadasCount}</span>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] uppercase text-emerald-600 dark:text-emerald-400 font-bold block">
+                  Validadas
+                </span>
+                <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                  {operational.folhasValidadasCount}
+                </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[10px] uppercase text-sky-400 font-bold block">Enviadas</span>
-                <span className="text-base font-extrabold text-white">{operational.folhasEnviadasCount}</span>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] uppercase text-sky-600 dark:text-sky-400 font-bold block">
+                  Enviadas
+                </span>
+                <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                  {operational.folhasEnviadasCount}
+                </span>
               </div>
-              <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
-                <span className="text-[10px] uppercase text-amber-400 font-bold block">Em Apont.</span>
-                <span className="text-base font-extrabold text-white">{operational.folhasPendentesCount}</span>
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                <span className="text-[10px] uppercase text-amber-600 dark:text-amber-400 font-bold block">
+                  Em Apont.
+                </span>
+                <span className="text-base font-extrabold text-slate-900 dark:text-white">
+                  {operational.folhasPendentesCount}
+                </span>
               </div>
             </div>
           </div>
@@ -1376,9 +1526,10 @@ export const OperacionalAppHorasRealtimeWidget: React.FC<WidgetCommonProps> = ({
                 </Pie>
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#0f172a',
-                    borderColor: '#334155',
+                    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+                    borderColor: isDark ? '#334155' : '#e2e8f0',
                     borderRadius: '10px',
+                    color: isDark ? '#f8fafc' : '#0f172a',
                     fontSize: '12px',
                   }}
                 />
@@ -1400,15 +1551,15 @@ export const OperacionalClientesAlocacaoWidget: React.FC<WidgetCommonProps> = ({
   isTvMode,
 }) => {
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Users className="w-4 h-4 text-purple-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Users className="w-4 h-4 text-purple-600 dark:text-purple-400" />
               Efetivo em Obra, Contratações & Reemplazos por Cliente
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Visão operacional por cliente: trabalhadores ativos, novas contratações, substituições e horas App
             </p>
           </div>
@@ -1422,7 +1573,7 @@ export const OperacionalClientesAlocacaoWidget: React.FC<WidgetCommonProps> = ({
 
         <div className="overflow-x-auto max-h-[320px]">
           <table className="w-full text-xs text-left">
-            <thead className="bg-slate-950/90 text-slate-400 uppercase tracking-wider sticky top-0">
+            <thead className="bg-slate-50 dark:bg-slate-950/90 text-slate-500 dark:text-slate-400 uppercase tracking-wider sticky top-0 border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <th className="py-2.5 px-3">Cliente</th>
                 <th className="py-2.5 px-2">Empresa</th>
@@ -1432,7 +1583,7 @@ export const OperacionalClientesAlocacaoWidget: React.FC<WidgetCommonProps> = ({
                 <th className="py-2.5 px-3 text-right">Horas App</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/70">
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/70">
               {operational.byClientOperations.slice(0, 25).map((c, idx) => (
                 <tr
                   key={idx}
@@ -1449,20 +1600,25 @@ export const OperacionalClientesAlocacaoWidget: React.FC<WidgetCommonProps> = ({
                       ],
                     })
                   }
-                  className="hover:bg-slate-800/60 cursor-pointer transition-colors"
+                  className="hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors"
                 >
-                  <td className="py-2.5 px-3 font-bold text-white truncate max-w-[160px]" title={c.cliente}>
+                  <td
+                    className="py-2.5 px-3 font-bold text-slate-900 dark:text-white truncate max-w-[160px]"
+                    title={c.cliente}
+                  >
                     {c.cliente}
                   </td>
-                  <td className="py-2.5 px-2 text-slate-400">{c.empresa}</td>
-                  <td className="py-2.5 px-2 text-center font-extrabold text-white">{c.ativos}</td>
-                  <td className="py-2.5 px-2 text-center font-bold text-emerald-400">
+                  <td className="py-2.5 px-2 text-slate-500 dark:text-slate-400">{c.empresa}</td>
+                  <td className="py-2.5 px-2 text-center font-extrabold text-slate-900 dark:text-white">
+                    {c.ativos}
+                  </td>
+                  <td className="py-2.5 px-2 text-center font-bold text-emerald-600 dark:text-emerald-400">
                     {c.novasContratacoes > 0 ? `+${c.novasContratacoes}` : '0'}
                   </td>
-                  <td className="py-2.5 px-2 text-center font-bold text-amber-400">
+                  <td className="py-2.5 px-2 text-center font-bold text-amber-600 dark:text-amber-400">
                     {c.reemplazos > 0 ? c.reemplazos : '0'}
                   </td>
-                  <td className="py-2.5 px-3 text-right font-bold text-sky-400">
+                  <td className="py-2.5 px-3 text-right font-bold text-sky-600 dark:text-sky-400">
                     {c.horasApp > 0 ? `${c.horasApp.toFixed(1)}h` : '—'}
                   </td>
                 </tr>
@@ -1483,15 +1639,15 @@ export const ComunicacaoWhatsappAppWidget: React.FC<WidgetCommonProps> = ({
   isTvMode,
 }) => {
   return (
-    <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm dark:shadow-xl flex flex-col justify-between transition-colors">
       <div>
         <div className="flex items-start justify-between gap-2 mb-4">
           <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <MessageCircle className="w-4 h-4 text-emerald-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <MessageCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               Comunicação (WhatsApp / Portal App) & Seguridade Social
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               Controle de 300 a 700 funcionários: comunicação integrada e conformidade de Seguridade Social
             </p>
           </div>
@@ -1514,46 +1670,48 @@ export const ComunicacaoWhatsappAppWidget: React.FC<WidgetCommonProps> = ({
                 records: operational.rawRecords.ativos,
               })
             }
-            className="p-4 rounded-xl bg-slate-950/90 border border-slate-800 hover:border-emerald-500/50 cursor-pointer transition-all"
+            className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/50 cursor-pointer transition-all"
           >
-            <span className="text-[11px] font-bold uppercase text-emerald-400 block">
+            <span className="text-[11px] font-bold uppercase text-emerald-600 dark:text-emerald-400 block">
               Alta na Seguridade Social
             </span>
-            <div className="text-2xl font-extrabold text-white mt-1">
+            <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
               {operational.altasSeguridadeAtivas}
-              <span className="text-xs text-slate-400 font-normal ml-1.5">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-normal ml-1.5">
                 / {operational.totalTrabalhadoresAtivos} ativos
               </span>
             </div>
-            <span className="text-xs text-amber-400 mt-1 block">
+            <span className="text-xs text-amber-600 dark:text-amber-400 mt-1 block">
               {operational.emRegularizacaoSeguridade} em trâmite / regularização
             </span>
           </div>
 
-          <div className="p-4 rounded-xl bg-slate-950/90 border border-slate-800">
-            <span className="text-[11px] font-bold uppercase text-sky-400 block">
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800">
+            <span className="text-[11px] font-bold uppercase text-sky-600 dark:text-sky-400 block">
               Comunicação Portal & WhatsApp
             </span>
-            <div className="text-2xl font-extrabold text-white mt-1">
-              {operational.mensagensAppWhatsappCount}
-              <span className="text-xs text-emerald-400 font-semibold ml-1.5">interações</span>
+            <div className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
+              {operational.mensagensAppWhatsappCount.toLocaleString('pt-BR')}
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold ml-1.5">
+                interações
+              </span>
             </div>
-            <span className="text-xs text-slate-400 mt-1 block">
+            <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
               Base total cadastrada: {operational.totalTrabalhadoresBase} colaboradores
             </span>
           </div>
         </div>
 
-        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
+        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-300">
+            <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs font-bold text-white">
+              <div className="text-xs font-bold text-slate-900 dark:text-white">
                 Rastreabilidade Multi-Sede (Espanha 🇪🇸 • França 🇫🇷 • Itália 🇮🇹 • Dubai 🇦🇪)
               </div>
-              <div className="text-[11px] text-slate-300">
+              <div className="text-[11px] text-slate-600 dark:text-slate-300">
                 Todos os indicadores sincronizados em tempo real com o App do Trabalhador e módulos MCS
               </div>
             </div>
