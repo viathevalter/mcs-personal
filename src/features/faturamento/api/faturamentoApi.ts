@@ -691,11 +691,8 @@ export async function getHorasPendentesFaturamento(
 
       const calculateHourEntryValor = (h: any): number => {
         const tot = Number(h.horas_totais || 0);
-        const not = Number(h.horas_noturnas || 0);
-        const maxNorm = Math.max(0, tot - not);
-        const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
-          ? Math.min(Number(h.horas_normais), maxNorm)
-          : maxNorm;
+        const not = Math.min(tot, Number(h.horas_noturnas || 0));
+        const norm = Math.max(0, tot - not);
         const tarifaNormal = Number(h.tarifa_faturada || 0);
         const tarifaNoturna = h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined
           ? Number(h.tarifa_faturada_noturna)
@@ -755,10 +752,8 @@ export async function getHorasPendentesFaturamento(
           }
         }
         const entryTot = Number(h.horas_totais || 0);
-        const entryNot = Number(h.horas_noturnas || 0);
-        const entryNorm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || entryNot > 0))
-          ? Number(h.horas_normais)
-          : Math.max(0, entryTot - entryNot);
+        const entryNot = Math.min(entryTot, Number(h.horas_noturnas || 0));
+        const entryNorm = Math.max(0, entryTot - entryNot);
         entry.totalHoras += entryTot;
         entry.totalNormais += entryNorm;
         entry.totalNoturnas += entryNot;
@@ -817,13 +812,11 @@ export async function getHorasPendentesFaturamento(
 
         const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
         const wTotalNormais = wActiveHours.reduce((sum, h) => {
-          const not = Number(h.horas_noturnas || 0);
-          const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
-            ? Number(h.horas_normais)
-            : Math.max(0, Number(h.horas_totais || 0) - not);
-          return sum + norm;
+          const tot = Number(h.horas_totais || 0);
+          const not = Math.min(tot, Number(h.horas_noturnas || 0));
+          return sum + Math.max(0, tot - not);
         }, 0);
-        const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Number(h.horas_noturnas || 0), 0);
+        const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Math.min(Number(h.horas_totais || 0), Number(h.horas_noturnas || 0)), 0);
         const wTotalValor = wActiveHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
         const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
@@ -910,13 +903,11 @@ export async function getHorasPendentesFaturamento(
         const wActiveHours = activeHoursByWorker.get(wId) || [];
         const wTotalHoras = wActiveHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
         const wTotalNormais = wActiveHours.reduce((sum, h) => {
-          const not = Number(h.horas_noturnas || 0);
-          const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
-            ? Number(h.horas_normais)
-            : Math.max(0, Number(h.horas_totais || 0) - not);
-          return sum + norm;
+          const tot = Number(h.horas_totais || 0);
+          const not = Math.min(tot, Number(h.horas_noturnas || 0));
+          return sum + Math.max(0, tot - not);
         }, 0);
-        const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Number(h.horas_noturnas || 0), 0);
+        const wTotalNoturnas = wActiveHours.reduce((sum, h) => sum + Math.min(Number(h.horas_totais || 0), Number(h.horas_noturnas || 0)), 0);
         const wTotalValor = wActiveHours.reduce((sum, h) => sum + calculateHourEntryValor(h), 0);
 
         const wTotalHorasMes = wHours.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0);
@@ -1818,11 +1809,8 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           const obraKey = h.obra_id || 'sem_obra';
           const key = `${wId}_${dateKey}_${obraKey}`;
           const tot = Number(h.horas_totais || 0);
-          const notu = Number(h.horas_noturnas || 0);
-          const maxNorm = Math.max(0, tot - notu);
-          const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-            ? Math.min(Number(h.horas_normais), maxNorm)
-            : maxNorm;
+          const notu = Math.min(tot, Number(h.horas_noturnas || 0));
+          const norm = Math.max(0, tot - notu);
           const tfNorm = Number(h.tarifa_faturada || 0);
           const tfNotu = (h.tarifa_faturada_noturna !== null && h.tarifa_faturada_noturna !== undefined)
             ? Number(h.tarifa_faturada_noturna)
@@ -2553,7 +2541,7 @@ export async function atualizarHorasDiarias(
       const { error } = await supabase
         .schema('core_finance')
         .from('horas_trabalhadas')
-        .update({ horas_totais: novasHoras })
+        .update({ horas_totais: novasHoras, horas_normais: 0 })
         .eq('id', horaId);
       if (error) throw mapSupabaseError(error);
     }

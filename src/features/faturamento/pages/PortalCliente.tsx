@@ -106,9 +106,7 @@ export function PortalCliente() {
     horas.forEach(h => {
       const entryTot = Number(h.horas_totais || 0);
       const entryNot = Number(h.horas_noturnas || 0);
-      const entryNorm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || entryNot > 0))
-        ? Number(h.horas_normais)
-        : Math.max(0, entryTot - entryNot);
+      const entryNorm = Math.max(0, entryTot - entryNot);
 
       const proposed = getProposedHours(h.worker_id, h.obra_id || 'sem_obra', h.data_trabalho);
       if (proposed !== undefined) {
@@ -189,9 +187,7 @@ export function PortalCliente() {
         const tot = Number(h.horas_totais || 0);
         const not = Number(h.horas_noturnas || 0);
         const maxNorm = Math.max(0, tot - not);
-        const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || not > 0))
-          ? Math.min(Number(h.horas_normais), maxNorm)
-          : maxNorm;
+        const norm = maxNorm;
 
         if (!groupedMap.has(key)) {
           groupedMap.set(key, {
@@ -748,9 +744,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
       const entryTot = Number(h.horas_totais || 0);
       const entryNot = Number(h.horas_noturnas || 0);
-      const entryNorm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || entryNot > 0))
-        ? Number(h.horas_normais)
-        : Math.max(0, entryTot - entryNot);
+      const entryNorm = Math.max(0, entryTot - entryNot);
 
       const proposed = getProposedHours(wId, oId, h.data_trabalho);
       const hoursVal = proposed !== undefined ? proposed : entryTot;

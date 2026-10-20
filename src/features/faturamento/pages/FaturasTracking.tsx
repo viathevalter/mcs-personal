@@ -5442,9 +5442,7 @@ MCS - Gestão Comercial`;
           const tot = Number(h.horas_totais || 0);
           const notu = Number(h.horas_noturnas || 0);
           const maxNorm = Math.max(0, tot - notu);
-          const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-            ? Math.min(Number(h.horas_normais), maxNorm)
-            : maxNorm;
+          const norm = maxNorm;
           const tfNorm = Number(h.tarifa_faturada || 0);
           const tfNotu = Number(h.tarifa_faturada_noturna || h.tarifa_faturada || 0);
           return sum + (norm * tfNorm) + (notu * tfNotu);
@@ -5485,9 +5483,7 @@ MCS - Gestão Comercial`;
             const tot = Number(h.horas_totais || 0);
             const notu = Number(h.horas_noturnas || 0);
             const maxNorm = Math.max(0, tot - notu);
-            const norm = (h.horas_normais !== null && h.horas_normais !== undefined && (Number(h.horas_normais) > 0 || notu > 0))
-              ? Math.min(Number(h.horas_normais), maxNorm)
-              : maxNorm;
+            const norm = maxNorm;
             const tfNorm = Number(h.tarifa_faturada || wObj.tarifa || 0);
             const tfNotu = Number(h.tarifa_faturada_noturna || wObj.tarifaNoturna || tfNorm);
 
