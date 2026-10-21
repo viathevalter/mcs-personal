@@ -159,17 +159,19 @@ export const UserManagement: React.FC = () => {
             });
             if (authCheckError) throw authCheckError;
 
-            // 1. Update display_name, department_id and blocked_modules (shared with MCS-Chat)
+            // 1. Update display_name, name, full_name, department_id and blocked_modules (shared with MCS-Chat)
+            const cleanDisplayName = (formData.display_name || (selectedEmp as any)?.nombrecompleto || '').trim() || undefined;
             await supabase
                 .from('mcs_users')
                 .update({ 
-                    display_name: formData.display_name,
+                    display_name: cleanDisplayName,
+                    ...(cleanDisplayName ? { name: cleanDisplayName, full_name: cleanDisplayName } : {}),
                     department_id: (selectedEmp as any)?.department_id || selectedUser.department_id || null,
                     blocked_modules: formData.blocked_modules || []
                 })
                 .eq('id', userId);
 
-            // 2. Update Employee Link
+            // 2. Update Employee Link (and keep nombrecompleto in sync)
             await supabase
                 .from('mcs_department_members')
                 .update({ user_id: null })
@@ -178,7 +180,10 @@ export const UserManagement: React.FC = () => {
             if (formData.employee_id) {
                 const { error: linkError } = await supabase
                     .from('mcs_department_members')
-                    .update({ user_id: userId })
+                    .update({
+                        user_id: userId,
+                        ...(cleanDisplayName ? { nombrecompleto: cleanDisplayName } : {})
+                    })
                     .eq('id', formData.employee_id);
 
                 if (linkError) throw linkError;
