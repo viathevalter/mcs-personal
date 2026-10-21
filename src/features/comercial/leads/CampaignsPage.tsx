@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_valencia_albacete_caceres_2026',
+        name: '🚀 Mailing Alex - Inéditos Valencia, Albacete & Cáceres (355 leads)',
+        leadCount: 355,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Valencia Albacete Cáceres 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-21T10:45:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_valencia_albacete_caceres_completo_2026',
+        name: '🎯 Mailing Alex - Valencia, Albacete & Cáceres Completo (495 leads)',
+        leadCount: 495,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - Valencia Albacete Cáceres 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-21T10:45:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_huelva_zaragoza_granada_2026',
         name: '🚀 Mailing Alex - Inéditos Huelva, Zaragoza & Granada (83 leads)',
         leadCount: 83,
