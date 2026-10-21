@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Box, FileText, PieChart, LayoutDashboard, ArrowLeft, Menu, Settings as SettingsIcon, ShieldAlert, Wallet } from 'lucide-react';
+import { Box, DollarSign, FileText, PieChart, LayoutDashboard, ArrowLeft, Menu, Settings as SettingsIcon, ShieldAlert, Wallet } from 'lucide-react';
 import { useLanguage } from '../../operacoes/i18n';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 
@@ -81,6 +81,7 @@ export const Sidebar: React.FC = () => {
           <NavItem to="/financeiro/fundo-caixa" icon={Wallet} label={t('financeiro.sidebar.fundo_caixa', 'Fundo de Caixa')} />
           <NavItem to="/financeiro/cobros" icon={FileText} label={t('financeiro.menu_cobros') || "Cobros / Recebimentos"} />
           <NavItem to="/financeiro/cobranca" icon={ShieldAlert} label={t('financeiro.menu_cobranca') || "Cobrança / Inadimplência"} />
+          <NavItem to="/financeiro/comissoes" icon={DollarSign} label={t('menu.comissoes') || "Gestão de Comissões"} />
           <NavItem to="/financeiro/analises" icon={PieChart} label={t('financeiro.sidebar.analytics', 'Análises')} />
         </div>
         <SectionLabel label={t('financeiro.sidebar.section_admin', 'Administração')} />

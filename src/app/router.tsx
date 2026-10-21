@@ -468,6 +468,10 @@ export const router = createBrowserRouter([
                         element: <FinanceiroCobranca />
                     },
                     {
+                        path: 'comissoes',
+                        element: <OperacoesComissoes />
+                    },
+                    {
                         path: 'titulos/:id',
                         element: <FinanceiroTitleDetail />
                     },
@@ -664,10 +668,6 @@ export const router = createBrowserRouter([
                     {
                         path: 'admin/usuarios',
                         element: <OperacoesUserManagement />
-                    },
-                    {
-                        path: 'admin/comissoes',
-                        element: <OperacoesComissoes />
                     },
                     {
                         path: 'clientes',
