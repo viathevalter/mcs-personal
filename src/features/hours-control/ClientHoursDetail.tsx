@@ -164,7 +164,6 @@ export function ClientHoursDetail() {
             // Helper to check if a worker_hours row has portal entries
             const hasFilledPortalHours = (h: any): boolean => {
                 if (!h) return false;
-                if (Number(h.horas_totais || 0) > 0) return true;
                 const raw = h.apontamentos_diarios;
                 let arr: any[] = [];
                 if (Array.isArray(raw)) arr = raw;
@@ -395,7 +394,14 @@ export function ClientHoursDetail() {
             const { error } = await supabase
                 .schema('core_personal')
                 .from('worker_hours')
-                .update({ status: 'pendente', file_url: null, file_name: null })
+                .update({
+                    status: 'pendente',
+                    file_url: null,
+                    file_name: null,
+                    total_horas_normais: 0,
+                    total_horas_noturnas: 0,
+                    horas_totais: 0
+                })
                 .eq('id', recordId);
 
             if (error) throw error;
