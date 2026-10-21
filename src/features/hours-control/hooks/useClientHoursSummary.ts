@@ -58,7 +58,7 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                         const { data: hours, error: hoursError } = await supabase
                             .schema('core_personal')
                             .from('worker_hours')
-                            .select('worker_id, status')
+                            .select('worker_id, status, cliente_nombre, horas_totais, file_url, apontamentos_diarios')
                             .in('worker_id', chunk)
                             .eq('period_year', periodYear)
                             .eq('period_month', periodMonth);
@@ -112,13 +112,42 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                         summary.has_active_workers = true;
                     }
 
-                    // Check hours status
-                    const hourRecord = hoursData.find(h => h.worker_id === w.id);
-                    if (!hourRecord || hourRecord.status === 'pendente') {
+                    // Check hours status (prioritizing records with hours/files/active status)
+                    const wClient = (w.cliente_nombre || '').trim().toLowerCase();
+                    const candidates = hoursData.filter(h => {
+                        if (h.worker_id !== w.id) return false;
+                        const hClient = (h.cliente_nombre || '').trim().toLowerCase();
+                        return hClient === wClient || !hClient || hClient === 'não definido' || hClient === 'cliente geral';
+                    });
+
+                    candidates.sort((a, b) => {
+                        const score = (h: any) => {
+                            let s = 0;
+                            if ((h.cliente_nombre || '').trim().toLowerCase() === wClient) s += 100;
+                            if (Number(h.horas_totais || 0) > 0 || (Array.isArray(h.apontamentos_diarios) && h.apontamentos_diarios.length > 0)) s += 500;
+                            if (h.file_url) s += 400;
+                            if (h.status === 'validado') s += 60;
+                            else if (h.status === 'assinado_encarregado') s += 50;
+                            else if (h.status === 'aguardando_assinatura') s += 40;
+                            else if (h.status === 'em_andamento') s += 30;
+                            else if (h.status === 'enviado' || h.status === 'processado') s += 20;
+                            return s;
+                        };
+                        return score(b) - score(a);
+                    });
+
+                    const hourRecord = candidates[0];
+                    const hasHours = Number(hourRecord?.horas_totais || 0) > 0 || (Array.isArray(hourRecord?.apontamentos_diarios) && hourRecord.apontamentos_diarios.length > 0);
+                    let resolvedStatus = hourRecord?.status || 'pendente';
+                    if (resolvedStatus === 'processado' && !hourRecord?.file_url) {
+                        resolvedStatus = hasHours ? 'em_andamento' : 'pendente';
+                    }
+
+                    if (!hourRecord || resolvedStatus === 'pendente') {
                         summary.pending_hours++;
-                    } else if (hourRecord.status === 'enviado' || hourRecord.status === 'processado') {
+                    } else if (['enviado', 'processado', 'em_andamento', 'aguardando_assinatura'].includes(resolvedStatus)) {
                         summary.submitted_hours++;
-                    } else if (hourRecord.status === 'validado') {
+                    } else if (resolvedStatus === 'validado' || resolvedStatus === 'assinado_encarregado') {
                         summary.validated_hours++;
                     }
                 });

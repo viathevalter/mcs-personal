@@ -314,16 +314,26 @@ export function ValidationScreen({
                 workerHourRec = whData;
             }
             if (!workerHourRec && workerId) {
-                const { data: whData } = await supabase
+                const { data: whList } = await supabase
                     .schema('core_personal')
                     .from('worker_hours')
-                    .select('id, apontamentos_diarios, signed_at, signed_ip, encarregado_nome, signature_image_url, status, total_horas_normais, total_horas_noturnas, horas_totais')
+                    .select('id, cliente_nombre, apontamentos_diarios, signed_at, signed_ip, encarregado_nome, signature_image_url, status, total_horas_normais, total_horas_noturnas, horas_totais')
                     .eq('worker_id', workerId)
                     .eq('period_year', year)
-                    .eq('period_month', month)
-                    .maybeSingle();
+                    .eq('period_month', month);
                 
-                workerHourRec = whData;
+                if (whList && whList.length > 0) {
+                    const targetCli = (clienteNome || '').trim().toLowerCase();
+                    const sorted = [...whList].sort((a, b) => {
+                        const aHas = Number(a.horas_totais || 0) > 0 || (Array.isArray(a.apontamentos_diarios) && a.apontamentos_diarios.length > 0) ? 1 : 0;
+                        const bHas = Number(b.horas_totais || 0) > 0 || (Array.isArray(b.apontamentos_diarios) && b.apontamentos_diarios.length > 0) ? 1 : 0;
+                        if (aHas !== bHas) return bHas - aHas;
+                        const aCli = (a.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
+                        const bCli = (b.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
+                        return bCli - aCli;
+                    });
+                    workerHourRec = sorted[0];
+                }
             }
 
             if (workerHourRec) {

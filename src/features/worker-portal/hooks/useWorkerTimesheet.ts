@@ -146,9 +146,22 @@ export function useWorkerTimesheet(workerAuth: any) {
             const match = allPeriods.find(p => p.id === selectedPeriodId);
             if (match) return match;
         }
-        return allPeriods.find(
+        const candidates = allPeriods.filter(
             p => p.period_year === currentYear && p.period_month === currentMonth && p.worker_id === activeProfile.id
-        ) || allPeriods[0] || null;
+        );
+        if (candidates.length > 0) {
+            const targetCli = (activeProfile.cliente || activeProfile.cliente_nombre || '').trim().toLowerCase();
+            candidates.sort((a, b) => {
+                const aHas = Number((a as any).horas_totais || 0) > 0 || (Array.isArray(a.apontamentos_diarios) && a.apontamentos_diarios.length > 0) ? 1 : 0;
+                const bHas = Number((b as any).horas_totais || 0) > 0 || (Array.isArray(b.apontamentos_diarios) && b.apontamentos_diarios.length > 0) ? 1 : 0;
+                if (aHas !== bHas) return bHas - aHas;
+                const aCli = targetCli && (a.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
+                const bCli = targetCli && (b.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
+                return bCli - aCli;
+            });
+            return candidates[0];
+        }
+        return allPeriods[0] || null;
     }, [allPeriods, selectedPeriodId, currentYear, currentMonth, activeProfile]);
 
     // Obras / Locais de Trabalho do cliente selecionado
@@ -437,6 +450,16 @@ export function useWorkerTimesheet(workerAuth: any) {
         });
 
         try {
+            const nextStatus = (selectedPeriod.status === 'pendente' || (selectedPeriod.status === 'processado' && !selectedPeriod.file_url))
+                ? 'em_andamento'
+                : selectedPeriod.status;
+
+            const resolvedCliente = (!selectedPeriod.cliente_nombre || selectedPeriod.cliente_nombre === 'CLIENTE GERAL' || selectedPeriod.cliente_nombre === 'NÃO DEFINIDO')
+                ? (activeProfile.cliente || activeProfile.cliente_nombre || selectedPeriod.cliente_nombre)
+                : selectedPeriod.cliente_nombre;
+
+            const resolvedContratante = selectedPeriod.contratante || activeProfile.contratante || activeProfile.empresa_nome || null;
+
             // Atualizar banco via Supabase
             const { error } = await supabase
                 .schema('core_personal')
@@ -446,7 +469,9 @@ export function useWorkerTimesheet(workerAuth: any) {
                     total_horas_normais: normais,
                     total_horas_noturnas: noturnas,
                     horas_totais: totais,
-                    status: selectedPeriod.status === 'pendente' ? 'em_andamento' : selectedPeriod.status,
+                    status: nextStatus,
+                    cliente_nombre: resolvedCliente,
+                    contratante: resolvedContratante,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedPeriod.id);
@@ -462,7 +487,9 @@ export function useWorkerTimesheet(workerAuth: any) {
                         total_horas_normais: normais,
                         total_horas_noturnas: noturnas,
                         horas_totais: totais,
-                        status: p.status === 'pendente' ? 'em_andamento' : p.status,
+                        status: nextStatus,
+                        cliente_nombre: resolvedCliente,
+                        contratante: resolvedContratante,
                         updated_at: new Date().toISOString()
                     };
                 }

@@ -38,6 +38,8 @@ interface WorkerDetail {
     contratante: string;
     worker_status?: string | null;
     data_baixa?: string | null;
+    horas_totais?: number;
+    has_portal_hours?: boolean;
 }
 
 const getBucketName = (filePath?: string): string => {
@@ -159,20 +161,56 @@ export function ClientHoursDetail() {
                 }
             }
 
+            // Helper to check if a worker_hours row has portal entries
+            const hasFilledPortalHours = (h: any): boolean => {
+                if (!h) return false;
+                if (Number(h.horas_totais || 0) > 0) return true;
+                const raw = h.apontamentos_diarios;
+                let arr: any[] = [];
+                if (Array.isArray(raw)) arr = raw;
+                else if (typeof raw === 'string') {
+                    try { arr = JSON.parse(raw); } catch { arr = []; }
+                }
+                return arr.some((d: any) => Number(d?.totalHoras ?? d?.total_horas ?? d?.horasNormais ?? d?.horas_normais ?? 0) > 0);
+            };
+
+            const scoreHourRecord = (h: any, w: any): number => {
+                let score = 0;
+                const hClient = (h.cliente_nombre || '').trim().toLowerCase();
+                const wClient = (w.cliente_nombre || '').trim().toLowerCase();
+                if (hClient && wClient && hClient === wClient) score += 100;
+                if (hasFilledPortalHours(h)) score += 500;
+                if (h.file_url) score += 400;
+                if (h.status === 'validado') score += 60;
+                else if (h.status === 'assinado_encarregado') score += 50;
+                else if (h.status === 'aguardando_assinatura') score += 40;
+                else if (h.status === 'em_andamento') score += 30;
+                else if (h.status === 'enviado' || h.status === 'processado') score += 20;
+                if (h.contratante && w.contratante && h.contratante.trim().toLowerCase() === w.contratante.trim().toLowerCase()) {
+                    score += 10;
+                }
+                return score;
+            };
+
             // Merge details
             const merged: WorkerDetail[] = workersData?.map((w: any) => {
-                let hr = hoursData.find(h => 
-                    h.worker_id === w.id && 
-                    (!h.contratante || !w.contratante || h.contratante.trim().toLowerCase() === w.contratante.trim().toLowerCase()) &&
-                    h.cliente_nombre?.trim().toLowerCase() === w.cliente_nombre?.trim().toLowerCase()
-                );
-                if (!hr) {
-                    hr = hoursData.find(h => 
-                        h.worker_id === w.id && 
-                        (!h.contratante || !w.contratante || h.contratante.trim().toLowerCase() === w.contratante.trim().toLowerCase()) &&
-                        (!h.cliente_nombre || h.cliente_nombre === 'NÃO DEFINIDO')
-                    );
+                const wClient = (w.cliente_nombre || '').trim().toLowerCase();
+                const candidates = hoursData.filter(h => {
+                    if (h.worker_id !== w.id) return false;
+                    const hClient = (h.cliente_nombre || '').trim().toLowerCase();
+                    return hClient === wClient || !hClient || hClient === 'não definido' || hClient === 'cliente geral';
+                });
+
+                candidates.sort((a, b) => scoreHourRecord(b, w) - scoreHourRecord(a, w));
+                const hr = candidates[0];
+                const portalFilled = hasFilledPortalHours(hr);
+                const totalHrs = Number(hr?.horas_totais || 0);
+
+                let resolvedStatus = hr?.status || 'pendente';
+                if (resolvedStatus === 'processado' && !hr?.file_url) {
+                    resolvedStatus = portalFilled ? 'em_andamento' : 'pendente';
                 }
+
                 return {
                     worker_id: w.id,
                     worker_name: w.nome,
@@ -180,14 +218,16 @@ export function ClientHoursDetail() {
                     funcion: w.funcion,
                     pasaporte: w.pasaporte,
                     movil: w.movil,
-                    status: hr?.status || 'pendente',
+                    status: resolvedStatus,
                     file_url: hr?.file_url,
                     file_name: hr?.file_name,
                     hour_record_id: hr?.id,
                     observacoes: hr?.observacoes,
                     contratante: w.contratante || '',
                     worker_status: w.status_trabajador,
-                    data_baixa: w.data_baixa
+                    data_baixa: w.data_baixa,
+                    horas_totais: totalHrs,
+                    has_portal_hours: portalFilled
                 };
             }) || [];
 
@@ -980,14 +1020,16 @@ export function ClientHoursDetail() {
                                                 <FileText className="h-4 w-4 shrink-0" />
                                                 <span className="truncate underline font-medium" title={worker.file_name}>{worker.file_name}</span>
                                             </div>
-                                        ) : ['em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) ? (
+                                        ) : (['em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) || worker.has_portal_hours || (worker.status === 'validado' && !worker.file_url)) ? (
                                             <div
                                                 className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-md font-semibold w-fit cursor-pointer hover:bg-indigo-100 transition-colors"
                                                 onClick={() => handleOpenValidation(worker)}
                                                 title="Clique para abrir e validar os apontamentos do portal"
                                             >
                                                 <Smartphone className="h-3.5 w-3.5 text-indigo-600" />
-                                                <span>Portal Digital</span>
+                                                <span>
+                                                    Portal Digital{worker.horas_totais && worker.horas_totais > 0 ? ` (${worker.horas_totais}h)` : ''}
+                                                </span>
                                             </div>
                                         ) : (
                                             <span className="text-muted-foreground text-sm">-</span>
