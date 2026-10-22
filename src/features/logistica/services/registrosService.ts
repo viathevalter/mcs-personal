@@ -299,9 +299,10 @@ const hydrateAlojamento = (a: any): Alojamento => {
   };
 };
 
-async function fetchAllTableRows(tableName: string): Promise<any[]> {
+export async function fetchAllTableRows(tableName: string): Promise<any[]> {
   const client = getClient();
-  let allRows: any[] = [];
+  const allRows: any[] = [];
+  const seenIds = new Set<string>();
   let from = 0;
   const step = 1000;
 
@@ -309,6 +310,7 @@ async function fetchAllTableRows(tableName: string): Promise<any[]> {
     const { data, error } = await client
       .from(tableName)
       .select('*')
+      .order('id', { ascending: true })
       .range(from, from + step - 1);
 
     if (error) {
@@ -324,7 +326,16 @@ async function fetchAllTableRows(tableName: string): Promise<any[]> {
       break;
     }
 
-    allRows.push(...data);
+    for (const row of data) {
+      if (row && row.id) {
+        if (!seenIds.has(row.id)) {
+          seenIds.add(row.id);
+          allRows.push(row);
+        }
+      } else {
+        allRows.push(row);
+      }
+    }
 
     if (data.length < step) {
       break;

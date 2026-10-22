@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../../../shared/supabase/client';
+import { fetchAllTableRows } from '../services/registrosService';
 import { format, getDaysInMonth, startOfMonth, addDays, isWithinInterval, parseISO, isSameMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Loader2, Calendar, DollarSign, Building2, Bed, Home } from 'lucide-react';
@@ -35,16 +36,11 @@ export function LogisticaDashboard() {
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => addDays(firstDayOfMonth, i));
 
   const fetchLogisticsData = async () => {
-    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
-    
-    let alojamentosRes = await client.from('alojamentos').select('*');
-    if (alojamentosRes.error) {
-      console.warn("Error al buscar alojamientos en core_logistics, intentando en public...", alojamentosRes.error);
-      alojamentosRes = await supabase.from('alojamentos').select('*');
-    }
-    
-    const camasRes = await client.from('camas').select('*');
-    const alocacoesRes = await client.from('alocacoes').select('*');
+    const [alojamentosRows, camasRows, alocacoesRows] = await Promise.all([
+      fetchAllTableRows('alojamentos'),
+      fetchAllTableRows('camas'),
+      fetchAllTableRows('alocacoes'),
+    ]);
 
     let solicitudesData: any[] = [];
     try {
@@ -60,9 +56,9 @@ export function LogisticaDashboard() {
     }
 
     return {
-      alojamentos: (alojamentosRes.data || []) as Alojamento[],
-      camas: ((camasRes.data && !camasRes.error) ? camasRes.data : ((await supabase.from('camas').select('*')).data || [])) as Cama[],
-      alocacoes: ((alocacoesRes.data && !alocacoesRes.error) ? alocacoesRes.data : ((await supabase.from('alocacoes').select('*')).data || [])) as Alocacao[],
+      alojamentos: (alojamentosRows || []) as Alojamento[],
+      camas: (camasRows || []) as Cama[],
+      alocacoes: (alocacoesRows || []) as Alocacao[],
       solicitudes: solicitudesData
     };
   };

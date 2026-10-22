@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
-import { registrosService } from './registrosService';
+import { registrosService, fetchAllTableRows } from './registrosService';
 import importedAllocations from '../data/imported_allocations.json';
 
 export interface ContatoProvedor {
@@ -564,12 +564,9 @@ export const logisticsService = {
   async fetchAlocacoesAtivas(): Promise<Alocacao[]> {
     const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
     try {
-      const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
-      const { data: dbAlocs, error } = await client
-        .from('alocacoes')
-        .select('*');
+      const dbAlocs = await fetchAllTableRows('alocacoes');
 
-      if (error || !dbAlocs || dbAlocs.length === 0) {
+      if (!dbAlocs || dbAlocs.length === 0) {
         const stored = localStorage.getItem(ALOCACOES_STORAGE_KEY);
         if (stored) return JSON.parse(stored);
         return (importedAllocations as any[]) || [];
@@ -634,12 +631,7 @@ export const logisticsService = {
                 .in('cod_colab', allCodColabs)
             )
           : Promise.resolve({ data: [] }),
-        safeQuery(
-          supabase
-            .schema('core_logistics')
-            .from('alojamentos')
-            .select('id, codigo, nome')
-        ),
+        fetchAllTableRows('alojamentos').then(rows => ({ data: rows })).catch(() => ({ data: [] })),
         allWorkerIds.length > 0
           ? safeQuery(
               supabase
