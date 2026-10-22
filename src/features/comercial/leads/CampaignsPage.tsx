@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_huelva_cyl_cadiz_2026',
+        name: '🚀 Mailing Alex - Inéditos Huelva, Castilla y León & Cádiz (312 leads)',
+        leadCount: 312,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Huelva Castilla y León Cádiz 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-22T09:05:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_huelva_cyl_cadiz_completo_2026',
+        name: '🎯 Mailing Alex - Huelva, Castilla y León & Cádiz Completo (603 leads)',
+        leadCount: 603,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - Huelva Castilla y León Cádiz 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-22T09:05:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_valencia_albacete_caceres_2026',
         name: '🚀 Mailing Alex - Inéditos Valencia, Albacete & Cáceres (355 leads)',
         leadCount: 355,
