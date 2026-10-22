@@ -235,6 +235,7 @@ export const AlojamentoForm: React.FC = () => {
 
   // Estado para alertar sobre restauração de rascunho
   const [isDraftRestored, setIsDraftRestored] = useState<boolean>(false);
+  const skipDraftSaveRef = useRef<boolean>(false);
 
   // Recuperação de Rascunho do LocalStorage (Persistência ao trocar de abas/navegador)
   useEffect(() => {
@@ -307,8 +308,9 @@ export const AlojamentoForm: React.FC = () => {
   // Auto-Save contínuo do Rascunho no LocalStorage com debounce
   const allWatchedValues = watch();
   useEffect(() => {
-    if (!isEditing) {
+    if (!isEditing && !skipDraftSaveRef.current) {
       const timer = setTimeout(() => {
+        if (skipDraftSaveRef.current) return;
         try {
           const hasContent = allWatchedValues.nome || allWatchedValues.provedor_id || allWatchedValues.endereco || (fotos && fotos.length > 0);
           if (hasContent) {
@@ -630,6 +632,9 @@ export const AlojamentoForm: React.FC = () => {
       setExistingAlojamentos(updatedAlojamentos);
 
       setSaveSuccess(true);
+      if (redirectAfter) {
+        skipDraftSaveRef.current = true;
+      }
       localStorage.removeItem('mcs_alojamento_draft_novo');
       setIsDraftRestored(false);
 

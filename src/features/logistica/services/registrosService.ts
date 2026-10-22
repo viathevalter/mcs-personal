@@ -299,7 +299,7 @@ const hydrateAlojamento = (a: any): Alojamento => {
   };
 };
 
-export async function fetchAllTableRows(tableName: string): Promise<any[]> {
+export async function fetchAllTableRows(tableName: string, selectColumns: string = '*'): Promise<any[]> {
   const client = getClient();
   const allRows: any[] = [];
   const seenIds = new Set<string>();
@@ -309,14 +309,14 @@ export async function fetchAllTableRows(tableName: string): Promise<any[]> {
   while (true) {
     const { data, error } = await client
       .from(tableName)
-      .select('*')
+      .select(selectColumns)
       .order('id', { ascending: true })
       .range(from, from + step - 1);
 
     if (error) {
       console.warn(`Error fetching range ${from}-${from + step - 1} on ${tableName}:`, error);
       if (from === 0) {
-        const fallback = await client.from(tableName).select('*');
+        const fallback = await client.from(tableName).select(selectColumns);
         return fallback.data || [];
       }
       break;
@@ -488,6 +488,43 @@ export const registrosService = {
     let attempts = 0;
     let lastError: any = null;
     const triedCodes = new Set<string>();
+
+    // Validação preventiva do código sequencial antes do primeiro insert
+    try {
+      const allCodes = await fetchAllTableRows('alojamentos', 'id, codigo');
+      let maxN = 0;
+      const existingSet = new Set<string>();
+      (allCodes || []).forEach((item: any) => {
+        if (item.codigo) {
+          const cleanCode = String(item.codigo).toUpperCase().trim();
+          existingSet.add(cleanCode);
+          const m = cleanCode.match(/AL-(\d+)/i);
+          if (m && m[1]) {
+            const n = parseInt(m[1], 10);
+            if (n > maxN) maxN = n;
+          }
+        }
+      });
+      const currentClean = payload.codigo ? String(payload.codigo).toUpperCase().trim() : '';
+      if (!currentClean || currentClean === 'AL-0001' || existingSet.has(currentClean)) {
+        let nextNum = maxN + 1;
+        let nextAutoCode = `AL-${String(nextNum).padStart(4, '0')}`;
+        while (existingSet.has(nextAutoCode)) {
+          nextNum++;
+          nextAutoCode = `AL-${String(nextNum).padStart(4, '0')}`;
+        }
+        payload.codigo = nextAutoCode;
+        if (payload.nome && /AL-\d+/i.test(payload.nome)) {
+          payload.nome = payload.nome.replace(/AL-\d+/i, nextAutoCode);
+        }
+        if (payload.titulo && /AL-\d+/i.test(payload.titulo)) {
+          payload.titulo = payload.titulo.replace(/AL-\d+/i, nextAutoCode);
+        }
+      }
+    } catch (preErr) {
+      console.warn('Aviso ao pré-validar código de alojamento:', preErr);
+    }
+
     if (payload.codigo) triedCodes.add(String(payload.codigo).toUpperCase().trim());
 
     while (attempts < 12) {
@@ -518,7 +555,7 @@ export const registrosService = {
         }
         if (error.message.includes('alojamentos_codigo_key') || error.message.includes('duplicate key value')) {
           try {
-            const allCodes = await fetchAllTableRows('alojamentos');
+            const allCodes = await fetchAllTableRows('alojamentos', 'id, codigo');
             let maxN = 0;
             const existingSet = new Set<string>();
             (allCodes || []).forEach((item: any) => {
@@ -599,7 +636,7 @@ export const registrosService = {
         }
         if (error.message.includes('alojamentos_codigo_key') || error.message.includes('duplicate key value')) {
           try {
-            const allCodes = await fetchAllTableRows('alojamentos');
+            const allCodes = await fetchAllTableRows('alojamentos', 'id, codigo');
             let maxN = 0;
             const existingSet = new Set<string>();
             (allCodes || []).forEach((item: any) => {
