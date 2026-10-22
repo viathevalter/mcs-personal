@@ -641,8 +641,12 @@ MCS - Gestão Comercial`;
       
       data.forEach(f => {
         const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.clientId}-pending`;
-        if (!mergedAdjustments[cardId]) {
-          mergedAdjustments[cardId] = mergedAdjustments[f.clientId] || initAdjustments(f, null);
+        const freshAdj = initAdjustments(f, null);
+        const existingAdj = mergedAdjustments[cardId];
+        const expectedMonthPrefix = `${f.year}-${String(f.month + 1).padStart(2, '0')}`;
+        const isStaleMonth = !f.magicLinkToken && existingAdj?.dataEmissao && !existingAdj.dataEmissao.startsWith(expectedMonthPrefix);
+        if (!existingAdj || isStaleMonth) {
+          mergedAdjustments[cardId] = freshAdj;
         }
       });
       setClientAdjustments(mergedAdjustments);

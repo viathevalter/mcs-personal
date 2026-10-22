@@ -659,7 +659,20 @@ export async function getHorasPendentesFaturamento(
       const clientWorkers = activeWorkers.filter(w => w.cliente_nombre?.trim().toLowerCase() === clientNameLower);
 
       // If the client has no workers and no hours registered, skip it
-      const clientHours = hoursList.filter(h => h.client_id === client.id);
+      const monthsPt = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+      const targetMonthName = monthsPt[periodMonth - 1];
+      const clientHours = hoursList.filter(h => {
+        if (h.client_id !== client.id) return false;
+        if (!h.fatura_id) return true;
+        const fat = faturasMap.get(h.fatura_id);
+        if (!fat) return true;
+        const desc = String(fat.ajustes_json?.descricao_servico || '').toLowerCase();
+        const belongsToOtherMonth = monthsPt.some((m, idx) => idx !== (periodMonth - 1) && desc.includes(m));
+        if (belongsToOtherMonth && !desc.includes(targetMonthName)) {
+          return false;
+        }
+        return true;
+      });
       if (clientWorkers.length === 0 && clientHours.length === 0) continue;
 
       // Calculate Obras totals for the client based on active session hours
@@ -671,7 +684,8 @@ export async function getHorasPendentesFaturamento(
       if (unbilledHours.length > 0) {
         activeSessionHours = unbilledHours;
       } else {
-        const clientFaturas = Array.from(faturasMap.values()).filter(f => f.client_id === client.id);
+        const clientFaturaIds = new Set(clientHours.map(h => h.fatura_id).filter(Boolean));
+        const clientFaturas = Array.from(faturasMap.values()).filter(f => f.client_id === client.id && clientFaturaIds.has(f.id));
         const pendingFaturas = clientFaturas.filter(f => f.status === 'pending_client_approval' || f.status === 'disputed');
         const sortByFaturaNumDesc = (a: any, b: any) =>
           String(b.fatura_numero || b.id || '').localeCompare(String(a.fatura_numero || a.id || ''), undefined, { numeric: true });
