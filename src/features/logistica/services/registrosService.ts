@@ -475,6 +475,9 @@ export const registrosService = {
     const client = getClient();
     let payload = buildAlojamentoPayload(alojamento);
     let attempts = 0;
+    let lastError: any = null;
+    const triedCodes = new Set<string>();
+    if (payload.codigo) triedCodes.add(String(payload.codigo).toUpperCase().trim());
 
     while (attempts < 12) {
       attempts++;
@@ -485,6 +488,7 @@ export const registrosService = {
         .single();
 
       if (!error) return hydrateAlojamento(data);
+      lastError = error;
 
       if (error.message) {
         if (error.message.includes('Could not find the')) {
@@ -503,18 +507,27 @@ export const registrosService = {
         }
         if (error.message.includes('alojamentos_codigo_key') || error.message.includes('duplicate key value')) {
           try {
-            const { data: allCodes } = await client.from('alojamentos').select('codigo');
+            const allCodes = await fetchAllTableRows('alojamentos');
             let maxN = 0;
+            const existingSet = new Set<string>();
             (allCodes || []).forEach((item: any) => {
               if (item.codigo) {
-                const m = item.codigo.match(/AL-(\d+)/i);
+                const cleanCode = String(item.codigo).toUpperCase().trim();
+                existingSet.add(cleanCode);
+                const m = cleanCode.match(/AL-(\d+)/i);
                 if (m && m[1]) {
                   const n = parseInt(m[1], 10);
                   if (n > maxN) maxN = n;
                 }
               }
             });
-            const nextAutoCode = `AL-${String(maxN + 1).padStart(4, '0')}`;
+            let nextNum = maxN + 1;
+            let nextAutoCode = `AL-${String(nextNum).padStart(4, '0')}`;
+            while (existingSet.has(nextAutoCode) || triedCodes.has(nextAutoCode)) {
+              nextNum++;
+              nextAutoCode = `AL-${String(nextNum).padStart(4, '0')}`;
+            }
+            triedCodes.add(nextAutoCode);
             payload.codigo = nextAutoCode;
             if (payload.nome && payload.nome.includes('AL-')) {
               payload.nome = payload.nome.replace(/AL-\d+/i, nextAutoCode);
@@ -535,13 +548,16 @@ export const registrosService = {
 
       throw error;
     }
-    throw new Error('Falha ao inserir alojamento.');
+    throw new Error(`Falha ao inserir alojamento: ${lastError?.message || 'Erro desconhecido'}`);
   },
 
   async updateAlojamento(id: string, alojamento: Partial<Alojamento>): Promise<Alojamento> {
     const client = getClient();
     let payload = buildAlojamentoPayload(alojamento);
     let attempts = 0;
+    let lastError: any = null;
+    const triedCodes = new Set<string>();
+    if (payload.codigo) triedCodes.add(String(payload.codigo).toUpperCase().trim());
 
     while (attempts < 12) {
       attempts++;
@@ -553,6 +569,7 @@ export const registrosService = {
         .single();
 
       if (!error) return hydrateAlojamento(data);
+      lastError = error;
 
       if (error.message) {
         if (error.message.includes('Could not find the')) {
@@ -571,18 +588,27 @@ export const registrosService = {
         }
         if (error.message.includes('alojamentos_codigo_key') || error.message.includes('duplicate key value')) {
           try {
-            const { data: allCodes } = await client.from('alojamentos').select('codigo');
+            const allCodes = await fetchAllTableRows('alojamentos');
             let maxN = 0;
+            const existingSet = new Set<string>();
             (allCodes || []).forEach((item: any) => {
               if (item.codigo) {
-                const m = item.codigo.match(/AL-(\d+)/i);
+                const cleanCode = String(item.codigo).toUpperCase().trim();
+                existingSet.add(cleanCode);
+                const m = cleanCode.match(/AL-(\d+)/i);
                 if (m && m[1]) {
                   const n = parseInt(m[1], 10);
                   if (n > maxN) maxN = n;
                 }
               }
             });
-            const nextAutoCode = `AL-${String(maxN + 1).padStart(4, '0')}`;
+            let nextNum = maxN + 1;
+            let nextAutoCode = `AL-${String(nextNum).padStart(4, '0')}`;
+            while (existingSet.has(nextAutoCode) || triedCodes.has(nextAutoCode)) {
+              nextNum++;
+              nextAutoCode = `AL-${String(nextNum).padStart(4, '0')}`;
+            }
+            triedCodes.add(nextAutoCode);
             payload.codigo = nextAutoCode;
             if (payload.nome && payload.nome.includes('AL-')) {
               payload.nome = payload.nome.replace(/AL-\d+/i, nextAutoCode);
@@ -603,7 +629,7 @@ export const registrosService = {
 
       throw error;
     }
-    throw new Error('Falha ao atualizar alojamento.');
+    throw new Error(`Falha ao atualizar alojamento: ${lastError?.message || 'Erro desconhecido'}`);
   },
 
   async deleteProvedor(id: string): Promise<boolean> {

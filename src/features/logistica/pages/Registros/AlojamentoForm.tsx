@@ -271,10 +271,38 @@ export const AlojamentoForm: React.FC = () => {
       .then((alojData) => {
         if (alojData && alojData.length > 0) {
           setExistingAlojamentos(alojData as Alojamento[]);
+          if (!id) {
+            const currentCode = (getValues('codigo') || '').toUpperCase().trim();
+            const codeAlreadyUsed = alojData.some(
+              (a) => (a.codigo || '').toUpperCase().trim() === currentCode
+            );
+            if (!currentCode || currentCode === 'AL-0001' || codeAlreadyUsed) {
+              let maxNum = 0;
+              const existingCodes = new Set<string>();
+              alojData.forEach((a) => {
+                if (a.codigo) {
+                  const clean = a.codigo.toUpperCase().trim();
+                  existingCodes.add(clean);
+                  const m = clean.match(/AL-(\d+)/i);
+                  if (m && m[1]) {
+                    const num = parseInt(m[1], 10);
+                    if (num > maxNum) maxNum = num;
+                  }
+                }
+              });
+              let nextNum = maxNum + 1;
+              let nextCode = `AL-${String(nextNum).padStart(4, '0')}`;
+              while (existingCodes.has(nextCode)) {
+                nextNum++;
+                nextCode = `AL-${String(nextNum).padStart(4, '0')}`;
+              }
+              setValue('codigo', nextCode, { shouldDirty: true });
+            }
+          }
         }
       })
       .catch((err) => console.error('Erro ao buscar alojamentos:', err));
-  }, []);
+  }, [id, getValues, setValue]);
 
   // Auto-Save contínuo do Rascunho no LocalStorage com debounce
   const allWatchedValues = watch();
@@ -340,16 +368,25 @@ export const AlojamentoForm: React.FC = () => {
   // Calcula o próximo código global sequencial (AL-0001, AL-0002, AL-0003...)
   const getNextGlobalCode = (list: Alojamento[]) => {
     let maxNum = 0;
+    const existingSet = new Set<string>();
     (list || []).forEach(a => {
       if (a.codigo) {
-        const match = a.codigo.match(/AL-(\d+)/i);
+        const clean = a.codigo.toUpperCase().trim();
+        existingSet.add(clean);
+        const match = clean.match(/AL-(\d+)/i);
         if (match && match[1]) {
           const num = parseInt(match[1], 10);
           if (num > maxNum) maxNum = num;
         }
       }
     });
-    return `AL-${String(maxNum + 1).padStart(4, '0')}`;
+    let nextNum = maxNum + 1;
+    let nextCode = `AL-${String(nextNum).padStart(4, '0')}`;
+    while (existingSet.has(nextCode)) {
+      nextNum++;
+      nextCode = `AL-${String(nextNum).padStart(4, '0')}`;
+    }
+    return nextCode;
   };
 
   // Encontra o provedor selecionado atualmente e seus alojamentos vinculados
@@ -578,11 +615,19 @@ export const AlojamentoForm: React.FC = () => {
         ativo: data.status === 'Activo'
       };
 
+      let savedAloj: Alojamento;
       if (isEditing && id) {
-        await registrosService.updateAlojamento(id, payload as any);
+        savedAloj = await registrosService.updateAlojamento(id, payload as any);
       } else {
-        await registrosService.createAlojamento(payload as any);
+        savedAloj = await registrosService.createAlojamento(payload as any);
       }
+
+      const updatedAlojamentos = [
+        ...existingAlojamentos,
+        savedAloj,
+        { codigo: data.codigo } as any
+      ];
+      setExistingAlojamentos(updatedAlojamentos);
 
       setSaveSuccess(true);
       localStorage.removeItem('mcs_alojamento_draft_novo');
@@ -594,11 +639,12 @@ export const AlojamentoForm: React.FC = () => {
         }, 500);
       } else {
         // Modo "Guardar y Crear Otro Alojamiento para este Proveedor"
-        const nextCode = getNextGlobalCode([...existingAlojamentos, { codigo: data.codigo } as any]);
+        const nextCode = getNextGlobalCode(updatedAlojamentos);
         setValue('codigo', nextCode, { shouldDirty: true });
         if (currentProvedor) {
           setValue('nome', `${currentProvedor.nome_razao_social} - ${nextCode}`, { shouldDirty: true });
         }
+        setValue('contrato_codigo', `CT-2026/${Math.floor(1000 + Math.random() * 9000)}`, { shouldDirty: true });
         setValue('dormitorios', 0);
         setValue('total_camas', 0);
         setValue('camas_individuais', 0);
