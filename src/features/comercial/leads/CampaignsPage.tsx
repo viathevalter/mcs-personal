@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_vizcaya_2026',
+        name: '🚀 Mailing Alex - Inéditos Vizcaya (92 leads)',
+        leadCount: 92,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Vizcaya 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-22T22:30:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_vizcaya_completo_2026',
+        name: '🎯 Mailing Alex - Vizcaya Completo (266 leads)',
+        leadCount: 266,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - Vizcaya 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-22T22:30:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_huelva_cyl_cadiz_2026',
         name: '🚀 Mailing Alex - Inéditos Huelva, Castilla y León & Cádiz (312 leads)',
         leadCount: 312,
