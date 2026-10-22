@@ -181,6 +181,33 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             }
         }
     }
+
+    // Sincronizar telefone/nome/função diretamente com as conversas do MCS Chat (public.chat_conversations)
+    try {
+        const chatUpdates: Record<string, any> = {};
+        if (updates.nome) chatUpdates.contact_name = updates.nome.trim();
+        if (updates.funcion) chatUpdates.worker_function_name = updates.funcion;
+        if (updates.movil) {
+            let digits = updates.movil.replace(/\D/g, '');
+            if (digits.startsWith('00')) digits = digits.replace(/^00+/, '');
+            if (digits.length === 9 && (digits.startsWith('6') || digits.startsWith('7'))) digits = '34' + digits;
+            else if (digits.length === 9 && digits.startsWith('9')) digits = '351' + digits;
+            else if (digits.length === 10 && digits.startsWith('3')) digits = '57' + digits;
+            if (digits.length >= 8) {
+                chatUpdates.contact_phone = digits;
+            }
+        }
+        if (Object.keys(chatUpdates).length > 0) {
+            chatUpdates.updated_at = new Date().toISOString();
+            await supabase
+                .schema('public')
+                .from('chat_conversations')
+                .update(chatUpdates)
+                .eq('worker_id', id);
+        }
+    } catch (err) {
+        console.warn("Aviso: Falha ao sincronizar public.chat_conversations:", err);
+    }
 }
 
 export async function getUniqueFunciones(): Promise<string[]> {
