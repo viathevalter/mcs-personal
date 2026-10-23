@@ -177,7 +177,7 @@ export function ContractSigningPage() {
                 breakPages: true,
                 experimental: true,
                 useBase64URL: true,
-                ignoreLastRenderedPageBreak: false,
+                ignoreLastRenderedPageBreak: true,
                 renderHeaders: true,
                 renderFooters: true,
             })
@@ -664,6 +664,7 @@ export function ContractSigningPage() {
             <style>{`
                 .docx-wrapper img {
                     max-width: none !important;
+                    display: inline-block !important;
                 }
                 .docx-wrapper table p,
                 .docx-wrapper table div,

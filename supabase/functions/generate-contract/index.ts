@@ -401,7 +401,25 @@ serve(async (req) => {
             content = content.replace(/<w:ind\s+w:right="-\d+"\s*\/>/gi, '');
             content = content.replace(/<w:tblpPr[^>]*\/>/gi, '');
             content = content.replace(/<w:lastRenderedPageBreak\/>\s*(<w:br\s+w:type="page"\s*\/>)/gi, '$1');
-            content = content.replace(/(<w:br\s+w:type="page"\s*\/>)\s*<w:lastRenderedPageBreak\/>/gi, '$1');
+            const paras = content.match(/<w:p\b[\s\S]*?<\/w:p>/g);
+            if (paras && paras.length > 0) {
+              let prevHadPageBr = false;
+              for (let i = 0; i < paras.length; i++) {
+                const p = paras[i];
+                const hasPageBr = p.includes('w:type="page"');
+                const hasLastRendered = p.includes("<w:lastRenderedPageBreak/>");
+                if (hasLastRendered) {
+                  const cleanedP = p.replace(/<w:lastRenderedPageBreak\/>/g, "");
+                  if (!hasPageBr && !prevHadPageBr) {
+                    content = content.replace(p, `<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:br w:type="page"/></w:r></w:p>${cleanedP}`);
+                  } else {
+                    content = content.replace(p, cleanedP);
+                  }
+                }
+                prevHadPageBr = hasPageBr || (hasLastRendered && !prevHadPageBr);
+              }
+            }
+            content = content.replace(/<w:lastRenderedPageBreak\/>/gi, '');
           }
           if (/^word\/header\d*\.xml$/i.test(relativePath) && content.includes("<wp:wrapNone/>")) {
             content = content.replace(/<wp:wrapNone\/>/g, "<wp:wrapTopAndBottom/>");

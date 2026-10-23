@@ -1016,7 +1016,7 @@ Muchas gracias.`;
                 useBase64URL: true,
                 renderHeaders: true,
                 renderFooters: true,
-                ignoreLastRenderedPageBreak: false,
+                ignoreLastRenderedPageBreak: true,
             })
             .then(() => {
                 if (previewContainerRef.current?.parentElement) {
@@ -2207,6 +2207,7 @@ Muchas gracias.`;
                                             <style>{`
                                                 .docx-wrapper img {
                                                     max-width: none !important;
+                                                    display: inline-block !important;
                                                 }
                                             `}</style>
                                             <div ref={previewContainerRef} className="docx-wrapper" />
