@@ -673,7 +673,7 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
                                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
                                 }`}
                               >
-                                {r.worker_nome.split(' ').slice(0, 2).join(' ')}
+                                {(r.worker_nome || 'Trabajador').split(' ').slice(0, 2).join(' ')}
                               </span>
                             ))}
                             {residents.length > 3 && (

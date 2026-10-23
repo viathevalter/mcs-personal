@@ -68,6 +68,16 @@ export function LogisticaDashboard() {
     queryFn: fetchLogisticsData,
   });
 
+  const safeParseDate = (dateVal?: string | null): Date | null => {
+    if (!dateVal || typeof dateVal !== 'string') return null;
+    try {
+      const d = parseISO(dateVal);
+      return isNaN(d.getTime()) ? null : d;
+    } catch {
+      return null;
+    }
+  };
+
   // Cálculo de Reparto de Costes
   const costApportionment = useMemo(() => {
     if (!data) return [];
@@ -84,8 +94,9 @@ export function LogisticaDashboard() {
       const dailyCost = alojamento.custo_mensal_total / alojamento.capacidade / 30;
       
       let daysUsedInMonth = 0;
-      const start = parseISO(alocacao.data_inicio);
-      const end = parseISO(alocacao.data_fim);
+      const start = safeParseDate(alocacao.data_inicio);
+      if (!start) return;
+      const end = safeParseDate(alocacao.data_fim) || new Date(9999, 11, 31);
 
       daysArray.forEach(day => {
         const dayNormalized = new Date(day.getFullYear(), day.getMonth(), day.getDate());
@@ -98,10 +109,11 @@ export function LogisticaDashboard() {
       });
 
       if (daysUsedInMonth > 0) {
-        if (!projectCosts[alocacao.project_name]) {
-          projectCosts[alocacao.project_name] = 0;
+        const projKey = alocacao.project_name || 'Sin Obra';
+        if (!projectCosts[projKey]) {
+          projectCosts[projKey] = 0;
         }
-        projectCosts[alocacao.project_name] += (daysUsedInMonth * dailyCost);
+        projectCosts[projKey] += (daysUsedInMonth * dailyCost);
       }
     });
 
@@ -229,8 +241,11 @@ export function LogisticaDashboard() {
                               const dayNormalized = new Date(day.getFullYear(), day.getMonth(), day.getDate());
                               
                               const alocacaoNoDia = alocacoesDaCama.find(aloc => {
-                                const start = new Date(parseISO(aloc.data_inicio).getFullYear(), parseISO(aloc.data_inicio).getMonth(), parseISO(aloc.data_inicio).getDate());
-                                const end = new Date(parseISO(aloc.data_fim).getFullYear(), parseISO(aloc.data_fim).getMonth(), parseISO(aloc.data_fim).getDate(), 23, 59, 59);
+                                const startParsed = safeParseDate(aloc.data_inicio);
+                                if (!startParsed) return false;
+                                const endParsed = safeParseDate(aloc.data_fim) || new Date(9999, 11, 31);
+                                const start = new Date(startParsed.getFullYear(), startParsed.getMonth(), startParsed.getDate());
+                                const end = new Date(endParsed.getFullYear(), endParsed.getMonth(), endParsed.getDate(), 23, 59, 59);
                                 return dayNormalized >= start && dayNormalized <= end;
                               });
 
