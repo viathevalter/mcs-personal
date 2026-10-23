@@ -49,6 +49,8 @@ const EXPORTABLE_COLUMNS = [
     { id: 'fecha_nacimiento', label: 'Data Nascimento' },
     { id: 'movil', label: 'Telefone' },
     { id: 'email', label: 'E-mail' },
+    { id: 'camiseta', label: 'T-Shirt (Camiseta)' },
+    { id: 'pantalones', label: 'Calça (Pantalones)' },
 ];
 
 export function ExportHoursControlWorkersDialog({

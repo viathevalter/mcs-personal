@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { supabase } from '@/shared/supabase/client';
 import { listWorkers } from '../api/workersApi';
 import type { Worker } from '@/shared/types/corePersonal';
 
@@ -52,6 +53,8 @@ const EXPORTABLE_COLUMNS = [
     { id: 'fecha_nacimiento', label: 'Data Nascimento' },
     { id: 'movil', label: 'Telefone' },
     { id: 'email', label: 'E-mail' },
+    { id: 'camiseta', label: 'T-Shirt (Camiseta)' },
+    { id: 'pantalones', label: 'Calça (Pantalones)' },
 ];
 
 export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDialogProps) {
@@ -102,8 +105,46 @@ export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDi
                 return;
             }
 
+            // Enrich workers with full details from core_personal.workers (camiseta, pantalones, dates, etc.)
+            const workerIds = workers.map(w => w.id);
+            let enrichedWorkers: Worker[] = workers;
+
+            if (workerIds.length > 0) {
+                let detailedWorkers: any[] = [];
+                const chunkSize = 200;
+                for (let i = 0; i < workerIds.length; i += chunkSize) {
+                    const chunk = workerIds.slice(i, i + chunkSize);
+                    const { data: details, error: detailsError } = await supabase
+                        .schema('core_personal')
+                        .from('workers')
+                        .select('*')
+                        .in('id', chunk);
+
+                    if (detailsError) throw detailsError;
+                    if (details) {
+                        detailedWorkers = [...detailedWorkers, ...details];
+                    }
+                }
+
+                const detailsMap = new Map(detailedWorkers.map(d => [d.id, d]));
+                enrichedWorkers = workers.map(w => {
+                    const details = detailsMap.get(w.id);
+                    return {
+                        ...details,
+                        ...w,
+                        contratante: w.contratante || details?.contratante,
+                        cliente_nombre: w.cliente_nombre || details?.cliente,
+                        funcion: w.funcion || details?.funcion,
+                        status_trabajador: w.status_trabajador || details?.status_trabajador,
+                        status_seguridad: w.status_seguridad || details?.status_seguridad,
+                        camiseta: w.camiseta ?? details?.camiseta ?? null,
+                        pantalones: w.pantalones ?? details?.pantalones ?? null,
+                    };
+                });
+            }
+
             // Map workers to row data based on selected columns
-            const rows = workers.map((worker) => {
+            const rows = enrichedWorkers.map((worker) => {
                 const rowData: Record<string, any> = {};
                 
                 // Keep the exact order of columns as selected
