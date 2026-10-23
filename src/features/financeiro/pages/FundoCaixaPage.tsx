@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { 
     caixaService, 
     type CaixaDespesa, 
@@ -2060,45 +2059,35 @@ export default function FundoCaixaPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* LIGHTBOX: Visualizador de Comprovante Modal */}
-            {lightboxImage && typeof document !== 'undefined' && createPortal(
-                <div 
-                    className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in-0 duration-200"
-                    onClick={() => setLightboxImage(null)}
-                >
-                    <div className="relative max-w-3xl w-full max-h-[90vh] bg-white rounded-xl overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center p-3 bg-slate-900 text-white shrink-0">
-                            <span className="text-xs font-semibold">Comprovante de Despesa</span>
-                            <div className="flex items-center gap-2">
-                                <a 
-                                    href={lightboxImage} 
-                                    target="_blank" 
-                                    rel="noreferrer" 
-                                    className="text-xs text-blue-300 hover:text-white flex items-center gap-1 font-medium px-2 py-1 rounded hover:bg-slate-800 transition-colors"
-                                >
-                                    <ExternalLink className="h-3.5 w-3.5" /> Abrir Original
-                                </a>
-                                <button 
-                                    type="button"
-                                    onClick={() => setLightboxImage(null)}
-                                    className="p-1 hover:bg-slate-800 rounded-md transition-colors text-slate-300 hover:text-white"
-                                    title="Fechar visualizador"
-                                >
-                                    <X className="h-4 w-4" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="p-2 flex items-center justify-center flex-1 overflow-auto bg-slate-950 min-h-[300px]">
-                            {lightboxImage.toLowerCase().endsWith('.pdf') ? (
+            {/* MODAL: Visualizador de Comprovante */}
+            <Dialog open={Boolean(lightboxImage)} onOpenChange={(open) => { if (!open) setLightboxImage(null); }}>
+                <DialogContent className="max-w-3xl max-h-[90vh] p-0 flex flex-col bg-slate-900 border-slate-800 text-white overflow-hidden shadow-2xl z-[70] [&>button]:text-white [&>button]:hover:text-slate-200 [&>button]:opacity-90">
+                    <DialogHeader className="p-3 bg-slate-900 border-b border-slate-800 flex flex-row items-center justify-between space-y-0 pr-12">
+                        <DialogTitle className="text-xs font-semibold text-slate-200">
+                            Comprovante de Despesa
+                        </DialogTitle>
+                        {lightboxImage && (
+                            <a 
+                                href={lightboxImage} 
+                                target="_blank" 
+                                rel="noreferrer" 
+                                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium transition-colors"
+                            >
+                                <ExternalLink className="h-3.5 w-3.5" /> Abrir Original
+                            </a>
+                        )}
+                    </DialogHeader>
+                    <div className="p-2 flex items-center justify-center flex-1 overflow-auto bg-slate-950 min-h-[300px]">
+                        {lightboxImage ? (
+                            lightboxImage.toLowerCase().endsWith('.pdf') ? (
                                 <iframe src={lightboxImage} className="w-full h-[70vh] border-0" />
                             ) : (
                                 <img src={lightboxImage} alt="Comprovante" className="max-w-full max-h-[75vh] object-contain rounded" />
-                            )}
-                        </div>
+                            )
+                        ) : null}
                     </div>
-                </div>,
-                document.body
-            )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
