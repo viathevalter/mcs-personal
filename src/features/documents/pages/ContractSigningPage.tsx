@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { renderAsync } from 'docx-preview';
 import { supabase } from '@/shared/supabase/client';
 import { getContractByToken, signContract, type Contract } from '../api/contractsApi';
-import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download, PenTool, Trash2 } from 'lucide-react';
+import { Loader2, FileText, CheckCircle2, Lock, Smartphone, AlertTriangle, Download, PenTool, Trash2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -76,6 +76,20 @@ export function ContractSigningPage() {
     const [selectedFont, setSelectedFont] = useState('Caveat');
     const [dragActive, setDragActive] = useState(false);
     const [mobileTab, setMobileTab] = useState<'contract' | 'signature'>('contract');
+    const [docZoom, setDocZoom] = useState<number>(() => {
+        if (typeof window !== 'undefined' && window.innerWidth < 840) {
+            return Math.max(0.38, Math.min(1, Number(((window.innerWidth - 24) / 815).toFixed(2))));
+        }
+        return 1;
+    });
+
+    const handleFitWidth = () => {
+        if (typeof window !== 'undefined' && window.innerWidth < 840) {
+            setDocZoom(Math.max(0.38, Math.min(1, Number(((window.innerWidth - 24) / 815).toFixed(2)))));
+        } else {
+            setDocZoom(1);
+        }
+    };
 
     // Carregar fontes do Google Fonts para assinatura digitada
     useEffect(() => {
@@ -162,7 +176,8 @@ export function ContractSigningPage() {
                 ignoreHeight: false,
                 breakPages: true,
                 experimental: true,
-                useBase64URL: false,
+                useBase64URL: true,
+                ignoreLastRenderedPageBreak: false,
                 renderHeaders: true,
                 renderFooters: true,
             })
@@ -647,6 +662,9 @@ export function ContractSigningPage() {
     return (
         <div className="h-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
             <style>{`
+                .docx-wrapper img {
+                    max-width: none !important;
+                }
                 .docx-wrapper table p,
                 .docx-wrapper table div,
                 .docx-wrapper table td > * {
@@ -717,8 +735,52 @@ export function ContractSigningPage() {
                 <main className={`flex-1 overflow-y-auto bg-slate-900 p-4 md:p-8 flex-col items-center justify-start ${
                     mobileTab === 'contract' ? 'flex' : 'hidden md:flex'
                 }`}>
-                    <div className="w-full max-w-4xl overflow-x-auto docx-preview-container">
-                        <div ref={docContainerRef} className="docx-wrapper" />
+                    <div className="sticky top-0 z-20 mb-3 flex items-center justify-center gap-1.5 bg-slate-950/90 backdrop-blur-md border border-slate-800 px-3 py-1.5 rounded-full shadow-lg">
+                        <button
+                            type="button"
+                            onClick={() => setDocZoom(z => Math.max(0.35, Number((z - 0.1).toFixed(2))))}
+                            className="p-1.5 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition"
+                            title="Diminuir Zoom"
+                        >
+                            <ZoomOut className="h-4 w-4" />
+                        </button>
+                        <span className="text-xs font-mono font-semibold text-slate-200 min-w-[48px] text-center">
+                            {Math.round(docZoom * 100)}%
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setDocZoom(z => Math.min(2.0, Number((z + 0.1).toFixed(2))))}
+                            className="p-1.5 rounded-full hover:bg-slate-800 text-slate-300 hover:text-white transition"
+                            title="Aumentar Zoom"
+                        >
+                            <ZoomIn className="h-4 w-4" />
+                        </button>
+                        <div className="h-4 w-px bg-slate-800 mx-0.5" />
+                        <button
+                            type="button"
+                            onClick={handleFitWidth}
+                            className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center gap-1 transition"
+                            title="Ajustar à tela"
+                        >
+                            <RotateCcw className="h-3 w-3" />
+                            Ajustar
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDocZoom(1)}
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition ${
+                                Math.abs(docZoom - 1) < 0.03
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                            }`}
+                            title="Tamanho Real (100%)"
+                        >
+                            100%
+                        </button>
+                    </div>
+
+                    <div className="w-full max-w-5xl overflow-x-auto docx-preview-container flex justify-center">
+                        <div ref={docContainerRef} className="docx-wrapper" style={{ zoom: docZoom } as React.CSSProperties} />
                     </div>
 
                     {/* Card/Botão de transição rápida no rodapé do contrato no celular */}

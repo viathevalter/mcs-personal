@@ -1016,6 +1016,7 @@ Muchas gracias.`;
                 useBase64URL: true,
                 renderHeaders: true,
                 renderFooters: true,
+                ignoreLastRenderedPageBreak: false,
             })
             .then(() => {
                 if (previewContainerRef.current?.parentElement) {
@@ -2203,6 +2204,11 @@ Muchas gracias.`;
                                                     <span className="text-sm text-center font-medium text-slate-500">Pré-visualização indisponível.</span>
                                                 </div>
                                             )}
+                                            <style>{`
+                                                .docx-wrapper img {
+                                                    max-width: none !important;
+                                                }
+                                            `}</style>
                                             <div ref={previewContainerRef} className="docx-wrapper" />
                                         </div>
 

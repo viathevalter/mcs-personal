@@ -394,6 +394,20 @@ serve(async (req) => {
           content = content.replace(/<w:rStyle\b[^>]*w:val="[^"]*TextodoEspaoReservado[^"]*"[^>]*\/>/gi, '');
           content = content.replace(/<w:showingPlcHdr\/>/gi, '');
 
+          // 2.5. Normalizar recuos anormais, tabelas flutuantes e logos de cabeçalho para renderização fiel no docx-preview
+          if (relativePath === "word/document.xml") {
+            content = content.replace(/<w:ind\s+w:right="[1-9]\d{3,}"\s*\/>/gi, '');
+            content = content.replace(/<w:ind\s+w:left="-\d+"\s+w:right="-\d+"\s*\/>/gi, '');
+            content = content.replace(/<w:ind\s+w:right="-\d+"\s*\/>/gi, '');
+            content = content.replace(/<w:tblpPr[^>]*\/>/gi, '');
+            content = content.replace(/<w:lastRenderedPageBreak\/>\s*(<w:br\s+w:type="page"\s*\/>)/gi, '$1');
+            content = content.replace(/(<w:br\s+w:type="page"\s*\/>)\s*<w:lastRenderedPageBreak\/>/gi, '$1');
+          }
+          if (/^word\/header\d*\.xml$/i.test(relativePath) && content.includes("<wp:wrapNone/>")) {
+            content = content.replace(/<wp:wrapNone\/>/g, "<wp:wrapTopAndBottom/>");
+            content = content.replace(/<wp:posOffset>-\d+<\/wp:posOffset>/g, "<wp:posOffset>0</wp:posOffset>");
+          }
+
           // 3. Normalizar tags {{...}} divididas em múltiplos nós de XML do Word
           content = content.replace(/\{\s*(?:<[^>]+>)*\s*\{\s*(?:<[^>]+>)*\s*([\s\S]*?)\s*(?:<[^>]+>)*\s*\}\s*(?:<[^>]+>)*\s*\}/gi, (m, k) => '{{' + k.replace(/<[^>]+>/g, '').trim() + '}}');
 
