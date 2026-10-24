@@ -226,7 +226,7 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
           .select('id, cod_colab, nome, telefono, status_trabajador')
           .eq('empresa_id', selectedEmpresaId)
           .order('nome')
-          .limit(300),
+          .limit(1000),
         supabase
           .schema('core_operacoes')
           .from('pedidos')
@@ -291,10 +291,10 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
         .from('chat_messages')
         .select('*')
         .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
-        .limit(100);
+        .order('created_at', { ascending: false })
+        .limit(150);
       if (!error && data) {
-        setChatMessages(data);
+        setChatMessages([...data].reverse());
       }
     } catch (err) {
       console.error('Error loading chat messages:', err);

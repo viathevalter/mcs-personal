@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages, fetchInChunks } from '@/shared/supabase/pagination';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { SolicitudTareaDetail } from '../types';
 
@@ -30,48 +31,48 @@ export function useDepartmentTasks(departmentCodes: string[]) {
         return [code];
       });
 
-      let query = supabase
-        .schema('core_operacoes')
-        .from('solicitud_tareas')
-        .select(`
-          *,
-          department:departments!inner(id, name, code),
-          solicitud:solicitudes_operativas(
-            id, codigo, title, status, priority, due_date, pedido_id, tipo, empresa_id, client_id
-          ),
-          assigned_user:mcs_users!assigned_to(id, email),
-          blocked_by_task:solicitud_tareas!blocked_by_task_id(id, title)
-        `);
+      const tasks = await fetchAllPages<any>((from, to) => {
+        let query = supabase
+          .schema('core_operacoes')
+          .from('solicitud_tareas')
+          .select(`
+            *,
+            department:departments!inner(id, name, code),
+            solicitud:solicitudes_operativas(
+              id, codigo, title, status, priority, due_date, pedido_id, tipo, empresa_id, client_id
+            ),
+            assigned_user:mcs_users!assigned_to(id, email),
+            blocked_by_task:solicitud_tareas!blocked_by_task_id(id, title)
+          `);
 
-      if (activeEmpresaId) {
-        query = query.eq('empresa_id', activeEmpresaId);
-      }
+        if (activeEmpresaId) {
+          query = query.eq('empresa_id', activeEmpresaId);
+        }
 
-      const { data, error } = await query
-        .in('department.code', expandedCodes)
-        .order('created_at', { ascending: false });
+        return query
+          .in('department.code', expandedCodes)
+          .order('created_at', { ascending: false })
+          .range(from, to);
+      });
 
-      if (error) throw error;
-
-      const tasks = (data || []) as any[];
       const empresaIds = [...new Set(tasks.map(t => t.solicitud?.empresa_id || t.empresa_id).filter(Boolean))];
       const clientIds = [...new Set(tasks.map(t => t.solicitud?.client_id || t.client_id).filter(Boolean))];
       const parentTaskIds = [...new Set(tasks.map(t => t.blocked_by_task_id).filter(Boolean))];
-      const [empresasRes, clientsRes, parentTasksRes] = await Promise.all([
-        empresaIds.length > 0
-          ? supabase.schema('core_common').from('empresas').select('id, nome').in('id', empresaIds)
-          : Promise.resolve({ data: [] }),
-        clientIds.length > 0
-          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds)
-          : Promise.resolve({ data: [] }),
-        parentTaskIds.length > 0
-          ? supabase.schema('core_operacoes').from('solicitud_tareas').select('id, title').in('id', parentTaskIds)
-          : Promise.resolve({ data: [] })
+      const [empresasData, clientsData, parentTasksData] = await Promise.all([
+        fetchInChunks<any>(empresaIds, chunk =>
+          supabase.schema('core_common').from('empresas').select('id, nome').in('id', chunk)
+        ),
+        fetchInChunks<any>(clientIds, chunk =>
+          supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', chunk)
+        ),
+        fetchInChunks<any>(parentTaskIds, chunk =>
+          supabase.schema('core_operacoes').from('solicitud_tareas').select('id, title').in('id', chunk)
+        )
       ]);
 
-      const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
-      const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
-      const parentTasksMap = new Map(parentTasksRes.data?.map(pt => [pt.id, pt]) || []);
+      const empresasMap = new Map(empresasData.map(e => [e.id, e]));
+      const clientsMap = new Map(clientsData.map(c => [c.id, c]));
+      const parentTasksMap = new Map(parentTasksData.map(pt => [pt.id, pt]));
 
       const mappedTasks = tasks.map(t => {
         const parentTask = t.blocked_by_task_id ? parentTasksMap.get(t.blocked_by_task_id) : null;

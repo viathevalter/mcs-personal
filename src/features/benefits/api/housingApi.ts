@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages, fetchInChunks } from '@/shared/supabase/pagination';
 import { mapSupabaseError } from '@/shared/api/supabaseError';
 import type { HousingBenefit } from '@/shared/types/corePersonal';
 import { isHoldingId } from '@/shared/utils/empresaUtils';
@@ -57,58 +58,55 @@ export async function deleteHousing(id: string): Promise<void> {
 
 export async function getWorkersWithHousing(empresaId?: string): Promise<import('@/shared/types/corePersonal').WorkerWithHousing[]> {
     try {
-        // 1. Fetch housing benefits (if specific subsidiary empresa is provided, filter by it; if holding or all, fetch all)
-        let query = supabase
-            .schema('core_personal')
-            .from('worker_benefit_housing')
-            .select('*')
-            .order('start_date', { ascending: false });
+        // 1. Fetch housing benefits paginando em blocos de 1.000
+        const housingBenefits = await fetchAllPages<any>((from, to) => {
+            let query = supabase
+                .schema('core_personal')
+                .from('worker_benefit_housing')
+                .select('*')
+                .order('start_date', { ascending: false });
 
-        if (empresaId && empresaId !== 'all' && !isHoldingId(empresaId)) {
-            query = query.eq('empresa_id', empresaId);
-        }
+            if (empresaId && empresaId !== 'all' && !isHoldingId(empresaId)) {
+                query = query.eq('empresa_id', empresaId);
+            }
 
-        const { data: housingBenefits, error: housingError } = await query;
-
-        if (housingError) {
-            throw mapSupabaseError(housingError);
-        }
+            return query.range(from, to);
+        });
 
         if (!housingBenefits || housingBenefits.length === 0) {
             return [];
         }
 
-        // 2. Fetch specific workers bypassing the PostgREST 1000-row limit
-        const workerIds = [...new Set(housingBenefits.map(h => h.worker_id))];
+        // 2. Fetch specific workers in chunks bypassing the PostgREST 1000-row and URL limits
+        const workerIds = [...new Set(housingBenefits.map(h => h.worker_id).filter(Boolean))];
 
-        const { data: workersData, error: workersError } = await supabase
-            .schema('core_personal')
-            .from('workers')
-            .select('*')
-            .in('id', workerIds);
-
-        if (workersError) {
-            throw mapSupabaseError(workersError);
-        }
+        const workersData = await fetchInChunks<any>(workerIds, chunk =>
+            supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('*')
+                .in('id', chunk)
+        );
 
         const workersMap = new Map((workersData || []).map(w => [w.id, w]));
         const codColabs = (workersData || []).map(w => w.cod_colab).filter(Boolean);
 
-        // 2.5 Fetch 'colaboradores' manually since PostgREST might lack the foreign key definition 
+        // 2.5 Fetch 'colaboradores' manually in chunks
         let colabMap = new Map();
         if (codColabs.length > 0) {
-            const { data: colabsData, error: colabsErr } = await supabase
-                .schema('public')
-                .from('colaboradores')
-                .select('cod_colab, contratante, funcion')
-                .in('cod_colab', codColabs);
-
-            if (colabsErr) {
-                console.error("ColabsErr:", colabsErr);
-            } else if (colabsData) {
+            try {
+                const colabsData = await fetchInChunks<any>(codColabs, chunk =>
+                    supabase
+                        .schema('public')
+                        .from('colaboradores')
+                        .select('cod_colab, contratante, funcion')
+                        .in('cod_colab', chunk)
+                );
                 colabsData.forEach(c => {
                     colabMap.set(c.cod_colab, c);
                 });
+            } catch (colabsErr) {
+                console.error("ColabsErr:", colabsErr);
             }
         }
 

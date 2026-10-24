@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages, fetchInChunks } from '@/shared/supabase/pagination';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import type { SolicitudDetail } from '../types';
 
@@ -19,51 +20,49 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
     queryFn: async () => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
 
-      let query = supabase
-        .schema('core_operacoes')
-        .from('solicitudes_operativas')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const solicitudes = await fetchAllPages<any>((from, to) => {
+        let query = supabase
+          .schema('core_operacoes')
+          .from('solicitudes_operativas')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (filters?.empresa_id && filters.empresa_id !== 'all') {
-        query = query.eq('empresa_id', filters.empresa_id);
-      } else if (activeEmpresaId) {
-        query = query.eq('empresa_id', activeEmpresaId);
-      }
+        if (filters?.empresa_id && filters.empresa_id !== 'all') {
+          query = query.eq('empresa_id', filters.empresa_id);
+        } else if (activeEmpresaId) {
+          query = query.eq('empresa_id', activeEmpresaId);
+        }
 
-      if (filters?.status && filters.status !== 'all') {
-        query = query.eq('status', filters.status);
-      }
-      if (filters?.tipo && filters.tipo !== 'all') {
-        query = query.eq('tipo', filters.tipo);
-      }
-      if (filters?.priority && filters.priority !== 'all') {
-        query = query.eq('priority', filters.priority);
-      }
-      if (filters?.search) {
-        query = query.or(`codigo.ilike.%${filters.search}%,title.ilike.%${filters.search}%`);
-      }
+        if (filters?.status && filters.status !== 'all') {
+          query = query.eq('status', filters.status);
+        }
+        if (filters?.tipo && filters.tipo !== 'all') {
+          query = query.eq('tipo', filters.tipo);
+        }
+        if (filters?.priority && filters.priority !== 'all') {
+          query = query.eq('priority', filters.priority);
+        }
+        if (filters?.search) {
+          query = query.or(`codigo.ilike.%${filters.search}%,title.ilike.%${filters.search}%`);
+        }
 
-      const { data: solicitudes, error } = await query;
+        return query.range(from, to);
+      });
 
-      if (error) throw error;
       if (!solicitudes || solicitudes.length === 0) return [];
 
       // 1. Fetch related pedidos
-      let pedidosList: any[] = [];
       const pedidoIds = [...new Set(solicitudes.map(s => s.pedido_id).filter(Boolean))];
-      if (pedidoIds.length > 0) {
-        const { data: pData } = await supabase
+      const pedidosList = await fetchInChunks<any>(pedidoIds, chunk =>
+        supabase
           .schema('core_comercial')
           .from('pedidos')
           .select('id, codigo, client_id, client_site_id, expected_start_date, expected_end_date, commercial_status')
-          .in('id', pedidoIds);
-        if (pData) pedidosList = pData;
-      }
+          .in('id', chunk)
+      );
       const pedidosMap = new Map(pedidosList.map(p => [p.id, p]));
 
       // 2. Fetch related estimaciones for "new_order" solicitudes (without pedido_id)
-      let estimacionesList: any[] = [];
       const estimacionVersionIds = [
         ...new Set(
           solicitudes
@@ -72,8 +71,8 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
             .filter(Boolean)
         )
       ];
-      if (estimacionVersionIds.length > 0) {
-        const { data: evData } = await supabase
+      const estimacionesList = await fetchInChunks<any>(estimacionVersionIds, chunk =>
+        supabase
           .schema('core_comercial')
           .from('estimacion_versions')
           .select(`
@@ -86,11 +85,8 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
               expected_end_date
             )
           `)
-          .in('id', estimacionVersionIds);
-        if (evData) {
-          estimacionesList = evData;
-        }
-      }
+          .in('id', chunk)
+      );
       const estimacionVersionsMap = new Map(estimacionesList.map(ev => [ev.id, ev]));
 
       // 3. Collect all client and site IDs (both from direct client_id on solicitudes and from linked pedidos)
@@ -109,43 +105,41 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
 
       // 4. Fetch Clients, Sites and Empresas
       const empresaIds = [...new Set(solicitudes.map(s => s.empresa_id).filter(Boolean))];
-      const [clientsRes, sitesRes, empresasRes] = await Promise.all([
-        clientIds.length > 0
-          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds)
-          : Promise.resolve({ data: [] }),
-        siteIds.length > 0
-          ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
-          : Promise.resolve({ data: [] }),
-        empresaIds.length > 0
-          ? supabase.schema('core_common').from('empresas').select('id, nome, legal_name, trade_name').in('id', empresaIds)
-          : Promise.resolve({ data: [] })
+      const [clientsData, sitesData, empresasData] = await Promise.all([
+        fetchInChunks<any>(clientIds, chunk =>
+          supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', chunk)
+        ),
+        fetchInChunks<any>(siteIds, chunk =>
+          supabase.schema('core_common').from('client_sites').select('id, name').in('id', chunk)
+        ),
+        fetchInChunks<any>(empresaIds, chunk =>
+          supabase.schema('core_common').from('empresas').select('id, nome, legal_name, trade_name').in('id', chunk)
+        )
       ]);
 
-      const clientsMap = new Map((clientsRes.data || []).map(c => [c.id, c]));
-      const sitesMap = new Map((sitesRes.data || []).map(s => [s.id, s]));
-      const empresasMap = new Map((empresasRes.data || []).map(e => [e.id, e]));
+      const clientsMap = new Map(clientsData.map(c => [c.id, c]));
+      const sitesMap = new Map(sitesData.map(s => [s.id, s]));
+      const empresasMap = new Map(empresasData.map(e => [e.id, e]));
 
       // Fetch date change events from timeline to identify postponements/extensions
-      let dateChangesList: any[] = [];
-      let targetsList: any[] = [];
       const solicitudIds = solicitudes.map(s => s.id);
-      if (solicitudIds.length > 0) {
-        const [{ data: dcData }, { data: tData }] = await Promise.all([
+      const [dateChangesList, targetsList] = await Promise.all([
+        fetchInChunks<any>(solicitudIds, chunk =>
           supabase
             .schema('core_operacoes')
             .from('solicitud_timeline')
             .select('solicitud_id, title')
-            .in('solicitud_id', solicitudIds)
-            .in('title', ['Início Adiado', 'Prazo Prorrogado']),
+            .in('solicitud_id', chunk)
+            .in('title', ['Início Adiado', 'Prazo Prorrogado'])
+        ),
+        fetchInChunks<any>(solicitudIds, chunk =>
           supabase
             .schema('core_operacoes')
             .from('solicitud_targets')
             .select('id, solicitud_id, reason, notes, action_type, source_worker_id, target_worker_id')
-            .in('solicitud_id', solicitudIds)
-        ]);
-        if (dcData) dateChangesList = dcData;
-        if (tData) targetsList = tData;
-      }
+            .in('solicitud_id', chunk)
+        )
+      ]);
 
       const targetsMap = new Map<string, any>();
       targetsList.forEach(t => {

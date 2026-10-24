@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages, fetchInChunks } from '@/shared/supabase/pagination';
 import { mapSupabaseError } from '@/shared/api/supabaseError';
 
 export interface Contract {
@@ -74,55 +75,53 @@ async function fetchWorkersOrderInfo(workerIds: string[], codColabs: string[]) {
     const uniqueWorkerIds = [...new Set(workerIds.filter(Boolean))];
     const uniqueCodColabs = [...new Set(codColabs.filter(Boolean))];
 
-    const [allocRes, assignRes, targetsTargetRes, targetsSourceRes] = await Promise.all([
-        uniqueCodColabs.length > 0
-            ? supabase
+    const [allocs, assigns, targetsTarget, targetsSource] = await Promise.all([
+        fetchInChunks<any>(uniqueCodColabs, chunk =>
+            supabase
                 .schema('core_personal')
                 .from('vw_worker_allocations')
                 .select('cod_colab, codpedido, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador, fechafinpedido, inserted_at')
-                .in('cod_colab', uniqueCodColabs)
-            : Promise.resolve({ data: [] }),
-        uniqueWorkerIds.length > 0
-            ? supabase
+                .in('cod_colab', chunk)
+        ),
+        fetchInChunks<any>(uniqueWorkerIds, chunk =>
+            supabase
                 .schema('core_personal')
                 .from('worker_assignments')
                 .select('id, worker_id, client_id, pedido_id, created_at')
-                .in('worker_id', uniqueWorkerIds)
-            : Promise.resolve({ data: [] }),
-        uniqueWorkerIds.length > 0
-            ? supabase
+                .in('worker_id', chunk)
+        ),
+        fetchInChunks<any>(uniqueWorkerIds, chunk =>
+            supabase
                 .schema('core_operacoes')
                 .from('solicitud_targets')
                 .select('id, solicitud_id, target_worker_id, source_worker_id, created_at')
-                .in('target_worker_id', uniqueWorkerIds)
-            : Promise.resolve({ data: [] }),
-        uniqueWorkerIds.length > 0
-            ? supabase
+                .in('target_worker_id', chunk)
+        ),
+        fetchInChunks<any>(uniqueWorkerIds, chunk =>
+            supabase
                 .schema('core_operacoes')
                 .from('solicitud_targets')
                 .select('id, solicitud_id, target_worker_id, source_worker_id, created_at')
-                .in('source_worker_id', uniqueWorkerIds)
-            : Promise.resolve({ data: [] })
+                .in('source_worker_id', chunk)
+        )
     ]);
 
-    const allocs = (allocRes.data || []) as any[];
-    const assigns = (assignRes.data || []) as any[];
-    const targets = [...(targetsTargetRes.data || []), ...(targetsSourceRes.data || [])] as any[];
+    const targets = [...targetsTarget, ...targetsSource] as any[];
 
     const pedidoIds = [...new Set(assigns.map((a: any) => a.pedido_id).filter(Boolean))];
     const solicitudIds = [...new Set(targets.map((t: any) => t.solicitud_id).filter(Boolean))];
 
-    const [pedidosRes, solRes] = await Promise.all([
-        pedidoIds.length > 0
-            ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
-            : Promise.resolve({ data: [] }),
-        solicitudIds.length > 0
-            ? supabase.schema('core_operacoes').from('solicitudes_operativas').select('id, codigo, tipo, title').in('id', solicitudIds)
-            : Promise.resolve({ data: [] })
+    const [pedidosData, solData] = await Promise.all([
+        fetchInChunks<any>(pedidoIds, chunk =>
+            supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', chunk)
+        ),
+        fetchInChunks<any>(solicitudIds, chunk =>
+            supabase.schema('core_operacoes').from('solicitudes_operativas').select('id, codigo, tipo, title').in('id', chunk)
+        )
     ]);
 
-    const pedidosMap = new Map((pedidosRes.data || []).map((p: any) => [p.id, p.codigo]));
-    const solMap = new Map((solRes.data || []).map((s: any) => [s.id, s]));
+    const pedidosMap = new Map(pedidosData.map((p: any) => [p.id, p.codigo]));
+    const solMap = new Map(solData.map((s: any) => [s.id, s]));
 
     const allocationsGroupByWorker = new Map<string, any[]>();
     allocs.forEach((a: any) => {
@@ -211,55 +210,57 @@ function resolveOrderInfo(
 }
 
 export async function listContracts({ empresaId, workerId, status, contractType }: ListContractsParams): Promise<Contract[]> {
-    let query = supabase
-        .schema('core_personal')
-        .from('contracts')
-        .select(`
-            *,
-            worker:workers (
-                id, nome, email, movil, nif, niss, dni, nie, pasaporte, cliente, cod_cliente, cod_colab
-            ),
-            assignment:worker_assignments (
-                id,
-                client_id
-            )
-        `);
+    let contracts: any[] = [];
+    try {
+        contracts = await fetchAllPages<any>((from, to) => {
+            let query = supabase
+                .schema('core_personal')
+                .from('contracts')
+                .select(`
+                    *,
+                    worker:workers (
+                        id, nome, email, movil, nif, niss, dni, nie, pasaporte, cliente, cod_cliente, cod_colab
+                    ),
+                    assignment:worker_assignments (
+                        id,
+                        client_id
+                    )
+                `);
 
-    if (!isHoldingId(empresaId)) {
-        query = query.eq('empresa_id', empresaId);
-    }
+            if (!isHoldingId(empresaId)) {
+                query = query.eq('empresa_id', empresaId);
+            }
 
-    if (workerId) {
-        query = query.eq('worker_id', workerId);
-    }
+            if (workerId) {
+                query = query.eq('worker_id', workerId);
+            }
 
-    if (status && status.length > 0) {
-        query = query.in('status', status);
-    }
+            if (status && status.length > 0) {
+                query = query.in('status', status);
+            }
 
-    if (contractType && contractType.length > 0) {
-        query = query.in('contract_type', contractType);
-    }
+            if (contractType && contractType.length > 0) {
+                query = query.in('contract_type', contractType);
+            }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
+            return query.order('created_at', { ascending: false }).range(from, to);
+        });
+    } catch (error) {
         throw mapSupabaseError(error);
     }
 
-    const contracts = (data || []) as any[];
     const clientIds = [...new Set(contracts.map(c => c.assignment?.client_id).filter(Boolean))];
     const codColabs = [...new Set(contracts.map(c => c.worker?.cod_colab).filter(Boolean))];
     const workerIds = [...new Set(contracts.map(c => c.worker_id).filter(Boolean))];
 
-    const [clientsRes, orderInfo] = await Promise.all([
-        clientIds.length > 0
-            ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', clientIds)
-            : Promise.resolve({ data: [] }),
+    const [clientsData, orderInfo] = await Promise.all([
+        fetchInChunks<any>(clientIds, chunk =>
+            supabase.schema('core_common').from('clients').select('id, legal_name, trade_name').in('id', chunk)
+        ),
         fetchWorkersOrderInfo(workerIds, codColabs)
     ]);
 
-    const clientsMap = new Map((clientsRes.data || []).map(c => [c.id, c]));
+    const clientsMap = new Map(clientsData.map(c => [c.id, c]));
     const { allocationsGroupByWorker, assignmentsGroupByWorker, targetsGroupByWorker, pedidosMap, solMap } = orderInfo;
 
     function getPertinentClientForContract(contratante: string, workerAllocations: any[]): string | null {

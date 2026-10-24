@@ -1,34 +1,34 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages, fetchInChunks } from '@/shared/supabase/pagination';
 import type { WorkerDiscount } from '../types';
 
 export function useAllDiscounts() {
     return useQuery({
         queryKey: ['all-worker-discounts'],
         queryFn: async () => {
-            // Passo 1: Buscar TODOS os descontos existentes (geralmente menos volume que a base total de workers)
-            const { data: discounts, error: discountsError } = await supabase
-                .from('worker_discounts')
-                .select('*')
-                .order('reference_date', { ascending: false });
+            // Passo 1: Buscar TODOS os descontos existentes paginando em blocos de 1.000
+            const discounts = await fetchAllPages<any>((from, to) =>
+                supabase
+                    .from('worker_discounts')
+                    .select('*')
+                    .order('reference_date', { ascending: false })
+                    .range(from, to)
+            );
 
-            if (discountsError) throw discountsError;
             if (!discounts || discounts.length === 0) return [];
 
             // Passo 2: Extrair os IDs de workers únicos que efetivamente TÊM descontos
-            const workerIds = [...new Set(discounts.map(d => d.worker_id))];
+            const workerIds = [...new Set(discounts.map(d => d.worker_id).filter(Boolean))];
 
-            // Passo 3: Buscar EXATAMENTE apenas os Trabalhadores precisos, burlando o limite 1000
-            const { data: workers, error: workersError } = await supabase
-                .schema('core_personal')
-                .from('workers')
-                .select('id, cod_colab, nome, contratante, status_trabajador')
-                .in('id', workerIds);
-
-            if (workersError) {
-                console.error("Error fetching workers for discounts:", workersError);
-                throw workersError;
-            }
+            // Passo 3: Buscar os Trabalhadores em chunks para não estourar limite de URL nem de 1.000 linhas
+            const workers = await fetchInChunks<any>(workerIds, chunk =>
+                supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('id, cod_colab, nome, contratante, status_trabajador')
+                    .in('id', chunk)
+            );
 
             // Passo 4: Criar um dicionário (Map) para junção em O(1)
             const workersMap = new Map((workers || []).map(w => [w.id, w]));

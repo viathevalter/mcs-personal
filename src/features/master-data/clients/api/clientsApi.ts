@@ -1,28 +1,30 @@
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages } from '@/shared/supabase/pagination';
 import type { CreateClientDTO, Client, UpdateClientDTO, PaymentTerm, ClientContact, ClientViesCheckLog } from '../types';
 
 export const clientsApi = {
   async getClients(empresaId: string): Promise<Client[]> {
     if (!empresaId) return [];
 
-    const { data, error } = await supabase
-      .schema('core_common')
-      .from('clients')
-      .select(`
-        *,
-        client_company_settings (
-          empresa_id,
-          payment_term_id,
-          status,
-          credit_limit,
-          billing_cycle_start_day,
-          payment_term:payment_term_id ( id, name, days )
-        )
-      `)
-      .order('trade_name', { ascending: true })
-      .is('deleted_at', null);
-
-    if (error) throw error;
+    const data = await fetchAllPages<any>((from, to) =>
+      supabase
+        .schema('core_common')
+        .from('clients')
+        .select(`
+          *,
+          client_company_settings (
+            empresa_id,
+            payment_term_id,
+            status,
+            credit_limit,
+            billing_cycle_start_day,
+            payment_term:payment_term_id ( id, name, days )
+          )
+        `)
+        .order('trade_name', { ascending: true })
+        .is('deleted_at', null)
+        .range(from, to)
+    );
 
     // Process and map settings for the selected company
     return (data || []).map((client: any) => {

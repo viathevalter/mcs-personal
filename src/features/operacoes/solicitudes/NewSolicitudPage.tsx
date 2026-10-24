@@ -1522,15 +1522,22 @@ export function NewSolicitudPage() {
                 const { data: pbRes, error: pbErr } = await supabase
                     .schema('core_operacoes')
                     .rpc('processar_prorrogacao_ou_finalizacao_obra', {
-                        p_empresa_id: selectedEmpresaId!,
-                        p_pedido_id: selectedPedidoId,
-                        p_parent_solicitud_id: parentSolicitud.id,
-                        p_tipo: actionType,
-                        p_nova_data_fim: dueDate || new Date().toISOString().split('T')[0],
-                        p_motivo: reason || title,
-                        p_user_id: user?.id || null
+                        payload: {
+                            empresa_id: effectiveEmpresaId,
+                            pedido_id: selectedPedidoId,
+                            parent_solicitud_id: parentSolicitud.id,
+                            tipo: actionType,
+                            nova_data_fim: dueDate || new Date().toISOString().split('T')[0],
+                            motivo: reason || title,
+                            observacoes: notes,
+                            user_id: user?.id || null
+                        }
                     });
-                if (!pbErr && (pbRes as any)?.solicitud_id) {
+                if (pbErr) {
+                    console.error("Failed to execute processar_prorrogacao_ou_finalizacao_obra:", pbErr);
+                    throw pbErr;
+                }
+                if ((pbRes as any)?.solicitud_id) {
                     targetSolicitudId = (pbRes as any).solicitud_id;
                 }
 
