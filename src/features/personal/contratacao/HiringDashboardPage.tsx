@@ -5,6 +5,11 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { AllocateWorkerDialog } from './components/AllocateWorkerDialog';
 import { CancelAllocationDialog } from './components/CancelAllocationDialog';
 import { EditAllocationDialog } from './components/EditAllocationDialog';
+import { SmartMatchDrawer, type SmartMatchTargetContext, type PreFilledHireCandidate } from './components/SmartMatchDrawer';
+import { JobBroadcastModal, type JobBroadcastInitialData } from './components/JobBroadcastModal';
+import { contratacaoRecruitmentService, calculateProfileMatchScore } from './services/contratacaoRecruitmentService';
+import { useNavigate } from 'react-router-dom';
+import { Sparkles, Megaphone, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { 
   Briefcase, 
@@ -58,6 +63,32 @@ export const HiringDashboardPage: React.FC = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   // Edit Dialog state
+  const navigate = useNavigate();
+  const [smartMatchContext, setSmartMatchContext] = useState<SmartMatchTargetContext | null>(null);
+  const [broadcastModalData, setBroadcastModalData] = useState<JobBroadcastInitialData | null>(null);
+  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = useState(false);
+
+  const { data: inactiveWorkersList = [] } = useQuery({
+    queryKey: ['contratacao_inactive_workers_history'],
+    queryFn: () => contratacaoRecruitmentService.fetchInactiveWorkersWithHistory(),
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const { data: externalCvsList = [] } = useQuery({
+    queryKey: ['contratacao_external_cvs_realtime'],
+    queryFn: () => contratacaoRecruitmentService.fetchExternalCvCandidates(5000),
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: allInterviewsList = [], refetch: refetchInterviewsList } = useQuery({
+    queryKey: ['contratacao_interviews_all'],
+    queryFn: () => contratacaoRecruitmentService.fetchInterviews(),
+  });
+
+  const newBaixasRadarCount = useMemo(
+    () => inactiveWorkersList.filter(w => w.is_new_baixa).length,
+    [inactiveWorkersList]
+  );
   const [allocationToEdit, setAllocationToEdit] = useState<any | null>(null);
 
   // Cancel Dialog state
@@ -661,7 +692,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     }
   }, [filteredPedidos, selectedPedidoId]);
 
-  const handleOpenAllocateDialog = (item: any) => {
+  const handleOpenAllocateDialog = (item: any, preFilledCandidate?: PreFilledHireCandidate) => {
     if (!selectedPedido) return;
 
     // Find if there is a pending replacement target for this item (prioritizing earliest due_date)
@@ -704,7 +735,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       replaced_worker_name: repTarget?.source_worker?.nome || item.replaced_worker?.nome,
       replacement_notes: repTarget?.notes || item.notes,
       replacement_reason: repTarget?.reason || repTarget?.solicitud?.description || item.reason,
-      solicitud_codigo: repTarget?.solicitud?.codigo
+      solicitud_codigo: repTarget?.solicitud?.codigo, ...(preFilledCandidate ? { preFilledCandidate } : {})
     });
     
     setIsDialogOpen(true);
@@ -726,7 +757,38 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         </div>
 
         {/* Stat Badges */}
-        <div className="flex space-x-3 text-xs">
+        <div className="flex items-center flex-wrap gap-2 text-xs">
+          {newBaixasRadarCount > 0 && (
+            <button
+              type="button"
+              onClick={() => navigate('/contratacao/baixas-radar')}
+              className="bg-rose-50 dark:bg-rose-950/50 border border-rose-300 dark:border-rose-800 rounded-xl px-3.5 py-2 flex items-center gap-2 text-rose-700 dark:text-rose-300 font-bold hover:bg-rose-100 transition-all animate-pulse"
+            >
+              <Bell className="h-4 w-4 text-rose-600" />
+              <span>🔔 {newBaixasRadarCount} Novas Baixas RH</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setBroadcastModalData(
+                selectedPedido
+                  ? {
+                      pedidoCodigo: selectedPedido.codigo,
+                      clientName: selectedPedido.client?.trade_name || selectedPedido.client?.legal_name || 'Cliente',
+                      jobFunctionName: selectedPedido.pedido_items?.[0]?.job_function_name_snapshot || selectedPedido.pedido_items?.[0]?.job_function?.name || 'PROFISSIONAL INDUSTRIAL',
+                      quantity: selectedPedido.pedido_items?.[0]?.quantity_requested || 2,
+                      location: [selectedPedido.client_site?.name, selectedPedido.client_site?.city].filter(Boolean).join(', ') || 'España',
+                    }
+                  : null
+              );
+              setIsBroadcastModalOpen(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3.5 py-2.5 flex items-center gap-1.5 font-bold shadow-sm transition-all"
+          >
+            <Megaphone className="h-4 w-4" />
+            <span>📢 Divulgar Vaga</span>
+          </button>
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-xl px-4 py-2 flex items-center space-x-2">
             <Users className="h-4 w-4 text-amber-600" />
             <div>
@@ -1210,33 +1272,85 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                           {(() => {
                             const isPaused = selectedPedido.operational_status === 'paused';
                             return (
-                              <Button
-                                size="sm"
-                                disabled={isItemFulfilled || isPaused}
-                                onClick={() => handleOpenAllocateDialog(item)}
-                                title={isPaused ? "Pedido pausado. Reanude o pedido na Torre de Controle para contratar." : undefined}
-                                className={`h-8 text-xs font-semibold ${
-                                  isPaused
-                                    ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 cursor-not-allowed'
-                                    : isItemFulfilled 
-                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
-                                      : isReplacement
-                                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
-                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
-                                }`}
-                              >
-                                {isPaused ? (
-                                  <>
-                                    <PauseCircle className="mr-1.5 h-3.5 w-3.5" />
-                                    Pausado
-                                  </>
-                                ) : (
-                                  <>
-                                    <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-                                    {isItemFulfilled ? 'Substituído' : isReplacement ? '+ Substituir' : '+ Contratar'}
-                                  </>
-                                )}
-                              </Button>
+                              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setBroadcastModalData({
+                                      pedidoCodigo: selectedPedido.codigo,
+                                      clientName: selectedPedido.client?.trade_name || selectedPedido.client?.legal_name || 'Cliente',
+                                      jobFunctionName: targetProfileName,
+                                      quantity: Math.max(1, (item.quantity_requested || 1) - effectiveFulfilled),
+                                      location: [selectedPedido.client_site?.city, selectedPedido.client_site?.name].filter(Boolean).join(' - ') || 'España',
+                                      startDate: selectedPedido.expected_start_date ? new Date(selectedPedido.expected_start_date).toLocaleDateString('pt-PT') : undefined,
+                                      alojamentoIncluso: !!item.includes_housing,
+                                      epiIncluso: !!item.includes_epi,
+                                    });
+                                    setIsBroadcastModalOpen(true);
+                                  }}
+                                  className="h-8 text-xs font-semibold gap-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
+                                  title="Gerar texto de anúncio e card PNG para WhatsApp e Facebook"
+                                >
+                                  <Megaphone className="h-3.5 w-3.5" />
+                                  Divulgar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSmartMatchContext({
+                                      empresaId: selectedPedido.empresa_id || selectedEmpresaId || '',
+                                      pedidoId: selectedPedido.id,
+                                      pedidoCodigo: selectedPedido.codigo,
+                                      pedidoItemId: item.id,
+                                      solicitudId: selectedPedido.isSynthetic ? selectedPedido.solicitud_id : firstRep?.solicitud_id,
+                                      solicitudTargetId: firstRep?.id || item.solicitud_target_id,
+                                      clientName: selectedPedido.client?.trade_name || selectedPedido.client?.legal_name || 'Cliente',
+                                      obraLocation: [selectedPedido.client_site?.name, selectedPedido.client_site?.city].filter(Boolean).join(' - ') || 'Obra',
+                                      jobFunctionId: firstRep?.target_job_function_id || item.job_function_id,
+                                      jobFunctionName: targetProfileName,
+                                      quantityRequested: item.quantity_requested || 1,
+                                      quantityFulfilled: effectiveFulfilled,
+                                      tarifaReferencia: item.base_cost_hour_snapshot ? Number(item.base_cost_hour_snapshot) : undefined,
+                                    });
+                                  }}
+                                  className="h-8 text-xs font-bold gap-1 border-purple-300 bg-purple-50/60 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/40 dark:text-purple-300"
+                                  title="Filtrar Ex-Colaboradores MCS e +4.444 Currículos para esta função e gerenciar entrevistas"
+                                >
+                                  <Sparkles className="h-3.5 w-3.5" />
+                                  Match & Entrevistas
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  disabled={isItemFulfilled || isPaused}
+                                  onClick={() => handleOpenAllocateDialog(item)}
+                                  title={isPaused ? "Pedido pausado. Reanude o pedido na Torre de Controle para contratar." : undefined}
+                                  className={`h-8 text-xs font-semibold ${
+                                    isPaused
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 cursor-not-allowed'
+                                      : isItemFulfilled 
+                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed dark:bg-slate-800 dark:text-slate-600'
+                                        : isReplacement
+                                          ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
+                                          : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm'
+                                  }`}
+                                >
+                                  {isPaused ? (
+                                    <>
+                                      <PauseCircle className="mr-1.5 h-3.5 w-3.5" />
+                                      Pausado
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                                      {isItemFulfilled ? 'Substituído' : isReplacement ? '+ Substituir' : '+ Contratar'}
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             );
                           })()}
                         </div>
@@ -1453,6 +1567,29 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           refetchAllocations();
           refetchReplacementTargets();
         }}
+      />
+
+      <SmartMatchDrawer
+        isOpen={!!smartMatchContext}
+        onClose={() => setSmartMatchContext(null)}
+        context={smartMatchContext}
+        inactiveWorkers={inactiveWorkersList}
+        externalCandidates={externalCvsList}
+        interviews={allInterviewsList}
+        onRefreshInterviews={refetchInterviewsList}
+        onHireCandidate={(candidate, ctx) => {
+          setSmartMatchContext(null);
+          const targetItem = selectedPedido?.pedido_items?.find((i: any) => i.id === ctx.pedidoItemId) || selectedPedido?.pedido_items?.[0];
+          if (targetItem) {
+            handleOpenAllocateDialog(targetItem, candidate);
+          }
+        }}
+      />
+
+      <JobBroadcastModal
+        isOpen={isBroadcastModalOpen}
+        onClose={() => setIsBroadcastModalOpen(false)}
+        initialData={broadcastModalData}
       />
     </div>
   );

@@ -17,7 +17,8 @@ import {
     Lock,
     Car,
     ShieldCheck,
-    BarChart3
+    BarChart3,
+    UserPlus
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -114,6 +115,15 @@ const MODULES: ModuleDef[] = [
         color: 'text-indigo-500',
         bgHover: 'hover:bg-indigo-50',
         allowedRoles: ['admin', 'operacoes', 'rh']
+    },
+    {
+        id: 'contratacao',
+        title: 'MCS Contratação',
+        icon: UserPlus,
+        path: '/contratacao',
+        color: 'text-emerald-400',
+        bgHover: 'hover:bg-emerald-50',
+        allowedRoles: ['admin', 'admin_rh', 'operacoes', 'rh']
     },
     {
         id: 'rrhh',

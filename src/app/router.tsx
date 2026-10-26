@@ -94,6 +94,8 @@ import { ComercialTasksPage } from '../features/comercial/pages/ComercialTasksPa
 import { HiringDashboardPage } from '../features/personal/contratacao/HiringDashboardPage';
 import { HiringReportPage } from '../features/personal/contratacao/HiringReportPage';
 import { AssignmentsPage } from '../features/personal/assignments/AssignmentsPage';
+import { ContratacaoLayout } from '../features/personal/contratacao/layout/ContratacaoLayout';
+import { RecruitmentCenterPage } from '../features/personal/contratacao/RecruitmentCenterPage';
 import { RhTasksPage } from '../features/workers/pages/RhTasksPage';
 import { LogisticaTasksPage } from '../features/logistica/pages/LogisticaTasksPage';
 import { DocumentacionTasksPage } from '../features/documents/pages/DocumentacionTasksPage';
@@ -566,6 +568,44 @@ export const router = createBrowserRouter([
                 ]
             },
             {
+                path: '/contratacao',
+                element: <ContratacaoLayout />,
+                children: [
+                    {
+                        index: true,
+                        element: <Navigate to="/contratacao/vagas" replace />
+                    },
+                    {
+                        path: 'vagas',
+                        element: <HiringDashboardPage />
+                    },
+                    {
+                        path: 'entrevistas',
+                        element: <RecruitmentCenterPage />
+                    },
+                    {
+                        path: 'baixas-radar',
+                        element: <RecruitmentCenterPage />
+                    },
+                    {
+                        path: 'curriculos',
+                        element: <RecruitmentCenterPage />
+                    },
+                    {
+                        path: 'divulgacao',
+                        element: <RecruitmentCenterPage />
+                    },
+                    {
+                        path: 'alocados',
+                        element: <AssignmentsPage />
+                    },
+                    {
+                        path: 'relatorio',
+                        element: <HiringReportPage />
+                    }
+                ]
+            },
+            {
                 path: '/operacoes',
                 element: <OperacoesLayout />,
                 children: [
@@ -615,15 +655,15 @@ export const router = createBrowserRouter([
                     },
                     {
                         path: 'personal/contratacao',
-                        element: <HiringDashboardPage />
+                        element: <Navigate to="/contratacao/vagas" replace />
                     },
                     {
                         path: 'personal/assignments',
-                        element: <AssignmentsPage />
+                        element: <Navigate to="/contratacao/alocados" replace />
                     },
                     {
                         path: 'personal/contratacoes',
-                        element: <HiringReportPage />
+                        element: <Navigate to="/contratacao/relatorio" replace />
                     },
                     {
                         path: 'documentos',

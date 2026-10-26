@@ -158,6 +158,28 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       } else {
         setPlannedEndDate('');
       }
+      const preFilled = (position as any)?.preFilledCandidate;
+      if (preFilled) {
+        if (preFilled.sourceType === 'internal_worker' && preFilled.workerId) {
+          setMode('existing');
+          setSelectedWorkerId(preFilled.workerId);
+          setSearchWorker(preFilled.candidateName || '');
+        } else {
+          setMode('new');
+          setWorkerName(preFilled.candidateName || '');
+          setWorkerDocument(preFilled.candidateDocument || '');
+          setMovil(preFilled.candidatePhone || '');
+          setLicenciaConducir(preFilled.licenciaConducir || '');
+          setCamiseta(preFilled.camiseta || '');
+          setPantalones(preFilled.pantalones || '');
+        }
+        if (preFilled.tarifaAcordada) setTarifaAcordada(Number(preFilled.tarifaAcordada).toFixed(2));
+        if (preFilled.notes) setNotes(preFilled.notes);
+      }
+      if (true) {
+      } else {
+        setPlannedEndDate('');
+      }
     }
   }, [isOpen, position]);
   
@@ -328,7 +350,15 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
         job_function_name: position.job_function_name || undefined
       },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
+          const interviewId = (position as any)?.preFilledCandidate?.interviewId;
+          if (interviewId) {
+            await supabase.schema('core_personal').from('hiring_interviews').update({ stage: 'hired', updated_at: new Date().toISOString() }).eq('id', interviewId);
+          }
+          onClose();
+        },
+        onError: () => {},
+        onSettled: () => { if (false)
           onClose();
         }
       }

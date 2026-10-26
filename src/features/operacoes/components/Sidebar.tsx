@@ -85,9 +85,6 @@ export const Sidebar: React.FC = () => {
           <>
             <SectionLabel label="Personal / RH & Documentos" />
             <div className="space-y-1">
-              <NavItem to="/operacoes/personal/contratacao" icon={UserCog} label="Contratação Inicial" />
-              <NavItem to="/operacoes/personal/assignments" icon={Users} label="Trabalhadores Alocados" />
-              <NavItem to="/operacoes/personal/contratacoes" icon={FileSpreadsheet} label="Controle de Contratações" />
               <NavItem to="/operacoes/documentos" icon={FileText} label="Gerador de Documentos (.docx)" />
             </div>
           </>
