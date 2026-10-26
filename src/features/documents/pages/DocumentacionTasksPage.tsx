@@ -2851,16 +2851,26 @@ Muchas gracias.`;
                                                         Ao alterar a data de início, a data final é calculada automaticamente (+15 dias), mas você pode editá-las livremente (inclusive retroativo).
                                                     </p>
                                                 </div>
-                                                <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900">
-                                                    Prazo: {getDaysDiff(rescisaoStartDate, rescisaoEndDate)} dias corridos
-                                                </Badge>
+                                                <div className="flex items-center gap-2">
+                                                    <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900">
+                                                        Prazo: {getDaysDiff(rescisaoStartDate, rescisaoEndDate)} dias corridos
+                                                    </Badge>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setRescisaoEndDate(addDaysToIso(rescisaoStartDate, 15))}
+                                                        className="text-xs px-2.5 py-1 rounded-md border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 font-semibold transition-colors"
+                                                        title="Recalcular +15 dias a partir da data de início"
+                                                    >
+                                                        Resetar +15d
+                                                    </button>
+                                                </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                                <div className="flex flex-col gap-1.5">
-                                                    <div className="flex items-center justify-between h-5">
-                                                        <Label className="text-xs font-semibold leading-none">Data da Solicitação / Carta</Label>
-                                                    </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        Data da Solicitação / Carta
+                                                    </Label>
                                                     <Input
                                                         type="date"
                                                         value={rescisaoRequestDate}
@@ -2872,14 +2882,14 @@ Muchas gracias.`;
                                                                 setRescisaoEndDate(addDaysToIso(val, 15));
                                                             }
                                                         }}
-                                                        className="bg-white dark:bg-slate-900 h-10 text-sm font-medium"
+                                                        className="h-10 text-sm font-medium bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                                                     />
                                                 </div>
 
-                                                <div className="flex flex-col gap-1.5">
-                                                    <div className="flex items-center justify-between h-5">
-                                                        <Label className="text-xs font-semibold leading-none">Início do Aviso Prévio</Label>
-                                                    </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        Início do Aviso Prévio
+                                                    </Label>
                                                     <Input
                                                         type="date"
                                                         value={rescisaoStartDate}
@@ -2890,27 +2900,19 @@ Muchas gracias.`;
                                                                 setRescisaoEndDate(addDaysToIso(val, 15));
                                                             }
                                                         }}
-                                                        className="bg-white dark:bg-slate-900 h-10 text-sm font-medium"
+                                                        className="h-10 text-sm font-medium bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                                                     />
                                                 </div>
 
-                                                <div className="flex flex-col gap-1.5">
-                                                    <div className="flex items-center justify-between h-5 gap-2">
-                                                        <Label className="text-xs font-semibold leading-none whitespace-nowrap">Fim do Aviso Prévio (+15d)</Label>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setRescisaoEndDate(addDaysToIso(rescisaoStartDate, 15))}
-                                                            className="text-xs text-rose-600 dark:text-rose-400 hover:underline font-semibold leading-none whitespace-nowrap shrink-0"
-                                                            title="Recalcular +15 dias a partir da data de início"
-                                                        >
-                                                            Resetar +15d
-                                                        </button>
-                                                    </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        Fim do Aviso Prévio (+15d)
+                                                    </Label>
                                                     <Input
                                                         type="date"
                                                         value={rescisaoEndDate}
                                                         onChange={(e) => setRescisaoEndDate(e.target.value)}
-                                                        className="bg-white dark:bg-slate-900 h-10 text-sm font-medium"
+                                                        className="h-10 text-sm font-medium bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                                                     />
                                                 </div>
                                             </div>
