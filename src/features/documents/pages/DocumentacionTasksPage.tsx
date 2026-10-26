@@ -973,46 +973,61 @@ Muchas gracias.`;
         }
     };
 
-    // 3. Carregar Trabalhadores para o Combobox
-    const loadWorkersForEmpresa = async (empresaId: string, specificWorkerId?: string) => {
-        if (!empresaId) return;
+    // 3. Carregar Trabalhadores para o Combobox (sempre carrega todos os trabalhadores do grupo sem duplicatas)
+    const loadWorkersForEmpresa = async (_empresaId?: string | null, specificWorkerId?: string) => {
+        const HOLDING_ID = 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
         try {
             const res = await listWorkers({
-                empresaId: empresaId,
+                empresaId: HOLDING_ID,
                 page: 1,
-                pageSize: 1000,
+                pageSize: 5000,
             });
-            res.data.forEach(w => {
-                if (w.id) workersCacheRef.current.set(w.id, w);
-            });
-            let options = res.data.map(w => ({
-                value: w.id || '',
-                label: `${w.nome} (${w.cod_colab || 'Sem Cód.'})`
-            }));
+            const seenIds = new Set<string>();
+            const seenCodes = new Set<string>();
+            const options: { value: string; label: string }[] = [];
 
-            const targetWorkerId = specificWorkerId || selectedWorkerId;
+            res.data.forEach(w => {
+                if (!w.id) return;
+                workersCacheRef.current.set(w.id, w);
+                if (seenIds.has(w.id)) return;
+                const codeKey = w.cod_colab ? w.cod_colab.trim().toUpperCase() : '';
+                if (codeKey && seenCodes.has(codeKey)) return;
+                seenIds.add(w.id);
+                if (codeKey) seenCodes.add(codeKey);
+
+                const companySuffix = w.contratante ? ` · ${w.contratante}` : '';
+                options.push({
+                    value: w.id,
+                    label: `${w.nome} (${w.cod_colab || 'Sem Cód.'})${companySuffix}`
+                });
+            });
+
+            const targetWorkerId = specificWorkerId || selectedWorkerId || rescisaoWorkerId;
             if (targetWorkerId && !options.some(o => o.value === targetWorkerId)) {
                 const { data: sw } = await supabase
                     .schema('core_personal')
                     .from('workers')
-                    .select('id, nome, cod_colab')
+                    .select('id, nome, cod_colab, contratante')
                     .eq('id', targetWorkerId)
                     .maybeSingle();
                 if (sw) {
-                    options = [{ value: sw.id, label: `${sw.nome} (${sw.cod_colab || 'Sem Cód.'})` }, ...options];
+                    const companySuffix = sw.contratante ? ` · ${sw.contratante}` : '';
+                    options.unshift({
+                        value: sw.id,
+                        label: `${sw.nome} (${sw.cod_colab || 'Sem Cód.'})${companySuffix}`
+                    });
                 }
             }
 
             setRequestWorkersList(options);
             setWorkersList(options);
         } catch (err) {
-            console.error("Erro ao carregar trabalhadores da empresa:", err);
+            console.error("Erro ao carregar trabalhadores:", err);
         }
     };
 
     const loadWorkers = async () => {
-        const targetEmpresa = activeEmpresaId || requestEmpresaId;
-        await loadWorkersForEmpresa(targetEmpresa);
+        await loadWorkersForEmpresa('bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d');
     };
 
     // Carregar Lista de Clientes Ativos (com Código e filtro por Empresa)
@@ -1179,9 +1194,7 @@ Muchas gracias.`;
         setRescisaoWorkerDetails(null);
         setRescisaoContratante(prefillContratante || resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
         setRescisaoDialogOpen(true);
-        if (workersList.length === 0) {
-            loadWorkers();
-        }
+        loadWorkers();
         if (prefillWorkerId) {
             handleSelectRescisaoWorker(prefillWorkerId);
         }

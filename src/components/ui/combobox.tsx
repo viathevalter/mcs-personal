@@ -5,7 +5,6 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
     Command,
-    CommandEmpty,
     CommandGroup,
     CommandInput,
     CommandItem,
@@ -27,6 +26,13 @@ export interface ComboboxProps {
     popoverClassName?: string;
 }
 
+const normalizeSearchText = (text: string): string =>
+    (text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
 export function Combobox({
     options,
     value,
@@ -45,13 +51,30 @@ export function Combobox({
         }
     }, [open]);
 
+    const uniqueOptions = React.useMemo(() => {
+        const seenValues = new Set<string>();
+        const seenLabels = new Set<string>();
+        const result: { value: string; label: string }[] = [];
+        for (const opt of options) {
+            if (!opt.value || seenValues.has(opt.value)) continue;
+            const normLabel = normalizeSearchText(opt.label);
+            if (seenLabels.has(normLabel)) continue;
+            seenValues.add(opt.value);
+            seenLabels.add(normLabel);
+            result.push(opt);
+        }
+        return result;
+    }, [options]);
+
     const filteredOptions = React.useMemo(() => {
-        if (!search) return options;
-        const searchLower = search.toLowerCase();
-        return options.filter(option => 
-            option.label.toLowerCase().includes(searchLower)
-        );
-    }, [options, search]);
+        const normSearch = normalizeSearchText(search);
+        if (!normSearch) return uniqueOptions;
+        const tokens = normSearch.split(/\s+/).filter(Boolean);
+        return uniqueOptions.filter(option => {
+            const normLabel = normalizeSearchText(option.label);
+            return tokens.every(token => normLabel.includes(token));
+        });
+    }, [uniqueOptions, search]);
 
     return (
         <Popover open={open} onOpenChange={setOpen}>
@@ -64,16 +87,16 @@ export function Combobox({
                 >
                     <span className="truncate mr-2 text-left flex-1 text-foreground">
                         {value
-                            ? options.find((option) => option.value === value)?.label
+                            ? uniqueOptions.find((option) => option.value === value)?.label || options.find((option) => option.value === value)?.label
                             : placeholder}
                     </span>
                     <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50 text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className={cn("w-[var(--radix-popover-trigger-width)] min-w-[280px] p-0 shadow-lg border-slate-200 dark:border-slate-800", popoverClassName)} align="start">
-                <Command filter={() => 1}>
+                <Command shouldFilter={false}>
                     <CommandInput 
-                        placeholder="Buscar..." 
+                        placeholder="Buscar por nome, código ou empresa..." 
                         value={search}
                         onValueChange={setSearch}
                     />
@@ -85,7 +108,7 @@ export function Combobox({
                             {filteredOptions.map((option) => (
                                 <CommandItem
                                     key={option.value}
-                                    value={`${option.label} ${option.value}`.toLowerCase()}
+                                    value={option.value}
                                     onSelect={() => {
                                         onChange(option.value === value ? null : option.value)
                                         setOpen(false)
