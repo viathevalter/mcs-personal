@@ -289,7 +289,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           reason,
           notes,
           solicitud_id, 
-          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id, pergunta_respuesta)
+          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id, pergunta_respuesta, tipo, status)
         `)
         .in('action_type', ['replace', 'offboard'])
         .in('status', ['pending', 'in_progress', 'completed']);
@@ -306,8 +306,8 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       }
       
       const targets = (data || []).filter((t: any) => 
-        t.action_type === 'replace' || 
-        (t.action_type === 'offboard' && t.requires_replacement === true)
+        (t.action_type === 'replace' || 
+        (t.action_type === 'offboard' && t.requires_replacement === true)) && t.solicitud?.status !== 'cancelled' && (!t.solicitud?.tipo || t.solicitud.tipo === 'replacement' || t.solicitud.tipo === 'offboarding')
       );
 
       const workerIds = [...new Set(targets.map((t: any) => t.source_worker_id).filter(Boolean))];
@@ -506,7 +506,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         reqQty += item.quantity_requested || 0;
         const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress')).length;
         if (repCount > 0) hasReplacement = true;
-        fulQty += Math.max(0, (item.quantity_fulfilled || 0) - repCount);
+        fulQty += Math.max(0, (item.status === 'fulfilled' ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0) : (item.quantity_fulfilled || 0)) - repCount);
       });
     }
 
@@ -1052,7 +1052,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                     const firstRep = itemReplacements[0] || (selectedPedido.isSynthetic ? replacementTargets.find(t => t.id === item.solicitud_target_id) : undefined);
                     const effectiveFulfilled = selectedPedido.isSynthetic 
                       ? (item.quantity_fulfilled || 0)
-                      : Math.max(0, (item.quantity_fulfilled || 0) - repCount);
+                      : Math.max(0, (item.status === 'fulfilled' ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0) : (item.quantity_fulfilled || 0)) - repCount);
                     const isItemFulfilled = effectiveFulfilled >= (item.quantity_requested || 0);
                     const progress = item.quantity_requested > 0 
                       ? Math.min(100, Math.round((effectiveFulfilled / item.quantity_requested) * 100))
