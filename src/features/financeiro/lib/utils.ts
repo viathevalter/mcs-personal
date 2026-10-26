@@ -219,6 +219,7 @@ export const normalizeEmpresaName = (raw?: string | null): string => {
   if (upper.includes('STOCCO')) return 'STOCCO';
   if (upper.includes('WISEOWE')) return 'WISEOWE';
   if (upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO')) return 'TRIANGULO';
+  if (upper.includes('HEXAGON') || upper === 'HEX') return 'HEXAGON';
   if (upper.includes('KOTRIK')) return 'KOTRIK';
   if (upper.includes('ROSAS')) return 'ROSAS';
   if (upper.includes('GENIO') || upper.includes('GÊNIO')) return 'GENIO';

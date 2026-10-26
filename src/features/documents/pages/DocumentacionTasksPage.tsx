@@ -146,6 +146,7 @@ export const resolveContratanteOption = (empresaIdOrName?: string | null): strin
     if (str === 'a798620a-358a-4c6c-9db2-3a507c583cac' || upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO')) {
         return 'TRIANGULO';
     }
+    if (upper.includes('HEXAGON') || upper === 'HEX' || str === '2c944db5-f1d0-4789-a562-8cfa1c0155b7') return 'HEXAGON';
     if (upper.includes('MASTERCORP')) {
         return 'MASTERCORP PORTUGAL UNIPESSOAL LDA';
     }
@@ -2319,6 +2320,8 @@ Muchas gracias.`;
                                                     <SelectItem value="441f1f5d-aed3-40e3-8c77-7b1217757251">Stocco, Lda</SelectItem>
                                                     <SelectItem value="847796c4-b253-4e53-9e6b-34a127ec7d85">Luminous Capital Unipessoal Lda</SelectItem>
                                                     <SelectItem value="a798620a-358a-4c6c-9db2-3a507c583cac">Triângulo</SelectItem>
+                                                <SelectItem value="2c944db5-f1d0-4789-a562-8cfa1c0155b7">Hexagon</SelectItem>
+
                                                     <SelectItem value="f5d32323-4d68-4a54-8fb8-0ba670dcaecf">Kotrik & Rosas</SelectItem>
                                                 </SelectContent>
                                             </Select>
@@ -2422,6 +2425,7 @@ Muchas gracias.`;
                                                 <SelectItem value="441f1f5d-aed3-40e3-8c77-7b1217757251">Stocco, Lda</SelectItem>
                                                 <SelectItem value="847796c4-b253-4e53-9e6b-34a127ec7d85">Luminous Capital Unipessoal Lda</SelectItem>
                                                 <SelectItem value="a798620a-358a-4c6c-9db2-3a507c583cac">Triângulo</SelectItem>
+                                                <SelectItem value="2c944db5-f1d0-4789-a562-8cfa1c0155b7">Hexagon</SelectItem>
                                                 <SelectItem value="f5d32323-4d68-4a54-8fb8-0ba670dcaecf">Kotrik & Rosas</SelectItem>
                                             </SelectContent>
                                         </Select>
@@ -2557,6 +2561,8 @@ Muchas gracias.`;
                                                     <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
                                                     <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
                                                     <SelectItem value="TRIANGULO">Triangulo</SelectItem>
+                                            <SelectItem value="HEXAGON">Hexagon</SelectItem>
+
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -2736,6 +2742,7 @@ Muchas gracias.`;
                                                         <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
                                                         <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
                                                         <SelectItem value="TRIANGULO">Triângulo (TRI)</SelectItem>
+                                                        <SelectItem value="HEXAGON">Hexagon (HEX)</SelectItem>
                                                         <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
                                                     </SelectContent>
                                                 </Select>
@@ -3853,6 +3860,7 @@ Muchas gracias.`;
                                             <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
                                             <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital</SelectItem>
                                             <SelectItem value="TRIANGULO">Triângulo</SelectItem>
+                                            <SelectItem value="HEXAGON">Hexagon</SelectItem>
                                             <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -4057,6 +4065,7 @@ Muchas gracias.`;
                                             <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
                                             <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
                                             <SelectItem value="TRIANGULO">Triangulo</SelectItem>
+                                            <SelectItem value="HEXAGON">Hexagon</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

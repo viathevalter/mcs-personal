@@ -4329,6 +4329,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <option value="LUMINOUS">LUMINOUS</option>
                         <option value="STOCCO">STOCCO</option>
                         <option value="WISEOWE">WISEOWE</option>
+                        <option value="TRIANGULO">TRIANGULO</option>
+                        <option value="HEXAGON">HEXAGON</option>
                         <option value="KOTRIK">KOTRIK</option>
                       </select>
                     </div>
@@ -4520,6 +4522,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <option value="LUMINOUS">LUMINOUS</option>
                         <option value="STOCCO">STOCCO</option>
                         <option value="WISEOWE">WISEOWE</option>
+                        <option value="TRIANGULO">TRIANGULO</option>
+                        <option value="HEXAGON">HEXAGON</option>
                         <option value="KOTRIK">KOTRIK</option>
                       </select>
                     </div>

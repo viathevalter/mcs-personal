@@ -8,6 +8,7 @@ export const CANONICAL_EMPRESAS = [
     'LUMINOUS',
     'STOCCO',
     'TRIANGULO',
+    'HEXAGON',
     'KOTRIK & ROSAS',
     'GENIO',
     'SANTIFER'
@@ -23,6 +24,7 @@ export type CanonicalEmpresa = typeof CANONICAL_EMPRESAS[number];
  *  - "LUMINOUS ALLEY, UNIPESSOAL LDA" -> "LUMINOUS"
  *  - "Stocco, Lda" -> "STOCCO"
  *  - "Triangulo Matizado, Unipessoal LDA" -> "TRIANGULO"
+ *  - "HEXAGON MONTAJES INDUSTRIALES, S.L." -> "HEXAGON"
  */
 export function normalizeEmpresaName(raw?: string | null): string {
     if (!raw) return '';
@@ -32,6 +34,7 @@ export function normalizeEmpresaName(raw?: string | null): string {
     if (upper.includes('LUMINOUS') || upper.includes('LUMINUS')) return 'LUMINOUS';
     if (upper.includes('STOCCO')) return 'STOCCO';
     if (upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO')) return 'TRIANGULO';
+    if (upper.includes('HEXAGON') || upper === 'HEX') return 'HEXAGON';
     if (upper.includes('KOTRIK') || upper.includes('ROSAS')) return 'KOTRIK & ROSAS';
     if (upper.includes('GENIO') || upper.includes('GÊNIO')) return 'GENIO';
     if (upper.includes('SANTIFER') || upper.includes('SANTFER')) return 'SANTIFER';

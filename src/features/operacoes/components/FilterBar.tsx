@@ -13,7 +13,7 @@ interface FilterBarProps {
 
 export const FilterBar: React.FC<FilterBarProps> = ({ filters, setFilters, clients = [], sellers = [], countries = [] }) => {
   const { t } = useLanguage();
-  const empresas = ['Stocco', 'Wiseowe', 'Luminous', 'Triangulo', 'Kotrik Rosas', 'KR Industrial', 'Magentecho'];
+  const empresas = ['Stocco', 'Wiseowe', 'Luminous', 'Triangulo', 'Hexagon', 'Kotrik Rosas', 'KR Industrial', 'Magentecho'];
   
   const statusOptions = [
     { value: 'draft', label: 'Rascunho' },

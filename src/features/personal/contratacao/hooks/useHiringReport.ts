@@ -175,6 +175,7 @@ export function formatStandardContratante(rawName: string | null | undefined): s
   if (lower.includes('wiseowe')) return 'Wiseowe';
   if (lower.includes('stocco')) return 'Stocco';
   if (lower.includes('triangulo')) return 'Triangulo';
+  if (lower.includes('hexagon') || lower === 'hex') return 'Hexagon';
   if (lower.includes('rosas') || lower.includes('kotrik')) return 'Kotrik & Rosas';
 
   return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();

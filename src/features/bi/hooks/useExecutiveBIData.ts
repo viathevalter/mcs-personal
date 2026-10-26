@@ -84,6 +84,7 @@ export function normalizeStandardCompany(raw?: string | null): string {
   if (lower.includes('wiseowe')) return 'Wiseowe';
   if (lower.includes('stocco')) return 'Stocco';
   if (lower.includes('triangulo') || lower.includes('triângulo')) return 'Triangulo';
+  if (lower.includes('hexagon') || lower === 'hex') return 'Hexagon';
   if (lower.includes('rosas') || lower.includes('kotrik')) return 'Kotrik & Rosas';
   if (lower.includes('login')) return 'Login Pro';
   return raw.trim();
@@ -318,7 +319,7 @@ export function useExecutiveBIData(filters: BIFilters) {
       baixasDesistencias: 0,
     }));
 
-    const uniqueEmpresas = new Set<string>(['Luminous', 'Wiseowe', 'Stocco', 'Triangulo', 'Kotrik & Rosas']);
+    const uniqueEmpresas = new Set<string>(['Luminous', 'Wiseowe', 'Stocco', 'Triangulo', 'Hexagon', 'Kotrik & Rosas']);
     const uniqueVendedores = new Set<string>();
     const uniqueClientes = new Set<string>();
 

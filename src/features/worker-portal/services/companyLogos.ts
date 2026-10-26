@@ -19,6 +19,11 @@ export const COMPANY_LOGOS: Record<string, { name: string; logoUrl: string; nif?
         logoUrl: 'https://unbepkdzvsfvylnysrcq.supabase.co/storage/v1/object/public/company-logos/public/logo-1784273204626.png',
         nif: '518599280'
     },
+    HEXAGON: {
+        name: 'HEXAGON MONTAJES INDUSTRIALES, S.L.',
+        logoUrl: '/logo_mcs_transparent.png',
+        nif: 'B05688197'
+    },
     KOTRIK: {
         name: 'Kotrik Industrial, LDA',
         logoUrl: '/logo_mcs_transparent.png',
@@ -40,6 +45,9 @@ export function getCompanyBranding(companyName?: string) {
     }
     if (upper.includes('WISEOWE') || upper === 'WIS') {
         return COMPANY_LOGOS.WISEOWE;
+    }
+    if (upper.includes('HEXAGON') || upper === 'HEX') {
+        return COMPANY_LOGOS.HEXAGON;
     }
     if (upper.includes('KOTRIK') || upper === 'KOR') {
         return COMPANY_LOGOS.KOTRIK;

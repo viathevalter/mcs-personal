@@ -131,6 +131,8 @@ const getContratanteBadgeClass = (contratante?: string | null) => {
         return 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30';
     } else if (upper.includes('STOCCO')) {
         return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+    } else if (upper.includes('HEXAGON') || upper === 'HEX') {
+        return 'bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border-cyan-500/30';
     } else if (upper.includes('LOGIN')) {
         return 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30';
     }

@@ -67,6 +67,8 @@ serve(async (req) => {
           empresa_id = "847796c4-b253-4e53-9e6b-34a127ec7d85";
         } else if (upperContr.includes("TRIANGULO") || upperContr.includes("TRI - TRIANGULO")) {
           empresa_id = "a798620a-358a-4c6c-9db2-3a507c583cac";
+        } else if (upperContr.includes("HEXAGON") || upperContr === "HEX") {
+          empresa_id = "2c944db5-f1d0-4789-a562-8cfa1c0155b7";
         } else {
           empresa_id = "dae64d51-2181-4510-b14f-e63d2f111a8e";
         }
@@ -251,9 +253,14 @@ serve(async (req) => {
     console.log(`Baixando template do Storage: ${templateFileName}`);
 
     // 3. Download do template do Supabase Storage
-    const { data: templateBlob, error: downloadErr } = await supabase.storage
+    let { data: templateBlob, error: downloadErr } = await supabase.storage
       .from("contract-templates")
       .download(templateFileName);
+    if ((downloadErr || !templateBlob) && upperContratante !== "STOCCO") {
+      const fb = templateFileName.replace(contratante, "STOCCO").replace(upperContratante, "STOCCO");
+      const fbRes = await supabase.storage.from("contract-templates").download(fb);
+      if (fbRes.data && !fbRes.error) { templateBlob = fbRes.data; downloadErr = null; }
+    }
 
     if (downloadErr || !templateBlob) {
       throw new Error(`Falha ao baixar template do storage (${templateFileName}): ${downloadErr?.message}`);
