@@ -22,7 +22,18 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    let { worker_id, assignment_id, contratante, contract_type, empresa_id } = await req.json();
+    let {
+      worker_id,
+      assignment_id,
+      contratante,
+      contract_type,
+      empresa_id,
+      request_date,
+      notice_start_date,
+      notice_end_date,
+      effective_date,
+      worker_updates,
+    } = await req.json();
 
     if (!worker_id || !contratante || !contract_type) {
       return new Response(
@@ -68,6 +79,25 @@ serve(async (req) => {
 
     if (workerErr || !worker) {
       throw new Error(`Trabalhador não encontrado: ${workerErr?.message}`);
+    }
+
+    // Atualizar documentos do trabalhador se informados manualmente no modal
+    if (worker_updates && typeof worker_updates === "object") {
+      const allowedFields = ["pasaporte", "nif", "niss", "dni", "nie"];
+      const validUpdates: Record<string, string> = {};
+      for (const field of allowedFields) {
+        if (typeof worker_updates[field] === "string" && worker_updates[field].trim() !== "") {
+          validUpdates[field] = worker_updates[field].trim();
+        }
+      }
+      if (Object.keys(validUpdates).length > 0) {
+        await supabase
+          .schema("core_personal")
+          .from("workers")
+          .update(validUpdates)
+          .eq("id", worker_id);
+        Object.assign(worker, validUpdates);
+      }
     }
 
     // Validar se o trabalhador possui ao menos um documento de identificação cadastrado para emissão do contrato
@@ -313,8 +343,47 @@ serve(async (req) => {
       return dateStr;
     };
 
+    const addDaysIso = (isoStr: string, days: number) => {
+      const m = isoStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (!m) return isoStr;
+      const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      d.setUTCDate(d.getUTCDate() + days);
+      return d.toISOString().split("T")[0];
+    };
+
+    const formatSpanishDateLong = (isoStr?: string | null) => {
+      const monthsES = [
+        "enero", "febrero", "marzo", "abril", "mayo", "junio",
+        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"
+      ];
+      if (isoStr) {
+        const m = isoStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (m) {
+          const day = parseInt(m[3], 10);
+          const monthIdx = parseInt(m[2], 10) - 1;
+          const year = m[1];
+          return `${day} de ${monthsES[monthIdx] || ""} de ${year}`;
+        }
+      }
+      return new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" });
+    };
+
+    const todayIso = new Date().toISOString().split("T")[0];
+    const reqDateIso = request_date || notice_start_date || todayIso;
+    const noticeStartIso = notice_start_date || reqDateIso;
+    const noticeEndIso = notice_end_date || addDaysIso(noticeStartIso, 15);
+    const effectiveIso = effective_date || noticeStartIso;
+
+    const reqDateFormatted = formatDate(reqDateIso);
+    const noticeStartFormatted = formatDate(noticeStartIso);
+    const noticeEndFormatted = formatDate(noticeEndIso);
+    const effectiveFormatted = formatDate(effectiveIso);
+    const dataCartaExtensoES = formatSpanishDateLong(reqDateIso);
+
     const documentDatePT = new Date().toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' });
-    const documentDateES = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
+    const documentDateES = contract_type === "rescisao"
+      ? dataCartaExtensoES
+      : new Date().toLocaleDateString('es-ES', { day: '2-digit', month: 'long', year: 'numeric' });
 
     function xmlEscape(str: string): string {
       if (!str) return '';
@@ -331,6 +400,12 @@ serve(async (req) => {
     const workerAddress = worker.morada_contrato || worker.address_line || worker.morada || worker.direccion || worker.location || "";
     const workerPassport = worker.pasaporte || worker.passaporte || worker.dni || worker.nie || worker.nif || "";
     const workerBirthDate = formatDate(worker.fecha_nacimiento);
+
+    const docParts: string[] = [];
+    if (workerPassport) docParts.push(`PASAPORTE: ${workerPassport}`);
+    if (worker.nif && worker.nif.trim() !== "") docParts.push(`NIF: ${worker.nif.trim()}`);
+    if (worker.niss && worker.niss.trim() !== "") docParts.push(`NISS: ${worker.niss.trim()}`);
+    const linhaDocumentos = docParts.join("   ");
 
     try {
       console.log("Iniciando pre-processamento com JSZip...");
@@ -377,6 +452,22 @@ serve(async (req) => {
         "data_inicio": formatDate(startDate),
         "Fecha_Assinatura_PT": documentDatePT,
         "Fecha_Assinatura_ESP": documentDateES,
+        "data_carta_extenso_es": dataCartaExtensoES,
+        "DATA_CARTA_EXTENSO_ES": dataCartaExtensoES,
+        "linha_documentos": linhaDocumentos,
+        "LINHA_DOCUMENTOS": linhaDocumentos,
+        "data_solicitacao": reqDateFormatted,
+        "DATA_SOLICITACAO": reqDateFormatted,
+        "fecha_solicitud": reqDateFormatted,
+        "data_inicio_aviso": noticeStartFormatted,
+        "DATA_INICIO_AVISO": noticeStartFormatted,
+        "fecha_inicio_preaviso": noticeStartFormatted,
+        "data_fim_aviso": noticeEndFormatted,
+        "DATA_FIM_AVISO": noticeEndFormatted,
+        "fecha_fin_preaviso": noticeEndFormatted,
+        "data_efeito": effectiveFormatted,
+        "DATA_EFEITO": effectiveFormatted,
+        "fecha_efecto": effectiveFormatted,
       };
 
       const bracketRegex = /\[(?:<[^>]+>|[^\]])*\]/g;
@@ -428,6 +519,9 @@ serve(async (req) => {
 
           // 3. Normalizar tags {{...}} divididas em múltiplos nós de XML do Word
           content = content.replace(/\{\s*(?:<[^>]+>)*\s*\{\s*(?:<[^>]+>)*\s*([\s\S]*?)\s*(?:<[^>]+>)*\s*\}\s*(?:<[^>]+>)*\s*\}/gi, (m, k) => '{{' + k.replace(/<[^>]+>/g, '').trim() + '}}');
+
+          // 3.5. Converter tags de assinatura em formato {{...}} para [ASSINATURA] compatível com sign-contract e preview
+          content = content.replace(/\{\{\s*(?:IMAGE\s+)?(?:firma_trabalhador|assinatura_trabalhador|assinatura|firma)\s*\}\}/gi, '[ASSINATURA]');
 
           // 4. Pré-substituir tags de colchetes [campo]
           content = content.replace(bracketRegex, (match) => {
@@ -501,6 +595,24 @@ serve(async (req) => {
       fecha_assinatura_es: documentDateES,
       Fecha_Assinatura_PT: documentDatePT,
       Fecha_Assinatura_ESP: documentDateES,
+
+      // Variáveis específicas da Carta de Rescisão
+      data_carta_extenso_es: dataCartaExtensoES,
+      DATA_CARTA_EXTENSO_ES: dataCartaExtensoES,
+      linha_documentos: linhaDocumentos,
+      LINHA_DOCUMENTOS: linhaDocumentos,
+      data_solicitacao: reqDateFormatted,
+      DATA_SOLICITACAO: reqDateFormatted,
+      fecha_solicitud: reqDateFormatted,
+      data_inicio_aviso: noticeStartFormatted,
+      DATA_INICIO_AVISO: noticeStartFormatted,
+      fecha_inicio_preaviso: noticeStartFormatted,
+      data_fim_aviso: noticeEndFormatted,
+      DATA_FIM_AVISO: noticeEndFormatted,
+      fecha_fin_preaviso: noticeEndFormatted,
+      data_efeito: effectiveFormatted,
+      DATA_EFEITO: effectiveFormatted,
+      fecha_efecto: effectiveFormatted,
     };
 
     console.log("Mesclando variáveis docx-templates no arquivo Word...");
@@ -538,10 +650,11 @@ serve(async (req) => {
     const otpExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Válido por 24 horas
 
     const isAlta = contract_type === "contrato_alta";
+    const isRescisao = contract_type === "rescisao";
     const status = isAlta ? "no_signature" : "pending_signature";
 
     // Inserir registro na tabela de contratos
-    const contractPayload = {
+    const contractPayload: Record<string, any> = {
       empresa_id: empresa_id || worker.empresa_id,
       worker_id: worker.id,
       assignment_id: assignment_id || null,
@@ -553,6 +666,16 @@ serve(async (req) => {
       otp_code: isAlta ? null : otpCode,
       otp_expires_at: isAlta ? null : otpExpiresAt.toISOString(),
       sent_at: isAlta ? null : new Date().toISOString(),
+      terminated_at: isRescisao ? `${noticeEndIso}T23:59:59.000Z` : null,
+      metadata: isRescisao
+        ? {
+            request_date: reqDateIso,
+            notice_start_date: noticeStartIso,
+            notice_end_date: noticeEndIso,
+            effective_date: effectiveIso,
+            notice_days: 15,
+          }
+        : {},
       created_by: null, // Pode ser preenchido se houver auth nas Edge Functions
     };
 
@@ -574,6 +697,29 @@ serve(async (req) => {
     if (!isAlta && resendApiKey && worker.email) {
       try {
         console.log(`Enviando e-mail de assinatura para: ${worker.email}`);
+        const emailSubject = isRescisao
+          ? `Firma de Carta de Rescisión - ${contratante}`
+          : `Assinatura de Contrato - ${contratante}`;
+        const emailHtml = isRescisao
+          ? `
+              <h2>Hola, ${worker.nome}!</h2>
+              <p>Su <strong>Solicitud de Rescisión de Contrato de Trabajo</strong> con la empresa <strong>${contratante}</strong> (preaviso del ${noticeStartFormatted} al ${noticeEndFormatted}) está lista para su firma electrónica.</p>
+              <p>Por favor, acceda al siguiente enlace para visualizar el documento y realizar la firma:</p>
+              <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar y Firmar Carta de Rescisión</a></p>
+              <br/>
+              <p>Su código de validación OTP es: <strong>${otpCode}</strong></p>
+              <p>Este enlace y código expiran en 24 horas.</p>
+            `
+          : `
+              <h2>Olá, ${worker.nome}!</h2>
+              <p>Seu contrato de trabalho com a empresa <strong>${contratante}</strong> está pronto para assinatura eletrônica.</p>
+              <p>Por favor, acesse o link abaixo para visualizar o contrato e realizar a assinatura:</p>
+              <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Assinar Contrato</a></p>
+              <br/>
+              <p>Seu código de validação OTP é: <strong>${otpCode}</strong></p>
+              <p>Este link e código expiram em 24 horas.</p>
+              <p>Se tiver alguma dúvida, entre em contato com o setor de RH.</p>
+            `;
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: {
@@ -583,17 +729,8 @@ serve(async (req) => {
           body: JSON.stringify({
             from: "Mastercorp Contratos <contratos@mastercorp.pt>",
             to: worker.email,
-            subject: `Assinatura de Contrato - ${contratante}`,
-            html: `
-              <h2>Olá, ${worker.nome}!</h2>
-              <p>Seu contrato de trabalho com a empresa <strong>${contratante}</strong> está pronto para assinatura eletrônica.</p>
-              <p>Por favor, acesse o link abaixo para visualizar o contrato e realizar a assinatura:</p>
-              <p><a href="${signingLink}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;font-weight:bold;">Visualizar e Assinar Contrato</a></p>
-              <br/>
-              <p>Seu código de validação OTP é: <strong>${otpCode}</strong></p>
-              <p>Este link e código expiram em 24 horas.</p>
-              <p>Se tiver alguma dúvida, entre em contato com o setor de RH.</p>
-            `,
+            subject: emailSubject,
+            html: emailHtml,
           }),
         });
 

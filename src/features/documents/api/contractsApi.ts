@@ -18,6 +18,13 @@ export interface Contract {
     sent_at: string | null;
     signed_at: string | null;
     terminated_at: string | null;
+    metadata?: {
+        request_date?: string;
+        notice_start_date?: string;
+        notice_end_date?: string;
+        effective_date?: string;
+        notice_days?: number;
+    } | null;
     created_at: string;
     updated_at: string;
     
@@ -341,6 +348,17 @@ export interface GenerateContractPayload {
     contratante: string;
     contract_type: string;
     empresa_id?: string;
+    request_date?: string;
+    notice_start_date?: string;
+    notice_end_date?: string;
+    effective_date?: string;
+    worker_updates?: {
+        pasaporte?: string;
+        nif?: string;
+        niss?: string;
+        dni?: string;
+        nie?: string;
+    };
 }
 
 export interface GenerateContractResponse {

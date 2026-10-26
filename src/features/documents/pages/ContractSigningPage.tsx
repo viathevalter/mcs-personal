@@ -683,7 +683,7 @@ export function ContractSigningPage() {
                         <FileText className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="font-bold text-lg leading-tight">{t('signing.headerContract')}</h1>
+                        <h1 className="font-bold text-lg leading-tight">{contract.contract_type === 'rescisao' ? 'Carta de Rescisão / Solicitud de Rescisión' : t('signing.headerContract')}</h1>
                         <p className="text-xs text-slate-400">{t('signing.subtitleContract')}</p>
                     </div>
                 </div>
@@ -823,6 +823,14 @@ export function ContractSigningPage() {
                                     <label className="text-slate-400 text-xs block">{t('signing.labelContractor')}</label>
                                     <span className="font-semibold text-slate-200 block">{contract.contratante}</span>
                                 </div>
+                                {contract.contract_type === 'rescisao' && contract.metadata?.notice_start_date && contract.metadata?.notice_end_date && (
+                                    <div className="pt-1 border-t border-slate-800/80">
+                                        <label className="text-amber-400 text-xs font-semibold block">Período de Preaviso (15 días)</label>
+                                        <span className="font-mono text-xs font-bold text-amber-300 block">
+                                            {contract.metadata.notice_start_date.split('-').reverse().join('/')} → {contract.metadata.notice_end_date.split('-').reverse().join('/')}
+                                        </span>
+                                    </div>
+                                )}
                                 <div>
                                     <label className="text-slate-400 text-xs block">{t('signing.labelRegisteredEmail')}</label>
                                     <span className="font-semibold text-slate-200 block">{contract.worker?.email}</span>

@@ -41,6 +41,32 @@ const formatHeaderDate = (dateStr?: string | null) => {
     }
 };
 
+const addDaysToIso = (isoStr: string, days: number): string => {
+    if (!isoStr) return '';
+    const m = isoStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return isoStr;
+    const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().split('T')[0];
+};
+
+const getDaysDiff = (startIso?: string | null, endIso?: string | null): number => {
+    if (!startIso || !endIso) return 15;
+    const m1 = startIso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const m2 = endIso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m1 || !m2) return 15;
+    const d1 = Date.UTC(Number(m1[1]), Number(m1[2]) - 1, Number(m1[3]));
+    const d2 = Date.UTC(Number(m2[1]), Number(m2[2]) - 1, Number(m2[3]));
+    return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+};
+
+const formatIsoToBr = (isoStr?: string | null): string => {
+    if (!isoStr) return '-';
+    const m = String(isoStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+    return isoStr;
+};
+
 const parseDateToInput = (dateStr?: string | null): string => {
     if (!dateStr) return '';
     const trimmed = String(dateStr).trim();
@@ -160,6 +186,36 @@ export function DocumentacionTasksPage() {
     const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const previewContainerRef = useRef<HTMLDivElement>(null);
+
+    // Dialog & Form states - Carta de Rescisão
+    const todayIsoStr = () => new Date().toISOString().split('T')[0];
+    const [rescisaoDialogOpen, setRescisaoDialogOpen] = useState(false);
+    const [generatingRescisao, setGeneratingRescisao] = useState(false);
+    const [rescisaoWorkerId, setRescisaoWorkerId] = useState<string | null>(null);
+    const [rescisaoAssignmentId, setRescisaoAssignmentId] = useState<string | null>(null);
+    const [rescisaoContratante, setRescisaoContratante] = useState<string>('STOCCO');
+    const [rescisaoPasaporte, setRescisaoPasaporte] = useState<string>('');
+    const [rescisaoNif, setRescisaoNif] = useState<string>('');
+    const [rescisaoNiss, setRescisaoNiss] = useState<string>('');
+    const [rescisaoWorkerPhone, setRescisaoWorkerPhone] = useState<string>('');
+    const [rescisaoWorkerName, setRescisaoWorkerName] = useState<string>('');
+    const [rescisaoRequestDate, setRescisaoRequestDate] = useState<string>(todayIsoStr);
+    const [rescisaoStartDate, setRescisaoStartDate] = useState<string>(todayIsoStr);
+    const [rescisaoEndDate, setRescisaoEndDate] = useState<string>(() => addDaysToIso(todayIsoStr(), 15));
+    const [rescisaoSuccess, setRescisaoSuccess] = useState<{
+        signingLink: string;
+        otpCode: string;
+        emailSent: boolean;
+        documentUrl?: string;
+    } | null>(null);
+    const [rescisaoPreviewBlob, setRescisaoPreviewBlob] = useState<Blob | null>(null);
+    const [loadingRescisaoPreview, setLoadingRescisaoPreview] = useState(false);
+    const rescisaoPreviewRef = useRef<HTMLDivElement>(null);
+
+    // Filtros da aba Cartas de Rescisão
+    const [searchTermRescisao, setSearchTermRescisao] = useState('');
+    const [statusFilterRescisao, setStatusFilterRescisao] = useState('all');
+    const [empresaFilterRescisao, setEmpresaFilterRescisao] = useState('all');
 
     // Lista global de clientes e trabalhadores para formulários
     const [clientsList, setClientsList] = useState<{ id: string; name: string }[]>([]);
@@ -493,6 +549,40 @@ export function DocumentacionTasksPage() {
             return 0;
         });
     }, [contracts, searchTermContracts, statusFilterContracts, pedidoFilterContracts, sortFieldContracts, sortDirectionContracts]);
+
+    const rescisaoContracts = useMemo(() => {
+        return contracts.filter(c => c.contract_type === 'rescisao');
+    }, [contracts]);
+
+    const rescisaoStats = useMemo(() => {
+        const total = rescisaoContracts.length;
+        const pending = rescisaoContracts.filter(c => c.status === 'pending_signature').length;
+        const signed = rescisaoContracts.filter(c => c.status === 'signed').length;
+        return { total, pending, signed };
+    }, [rescisaoContracts]);
+
+    const filteredRescisoes = useMemo(() => {
+        return rescisaoContracts.filter(c => {
+            const clientName = c.assignment?.client?.trade_name || c.assignment?.client?.legal_name || c.worker?.cliente || 'Sem Alocação';
+            const empresaName = c.contratante || '';
+            const workerName = c.worker?.nome || '';
+            const workerEmail = c.worker?.email || '';
+            const workerDoc = c.worker?.pasaporte || c.worker?.nif || c.worker?.niss || '';
+
+            const q = searchTermRescisao.toLowerCase();
+            const textMatch = !q ||
+                workerName.toLowerCase().includes(q) ||
+                workerEmail.toLowerCase().includes(q) ||
+                workerDoc.toLowerCase().includes(q) ||
+                empresaName.toLowerCase().includes(q) ||
+                clientName.toLowerCase().includes(q);
+
+            const statusMatch = statusFilterRescisao === 'all' || c.status === statusFilterRescisao;
+            const empresaMatch = empresaFilterRescisao === 'all' || c.contratante === empresaFilterRescisao;
+
+            return textMatch && statusMatch && empresaMatch;
+        });
+    }, [rescisaoContracts, searchTermRescisao, statusFilterRescisao, empresaFilterRescisao]);
 
     const getTemplatePath = (contratante: string, docType: string) => {
         const upper = contratante.toUpperCase();
@@ -1029,6 +1119,190 @@ Muchas gracias.`;
         }
     }, [previewBlob]);
 
+    useEffect(() => {
+        if (rescisaoPreviewBlob && rescisaoPreviewRef.current) {
+            rescisaoPreviewRef.current.innerHTML = "";
+            renderAsync(rescisaoPreviewBlob, rescisaoPreviewRef.current, undefined, {
+                className: "docx",
+                inWrapper: true,
+                ignoreWidth: false,
+                ignoreHeight: false,
+                breakPages: true,
+                experimental: true,
+                useBase64URL: true,
+                renderHeaders: true,
+                renderFooters: true,
+                ignoreLastRenderedPageBreak: true,
+            })
+            .then(() => {
+                if (rescisaoPreviewRef.current?.parentElement) {
+                    rescisaoPreviewRef.current.parentElement.scrollTop = 0;
+                }
+            })
+            .catch(err => {
+                console.error("Erro ao renderizar pré-visualização da carta de rescisão:", err);
+            });
+        }
+    }, [rescisaoPreviewBlob]);
+
+    const handleOpenRescisaoDialog = (prefillWorkerId?: string, prefillContratante?: string) => {
+        const today = todayIsoStr();
+        setRescisaoSuccess(null);
+        setRescisaoPreviewBlob(null);
+        setRescisaoRequestDate(today);
+        setRescisaoStartDate(today);
+        setRescisaoEndDate(addDaysToIso(today, 15));
+        setRescisaoWorkerId(prefillWorkerId || null);
+        setRescisaoAssignmentId(null);
+        setRescisaoPasaporte('');
+        setRescisaoNif('');
+        setRescisaoNiss('');
+        setRescisaoWorkerPhone('');
+        setRescisaoWorkerName('');
+        setRescisaoContratante(prefillContratante || resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
+        setRescisaoDialogOpen(true);
+        if (workersList.length === 0) {
+            loadWorkers();
+        }
+        if (prefillWorkerId) {
+            handleSelectRescisaoWorker(prefillWorkerId);
+        }
+    };
+
+    const handleSelectRescisaoWorker = async (workerId: string | null) => {
+        setRescisaoWorkerId(workerId);
+        if (!workerId) {
+            setRescisaoPasaporte('');
+            setRescisaoNif('');
+            setRescisaoNiss('');
+            setRescisaoWorkerPhone('');
+            setRescisaoWorkerName('');
+            return;
+        }
+        try {
+            const { data: w } = await supabase
+                .schema('core_personal')
+                .from('workers')
+                .select('id, nome, pasaporte, dni, nie, nif, niss, movil, empresa_id')
+                .eq('id', workerId)
+                .maybeSingle();
+
+            if (w) {
+                setRescisaoWorkerName(w.nome || '');
+                setRescisaoPasaporte(w.pasaporte || w.dni || w.nie || '');
+                setRescisaoNif(w.nif || '');
+                setRescisaoNiss(w.niss || '');
+                setRescisaoWorkerPhone(w.movil || '');
+                if (w.empresa_id) {
+                    setRescisaoContratante(resolveContratanteOption(w.empresa_id));
+                }
+            }
+
+            // Verificar última alocação ou último contrato para sugerir a contratante correta
+            const { data: wa } = await supabase
+                .schema('core_personal')
+                .from('worker_assignments')
+                .select('id, empresa_id')
+                .eq('worker_id', workerId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            if (wa) {
+                setRescisaoAssignmentId(wa.id);
+                if (wa.empresa_id) {
+                    setRescisaoContratante(resolveContratanteOption(wa.empresa_id));
+                }
+            } else {
+                const { data: lastContract } = await supabase
+                    .schema('core_personal')
+                    .from('contracts')
+                    .select('contratante')
+                    .eq('worker_id', workerId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                if (lastContract?.contratante) {
+                    setRescisaoContratante(resolveContratanteOption(lastContract.contratante));
+                }
+            }
+        } catch (err) {
+            console.error("Erro ao carregar dados do trabalhador para rescisão:", err);
+        }
+    };
+
+    const handleGenerateRescisao = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!rescisaoWorkerId || !rescisaoContratante) {
+            toast.error("Por favor, selecione o trabalhador e a empresa contratante.");
+            return;
+        }
+        if (!rescisaoRequestDate || !rescisaoStartDate || !rescisaoEndDate) {
+            toast.error("Por favor, preencha as datas da solicitação e do período de aviso prévio.");
+            return;
+        }
+
+        try {
+            setGeneratingRescisao(true);
+            setRescisaoPreviewBlob(null);
+            const res = await generateContract({
+                worker_id: rescisaoWorkerId,
+                assignment_id: rescisaoAssignmentId || undefined,
+                contratante: rescisaoContratante,
+                contract_type: 'rescisao',
+                empresa_id: selectedEmpresaId || undefined,
+                request_date: rescisaoRequestDate,
+                notice_start_date: rescisaoStartDate,
+                notice_end_date: rescisaoEndDate,
+                effective_date: rescisaoStartDate,
+                worker_updates: {
+                    pasaporte: rescisaoPasaporte,
+                    nif: rescisaoNif,
+                    niss: rescisaoNiss,
+                },
+            });
+
+            setRescisaoSuccess({
+                signingLink: res.signing_link,
+                otpCode: res.otp_code,
+                emailSent: res.email_sent,
+                documentUrl: res.document_url,
+            });
+
+            toast.success("Carta de Rescisão gerada e pronta para assinatura eletrônica!");
+            loadContracts();
+
+            if (res.document_url) {
+                setLoadingRescisaoPreview(true);
+                try {
+                    const { data: signedData, error: signedErr } = await supabase.storage
+                        .from('worker-contracts')
+                        .createSignedUrl(res.document_url, 300);
+                    if (signedErr || !signedData?.signedUrl) throw signedErr || new Error("Sem URL assinada");
+                    const fileRes = await fetch(signedData.signedUrl);
+                    const fileData = await fileRes.blob();
+                    setRescisaoPreviewBlob(fileData);
+                } catch {
+                    try {
+                        const { data: fileData } = await supabase.storage
+                            .from('worker-contracts')
+                            .download(res.document_url);
+                        if (fileData) setRescisaoPreviewBlob(fileData);
+                    } catch (err2) {
+                        console.error("Erro ao baixar preview da rescisão:", err2);
+                    }
+                } finally {
+                    setLoadingRescisaoPreview(false);
+                }
+            }
+        } catch (err: any) {
+            console.error("Erro ao gerar Carta de Rescisão:", err);
+            toast.error(err.message || "Erro ao gerar Carta de Rescisão.");
+        } finally {
+            setGeneratingRescisao(false);
+        }
+    };
+
     // 4. Submeter geração de contrato
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1141,8 +1415,11 @@ Muchas gracias.`;
             const mimeType = isPdf ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
             const isAlta = contract.contract_type === 'contrato_alta';
-            const docType = isAlta ? 'contrato_alta' : 'contrato_trabalho';
-            const statusPrefix = contract.status === 'signed' ? 'Contrato Assinado' : isAlta ? 'Contrato de Alta' : 'Contrato de Trabalho';
+            const isRescisao = contract.contract_type === 'rescisao';
+            const docType = isRescisao ? 'carta_renuncia' : isAlta ? 'contrato_alta' : 'contrato_trabalho';
+            const statusPrefix = isRescisao
+                ? (contract.status === 'signed' ? 'Carta de Rescisão Assinada' : 'Carta de Rescisão')
+                : (contract.status === 'signed' ? 'Contrato Assinado' : isAlta ? 'Contrato de Alta' : 'Contrato de Trabalho');
 
             const workerName = contract.worker?.nome || 'Trabalhador';
             const fileName = `${statusPrefix} - ${workerName}.${ext}`;
@@ -1865,6 +2142,33 @@ Muchas gracias.`;
         toast.success("Mensagem padrão do contrato copiada!");
     };
 
+    const buildRescisaoMessage = (link: string, workerName?: string, otpCode?: string, startIso?: string, endIso?: string) => {
+        const nameText = workerName ? `Sr(a). ${workerName}` : 'Colaborador(a)';
+        const codeText = otpCode ? `*${otpCode}*` : '';
+        const periodText = startIso && endIso ? ` (período de preaviso del ${formatIsoToBr(startIso)} al ${formatIsoToBr(endIso)})` : '';
+        return `Hola ${nameText}
+Adjunto encontrará el enlace para revisar y firmar electrónicamente su Solicitud de Rescisión de Contrato de Trabajo${periodText}.
+Por favor revise el documento, pulse en "Assinar Documento" y digite este código único ${codeText} para confirmar y finalizar el proceso.
+*LINK:* ${link}
+Muchas gracias.`;
+    };
+
+    const handleCopyRescisaoSignLink = (link: string, workerName?: string, otpCode?: string, startIso?: string, endIso?: string) => {
+        const msg = buildRescisaoMessage(link, workerName, otpCode, startIso, endIso);
+        navigator.clipboard.writeText(msg);
+        toast.success("Mensagem de assinatura da Carta de Rescisão copiada!");
+    };
+
+    const handleSendRescisaoWhatsApp = (link: string, workerName?: string, phone?: string, otpCode?: string, startIso?: string, endIso?: string) => {
+        const msg = buildRescisaoMessage(link, workerName, otpCode, startIso, endIso);
+        navigator.clipboard.writeText(msg).catch(() => {});
+        const cleanPhone = (phone || '').replace(/\D/g, '');
+        const whatsappUrl = cleanPhone
+            ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
+            : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+        window.open(whatsappUrl, '_blank');
+    };
+
     return (
         <Layout>
             <div className="flex flex-col h-[calc(100vh-115px)] overflow-hidden space-y-6 p-4">
@@ -2288,6 +2592,303 @@ Muchas gracias.`;
                                 )}
                             </DialogContent>
                         </Dialog>
+
+                        {/* Botão & Modal Gerar Carta de Rescisão */}
+                        <Dialog open={rescisaoDialogOpen} onOpenChange={(open) => {
+                            setRescisaoDialogOpen(open);
+                            if (!open) {
+                                setRescisaoSuccess(null);
+                                setRescisaoPreviewBlob(null);
+                            }
+                        }}>
+                            <Button
+                                onClick={() => handleOpenRescisaoDialog()}
+                                className="bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shadow-sm"
+                            >
+                                <FileText className="h-4 w-4" />
+                                Carta de Rescisão
+                            </Button>
+                            <DialogContent className={`${rescisaoSuccess ? 'max-w-7xl h-[85vh]' : 'max-w-2xl max-h-[90vh]'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
+                                <DialogHeader>
+                                    <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+                                        <FileText className="h-5 w-5" />
+                                        Emitir Carta de Rescisão (Solicitud de Rescisión)
+                                    </DialogTitle>
+                                    <DialogDescription>
+                                        Gere a carta de rescisão com cálculo automático do aviso prévio de 15 dias corridos (com opção de edição retroativa) e assinatura eletrônica com código OTP.
+                                    </DialogDescription>
+                                </DialogHeader>
+
+                                {!rescisaoSuccess ? (
+                                    <form onSubmit={handleGenerateRescisao} className="space-y-4 pt-2 overflow-y-auto pr-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="space-y-1.5">
+                                                <Label>Selecionar Trabalhador</Label>
+                                                <Combobox
+                                                    options={workersList}
+                                                    value={rescisaoWorkerId || ''}
+                                                    onChange={(val) => handleSelectRescisaoWorker(val || null)}
+                                                    placeholder="Digite o nome ou código do trabalhador..."
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label>Empresa Contratante (Modelo Word)</Label>
+                                                <Select value={rescisaoContratante} onValueChange={setRescisaoContratante}>
+                                                    <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                                                        <SelectValue placeholder="Selecione a empresa..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="z-[9999]">
+                                                        <SelectItem value="STOCCO">Stocco, Lda</SelectItem>
+                                                        <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
+                                                        <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
+                                                        <SelectItem value="TRIANGULO">Triângulo (TRI)</SelectItem>
+                                                        <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </div>
+
+                                        {/* Dados de Identificação na Carta */}
+                                        <div className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 space-y-3">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                                                    Documentos do Trabalhador (Impressos no Cabeçalho da Carta)
+                                                </span>
+                                                <span className="text-[11px] text-slate-400">Editável se necessário</span>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <div>
+                                                    <Label className="text-xs">Pasaporte / Doc. ID</Label>
+                                                    <Input
+                                                        value={rescisaoPasaporte}
+                                                        onChange={(e) => setRescisaoPasaporte(e.target.value)}
+                                                        placeholder="Ex: YB123456"
+                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs">NIF</Label>
+                                                    <Input
+                                                        value={rescisaoNif}
+                                                        onChange={(e) => setRescisaoNif(e.target.value)}
+                                                        placeholder="Ex: 312345678"
+                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-xs">NISS</Label>
+                                                    <Input
+                                                        value={rescisaoNiss}
+                                                        onChange={(e) => setRescisaoNiss(e.target.value)}
+                                                        placeholder="Ex: 12012345678"
+                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Regra de Datas do Aviso Prévio (15 dias corridos) */}
+                                        <div className="p-3.5 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 space-y-3">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <span className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                                                        <Calendar className="h-3.5 w-3.5" />
+                                                        Datas da Solicitação e Aviso Prévio (15 Dias Corridos)
+                                                    </span>
+                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                        Ao alterar a data de início, a data final é calculada automaticamente (+15 dias), mas você pode editá-las livremente (inclusive retroativo).
+                                                    </p>
+                                                </div>
+                                                <Badge variant="outline" className="font-mono text-xs border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900">
+                                                    Prazo: {getDaysDiff(rescisaoStartDate, rescisaoEndDate)} dias corridos
+                                                </Badge>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs font-semibold">Data da Solicitação / Carta</Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={rescisaoRequestDate}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setRescisaoRequestDate(val);
+                                                            if (val) {
+                                                                setRescisaoStartDate(val);
+                                                                setRescisaoEndDate(addDaysToIso(val, 15));
+                                                            }
+                                                        }}
+                                                        className="bg-white dark:bg-slate-900 h-9 text-xs font-medium"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs font-semibold">Início do Aviso Prévio</Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={rescisaoStartDate}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setRescisaoStartDate(val);
+                                                            if (val) {
+                                                                setRescisaoEndDate(addDaysToIso(val, 15));
+                                                            }
+                                                        }}
+                                                        className="bg-white dark:bg-slate-900 h-9 text-xs font-medium"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-xs font-semibold">Fim do Aviso Prévio (+15d)</Label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setRescisaoEndDate(addDaysToIso(rescisaoStartDate, 15))}
+                                                            className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline font-semibold"
+                                                            title="Recalcular +15 dias a partir da data de início"
+                                                        >
+                                                            Resetar +15d
+                                                        </button>
+                                                    </div>
+                                                    <Input
+                                                        type="date"
+                                                        value={rescisaoEndDate}
+                                                        onChange={(e) => setRescisaoEndDate(e.target.value)}
+                                                        className="bg-white dark:bg-slate-900 h-9 text-xs font-medium"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Prévia em tempo real do parágrafo da carta */}
+                                            <div className="p-2.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed">
+                                                "Solicito que dicha rescisión surta efecto a partir del <strong className="text-slate-900 dark:text-white not-italic underline">{formatIsoToBr(rescisaoStartDate)}</strong>, respetando el plazo legal de preaviso, que se cumplirá entre el <strong className="text-slate-900 dark:text-white not-italic underline">{formatIsoToBr(rescisaoStartDate)}</strong> y el <strong className="text-slate-900 dark:text-white not-italic underline">{formatIsoToBr(rescisaoEndDate)}</strong>."
+                                            </div>
+                                        </div>
+
+                                        <div className="flex justify-end gap-2 pt-2">
+                                            <Button type="button" variant="outline" onClick={() => setRescisaoDialogOpen(false)}>Cancelar</Button>
+                                            <Button type="submit" disabled={generatingRescisao || !rescisaoWorkerId} className="bg-rose-600 hover:bg-rose-500 text-white font-semibold">
+                                                {generatingRescisao ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-1.5" />}
+                                                Gerar Carta de Rescisão
+                                            </Button>
+                                        </div>
+                                    </form>
+                                ) : (
+                                    <div className="flex-1 flex flex-col md:flex-row gap-6 overflow-hidden min-h-0 pt-2">
+                                        {/* Painel Esquerdo: Pré-visualização do Documento */}
+                                        <div className="flex-1 border border-slate-200 dark:border-slate-800 rounded-lg overflow-y-auto bg-slate-50 dark:bg-slate-950 p-4 relative min-h-0 flex flex-col docx-preview-container-parent">
+                                            {loadingRescisaoPreview && (
+                                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 z-10 gap-2">
+                                                    <Loader2 className="h-8 w-8 animate-spin text-rose-600" />
+                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Carregando visualização da Carta de Rescisão...</span>
+                                                </div>
+                                            )}
+                                            {!loadingRescisaoPreview && !rescisaoPreviewBlob && (
+                                                <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
+                                                    <AlertCircle className="h-10 w-10 text-slate-400 mb-2" />
+                                                    <span className="text-sm text-center font-medium text-slate-500">Pré-visualização indisponível.</span>
+                                                </div>
+                                            )}
+                                            <div ref={rescisaoPreviewRef} className="docx-wrapper" />
+                                        </div>
+
+                                        {/* Painel Direito: Link, OTP, WhatsApp e Download */}
+                                        <div className="w-full md:w-[390px] shrink-0 flex flex-col justify-between bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800 overflow-y-auto">
+                                            <div className="space-y-4">
+                                                <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
+                                                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
+                                                        <CheckCircle className="h-5 w-5" />
+                                                        <span>Carta de Rescisão Emitida!</span>
+                                                    </div>
+
+                                                    <div className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 p-2.5 rounded border border-slate-200 dark:border-slate-800 space-y-1">
+                                                        <div><span className="text-slate-400">Trabalhador:</span> <strong>{rescisaoWorkerName || workersList.find(w => w.value === rescisaoWorkerId)?.label.split(' (')[0]}</strong></div>
+                                                        <div><span className="text-slate-400">Empresa:</span> <strong>{rescisaoContratante}</strong></div>
+                                                        <div><span className="text-slate-400">Aviso Prévio:</span> <strong className="text-rose-600 dark:text-rose-400">{formatIsoToBr(rescisaoStartDate)} → {formatIsoToBr(rescisaoEndDate)}</strong></div>
+                                                    </div>
+
+                                                    <p className="text-xs text-slate-500">
+                                                        Código OTP de Assinatura: <span className="font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-slate-800 px-2 py-0.5 rounded">{rescisaoSuccess.otpCode}</span>
+                                                    </p>
+
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs text-muted-foreground">Link de Assinatura Eletrônica</Label>
+                                                        <div className="flex gap-2">
+                                                            <Input readOnly value={rescisaoSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
+                                                            <Button
+                                                                size="icon"
+                                                                variant="outline"
+                                                                onClick={() => handleCopyRescisaoSignLink(
+                                                                    rescisaoSuccess.signingLink,
+                                                                    rescisaoWorkerName || workersList.find(w => w.value === rescisaoWorkerId)?.label.split(' (')[0],
+                                                                    rescisaoSuccess.otpCode,
+                                                                    rescisaoStartDate,
+                                                                    rescisaoEndDate
+                                                                )}
+                                                                title="Copiar mensagem com link e código OTP"
+                                                            >
+                                                                <Copy className="h-4 w-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-2 pt-2">
+                                                        <Button
+                                                            size="sm"
+                                                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold gap-2"
+                                                            onClick={() => handleSendRescisaoWhatsApp(
+                                                                rescisaoSuccess.signingLink,
+                                                                rescisaoWorkerName || workersList.find(w => w.value === rescisaoWorkerId)?.label.split(' (')[0],
+                                                                rescisaoWorkerPhone,
+                                                                rescisaoSuccess.otpCode,
+                                                                rescisaoStartDate,
+                                                                rescisaoEndDate
+                                                            )}
+                                                        >
+                                                            <Send className="h-4 w-4" />
+                                                            Enviar para Assinatura via WhatsApp
+                                                        </Button>
+
+                                                        {rescisaoSuccess.documentUrl && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="w-full flex items-center justify-center gap-2 border-slate-300 dark:border-slate-700 font-semibold"
+                                                                onClick={() => handleDownloadContract({
+                                                                    document_url: rescisaoSuccess.documentUrl,
+                                                                    contract_type: 'rescisao',
+                                                                    worker: { nome: rescisaoWorkerName || 'Carta_Rescisao' }
+                                                                } as any)}
+                                                            >
+                                                                <Download className="h-4 w-4" />
+                                                                Baixar Arquivo Word (.docx)
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    onClick={() => setRescisaoSuccess(null)}
+                                                    className="flex-1"
+                                                >
+                                                    Emitir Outra
+                                                </Button>
+                                                <Button
+                                                    onClick={() => setRescisaoDialogOpen(false)}
+                                                    className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold"
+                                                >
+                                                    Concluir
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </DialogContent>
+                        </Dialog>
                     </div>
                 </div>
 
@@ -2295,16 +2896,24 @@ Muchas gracias.`;
                 <Tabs defaultValue="tasks" className="flex-1 flex flex-col min-h-0 overflow-hidden" onValueChange={(value) => {
                     if (value === 'requests') {
                         loadDocRequests();
-                    } else if (value === 'contracts') {
+                    } else if (value === 'contracts' || value === 'rescisoes') {
                         loadContracts();
                     } else if (value === 'tasks' && selectedTaskForWorkers) {
                         loadTaskWorkers(selectedTaskForWorkers);
                     }
                 }}>
-                    <TabsList className="grid w-full md:w-[800px] grid-cols-4 shrink-0">
+                    <TabsList className="grid w-full md:w-[1040px] grid-cols-2 md:grid-cols-5 shrink-0">
                         <TabsTrigger value="tasks">Tarefas Operacionais</TabsTrigger>
                         <TabsTrigger value="requests">Solicitações de Documentos</TabsTrigger>
                         <TabsTrigger value="contracts">Contratos & Assinaturas</TabsTrigger>
+                        <TabsTrigger value="rescisoes" className="flex items-center gap-1.5">
+                            <span>Cartas de Rescisão</span>
+                            {rescisaoStats.pending > 0 && (
+                                <span className="inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-rose-600 text-white">
+                                    {rescisaoStats.pending}
+                                </span>
+                            )}
+                        </TabsTrigger>
                         <TabsTrigger value="templates">Configuração de Modelos</TabsTrigger>
                     </TabsList>
                     
@@ -2983,6 +3592,289 @@ Muchas gracias.`;
                         </div>
                     </TabsContent>
 
+                    {/* Conteúdo 3.5: Controle de Cartas de Rescisão (Assinadas vs Pendentes) */}
+                    <TabsContent value="rescisoes" className="flex-1 hidden data-[state=active]:flex flex-col min-h-0 overflow-hidden pt-4 space-y-4">
+                        {/* Cards de Controle de Assinatura */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilterRescisao('all')}
+                                className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                    statusFilterRescisao === 'all'
+                                        ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 shadow-sm'
+                                        : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                }`}
+                            >
+                                <div>
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total de Cartas Emitidas</span>
+                                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{rescisaoStats.total}</div>
+                                </div>
+                                <div className="h-10 w-10 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                    <FileText className="h-5 w-5" />
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilterRescisao('pending_signature')}
+                                className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                    statusFilterRescisao === 'pending_signature'
+                                        ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 shadow-sm'
+                                        : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                }`}
+                            >
+                                <div>
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Não Assinadas (Pendentes)</span>
+                                    <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{rescisaoStats.pending}</div>
+                                </div>
+                                <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                    <Clock className="h-5 w-5" />
+                                </div>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilterRescisao('signed')}
+                                className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                    statusFilterRescisao === 'signed'
+                                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 shadow-sm'
+                                        : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                }`}
+                            >
+                                <div>
+                                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Assinadas pelo Trabalhador</span>
+                                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{rescisaoStats.signed}</div>
+                                </div>
+                                <div className="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                    <CheckCircle className="h-5 w-5" />
+                                </div>
+                            </button>
+                        </div>
+
+                        {/* Barra de Busca e Filtros */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0">
+                            <div className="relative flex-1 max-w-md">
+                                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    value={searchTermRescisao}
+                                    onChange={(e) => setSearchTermRescisao(e.target.value)}
+                                    placeholder="Pesquisar trabalhador, passaporte, NIF ou empresa..."
+                                    className="pl-9 pr-8 bg-white dark:bg-black"
+                                />
+                                {searchTermRescisao && (
+                                    <button
+                                        onClick={() => setSearchTermRescisao('')}
+                                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                                <div className="w-[210px]">
+                                    <Select value={statusFilterRescisao} onValueChange={setStatusFilterRescisao}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Status da Assinatura" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos os Status</SelectItem>
+                                            <SelectItem value="pending_signature">⏳ Pendente Assinatura</SelectItem>
+                                            <SelectItem value="signed">✅ Assinado</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="w-[220px]">
+                                    <Select value={empresaFilterRescisao} onValueChange={setEmpresaFilterRescisao}>
+                                        <SelectTrigger className="bg-white dark:bg-black">
+                                            <SelectValue placeholder="Empresa Contratante" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todas as Empresas</SelectItem>
+                                            <SelectItem value="STOCCO">Stocco</SelectItem>
+                                            <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
+                                            <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital</SelectItem>
+                                            <SelectItem value="TRIANGULO">Triângulo</SelectItem>
+                                            <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <Button
+                                    onClick={() => handleOpenRescisaoDialog()}
+                                    className="bg-rose-600 hover:bg-rose-500 text-white font-semibold gap-1.5"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Nova Carta de Rescisão
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Tabela de Cartas de Rescisão */}
+                        <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
+                            <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">
+                                    Controle de Assinaturas — Cartas de Rescisão
+                                </h3>
+                                <Button size="sm" variant="ghost" onClick={loadContracts}><RefreshCw className="h-4 w-4" /></Button>
+                            </div>
+
+                            <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
+                                {loadingContracts ? (
+                                    <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
+                                        <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
+                                        <span>Carregando cartas de rescisão...</span>
+                                    </div>
+                                ) : filteredRescisoes.length === 0 ? (
+                                    <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-3">
+                                        <FileText className="h-10 w-10 text-slate-400" />
+                                        <span>Nenhuma Carta de Rescisão encontrada para os filtros selecionados.</span>
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleOpenRescisaoDialog()}
+                                            className="bg-rose-600 hover:bg-rose-500 text-white font-semibold gap-1.5"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Emitir Primeira Carta de Rescisão
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Table>
+                                        <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
+                                            <TableRow>
+                                                <TableHead>Trabalhador</TableHead>
+                                                <TableHead>Empresa Contratante</TableHead>
+                                                <TableHead>Cliente / Obra</TableHead>
+                                                <TableHead>Data Solicitação</TableHead>
+                                                <TableHead>Período Aviso Prévio (15d)</TableHead>
+                                                <TableHead>Código OTP</TableHead>
+                                                <TableHead>Status Assinatura</TableHead>
+                                                <TableHead className="text-right">Ações</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredRescisoes.map((c) => {
+                                                const signLink = `${window.location.origin}/assinar/${c.signature_token}`;
+                                                const clientName = c.assignment?.client?.trade_name || c.assignment?.client?.legal_name || c.worker?.cliente || 'Sem Alocação';
+                                                const reqDate = c.metadata?.request_date || (c.created_at ? c.created_at.split('T')[0] : '');
+                                                const startNotice = c.metadata?.notice_start_date || reqDate;
+                                                const endNotice = c.metadata?.notice_end_date || (c.terminated_at ? c.terminated_at.split('T')[0] : addDaysToIso(startNotice, 15));
+
+                                                return (
+                                                    <TableRow key={c.id}>
+                                                        <TableCell>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                                                {c.worker?.nome}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {[c.worker?.pasaporte ? `Pass: ${c.worker.pasaporte}` : null, c.worker?.nif ? `NIF: ${c.worker.nif}` : null, c.worker?.movil].filter(Boolean).join(' • ') || c.worker?.email || '-'}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="font-medium text-xs">
+                                                            {c.contratante}
+                                                        </TableCell>
+                                                        <TableCell className="font-medium text-xs">
+                                                            {clientName}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs font-medium">
+                                                            {formatIsoToBr(reqDate)}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="inline-flex items-center gap-1.5 font-mono text-xs bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 px-2 py-0.5 rounded">
+                                                                <span>{formatIsoToBr(startNotice)}</span>
+                                                                <span>→</span>
+                                                                <span className="font-bold">{formatIsoToBr(endNotice)}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="font-mono text-indigo-600 dark:text-indigo-400 font-bold text-xs">
+                                                            {c.otp_code || '-'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {c.status === 'signed' ? (
+                                                                <div className="space-y-0.5">
+                                                                    <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
+                                                                        ✅ Assinado
+                                                                    </Badge>
+                                                                    {c.signed_at && (
+                                                                        <div className="text-[10px] text-slate-500">
+                                                                            {new Date(c.signed_at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ) : (
+                                                                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20">
+                                                                    ⏳ Não Assinado (Pendente)
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right space-x-1 whitespace-nowrap">
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleDownloadContract(c)}
+                                                                title="Visualizar / Baixar Carta de Rescisão (.docx)"
+                                                            >
+                                                                <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                            </Button>
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleAttachContractToWorkerProfile(c)}
+                                                                title="Arquivar Carta de Rescisão no Cadastro do Trabalhador"
+                                                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800"
+                                                            >
+                                                                <FolderPlus className="h-4 w-4" />
+                                                            </Button>
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleSendRescisaoWhatsApp(signLink, c.worker?.nome, c.worker?.movil, c.otp_code, startNotice, endNotice)}
+                                                                title="Enviar Link de Assinatura via WhatsApp"
+                                                                className="text-emerald-600 hover:text-emerald-700"
+                                                            >
+                                                                <Send className="h-4 w-4" />
+                                                            </Button>
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleCopyRescisaoSignLink(signLink, c.worker?.nome, c.otp_code, startNotice, endNotice)}
+                                                                title="Copiar mensagem com link e código OTP"
+                                                            >
+                                                                <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                            </Button>
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => window.open(signLink, '_blank')}
+                                                                title="Abrir Tela de Assinatura"
+                                                            >
+                                                                <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
+                                                            </Button>
+
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                onClick={() => handleDeleteContractItem(c.id)}
+                                                                title="Excluir Registro"
+                                                            >
+                                                                <Trash2 className="h-4 w-4 text-rose-500 hover:text-rose-700" />
+                                                            </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                )}
+                            </div>
+                        </div>
+                    </TabsContent>
+
                     {/* Conteúdo 4: Configuração de Modelos */}
                     <TabsContent value="templates" className="flex-1 overflow-y-auto min-h-0 pt-4">
                         <div className="rounded-md border bg-card p-6">
@@ -3035,8 +3927,8 @@ Muchas gracias.`;
                                     },
                                     {
                                         type: 'rescisao',
-                                        name: 'Comunicado de Rescisão',
-                                        desc: 'Modelo oficial de comunicação e notificação de fim de contrato / encerramento de vínculo.',
+                                        name: 'Carta de Rescisão (Solicitud de Rescisión)',
+                                        desc: 'Modelo oficial em espanhol com cálculo de 15 dias de aviso prévio. Variáveis dinâmicas suportadas no Word: {{nome}}, {{linha_documentos}}, {{data_carta_extenso_es}}, {{data_efeito}}, {{data_inicio_aviso}}, {{data_fim_aviso}} e [ASSINATURA].',
                                         fileName: `COMUNICADO RESCISAO ${selectedConfigContratante.toUpperCase()}.docx`
                                     }
                                 ].map((doc) => (
