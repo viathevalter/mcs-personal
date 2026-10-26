@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronsLeft, ChevronsRight, CornerDownRight, ChevronsUpDown, Layers, FileText, FileSpreadsheet, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake, RotateCcw, Trash2 } from 'lucide-react';
+import { Search, Filter, Phone, Mail, Clock, ShieldAlert, ArrowRight, CheckCircle2, ChevronLeft, ChevronRight, ChevronDown, ChevronsLeft, ChevronsRight, CornerDownRight, ChevronsUpDown, Layers, FileText, FileSpreadsheet, Scale, Users, X, Paperclip, FileUp, ArrowUpDown, ArrowUp, ArrowDown, Settings, Activity, TrendingUp, TrendingDown, AlertTriangle, Building2, Handshake, RotateCcw, Trash2, Ban } from 'lucide-react';
 import { formatCurrency, formatDate, normalizeEmpresaName, normalizePeriodoFat, sortPeriodosFatDesc, getPeriodoFatSortValue } from '../lib/utils';
 import { fetchEnrichedData, updateContaReceber, deleteContaReceber, saveObservacao, fetchModernEmpresas, createContaReceber } from '../data/loader';
 import type { EnrichedTitulo, ContasReceber } from '../types';
