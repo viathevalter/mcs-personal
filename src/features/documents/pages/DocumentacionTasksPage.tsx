@@ -197,8 +197,21 @@ export function DocumentacionTasksPage() {
     const [rescisaoPasaporte, setRescisaoPasaporte] = useState<string>('');
     const [rescisaoNif, setRescisaoNif] = useState<string>('');
     const [rescisaoNiss, setRescisaoNiss] = useState<string>('');
+    const workersCacheRef = useRef<Map<string, any>>(new Map());
+    const [loadingRescisaoWorker, setLoadingRescisaoWorker] = useState(false);
     const [rescisaoWorkerPhone, setRescisaoWorkerPhone] = useState<string>('');
+    const [rescisaoWorkerEmail, setRescisaoWorkerEmail] = useState<string>('');
     const [rescisaoWorkerName, setRescisaoWorkerName] = useState<string>('');
+    const [rescisaoWorkerDetails, setRescisaoWorkerDetails] = useState<{
+        cod_colab?: string;
+        funcion?: string;
+        cliente?: string;
+        contratante?: string;
+        status_trabajador?: string;
+        status_seguridad?: string;
+        dni?: string;
+        nie?: string;
+    } | null>(null);
     const [rescisaoRequestDate, setRescisaoRequestDate] = useState<string>(todayIsoStr);
     const [rescisaoStartDate, setRescisaoStartDate] = useState<string>(todayIsoStr);
     const [rescisaoEndDate, setRescisaoEndDate] = useState<string>(() => addDaysToIso(todayIsoStr(), 15));
@@ -969,6 +982,9 @@ Muchas gracias.`;
                 page: 1,
                 pageSize: 1000,
             });
+            res.data.forEach(w => {
+                if (w.id) workersCacheRef.current.set(w.id, w);
+            });
             let options = res.data.map(w => ({
                 value: w.id || '',
                 label: `${w.nome} (${w.cod_colab || 'Sem Cód.'})`
@@ -1158,7 +1174,9 @@ Muchas gracias.`;
         setRescisaoNif('');
         setRescisaoNiss('');
         setRescisaoWorkerPhone('');
+        setRescisaoWorkerEmail('');
         setRescisaoWorkerName('');
+        setRescisaoWorkerDetails(null);
         setRescisaoContratante(prefillContratante || resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
         setRescisaoDialogOpen(true);
         if (workersList.length === 0) {
@@ -1176,58 +1194,118 @@ Muchas gracias.`;
             setRescisaoNif('');
             setRescisaoNiss('');
             setRescisaoWorkerPhone('');
+            setRescisaoWorkerEmail('');
             setRescisaoWorkerName('');
+            setRescisaoWorkerDetails(null);
             return;
         }
+
+        // 1. Preenchimento imediato a partir do cache em memória (se já carregado por search_workers)
+        const cached = workersCacheRef.current.get(workerId);
+        if (cached) {
+            setRescisaoWorkerName(cached.nome || '');
+            setRescisaoPasaporte(cached.pasaporte || cached.dni || cached.nie || '');
+            setRescisaoNif(cached.nif || '');
+            setRescisaoNiss(cached.niss || '');
+            setRescisaoWorkerPhone(cached.movil || '');
+            setRescisaoWorkerEmail(cached.email || '');
+            setRescisaoWorkerDetails({
+                cod_colab: cached.cod_colab || '',
+                funcion: cached.funcion || '',
+                cliente: cached.cliente || '',
+                contratante: cached.contratante || '',
+                status_trabajador: cached.status_trabajador || '',
+                status_seguridad: cached.status_seguridad || '',
+                dni: cached.dni || '',
+                nie: cached.nie || '',
+            });
+            if (cached.contratante) {
+                setRescisaoContratante(resolveContratanteOption(cached.contratante));
+            }
+        }
+
+        // 2. Busca completa no banco (core_personal.workers + public.colaboradores + document_requests)
         try {
-            const { data: w } = await supabase
+            setLoadingRescisaoWorker(true);
+            const { data: w, error: wErr } = await supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, nome, pasaporte, dni, nie, nif, niss, movil, empresa_id')
+                .select('*')
                 .eq('id', workerId)
                 .maybeSingle();
 
-            if (w) {
-                setRescisaoWorkerName(w.nome || '');
-                setRescisaoPasaporte(w.pasaporte || w.dni || w.nie || '');
-                setRescisaoNif(w.nif || '');
-                setRescisaoNiss(w.niss || '');
-                setRescisaoWorkerPhone(w.movil || '');
-                if (w.empresa_id) {
-                    setRescisaoContratante(resolveContratanteOption(w.empresa_id));
-                }
+            if (wErr) {
+                console.error("Erro ao consultar core_personal.workers:", wErr);
             }
 
-            // Verificar última alocação ou último contrato para sugerir a contratante correta
-            const { data: wa } = await supabase
-                .schema('core_personal')
-                .from('worker_assignments')
-                .select('id, empresa_id')
-                .eq('worker_id', workerId)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+            const codColab = w?.cod_colab || cached?.cod_colab;
 
-            if (wa) {
-                setRescisaoAssignmentId(wa.id);
-                if (wa.empresa_id) {
-                    setRescisaoContratante(resolveContratanteOption(wa.empresa_id));
-                }
-            } else {
-                const { data: lastContract } = await supabase
+            const [colabRes, docReqRes, waRes] = await Promise.all([
+                codColab
+                    ? supabase
+                          .schema('public')
+                          .from('colaboradores')
+                          .select('cod_colab, nombre, pasaporte, nif, niss, dni, nie, movil, email, contratante, funcion')
+                          .eq('cod_colab', codColab)
+                          .maybeSingle()
+                    : Promise.resolve({ data: null }),
+                supabase
                     .schema('core_personal')
-                    .from('contracts')
-                    .select('contratante')
+                    .from('document_requests')
+                    .select('empresa_id, extracted_data')
+                    .eq('worker_id', workerId)
+                    .order('updated_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle(),
+                supabase
+                    .schema('core_personal')
+                    .from('worker_assignments')
+                    .select('id, empresa_id')
                     .eq('worker_id', workerId)
                     .order('created_at', { ascending: false })
                     .limit(1)
-                    .maybeSingle();
-                if (lastContract?.contratante) {
-                    setRescisaoContratante(resolveContratanteOption(lastContract.contratante));
-                }
+                    .maybeSingle(),
+            ]);
+
+            const colab = colabRes?.data as any;
+            const ed = (docReqRes?.data as any)?.extracted_data || {};
+            const wa = waRes?.data as any;
+
+            const finalName = w?.nome || colab?.nombre || ed?.nome || cached?.nome || '';
+            const finalPasaporte = w?.pasaporte || colab?.pasaporte || ed?.pasaporte || w?.dni || colab?.dni || ed?.dni || w?.nie || colab?.nie || ed?.nie || cached?.pasaporte || '';
+            const finalNif = w?.nif || colab?.nif || ed?.nif || cached?.nif || '';
+            const finalNiss = w?.niss || colab?.niss || ed?.niss || cached?.niss || '';
+            const finalPhone = w?.movil || colab?.movil || ed?.movil || ed?.telefono || cached?.movil || '';
+            const finalEmail = w?.email || colab?.email || ed?.email || cached?.email || '';
+            const finalContratanteRaw = w?.contratante || colab?.contratante || wa?.empresa_id || (docReqRes?.data as any)?.empresa_id || cached?.contratante || '';
+
+            setRescisaoWorkerName(finalName);
+            setRescisaoPasaporte(finalPasaporte);
+            setRescisaoNif(finalNif);
+            setRescisaoNiss(finalNiss);
+            setRescisaoWorkerPhone(finalPhone);
+            setRescisaoWorkerEmail(finalEmail);
+            setRescisaoWorkerDetails({
+                cod_colab: codColab || '',
+                funcion: w?.funcion || colab?.funcion || cached?.funcion || '',
+                cliente: w?.cliente || cached?.cliente || '',
+                contratante: w?.contratante || colab?.contratante || cached?.contratante || '',
+                status_trabajador: w?.status_trabajador || cached?.status_trabajador || '',
+                status_seguridad: w?.status_seguridad || cached?.status_seguridad || '',
+                dni: w?.dni || colab?.dni || ed?.dni || '',
+                nie: w?.nie || colab?.nie || ed?.nie || '',
+            });
+
+            if (wa?.id) {
+                setRescisaoAssignmentId(wa.id);
+            }
+            if (finalContratanteRaw) {
+                setRescisaoContratante(resolveContratanteOption(finalContratanteRaw));
             }
         } catch (err) {
-            console.error("Erro ao carregar dados do trabalhador para rescisão:", err);
+            console.error("Erro ao carregar dados completos do trabalhador para rescisão:", err);
+        } finally {
+            setLoadingRescisaoWorker(false);
         }
     };
 
@@ -2608,34 +2686,36 @@ Muchas gracias.`;
                                 <FileText className="h-4 w-4" />
                                 Carta de Rescisão
                             </Button>
-                            <DialogContent className={`${rescisaoSuccess ? 'max-w-7xl h-[85vh]' : 'max-w-2xl max-h-[90vh]'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
-                                <DialogHeader>
-                                    <DialogTitle className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
-                                        <FileText className="h-5 w-5" />
+                            <DialogContent className={`${rescisaoSuccess ? 'max-w-7xl sm:max-w-7xl w-[96vw] h-[88vh]' : 'max-w-4xl sm:max-w-4xl w-[95vw] max-h-[92vh]'} flex flex-col bg-white dark:bg-slate-900 p-6 overflow-hidden transition-all duration-300`}>
+                                <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                                    <DialogTitle className="flex items-center gap-2 text-xl font-bold text-rose-600 dark:text-rose-400">
+                                        <FileText className="h-6 w-6" />
                                         Emitir Carta de Rescisão (Solicitud de Rescisión)
                                     </DialogTitle>
-                                    <DialogDescription>
-                                        Gere a carta de rescisão com cálculo automático do aviso prévio de 15 dias corridos (com opção de edição retroativa) e assinatura eletrônica com código OTP.
+                                    <DialogDescription className="text-sm">
+                                        Selecione o trabalhador para carregar automaticamente seus documentos (Passaporte, NIF e NISS), confira o período de aviso prévio de 15 dias corridos e gere o link para assinatura eletrônica.
                                     </DialogDescription>
                                 </DialogHeader>
 
                                 {!rescisaoSuccess ? (
-                                    <form onSubmit={handleGenerateRescisao} className="space-y-4 pt-2 overflow-y-auto pr-1">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="space-y-1.5">
-                                                <Label>Selecionar Trabalhador</Label>
+                                    <form onSubmit={handleGenerateRescisao} className="space-y-5 pt-3 overflow-y-auto pr-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold">Selecionar Trabalhador</Label>
                                                 <Combobox
                                                     options={workersList}
                                                     value={rescisaoWorkerId || ''}
                                                     onChange={(val) => handleSelectRescisaoWorker(val || null)}
                                                     placeholder="Digite o nome ou código do trabalhador..."
+                                                    className="h-11 text-sm font-medium"
+                                                    popoverClassName="w-[420px]"
                                                 />
                                             </div>
 
-                                            <div className="space-y-1.5">
-                                                <Label>Empresa Contratante (Modelo Word)</Label>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold">Empresa Contratante (Modelo Word)</Label>
                                                 <Select value={rescisaoContratante} onValueChange={setRescisaoContratante}>
-                                                    <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                                                    <SelectTrigger className="h-11 text-sm font-medium bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
                                                         <SelectValue placeholder="Selecione a empresa..." />
                                                     </SelectTrigger>
                                                     <SelectContent className="z-[9999]">
@@ -2649,64 +2729,122 @@ Muchas gracias.`;
                                             </div>
                                         </div>
 
-                                        {/* Dados de Identificação na Carta */}
-                                        <div className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 space-y-3">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-                                                    Documentos do Trabalhador (Impressos no Cabeçalho da Carta)
-                                                </span>
-                                                <span className="text-[11px] text-slate-400">Editável se necessário</span>
+                                        {/* Ficha Resumo + Documentos de Identificação na Carta */}
+                                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 space-y-4">
+                                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                                                        Dados do Trabalhador & Documentos (Impressos no Cabeçalho da Carta)
+                                                    </span>
+                                                    {loadingRescisaoWorker && (
+                                                        <span className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando dados...
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-xs text-slate-500">Você pode complementar ou editar qualquer campo abaixo</span>
                                             </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                <div>
-                                                    <Label className="text-xs">Pasaporte / Doc. ID</Label>
+
+                                            {/* Resumo cadastral do trabalhador quando selecionado */}
+                                            {rescisaoWorkerId && rescisaoWorkerDetails && (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs">
+                                                    <div>
+                                                        <span className="text-slate-400 block text-[11px]">Código / Colaborador</span>
+                                                        <span className="font-bold text-slate-800 dark:text-slate-100">
+                                                            {rescisaoWorkerDetails.cod_colab || '-'} — {rescisaoWorkerName}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400 block text-[11px]">Cliente / Obra Atual</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                                            {rescisaoWorkerDetails.cliente || 'Sem cliente vinculado'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400 block text-[11px]">Função / Cargo</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                                            {rescisaoWorkerDetails.funcion || '-'}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-slate-400 block text-[11px]">Contato (WhatsApp / E-mail)</span>
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block" title={`${rescisaoWorkerPhone} ${rescisaoWorkerEmail}`}>
+                                                            {rescisaoWorkerPhone || rescisaoWorkerEmail || 'Sem telefone'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        Pasaporte / Documento ID
+                                                    </Label>
                                                     <Input
                                                         value={rescisaoPasaporte}
                                                         onChange={(e) => setRescisaoPasaporte(e.target.value)}
-                                                        placeholder="Ex: YB123456"
-                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        placeholder="Ex: BH249938"
+                                                        className="h-10 text-sm font-mono font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                                                     />
                                                 </div>
-                                                <div>
-                                                    <Label className="text-xs">NIF</Label>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        NIF (Portugal)
+                                                    </Label>
                                                     <Input
                                                         value={rescisaoNif}
                                                         onChange={(e) => setRescisaoNif(e.target.value)}
-                                                        placeholder="Ex: 312345678"
-                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        placeholder="Ex: 335193510"
+                                                        className="h-10 text-sm font-mono font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                                                     />
                                                 </div>
-                                                <div>
-                                                    <Label className="text-xs">NISS</Label>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                                        NISS (Segurança Social)
+                                                    </Label>
                                                     <Input
                                                         value={rescisaoNiss}
                                                         onChange={(e) => setRescisaoNiss(e.target.value)}
-                                                        placeholder="Ex: 12012345678"
-                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        placeholder="Ex: 12182540026"
+                                                        className="h-10 text-sm font-mono font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
                                                     />
                                                 </div>
                                             </div>
+
+                                            {/* Linha prévia exata que vai sair no cabeçalho da carta */}
+                                            {rescisaoWorkerId && (
+                                                <div className="text-xs bg-slate-100 dark:bg-slate-900/90 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                                                    <span className="text-slate-500 font-medium">Linha impressa na Carta:</span>
+                                                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                                        {[
+                                                            rescisaoPasaporte ? `PASAPORTE: ${rescisaoPasaporte}` : null,
+                                                            rescisaoNif ? `NIF: ${rescisaoNif}` : null,
+                                                            rescisaoNiss ? `NISS: ${rescisaoNiss}` : null,
+                                                        ].filter(Boolean).join('   ') || 'Nenhum documento informado'}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
 
                                         {/* Regra de Datas do Aviso Prévio (15 dias corridos) */}
-                                        <div className="p-3.5 rounded-lg border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 space-y-3">
+                                        <div className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/40 dark:bg-rose-950/20 space-y-4">
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <div>
                                                     <span className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
-                                                        <Calendar className="h-3.5 w-3.5" />
+                                                        <Calendar className="h-4 w-4" />
                                                         Datas da Solicitação e Aviso Prévio (15 Dias Corridos)
                                                     </span>
-                                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                                         Ao alterar a data de início, a data final é calculada automaticamente (+15 dias), mas você pode editá-las livremente (inclusive retroativo).
                                                     </p>
                                                 </div>
-                                                <Badge variant="outline" className="font-mono text-xs border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900">
+                                                <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900">
                                                     Prazo: {getDaysDiff(rescisaoStartDate, rescisaoEndDate)} dias corridos
                                                 </Badge>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                <div className="space-y-1">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold">Data da Solicitação / Carta</Label>
                                                     <Input
                                                         type="date"
@@ -2719,11 +2857,11 @@ Muchas gracias.`;
                                                                 setRescisaoEndDate(addDaysToIso(val, 15));
                                                             }
                                                         }}
-                                                        className="bg-white dark:bg-slate-900 h-9 text-xs font-medium"
+                                                        className="bg-white dark:bg-slate-900 h-10 text-sm font-medium"
                                                     />
                                                 </div>
 
-                                                <div className="space-y-1">
+                                                <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold">Início do Aviso Prévio</Label>
                                                     <Input
                                                         type="date"
@@ -2735,17 +2873,17 @@ Muchas gracias.`;
                                                                 setRescisaoEndDate(addDaysToIso(val, 15));
                                                             }
                                                         }}
-                                                        className="bg-white dark:bg-slate-900 h-9 text-xs font-medium"
+                                                        className="bg-white dark:bg-slate-900 h-10 text-sm font-medium"
                                                     />
                                                 </div>
 
-                                                <div className="space-y-1">
+                                                <div className="space-y-1.5">
                                                     <div className="flex items-center justify-between">
                                                         <Label className="text-xs font-semibold">Fim do Aviso Prévio (+15d)</Label>
                                                         <button
                                                             type="button"
                                                             onClick={() => setRescisaoEndDate(addDaysToIso(rescisaoStartDate, 15))}
-                                                            className="text-[10px] text-rose-600 dark:text-rose-400 hover:underline font-semibold"
+                                                            className="text-xs text-rose-600 dark:text-rose-400 hover:underline font-semibold"
                                                             title="Recalcular +15 dias a partir da data de início"
                                                         >
                                                             Resetar +15d
@@ -2755,20 +2893,20 @@ Muchas gracias.`;
                                                         type="date"
                                                         value={rescisaoEndDate}
                                                         onChange={(e) => setRescisaoEndDate(e.target.value)}
-                                                        className="bg-white dark:bg-slate-900 h-9 text-xs font-medium"
+                                                        className="bg-white dark:bg-slate-900 h-10 text-sm font-medium"
                                                     />
                                                 </div>
                                             </div>
 
                                             {/* Prévia em tempo real do parágrafo da carta */}
-                                            <div className="p-2.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed">
+                                            <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed">
                                                 "Solicito que dicha rescisión surta efecto a partir del <strong className="text-slate-900 dark:text-white not-italic underline">{formatIsoToBr(rescisaoStartDate)}</strong>, respetando el plazo legal de preaviso, que se cumplirá entre el <strong className="text-slate-900 dark:text-white not-italic underline">{formatIsoToBr(rescisaoStartDate)}</strong> y el <strong className="text-slate-900 dark:text-white not-italic underline">{formatIsoToBr(rescisaoEndDate)}</strong>."
                                             </div>
                                         </div>
 
-                                        <div className="flex justify-end gap-2 pt-2">
-                                            <Button type="button" variant="outline" onClick={() => setRescisaoDialogOpen(false)}>Cancelar</Button>
-                                            <Button type="submit" disabled={generatingRescisao || !rescisaoWorkerId} className="bg-rose-600 hover:bg-rose-500 text-white font-semibold">
+                                        <div className="flex justify-end gap-3 pt-2">
+                                            <Button type="button" variant="outline" className="h-10 px-5" onClick={() => setRescisaoDialogOpen(false)}>Cancelar</Button>
+                                            <Button type="submit" disabled={generatingRescisao || !rescisaoWorkerId} className="h-10 px-6 bg-rose-600 hover:bg-rose-500 text-white font-semibold">
                                                 {generatingRescisao ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-1.5" />}
                                                 Gerar Carta de Rescisão
                                             </Button>

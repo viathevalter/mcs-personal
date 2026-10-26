@@ -42,8 +42,8 @@ serve(async (req) => {
       );
     }
 
-    // Resolve empresa_id
-    if (!empresa_id) {
+    // Resolve empresa_id (se não informado ou se for o ID da Holding, mapeia pela contratante)
+    if (!empresa_id || empresa_id === "bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d") {
       if (assignment_id) {
         const { data: wa } = await supabase
           .schema("core_personal")
@@ -51,10 +51,12 @@ serve(async (req) => {
           .select("empresa_id")
           .eq("id", assignment_id)
           .maybeSingle();
-        if (wa) empresa_id = wa.empresa_id;
+        if (wa?.empresa_id && wa.empresa_id !== "bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d") {
+          empresa_id = wa.empresa_id;
+        }
       }
       
-      if (!empresa_id) {
+      if (!empresa_id || empresa_id === "bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d") {
         // Fallback mapping based on contratante name
         const upperContr = contratante.toUpperCase();
         if (upperContr.includes("STOCCO")) {
@@ -65,6 +67,8 @@ serve(async (req) => {
           empresa_id = "847796c4-b253-4e53-9e6b-34a127ec7d85";
         } else if (upperContr.includes("TRIANGULO") || upperContr.includes("TRI - TRIANGULO")) {
           empresa_id = "a798620a-358a-4c6c-9db2-3a507c583cac";
+        } else {
+          empresa_id = "dae64d51-2181-4510-b14f-e63d2f111a8e";
         }
       }
     }
@@ -97,6 +101,18 @@ serve(async (req) => {
           .update(validUpdates)
           .eq("id", worker_id);
         Object.assign(worker, validUpdates);
+
+        if (worker.cod_colab) {
+          try {
+            await supabase
+              .schema("public")
+              .from("colaboradores")
+              .update(validUpdates)
+              .eq("cod_colab", worker.cod_colab);
+          } catch (colabErr) {
+            console.warn("Aviso ao sincronizar public.colaboradores:", colabErr);
+          }
+        }
       }
     }
 
