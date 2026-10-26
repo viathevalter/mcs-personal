@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, DollarSign, Calendar, Save, X } from 'lucide-react';
 import { fetchBancos, saveRecebimento, updateContaReceber, saveObservacao } from '../data/loader';
+import { supabase } from '../lib/supabase';
 import type { EnrichedTitulo, Banco } from '../types';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -95,6 +96,12 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
     }, [partialPaymentsList, titulo]);
 
     const isAlreadyPaid = (titulo.Saldo_a_pagar <= 0 || titulo.Status === 'Pago') && titulo.Valot_total > 0;
+    const isNegotiatedTitle = Boolean(
+        titulo.Num_doc?.startsWith('NEG-') ||
+        titulo.Integral_parcial === 'Negociado' ||
+        titulo.Tipo_cobros === 'Negociado' ||
+        titulo.Status === 'Negociado'
+    );
 
     useEffect(() => {
         if (isOpen) {
@@ -199,10 +206,13 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
             if (!recRes.success) throw recRes.error;
 
             // 2. Atualizar o Saldo e Status da Conta a Receber
+            const bancoDestino = bancos.find(b => b.id === bancoId);
+            const nomeBanco = bancoDestino ? bancoDestino.nome_banco : (titulo.Banco || 'Não especificado');
             let novoSaldo = titulo.Saldo_a_pagar - valor;
             let novoStatus = novoSaldo <= 0 ? 'Pago' : 'Parcial';
             let updatePayload: any = {
                 Form_receb: formaPagamento,
+                Banco: nomeBanco,
                 dt_recebimento: new Date(dataRecebimento)
             };
 
@@ -213,7 +223,8 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                     ...updatePayload,
                     Saldo_a_pagar: 0,
                     Status: 'Pago',
-                    Integral_parcial: 'Integral',
+                    Integral_parcial: isNegotiatedTitle ? 'Negociado' : 'Integral',
+                    ...(isNegotiatedTitle ? { Tipo_cobros: 'Negociado' } : {}),
                     comisao_taxa: diferencaCalculada.toFixed(2),
                     comentarios: comentarioTaxa || `Liquidado via ${formaPagamento} com taxa bancária de € ${diferencaCalculada.toFixed(2)}`
                 };
@@ -222,16 +233,24 @@ export const ReceberCobroModal: React.FC<ReceberCobroModalProps> = ({ titulo, is
                     ...updatePayload,
                     Saldo_a_pagar: novoSaldo,
                     Status: novoStatus,
-                    Integral_parcial: tipoRecebimento
+                    Integral_parcial: isNegotiatedTitle ? 'Negociado' : tipoRecebimento,
+                    ...(isNegotiatedTitle ? { Tipo_cobros: 'Negociado' } : {})
                 };
             }
 
             const updateRes = await updateContaReceber(titulo.id, updatePayload);
             if (!updateRes.success) throw updateRes.error;
 
+            // Se era um título negociado e foi liquidado, limpar eventuais simulações pendentes desse título
+            if (isNegotiatedTitle && novoSaldo <= 0) {
+                try {
+                    await supabase.from('cobranca_simulacoes').delete().eq('titulo_id', String(titulo.id));
+                } catch (e) {
+                    console.warn('Could not clean simulation after paying negotiated title:', e);
+                }
+            }
+
             // 3. Salvar Observação Automática
-            const bancoDestino = bancos.find(b => b.id === bancoId);
-            const nomeBanco = bancoDestino ? bancoDestino.nome_banco : 'Não especificado';
             
             let obsText = '';
             if (lancarComoTaxa && temDiferenca) {

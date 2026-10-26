@@ -550,22 +550,25 @@ export const Cobros = () => {
         return true;
     });
 
+    const isExcludedFromCobros = (item: EnrichedTitulo) =>
+        item.Status === 'Negociado' || item.Status === 'Substituído por Acordo' || item.Status === 'Perdido';
+
     const kpis = {
-        total: kpiData.filter(i => i.Status !== 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        totalCount: kpiData.filter(i => i.Status !== 'Negociado').length,
-        totalClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Negociado')),
+        total: kpiData.filter(i => !isExcludedFromCobros(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        totalCount: kpiData.filter(i => !isExcludedFromCobros(i)).length,
+        totalClientes: getUniqueClientsCount(kpiData.filter(i => !isExcludedFromCobros(i))),
         
         pago: kpiData.filter(i => i.Status === 'Pago').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
         pagoCount: kpiData.filter(i => i.Status === 'Pago').length,
         pagoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status === 'Pago')),
         
-        vencido: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        vencidoCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && getOverdueStatus(i)).length,
-        vencidoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && getOverdueStatus(i))),
+        vencido: kpiData.filter(i => i.Status !== 'Pago' && !isExcludedFromCobros(i) && getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        vencidoCount: kpiData.filter(i => i.Status !== 'Pago' && !isExcludedFromCobros(i) && getOverdueStatus(i)).length,
+        vencidoClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && !isExcludedFromCobros(i) && getOverdueStatus(i))),
         
-        a_vencer: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && !getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        a_vencerCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && !getOverdueStatus(i)).length,
-        a_vencerClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && !getOverdueStatus(i))),
+        a_vencer: kpiData.filter(i => i.Status !== 'Pago' && !isExcludedFromCobros(i) && !getOverdueStatus(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        a_vencerCount: kpiData.filter(i => i.Status !== 'Pago' && !isExcludedFromCobros(i) && !getOverdueStatus(i)).length,
+        a_vencerClientes: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && !isExcludedFromCobros(i) && !getOverdueStatus(i))),
     };
 
     const taxaLiquidacao = kpis.total > 0 ? (kpis.pago / kpis.total) * 100 : 0;
@@ -573,14 +576,14 @@ export const Cobros = () => {
     const taxaAVencer = kpis.total > 0 ? (kpis.a_vencer / kpis.total) * 100 : 0;
 
     const topVencido = useMemo(() => {
-        const overdueItems = kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado' && getOverdueStatus(i));
+        const overdueItems = kpiData.filter(i => i.Status !== 'Pago' && !isExcludedFromCobros(i) && getOverdueStatus(i));
         if (overdueItems.length === 0) return null;
         return overdueItems.reduce((max, item) => ((item.Saldo_a_pagar || item.Valot_total || 0) > (max.Saldo_a_pagar || max.Valot_total || 0)) ? item : max, overdueItems[0]);
     }, [kpiData]);
 
     const topEmpresa = useMemo(() => {
         const empMap: Record<string, number> = {};
-        kpiData.forEach(i => {
+        kpiData.filter(i => !isExcludedFromCobros(i)).forEach(i => {
             const emp = normalizeEmpresaName(i.Empresa);
             if (emp) empMap[emp] = (empMap[emp] || 0) + (i.Valot_total || 0);
         });
@@ -589,7 +592,7 @@ export const Cobros = () => {
     }, [kpiData]);
 
     const filteredData = kpiData.filter(item => {
-        if (item.Status === 'Negociado') return false;
+        if (isExcludedFromCobros(item)) return false;
         if (activeKpiFilter === 'pago' && item.Status !== 'Pago') return false;
         if (activeKpiFilter === 'vencido' && !(item.Status !== 'Pago' && getOverdueStatus(item))) return false;
         if (activeKpiFilter === 'a_vencer' && !(item.Status !== 'Pago' && !getOverdueStatus(item))) return false;
@@ -1548,8 +1551,10 @@ export const Cobros = () => {
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TooltipProvider>
-                                            ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado') ? (
-                                                <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
+                                            ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado' || item.Tipo_cobros === 'Negociado' || item.Num_doc?.startsWith('NEG-')) ? (
+                                                <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">
+                                                    {item.Status === 'Pago' ? 'Acordo Liquidado' : t('financeiro.status.negotiated', 'Negociado')}
+                                                </Badge>
                                             ) : (
                                                 <span className="text-muted-foreground">-</span>
                                             )}

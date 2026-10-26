@@ -133,7 +133,7 @@ export async function fetchContasReceber(): Promise<ContasReceber[]> {
       Valot_total: valTotal,
       Saldo_a_pagar: saldo,
       Valor_parcial: parseEuroNumber(row.valor_parcial),
-      Status: (saldo <= 0 && valTotal > 0 && row.status !== 'Judicial') ? 'Pago' : (row.status || 'Desconhecido'),
+      Status: (saldo <= 0 && valTotal > 0 && row.status !== 'Judicial' && row.status !== 'Substituído por Acordo' && row.status !== 'Perdido') ? 'Pago' : (row.status || 'Desconhecido'),
       Integral_parcial: row.integral_parcial || '',
       Banco: row.banco || '',
       Form_receb: row.form_receb || '',
@@ -373,7 +373,8 @@ export async function createContaReceber(data: Partial<ContasReceber>): Promise<
       num_doc: data.Num_doc || null,
       periodo_fat: normalizePeriodoFat(data.periodo_fat, data.Data_emissao) || null,
       banco: data.Banco || null,
-      obs: data.Obs || null,
+      obs: data.Obs || (data as any).obs || null,
+      tipo_cobros: data.Tipo_cobros || null,
       data_emissao: data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null,
       dt_venc: data.Dt_venc ? new Date(data.Dt_venc).toISOString() : null,
       valot_total: data.Valot_total?.toString() || null,
@@ -410,6 +411,8 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     if (data.periodo_fat !== undefined) dbData.periodo_fat = normalizePeriodoFat(data.periodo_fat, data.Data_emissao) || data.periodo_fat;
     if (data.Banco !== undefined) dbData.banco = data.Banco;
     if (data.Obs !== undefined) dbData.obs = data.Obs;
+    else if ((data as any).obs !== undefined) dbData.obs = (data as any).obs;
+    if (data.Tipo_cobros !== undefined) dbData.tipo_cobros = data.Tipo_cobros;
     if (data.Data_emissao !== undefined) dbData.data_emissao = data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null;
     if (data.Dt_venc !== undefined) dbData.dt_venc = data.Dt_venc ? new Date(data.Dt_venc).toISOString() : null;
     if (data.Valot_total !== undefined) {

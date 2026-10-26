@@ -80,7 +80,8 @@ export const Cobranca = () => {
     const [tempEndDateAlteracao, setTempEndDateAlteracao] = useState(endDateAlteracao);
 
     const [showFilters, setShowFilters] = useState(false);
-    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'em_negociacao' | 'judicial' | 'negociado'>(() => (sessionStorage.getItem('cobranca_activeTab') as any) || 'atraso');
+    const [activeTab, setActiveTab] = useState<'atraso' | 'alerta' | 'em_negociacao' | 'judicial' | 'negociado' | 'recebido_negociado'>(() => (sessionStorage.getItem('cobranca_activeTab') as any) || 'atraso');
+    const [negociadoSubFilter, setNegociadoSubFilter] = useState<'em_aberto' | 'recebido' | 'perdido' | 'todos'>(() => (sessionStorage.getItem('cobranca_negociadoSubFilter') as any) || 'em_aberto');
     const [viewMode, setViewMode] = useState<'client' | 'title'>(() => (sessionStorage.getItem('cobranca_viewMode') as 'client' | 'title') || 'client');
     const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
     const [simulations, setSimulations] = useState<any[]>([]);
@@ -201,6 +202,10 @@ export const Cobranca = () => {
     useEffect(() => {
         sessionStorage.setItem('cobranca_activeTab', activeTab);
     }, [activeTab]);
+
+    useEffect(() => {
+        sessionStorage.setItem('cobranca_negociadoSubFilter', negociadoSubFilter);
+    }, [negociadoSubFilter]);
 
     useEffect(() => {
         sessionStorage.setItem('cobranca_viewMode', viewMode);
@@ -618,14 +623,60 @@ export const Cobranca = () => {
         await loadData();
     };
 
-    // Helper functions
+    // Helper functions for Agreement & Collection Lifecycle
+    const isReplacedByAgreement = (item: EnrichedTitulo) => {
+        return item.Status === 'Substituído por Acordo' || item.Tipo_cobros === 'Acordo Origem';
+    };
+
+    const isNegotiatedItem = (item: EnrichedTitulo) => {
+        if (isReplacedByAgreement(item) || item.Status === 'Judicial') return false;
+        return Boolean(
+            item.Num_doc?.startsWith('NEG-') ||
+            item.Integral_parcial === 'Negociado' ||
+            item.Tipo_cobros === 'Negociado' ||
+            item.Status === 'Negociado' ||
+            item.Status === 'Perdido'
+        );
+    };
+
+    const getNegotiatedReceivedAmount = (item: EnrichedTitulo): number => {
+        if (!isNegotiatedItem(item) || item.Status === 'Perdido') return 0;
+        const valTotal = item.Valot_total || 0;
+        const saldo = item.Saldo_a_pagar ?? valTotal;
+        if (item.Status === 'Pago' || (saldo <= 0.009 && valTotal > 0)) {
+            return valTotal;
+        }
+        const paidDiff = Math.max(0, valTotal - saldo);
+        return paidDiff > 0.009 ? paidDiff : 0;
+    };
+
+    const isNegotiatedFullyPaid = (item: EnrichedTitulo) => {
+        if (!isNegotiatedItem(item) || item.Status === 'Perdido') return false;
+        const valTotal = item.Valot_total || 0;
+        const saldo = item.Saldo_a_pagar ?? valTotal;
+        return item.Status === 'Pago' || (saldo <= 0.009 && valTotal > 0);
+    };
+
+    const isNegotiatedOpen = (item: EnrichedTitulo) => {
+        if (!isNegotiatedItem(item) || item.Status === 'Perdido' || isNegotiatedFullyPaid(item)) return false;
+        return (item.Saldo_a_pagar ?? item.Valot_total ?? 0) > 0.009;
+    };
+
+    const isNegotiatedReceived = (item: EnrichedTitulo) => {
+        return getNegotiatedReceivedAmount(item) > 0.009;
+    };
+
+    const isNegotiatedLost = (item: EnrichedTitulo) => {
+        return item.Status === 'Perdido';
+    };
+
     const isOverdue = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Judicial' || item.Status === 'Negociado') return false;
-        return item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0));
+        if (item.Status === 'Pago' || item.Status === 'Judicial' || isReplacedByAgreement(item) || isNegotiatedItem(item)) return false;
+        return Boolean(item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0)));
     };
 
     const isDueSoon = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Judicial' || item.Status === 'Negociado' || isOverdue(item)) return false;
+        if (item.Status === 'Pago' || item.Status === 'Judicial' || isReplacedByAgreement(item) || isNegotiatedItem(item) || isOverdue(item)) return false;
         if (!item.Dt_venc) return false;
         const now = new Date();
         const next7Days = new Date();
@@ -633,6 +684,18 @@ export const Cobranca = () => {
         const itemDate = new Date(item.Dt_venc);
         return itemDate >= new Date(now.setHours(0,0,0,0)) && itemDate <= next7Days;
     };
+
+    // Map of original invoices replaced by agreement per client key so we can show origin trace in UI
+    const replacedOriginTitlesByClient = useMemo(() => {
+        const map = new Map<string, EnrichedTitulo[]>();
+        data.filter(isReplacedByAgreement).forEach(t => {
+            const key = (t.Cliente || 'Sem Nome').trim().toUpperCase() || t.CodCliente || '';
+            if (!key) return;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key)!.push(t);
+        });
+        return map;
+    }, [data]);
 
     const simClientCodes = useMemo(() => {
         const set = new Set<string>();
@@ -665,7 +728,7 @@ export const Cobranca = () => {
     }, [simulations]);
 
     const isClientInNegotiation = (item: EnrichedTitulo) => {
-        if (item.Status === 'Pago' || item.Status === 'Negociado' || item.Status === 'Judicial') return false;
+        if (item.Status === 'Pago' || isReplacedByAgreement(item) || isNegotiatedItem(item) || item.Status === 'Judicial') return false;
         if (item.id && simTitleIds.has(item.id.toString())) return true;
         if (item.CodCliente && simClientCodes.has(item.CodCliente.trim())) return true;
         if (item.Cliente && simClientNames.has(item.Cliente.trim().toLowerCase())) return true;
@@ -817,30 +880,53 @@ export const Cobranca = () => {
     };
 
     // KPIs Calculations
+    const activeCollectionItems = kpiData.filter(i => !isReplacedByAgreement(i) && i.Status !== 'Pago' && i.Status !== 'Perdido' && (isOverdue(i) || isDueSoon(i) || isClientInNegotiation(i) || isNegotiatedOpen(i) || i.Status === 'Judicial'));
+    const negotiatedOpenItems = kpiData.filter(i => isNegotiatedOpen(i));
+    const negotiatedReceivedItems = kpiData.filter(i => isNegotiatedReceived(i));
+    const negotiatedLostItems = kpiData.filter(i => isNegotiatedLost(i));
+    const allNegotiatedItems = kpiData.filter(i => isNegotiatedItem(i));
+
+    const recebidoNegociadoVal = negotiatedReceivedItems.reduce((acc, item) => acc + getNegotiatedReceivedAmount(item), 0);
+    const negociadoVal = negotiatedOpenItems.reduce((acc, item) => acc + (item.Saldo_a_pagar ?? item.Valot_total ?? 0), 0);
+    const perdidoVal = negotiatedLostItems.reduce((acc, item) => acc + (item.Saldo_a_pagar ?? item.Valot_total ?? 0), 0);
+    const totalAcordosVolume = recebidoNegociadoVal + negociadoVal + perdidoVal;
+    const taxaRecuperacaoNegociados = totalAcordosVolume > 0 ? Math.round((recebidoNegociadoVal / totalAcordosVolume) * 100) : 0;
+
     const kpis = {
-        atrasoVal: kpiData.filter(i => isOverdue(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        atrasoVal: kpiData.filter(i => isOverdue(i)).reduce((acc, item) => acc + (item.Saldo_a_pagar ?? item.Valot_total ?? 0), 0),
         atrasoCount: kpiData.filter(i => isOverdue(i)).length,
         atrasoClients: getUniqueClientsCount(kpiData.filter(i => isOverdue(i))),
 
-        alertaVal: kpiData.filter(i => isDueSoon(i)).reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        alertaVal: kpiData.filter(i => isDueSoon(i)).reduce((acc, item) => acc + (item.Saldo_a_pagar ?? item.Valot_total ?? 0), 0),
         alertaCount: kpiData.filter(i => isDueSoon(i)).length,
         alertaClients: getUniqueClientsCount(kpiData.filter(i => isDueSoon(i))),
 
-        judicialVal: kpiData.filter(i => i.Status === 'Judicial').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
+        judicialVal: kpiData.filter(i => i.Status === 'Judicial').reduce((acc, item) => acc + (item.Saldo_a_pagar ?? item.Valot_total ?? 0), 0),
         judicialCount: kpiData.filter(i => i.Status === 'Judicial').length,
         judicialClients: getUniqueClientsCount(kpiData.filter(i => i.Status === 'Judicial')),
 
-        negociadoVal: kpiData.filter(i => i.Status === 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        negociadoCount: kpiData.filter(i => i.Status === 'Negociado').length,
-        negociadoClientsCount: new Set(kpiData.filter(i => i.Status === 'Negociado').map(i => i.CodCliente || i.Cliente)).size,
+        negociadoVal,
+        negociadoCount: negotiatedOpenItems.length,
+        negociadoClientsCount: getUniqueClientsCount(negotiatedOpenItems),
+
+        recebidoNegociadoVal,
+        recebidoNegociadoCount: negotiatedReceivedItems.length,
+        recebidoNegociadoClients: getUniqueClientsCount(negotiatedReceivedItems),
+        taxaRecuperacaoNegociados,
+
+        perdidoVal,
+        perdidoCount: negotiatedLostItems.length,
+        perdidoClientsCount: getUniqueClientsCount(negotiatedLostItems),
+
+        allNegociadosCount: allNegotiatedItems.length,
 
         emNegociacaoVal: kpiData.filter(i => isClientInNegotiation(i)).reduce((acc, item) => acc + (item.Saldo_a_pagar || item.Valot_total || 0), 0),
         emNegociacaoCount: kpiData.filter(i => isClientInNegotiation(i)).length,
         emNegociacaoClients: getUniqueClientsCount(kpiData.filter(i => isClientInNegotiation(i))),
 
-        totalVal: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').reduce((acc, item) => acc + (item.Valot_total || 0), 0),
-        totalCount: kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado').length,
-        totalClients: getUniqueClientsCount(kpiData.filter(i => i.Status !== 'Pago' && i.Status !== 'Negociado')),
+        totalVal: activeCollectionItems.reduce((acc, item) => acc + (item.Saldo_a_pagar ?? item.Valot_total ?? 0), 0),
+        totalCount: activeCollectionItems.length,
+        totalClients: getUniqueClientsCount(activeCollectionItems),
     };
 
     const topDevedor = useMemo(() => {
@@ -860,12 +946,19 @@ export const Cobranca = () => {
     }, [kpiData]);
 
     const filteredData = kpiData.filter(item => {
+        if (isReplacedByAgreement(item)) return false;
         // Tab filter
         if (activeTab === 'atraso' && !isOverdue(item)) return false;
         if (activeTab === 'alerta' && !isDueSoon(item)) return false;
         if (activeTab === 'em_negociacao' && !isClientInNegotiation(item)) return false;
         if (activeTab === 'judicial' && item.Status !== 'Judicial') return false;
-        if (activeTab === 'negociado' && item.Status !== 'Negociado') return false;
+        if (activeTab === 'recebido_negociado' && !isNegotiatedReceived(item)) return false;
+        if (activeTab === 'negociado') {
+            if (!isNegotiatedItem(item)) return false;
+            if (negociadoSubFilter === 'em_aberto' && !isNegotiatedOpen(item)) return false;
+            if (negociadoSubFilter === 'recebido' && !isNegotiatedReceived(item)) return false;
+            if (negociadoSubFilter === 'perdido' && !isNegotiatedLost(item)) return false;
+        }
         return true;
     });
 
@@ -1013,10 +1106,15 @@ export const Cobranca = () => {
 
             const totalValor = titlesSorted.reduce((acc, t) => acc + (t.Valot_total || 0), 0);
             const totalSaldo = titlesSorted.reduce((acc, t) => acc + (t.Saldo_a_pagar ?? t.Valot_total ?? 0), 0);
+            const totalRecebidoNegociado = titlesSorted.reduce((acc, t) => acc + getNegotiatedReceivedAmount(t), 0);
+            const replacedOriginTitles = replacedOriginTitlesByClient.get(g.clientKey) || [];
 
-            const overdueCount = titlesSorted.filter(t => t.Status !== 'Pago' && (t.Status === 'Negociado' || (t.Dt_venc && new Date(t.Dt_venc) < todayMidnight))).length;
+            const overdueCount = titlesSorted.filter(t => t.Status !== 'Pago' && t.Status !== 'Perdido' && !isNegotiatedFullyPaid(t) && (t.Status === 'Negociado' || (t.Dt_venc && new Date(t.Dt_venc) < todayMidnight))).length;
             const judicialCount = titlesSorted.filter(t => t.Status === 'Judicial').length;
-            const negociadoCount = titlesSorted.filter(t => t.Status === 'Negociado' || t.Integral_parcial === 'Negociado').length;
+            const negociadoCount = titlesSorted.filter(t => isNegotiatedItem(t)).length;
+            const negociadoOpenCount = titlesSorted.filter(t => isNegotiatedOpen(t)).length;
+            const negociadoPaidCount = titlesSorted.filter(t => isNegotiatedFullyPaid(t)).length;
+            const perdidoCount = titlesSorted.filter(t => isNegotiatedLost(t)).length;
             const partialCount = titlesSorted.filter(t => t.Status === 'Parcial').length;
             const inNegotiation = titlesSorted.some(t => isClientInNegotiation(t));
             const attachmentsCount = titlesSorted.filter(t => Boolean(t.anexo_url)).length;
@@ -1035,9 +1133,14 @@ export const Cobranca = () => {
                 maxDelayDays,
                 totalValor,
                 totalSaldo,
+                totalRecebidoNegociado,
+                replacedOriginTitles,
                 overdueCount,
                 judicialCount,
                 negociadoCount,
+                negociadoOpenCount,
+                negociadoPaidCount,
+                perdidoCount,
                 partialCount,
                 inNegotiation,
                 attachmentsCount
@@ -1110,6 +1213,7 @@ export const Cobranca = () => {
         setCurrentPage(1);
     }, [
         activeTab,
+        negociadoSubFilter,
         viewMode,
         searchTerm,
         filterEmpresas,
@@ -1275,20 +1379,21 @@ export const Cobranca = () => {
                 await supabase.from('cobranca_simulacoes').delete().ilike('cliente_nome', group.clientName.trim());
             }
 
-            // 2. Revert any Negotiated / Judicial titles of this client back to Vencido / A vencer
+            // 2. Revert any Negotiated / Judicial / Perdido / Substituído titles of this client back to Vencido / A vencer
             for (const cTitle of allClientTitles) {
                 if (cTitle.Status === 'Pago') continue;
 
-                if (cTitle.Num_doc?.startsWith('NEG-') && cTitle.Integral_parcial === 'Negociado') {
+                if (cTitle.Num_doc?.startsWith('NEG-')) {
                     await deleteContaReceber(cTitle.id);
                     continue;
                 }
 
-                if (cTitle.Status === 'Negociado' || cTitle.Status === 'Judicial' || cTitle.Integral_parcial === 'Negociado') {
+                if (cTitle.Status === 'Negociado' || cTitle.Status === 'Substituído por Acordo' || cTitle.Status === 'Judicial' || cTitle.Status === 'Perdido' || cTitle.Integral_parcial === 'Negociado' || cTitle.Tipo_cobros === 'Negociado' || cTitle.Tipo_cobros === 'Acordo Origem') {
                     const restoredStatus = getRestoredStatus(cTitle);
                     const resUpdate = await updateContaReceber(cTitle.id, {
                         Status: restoredStatus,
-                        Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                        Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral',
+                        Tipo_cobros: ''
                     });
                     if (!resUpdate.success) throw resUpdate.error;
                 }
@@ -1349,13 +1454,30 @@ export const Cobranca = () => {
                 }
             }
 
-            // 2. Revert title status if Negociado / Judicial
-            if (item.Num_doc?.startsWith('NEG-') && item.Integral_parcial === 'Negociado' && item.Status !== 'Pago') {
+            // 2. Revert title status if Negociado / Judicial / Perdido
+            if (item.Num_doc?.startsWith('NEG-') && item.Status !== 'Pago') {
                 await deleteContaReceber(item.id);
-            } else if (item.Status === 'Negociado' || item.Status === 'Judicial' || item.Integral_parcial === 'Negociado') {
+                // If no other NEG- titles remain for this client, restore any 'Substituído por Acordo' origin titles
+                const clientSiblings = data.filter(t =>
+                    t.id !== item.id &&
+                    ((item.CodCliente && t.CodCliente === item.CodCliente) ||
+                     (t.Cliente && t.Cliente.trim().toLowerCase() === (item.Cliente || '').trim().toLowerCase()))
+                );
+                if (!clientSiblings.some(t => t.Num_doc?.startsWith('NEG-'))) {
+                    for (const orig of clientSiblings.filter(isReplacedByAgreement)) {
+                        const origRestored = getRestoredStatus(orig);
+                        await updateContaReceber(orig.id, {
+                            Status: origRestored,
+                            Integral_parcial: origRestored === 'Parcial' ? 'Parcial' : 'Integral',
+                            Tipo_cobros: ''
+                        });
+                    }
+                }
+            } else if (item.Status === 'Negociado' || item.Status === 'Substituído por Acordo' || item.Status === 'Judicial' || item.Status === 'Perdido' || item.Integral_parcial === 'Negociado' || item.Tipo_cobros === 'Negociado') {
                 const resUpdate = await updateContaReceber(item.id, {
                     Status: restoredStatus,
-                    Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                    Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral',
+                    Tipo_cobros: ''
                 });
                 if (!resUpdate.success) throw resUpdate.error;
             }
@@ -1376,6 +1498,74 @@ export const Cobranca = () => {
         } catch (err: any) {
             console.error('Error cancelling title negotiation:', err);
             toast.error('Erro ao eliminar negociação: ' + (err.message || String(err)));
+        }
+    };
+
+    const handleMarkAsLostForClient = async (group: {
+        clientName: string;
+        codCliente: string;
+        titles: EnrichedTitulo[];
+        representativeTitle: EnrichedTitulo;
+    }) => {
+        if (!window.confirm(`Deseja marcar os títulos em aberto de "${group.clientName}" como PERDIDO / CANCELADO (Sem envio ao Jurídico)?\n\n• Eles ficarão registrados na carteira de Negociados (Perdidos) e não contarão mais como cobros ativos.`)) {
+            return;
+        }
+        try {
+            for (const tItem of group.titles) {
+                if (tItem.Status === 'Pago') continue;
+                const res = await updateContaReceber(tItem.id, {
+                    Status: 'Perdido',
+                    Integral_parcial: 'Negociado',
+                    Tipo_cobros: 'Negociado'
+                });
+                if (!res.success) throw res.error;
+            }
+            if (group.codCliente) {
+                await supabase.from('cobranca_simulacoes').delete().eq('cod_cliente', group.codCliente.trim());
+            }
+            if (group.clientName) {
+                await supabase.from('cobranca_simulacoes').delete().ilike('cliente_nome', group.clientName.trim());
+            }
+            if (group.representativeTitle?.id) {
+                await saveObservacao({
+                    conta_receber_id: group.representativeTitle.id,
+                    usuario: currentUser,
+                    tipo: 'Negociação Perdida (Sem Jurídico)',
+                    descricao: `Títulos do cliente ${group.clientName} classificados como Perdidos / Cancelados sem encaminhamento ao Jurídico.`,
+                    data: new Date().toISOString()
+                });
+            }
+            toast.success('Cliente classificado como Perdido (Sem Jurídico)!');
+            await loadData();
+        } catch (err: any) {
+            toast.error('Erro ao classificar como perdido: ' + (err.message || String(err)));
+        }
+    };
+
+    const handleMarkAsLostForTitle = async (item: EnrichedTitulo) => {
+        if (!window.confirm(`Deseja marcar o título ${item.Num_doc || ''} (${item.Cliente || ''}) como PERDIDO / CANCELADO (Sem envio ao Jurídico)?`)) {
+            return;
+        }
+        try {
+            const res = await updateContaReceber(item.id, {
+                Status: 'Perdido',
+                Integral_parcial: 'Negociado',
+                Tipo_cobros: 'Negociado'
+            });
+            if (!res.success) throw res.error;
+
+            await supabase.from('cobranca_simulacoes').delete().eq('titulo_id', String(item.id));
+            await saveObservacao({
+                conta_receber_id: item.id,
+                usuario: currentUser,
+                tipo: 'Negociação Perdida (Sem Jurídico)',
+                descricao: `Título ${item.Num_doc} classificado como Perdido / Cancelado sem encaminhamento ao Jurídico.`,
+                data: new Date().toISOString()
+            });
+            toast.success(`Título ${item.Num_doc} marcado como Perdido (Sem Jurídico)!`);
+            await loadData();
+        } catch (err: any) {
+            toast.error('Erro ao classificar título como perdido: ' + (err.message || String(err)));
         }
     };
 
@@ -1444,10 +1634,18 @@ export const Cobranca = () => {
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title={t('financeiro.status.negotiated', 'Negociados')}>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setActiveTab('negociado'); setNegociadoSubFilter('em_aberto'); }} title={t('financeiro.status.negotiated', 'Negociados')}>
                                         <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.negotiated', 'Negociados')}</span>
                                         <span className="font-mono font-bold text-indigo-300">{formatCurrency(kpis.negociadoVal)}</span>
                                         <span className="text-[11px] text-slate-400">({kpis.negociadoCount} {t('financeiro.ticker.docs', 'docs')})</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setActiveTab('recebido_negociado'); setNegociadoSubFilter('recebido'); }} title="Recebido de Negociados (Recuperado)">
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px] uppercase">Recup. Negociados</span>
+                                        <span className="font-mono font-bold text-emerald-300">{formatCurrency(kpis.recebidoNegociadoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.recebidoNegociadoCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.taxaRecuperacaoNegociados}%)</span>
                                     </div>
 
                                     {topDevedor && (
@@ -1513,10 +1711,18 @@ export const Cobranca = () => {
 
                                     <div className="h-3 w-px bg-slate-800 shrink-0" />
 
-                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setActiveTab('negociado')} title={t('financeiro.status.negotiated', 'Negociados')}>
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setActiveTab('negociado'); setNegociadoSubFilter('em_aberto'); }} title={t('financeiro.status.negotiated', 'Negociados')}>
                                         <span className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold text-[10px] uppercase">{t('financeiro.ticker.negotiated', 'Negociados')}</span>
                                         <span className="font-mono font-bold text-indigo-300">{formatCurrency(kpis.negociadoVal)}</span>
                                         <span className="text-[11px] text-slate-400">({kpis.negociadoCount} {t('financeiro.ticker.docs', 'docs')})</span>
+                                    </div>
+
+                                    <div className="h-3 w-px bg-slate-800 shrink-0" />
+
+                                    <div className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => { setActiveTab('recebido_negociado'); setNegociadoSubFilter('recebido'); }} title="Recebido de Negociados (Recuperado)">
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px] uppercase">Recup. Negociados</span>
+                                        <span className="font-mono font-bold text-emerald-300">{formatCurrency(kpis.recebidoNegociadoVal)}</span>
+                                        <span className="text-[11px] text-slate-400">({kpis.recebidoNegociadoCount} {t('financeiro.ticker.docs', 'docs')} • {kpis.taxaRecuperacaoNegociados}%)</span>
                                     </div>
 
                                     {topDevedor && (
@@ -1555,7 +1761,7 @@ export const Cobranca = () => {
                 </div>
 
                 {/* KPI Premium Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
                     {/* Em Atraso Card */}
                     <Card 
                         className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
@@ -1566,21 +1772,21 @@ export const Cobranca = () => {
                         onClick={() => setActiveTab('atraso')}
                     >
                         <div className="h-1.5 w-full bg-rose-500" />
-                        <CardContent className="p-4 pt-3.5 space-y-3">
+                        <CardContent className="p-3.5 pt-3 space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
                                     {t('financeiro.kpis.title_overdue', 'Em Atraso (Vencidos)')}
                                 </span>
                                 <div className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
-                                    <AlertTriangle size={16} />
+                                    <AlertTriangle size={15} />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-rose-600 dark:text-rose-400">
+                                <div className="text-xl lg:text-2xl font-extrabold tracking-tight font-mono text-rose-600 dark:text-rose-400">
                                     {formatCurrency(kpis.atrasoVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
-                                    <span className="text-slate-500 dark:text-slate-400">
+                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                                         {kpis.atrasoCount} {kpis.atrasoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
@@ -1601,21 +1807,21 @@ export const Cobranca = () => {
                         onClick={() => setActiveTab('alerta')}
                     >
                         <div className="h-1.5 w-full bg-amber-500" />
-                        <CardContent className="p-4 pt-3.5 space-y-3">
+                        <CardContent className="p-3.5 pt-3 space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                                     {t('financeiro.kpis.title_due_soon', 'A Vencer (7 Dias)')}
                                 </span>
                                 <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
-                                    <Clock size={16} />
+                                    <Clock size={15} />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-amber-500">
+                                <div className="text-xl lg:text-2xl font-extrabold tracking-tight font-mono text-amber-500">
                                     {formatCurrency(kpis.alertaVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
-                                    <span className="text-slate-500 dark:text-slate-400">
+                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                                         {kpis.alertaCount} {kpis.alertaCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
@@ -1636,17 +1842,17 @@ export const Cobranca = () => {
                         onClick={() => setActiveTab('em_negociacao')}
                     >
                         <div className="h-1.5 w-full bg-purple-500" />
-                        <CardContent className="p-4 pt-3.5 space-y-3">
+                        <CardContent className="p-3.5 pt-3 space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
                                     {t('financeiro.kpis.title_in_negotiation', 'Em Negociação')}
                                 </span>
                                 <div className="p-1.5 rounded-lg bg-purple-50 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
-                                    <Handshake size={16} />
+                                    <Handshake size={15} />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-purple-600 dark:text-purple-400">
+                                <div className="text-xl lg:text-2xl font-extrabold tracking-tight font-mono text-purple-600 dark:text-purple-400">
                                     {formatCurrency(kpis.emNegociacaoVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
@@ -1661,35 +1867,70 @@ export const Cobranca = () => {
                         </CardContent>
                     </Card>
 
-                    {/* Negociados Card */}
+                    {/* Negociados (Em Curso / Em Aberto) Card */}
                     <Card 
                         className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
-                            activeTab === 'negociado' 
+                            activeTab === 'negociado' && negociadoSubFilter !== 'recebido'
                                 ? 'bg-indigo-950/40 border-indigo-500/50 ring-2 ring-indigo-500/50 shadow-md' 
                                 : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300'
                         }`}
-                        onClick={() => setActiveTab('negociado')}
+                        onClick={() => { setActiveTab('negociado'); setNegociadoSubFilter('em_aberto'); }}
                     >
                         <div className="h-1.5 w-full bg-indigo-500" />
-                        <CardContent className="p-4 pt-3.5 space-y-3">
+                        <CardContent className="p-3.5 pt-3 space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                                    {t('financeiro.kpis.title_negotiated', 'Negociados')}
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                    {t('financeiro.kpis.title_negotiated', 'Negociados (Em Curso)')}
                                 </span>
                                 <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
-                                    <Handshake size={16} />
+                                    <Handshake size={15} />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-indigo-600 dark:text-indigo-400">
+                                <div className="text-xl lg:text-2xl font-extrabold tracking-tight font-mono text-indigo-600 dark:text-indigo-400">
                                     {formatCurrency(kpis.negociadoVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
-                                    <span className="text-slate-500 dark:text-slate-400">
-                                        {kpis.negociadoCount} {kpis.negociadoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
+                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                        {kpis.negociadoCount} {kpis.negociadoCount === 1 ? t('financeiro.kpis.count_titles_singular', 'parcela') : 'parcelas'}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
                                         {kpis.negociadoClientsCount} {kpis.negociadoClientsCount === 1 ? t('financeiro.kpis.count_clients_singular', 'cliente') : t('financeiro.kpis.count_clients_plural', 'clientes')}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* NOVO CARD: Recebido de Negociados (Recuperado) */}
+                    <Card 
+                        className={`relative overflow-hidden cursor-pointer transition-all duration-200 border rounded-xl shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
+                            activeTab === 'recebido_negociado' || (activeTab === 'negociado' && negociadoSubFilter === 'recebido')
+                                ? 'bg-emerald-950/40 border-emerald-500/60 ring-2 ring-emerald-500/50 shadow-md' 
+                                : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                        }`}
+                        onClick={() => { setActiveTab('recebido_negociado'); setNegociadoSubFilter('recebido'); }}
+                    >
+                        <div className="h-1.5 w-full bg-emerald-500" />
+                        <CardContent className="p-3.5 pt-3 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                    {t('financeiro.kpis.title_received_negotiated', 'Recebido de Negociados')}
+                                </span>
+                                <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 size={15} />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="text-xl lg:text-2xl font-extrabold tracking-tight font-mono text-emerald-600 dark:text-emerald-400">
+                                    {formatCurrency(kpis.recebidoNegociadoVal)}
+                                </div>
+                                <div className="flex items-center justify-between text-xs mt-1.5">
+                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]" title={`${kpis.recebidoNegociadoCount} acordos/parcelas com recebimento`}>
+                                        {kpis.recebidoNegociadoClients} {kpis.recebidoNegociadoClients === 1 ? 'cliente' : 'clientes'} ({kpis.recebidoNegociadoCount})
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" title="Taxa de recuperação sobre o total negociado">
+                                        {kpis.taxaRecuperacaoNegociados}% recup.
                                     </span>
                                 </div>
                             </div>
@@ -1706,21 +1947,21 @@ export const Cobranca = () => {
                         onClick={() => setActiveTab('judicial')}
                     >
                         <div className="h-1.5 w-full bg-red-700" />
-                        <CardContent className="p-4 pt-3.5 space-y-3">
+                        <CardContent className="p-3.5 pt-3 space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-400">
                                     {t('financeiro.kpis.title_judicial', 'Setor Judicial')}
                                 </span>
                                 <div className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400">
-                                    <Scale size={16} />
+                                    <Scale size={15} />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-red-700 dark:text-red-400">
+                                <div className="text-xl lg:text-2xl font-extrabold tracking-tight font-mono text-red-700 dark:text-red-400">
                                     {formatCurrency(kpis.judicialVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
-                                    <span className="text-slate-500 dark:text-slate-400">
+                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                                         {kpis.judicialCount} {kpis.judicialCount === 1 ? t('financeiro.kpis.active_processes_singular', 'processo') : t('financeiro.kpis.active_processes_plural', 'processos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-bold text-[10px] bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300">
@@ -1734,21 +1975,21 @@ export const Cobranca = () => {
                     {/* Total Sob Cobrança Card */}
                     <Card className="relative overflow-hidden border rounded-xl shadow-sm bg-gradient-to-br from-slate-900 to-slate-800 text-white border-slate-700">
                         <div className="h-1.5 w-full bg-slate-500" />
-                        <CardContent className="p-4 pt-3.5 space-y-3">
+                        <CardContent className="p-3.5 pt-3 space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300">
                                     {t('financeiro.kpis.title_total', 'Total Sob Cobrança')}
                                 </span>
                                 <div className="p-1.5 rounded-lg bg-slate-800 text-slate-300">
-                                    <TrendingDown size={16} />
+                                    <TrendingDown size={15} />
                                 </div>
                             </div>
                             <div>
-                                <div className="text-2xl lg:text-3xl font-extrabold tracking-tight font-mono text-white">
+                                <div className="text-xl lg:text-2xl font-extrabold tracking-tight font-mono text-white">
                                     {formatCurrency(kpis.totalVal)}
                                 </div>
                                 <div className="flex items-center justify-between text-xs mt-1.5">
-                                    <span className="text-slate-300">
+                                    <span className="text-slate-300 text-[11px]">
                                         {kpis.totalCount} {kpis.totalCount === 1 ? t('financeiro.kpis.count_titles_singular', 'título') : t('financeiro.kpis.count_titles_plural', 'títulos')}
                                     </span>
                                     <span className="px-2 py-0.5 rounded-full font-semibold text-[10px] bg-slate-800 text-slate-200">
@@ -2233,10 +2474,16 @@ export const Cobranca = () => {
                                 {t('financeiro.kpis.tab_in_negotiation', 'Em Negociação')} ({kpis.emNegociacaoClients})
                             </button>
                             <button
-                                onClick={() => setActiveTab('negociado')}
+                                onClick={() => { setActiveTab('negociado'); setNegociadoSubFilter('em_aberto'); }}
                                 className={`px-3.5 py-1.5 rounded-md transition-all whitespace-nowrap ${activeTab === 'negociado' ? 'bg-white dark:bg-slate-800 text-indigo-650 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 {t('financeiro.kpis.tab_negotiated', 'Negociados')} ({kpis.negociadoCount})
+                            </button>
+                            <button
+                                onClick={() => { setActiveTab('recebido_negociado'); setNegociadoSubFilter('recebido'); }}
+                                className={`px-3.5 py-1.5 rounded-md transition-all whitespace-nowrap ${activeTab === 'recebido_negociado' ? 'bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                Recebidos Acordos ({kpis.recebidoNegociadoCount})
                             </button>
                             <button
                                 onClick={() => setActiveTab('judicial')}
@@ -2246,6 +2493,80 @@ export const Cobranca = () => {
                             </button>
                         </div>
                     </div>
+
+                    {/* Sub-filter Bar for Carteira de Acordos / Negociados */}
+                    {(activeTab === 'negociado' || activeTab === 'recebido_negociado') && (
+                        <div className="mt-3 pt-2.5 border-t border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mr-1">
+                                    Filtro de Acordos:
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => { setActiveTab('negociado'); setNegociadoSubFilter('em_aberto'); }}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                                        activeTab === 'negociado' && negociadoSubFilter === 'em_aberto'
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+                                    }`}
+                                >
+                                    <Handshake size={12} />
+                                    <span>Em Curso / Em Aberto ({kpis.negociadoCount})</span>
+                                    <span className="font-mono text-[11px] opacity-90">• {formatCurrency(kpis.negociadoVal)}</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => { setActiveTab('recebido_negociado'); setNegociadoSubFilter('recebido'); }}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                                        activeTab === 'recebido_negociado' || (activeTab === 'negociado' && negociadoSubFilter === 'recebido')
+                                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-emerald-400'
+                                    }`}
+                                >
+                                    <CheckCircle2 size={12} />
+                                    <span>Finalizados / Recebidos ({kpis.recebidoNegociadoCount})</span>
+                                    <span className="font-mono text-[11px] opacity-90">• {formatCurrency(kpis.recebidoNegociadoVal)}</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => { setActiveTab('negociado'); setNegociadoSubFilter('perdido'); }}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                                        activeTab === 'negociado' && negociadoSubFilter === 'perdido'
+                                            ? 'bg-slate-700 text-white border-slate-700 shadow-xs'
+                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                                    }`}
+                                >
+                                    <Ban size={12} />
+                                    <span>Perdidos / Sem Jurídico ({kpis.perdidoCount})</span>
+                                    <span className="font-mono text-[11px] opacity-90">• {formatCurrency(kpis.perdidoVal)}</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => { setActiveTab('negociado'); setNegociadoSubFilter('todos'); }}
+                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold transition-all border ${
+                                        activeTab === 'negociado' && negociadoSubFilter === 'todos'
+                                            ? 'bg-brand-primary text-white border-brand-primary shadow-xs'
+                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-brand-primary/50'
+                                    }`}
+                                >
+                                    <span>Todos os Acordos ({kpis.allNegociadosCount})</span>
+                                </button>
+                            </div>
+
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-3">
+                                <span>
+                                    Recuperado: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(kpis.recebidoNegociadoVal)}</strong> ({kpis.taxaRecuperacaoNegociados}%)
+                                </span>
+                                <span>•</span>
+                                <span>
+                                    Saldo em Curso: <strong className="text-indigo-600 dark:text-indigo-400 font-mono">{formatCurrency(kpis.negociadoVal)}</strong>
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0 overflow-x-auto flex-1">
                     <Table>
@@ -2338,6 +2659,15 @@ export const Cobranca = () => {
                                                                         <span>{group.attachmentsCount} PDF</span>
                                                                     </span>
                                                                 )}
+                                                                {group.replacedOriginTitles && group.replacedOriginTitles.length > 0 && (
+                                                                    <span
+                                                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold border border-indigo-200/70 dark:border-indigo-800/50"
+                                                                        title={`Substituiu ${group.replacedOriginTitles.length} fatura(s) original(is): ${group.replacedOriginTitles.map(o => o.Num_doc).join(', ')}`}
+                                                                    >
+                                                                        <Handshake size={10} />
+                                                                        <span>Orig: {group.replacedOriginTitles.length} doc(s)</span>
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -2386,7 +2716,7 @@ export const Cobranca = () => {
                                                 {/* Col 5: Vencimento (Mais antigo) + Maior Atraso */}
                                                 <TableCell>
                                                     <div className="font-semibold text-slate-800 dark:text-slate-100">{formatDate(group.oldestVencimento)}</div>
-                                                    {(activeTab === 'atraso' || activeTab === 'negociado' || activeTab === 'em_negociacao' || activeTab === 'judicial') && group.maxDelayDays > 0 && (
+                                                    {(activeTab === 'atraso' || activeTab === 'negociado' || activeTab === 'em_negociacao' || activeTab === 'judicial') && group.maxDelayDays > 0 && group.totalSaldo > 0 && (
                                                         <span className="text-[10px] text-destructive font-bold uppercase tracking-wider block">
                                                             ({isMulti ? `máx. ${group.maxDelayDays}` : group.maxDelayDays} {group.maxDelayDays === 1 ? t('financeiro.table.delay_day', 'dia de atraso') : t('financeiro.table.delay_days', 'dias de atraso')})
                                                         </span>
@@ -2403,19 +2733,35 @@ export const Cobranca = () => {
                                                     )}
                                                 </TableCell>
 
-                                                {/* Col 7: Saldo Consolidado */}
+                                                {/* Col 7: Saldo Consolidado + Recebido de Negociado */}
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="font-extrabold text-brand-primary text-sm">{formatCurrency(group.totalSaldo)}</div>
-                                                    {isMulti && (
+                                                    {group.totalSaldo > 0 ? (
+                                                        <div className="font-extrabold text-brand-primary text-sm">{formatCurrency(group.totalSaldo)}</div>
+                                                    ) : (
+                                                        <div className="font-extrabold text-emerald-600 dark:text-emerald-400 text-xs">✓ Liquidado (€ 0,00)</div>
+                                                    )}
+                                                    {group.totalRecebidoNegociado > 0 ? (
+                                                        <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                                            Recebido: {formatCurrency(group.totalRecebidoNegociado)}
+                                                        </div>
+                                                    ) : isMulti ? (
                                                         <div className="text-[10px] text-muted-foreground font-semibold">
                                                             Saldo Consolidado
                                                         </div>
-                                                    )}
+                                                    ) : null}
                                                 </TableCell>
 
                                                 {/* Col 8: Status Consolidado */}
                                                 <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                                                    {group.overdueCount > 0 ? (
+                                                    {group.perdidoCount > 0 && group.totalSaldo <= 0 ? (
+                                                        <Badge variant="outline" className="border-slate-500 text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 font-bold">
+                                                            Perdido
+                                                        </Badge>
+                                                    ) : group.totalSaldo <= 0 && group.negociadoPaidCount > 0 ? (
+                                                        <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                                                            {t('financeiro.status.paid', 'Pago')}
+                                                        </Badge>
+                                                    ) : group.overdueCount > 0 ? (
                                                         <Badge variant="destructive">{t('financeiro.status.overdue', 'Vencido')}</Badge>
                                                     ) : (
                                                         <Badge variant="secondary" className="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 font-bold">
@@ -2430,9 +2776,20 @@ export const Cobranca = () => {
                                                         <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">
                                                             {t('financeiro.status.judicial', 'Jurídico')}
                                                         </Badge>
+                                                    ) : group.perdidoCount > 0 && group.negociadoOpenCount === 0 ? (
+                                                        <Badge variant="outline" className="border-slate-500 text-slate-700 bg-slate-100 dark:bg-slate-800 dark:text-slate-300 font-bold flex items-center justify-center gap-1 mx-auto w-fit">
+                                                            <Ban size={11} />
+                                                            <span>Cancelado (S/ Jur.)</span>
+                                                        </Badge>
+                                                    ) : group.negociadoPaidCount > 0 && group.negociadoOpenCount === 0 ? (
+                                                        <Badge variant="outline" className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-500 flex items-center justify-center gap-1 mx-auto w-fit">
+                                                            <CheckCircle2 size={11} />
+                                                            <span>Negociado Finalizado</span>
+                                                        </Badge>
                                                     ) : group.negociadoCount > 0 ? (
-                                                        <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">
-                                                            {t('financeiro.status.negotiated', 'Negociado')}
+                                                        <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500 flex items-center justify-center gap-1 mx-auto w-fit">
+                                                            <Handshake size={11} />
+                                                            <span>{group.totalRecebidoNegociado > 0 ? 'Acordo (Parcial Pago)' : 'Negociado em Curso'}</span>
                                                         </Badge>
                                                     ) : group.inNegotiation ? (
                                                         <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50 hover:bg-purple-100 font-bold dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-500 flex items-center justify-center gap-1 mx-auto w-fit">
@@ -2450,17 +2807,19 @@ export const Cobranca = () => {
 
                                                 {/* Col 10: Ações de Cobrança Consolidadas do Cliente */}
                                                 <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
-                                                    <div className="flex items-center justify-end gap-2">
+                                                    <div className="flex items-center justify-end gap-1.5">
                                                         {/* Cobrar Email (envia com todos os títulos do cliente na aba atual) */}
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            title={t('financeiro.actions.btn_cobrar', 'Cobrar')}
-                                                            onClick={() => openEmailModal(rep, activeTab === 'atraso' ? 'overdue' : activeTab === 'judicial' ? 'legal' : 'friendly', undefined, group.titles)}
-                                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-8 text-xs font-semibold"
-                                                        >
-                                                            <Mail size={14} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
-                                                        </Button>
+                                                        {group.totalSaldo > 0 && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                title={t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                                onClick={() => openEmailModal(rep, activeTab === 'atraso' ? 'overdue' : activeTab === 'judicial' ? 'legal' : 'friendly', undefined, group.titles)}
+                                                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-8 text-xs font-semibold"
+                                                            >
+                                                                <Mail size={14} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                            </Button>
+                                                        )}
 
                                                         {/* Histórico de Observações */}
                                                         <Button
@@ -2484,8 +2843,21 @@ export const Cobranca = () => {
                                                             <Users size={14} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
                                                         </Button>
 
+                                                        {/* Marcar como Perdido (Cancelado sem enviar ao Jurídico) */}
+                                                        {(group.inNegotiation || group.negociadoOpenCount > 0) && group.totalSaldo > 0 && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                title="Encerrar negociação como Perdida / Cancelada (sem enviar para Jurídico)"
+                                                                onClick={() => handleMarkAsLostForClient(group)}
+                                                                className="text-slate-600 hover:text-slate-800 hover:bg-slate-100 border-slate-300 dark:border-slate-700 dark:text-slate-400 h-8 text-xs font-semibold"
+                                                            >
+                                                                <Ban size={13} className="mr-1" /> Perdido
+                                                            </Button>
+                                                        )}
+
                                                         {/* Eliminar Negociação / Reverter ao Apuro Normal */}
-                                                        {(group.inNegotiation || group.negociadoCount > 0 || group.judicialCount > 0) && (
+                                                        {(group.inNegotiation || group.negociadoCount > 0 || group.judicialCount > 0 || group.perdidoCount > 0) && (
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
@@ -2497,8 +2869,8 @@ export const Cobranca = () => {
                                                             </Button>
                                                         )}
 
-                                                        {/* Se tiver apenas 1 título, permite receber direto; se tiver múltiplos, botão expande para escolher o título ou ver detalhes */}
-                                                        {!isMulti ? (
+                                                        {/* Se tiver apenas 1 título em aberto, permite receber direto; se tiver múltiplos, botão expande para escolher o título ou ver detalhes */}
+                                                        {!isMulti && group.totalSaldo > 0 ? (
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
@@ -2522,6 +2894,32 @@ export const Cobranca = () => {
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
+
+                                            {/* Banner informativo das faturas originais substituídas pelo acordo */}
+                                            {isExpanded && group.replacedOriginTitles && group.replacedOriginTitles.length > 0 && (
+                                                <TableRow className="bg-indigo-50/70 dark:bg-indigo-950/30 border-l-4 border-l-indigo-500">
+                                                    <TableCell colSpan={10} className="pl-9 py-2 text-xs">
+                                                        <div className="flex flex-wrap items-center gap-2 text-indigo-900 dark:text-indigo-200">
+                                                            <span className="font-bold inline-flex items-center gap-1">
+                                                                <Handshake size={13} className="text-indigo-600" />
+                                                                Faturas Originais Substituídas pelo Acordo ({group.replacedOriginTitles.length}):
+                                                            </span>
+                                                            {group.replacedOriginTitles.map((orig) => (
+                                                                <span
+                                                                    key={orig.id}
+                                                                    onClick={() => openZoom(orig)}
+                                                                    className="cursor-pointer inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 font-mono text-[11px] hover:border-indigo-500 transition-colors"
+                                                                    title={`Clique para visualizar fatura original ${orig.Num_doc}`}
+                                                                >
+                                                                    <strong>{orig.Num_doc}</strong>
+                                                                    <span className="text-slate-500">({formatCurrency(orig.Valot_total)})</span>
+                                                                    {orig.anexo_url && <Paperclip size={10} className="text-brand-primary" />}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
 
                                             {/* Detail Sub-Rows: Individual Titles of this Client (Aligned 1:1 with the 10 columns) */}
                                             {isExpanded && group.titles.map((item, idx) => {
@@ -2595,15 +2993,26 @@ export const Cobranca = () => {
                                                             {formatCurrency(item.Valot_total)}
                                                         </TableCell>
 
-                                                        {/* Sub-Col 7: Saldo Individual */}
+                                                        {/* Sub-Col 7: Saldo Individual + Recebido */}
                                                         <TableCell className="text-right font-bold text-xs text-brand-primary py-2.5" onClick={(e) => e.stopPropagation()}>
-                                                            {formatCurrency(item.Saldo_a_pagar)}
+                                                            {Number(item.Saldo_a_pagar || 0) > 0 ? (
+                                                                <div>{formatCurrency(item.Saldo_a_pagar)}</div>
+                                                            ) : (
+                                                                <div className="text-emerald-600 dark:text-emerald-400">✓ Liquidado</div>
+                                                            )}
+                                                            {getNegotiatedReceivedAmount(item) > 0 && (
+                                                                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                                                    Recebido: {formatCurrency(getNegotiatedReceivedAmount(item))}
+                                                                </div>
+                                                            )}
                                                         </TableCell>
 
                                                         {/* Sub-Col 8: Status Individual */}
                                                         <TableCell className="text-center py-2.5" onClick={(e) => e.stopPropagation()}>
-                                                            {item.Status === 'Pago' ? (
-                                                                <Badge variant="default" className="text-[10px]">{t('financeiro.status.paid', 'Pago')}</Badge>
+                                                            {item.Status === 'Perdido' ? (
+                                                                <Badge variant="outline" className="border-slate-500 text-slate-700 bg-slate-100 text-[10px] font-bold">Perdido</Badge>
+                                                            ) : (item.Status === 'Pago' || isNegotiatedFullyPaid(item)) ? (
+                                                                <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px]">{t('financeiro.status.paid', 'Pago')}</Badge>
                                                             ) : (item.Status === 'Negociado' || (item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0)))) ? (
                                                                 <Badge variant="destructive" className="text-[10px]">{t('financeiro.status.overdue', 'Vencido')}</Badge>
                                                             ) : (
@@ -2613,12 +3022,18 @@ export const Cobranca = () => {
 
                                                         {/* Sub-Col 9: Situação Individual */}
                                                         <TableCell className="text-center py-2.5" onClick={(e) => e.stopPropagation()}>
-                                                            {item.Status === 'Parcial' ? (
-                                                                <Badge variant="warning" className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px]">{t('financeiro.status.partial', 'Parcial')}</Badge>
+                                                            {item.Status === 'Perdido' ? (
+                                                                <Badge variant="outline" className="border-slate-500 text-slate-700 bg-slate-100 font-bold text-[10px]">Cancelado (S/ Jur.)</Badge>
+                                                            ) : isNegotiatedFullyPaid(item) ? (
+                                                                <Badge variant="outline" className="border-emerald-600 text-emerald-700 bg-emerald-50 font-bold text-[10px]">Negociado Finalizado</Badge>
                                                             ) : item.Status === 'Judicial' ? (
                                                                 <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 font-bold text-[10px]">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
-                                                            ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado') ? (
-                                                                <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 font-bold text-[10px]">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
+                                                            ) : isNegotiatedItem(item) ? (
+                                                                <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 font-bold text-[10px]">
+                                                                    {getNegotiatedReceivedAmount(item) > 0 ? 'Acordo (Parcial)' : 'Negociado em Curso'}
+                                                                </Badge>
+                                                            ) : item.Status === 'Parcial' ? (
+                                                                <Badge variant="warning" className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-[10px]">{t('financeiro.status.partial', 'Parcial')}</Badge>
                                                             ) : isClientInNegotiation(item) ? (
                                                                 <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50 font-bold text-[10px] flex items-center justify-center gap-1 mx-auto w-fit">
                                                                     <Handshake size={10} />
@@ -2632,15 +3047,17 @@ export const Cobranca = () => {
                                                         {/* Sub-Col 10: Ações Individuais do Título */}
                                                         <TableCell className="text-right px-6 py-2.5" onClick={(e) => e.stopPropagation()}>
                                                             <div className="flex items-center justify-end gap-1.5">
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    title={t('financeiro.actions.btn_cobrar', 'Cobrar este título')}
-                                                                    onClick={() => openEmailModal(item, activeTab === 'atraso' ? 'overdue' : activeTab === 'judicial' ? 'legal' : 'friendly', undefined, [item])}
-                                                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-7 px-2.5 text-[11px] font-semibold bg-white dark:bg-slate-900"
-                                                                >
-                                                                    <Mail size={12} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
-                                                                </Button>
+                                                                {Number(item.Saldo_a_pagar || 0) > 0 && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        title={t('financeiro.actions.btn_cobrar', 'Cobrar este título')}
+                                                                        onClick={() => openEmailModal(item, activeTab === 'atraso' ? 'overdue' : activeTab === 'judicial' ? 'legal' : 'friendly', undefined, [item])}
+                                                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-7 px-2.5 text-[11px] font-semibold bg-white dark:bg-slate-900"
+                                                                    >
+                                                                        <Mail size={12} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                                    </Button>
+                                                                )}
 
                                                                 <Button
                                                                     variant="outline"
@@ -2662,7 +3079,19 @@ export const Cobranca = () => {
                                                                     <Users size={12} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
                                                                 </Button>
 
-                                                                {(isClientInNegotiation(item) || item.Status === 'Negociado' || item.Integral_parcial === 'Negociado' || item.Status === 'Judicial') && (
+                                                                {(isClientInNegotiation(item) || isNegotiatedOpen(item)) && Number(item.Saldo_a_pagar || 0) > 0 && (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        title="Marcar este acordo/título como Perdido (Cancelado sem enviar para Jurídico)"
+                                                                        onClick={() => handleMarkAsLostForTitle(item)}
+                                                                        className="text-slate-600 hover:text-slate-800 hover:bg-slate-100 border-slate-300 dark:border-slate-700 h-7 px-2.5 text-[11px] font-semibold bg-white dark:bg-slate-900"
+                                                                    >
+                                                                        <Ban size={12} className="mr-1" /> Perdido
+                                                                    </Button>
+                                                                )}
+
+                                                                {(isClientInNegotiation(item) || isNegotiatedItem(item) || item.Status === 'Judicial' || item.Status === 'Perdido') && (
                                                                     <Button
                                                                         variant="outline"
                                                                         size="sm"
@@ -2674,15 +3103,17 @@ export const Cobranca = () => {
                                                                     </Button>
                                                                 )}
 
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    title={t('financeiro.actions.btn_receber', 'Receber este título')}
-                                                                    onClick={() => openReceber(item)}
-                                                                    className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                                                >
-                                                                    <CheckCircle2 size={15} />
-                                                                </Button>
+                                                                {Number(item.Saldo_a_pagar || 0) > 0 && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        title={t('financeiro.actions.btn_receber', 'Receber este título')}
+                                                                        onClick={() => openReceber(item)}
+                                                                        className="h-7 w-7 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                                    >
+                                                                        <CheckCircle2 size={15} />
+                                                                    </Button>
+                                                                )}
                                                             </div>
                                                         </TableCell>
                                                     </TableRow>
@@ -2721,7 +3152,7 @@ export const Cobranca = () => {
                                             <TableCell>{formatDate(item.Data_emissao)}</TableCell>
                                             <TableCell>
                                                 <div className="font-medium">{formatDate(item.Dt_venc)}</div>
-                                                {(activeTab === 'atraso' || activeTab === 'negociado') && delayDays > 0 && (
+                                                {(activeTab === 'atraso' || activeTab === 'negociado') && delayDays > 0 && Number(item.Saldo_a_pagar || 0) > 0 && (
                                                     <span className="text-[10px] text-destructive font-bold uppercase tracking-wider block">
                                                         ({delayDays} {delayDays === 1 ? t('financeiro.table.delay_day', 'dia de atraso') : t('financeiro.table.delay_days', 'dias de atraso')})
                                                     </span>
@@ -2729,11 +3160,22 @@ export const Cobranca = () => {
                                             </TableCell>
                                             <TableCell className="text-right font-extrabold">{formatCurrency(item.Valot_total)}</TableCell>
                                             <TableCell className="text-right font-extrabold text-brand-primary" onClick={(e) => e.stopPropagation()}>
-                                                {formatCurrency(item.Saldo_a_pagar)}
+                                                {Number(item.Saldo_a_pagar || 0) > 0 ? (
+                                                    <div>{formatCurrency(item.Saldo_a_pagar)}</div>
+                                                ) : (
+                                                    <div className="text-emerald-600 dark:text-emerald-400 text-xs">✓ Liquidado (€ 0,00)</div>
+                                                )}
+                                                {getNegotiatedReceivedAmount(item) > 0 && (
+                                                    <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                                                        Recebido: {formatCurrency(getNegotiatedReceivedAmount(item))}
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                                                {item.Status === 'Pago' ? (
-                                                     <Badge variant="default">{t('financeiro.status.paid', 'Pago')}</Badge>
+                                                {item.Status === 'Perdido' ? (
+                                                     <Badge variant="outline" className="border-slate-500 text-slate-700 bg-slate-100 font-bold">Perdido</Badge>
+                                                 ) : (item.Status === 'Pago' || isNegotiatedFullyPaid(item)) ? (
+                                                     <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-white">{t('financeiro.status.paid', 'Pago')}</Badge>
                                                  ) : (item.Status === 'Negociado' || (item.Dt_venc && new Date(item.Dt_venc) < new Date(new Date().setHours(0,0,0,0)))) ? (
                                                      <Badge variant="destructive">{t('financeiro.status.overdue', 'Vencido')}</Badge>
                                                  ) : (
@@ -2741,7 +3183,27 @@ export const Cobranca = () => {
                                                  )}
                                             </TableCell>
                                             <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                                                {item.Status === 'Parcial' ? (
+                                                {item.Status === 'Perdido' ? (
+                                                     <Badge variant="outline" className="border-slate-500 text-slate-700 bg-slate-100 font-bold">Cancelado (S/ Jur.)</Badge>
+                                                 ) : isNegotiatedFullyPaid(item) ? (
+                                                     <Badge variant="outline" className="border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 font-bold dark:bg-emerald-950/30 dark:text-emerald-400">Negociado Finalizado</Badge>
+                                                 ) : item.Status === 'Judicial' ? (
+                                                     <TooltipProvider>
+                                                         <Tooltip>
+                                                             <TooltipTrigger className="cursor-help">
+                                                                 <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
+                                                             </TooltipTrigger>
+                                                             <TooltipContent className="bg-white dark:bg-slate-900 border shadow-xl p-3 text-slate-800 dark:text-slate-100 text-xs max-w-[250px]">
+                                                                 <p className="font-semibold text-red-600 border-b pb-1 mb-1.5">{t('financeiro.tooltip.judicial_collection', 'Cobrança Jurídica:')}</p>
+                                                                 <p className="font-medium">{t('financeiro.tooltip.judicial_desc', 'Este título foi encaminhado ao departamento jurídico para cobrança judicial.')}</p>
+                                                             </TooltipContent>
+                                                         </Tooltip>
+                                                     </TooltipProvider>
+                                                 ) : isNegotiatedItem(item) ? (
+                                                     <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">
+                                                         {getNegotiatedReceivedAmount(item) > 0 ? 'Acordo (Parcial Pago)' : 'Negociado em Curso'}
+                                                     </Badge>
+                                                 ) : item.Status === 'Parcial' ? (
                                                      <TooltipProvider>
                                                          <Tooltip>
                                                              <TooltipTrigger className="cursor-help">
@@ -2757,20 +3219,6 @@ export const Cobranca = () => {
                                                              </TooltipContent>
                                                          </Tooltip>
                                                      </TooltipProvider>
-                                                 ) : item.Status === 'Judicial' ? (
-                                                     <TooltipProvider>
-                                                         <Tooltip>
-                                                             <TooltipTrigger className="cursor-help">
-                                                                 <Badge variant="outline" className="border-red-600 text-red-600 bg-red-50 hover:bg-red-100 font-bold dark:bg-red-950/20 dark:text-red-400 dark:border-red-500">{t('financeiro.status.judicial', 'Jurídico')}</Badge>
-                                                             </TooltipTrigger>
-                                                             <TooltipContent className="bg-white dark:bg-slate-900 border shadow-xl p-3 text-slate-800 dark:text-slate-100 text-xs max-w-[250px]">
-                                                                 <p className="font-semibold text-red-600 border-b pb-1 mb-1.5">{t('financeiro.tooltip.judicial_collection', 'Cobrança Jurídica:')}</p>
-                                                                 <p className="font-medium">{t('financeiro.tooltip.judicial_desc', 'Este título foi encaminhado ao departamento jurídico para cobrança judicial.')}</p>
-                                                             </TooltipContent>
-                                                         </Tooltip>
-                                                     </TooltipProvider>
-                                                 ) : (item.Status === 'Negociado' || item.Integral_parcial === 'Negociado') ? (
-                                                     <Badge variant="outline" className="border-indigo-600 text-indigo-650 bg-indigo-50 hover:bg-indigo-100 font-bold dark:bg-indigo-950/20 dark:text-indigo-400 dark:border-indigo-500">{t('financeiro.status.negotiated', 'Negociado')}</Badge>
                                                  ) : isClientInNegotiation(item) ? (
                                                      <Badge variant="outline" className="border-purple-500 text-purple-700 bg-purple-50 hover:bg-purple-100 font-bold dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-500 flex items-center gap-1">
                                                          <Handshake size={11} />
@@ -2781,17 +3229,19 @@ export const Cobranca = () => {
                                                  )}
                                             </TableCell>
                                             <TableCell className="text-right px-6" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex items-center justify-end gap-2">
+                                                <div className="flex items-center justify-end gap-1.5">
                                                     {/* Cobrar Email */}
-                                                    <Button 
-                                                        variant="outline" 
-                                                        size="sm" 
-                                                        title={t('financeiro.actions.btn_cobrar', 'Cobrar')}
-                                                        onClick={() => openEmailModal(item)}
-                                                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-8 text-xs font-semibold"
-                                                    >
-                                                        <Mail size={14} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
-                                                    </Button>
+                                                    {Number(item.Saldo_a_pagar || 0) > 0 && (
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            title={t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                            onClick={() => openEmailModal(item)}
+                                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200 h-8 text-xs font-semibold"
+                                                        >
+                                                            <Mail size={14} className="mr-1" /> {t('financeiro.actions.btn_cobrar', 'Cobrar')}
+                                                        </Button>
+                                                    )}
                                                     
                                                     {/* Negociacoes Observacoes */}
                                                     <Button 
@@ -2815,8 +3265,21 @@ export const Cobranca = () => {
                                                         <Users size={14} className="mr-1" /> {t('financeiro.actions.btn_negociar', 'Negociar')}
                                                     </Button>
 
+                                                    {/* Marcar como Perdido */}
+                                                    {(isClientInNegotiation(item) || isNegotiatedOpen(item)) && Number(item.Saldo_a_pagar || 0) > 0 && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            title="Marcar este acordo/título como Perdido (Cancelado sem enviar para Jurídico)"
+                                                            onClick={() => handleMarkAsLostForTitle(item)}
+                                                            className="text-slate-600 hover:text-slate-800 hover:bg-slate-100 border-slate-300 dark:border-slate-700 h-8 text-xs font-semibold"
+                                                        >
+                                                            <Ban size={13} className="mr-1" /> Perdido
+                                                        </Button>
+                                                    )}
+
                                                     {/* Eliminar Negociação */}
-                                                    {(isClientInNegotiation(item) || item.Status === 'Negociado' || item.Integral_parcial === 'Negociado' || item.Status === 'Judicial') && (
+                                                    {(isClientInNegotiation(item) || isNegotiatedItem(item) || item.Status === 'Judicial' || item.Status === 'Perdido') && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
@@ -2829,15 +3292,17 @@ export const Cobranca = () => {
                                                     )}
 
                                                     {/* Marcar Pago */}
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="icon" 
-                                                        title={t('financeiro.actions.btn_receber', 'Receber')}
-                                                        onClick={() => openReceber(item)}
-                                                        className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                                                    >
-                                                        <CheckCircle2 size={16} />
-                                                    </Button>
+                                                    {Number(item.Saldo_a_pagar || 0) > 0 && (
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            title={t('financeiro.actions.btn_receber', 'Receber')}
+                                                            onClick={() => openReceber(item)}
+                                                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                        >
+                                                            <CheckCircle2 size={16} />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

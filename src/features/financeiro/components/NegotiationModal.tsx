@@ -330,9 +330,9 @@ export const NegotiationModal = ({
     };
 
     const paidTitles = clientTitles.filter(t => t.Status === 'Pago');
-    const overdueTitles = clientTitles.filter(t => t.Status !== 'Pago' && isOverdue(t));
-    const dueSoonTitles = clientTitles.filter(t => t.Status !== 'Pago' && !isOverdue(t));
-    const negotiatedOrJudicialTitles = clientTitles.filter(t => t.Status === 'Negociado' || t.Status === 'Judicial' || t.Integral_parcial === 'Negociado');
+    const overdueTitles = clientTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Substituído por Acordo' && isOverdue(t));
+    const dueSoonTitles = clientTitles.filter(t => t.Status !== 'Pago' && t.Status !== 'Substituído por Acordo' && !isOverdue(t));
+    const negotiatedOrJudicialTitles = clientTitles.filter(t => t.Status === 'Negociado' || t.Status === 'Substituído por Acordo' || t.Status === 'Judicial' || t.Status === 'Perdido' || t.Integral_parcial === 'Negociado' || t.Tipo_cobros === 'Negociado');
 
     const totalPaidSum = paidTitles.reduce((acc, curr) => acc + (curr.Valot_total || 0), 0);
     const totalOverdueSum = overdueTitles.reduce((acc, curr) => acc + (curr.Saldo_a_pagar || 0), 0);
@@ -345,7 +345,7 @@ export const NegotiationModal = ({
     const [checkedIds, setCheckedIds] = useState<string[]>([]);
 
     // Negotiation options states
-    const [classification, setClassification] = useState<'friendly' | 'legal'>('friendly');
+    const [classification, setClassification] = useState<'friendly' | 'legal' | 'lost'>('friendly');
     const [discount, setDiscount] = useState<number>(0);
     const [inputPercent, setInputPercent] = useState<string>('0');
     const [inputValue, setInputValue] = useState<string>('0');
@@ -534,12 +534,25 @@ export const NegotiationModal = ({
             }
 
             // 2. If title is a generated NEG- installment and unpaid, delete it; else restore status
-            if (cTitle.Num_doc?.startsWith('NEG-') && cTitle.Integral_parcial === 'Negociado' && cTitle.Status !== 'Pago') {
+            if (cTitle.Num_doc?.startsWith('NEG-') && cTitle.Status !== 'Pago') {
                 await deleteContaReceber(cTitle.id);
-            } else if (cTitle.Status === 'Negociado' || cTitle.Status === 'Judicial' || cTitle.Integral_parcial === 'Negociado') {
+                // If no other active NEG- installments remain for this client, restore any 'Substituído por Acordo' origin titles
+                const remainingNegs = clientTitles.filter(t => t.id !== cTitle.id && t.Num_doc?.startsWith('NEG-'));
+                if (remainingNegs.length === 0) {
+                    for (const orig of clientTitles.filter(t => t.Status === 'Substituído por Acordo')) {
+                        const origRestored = getRestoredStatus(orig);
+                        await updateContaReceber(orig.id, {
+                            Status: origRestored,
+                            Integral_parcial: origRestored === 'Parcial' ? 'Parcial' : 'Integral',
+                            Tipo_cobros: ''
+                        });
+                    }
+                }
+            } else if (cTitle.Status === 'Negociado' || cTitle.Status === 'Substituído por Acordo' || cTitle.Status === 'Judicial' || cTitle.Status === 'Perdido' || cTitle.Integral_parcial === 'Negociado' || cTitle.Tipo_cobros === 'Negociado') {
                 const res = await updateContaReceber(cTitle.id, {
                     Status: restoredStatus,
-                    Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                    Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral',
+                    Tipo_cobros: ''
                 });
                 if (!res.success) throw res.error;
             }
@@ -591,21 +604,22 @@ export const NegotiationModal = ({
                 await supabase.from('cobranca_simulacoes').delete().ilike('cliente_nome', titulo.Cliente.trim());
             }
 
-            // 2. Revert any Negotiated / Judicial titles of this client back to Vencido / A vencer
+            // 2. Revert any Negotiated / Judicial / Perdido / Substituído titles of this client back to Vencido / A vencer
             for (const cTitle of clientTitles) {
                 if (cTitle.Status === 'Pago') continue;
 
                 // If it's an unpaid generated installment (NEG-...), delete it so it doesn't duplicate the original debt
-                if (cTitle.Num_doc?.startsWith('NEG-') && cTitle.Integral_parcial === 'Negociado') {
+                if (cTitle.Num_doc?.startsWith('NEG-')) {
                     await deleteContaReceber(cTitle.id);
                     continue;
                 }
 
-                if (cTitle.Status === 'Negociado' || cTitle.Status === 'Judicial' || cTitle.Integral_parcial === 'Negociado') {
+                if (cTitle.Status === 'Negociado' || cTitle.Status === 'Substituído por Acordo' || cTitle.Status === 'Judicial' || cTitle.Status === 'Perdido' || cTitle.Integral_parcial === 'Negociado' || cTitle.Tipo_cobros === 'Negociado' || cTitle.Tipo_cobros === 'Acordo Origem') {
                     const restoredStatus = getRestoredStatus(cTitle);
                     const resUpdate = await updateContaReceber(cTitle.id, {
                         Status: restoredStatus,
-                        Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral'
+                        Integral_parcial: restoredStatus === 'Parcial' ? 'Parcial' : 'Integral',
+                        Tipo_cobros: ''
                     });
                     if (!resUpdate.success) throw resUpdate.error;
                 }
@@ -872,37 +886,51 @@ export const NegotiationModal = ({
         setIsSaving(true);
         try {
             const docsList = selectedTitles.map(t => t.Num_doc).join(', ');
+            const origIdsList = selectedTitles.map(t => t.id).join(',');
             const plainObs = stripHtml(observacoes);
             
             // 1. Process selected original titles
             for (const tItem of selectedTitles) {
-                const newStatus = classification === 'legal' ? 'Judicial' : 'Negociado';
-                const resUpdate = await updateContaReceber(tItem.id, { Status: newStatus });
+                const isExistingNegInstallment = Boolean(tItem.Num_doc?.startsWith('NEG-'));
+                const updatePayload: any = classification === 'legal'
+                    ? { Status: 'Judicial' }
+                    : classification === 'lost'
+                        ? { Status: 'Perdido', Integral_parcial: 'Negociado', Tipo_cobros: 'Negociado' }
+                        : isExistingNegInstallment
+                            ? { Status: 'Substituído por Acordo', Integral_parcial: 'Negociado', Tipo_cobros: 'Acordo Origem' }
+                            : { Status: 'Substituído por Acordo', Integral_parcial: 'Negociado', Tipo_cobros: 'Acordo Origem' };
+
+                const resUpdate = await updateContaReceber(tItem.id, updatePayload);
                 if (!resUpdate.success) throw resUpdate.error;
 
                 // Log history on each original title
                 const baseDesc = classification === 'legal'
                     ? `Título encaminhado para o departamento Jurídico (Monitorio). Gerado e impresso o requerimento formal de pagamento (Burofax / MASC) em conformidade com a Ley 3/2004 de combate à inadimplência comercial em Espanha.`
-                    : `Título quitado/retirado por acordo de negociação amigável. Integrado no parcelamento global de títulos.`;
+                    : classification === 'lost'
+                        ? `Negociação classificada como Perdida / Cancelada sem encaminhamento ao Jurídico. Valor baixado da carteira ativa de cobrança.`
+                        : `Título substituído por acordo de negociação amigável (${installmentPreview.length} parcela(s), valor acordado: ${formatCurrency(discountedTotal)}). Títulos de origem: ${docsList}.`;
 
                 const obsDesc = plainObs ? `${baseDesc}\n\nObservações da Negociação:\n${plainObs}` : baseDesc;
 
                 await saveObservacao({
                     conta_receber_id: tItem.id,
                     usuario: currentUser,
-                    tipo: classification === 'legal' ? 'Acordo Judicial (MASC)' : 'Acordo Amigável',
+                    tipo: classification === 'legal' ? 'Acordo Judicial (MASC)' : classification === 'lost' ? 'Negociação Perdida (Sem Jurídico)' : 'Acordo Amigável',
                     descricao: obsDesc,
                     data: new Date().toISOString()
                 });
             }
 
-            // 2. Generate new installment titles if amigavel (not legal forwarding)
+            // 2. Generate new installment titles if amigavel (not legal forwarding and not lost)
             if (classification === 'friendly') {
                 for (const inst of installmentPreview) {
                     const firstDoc = selectedTitles[0];
                     const numDoc = `NEG-${firstDoc.Num_doc.replace(/NEG-/g, '')}-P${inst.index}/${installmentPreview.length}`;
+                    const obsNote = plainObs 
+                        ? `Acordo de negociação: ${plainObs.slice(0, 260)}. Títulos de origem: ${docsList} [ORIG_IDS:${origIdsList}]`
+                        : `Acordo de negociação. Títulos de origem: ${docsList} [ORIG_IDS:${origIdsList}]`;
 
-                    const newTitle = {
+                    const newTitle: any = {
                         Empresa: firstDoc.Empresa,
                         CodCliente: firstDoc.CodCliente,
                         Cliente: firstDoc.Cliente,
@@ -914,12 +942,12 @@ export const NegotiationModal = ({
                         Saldo_a_pagar: inst.value,
                         Status: 'A vencer',
                         Integral_parcial: 'Negociado',
+                        Tipo_cobros: 'Negociado',
                         categoria_id: firstDoc.categoria_id || null,
                         departamento_id: firstDoc.departamento_id || null,
                         obra_id: firstDoc.obra_id || null,
-                        obs: plainObs 
-                            ? `Acordo de negociação: ${plainObs.slice(0, 300)}. Títulos de origem: ${docsList}`
-                            : `Acordo de negociação. Títulos de origem: ${docsList}`
+                        Obs: obsNote,
+                        obs: obsNote
                     };
 
                     const resCreate = await createContaReceber(newTitle);
@@ -927,9 +955,29 @@ export const NegotiationModal = ({
                 }
             }
 
+            // 3. Clean up pending simulations for this client since the agreement/decision is now finalized
+            try {
+                if (simulations.length > 0) {
+                    const simIds = simulations.map(s => s.id).filter(Boolean);
+                    if (simIds.length > 0) {
+                        await supabase.from('cobranca_simulacoes').delete().in('id', simIds);
+                    }
+                }
+                if (titulo.CodCliente) {
+                    await supabase.from('cobranca_simulacoes').delete().eq('cod_cliente', titulo.CodCliente);
+                }
+                if (titulo.Cliente) {
+                    await supabase.from('cobranca_simulacoes').delete().ilike('cliente_nome', titulo.Cliente.trim());
+                }
+            } catch (simCleanErr) {
+                console.warn('Could not clean simulations after saving agreement:', simCleanErr);
+            }
+
             toast.success(classification === 'legal'
                 ? t('financeiro.negotiation.success_saved_legal', 'Acordo Judicial registrado e Burofax emitido!')
-                : t('financeiro.negotiation.success_saved', 'Acordo de negociação concluído e registrado com sucesso!')
+                : classification === 'lost'
+                    ? 'Negociação marcada como Perdida (Sem Jurídico)!'
+                    : t('financeiro.negotiation.success_saved', 'Acordo de negociação concluído e títulos gerados em Cobros!')
             );
             onRefresh();
             setIsBurofaxOpen(false);
@@ -1489,22 +1537,31 @@ export const NegotiationModal = ({
                                     {/* Classification Selector */}
                                     <div className="space-y-1.5">
                                         <Label className="text-xs font-bold text-muted-foreground uppercase">{t('financeiro.negotiation.classification', 'Classificação do Acordo')}</Label>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-3 gap-1.5">
                                             <Button 
                                                 type="button"
                                                 variant={classification === 'friendly' ? 'default' : 'outline'}
                                                 onClick={() => setClassification('friendly')}
-                                                className="text-xs h-9 gap-1 font-bold"
+                                                className="text-xs h-9 gap-1 font-bold px-2"
                                             >
-                                                <CheckCircle2 size={14} /> {t('financeiro.negotiation.friendly', 'Amigável')}
+                                                <CheckCircle2 size={13} /> {t('financeiro.negotiation.friendly', 'Amigável')}
                                             </Button>
                                             <Button 
                                                 type="button"
                                                 variant={classification === 'legal' ? 'default' : 'outline'}
                                                 onClick={() => setClassification('legal')}
-                                                className={`text-xs h-9 gap-1 font-bold ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : ''}`}
+                                                className={`text-xs h-9 gap-1 font-bold px-2 ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : ''}`}
                                             >
-                                                <Scale size={14} /> {t('financeiro.negotiation.legal', 'Enviar ao Jurídico')}
+                                                <Scale size={13} /> {t('financeiro.negotiation.legal', 'Jurídico')}
+                                            </Button>
+                                            <Button 
+                                                type="button"
+                                                variant={classification === 'lost' ? 'default' : 'outline'}
+                                                onClick={() => setClassification('lost')}
+                                                className={`text-xs h-9 gap-1 font-bold px-2 ${classification === 'lost' ? 'bg-slate-700 hover:bg-slate-800 text-white' : 'text-slate-600 border-slate-300'}`}
+                                                title="Dar baixa como negociação perdida / cancelada sem enviar para advogado/jurídico"
+                                            >
+                                                <AlertCircle size={13} /> Perdido (S/ Jur.)
                                             </Button>
                                         </div>
                                     </div>
@@ -1628,13 +1685,23 @@ export const NegotiationModal = ({
                                                 </div>
                                             </div>
                                         </>
-                                    ) : (
+                                    ) : classification === 'legal' ? (
                                         <div className="border border-red-200 bg-red-50/50 dark:border-red-950/20 dark:bg-red-950/10 p-3.5 rounded-lg flex gap-3 text-xs text-red-800 dark:text-red-300">
                                             <AlertCircle className="shrink-0 mt-0.5 text-red-650" size={16} />
                                             <div>
                                                 <p className="font-bold">{t('financeiro.negotiation.legal_warning_title', 'Aviso de Encaminhamento Judicial')}</p>
                                                 <p className="mt-1 leading-relaxed text-muted-foreground text-[11px]">
                                                     {t('financeiro.negotiation.legal_warning_desc', 'Ao confirmar, todos os títulos vencidos selecionados serão catalogados com o status "Judicial". Isso suspende ações amigáveis e move a cobrança para a tab do departamento Jurídico.')}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="border border-slate-300 bg-slate-100/70 dark:border-slate-800 dark:bg-slate-900/60 p-3.5 rounded-lg flex gap-3 text-xs text-slate-800 dark:text-slate-200">
+                                            <AlertCircle className="shrink-0 mt-0.5 text-slate-600 dark:text-slate-400" size={16} />
+                                            <div>
+                                                <p className="font-bold">Classificar como Perdido / Cancelado (Sem Jurídico)</p>
+                                                <p className="mt-1 leading-relaxed text-muted-foreground text-[11px]">
+                                                    Ao confirmar, os títulos selecionados serão classificados como <strong>Perdido (Sem Jurídico)</strong> na carteira de Negociados, sem gerar novas cobranças em Cobros e sem encaminhar ao advogado. Você poderá reverter caso necessário.
                                                 </p>
                                             </div>
                                         </div>
@@ -1786,13 +1853,23 @@ export const NegotiationModal = ({
                         <Button 
                             onClick={classification === 'legal' ? () => setIsBurofaxOpen(true) : handleSaveAgreement} 
                             disabled={isSaving || selectedTitles.length === 0}
-                            className={`text-xs gap-1.5 font-bold ${classification === 'legal' ? 'bg-red-700 hover:bg-red-800 text-white' : 'bg-primary text-white hover:bg-primary/95'}`}
+                            className={`text-xs gap-1.5 font-bold ${
+                                classification === 'legal'
+                                    ? 'bg-red-700 hover:bg-red-800 text-white'
+                                    : classification === 'lost'
+                                        ? 'bg-slate-700 hover:bg-slate-800 text-white'
+                                        : 'bg-primary text-white hover:bg-primary/95'
+                            }`}
                         >
                             {isSaving ? (
                                 t('financeiro.negotiation.btn_saving', 'Processando...')
                             ) : classification === 'legal' ? (
                                 <>
                                     <Scale size={14} /> {t('financeiro.negotiation.btn_confirm_legal', 'Confirmar e Gerar Burofax')}
+                                </>
+                            ) : classification === 'lost' ? (
+                                <>
+                                    <AlertCircle size={14} /> Confirmar Perda (S/ Jurídico)
                                 </>
                             ) : (
                                 <>
