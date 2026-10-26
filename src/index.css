@@ -120,8 +120,14 @@
   position: relative !important;
 }
 
-.docx img {
+.docx article img {
   max-width: 100% !important;
+  height: auto !important;
+}
+
+.docx header img,
+.docx footer img {
+  max-width: none !important;
   height: auto !important;
 }
 
