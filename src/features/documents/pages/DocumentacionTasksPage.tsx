@@ -2699,7 +2699,7 @@ Muchas gracias.`;
                                 <FileText className="h-4 w-4" />
                                 Carta de Rescisão
                             </Button>
-                            <DialogContent className={`${rescisaoSuccess ? 'max-w-7xl sm:max-w-7xl w-[96vw] h-[88vh]' : 'max-w-4xl sm:max-w-4xl w-[95vw] max-h-[92vh]'} flex flex-col bg-white dark:bg-slate-900 p-6 overflow-hidden transition-all duration-300`}>
+                            <DialogContent className={`${rescisaoSuccess ? 'max-w-7xl sm:max-w-7xl w-[96vw] h-[88vh]' : 'max-w-5xl sm:max-w-5xl w-[95vw] max-h-[92vh]'} flex flex-col bg-white dark:bg-slate-900 p-6 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
                                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-rose-600 dark:text-rose-400">
                                         <FileText className="h-6 w-6" />
@@ -2856,9 +2856,11 @@ Muchas gracias.`;
                                                 </Badge>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-xs font-semibold">Data da Solicitação / Carta</Label>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <div className="flex items-center justify-between h-5">
+                                                        <Label className="text-xs font-semibold leading-none">Data da Solicitação / Carta</Label>
+                                                    </div>
                                                     <Input
                                                         type="date"
                                                         value={rescisaoRequestDate}
@@ -2874,8 +2876,10 @@ Muchas gracias.`;
                                                     />
                                                 </div>
 
-                                                <div className="space-y-1.5">
-                                                    <Label className="text-xs font-semibold">Início do Aviso Prévio</Label>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <div className="flex items-center justify-between h-5">
+                                                        <Label className="text-xs font-semibold leading-none">Início do Aviso Prévio</Label>
+                                                    </div>
                                                     <Input
                                                         type="date"
                                                         value={rescisaoStartDate}
@@ -2890,13 +2894,13 @@ Muchas gracias.`;
                                                     />
                                                 </div>
 
-                                                <div className="space-y-1.5">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label className="text-xs font-semibold">Fim do Aviso Prévio (+15d)</Label>
+                                                <div className="flex flex-col gap-1.5">
+                                                    <div className="flex items-center justify-between h-5 gap-2">
+                                                        <Label className="text-xs font-semibold leading-none whitespace-nowrap">Fim do Aviso Prévio (+15d)</Label>
                                                         <button
                                                             type="button"
                                                             onClick={() => setRescisaoEndDate(addDaysToIso(rescisaoStartDate, 15))}
-                                                            className="text-xs text-rose-600 dark:text-rose-400 hover:underline font-semibold"
+                                                            className="text-xs text-rose-600 dark:text-rose-400 hover:underline font-semibold leading-none whitespace-nowrap shrink-0"
                                                             title="Recalcular +15 dias a partir da data de início"
                                                         >
                                                             Resetar +15d
