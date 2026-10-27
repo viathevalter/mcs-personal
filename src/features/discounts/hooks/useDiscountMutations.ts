@@ -14,7 +14,20 @@ export function useCreateDiscount() {
                 .select()
                 .single();
 
-            if (error) throw new Error(error.message);
+            if (error) {
+                // Fallback if legacy schema doesn't have comprovante_nome/comprovante_url yet
+                if (error.message?.includes('comprovante_')) {
+                    const { comprovante_url, comprovante_nome, ...fallbackInput } = input as any;
+                    const retry = await supabase
+                        .from('worker_discounts')
+                        .insert(fallbackInput)
+                        .select()
+                        .single();
+                    if (retry.error) throw new Error(retry.error.message);
+                    return retry.data;
+                }
+                throw new Error(error.message);
+            }
             return data;
         },
         onSuccess: () => {
@@ -41,7 +54,20 @@ export function useUpdateDiscount() {
                 .select()
                 .single();
 
-            if (error) throw new Error(error.message);
+            if (error) {
+                if (error.message?.includes('comprovante_')) {
+                    const { comprovante_url, comprovante_nome, ...fallbackUpdates } = updates as any;
+                    const retry = await supabase
+                        .from('worker_discounts')
+                        .update(fallbackUpdates)
+                        .eq('id', id)
+                        .select()
+                        .single();
+                    if (retry.error) throw new Error(retry.error.message);
+                    return retry.data;
+                }
+                throw new Error(error.message);
+            }
             return data;
         },
         onSuccess: () => {

@@ -23,6 +23,7 @@ import { useDiscountCategories } from '@/features/settings/hooks/useCategories';
 import { normalizeDiscountCategoryName, STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+import { DiscountReceiptField } from './DiscountReceiptField';
 
 interface EditDiscountDialogProps {
     discount: WorkerDiscount;
@@ -42,6 +43,8 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
     const [date, setDate] = useState<string>(discount.reference_date.split('T')[0] || '');
     const [description, setDescription] = useState<string>(discount.description || '');
     const [status, setStatus] = useState<DiscountStatus>(discount.status);
+    const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(discount.comprovante_url || null);
+    const [comprovanteNome, setComprovanteNome] = useState<string | null>(discount.comprovante_nome || null);
 
     const { mutate: updateDiscount, isPending } = useUpdateDiscount();
 
@@ -54,6 +57,8 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
             setDate(discount.reference_date.split('T')[0] || '');
             setDescription(discount.description || '');
             setStatus(discount.status);
+            setComprovanteUrl(discount.comprovante_url || null);
+            setComprovanteNome(discount.comprovante_nome || null);
         }
     }, [isOpen, discount, discountCategories]);
 
@@ -66,6 +71,8 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
                 category,
                 reference_date: date,
                 description: description || null,
+                comprovante_url: comprovanteUrl,
+                comprovante_nome: comprovanteNome,
                 status
             },
             {
@@ -74,7 +81,6 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
         );
     };
 
-    // Lista consolidada de categorias disponíveis
     const availableCategoryList = discountCategories.length > 0
         ? discountCategories.map(c => c.name)
         : STANDARD_DISCOUNT_CATEGORIES;
@@ -84,7 +90,7 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
             <DialogTrigger asChild>
                 {trigger}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[650px]">
+            <DialogContent className="sm:max-w-[650px] max-h-[92vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="text-xl font-bold">Editar Desconto</DialogTitle>
                 </DialogHeader>
@@ -189,6 +195,17 @@ export function EditDiscountDialog({ discount, trigger }: EditDiscountDialogProp
                             onChange={(e) => setDescription(e.target.value)}
                         />
                     </div>
+
+                    {/* Receipt Upload Field */}
+                    <DiscountReceiptField
+                        comprovanteUrl={comprovanteUrl}
+                        comprovanteNome={comprovanteNome}
+                        onChange={(url, nome) => {
+                            setComprovanteUrl(url);
+                            setComprovanteNome(nome);
+                        }}
+                        disabled={isPending}
+                    />
                 </div>
                 <DialogFooter className="gap-2 sm:gap-0">
                     <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isPending}>

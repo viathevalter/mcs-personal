@@ -101,6 +101,12 @@ const AVAILABLE_COLUMNS: ColumnOption[] = [
         label: 'Descrição / Observações',
         category: 'desconto',
         getValue: (d) => d.description || '-'
+    },
+    {
+        id: 'comprovante_url',
+        label: 'Comprovante (Link)',
+        category: 'desconto',
+        getValue: (d) => d.comprovante_url || '-'
     }
 ];
 

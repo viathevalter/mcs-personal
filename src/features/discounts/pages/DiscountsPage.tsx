@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { format, parseISO } from 'date-fns';
 import { ptBR, es } from 'date-fns/locale';
-import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2, X, Filter, ArrowUpDown, ArrowUp, ArrowDown, Eye, CheckSquare, Square } from 'lucide-react';
+import { Search, FileSpreadsheet, DownloadCloud, Trash2, Edit, Undo2, X, Filter, ArrowUpDown, ArrowUp, ArrowDown, Eye, CheckSquare, Square, Paperclip } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
@@ -734,7 +734,7 @@ export function DiscountsPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <p className="text-xs text-gray-500 truncate max-w-[250px]" title={discount.description || ''}>
-                                                    {discount.description || '-'}
+                                                    <span className="inline-flex items-center gap-2"><span className="truncate max-w-[200px]">{discount.description || '-'}</span>{discount.comprovante_url && (<a href={discount.comprovante_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-semibold shrink-0 transition-colors" title={discount.comprovante_nome || 'Abrir comprovante anexado'}><Paperclip className="w-3 h-3" />Comprovante</a>)}</span>
                                                 </p>
                                             </td>
                                             <td className="px-6 py-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>

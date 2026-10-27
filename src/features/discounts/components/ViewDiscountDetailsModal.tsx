@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -8,16 +7,17 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Eye, Edit, Trash2, Calendar, Building, User, Tag, Euro, FileText, CheckCircle2 } from 'lucide-react';
+import { Eye, Edit, Trash2, Calendar, Building, User, Tag, FileText, CheckCircle2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { WorkerDiscount } from '../types';
 import { EditDiscountDialog } from './EditDiscountDialog';
-import { useDeleteDiscount } from '../hooks/useDiscountMutations';
+import { useDeleteDiscount, useUpdateDiscount } from '../hooks/useDiscountMutations';
 import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+import { DiscountReceiptField } from './DiscountReceiptField';
 
 interface ViewDiscountDetailsModalProps {
-    discount: WorkerDiscount | null;
+    discount: (WorkerDiscount & { workers?: any }) | null;
     isOpen: boolean;
     onClose: () => void;
     empresas?: any[];
@@ -25,6 +25,7 @@ interface ViewDiscountDetailsModalProps {
 
 export function ViewDiscountDetailsModal({ discount, isOpen, onClose, empresas }: ViewDiscountDetailsModalProps) {
     const { mutate: deleteDiscount } = useDeleteDiscount();
+    const { mutate: updateDiscount, isPending: isUpdating } = useUpdateDiscount();
 
     if (!discount) return null;
 
@@ -47,9 +48,17 @@ export function ViewDiscountDetailsModal({ discount, isOpen, onClose, empresas }
         }
     };
 
+    const handleQuickReceiptUpdate = (url: string | null, nome: string | null) => {
+        updateDiscount({
+            id: discount.id,
+            comprovante_url: url,
+            comprovante_nome: nome
+        });
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-            <DialogContent className="sm:max-w-[650px] bg-white dark:bg-slate-900 border rounded-2xl shadow-xl">
+            <DialogContent className="sm:max-w-[650px] max-h-[92vh] overflow-y-auto bg-white dark:bg-slate-900 border rounded-2xl shadow-xl">
                 <DialogHeader>
                     <div className="flex items-center justify-between pb-2 border-b">
                         <div className="flex items-center gap-3">
@@ -61,7 +70,7 @@ export function ViewDiscountDetailsModal({ discount, isOpen, onClose, empresas }
                                     Detalhes do Desconto
                                 </DialogTitle>
                                 <p className="text-xs text-muted-foreground">
-                                    Visualização completa das informações do lançamento
+                                    Visualização completa das informações e comprovante do lançamento
                                 </p>
                             </div>
                         </div>
@@ -80,7 +89,7 @@ export function ViewDiscountDetailsModal({ discount, isOpen, onClose, empresas }
                     </div>
                 </DialogHeader>
 
-                <div className="space-y-6 py-4">
+                <div className="space-y-5 py-3">
                     {/* Header Card with Value & Worker */}
                     <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div className="flex items-center gap-3">
@@ -154,10 +163,18 @@ export function ViewDiscountDetailsModal({ discount, isOpen, onClose, empresas }
                                 <FileText className="w-4 h-4 text-indigo-500" /> Observações & Justificativas do Desconto
                             </label>
                         </div>
-                        <div className="p-4 bg-gradient-to-br from-indigo-50/30 to-slate-50 dark:from-slate-800/60 dark:to-slate-900/60 border border-indigo-100 dark:border-indigo-900/50 rounded-xl min-h-[90px] text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                        <div className="p-4 bg-gradient-to-br from-indigo-50/30 to-slate-50 dark:from-slate-800/60 dark:to-slate-900/60 border border-indigo-100 dark:border-indigo-900/50 rounded-xl min-h-[80px] text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                             {discount.description || <span className="italic text-muted-foreground">Nenhuma observação ou justificativa registrada para este desconto.</span>}
                         </div>
                     </div>
+
+                    {/* Comprovante / Receipt Field (View, Open, or Attach directly) */}
+                    <DiscountReceiptField
+                        comprovanteUrl={discount.comprovante_url}
+                        comprovanteNome={discount.comprovante_nome}
+                        onChange={handleQuickReceiptUpdate}
+                        disabled={isUpdating}
+                    />
                 </div>
 
                 <DialogFooter className="gap-2 sm:gap-0 border-t pt-3">

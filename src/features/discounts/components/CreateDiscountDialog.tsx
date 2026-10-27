@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 import { STANDARD_DISCOUNT_CATEGORIES } from '../utils/categoryUtils';
 import { findMatchingEmpresa, normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
 import { isHoldingId } from '@/shared/utils/empresaUtils';
+import { DiscountReceiptField } from './DiscountReceiptField';
 
 interface CreateDiscountDialogProps {
     trigger?: React.ReactNode;
@@ -49,6 +50,8 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
     const [description, setDescription] = useState<string>('');
     const [status, setStatus] = useState<DiscountStatus>('Ativo');
     const [isRecurring, setIsRecurring] = useState<boolean>(false);
+    const [comprovanteUrl, setComprovanteUrl] = useState<string | null>(null);
+    const [comprovanteNome, setComprovanteNome] = useState<string | null>(null);
 
     // Fetch workers for select
     const { data: workers = [], isLoading: isLoadingWorkers } = useQuery({
@@ -74,8 +77,6 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
         );
     });
 
-    const selectedWorkerObj = workers.find(w => w.id === workerId);
-
     const handleWorkerChange = (wId: string) => {
         setWorkerId(wId);
         const wObj = workers.find(w => w.id === wId);
@@ -99,6 +100,8 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
         setDescription('');
         setStatus('Ativo');
         setIsRecurring(false);
+        setComprovanteUrl(null);
+        setComprovanteNome(null);
     };
 
     const handleSave = () => {
@@ -115,6 +118,8 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                 reference_date: date,
                 description: description.trim() || null,
                 is_recurring: isRecurring,
+                comprovante_url: comprovanteUrl,
+                comprovante_nome: comprovanteNome,
                 status
             },
             {
@@ -143,7 +148,7 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[700px]">
+            <DialogContent className="sm:max-w-[700px] max-h-[92vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         Cadastrar Novo Desconto
@@ -293,6 +298,17 @@ export function CreateDiscountDialog({ trigger }: CreateDiscountDialogProps) {
                             onChange={(e) => setDescription(e.target.value)}
                         />
                     </div>
+
+                    {/* Receipt Upload Field */}
+                    <DiscountReceiptField
+                        comprovanteUrl={comprovanteUrl}
+                        comprovanteNome={comprovanteNome}
+                        onChange={(url, nome) => {
+                            setComprovanteUrl(url);
+                            setComprovanteNome(nome);
+                        }}
+                        disabled={isPending}
+                    />
                 </div>
 
                 <DialogFooter className="gap-2 sm:gap-0">

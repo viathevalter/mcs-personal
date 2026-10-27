@@ -12,6 +12,8 @@ export interface WorkerDiscount {
     reference_date: string;
     is_recurring: boolean;
     import_batch_id?: string | null;
+    comprovante_url?: string | null;
+    comprovante_nome?: string | null;
     status: DiscountStatus;
     created_at: string;
     updated_at: string;
