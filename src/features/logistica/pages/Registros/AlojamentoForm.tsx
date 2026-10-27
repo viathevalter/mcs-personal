@@ -39,10 +39,11 @@ import {
   Globe,
   ExternalLink
 } from 'lucide-react';
-import { registrosService } from '../../services/registrosService';
+import { registrosService, type RegistroObservacaoHistorico } from '../../services/registrosService';
 import type { Provedor, Alojamento } from '../../services/logisticsService';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 import { FotosAlojamentoManager } from '../../components/FotosAlojamentoManager';
+import { ObservacionesMantenimientoManager } from '../../components/ObservacionesMantenimientoManager';
 
 const alojamentoSchema = z.object({
   nome: z.string().min(1, 'El nombre / título del alojamiento es obligatorio'),
@@ -129,6 +130,8 @@ export const AlojamentoForm: React.FC = () => {
   const [provedores, setProvedores] = useState<Provedor[]>([]);
   const [existingAlojamentos, setExistingAlojamentos] = useState<Alojamento[]>([]);
   const [fotos, setFotos] = useState<string[]>([]);
+  const [historicoManutencao, setHistoricoManutencao] = useState<RegistroObservacaoHistorico[]>([]);
+  const [observacoesHtml, setObservacoesHtml] = useState<string>('');
   const [showColabModal, setShowColabModal] = useState(false);
   const dataLoadedRef = useRef(false);
 
@@ -244,10 +247,16 @@ export const AlojamentoForm: React.FC = () => {
         const savedDraft = localStorage.getItem('mcs_alojamento_draft_novo');
         if (savedDraft) {
           const parsed = JSON.parse(savedDraft);
-          if (parsed && (parsed.nome || parsed.provedor_id || parsed.endereco || (parsed.__savedFotos && parsed.__savedFotos.length > 0))) {
+          if (parsed && (parsed.nome || parsed.provedor_id || parsed.endereco || (parsed.__savedFotos && parsed.__savedFotos.length > 0) || (parsed.__savedHistoricoManutencao && parsed.__savedHistoricoManutencao.length > 0))) {
             reset(parsed);
             if (parsed.__savedFotos && Array.isArray(parsed.__savedFotos)) {
               setFotos(parsed.__savedFotos);
+            }
+            if (parsed.__savedHistoricoManutencao && Array.isArray(parsed.__savedHistoricoManutencao)) {
+              setHistoricoManutencao(parsed.__savedHistoricoManutencao);
+            }
+            if (parsed.__savedObservacoesHtml) {
+              setObservacoesHtml(parsed.__savedObservacoesHtml);
             }
             setIsDraftRestored(true);
           }
@@ -312,11 +321,13 @@ export const AlojamentoForm: React.FC = () => {
       const timer = setTimeout(() => {
         if (skipDraftSaveRef.current) return;
         try {
-          const hasContent = allWatchedValues.nome || allWatchedValues.provedor_id || allWatchedValues.endereco || (fotos && fotos.length > 0);
+          const hasContent = allWatchedValues.nome || allWatchedValues.provedor_id || allWatchedValues.endereco || (fotos && fotos.length > 0) || (historicoManutencao && historicoManutencao.length > 0);
           if (hasContent) {
             const draftPayload = {
               ...allWatchedValues,
               __savedFotos: fotos,
+              __savedHistoricoManutencao: historicoManutencao,
+              __savedObservacoesHtml: observacoesHtml,
               __draftSavedAt: new Date().toISOString()
             };
             localStorage.setItem('mcs_alojamento_draft_novo', JSON.stringify(draftPayload));
@@ -327,7 +338,7 @@ export const AlojamentoForm: React.FC = () => {
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [allWatchedValues, fotos, isEditing]);
+  }, [allWatchedValues, fotos, historicoManutencao, observacoesHtml, isEditing]);
 
   const handleDiscardDraft = () => {
     localStorage.removeItem('mcs_alojamento_draft_novo');
@@ -364,6 +375,8 @@ export const AlojamentoForm: React.FC = () => {
       metodo_pago: 'Transferir'
     });
     setFotos([]);
+    setHistoricoManutencao([]);
+    setObservacoesHtml('');
     setIsDraftRestored(false);
   };
 
@@ -483,6 +496,14 @@ export const AlojamentoForm: React.FC = () => {
 
           if (a.fotos && Array.isArray(a.fotos)) {
             setFotos(a.fotos);
+          }
+          if ((a as any).historico_manutencao && Array.isArray((a as any).historico_manutencao)) {
+            setHistoricoManutencao((a as any).historico_manutencao);
+          } else if (comod.__historico_observacoes && Array.isArray(comod.__historico_observacoes)) {
+            setHistoricoManutencao(comod.__historico_observacoes);
+          }
+          if ((a as any).observacoes_html || comod.__observacoes_html) {
+            setObservacoesHtml((a as any).observacoes_html || comod.__observacoes_html || '');
           }
 
           reset({
@@ -611,6 +632,8 @@ export const AlojamentoForm: React.FC = () => {
         comodidades,
         suministros,
         fotos,
+        historico_manutencao: historicoManutencao,
+        observacoes_html: observacoesHtml,
         contrato,
         valor_mensal: data.valor_mensal,
         status: data.status,
@@ -656,6 +679,8 @@ export const AlojamentoForm: React.FC = () => {
         setValue('camas_duplas', 0);
         setValue('capacidade_pessoas', 0);
         setFotos([]);
+        setHistoricoManutencao([]);
+        setObservacoesHtml('');
         setTimeout(() => setSaveSuccess(false), 2500);
       }
     } catch (error: any) {
@@ -1203,19 +1228,19 @@ export const AlojamentoForm: React.FC = () => {
             </div>
           </div>
 
-          {/* BLOCO: Observaciones */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-xs">
-            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
-              <FileText size={15} className="text-blue-600" />
-              Observaciones
-            </h3>
-            <textarea
-              {...register('observacoes')}
-              rows={3}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs focus:ring-2 focus:ring-blue-500"
-              placeholder="Instrucciones de entrega de llaves, normas de la casa, contactos de emergencia..."
-            />
-          </div>
+          {/* BLOCO: Observaciones & Historial de Mantenimiento (Caldera, Pintura, Garantías, Fotos y Rich Text) */}
+          <ObservacionesMantenimientoManager
+            observacoes={watch('observacoes') || ''}
+            observacoesHtml={observacoesHtml}
+            historico={historicoManutencao}
+            onChangeObservacoes={(plain, html) => {
+              setValue('observacoes', plain, { shouldDirty: true });
+              if (html !== undefined) setObservacoesHtml(html);
+            }}
+            onChangeHistorico={(novoHist) => {
+              setHistoricoManutencao(novoHist);
+            }}
+          />
         </div>
 
         {/* ========================================================= */}

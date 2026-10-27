@@ -64,6 +64,36 @@ export interface ContratoInfo {
   titular?: string;
 }
 
+export interface AnexoObservacao {
+  id: string;
+  nome: string;
+  tipo: 'imagem' | 'arquivo';
+  url: string;
+  tamanho_bytes?: number;
+  data_upload: string;
+}
+
+export interface RegistroObservacaoHistorico {
+  id: string;
+  data_hora: string;
+  categoria:
+    | 'caldera_calefaccion'
+    | 'pintura_reparacion'
+    | 'electricidad_fontaneria'
+    | 'electrodomesticos'
+    | 'garantia_preventivo'
+    | 'observacion_general';
+  titulo?: string;
+  conteudo_html: string;
+  conteudo_texto?: string;
+  fornecedor_contato?: string;
+  garantia_ate?: string;
+  anexos: AnexoObservacao[];
+  autor?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Alojamento {
   id: string;
   codigo?: string;
@@ -111,6 +141,8 @@ export interface Alojamento {
   contrato?: ContratoInfo;
   valor_mensal?: number;
   observacoes?: string;
+  observacoes_html?: string;
+  historico_manutencao?: RegistroObservacaoHistorico[];
   status?: string;
   ativo: boolean;
   created_at?: string;
@@ -215,10 +247,18 @@ const hydrateProvedor = (p: any): Provedor => {
 };
 
 const buildAlojamentoPayload = (input: any) => {
+  const historicoManutencao = Array.isArray(input.historico_manutencao)
+    ? input.historico_manutencao
+    : (Array.isArray(input.comodidades?.__historico_observacoes) ? input.comodidades.__historico_observacoes : []);
+
+  const observacoesHtml = input.observacoes_html ?? input.comodidades?.__observacoes_html ?? '';
+
   const comodidadesMeta = {
     ...(input.comodidades || {}),
     __fotos: input.fotos || [],
     __contrato: input.contrato || {},
+    __historico_observacoes: historicoManutencao,
+    __observacoes_html: observacoesHtml,
     __created_at: input.created_at || new Date().toISOString()
   };
 
@@ -247,6 +287,8 @@ const buildAlojamentoPayload = (input: any) => {
     valor_mensal: input.valor_mensal || input.contrato?.valor_mensal || null,
     custo_mensal_total: input.valor_mensal || input.contrato?.valor_mensal || null,
     observacoes: input.observacoes || '',
+    observacoes_html: observacoesHtml,
+    historico_manutencao: historicoManutencao,
     status: isInactive ? 'inativo' : 'ativo'
   };
 
@@ -273,6 +315,11 @@ const hydrateAlojamento = (a: any): Alojamento => {
   const fotos = a.fotos || comodidades.__fotos || [];
   const contrato = a.contrato || comodidades.__contrato || {};
   const createdAt = a.created_at || comodidades.__created_at || a.data_cadastro || undefined;
+  const rawHistorico =
+    (Array.isArray(a.historico_manutencao) && a.historico_manutencao.length > 0)
+      ? a.historico_manutencao
+      : (Array.isArray(comodidades.__historico_observacoes) ? comodidades.__historico_observacoes : []);
+  const observacoesHtml = a.observacoes_html || comodidades.__observacoes_html || '';
 
   return {
     ...a,
@@ -292,6 +339,8 @@ const hydrateAlojamento = (a: any): Alojamento => {
     valor_mensal: a.valor_mensal || a.custo_mensal_total || contrato.valor_mensal,
     capacidade_pessoas: a.capacidade_pessoas || a.capacidade_total || 0,
     observacoes: a.observacoes || '',
+    observacoes_html: observacoesHtml,
+    historico_manutencao: rawHistorico,
     status: a.status === 'inativo' || a.status === 'Inactivo' ? 'Inactivo' : 'Activo',
     provedor: a.provedores || a.provedor,
     ativo: a.status !== 'inativo' && a.status !== 'Inactivo' && a.ativo !== false,

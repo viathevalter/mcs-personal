@@ -34,6 +34,11 @@ export const FotosAlojamentoManager: React.FC<FotosAlojamentoManagerProps> = ({
   // Escucha el evento Pegar (Ctrl + V) global para capturar capturas de pantalla
   useEffect(() => {
     const handlePaste = async (event: ClipboardEvent) => {
+      const targetEl = (event.target as HTMLElement) || (document.activeElement as HTMLElement);
+      if (targetEl && typeof targetEl.closest === 'function' && targetEl.closest('[data-maintenance-paste-zone="true"]')) {
+        return;
+      }
+
       const items = event.clipboardData?.items;
       if (!items) return;
 
