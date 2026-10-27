@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_guipuzcoa_navarra_alava_2026',
+        name: '🚀 Mailing Alex - Inéditos Guipúzcoa, Navarra & Álava (150 leads)',
+        leadCount: 150,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Guipúzcoa Navarra Álava 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-27T16:50:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_guipuzcoa_navarra_alava_completo_2026',
+        name: '🎯 Mailing Alex - Guipúzcoa, Navarra & Álava Completo (390 leads)',
+        leadCount: 390,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - Guipúzcoa Navarra Álava 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-27T16:50:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_vizcaya_2026',
         name: '🚀 Mailing Alex - Inéditos Vizcaya (92 leads)',
         leadCount: 92,
