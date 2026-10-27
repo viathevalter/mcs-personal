@@ -23,6 +23,10 @@ import {
   Trash2,
   UserCheck,
   Briefcase,
+  Car,
+  Clock,
+  Globe,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,12 +161,41 @@ export const RecruitmentCenterPage: React.FC = () => {
     else setActiveSection('entrevistas');
   }, [location.pathname]);
 
-  // Filtros globais de busca inteligente
+  // =========================================================================
+  // FILTROS INTELIGENTES GLOBAIS E POR ABA
+  // =========================================================================
   const [selectedProfileFilter, setSelectedProfileFilter] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Filtro por Cliente Solicitante (Pedidos / Entrevistas)
+  const [requestingClientFilter, setRequestingClientFilter] = useState<string>('all');
+
+  // Filtro por Cliente Anterior onde o trabalhador já atuou no MCS
+  const [previousClientFilter, setPreviousClientFilter] = useState<string>('all');
+
+  // Filtro por Trabalhador já filtrado em Entrevista ("já filtraram lá")
+  const [interviewPresenceFilter, setInterviewPresenceFilter] = useState<
+    'all' | 'in_interview' | 'not_in_interview' | 'in_selected_client_interview'
+  >('all');
+
+  // Filtros de Ex-Colaboradores
   const [baixaSubFilter, setBaixaSubFilter] = useState<'all' | RehireStatus>('all');
+  const [baixaRecencyFilter, setBaixaRecencyFilter] = useState<'all' | '30d' | '90d'>('all');
+  const [onlyWithLicense, setOnlyWithLicense] = useState<boolean>(false);
+  const [inactiveSortBy, setInactiveSortBy] = useState<'priority' | 'recent_baixa' | 'lowest_rate'>(
+    'priority'
+  );
+
+  // Filtros de Controle de Entrevistas
   const [interviewStageFilter, setInterviewStageFilter] = useState<'all' | InterviewStage>('all');
-  const [cvDocFilter, setCvDocFilter] = useState<'all' | 'valid_eu'>('all');
+  const [interviewSourceFilter, setInterviewSourceFilter] = useState<
+    'all' | 'internal_worker' | 'external_cv'
+  >('all');
+
+  // Filtros de Banco de Currículos (+4.444 CVs)
+  const [cvDocFilter, setCvDocFilter] = useState<'all' | 'valid_eu' | 'has_pdf'>('all');
+  const [cvCountryFilter, setCvCountryFilter] = useState<string>('all');
+  const [cvLanguageFilter, setCvLanguageFilter] = useState<string>('all');
   const [cvPage, setCvPage] = useState(1);
 
   // Modal de Qualificação Pós-Baixa ("Na Manga")
@@ -205,7 +238,83 @@ export const RecruitmentCenterPage: React.FC = () => {
     queryFn: () => contratacaoRecruitmentService.fetchInterviews(),
   });
 
-  // Contadores de Radar Pós-Baixa
+  // =========================================================================
+  // MAPAS INTELIGENTES: QUEM JÁ FOI FILTRADO LÁ NAS ENTREVISTAS E LISTA DE CLIENTES
+  // =========================================================================
+  const interviewsByWorkerMap = useMemo(() => {
+    const map = new Map<string, HiringInterviewRecord[]>();
+    interviews.forEach(i => {
+      if (i.worker_id) {
+        const list = map.get(i.worker_id) || [];
+        list.push(i);
+        map.set(i.worker_id, list);
+      }
+    });
+    return map;
+  }, [interviews]);
+
+  const interviewsByExtMap = useMemo(() => {
+    const map = new Map<string, HiringInterviewRecord[]>();
+    interviews.forEach(i => {
+      if (i.external_candidate_id) {
+        const list = map.get(i.external_candidate_id) || [];
+        list.push(i);
+        map.set(i.external_candidate_id, list);
+      }
+    });
+    return map;
+  }, [interviews]);
+
+  // Lista de todos os Clientes Solicitantes presentes nas entrevistas + clientes históricos
+  const requestingClientsList = useMemo(() => {
+    const counts = new Map<string, number>();
+    interviews.forEach(i => {
+      const c = (i.client_name || '').trim().toUpperCase();
+      if (c) counts.set(c, (counts.get(c) || 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [interviews]);
+
+  // Lista de todos os Clientes onde trabalhadores inativos já atuaram no MCS
+  const allPreviousClientsList = useMemo(() => {
+    const counts = new Map<string, number>();
+    inactiveWorkers.forEach(w => {
+      const uniqueClientsForWorker = new Set<string>();
+      if (w.cliente_ultimo && w.cliente_ultimo.trim()) {
+        uniqueClientsForWorker.add(w.cliente_ultimo.trim().toUpperCase());
+      }
+      w.history.forEach(h => {
+        if (h.client_name && h.client_name.trim() && h.client_name !== 'Cliente não informado') {
+          uniqueClientsForWorker.add(h.client_name.trim().toUpperCase());
+        }
+      });
+      uniqueClientsForWorker.forEach(c => {
+        counts.set(c, (counts.get(c) || 0) + 1);
+      });
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }, [inactiveWorkers]);
+
+  // Lista de Países / Localizações dos CVs externos
+  const externalCountriesList = useMemo(() => {
+    const counts = new Map<string, number>();
+    externalCandidates.forEach(c => {
+      const country = (c.current_country || c.location || '').trim();
+      if (country && country.length > 1) {
+        counts.set(country, (counts.get(country) || 0) + 1);
+      }
+    });
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 35);
+  }, [externalCandidates]);
+
+  // Contadores de Radar Pós-Baixa e Entrevistas
   const newBaixasCount = useMemo(
     () => inactiveWorkers.filter(w => w.is_new_baixa).length,
     [inactiveWorkers]
@@ -214,10 +323,55 @@ export const RecruitmentCenterPage: React.FC = () => {
     () => inactiveWorkers.filter(w => w.rehire_status === 'standby').length,
     [inactiveWorkers]
   );
+  const inactiveAlreadyInInterviewCount = useMemo(
+    () => inactiveWorkers.filter(w => interviewsByWorkerMap.has(w.id)).length,
+    [inactiveWorkers, interviewsByWorkerMap]
+  );
+  const externalAlreadyInInterviewCount = useMemo(
+    () => externalCandidates.filter(c => interviewsByExtMap.has(c.id)).length,
+    [externalCandidates, interviewsByExtMap]
+  );
 
-  // Filtragem de Trabalhadores Inativos (Radar Pós-Baixa & Banco na Manga)
+  const hasActiveSmartFilters = Boolean(
+    selectedProfileFilter ||
+      searchQuery.trim() ||
+      requestingClientFilter !== 'all' ||
+      previousClientFilter !== 'all' ||
+      interviewPresenceFilter !== 'all' ||
+      baixaSubFilter !== 'all' ||
+      baixaRecencyFilter !== 'all' ||
+      onlyWithLicense ||
+      interviewStageFilter !== 'all' ||
+      interviewSourceFilter !== 'all' ||
+      cvDocFilter !== 'all' ||
+      cvCountryFilter !== 'all' ||
+      cvLanguageFilter !== 'all'
+  );
+
+  const resetAllSmartFilters = () => {
+    setSelectedProfileFilter('');
+    setSearchQuery('');
+    setRequestingClientFilter('all');
+    setPreviousClientFilter('all');
+    setInterviewPresenceFilter('all');
+    setBaixaSubFilter('all');
+    setBaixaRecencyFilter('all');
+    setOnlyWithLicense(false);
+    setInterviewStageFilter('all');
+    setInterviewSourceFilter('all');
+    setCvDocFilter('all');
+    setCvCountryFilter('all');
+    setCvLanguageFilter('all');
+    setCvPage(1);
+  };
+
+  // =========================================================================
+  // 1. FILTRAGEM DE TRABALHADORES INATIVOS (RADAR PÓS-BAIXA & BANCO NA MANGA)
+  // =========================================================================
   const filteredInactiveWorkers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
+    const nowMs = Date.now();
+
     return inactiveWorkers
       .filter(w => {
         if (baixaSubFilter === 'pending_review' && !w.is_new_baixa) return false;
@@ -228,6 +382,8 @@ export const RecruitmentCenterPage: React.FC = () => {
         ) {
           return false;
         }
+
+        // Filtro por Perfil / Função
         if (selectedProfileFilter) {
           const match = calculateProfileMatchScore(selectedProfileFilter, [
             w.funcion,
@@ -236,6 +392,61 @@ export const RecruitmentCenterPage: React.FC = () => {
           ]);
           if (!match.matches) return false;
         }
+
+        // Filtro por Cliente onde trabalhou (ou Cliente Solicitante caso selecionado)
+        const targetClientToMatch =
+          previousClientFilter !== 'all'
+            ? previousClientFilter
+            : requestingClientFilter !== 'all'
+              ? requestingClientFilter
+              : null;
+
+        if (targetClientToMatch) {
+          const targetUpper = targetClientToMatch.toUpperCase();
+          const workedInClient =
+            (w.cliente_ultimo || '').toUpperCase().includes(targetUpper) ||
+            w.history.some(h => (h.client_name || '').toUpperCase().includes(targetUpper));
+          if (!workedInClient) return false;
+        }
+
+        // Filtro por Trabalhador já filtrado em Entrevista ("já filtraram lá")
+        const workerInterviews = interviewsByWorkerMap.get(w.id) || [];
+        if (interviewPresenceFilter === 'in_interview' && workerInterviews.length === 0) {
+          return false;
+        }
+        if (interviewPresenceFilter === 'not_in_interview' && workerInterviews.length > 0) {
+          return false;
+        }
+        if (interviewPresenceFilter === 'in_selected_client_interview') {
+          if (requestingClientFilter === 'all') {
+            if (workerInterviews.length === 0) return false;
+          } else {
+            const reqUpper = requestingClientFilter.toUpperCase();
+            if (
+              !workerInterviews.some(i => (i.client_name || '').toUpperCase().includes(reqUpper))
+            ) {
+              return false;
+            }
+          }
+        }
+
+        // Filtro de CNH
+        if (onlyWithLicense) {
+          const hasLic = Boolean(
+            w.licencia_conducir &&
+              !['no', 'não', 'nao', 'false', '0'].includes(w.licencia_conducir.toLowerCase().trim())
+          );
+          if (!hasLic) return false;
+        }
+
+        // Filtro de Recência da Baixa
+        if (baixaRecencyFilter !== 'all') {
+          if (!w.data_baixa) return false;
+          const daysAgo = (nowMs - new Date(w.data_baixa).getTime()) / (1000 * 60 * 60 * 24);
+          if (baixaRecencyFilter === '30d' && daysAgo > 30) return false;
+          if (baixaRecencyFilter === '90d' && daysAgo > 90) return false;
+        }
+
         if (!q) return true;
         return (
           w.nome.toLowerCase().includes(q) ||
@@ -247,19 +458,48 @@ export const RecruitmentCenterPage: React.FC = () => {
             h =>
               h.client_name.toLowerCase().includes(q) ||
               h.job_function_name.toLowerCase().includes(q)
+          ) ||
+          workerInterviews.some(
+            i =>
+              (i.client_name || '').toLowerCase().includes(q) ||
+              (i.pedido_codigo || '').toLowerCase().includes(q)
           )
         );
       })
       .sort((a, b) => {
+        if (inactiveSortBy === 'recent_baixa') {
+          const da = a.data_baixa ? new Date(a.data_baixa).getTime() : 0;
+          const db = b.data_baixa ? new Date(b.data_baixa).getTime() : 0;
+          if (db !== da) return db - da;
+        }
+        if (inactiveSortBy === 'lowest_rate') {
+          const ra = a.last_tarifa ?? 999;
+          const rb = b.last_tarifa ?? 999;
+          if (ra !== rb) return ra - rb;
+        }
         if (a.rehire_status === 'standby' && b.rehire_status !== 'standby') return -1;
         if (b.rehire_status === 'standby' && a.rehire_status !== 'standby') return 1;
         if (a.is_new_baixa && !b.is_new_baixa) return -1;
         if (b.is_new_baixa && !a.is_new_baixa) return 1;
         return 0;
       });
-  }, [inactiveWorkers, baixaSubFilter, selectedProfileFilter, searchQuery]);
+  }, [
+    inactiveWorkers,
+    baixaSubFilter,
+    selectedProfileFilter,
+    previousClientFilter,
+    requestingClientFilter,
+    interviewPresenceFilter,
+    interviewsByWorkerMap,
+    onlyWithLicense,
+    baixaRecencyFilter,
+    inactiveSortBy,
+    searchQuery,
+  ]);
 
-  // Filtragem de Currículos Externos (+4.444 CVs)
+  // =========================================================================
+  // 2. FILTRAGEM DE CURRÍCULOS EXTERNOS (+4.444 CVs)
+  // =========================================================================
   const filteredExternalCandidates = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     return externalCandidates.filter(c => {
@@ -267,12 +507,49 @@ export const RecruitmentCenterPage: React.FC = () => {
         const match = calculateProfileMatchScore(selectedProfileFilter, [c.offer]);
         if (!match.matches) return false;
       }
+
       if (cvDocFilter === 'valid_eu') {
         const d = (c.documentation || '').toLowerCase();
         if (!d.includes('europeo') && !d.includes('válido') && !d.includes('residencia')) {
           return false;
         }
+      } else if (cvDocFilter === 'has_pdf') {
+        if (!c.files || c.files.length === 0) return false;
       }
+
+      if (onlyWithLicense && !c.has_driver_license) {
+        return false;
+      }
+
+      if (cvCountryFilter !== 'all') {
+        const loc = `${c.current_country || ''} ${c.location || ''}`.toLowerCase();
+        if (!loc.includes(cvCountryFilter.toLowerCase())) return false;
+      }
+
+      if (cvLanguageFilter !== 'all') {
+        const langs = (c.languages || []).join(' ').toLowerCase();
+        if (!langs.includes(cvLanguageFilter.toLowerCase())) return false;
+      }
+
+      // Filtro por Candidato já filtrado em Entrevista ("já filtraram lá")
+      const extInterviews = interviewsByExtMap.get(c.id) || [];
+      if (interviewPresenceFilter === 'in_interview' && extInterviews.length === 0) {
+        return false;
+      }
+      if (interviewPresenceFilter === 'not_in_interview' && extInterviews.length > 0) {
+        return false;
+      }
+      if (interviewPresenceFilter === 'in_selected_client_interview') {
+        if (requestingClientFilter === 'all') {
+          if (extInterviews.length === 0) return false;
+        } else {
+          const reqUpper = requestingClientFilter.toUpperCase();
+          if (!extInterviews.some(i => (i.client_name || '').toUpperCase().includes(reqUpper))) {
+            return false;
+          }
+        }
+      }
+
       if (!q) return true;
       return (
         c.raw_name.toLowerCase().includes(q) ||
@@ -280,34 +557,80 @@ export const RecruitmentCenterPage: React.FC = () => {
         c.location.toLowerCase().includes(q) ||
         (c.raw_phone || '').toLowerCase().includes(q) ||
         (c.documentation || '').toLowerCase().includes(q) ||
-        (c.internal_notes || '').toLowerCase().includes(q)
+        (c.internal_notes || '').toLowerCase().includes(q) ||
+        extInterviews.some(
+          i =>
+            (i.client_name || '').toLowerCase().includes(q) ||
+            (i.pedido_codigo || '').toLowerCase().includes(q)
+        )
       );
     });
-  }, [externalCandidates, selectedProfileFilter, cvDocFilter, searchQuery]);
+  }, [
+    externalCandidates,
+    selectedProfileFilter,
+    cvDocFilter,
+    onlyWithLicense,
+    cvCountryFilter,
+    cvLanguageFilter,
+    interviewPresenceFilter,
+    requestingClientFilter,
+    interviewsByExtMap,
+    searchQuery,
+  ]);
 
   const paginatedExternalCandidates = useMemo(() => {
     return filteredExternalCandidates.slice(0, cvPage * 60);
   }, [filteredExternalCandidates, cvPage]);
 
-  // Filtragem de Entrevistas
+  // =========================================================================
+  // 3. FILTRAGEM DE ENTREVISTAS (PIPELINE)
+  // =========================================================================
   const filteredInterviews = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
     return interviews.filter(i => {
       if (interviewStageFilter !== 'all' && i.stage !== interviewStageFilter) return false;
+      if (interviewSourceFilter !== 'all' && i.source_type !== interviewSourceFilter) return false;
+
+      if (requestingClientFilter !== 'all') {
+        const reqUpper = requestingClientFilter.toUpperCase();
+        if (!(i.client_name || '').toUpperCase().includes(reqUpper)) return false;
+      }
+
+      if (previousClientFilter !== 'all') {
+        const prevUpper = previousClientFilter.toUpperCase();
+        const workedInPrev =
+          (i.previous_clients_summary || '').toUpperCase().includes(prevUpper) ||
+          (i.client_name || '').toUpperCase().includes(prevUpper);
+        if (!workedInPrev) return false;
+      }
+
+      if (onlyWithLicense && !i.candidate_has_license) return false;
+
       if (selectedProfileFilter) {
         const match = calculateProfileMatchScore(selectedProfileFilter, [i.job_function_name]);
         if (!match.matches) return false;
       }
+
       if (!q) return true;
       return (
         i.candidate_name.toLowerCase().includes(q) ||
         i.job_function_name.toLowerCase().includes(q) ||
         (i.client_name || '').toLowerCase().includes(q) ||
         (i.pedido_codigo || '').toLowerCase().includes(q) ||
+        (i.previous_clients_summary || '').toLowerCase().includes(q) ||
         (i.interviewer_notes || '').toLowerCase().includes(q)
       );
     });
-  }, [interviews, interviewStageFilter, selectedProfileFilter, searchQuery]);
+  }, [
+    interviews,
+    interviewStageFilter,
+    interviewSourceFilter,
+    requestingClientFilter,
+    previousClientFilter,
+    onlyWithLicense,
+    selectedProfileFilter,
+    searchQuery,
+  ]);
 
   const handleOpenQualifyModal = (w: InactiveWorkerCandidate) => {
     setQualifyingWorker(w);
@@ -356,6 +679,12 @@ export const RecruitmentCenterPage: React.FC = () => {
         .join(' | ');
 
       await contratacaoRecruitmentService.createInterview({
+        client_name:
+          requestingClientFilter !== 'all'
+            ? requestingClientFilter
+            : previousClientFilter !== 'all'
+              ? previousClientFilter
+              : null,
         job_function_name: selectedProfileFilter || w.funcion || 'PERFIL INDUSTRIAL',
         source_type: 'internal_worker',
         worker_id: w.id,
@@ -365,6 +694,10 @@ export const RecruitmentCenterPage: React.FC = () => {
         candidate_email: w.email,
         candidate_document: w.pasaporte || w.nif || w.nie || w.dni || null,
         candidate_location: w.nacionalidade || null,
+        candidate_has_license: Boolean(
+          w.licencia_conducir &&
+            !['no', 'não', 'nao', 'false', '0'].includes(w.licencia_conducir.toLowerCase().trim())
+        ),
         previous_clients_summary: historySummary || w.cliente_ultimo || null,
         expected_rate: w.last_tarifa || null,
         interviewer_notes: w.rehire_notes || null,
@@ -380,6 +713,7 @@ export const RecruitmentCenterPage: React.FC = () => {
   const handleQuickCreateInterviewFromExternal = async (c: ExternalCvCandidate) => {
     try {
       await contratacaoRecruitmentService.createInterview({
+        client_name: requestingClientFilter !== 'all' ? requestingClientFilter : null,
         job_function_name: selectedProfileFilter || c.offer || 'PERFIL INDUSTRIAL',
         source_type: 'external_cv',
         external_candidate_id: c.id,
@@ -407,7 +741,9 @@ export const RecruitmentCenterPage: React.FC = () => {
       return;
     }
     const clean = phone.replace(/[^0-9]/g, '');
-    const msg = `Hola ${(name || '').split(' ')[0]}! Te escribimos del equipo de Contratación de MCS Industrial por una oportunidad como *${role || selectedProfileFilter || 'Profesional Industrial'}*. ¿Tienes disponibilidad actualmente?`;
+    const clientPart =
+      requestingClientFilter !== 'all' ? ` para proyecto en *${requestingClientFilter}*` : '';
+    const msg = `Hola ${(name || '').split(' ')[0]}! Te escribimos del equipo de Contratación de MCS Industrial por una oportunidad como *${role || selectedProfileFilter || 'Profesional Industrial'}*${clientPart}. ¿Tienes disponibilidad actualmente?`;
     window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -423,7 +759,9 @@ export const RecruitmentCenterPage: React.FC = () => {
             <Badge className="bg-emerald-600 text-white text-xs">EM TEMPO REAL</Badge>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Cruze automaticamente os trabalhadores que já atuaram no MCS com os +{externalCandidates.length.toLocaleString('pt-BR')} currículos capturados no portal externo.
+            Cruze automaticamente os trabalhadores que já atuaram no MCS com os +
+            {externalCandidates.length.toLocaleString('pt-BR')} currículos capturados no portal
+            externo.
           </p>
         </div>
 
@@ -453,7 +791,9 @@ export const RecruitmentCenterPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Abas Principais de Trabalho + Filtro Rápido por Função */}
+      {/* =====================================================================
+          PAINEL CENTRAL DE ABAS + FILTROS INTELIGENTES MULTIDIMENSIONAIS
+         ===================================================================== */}
       <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 flex-wrap">
@@ -469,7 +809,7 @@ export const RecruitmentCenterPage: React.FC = () => {
               <Sparkles className="w-4 h-4" />
               Controle de Entrevistas
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20">
-                {interviews.length}
+                {filteredInterviews.length}/{interviews.length}
               </span>
             </button>
 
@@ -485,7 +825,7 @@ export const RecruitmentCenterPage: React.FC = () => {
               <Users className="w-4 h-4" />
               Ex-Colaboradores MCS & Radar de Baixas
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-black/15">
-                {inactiveWorkers.length}
+                {filteredInactiveWorkers.length}/{inactiveWorkers.length}
               </span>
               {newBaixasCount > 0 && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-600 text-white font-black">
@@ -506,51 +846,79 @@ export const RecruitmentCenterPage: React.FC = () => {
               <FileText className="w-4 h-4" />
               Banco de Currículos em Tempo Real
               <span className="px-2 py-0.5 rounded-full text-[10px] bg-white/20">
-                {externalCandidates.length.toLocaleString('pt-BR')}
+                {filteredExternalCandidates.length.toLocaleString('pt-BR')}
               </span>
             </button>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetchInactive();
-              refetchExternal();
-              refetchInterviews();
-              toast.success('Bases sincronizadas em tempo real!');
-            }}
-            className="h-9 text-xs gap-1.5"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            Sincronizar Agora
-          </Button>
+          <div className="flex items-center gap-2">
+            {hasActiveSmartFilters && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={resetAllSmartFilters}
+                className="h-9 text-xs gap-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-50 font-bold"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Limpar Todos os Filtros
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                refetchInactive();
+                refetchExternal();
+                refetchInterviews();
+                toast.success('Bases sincronizadas em tempo real!');
+              }}
+              className="h-9 text-xs gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Sincronizar Agora
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => navigate('/contratacao/vagas')}
+              className="text-xs gap-1.5 h-9 font-semibold border-emerald-200 text-emerald-700"
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              Ir p/ Vagas Abertas
+            </Button>
+          </div>
         </div>
 
-        {/* Barra Inteligente de Filtro por Perfil / Função */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="md:col-span-5 relative">
+        {/* LINHA 1 DE FILTROS INTELIGENTES: Busca Livre + Perfil/Função + Cliente Solicitante + Cliente Histórico + Status em Entrevista */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800">
+          {/* Busca Livre */}
+          <div className="md:col-span-3 relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <Input
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Buscar por nome, cliente onde trabalhou, função, cidade, telefone..."
-              className="pl-9 h-10 text-xs"
+              onChange={e => {
+                setSearchQuery(e.target.value);
+                setCvPage(1);
+              }}
+              placeholder="Buscar trabalhador, código, cliente, pedido, tel..."
+              className="pl-9 h-9 text-xs"
             />
           </div>
 
-          <div className="md:col-span-4 flex items-center gap-2">
-            <Filter className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          {/* Perfil / Função */}
+          <div className="md:col-span-3">
             <select
               value={selectedProfileFilter}
               onChange={e => {
                 setSelectedProfileFilter(e.target.value);
                 setCvPage(1);
               }}
-              className="w-full h-10 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-3 text-xs font-bold text-slate-800 dark:text-slate-200"
+              className="w-full h-9 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2.5 text-xs font-bold text-slate-800 dark:text-slate-200"
             >
-              <option value="">🎯 Filtrar Inteligência por Função / Perfil (Todos)</option>
+              <option value="">🎯 Função / Perfil: Todos os Perfis</option>
               {OFFER_PROFILES.map(prof => (
                 <option key={prof} value={prof}>
                   🔍 Preciso de: {prof}
@@ -559,29 +927,201 @@ export const RecruitmentCenterPage: React.FC = () => {
             </select>
           </div>
 
-          <div className="md:col-span-3 flex items-center justify-end gap-2">
-            {selectedProfileFilter && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedProfileFilter('')}
-                className="text-xs text-slate-500 h-9"
-              >
-                Limpar Perfil
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/contratacao/vagas')}
-              className="text-xs gap-1.5 h-10 font-semibold border-emerald-200 text-emerald-700"
+          {/* Filtro por Cliente Solicitante (Vaga / Entrevista) */}
+          <div className="md:col-span-2">
+            <select
+              value={requestingClientFilter}
+              onChange={e => {
+                setRequestingClientFilter(e.target.value);
+                setCvPage(1);
+              }}
+              className={`w-full h-9 rounded-lg border px-2.5 text-xs font-bold ${
+                requestingClientFilter !== 'all'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-200'
+              }`}
             >
-              <Briefcase className="w-3.5 h-3.5" />
-              Ir p/ Vagas Abertas
-            </Button>
+              <option value="all">🏗️ Cliente Solicitante: Todos</option>
+              {requestingClientsList.map(c => (
+                <option key={c.name} value={c.name}>
+                  📌 Pedido: {c.name} ({c.count} entr.)
+                </option>
+              ))}
+              {allPreviousClientsList
+                .filter(c => !requestingClientsList.some(r => r.name === c.name))
+                .map(c => (
+                  <option key={c.name} value={c.name}>
+                    🏢 {c.name}
+                  </option>
+                ))}
+            </select>
           </div>
+
+          {/* Filtro por Cliente Onde Já Trabalhou (Histórico MCS) */}
+          <div className="md:col-span-2">
+            <select
+              value={previousClientFilter}
+              onChange={e => {
+                setPreviousClientFilter(e.target.value);
+                setCvPage(1);
+              }}
+              className={`w-full h-9 rounded-lg border px-2.5 text-xs font-bold ${
+                previousClientFilter !== 'all'
+                  ? 'border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/60 dark:text-amber-200'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              <option value="all">🏢 Já Trabalhou no Cliente: Todos</option>
+              {allPreviousClientsList.map(c => (
+                <option key={c.name} value={c.name}>
+                  🏢 {c.name} ({c.count} colab.)
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filtro por Trabalhadores que JÁ FILTRARAM LÁ nas Entrevistas */}
+          <div className="md:col-span-2">
+            <select
+              value={interviewPresenceFilter}
+              onChange={e => {
+                setInterviewPresenceFilter(e.target.value as any);
+                setCvPage(1);
+              }}
+              className={`w-full h-9 rounded-lg border px-2.5 text-xs font-bold ${
+                interviewPresenceFilter !== 'all'
+                  ? 'border-purple-500 bg-purple-50 text-purple-900 dark:bg-purple-950/60 dark:text-purple-200'
+                  : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-200'
+              }`}
+            >
+              <option value="all">💜 Status em Entrevista: Todos</option>
+              <option value="in_interview">
+                💜 Já filtrados em Entrevista (
+                {activeSection === 'curriculos'
+                  ? externalAlreadyInInterviewCount
+                  : inactiveAlreadyInInterviewCount}
+                )
+              </option>
+              <option value="not_in_interview">🆕 Ainda NÃO filtrados p/ Entrevista</option>
+              {requestingClientFilter !== 'all' && (
+                <option value="in_selected_client_interview">
+                  💜 Já filtrados p/ {requestingClientFilter}
+                </option>
+              )}
+            </select>
+          </div>
+        </div>
+
+        {/* PÍLULAS RÁPIDAS INTELIGENTES ("1-CLIQUE") */}
+        <div className="flex items-center justify-between gap-2 flex-wrap pt-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+              <Filter className="w-3 h-3 text-emerald-600" /> Filtros Rápidos:
+            </span>
+
+            {/* Botão 1-Clique: Já filtrados lá em Entrevista */}
+            <button
+              type="button"
+              onClick={() =>
+                setInterviewPresenceFilter(
+                  interviewPresenceFilter === 'in_interview' ? 'all' : 'in_interview'
+                )
+              }
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                interviewPresenceFilter === 'in_interview'
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-100'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              💜 Já Filtrados em Entrevista (
+              {activeSection === 'curriculos'
+                ? externalAlreadyInInterviewCount
+                : inactiveAlreadyInInterviewCount}
+              )
+            </button>
+
+            {/* Botão 1-Clique: Ainda não filtrados */}
+            <button
+              type="button"
+              onClick={() =>
+                setInterviewPresenceFilter(
+                  interviewPresenceFilter === 'not_in_interview' ? 'all' : 'not_in_interview'
+                )
+              }
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                interviewPresenceFilter === 'not_in_interview'
+                  ? 'bg-slate-900 text-white border-slate-900'
+                  : 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+              }`}
+            >
+              🆕 Ainda Não Filtrados
+            </button>
+
+            {/* Botão 1-Clique: Com CNH */}
+            <button
+              type="button"
+              onClick={() => {
+                setOnlyWithLicense(!onlyWithLicense);
+                setCvPage(1);
+              }}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5 ${
+                onlyWithLicense
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              <Car className="w-3.5 h-3.5" />
+              🚗 Com Carta de Condução (CNH)
+            </button>
+
+            {activeSection === 'baixas' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBaixaRecencyFilter(baixaRecencyFilter === '30d' ? 'all' : '30d')
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
+                    baixaRecencyFilter === '30d'
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <Clock className="w-3 h-3" /> Baixa últimos 30 dias
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setBaixaRecencyFilter(baixaRecencyFilter === '90d' ? 'all' : '90d')
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all flex items-center gap-1 ${
+                    baixaRecencyFilter === '90d'
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <Clock className="w-3 h-3" /> Baixa últimos 90 dias
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Ordenação Inteligente para aba de Ex-Colaboradores */}
+          {activeSection === 'baixas' && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400">Ordenar:</span>
+              <select
+                value={inactiveSortBy}
+                onChange={e => setInactiveSortBy(e.target.value as any)}
+                className="h-7 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2 text-[11px] font-bold"
+              >
+                <option value="priority">⭐ Prioridade (Na Manga & Novas Baixas)</option>
+                <option value="recent_baixa">📅 Baixa mais recente primeiro</option>
+                <option value="lowest_rate">💶 Menor Última Tarifa (€/h)</option>
+              </select>
+            </div>
+          )}
         </div>
       </div>
 
@@ -590,33 +1130,95 @@ export const RecruitmentCenterPage: React.FC = () => {
          ===================================================================== */}
       {activeSection === 'entrevistas' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            {(
-              [
-                ['all', `Todas (${interviews.length})`],
-                ['to_contact', '1. Para Contatar'],
-                ['contacted', '2. Contatados'],
-                ['scheduled', '3. Agendados'],
-                ['interviewed', '4. Entrevistados'],
-                ['approved', '5. Aprovados p/ Contratar'],
-                ['hired', '6. Contratados'],
-                ['rejected', 'Descartados'],
-              ] as const
-            ).map(([st, lbl]) => (
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              {(
+                [
+                  ['all', `Todas (${filteredInterviews.length})`],
+                  ['to_contact', '1. Para Contatar'],
+                  ['contacted', '2. Contatados'],
+                  ['scheduled', '3. Agendados'],
+                  ['interviewed', '4. Entrevistados'],
+                  ['approved', '5. Aprovados p/ Contratar'],
+                  ['hired', '6. Contratados'],
+                  ['rejected', 'Descartados'],
+                ] as const
+              ).map(([st, lbl]) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setInterviewStageFilter(st as any)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                    interviewStageFilter === st
+                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            {/* Filtro rápido por Origem do Candidato na Entrevista */}
+            <div className="flex items-center gap-1.5">
+              {(
+                [
+                  ['all', 'Todas as Origens'],
+                  ['internal_worker', '👷 Ex-Colaboradores MCS'],
+                  ['external_cv', '📄 Banco de Currículos'],
+                ] as const
+              ).map(([src, label]) => (
+                <button
+                  key={src}
+                  type="button"
+                  onClick={() => setInterviewSourceFilter(src)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                    interviewSourceFilter === src
+                      ? 'bg-purple-600 text-white border-purple-600'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Pílulas de Clientes Solicitantes nas Entrevistas para filtrar com 1 clique */}
+          {requestingClientsList.length > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap bg-slate-100/70 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/70 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-500 mr-1">
+                🏗️ Filtrar Entrevistas por Cliente Solicitante:
+              </span>
               <button
-                key={st}
                 type="button"
-                onClick={() => setInterviewStageFilter(st as any)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                  interviewStageFilter === st
-                    ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                onClick={() => setRequestingClientFilter('all')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                  requestingClientFilter === 'all'
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 border-slate-200'
                 }`}
               >
-                {lbl}
+                Todos ({interviews.length})
               </button>
-            ))}
-          </div>
+              {requestingClientsList.map(c => (
+                <button
+                  key={c.name}
+                  type="button"
+                  onClick={() =>
+                    setRequestingClientFilter(requestingClientFilter === c.name ? 'all' : c.name)
+                  }
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                    requestingClientFilter === c.name
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 hover:border-emerald-400'
+                  }`}
+                >
+                  🏢 {c.name} ({c.count})
+                </button>
+              ))}
+            </div>
+          )}
 
           {isLoadingInterviews ? (
             <div className="p-12 text-center text-sm text-slate-500">Carregando entrevistas...</div>
@@ -660,10 +1262,24 @@ export const RecruitmentCenterPage: React.FC = () => {
                       <Badge className="bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 text-xs">
                         {item.job_function_name}
                       </Badge>
-                      {item.pedido_codigo && (
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {item.pedido_codigo} • {item.client_name}
-                        </Badge>
+                      {(item.pedido_codigo || item.client_name) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (item.client_name) {
+                              setRequestingClientFilter(
+                                requestingClientFilter === item.client_name.toUpperCase()
+                                  ? 'all'
+                                  : item.client_name.toUpperCase()
+                              );
+                            }
+                          }}
+                          className="font-mono text-xs px-2 py-0.5 rounded border border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold hover:bg-emerald-100 transition-colors"
+                          title="Clique para filtrar todas as entrevistas deste cliente"
+                        >
+                          {item.pedido_codigo ? `${item.pedido_codigo} • ` : ''}
+                          {item.client_name || 'Cliente Geral'}
+                        </button>
                       )}
                       <span
                         className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
@@ -676,7 +1292,8 @@ export const RecruitmentCenterPage: React.FC = () => {
 
                     {item.previous_clients_summary && (
                       <p className="text-xs text-slate-600 dark:text-slate-400">
-                        🏢 <strong>Histórico de Clientes MCS:</strong> {item.previous_clients_summary}
+                        🏢 <strong>Histórico de Clientes MCS:</strong>{' '}
+                        {item.previous_clients_summary}
                       </p>
                     )}
 
@@ -812,7 +1429,7 @@ export const RecruitmentCenterPage: React.FC = () => {
                   : 'bg-white dark:bg-slate-900 text-slate-600 border-slate-200'
               }`}
             >
-              Todos os Inativos ({inactiveWorkers.length})
+              Todos os Inativos ({filteredInactiveWorkers.length}/{inactiveWorkers.length})
             </button>
 
             <button
@@ -884,22 +1501,26 @@ export const RecruitmentCenterPage: React.FC = () => {
             </div>
           ) : filteredInactiveWorkers.length === 0 ? (
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 p-12 text-center text-sm text-slate-500">
-              Nenhum trabalhador inativo encontrado para este filtro.
+              Nenhum trabalhador inativo encontrado para esta combinação de filtros.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredInactiveWorkers.map(w => {
                 const statusMeta =
                   REHIRE_STATUS_META[w.rehire_status] || REHIRE_STATUS_META.pending_review;
+                const workerInterviews = interviewsByWorkerMap.get(w.id) || [];
+
                 return (
                   <div
                     key={w.id}
                     className={`bg-white dark:bg-slate-900 rounded-2xl border p-5 flex flex-col justify-between gap-4 transition-all hover:shadow-md ${
-                      w.rehire_status === 'standby'
-                        ? 'border-amber-300 dark:border-amber-700 ring-1 ring-amber-200/50'
-                        : w.is_new_baixa
-                          ? 'border-rose-200 dark:border-rose-900/60'
-                          : 'border-slate-200 dark:border-slate-800'
+                      workerInterviews.length > 0
+                        ? 'border-purple-300 dark:border-purple-700 ring-1 ring-purple-200/60'
+                        : w.rehire_status === 'standby'
+                          ? 'border-amber-300 dark:border-amber-700 ring-1 ring-amber-200/50'
+                          : w.is_new_baixa
+                            ? 'border-rose-200 dark:border-rose-900/60'
+                            : 'border-slate-200 dark:border-slate-800'
                     }`}
                   >
                     <div className="space-y-3">
@@ -934,11 +1555,49 @@ export const RecruitmentCenterPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* Histórico de Clientes e Períodos */}
+                      {/* BANNER SE JÁ FOI FILTRADO EM ENTREVISTA ("JÁ FILTRARAM LÁ") */}
+                      {workerInterviews.length > 0 && (
+                        <div className="p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-purple-900 dark:text-purple-200">
+                            <span className="flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                              💜 Já filtrado em Entrevista ({workerInterviews.length})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveSection('entrevistas');
+                                setSearchQuery(w.nome);
+                              }}
+                              className="underline hover:text-purple-700"
+                            >
+                              Abrir na Entrevista →
+                            </button>
+                          </div>
+                          {workerInterviews.slice(0, 2).map(iv => (
+                            <div
+                              key={iv.id}
+                              className="text-[11px] flex items-center justify-between text-purple-800 dark:text-purple-300"
+                            >
+                              <span className="truncate">
+                                • {iv.pedido_codigo ? `${iv.pedido_codigo} • ` : ''}
+                                <strong>{iv.client_name || 'Pipeline Geral'}</strong> (
+                                {iv.job_function_name})
+                              </span>
+                              <span className="font-bold ml-2 flex-shrink-0">
+                                {STAGE_META[iv.stage]?.label || iv.stage}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Histórico de Clientes e Períodos (Clicável para filtrar pelo cliente!) */}
                       <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-800 space-y-1.5">
                         <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
                           <span className="flex items-center gap-1">
                             <Building2 className="w-3.5 h-3.5" /> Clientes & Períodos Trabalhados
+                            (clique p/ filtrar)
                           </span>
                           {w.last_tarifa && (
                             <span className="text-emerald-600 dark:text-emerald-400">
@@ -954,12 +1613,23 @@ export const RecruitmentCenterPage: React.FC = () => {
                                 key={h.id}
                                 className="text-xs flex items-center justify-between gap-2 text-slate-700 dark:text-slate-300"
                               >
-                                <span className="font-semibold truncate">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setPreviousClientFilter(
+                                      previousClientFilter === h.client_name.toUpperCase()
+                                        ? 'all'
+                                        : h.client_name.toUpperCase()
+                                    )
+                                  }
+                                  className="font-semibold truncate text-left hover:text-emerald-600 hover:underline"
+                                  title="Filtrar todos os trabalhadores que já atuaram neste cliente"
+                                >
                                   • {h.client_name}{' '}
                                   <span className="text-slate-400 font-normal">
                                     ({h.job_function_name})
                                   </span>
-                                </span>
+                                </button>
                                 <span className="text-[11px] font-mono text-slate-500 flex-shrink-0">
                                   {formatDate(h.start_date)} → {formatDate(h.end_date)}
                                 </span>
@@ -968,7 +1638,24 @@ export const RecruitmentCenterPage: React.FC = () => {
                           </div>
                         ) : (
                           <p className="text-xs text-slate-600 dark:text-slate-400 pt-1">
-                            • Último Cliente: <strong>{w.cliente_ultimo || 'Não registrado'}</strong>
+                            • Último Cliente:{' '}
+                            {w.cliente_ultimo ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setPreviousClientFilter(
+                                    previousClientFilter === w.cliente_ultimo!.toUpperCase()
+                                      ? 'all'
+                                      : w.cliente_ultimo!.toUpperCase()
+                                  )
+                                }
+                                className="font-bold hover:text-emerald-600 hover:underline"
+                              >
+                                {w.cliente_ultimo}
+                              </button>
+                            ) : (
+                              <strong>Não registrado</strong>
+                            )}
                             {w.data_baixa ? ` • Data Baixa: ${formatDate(w.data_baixa)}` : ''}
                           </p>
                         )}
@@ -1020,7 +1707,7 @@ export const RecruitmentCenterPage: React.FC = () => {
                           className="h-8 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white"
                         >
                           <Calendar className="w-3.5 h-3.5" />
-                          + Entrevista
+                          {workerInterviews.length > 0 ? '+ Nova Entrevista' : '+ Entrevista'}
                         </Button>
                       </div>
                     </div>
@@ -1037,30 +1724,87 @@ export const RecruitmentCenterPage: React.FC = () => {
          ===================================================================== */}
       {activeSection === 'curriculos' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
+          {/* Sub-barra de filtros específicos para Currículos Externos */}
+          <div className="flex items-center justify-between flex-wrap gap-2 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => setCvDocFilter('all')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border ${
+                onClick={() => {
+                  setCvDocFilter('all');
+                  setCvPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
                   cvDocFilter === 'all'
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-600 border-slate-200'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 border-slate-200'
                 }`}
               >
-                Todos os Currículos ({filteredExternalCandidates.length.toLocaleString('pt-BR')})
+                Todos ({filteredExternalCandidates.length.toLocaleString('pt-BR')})
               </button>
               <button
                 type="button"
-                onClick={() => setCvDocFilter('valid_eu')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold border ${
+                onClick={() => {
+                  setCvDocFilter('valid_eu');
+                  setCvPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
                   cvDocFilter === 'valid_eu'
                     ? 'bg-emerald-600 text-white border-emerald-600'
-                    : 'bg-white text-slate-600 border-slate-200'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 border-slate-200'
                 }`}
               >
-                🇪🇺 Apenas Passaporte UE / Permissão de Trabalho Válida
+                🇪🇺 Passaporte UE / Permissão Válida
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCvDocFilter('has_pdf');
+                  setCvPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold border ${
+                  cvDocFilter === 'has_pdf'
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 border-slate-200'
+                }`}
+              >
+                📎 Com PDF Anexado
+              </button>
+
+              {/* Filtro por País / Localização */}
+              <div className="flex items-center gap-1">
+                <Globe className="w-3.5 h-3.5 text-slate-400" />
+                <select
+                  value={cvCountryFilter}
+                  onChange={e => {
+                    setCvCountryFilter(e.target.value);
+                    setCvPage(1);
+                  }}
+                  className="h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2 text-xs font-bold"
+                >
+                  <option value="all">🌍 País / Local: Todos</option>
+                  {externalCountriesList.map(c => (
+                    <option key={c.name} value={c.name}>
+                      {c.name} ({c.count})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Filtro por Idioma */}
+              <select
+                value={cvLanguageFilter}
+                onChange={e => {
+                  setCvLanguageFilter(e.target.value);
+                  setCvPage(1);
+                }}
+                className="h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-2 text-xs font-bold"
+              >
+                <option value="all">🗣️ Idioma: Todos</option>
+                <option value="español">Español</option>
+                <option value="portugu">Português</option>
+                <option value="ingl">Inglês</option>
+                <option value="franc">Francês</option>
+              </select>
             </div>
 
             <span className="text-xs text-slate-500">
@@ -1076,87 +1820,131 @@ export const RecruitmentCenterPage: React.FC = () => {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {paginatedExternalCandidates.map(c => (
-                  <div
-                    key={c.id}
-                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 flex flex-col justify-between gap-3 hover:shadow-md transition-all"
-                  >
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                            {c.raw_name}
-                          </h3>
-                          <span className="text-[11px] text-slate-400">
-                            Cadastrado em {formatDate(c.created_at)}
-                          </span>
+                {paginatedExternalCandidates.map(c => {
+                  const extInterviews = interviewsByExtMap.get(c.id) || [];
+                  return (
+                    <div
+                      key={c.id}
+                      className={`bg-white dark:bg-slate-900 rounded-2xl border p-4 flex flex-col justify-between gap-3 hover:shadow-md transition-all ${
+                        extInterviews.length > 0
+                          ? 'border-purple-300 dark:border-purple-700 ring-1 ring-purple-200/60'
+                          : 'border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                              {c.raw_name}
+                            </h3>
+                            <span className="text-[11px] text-slate-400">
+                              Cadastrado em {formatDate(c.created_at)}
+                            </span>
+                          </div>
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
+                            {c.offer}
+                          </Badge>
                         </div>
-                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px]">
-                          {c.offer}
-                        </Badge>
+
+                        {/* BANNER SE JÁ FOI FILTRADO EM ENTREVISTA ("JÁ FILTRARAM LÁ") */}
+                        {extInterviews.length > 0 && (
+                          <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 space-y-1">
+                            <div className="flex items-center justify-between text-[10px] font-bold text-purple-900 dark:text-purple-200">
+                              <span>💜 Já filtrado em Entrevista ({extInterviews.length})</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveSection('entrevistas');
+                                  setSearchQuery(c.raw_name);
+                                }}
+                                className="underline"
+                              >
+                                Ver →
+                              </button>
+                            </div>
+                            {extInterviews.slice(0, 2).map(iv => (
+                              <div
+                                key={iv.id}
+                                className="text-[10px] flex items-center justify-between text-purple-800 dark:text-purple-300"
+                              >
+                                <span className="truncate">
+                                  • {iv.client_name || 'Pipeline Geral'} ({iv.job_function_name})
+                                </span>
+                                <span className="font-bold ml-1">
+                                  {STAGE_META[iv.stage]?.label || iv.stage}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600 dark:text-slate-400">
+                          {c.location && (
+                            <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px]">
+                              <MapPin className="w-3 h-3 text-slate-500" /> {c.location}
+                            </span>
+                          )}
+                          {c.documentation && (
+                            <span className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded text-[11px]">
+                              <ShieldCheck className="w-3 h-3" /> {c.documentation}
+                            </span>
+                          )}
+                          {c.has_driver_license && (
+                            <span className="inline-flex items-center gap-1 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-[11px]">
+                              <Car className="w-3 h-3" /> CNH
+                            </span>
+                          )}
+                        </div>
+
+                        {(c.internal_notes || c.observations) && (
+                          <p className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-100 dark:border-slate-800 line-clamp-2">
+                            {c.internal_notes || c.observations}
+                          </p>
+                        )}
                       </div>
 
-                      <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600 dark:text-slate-400">
-                        {c.location && (
-                          <span className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-[11px]">
-                            <MapPin className="w-3 h-3 text-slate-500" /> {c.location}
-                          </span>
-                        )}
-                        {c.documentation && (
-                          <span className="inline-flex items-center gap-1 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded text-[11px]">
-                            <ShieldCheck className="w-3 h-3" /> {c.documentation}
-                          </span>
-                        )}
-                      </div>
-
-                      {(c.internal_notes || c.observations) && (
-                        <p className="text-xs text-slate-500 bg-slate-50 dark:bg-slate-950 p-2 rounded border border-slate-100 dark:border-slate-800 line-clamp-2">
-                          {c.internal_notes || c.observations}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-1.5">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleWhatsApp(c.raw_phone, c.raw_name, c.offer)}
-                          className="h-8 text-xs gap-1 text-emerald-700 border-emerald-200"
-                        >
-                          <MessageCircle className="w-3.5 h-3.5" />
-                          WhatsApp
-                        </Button>
-
-                        {c.files.length > 0 && (
+                      <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-1.5">
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
-                            onClick={() =>
-                              setPreviewCv({ name: c.raw_name, url: c.files[0].url })
-                            }
-                            className="h-8 text-xs gap-1 text-blue-600 border-blue-200"
+                            onClick={() => handleWhatsApp(c.raw_phone, c.raw_name, c.offer)}
+                            className="h-8 text-xs gap-1 text-emerald-700 border-emerald-200"
                           >
-                            <FileText className="w-3.5 h-3.5" />
-                            Ver CV
+                            <MessageCircle className="w-3.5 h-3.5" />
+                            WhatsApp
                           </Button>
-                        )}
-                      </div>
 
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() => handleQuickCreateInterviewFromExternal(c)}
-                        className="h-8 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white"
-                      >
-                        <Calendar className="w-3.5 h-3.5" />
-                        + Entrevista
-                      </Button>
+                          {c.files.length > 0 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setPreviewCv({ name: c.raw_name, url: c.files[0].url })
+                              }
+                              className="h-8 text-xs gap-1 text-blue-600 border-blue-200"
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                              Ver CV
+                            </Button>
+                          )}
+                        </div>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => handleQuickCreateInterviewFromExternal(c)}
+                          className="h-8 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          <Calendar className="w-3.5 h-3.5" />
+                          {extInterviews.length > 0 ? '+ Nova Entrevista' : '+ Entrevista'}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {paginatedExternalCandidates.length < filteredExternalCandidates.length && (
@@ -1188,7 +1976,8 @@ export const RecruitmentCenterPage: React.FC = () => {
               Qualificar Trabalhador Pós-Baixa (Banco na Manga)
             </DialogTitle>
             <DialogDescription>
-              Classifique <strong>{qualifyingWorker?.nome}</strong> ({qualifyingWorker?.cod_colab}) para futuras contratações quando abrir vaga do perfil dele.
+              Classifique <strong>{qualifyingWorker?.nome}</strong> ({qualifyingWorker?.cod_colab})
+              para futuras contratações quando abrir vaga do perfil dele.
             </DialogDescription>
           </DialogHeader>
 
