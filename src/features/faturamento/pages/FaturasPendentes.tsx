@@ -2949,6 +2949,7 @@ MCS - Gestão Comercial`;
 
     try {
       toast.loading('Salvando alterações...', { id: 'saving_hours' });
+      const inferredObraId = record?.obra_id || (Object.values(worker.horasDiarias || {}).find((h: any) => h?.obra_id) as any)?.obra_id || null;
       await atualizarHorasDiarias(
         record?.id || '',
         newVal,
@@ -2956,7 +2957,8 @@ MCS - Gestão Comercial`;
         clientId,
         targetDateStr,
         worker.funcaoId,
-        worker.tarifa
+        worker.tarifa,
+        inferredObraId
       );
       toast.success('Horas atualizadas com sucesso!', { id: 'saving_hours' });
       await fetchHoras();

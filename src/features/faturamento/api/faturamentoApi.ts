@@ -2541,7 +2541,8 @@ export async function atualizarHorasDiarias(
   clientId?: string,
   dataTrabalho?: string,
   funcaoId?: string,
-  tarifaFaturada?: number
+  tarifaFaturada?: number,
+  obraId?: string | null
 ): Promise<void> {
   if (horaId) {
     if (novasHoras === 0) {
@@ -2560,19 +2561,62 @@ export async function atualizarHorasDiarias(
       if (error) throw mapSupabaseError(error);
     }
   } else if (novasHoras > 0 && workerId && clientId && dataTrabalho) {
-    const { error } = await supabase
+    let resolvedObraId = obraId || null;
+    if (!resolvedObraId) {
+      const { data: recentRow } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .select('obra_id')
+        .eq('worker_id', workerId)
+        .eq('client_id', clientId)
+        .not('obra_id', 'is', null)
+        .order('data_trabalho', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (recentRow?.obra_id) {
+        resolvedObraId = recentRow.obra_id;
+      }
+    }
+
+    const { data: existingDay } = await supabase
       .schema('core_finance')
       .from('horas_trabalhadas')
-      .insert({
-        worker_id: workerId,
-        client_id: clientId,
-        data_trabalho: dataTrabalho,
-        horas_totais: novasHoras,
-        status: 'pending_review',
-        funcao_id: funcaoId || null,
-        tarifa_faturada: tarifaFaturada || 27.00
-      });
-    if (error) throw mapSupabaseError(error);
+      .select('id')
+      .eq('worker_id', workerId)
+      .eq('client_id', clientId)
+      .eq('data_trabalho', dataTrabalho)
+      .is('fatura_id', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingDay?.id) {
+      const { error } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .update({
+          horas_totais: novasHoras,
+          horas_normais: 0,
+          obra_id: resolvedObraId,
+          status: 'validado'
+        })
+        .eq('id', existingDay.id);
+      if (error) throw mapSupabaseError(error);
+    } else {
+      const { error } = await supabase
+        .schema('core_finance')
+        .from('horas_trabalhadas')
+        .insert({
+          worker_id: workerId,
+          client_id: clientId,
+          data_trabalho: dataTrabalho,
+          horas_totais: novasHoras,
+          status: 'validado',
+          funcao_id: funcaoId || null,
+          tarifa_faturada: tarifaFaturada || 27.00,
+          obra_id: resolvedObraId
+        });
+      if (error) throw mapSupabaseError(error);
+    }
   }
 }
 
