@@ -397,6 +397,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           planned_start_date,
           planned_end_date,
           start_date,
+          end_date,
           tarifa_acordada,
           pedido_id,
           pedido_item_id,
@@ -418,7 +419,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
             cod_colab
           )
         `)
-        .in('status', ['planned', 'active', 'paused', 'replaced', 'relocated', 'terminated']);
+        .in('status', ['planned', 'active', 'paused', 'completed', 'replaced', 'relocated', 'terminated']);
 
       if (activeEmpresaId) {
         query = query.eq('empresa_id', activeEmpresaId);
@@ -533,11 +534,15 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       fulQty = pedido.pedido_items.filter((item: any) => item.quantity_fulfilled > 0).length;
       hasReplacement = fulQty < reqQty;
     } else {
+      const isOrderCompleted = (pedido.operational_status || '').toLowerCase() === 'completed' || (pedido.commercial_status || '').toLowerCase() === 'completed';
       pedido.pedido_items?.forEach((item: any) => {
         reqQty += item.quantity_requested || 0;
         const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress')).length;
         if (repCount > 0) hasReplacement = true;
-        fulQty += Math.max(0, (item.status === 'fulfilled' ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0) : (item.quantity_fulfilled || 0)) - repCount);
+        const rawFul = isOrderCompleted
+          ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0)
+          : (item.quantity_fulfilled || 0);
+        fulQty += Math.max(0, rawFul - repCount);
       });
     }
 
@@ -1112,9 +1117,10 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                           });
                     const repCount = itemReplacements.length;
                     const firstRep = itemReplacements[0] || (selectedPedido.isSynthetic ? replacementTargets.find(t => t.id === item.solicitud_target_id) : undefined);
+                    const isOrderCompleted = (selectedPedido.operational_status || '').toLowerCase() === 'completed' || (selectedPedido.commercial_status || '').toLowerCase() === 'completed';
                     const effectiveFulfilled = selectedPedido.isSynthetic 
                       ? (item.quantity_fulfilled || 0)
-                      : Math.max(0, (item.status === 'fulfilled' ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0) : (item.quantity_fulfilled || 0)) - repCount);
+                      : Math.max(0, (isOrderCompleted ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0) : (item.quantity_fulfilled || 0)) - repCount);
                     const isItemFulfilled = effectiveFulfilled >= (item.quantity_requested || 0);
                     const progress = item.quantity_requested > 0 
                       ? Math.min(100, Math.round((effectiveFulfilled / item.quantity_requested) * 100))
@@ -1368,8 +1374,9 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                     Pessoas Contratadas
                   </h3>
                   <span className="text-[11px] font-semibold text-slate-400">
-                    Total: {allocations.filter(a => a.status !== 'replaced' && a.status !== 'relocated' && a.status !== 'terminated').length} ativo(s)
-                    {allocations.some(a => a.status === 'replaced' || a.status === 'relocated' || a.status === 'terminated') && ` (${allocations.filter(a => a.status === 'replaced' || a.status === 'relocated' || a.status === 'terminated').length} histórico)`}
+                    Total: {allocations.filter(a => a.status === 'planned' || a.status === 'active' || a.status === 'paused').length} ativo(s)
+                    {allocations.some(a => a.status === 'completed') && ` • ${allocations.filter(a => a.status === 'completed').length} ciclo concluído`}
+                    {allocations.some(a => a.status === 'replaced' || a.status === 'relocated' || a.status === 'terminated') && ` (${allocations.filter(a => a.status === 'replaced' || a.status === 'relocated' || a.status === 'terminated').length} substituído/histórico)`}
                   </span>
                 </div>
 
@@ -1385,12 +1392,20 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {allocations.map((alloc: any) => {
                       const worker = alloc.worker || {};
+                      const isCompletedCycle = alloc.status === 'completed';
                       const isTerminated = alloc.status === 'replaced' || alloc.status === 'relocated' || alloc.status === 'terminated';
                       const needsReplacement = replacementMap.has(alloc.id);
+
+                      const rawStart = alloc.planned_start_date || alloc.start_date || selectedPedido.expected_start_date;
+                      const startStr = rawStart ? String(rawStart).split('T')[0] : '';
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const hasStartedWork = Boolean(startStr && todayStr > startStr) || (selectedPedido.operational_status || '').toLowerCase() === 'completed';
 
                       let cardClass = 'border rounded-xl p-4 space-y-3 hover:shadow-sm transition-all ';
                       if (isTerminated) {
                         cardClass += 'border-slate-200 dark:border-slate-800 bg-slate-100/35 dark:bg-slate-900/20 opacity-65 grayscale';
+                      } else if (isCompletedCycle) {
+                        cardClass += 'border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/15 dark:bg-emerald-950/10';
                       } else if (needsReplacement) {
                         cardClass += 'border-purple-200 dark:border-purple-900/50 bg-purple-50/25 dark:bg-purple-950/5 hover:bg-purple-50/40 dark:hover:bg-purple-950/10';
                       } else {
@@ -1408,7 +1423,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                             </div>
                             <div className="flex flex-col items-end gap-1.5">
                               <div className="flex items-center gap-1.5">
-                                {!isTerminated && (
+                                {!isTerminated && !isCompletedCycle && (
                                   <>
                                     <button
                                       type="button"
@@ -1418,14 +1433,25 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                                     >
                                       <Pencil size={13} />
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => setAllocationToCancel({ id: alloc.id, workerName: worker.nome || 'Desconhecido' })}
-                                      className="text-xs text-rose-500 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 p-1 rounded transition-colors border border-rose-200 dark:border-rose-900/50"
-                                      title="Cancelar contratação / Desistência"
-                                    >
-                                      <X size={13} />
-                                    </button>
+                                    {!hasStartedWork ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => setAllocationToCancel({ id: alloc.id, workerName: worker.nome || 'Desconhecido' })}
+                                        className="text-xs text-rose-500 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 p-1 rounded transition-colors border border-rose-200 dark:border-rose-900/50"
+                                        title="Cancelar contratação / Desistência (Permitido somente antes do início da obra)"
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => toast.warning('A obra/alocação já iniciou. Desistências só podem ser registradas antes da data de início. Para saída ou troca após o início, solicite Baixa ou Substituição (Reemplazo) em Operações.')}
+                                        className="text-xs text-slate-300 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 p-1 rounded border border-slate-200 dark:border-slate-700 cursor-not-allowed"
+                                        title="Bloqueado: A obra já iniciou. Para saída após o início, utilize Baixa ou Substituição (Reemplazo) em Operações."
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    )}
                                   </>
                                 )}
                                 <span className={isTerminated 
@@ -1435,12 +1461,18 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                                   {alloc.job_function_name_snapshot || 'Perfil'}
                                 </span>
                               </div>
+                              {isCompletedCycle && (
+                                <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[9px] font-black px-2 py-0.5 rounded-full dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800 flex items-center gap-1 shrink-0">
+                                  <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600 shrink-0" />
+                                  Ciclo Concluído{alloc.end_date ? ` (${new Date(alloc.end_date).toLocaleDateString('pt-PT')})` : ''}
+                                </span>
+                              )}
                               {isTerminated && (
                                 <span className="bg-slate-200 text-slate-700 border border-slate-350 text-[9px] font-black px-2 py-0.5 rounded-full dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700 flex items-center gap-1 shrink-0">
                                   Histórico / Substituído
                                 </span>
                               )}
-                              {needsReplacement && !isTerminated && (
+                              {needsReplacement && !isTerminated && !isCompletedCycle && (
                                 <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-black px-2 py-0.5 rounded-full dark:bg-purple-950/50 dark:text-purple-400 dark:border-purple-900/40 flex items-center gap-1 shrink-0">
                                   <AlertTriangle className="h-2.5 w-2.5 text-purple-650 shrink-0" />
                                   Reemplazo Solicitado

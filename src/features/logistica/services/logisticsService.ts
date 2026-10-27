@@ -1343,7 +1343,7 @@ export const logisticsService = {
               data_baixa_seguridad
             )
           `)
-          .in('status', ['planned', 'active', 'replaced', 'relocated', 'terminated']),
+          .in('status', ['planned', 'active', 'paused', 'completed', 'replaced', 'relocated', 'terminated']),
         supabase
           .schema('core_operacoes')
           .from('solicitudes_operativas')
@@ -1473,10 +1473,12 @@ export const logisticsService = {
         const seenWorkerIds = new Set<string>();
         const trabalhadores: TrabalhadorDemandaItem[] = [];
 
-        // 1. Processar primeiro as atribuições ATIVAS ou PLANEJADAS
+        const isPedidoCompleted = (ped.operational_status || '').toLowerCase() === 'completed' || (ped.commercial_status || '').toLowerCase() === 'completed';
+
+        // 1. Processar primeiro as atribuições ATIVAS, PLANEJADAS, PAUSADAS ou CONCLUÍDAS (quando o pedido foi concluído ou trabalhador encerrou ciclo normal)
         for (const ass of pedAssignments) {
           const assStatus = (ass.status || '').toLowerCase().trim();
-          if (assStatus !== 'active' && assStatus !== 'planned') {
+          if (assStatus !== 'active' && assStatus !== 'planned' && assStatus !== 'paused' && assStatus !== 'completed') {
             continue;
           }
 
@@ -1628,10 +1630,17 @@ export const logisticsService = {
         }
 
         const trabalhadoresAtivos = trabalhadores.filter(t => !t.is_substituido);
+        const allWorkersCompletedCycle = trabalhadoresAtivos.length > 0 && trabalhadoresAtivos.every(t => (t.assignment_status || '').toLowerCase() === 'completed');
+        const todayIso = new Date().toISOString().split('T')[0];
+        const isEndDatePast = Boolean(dataFimStr && dataFimStr < todayIso);
+        const isPedidoFinalizado = isPedidoCompleted || (allWorkersCompletedCycle && isEndDatePast);
+
         const totalAlojados = trabalhadoresAtivos.filter(t => t.status_alocacao === 'alocado').length;
-        const totalPendentes = trabalhadoresAtivos.filter(t => t.status_alocacao === 'pendente').length;
+        const totalPendentes = isPedidoFinalizado
+          ? 0
+          : trabalhadoresAtivos.filter(t => t.status_alocacao === 'pendente' && (t.assignment_status || '').toLowerCase() !== 'completed').length;
         const totalVagasFinal = Math.max(totalVagasPedido || 0, trabalhadoresAtivos.length, 1);
-        const totalFaltamContratar = Math.max(0, totalVagasFinal - trabalhadoresAtivos.length);
+        const totalFaltamContratar = isPedidoFinalizado ? 0 : Math.max(0, totalVagasFinal - trabalhadoresAtivos.length);
 
         return {
           pedido_id: ped.id,
@@ -1662,7 +1671,7 @@ export const logisticsService = {
           solicitudes_reemplazo: solicitudesReemplazo,
           status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
           commercial_status: ped.commercial_status || 'active',
-          is_finalizado: (ped.commercial_status || '').toLowerCase() === 'completed',
+          is_finalizado: isPedidoFinalizado,
           observacoes: ped.notes || 'Sin observaciones generales.',
           total_vagas_pedido: totalVagasFinal,
           total_contratados: trabalhadoresAtivos.length,
