@@ -92,9 +92,14 @@ export interface Fatura {
   atcud?: string | null;
   client?: {
     nombre_comercial: string;
+    legal_name?: string | null;
+    razon_social?: string | null;
+    trade_name?: string | null;
     codigo?: string | null;
     paymentTermName?: string | null;
     paymentTermDays?: number | null;
+    billingCycleStartDay?: number | null;
+    billing_cycle_start_day?: number | null;
     address_line?: string | null;
     postal_code?: string | null;
     city?: string | null;
@@ -1721,6 +1726,99 @@ export function computeDisputeTotalsAndCells(
   };
 }
 
+export function resolveFaturaBillingCycle(
+  fatura: any,
+  hours?: any[]
+): { cycleStartDay: number; year: number; month: number } {
+  let configuredStartDay = Number(
+    fatura?.client?.billingCycleStartDay ||
+    fatura?.client?.billing_cycle_start_day ||
+    fatura?.billingCycleStartDay ||
+    fatura?.billing_cycle_start_day ||
+    1
+  );
+  if (isNaN(configuredStartDay) || configuredStartDay < 1) {
+    configuredStartDay = 1;
+  }
+
+  const dates: string[] = [];
+  if (Array.isArray(hours)) {
+    hours.forEach((h: any) => {
+      const raw = h?.data_trabalho;
+      if (!raw) return;
+      const dStr = typeof raw === 'string'
+        ? (raw.includes('T') ? raw.split('T')[0] : raw)
+        : new Date(raw).toISOString().split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+        dates.push(dStr);
+      }
+    });
+  }
+  dates.sort();
+
+  // Fallback if client settings were not loaded on fatura.client yet, but hours span 2 consecutive calendar months
+  if (configuredStartDay === 1 && dates.length > 0) {
+    const monthsSet = Array.from(new Set(dates.map(d => d.slice(0, 7))));
+    if (monthsSet.length === 2) {
+      const firstMonthDates = dates.filter(d => d.startsWith(monthsSet[0]));
+      const minFirstDay = Math.min(...firstMonthDates.map(d => parseInt(d.slice(8, 10), 10)));
+      if (minFirstDay > 15) {
+        configuredStartDay = minFirstDay;
+      }
+    }
+  }
+
+  if (dates.length > 0) {
+    if (configuredStartDay > 1) {
+      const monthsSet = Array.from(new Set(dates.map(d => d.slice(0, 7))));
+      const hasBeforeCutoff = dates.some(d => parseInt(d.slice(8, 10), 10) < configuredStartDay);
+      const hasOnOrAfterCutoff = dates.some(d => parseInt(d.slice(8, 10), 10) >= configuredStartDay);
+
+      // Legacy full-calendar-month invoice before custom cutoff was enabled
+      if (monthsSet.length === 1 && hasBeforeCutoff && hasOnOrAfterCutoff) {
+        const y = parseInt(dates[0].slice(0, 4), 10);
+        const m = parseInt(dates[0].slice(5, 7), 10) - 1;
+        return { cycleStartDay: 1, year: y, month: m };
+      }
+
+      const maxDate = dates[dates.length - 1];
+      let y = parseInt(maxDate.slice(0, 4), 10);
+      let m = parseInt(maxDate.slice(5, 7), 10) - 1;
+      const d = parseInt(maxDate.slice(8, 10), 10);
+      if (d >= configuredStartDay) {
+        if (m === 11) {
+          m = 0;
+          y += 1;
+        } else {
+          m += 1;
+        }
+      }
+      return { cycleStartDay: configuredStartDay, year: y, month: m };
+    }
+
+    const firstDate = dates[0];
+    const y = parseInt(firstDate.slice(0, 4), 10);
+    const m = parseInt(firstDate.slice(5, 7), 10) - 1;
+    return { cycleStartDay: 1, year: y, month: m };
+  }
+
+  const emissao = fatura?.data_emissao || fatura?.ajustes_json?.data_emissao;
+  if (emissao) {
+    const dStr = typeof emissao === 'string' ? emissao.split('T')[0] : new Date(emissao).toISOString().split('T')[0];
+    const parts = dStr.split('-');
+    if (parts.length >= 2) {
+      return {
+        cycleStartDay: configuredStartDay,
+        year: parseInt(parts[0], 10),
+        month: parseInt(parts[1], 10) - 1
+      };
+    }
+  }
+
+  const now = new Date();
+  return { cycleStartDay: configuredStartDay, year: now.getFullYear(), month: now.getMonth() };
+}
+
 export async function getFaturasTracking(empresaId?: string | null): Promise<any[]> {
   try {
     let query = supabase
@@ -1754,6 +1852,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             client_company_settings (
               empresa_id,
               payment_term_id,
+              billing_cycle_start_day,
               status
             )
           `)
@@ -1763,9 +1862,11 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       }
       const clientsMap = new Map(clients.map(c => {
         const settings = c.client_company_settings?.find((s: any) => !empresaId || s.empresa_id === empresaId);
+        const activeFallback = c.client_company_settings?.find((s: any) => s.billing_cycle_start_day && s.billing_cycle_start_day > 1);
         return [c.id, {
           ...c,
           payment_term_id: settings?.payment_term_id || null,
+          billing_cycle_start_day: settings?.billing_cycle_start_day || activeFallback?.billing_cycle_start_day || 1,
           status: settings?.status || 'active'
         }];
       }));
@@ -1921,6 +2022,8 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             codigo: client.codigo || null,
             paymentTermName: termName,
             paymentTermDays: termDays,
+            billingCycleStartDay: client.billing_cycle_start_day || 1,
+            billing_cycle_start_day: client.billing_cycle_start_day || 1,
             billingEmail: client.billing_email || null,
             clientEmail: client.email || null,
             viesApplicable: client.vies_applicable || false,

@@ -7,7 +7,8 @@ import {
   computeDisputeTotalsAndCells, 
   deepMergeDisputedHours, 
   normalizeDisputedHoursMap,
-  getDisputedHourValue 
+  getDisputedHourValue,
+  resolveFaturaBillingCycle
 } from '../api/faturamentoApi';
 import { getBillingCycleDays } from '../pages/FaturasPendentes';
 import { supabase } from '@/shared/supabase/client';
@@ -26,19 +27,11 @@ export function sanitizeFilenamePart(str: string): string {
 }
 
 export function getFaturaBillingPeriod(fat: any, hours?: any[]): string {
-  // 1. Check hours
+  // 1. Check hours (respecting custom billing cycle)
   if (hours && hours.length > 0) {
-    const sample = hours.find((h: any) => h.data_trabalho)?.data_trabalho;
-    if (sample) {
-      const dateStr = typeof sample === 'string' ? sample.split('T')[0] : new Date(sample).toISOString().split('T')[0];
-      const parts = dateStr.split('-');
-      if (parts.length >= 2) {
-        const y = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10) - 1;
-        if (m >= 0 && m < 12 && !isNaN(y)) {
-          return `${MONTH_NAMES_PT[m]} ${y}`;
-        }
-      }
+    const { year: y, month: m } = resolveFaturaBillingCycle(fat, hours);
+    if (m >= 0 && m < 12 && !isNaN(y)) {
+      return `${MONTH_NAMES_PT[m]} ${y}`;
     }
   }
 
@@ -774,18 +767,7 @@ export async function generateRelatorioHorasPDF(
   const adj = fat.ajustes_json || fat.ajustesJson || {};
   const activeEdits = normalizeDisputedHoursMap(adj.disputed_hours || {});
 
-  let disputeYear = new Date().getFullYear();
-  let disputeMonth = new Date().getMonth();
-  if (hours && hours.length > 0) {
-    const sampleDate = hours.find((h: any) => h.data_trabalho)?.data_trabalho;
-    if (sampleDate) {
-      const parts = sampleDate.includes('T') ? sampleDate.split('T')[0].split('-') : sampleDate.split('-');
-      if (parts.length >= 2) {
-        disputeYear = parseInt(parts[0]);
-        disputeMonth = parseInt(parts[1]) - 1;
-      }
-    }
-  }
+  const { cycleStartDay: resolvedRelCycleDay, year: disputeYear, month: disputeMonth } = resolveFaturaBillingCycle(fat, hours);
   
   const periodStr = `${MONTH_NAMES_PT[disputeMonth]} / ${disputeYear}`;
   
@@ -834,7 +816,7 @@ export async function generateRelatorioHorasPDF(
   const finalNetValue = (totalValorCalculado + incrementos - reducoes) * (1 + ivaPct / 100);
 
   const groupedWorkers = Array.from(workersMap.values());
-  const cycleStartDay = fat.client?.billing_cycle_start_day || 1;
+  const cycleStartDay = resolvedRelCycleDay;
   const daysArray = getBillingCycleDays(cycleStartDay, disputeYear, disputeMonth);
 
   const obraTitle = adj.obra

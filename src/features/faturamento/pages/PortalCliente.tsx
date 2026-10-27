@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { getFaturaByToken, aprovarHorasCliente, contestarHorasCliente, publicSupabase } from '../api/faturamentoApi';
+import { getFaturaByToken, aprovarHorasCliente, contestarHorasCliente, publicSupabase, resolveFaturaBillingCycle } from '../api/faturamentoApi';
 import type { Fatura, HoraTrabalhada } from '../api/faturamentoApi';
 import { CheckCircle, XCircle, Clock, FileText, AlertTriangle, MessageSquare, Loader2, Calendar, FileSpreadsheet, Check, Paperclip, Trash2, Building2, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -344,6 +344,7 @@ export function PortalCliente() {
 const clientName = fatura.client?.legal_name || fatura.client?.razon_social || fatura.client?.nombre_comercial || 'Cliente';
     const periodStr = `${getMonthName(month)} / ${year}`;
     
+    const daysArrayLocal = daysArray;
     const tablesToRender = selectedObraId === 'all' ? groupedObras : groupedObras.filter(o => o.obraId === selectedObraId);
 
     let overallPageNum = 1;
@@ -848,20 +849,13 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
     return Array.from(workersMap.values());
   }, [groupedObras]);
 
-  const { year, month } = React.useMemo(() => {
-    if (horas && horas.length > 0) {
-      const firstDate = horas[0].data_trabalho;
-      const parts = firstDate.split('-');
-      return { year: parseInt(parts[0]), month: parseInt(parts[1]) - 1 };
-    }
-    const today = new Date();
-    return { year: today.getFullYear(), month: today.getMonth() };
-  }, [horas]);
+  const { cycleStartDay, year, month } = React.useMemo(() => {
+    return resolveFaturaBillingCycle(fatura, horas);
+  }, [fatura, horas]);
 
   const daysArray = React.useMemo(() => {
-    const cycleStartDay = fatura?.client?.billingCycleStartDay || 1;
     return getBillingCycleDays(cycleStartDay, year, month);
-  }, [year, month, fatura]);
+  }, [cycleStartDay, year, month]);
 
   const { finalTotalVal, adjustments, dataEmissaoStr, dataVencimentoStr, totalBaseVal, totalValorNormaisCalculadas, totalValorNoturnasCalculadas } = React.useMemo(() => {
     let totValNormais = 0;

@@ -22,7 +22,8 @@ import {
   normalizeDisputedHoursMap,
   getDisputedHourProposed,
   computeDisputeTotalsAndCells,
-  resolveWorkerStartDate
+  resolveWorkerStartDate,
+  resolveFaturaBillingCycle
 } from '../api/faturamentoApi';
 import { formatDateClean } from '@/shared/utils/dateUtils';
 import { toast } from 'sonner';
@@ -1399,16 +1400,7 @@ export function FaturasTracking() {
       adminModifiedHoursRef.current || {}
     );
 
-    let disputeYear = new Date().getFullYear();
-    let disputeMonth = new Date().getMonth();
-    if (disputeHours && disputeHours.length > 0) {
-      const sampleDate = disputeHours[0].data_trabalho;
-      const parts = sampleDate.includes('T') ? sampleDate.split('T')[0].split('-') : sampleDate.split('-');
-      if (parts.length >= 2) {
-        disputeYear = parseInt(parts[0]);
-        disputeMonth = parseInt(parts[1]) - 1;
-      }
-    }
+    const { cycleStartDay: resolvedExportCycleDay, year: disputeYear, month: disputeMonth } = resolveFaturaBillingCycle(fatura, disputeHours);
     
     const months = [
       'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -1462,7 +1454,7 @@ export function FaturasTracking() {
     const finalNetValue = (totalValorCalculado + incrementos - reducoes) * (1 + ivaPct / 100);
 
     const groupedWorkers = Array.from(workersMap.values());
-    const cycleStartDay = fatura.client?.billing_cycle_start_day || 1;
+    const cycleStartDay = resolvedExportCycleDay;
     const daysArray = getBillingCycleDays(cycleStartDay, disputeYear, disputeMonth);
 
     const obraTitle = (fatura.ajustes_json?.obra || fatura.ajustesJson?.obra)
@@ -1755,8 +1747,7 @@ export function FaturasTracking() {
       return ptMonths[mIndex] || '';
     };
 
-    const periodMonth = fatura.created_at ? new Date(fatura.created_at).getMonth() : new Date().getMonth();
-    const periodYear = fatura.created_at ? new Date(fatura.created_at).getFullYear() : new Date().getFullYear();
+    const { cycleStartDay: resolvedAttachCycleDay, year: periodYear, month: periodMonth } = resolveFaturaBillingCycle(fatura, hours);
     const monthStr = getTranslatedMonth(periodMonth, lang);
     const periodStr = lang === 'en' ? `${monthStr} ${periodYear}` : `${monthStr} de ${periodYear}`;
     
@@ -1793,7 +1784,7 @@ export function FaturasTracking() {
       horasDiarias: w.horasDiariasEffective
     }));
 
-    const cycleStartDay = fatura.client?.billingCycleStartDay || fatura.client?.billing_cycle_start_day || 1;
+    const cycleStartDay = resolvedAttachCycleDay;
     const daysArray = getBillingCycleDays(cycleStartDay, periodYear, periodMonth);
 
     const obraTitle = (fatura.ajustes_json?.obra || fatura.ajustesJson?.obra)
@@ -3408,23 +3399,8 @@ MCS - Gestão Comercial`;
               groupedDisputeWorkers
             } = computeDisputeTotalsAndCells(disputeHours, combinedDisputedHours, disputeSelectedObraId);
 
-            const { disputeYear, disputeMonth } = (() => {
-              if (disputeHours && disputeHours.length > 0) {
-                const rawDate = disputeHours[0].data_trabalho || '';
-                const firstDate = rawDate.includes('T') ? rawDate.split('T')[0] : rawDate;
-                const parts = firstDate.split('-');
-                if (parts.length >= 2) {
-                  return { disputeYear: parseInt(parts[0]), disputeMonth: parseInt(parts[1]) - 1 };
-                }
-              }
-              const today = new Date();
-              return { disputeYear: today.getFullYear(), disputeMonth: today.getMonth() };
-            })();
-
-            const disputeDaysArray = (() => {
-              const numDays = new Date(disputeYear, disputeMonth + 1, 0).getDate();
-              return Array.from({ length: numDays }, (_, i) => i + 1);
-            })();
+            const { cycleStartDay: disputeCycleStartDay, year: disputeYear, month: disputeMonth } = resolveFaturaBillingCycle(selectedDispute, disputeHours);
+            const disputeDaysArray = getBillingCycleDays(disputeCycleStartDay, disputeYear, disputeMonth);
 
             // Load adjustments or defaults
             const adjustments = (() => {
@@ -3848,13 +3824,13 @@ MCS - Gestão Comercial`;
                               <TableHeader className="bg-slate-50 dark:bg-slate-900">
                                 <TableRow>
                                   <TableHead className="font-bold pl-4">Trabalhador</TableHead>
-                                  {disputeDaysArray.map(day => {
-                                    const wDay = getWeekDayLabel(day, disputeYear, disputeMonth);
-                                    const isWk = isWeekend(day, disputeYear, disputeMonth);
+                                  {disputeDaysArray.map(dInfo => {
+                                    const wDay = getWeekDayLabel(dInfo.day, dInfo.year, dInfo.month - 1);
+                                    const isWk = isWeekend(dInfo.day, dInfo.year, dInfo.month - 1);
                                     return (
-                                      <TableHead key={day} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
+                                      <TableHead key={dInfo.dateStr} className={`text-center font-extrabold text-[9px] md:text-[10px] p-1 min-w-[28px] max-w-[38px] ${isWk ? 'bg-rose-50/60 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border-x border-slate-100 dark:border-slate-800' : 'border-x border-slate-100 dark:border-slate-850'}`}>
                                         <div className="flex flex-col items-center gap-0.5">
-                                          <span>{String(day).padStart(2, '0')}</span>
+                                          <span>{String(dInfo.day).padStart(2, '0')}</span>
                                           <span className="text-[6.5px] md:text-[7.5px] text-slate-400 font-normal uppercase tracking-tight">{wDay}</span>
                                         </div>
                                       </TableHead>
@@ -3891,19 +3867,19 @@ MCS - Gestão Comercial`;
                                           </div>
                                         </div>
                                       </TableCell>
-                                      {disputeDaysArray.map(day => {
-                                        const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                      {disputeDaysArray.map(dInfo => {
+                                        const dateKey = dInfo.dateStr;
                                         const originalVal = worker.horasDiariasOriginal[dateKey] || 0;
                                         const effectiveVal = worker.horasDiariasEffective[dateKey] || 0;
                                         const hasDispute = !!worker.hasDisputePerDate[dateKey] || Math.abs(effectiveVal - originalVal) > 0.01;
 
                                         const isEditing = adminEditingCell?.workerId === worker.workerId && adminEditingCell?.dateKey === dateKey;
                                         const displayVal = effectiveVal;
-                                        const isWk = isWeekend(day, disputeYear, disputeMonth);
+                                        const isWk = isWeekend(dInfo.day, dInfo.year, dInfo.month - 1);
 
                                         if (isEditing) {
                                           return (
-                                            <TableCell key={day} className="p-0 text-center min-w-[30px] border-x border-slate-100 dark:border-slate-800">
+                                            <TableCell key={dInfo.dateStr} className="p-0 text-center min-w-[30px] border-x border-slate-100 dark:border-slate-800">
                                               <input 
                                                 type="number" 
                                                 step="0.5"
@@ -3943,7 +3919,7 @@ MCS - Gestão Comercial`;
 
                                         return (
                                           <TableCell 
-                                            key={day} 
+                                            key={dInfo.dateStr} 
                                             onClick={() => setAdminEditingCell({ workerId: worker.workerId, dateKey })}
                                             className={`text-center p-1 text-[10px] md:text-[11px] min-w-[28px] max-w-[38px] select-none cursor-pointer transition-all border-x border-slate-100 dark:border-slate-850 hover:bg-amber-100 hover:text-amber-900 ${
                                               isWk
@@ -3991,14 +3967,14 @@ MCS - Gestão Comercial`;
                                   <TableCell className="pl-4 py-3 text-xs uppercase tracking-wider font-extrabold text-blue-700 dark:text-blue-400">
                                     TOTAL GERAL DE HORAS
                                   </TableCell>
-                                  {disputeDaysArray.map(day => {
-                                    const dateKey = `${disputeYear}-${String(disputeMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                                  {disputeDaysArray.map(dInfo => {
+                                    const dateKey = dInfo.dateStr;
                                     const dailyTotalOriginal = groupedDisputeWorkers.reduce((sum, worker) => sum + (worker.horasDiariasOriginal[dateKey] || 0), 0);
                                     const dailyTotalAdjusted = groupedDisputeWorkers.reduce((sum, worker) => sum + (worker.horasDiariasEffective[dateKey] || 0), 0);
                                     const hasDayDispute = Math.abs(dailyTotalAdjusted - dailyTotalOriginal) > 0.01;
 
                                     return (
-                                      <TableCell key={day} className="text-center font-bold text-[10px] p-1 border-x border-slate-200 dark:border-slate-800">
+                                      <TableCell key={dInfo.dateStr} className="text-center font-bold text-[10px] p-1 border-x border-slate-200 dark:border-slate-800">
                                         {hasDayDispute ? (
                                           <div className="flex flex-col items-center leading-none">
                                             <span className="line-through text-red-500 text-[8px]">{dailyTotalOriginal > 0 ? dailyTotalOriginal : '0'}</span>
