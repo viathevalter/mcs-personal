@@ -24,6 +24,15 @@ export interface Contract {
         notice_end_date?: string;
         effective_date?: string;
         notice_days?: number;
+        penalty_total?: number;
+        apply_deduction?: boolean;
+        notice_status?: 'in_progress' | 'completed' | 'abandoned' | 'waived';
+        stop_date?: string | null;
+        work_start_date?: string | null;
+        month_worked_days?: number | null;
+        fulfilled_days_override?: number | null;
+        notice_notes?: string | null;
+        is_manual_entry?: boolean;
     } | null;
     created_at: string;
     updated_at: string;
@@ -46,6 +55,8 @@ export interface Contract {
         cliente?: string;
         cod_cliente?: string;
         cod_colab?: string;
+        data_ingresso?: string | null;
+        data_alta_seguridad?: string | null;
     };
     assignment?: {
         id: string;
@@ -226,7 +237,7 @@ export async function listContracts({ empresaId, workerId, status, contractType 
                 .select(`
                     *,
                     worker:workers (
-                        id, nome, email, movil, nif, niss, dni, nie, pasaporte, cliente, cod_cliente, cod_colab
+                        id, nome, email, movil, nif, niss, dni, nie, pasaporte, cliente, cod_cliente, cod_colab, data_ingresso, data_alta_seguridad
                     ),
                     assignment:worker_assignments (
                         id,
@@ -701,6 +712,91 @@ export async function deleteContract(contractId: string): Promise<void> {
     if (error) {
         throw mapSupabaseError(error);
     }
+}
+
+export async function updateContractNoticeMetadata(
+    contractId: string,
+    metadataUpdates: NonNullable<Contract['metadata']>,
+    statusUpdate?: Contract['status']
+): Promise<void> {
+    const { data: existing, error: fetchErr } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .select('metadata, status')
+        .eq('id', contractId)
+        .single();
+
+    if (fetchErr) {
+        throw mapSupabaseError(fetchErr);
+    }
+
+    const mergedMetadata = {
+        ...(existing?.metadata || {}),
+        ...metadataUpdates,
+    };
+
+    const updatePayload: any = {
+        metadata: mergedMetadata,
+        updated_at: new Date().toISOString(),
+    };
+    if (metadataUpdates.notice_end_date) {
+        updatePayload.terminated_at = metadataUpdates.notice_end_date;
+    }
+    if (statusUpdate) {
+        updatePayload.status = statusUpdate;
+    }
+
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .update(updatePayload)
+        .eq('id', contractId);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+}
+
+export interface CreateManualNoticePayload {
+    empresa_id: string;
+    worker_id: string;
+    contratante: string;
+    assignment_id?: string | null;
+    signed_manually?: boolean;
+    metadata: NonNullable<Contract['metadata']>;
+}
+
+export async function createManualNoticeEntry(payload: CreateManualNoticePayload): Promise<Contract> {
+    const token = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+    const { data, error } = await supabase
+        .schema('core_personal')
+        .from('contracts')
+        .insert({
+            empresa_id: payload.empresa_id,
+            worker_id: payload.worker_id,
+            assignment_id: payload.assignment_id || null,
+            contratante: payload.contratante,
+            contract_type: 'rescisao',
+            status: payload.signed_manually !== false ? 'signed' : 'pending_signature',
+            signed_at: payload.signed_manually !== false ? new Date().toISOString() : null,
+            signature_token: token,
+            terminated_at: payload.metadata.notice_end_date || null,
+            metadata: {
+                ...payload.metadata,
+                is_manual_entry: true,
+            },
+        })
+        .select()
+        .single();
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
+    return data as unknown as Contract;
 }
 
 export async function getDocumentRequestByToken(token: string): Promise<DocumentRequest> {

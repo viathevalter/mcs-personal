@@ -4,7 +4,7 @@ import { Layout } from '@/components/layout/Layout';
 import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
-    listContracts, generateContract, deleteContract, type Contract,
+    listContracts, generateContract, deleteContract, updateContractNoticeMetadata, createManualNoticeEntry, type Contract,
     listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, type DocumentRequest
 } from '../api/contractsApi';
 import { listWorkers } from '@/features/workers/api/workersApi';
@@ -65,6 +65,116 @@ const formatIsoToBr = (isoStr?: string | null): string => {
     const m = String(isoStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (m) return `${m[3]}/${m[2]}/${m[1]}`;
     return isoStr;
+};
+
+const formatCurrencyEur = (val: number): string => {
+    const safe = Number.isFinite(val) ? val : 0;
+    return `€ ${safe.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const resolveEmpresaIdFromContratante = (contratante?: string | null, fallbackEmpresaId?: string | null): string => {
+    const upper = String(contratante || '').toUpperCase();
+    if (upper.includes('STOCCO')) return '441f1f5d-aed3-40e3-8c77-7b1217757251';
+    if (upper.includes('LUMINOUS') || upper.includes('LUMINUS')) return '847796c4-b253-4e53-9e6b-34a127ec7d85';
+    if (upper.includes('TRIANGULO') || upper.includes('TRIÂNGULO')) return 'a798620a-358a-4c6c-9db2-3a507c583cac';
+    if (upper.includes('HEXAGON')) return '2c944db5-f1d0-4789-a562-8cfa1c0155b7';
+    if (upper.includes('WISEOWE')) return 'dae64d51-2181-4510-b14f-e63d2f111a8e';
+    return fallbackEmpresaId || 'dae64d51-2181-4510-b14f-e63d2f111a8e';
+};
+
+const computeDefaultMonthWorkedDays = (
+    workStartDate?: string | null,
+    noticeStartDate?: string | null,
+    stopDate?: string | null,
+    todayIso?: string
+): number => {
+    const refBase = stopDate || noticeStartDate || todayIso || new Date().toISOString().split('T')[0];
+    const m = refBase.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return 0;
+    const monthFirstDay = `${m[1]}-${m[2]}-01`;
+    let effectiveStart = monthFirstDay;
+    if (workStartDate && /^\d{4}-\d{2}-\d{2}/.test(workStartDate)) {
+        const ws = workStartDate.substring(0, 10);
+        if (ws > monthFirstDay) {
+            effectiveStart = ws;
+        }
+    }
+    if (refBase < effectiveStart) return 0;
+    return Math.max(0, getDaysDiff(effectiveStart, refBase) + 1);
+};
+
+const computeNoticeDetails = (c: Contract, todayStr: string) => {
+    const reqDate = c.metadata?.request_date || (c.created_at ? c.created_at.split('T')[0] : todayStr);
+    const startNotice = c.metadata?.notice_start_date || reqDate;
+    const endNotice = c.metadata?.notice_end_date || (c.terminated_at ? c.terminated_at.split('T')[0] : addDaysToIso(startNotice, 15));
+    const totalNoticeDays = c.metadata?.notice_days ? Number(c.metadata.notice_days) : 15;
+    const penaltyTotal = c.metadata?.penalty_total !== undefined && c.metadata?.penalty_total !== null
+        ? Number(c.metadata.penalty_total)
+        : 460;
+    const dailyRate = totalNoticeDays > 0 ? penaltyTotal / totalNoticeDays : 30.6666667;
+    const applyDeduction = c.metadata?.apply_deduction !== false;
+    const stopDate = c.metadata?.stop_date || null;
+    const workStartDate = c.metadata?.work_start_date || c.worker?.data_ingresso || c.worker?.data_alta_seguridad || null;
+
+    let fulfilledDays = 0;
+    if (c.metadata?.fulfilled_days_override !== undefined && c.metadata?.fulfilled_days_override !== null) {
+        fulfilledDays = Math.max(0, Math.min(totalNoticeDays, Number(c.metadata.fulfilled_days_override)));
+    } else if (c.metadata?.notice_status === 'completed') {
+        fulfilledDays = totalNoticeDays;
+    } else if (c.metadata?.notice_status === 'abandoned' && !stopDate) {
+        fulfilledDays = 0;
+    } else {
+        // Sábado e domingo contam normalmente como dias cumpridos (dias corridos até hoje ou até a data de parada/abandono)
+        const refDate = stopDate || todayStr;
+        const rawDiff = getDaysDiff(startNotice, refDate);
+        fulfilledDays = Math.max(0, Math.min(totalNoticeDays, rawDiff));
+    }
+
+    let computedStatus: 'in_progress' | 'completed' | 'abandoned' | 'waived' = 'in_progress';
+    if (!applyDeduction) {
+        computedStatus = 'waived';
+    } else if (c.metadata?.notice_status === 'abandoned' || (stopDate && fulfilledDays < totalNoticeDays)) {
+        computedStatus = 'abandoned';
+    } else if (c.metadata?.notice_status === 'completed' || fulfilledDays >= totalNoticeDays) {
+        computedStatus = 'completed';
+    } else {
+        computedStatus = 'in_progress';
+    }
+
+    const fulfilledAmount = Math.min(penaltyTotal, fulfilledDays * dailyRate);
+    const theoreticalRemaining = Math.max(0, Number((penaltyTotal - fulfilledAmount).toFixed(2)));
+    const finalToDeduct = applyDeduction ? theoreticalRemaining : 0;
+
+    let monthWorkedDays = 0;
+    if (c.metadata?.month_worked_days !== undefined && c.metadata?.month_worked_days !== null) {
+        monthWorkedDays = Math.max(0, Number(c.metadata.month_worked_days));
+    } else if (c.metadata?.notice_status === 'abandoned' && !stopDate) {
+        monthWorkedDays = 0;
+    } else {
+        const refForMonth = stopDate || (todayStr > startNotice ? (todayStr < endNotice ? todayStr : endNotice) : startNotice);
+        monthWorkedDays = computeDefaultMonthWorkedDays(workStartDate, startNotice, refForMonth, todayStr);
+    }
+
+    return {
+        reqDate,
+        startNotice,
+        endNotice,
+        totalNoticeDays,
+        penaltyTotal,
+        dailyRate,
+        applyDeduction,
+        stopDate,
+        workStartDate,
+        fulfilledDays,
+        remainingDays: Math.max(0, totalNoticeDays - fulfilledDays),
+        computedStatus,
+        fulfilledAmount,
+        theoreticalRemaining,
+        finalToDeduct,
+        monthWorkedDays,
+        isManualEntry: Boolean(c.metadata?.is_manual_entry),
+        notes: c.metadata?.notice_notes || '',
+    };
 };
 
 const parseDateToInput = (dateStr?: string | null): string => {
@@ -226,10 +336,34 @@ export function DocumentacionTasksPage() {
     const [loadingRescisaoPreview, setLoadingRescisaoPreview] = useState(false);
     const rescisaoPreviewRef = useRef<HTMLDivElement>(null);
 
-    // Filtros da aba Cartas de Rescisão
+    // Filtros da aba Cartas de Rescisão & Gestão de Aviso Prévio
+    const [rescisaoSubView, setRescisaoSubView] = useState<'assinaturas' | 'aviso_previo'>('assinaturas');
     const [searchTermRescisao, setSearchTermRescisao] = useState('');
     const [statusFilterRescisao, setStatusFilterRescisao] = useState('all');
+    const [noticeStatusFilter, setNoticeStatusFilter] = useState<'all' | 'in_progress' | 'abandoned' | 'completed' | 'waived'>('all');
     const [empresaFilterRescisao, setEmpresaFilterRescisao] = useState('all');
+
+    // Modal de Gestão / Inclusão de Trabalhador no Aviso Prévio
+    const [noticeDialogOpen, setNoticeDialogOpen] = useState(false);
+    const [noticeDialogMode, setNoticeDialogMode] = useState<'create' | 'edit'>('create');
+    const [editingNoticeContract, setEditingNoticeContract] = useState<Contract | null>(null);
+    const [savingNotice, setSavingNotice] = useState(false);
+    const [noticeWorkerId, setNoticeWorkerId] = useState<string | null>(null);
+    const [noticeWorkerName, setNoticeWorkerName] = useState<string>('');
+    const [noticeAssignmentId, setNoticeAssignmentId] = useState<string | null>(null);
+    const [noticeContratante, setNoticeContratante] = useState<string>('STOCCO');
+    const [noticeWorkStartDate, setNoticeWorkStartDate] = useState<string>('');
+    const [noticeMonthWorkedDays, setNoticeMonthWorkedDays] = useState<string>('15');
+    const [noticeRequestDate, setNoticeRequestDate] = useState<string>(todayIsoStr);
+    const [noticeStartDate, setNoticeStartDate] = useState<string>(todayIsoStr);
+    const [noticeEndDate, setNoticeEndDate] = useState<string>(() => addDaysToIso(todayIsoStr(), 15));
+    const [noticePenaltyTotal, setNoticePenaltyTotal] = useState<string>('460');
+    const [noticeStatus, setNoticeStatus] = useState<'in_progress' | 'abandoned' | 'completed'>('in_progress');
+    const [noticeStopDate, setNoticeStopDate] = useState<string>('');
+    const [noticeFulfilledDaysOverride, setNoticeFulfilledDaysOverride] = useState<string>('');
+    const [noticeApplyDeduction, setNoticeApplyDeduction] = useState<boolean>(true);
+    const [noticeSignedManually, setNoticeSignedManually] = useState<boolean>(true);
+    const [noticeNotes, setNoticeNotes] = useState<string>('');
 
     // Lista global de clientes e trabalhadores para formulários
     const [clientsList, setClientsList] = useState<{ id: string; name: string }[]>([]);
@@ -575,7 +709,33 @@ export function DocumentacionTasksPage() {
         return { total, pending, signed };
     }, [rescisaoContracts]);
 
+    const noticeStats = useMemo(() => {
+        const today = todayIsoStr();
+        let inProgress = 0;
+        let abandoned = 0;
+        let completedOrWaived = 0;
+        let totalToDeduct = 0;
+
+        rescisaoContracts.forEach(c => {
+            const info = computeNoticeDetails(c, today);
+            if (info.computedStatus === 'in_progress') inProgress++;
+            else if (info.computedStatus === 'abandoned') abandoned++;
+            else completedOrWaived++;
+
+            totalToDeduct += info.finalToDeduct;
+        });
+
+        return {
+            total: rescisaoContracts.length,
+            inProgress,
+            abandoned,
+            completedOrWaived,
+            totalToDeduct: Number(totalToDeduct.toFixed(2)),
+        };
+    }, [rescisaoContracts]);
+
     const filteredRescisoes = useMemo(() => {
+        const today = todayIsoStr();
         return rescisaoContracts.filter(c => {
             const clientName = c.assignment?.client?.trade_name || c.assignment?.client?.legal_name || c.worker?.cliente || 'Sem Alocação';
             const empresaName = c.contratante || '';
@@ -591,12 +751,18 @@ export function DocumentacionTasksPage() {
                 empresaName.toLowerCase().includes(q) ||
                 clientName.toLowerCase().includes(q);
 
-            const statusMatch = statusFilterRescisao === 'all' || c.status === statusFilterRescisao;
             const empresaMatch = empresaFilterRescisao === 'all' || c.contratante === empresaFilterRescisao;
 
-            return textMatch && statusMatch && empresaMatch;
+            if (rescisaoSubView === 'aviso_previo') {
+                if (noticeStatusFilter === 'all') return textMatch && empresaMatch;
+                const info = computeNoticeDetails(c, today);
+                return textMatch && empresaMatch && info.computedStatus === noticeStatusFilter;
+            } else {
+                const statusMatch = statusFilterRescisao === 'all' || c.status === statusFilterRescisao;
+                return textMatch && statusMatch && empresaMatch;
+            }
         });
-    }, [rescisaoContracts, searchTermRescisao, statusFilterRescisao, empresaFilterRescisao]);
+    }, [rescisaoContracts, searchTermRescisao, statusFilterRescisao, noticeStatusFilter, empresaFilterRescisao, rescisaoSubView]);
 
     const getTemplatePath = (contratante: string, docType: string) => {
         const upper = contratante.toUpperCase();
@@ -2261,6 +2427,202 @@ Muchas gracias.`;
         window.open(whatsappUrl, '_blank');
     };
 
+    const handleOpenCreateManualNotice = () => {
+        const today = todayIsoStr();
+        const end = addDaysToIso(today, 15);
+        setNoticeDialogMode('create');
+        setEditingNoticeContract(null);
+        setNoticeWorkerId(null);
+        setNoticeWorkerName('');
+        setNoticeAssignmentId(null);
+        setNoticeContratante(resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
+        setNoticeWorkStartDate('');
+        setNoticeRequestDate(today);
+        setNoticeStartDate(today);
+        setNoticeEndDate(end);
+        setNoticeMonthWorkedDays(String(computeDefaultMonthWorkedDays(null, today, null, today)));
+        setNoticePenaltyTotal('460');
+        setNoticeStatus('in_progress');
+        setNoticeStopDate('');
+        setNoticeFulfilledDaysOverride('');
+        setNoticeApplyDeduction(true);
+        setNoticeSignedManually(true);
+        setNoticeNotes('');
+        setNoticeDialogOpen(true);
+        loadWorkers();
+    };
+
+    const handleSelectManualNoticeWorker = async (workerId: string | null) => {
+        setNoticeWorkerId(workerId);
+        if (!workerId) {
+            setNoticeWorkerName('');
+            setNoticeWorkStartDate('');
+            return;
+        }
+        const cached = workersCacheRef.current.get(workerId);
+        if (cached) {
+            setNoticeWorkerName(cached.nome || '');
+            if (cached.contratante) {
+                setNoticeContratante(resolveContratanteOption(cached.contratante));
+            }
+        }
+        try {
+            const [{ data: w }, { data: wa }] = await Promise.all([
+                supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('id, nome, contratante, data_ingresso, data_alta_seguridad')
+                    .eq('id', workerId)
+                    .maybeSingle(),
+                supabase
+                    .schema('core_personal')
+                    .from('worker_assignments')
+                    .select('id, empresa_id, start_date, planned_start_date')
+                    .eq('worker_id', workerId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle(),
+            ]);
+
+            if (w?.nome) setNoticeWorkerName(w.nome);
+            if (wa?.id) setNoticeAssignmentId(wa.id);
+            const rawContratante = w?.contratante || wa?.empresa_id || cached?.contratante;
+            if (rawContratante) {
+                setNoticeContratante(resolveContratanteOption(rawContratante));
+            }
+            const admissionDate = (w?.data_ingresso || w?.data_alta_seguridad || wa?.start_date || wa?.planned_start_date || '').substring(0, 10);
+            setNoticeWorkStartDate(admissionDate);
+            const defaultWorked = computeDefaultMonthWorkedDays(admissionDate || null, noticeStartDate, noticeStopDate || null, todayIsoStr());
+            setNoticeMonthWorkedDays(String(defaultWorked));
+        } catch (err) {
+            console.error('Erro ao buscar dados do trabalhador para aviso prévio:', err);
+        }
+    };
+
+    const handleOpenEditNotice = (contract: Contract, prefillStopToday: boolean = false) => {
+        const today = todayIsoStr();
+        const info = computeNoticeDetails(contract, today);
+        setNoticeDialogMode('edit');
+        setEditingNoticeContract(contract);
+        setNoticeWorkerId(contract.worker_id);
+        setNoticeWorkerName(contract.worker?.nome || 'Trabalhador');
+        setNoticeAssignmentId(contract.assignment_id);
+        setNoticeContratante(contract.contratante || 'STOCCO');
+        setNoticeWorkStartDate(info.workStartDate ? info.workStartDate.substring(0, 10) : '');
+        setNoticeRequestDate(info.reqDate);
+        setNoticeStartDate(info.startNotice);
+        setNoticeEndDate(info.endNotice);
+        setNoticeMonthWorkedDays(String(info.monthWorkedDays));
+        setNoticePenaltyTotal(String(info.penaltyTotal));
+
+        if (prefillStopToday) {
+            const stopIso = info.stopDate || today;
+            setNoticeStatus('abandoned');
+            setNoticeStopDate(stopIso);
+            const autoFulfilled = Math.max(0, Math.min(info.totalNoticeDays, getDaysDiff(info.startNotice, stopIso)));
+            setNoticeFulfilledDaysOverride(
+                contract.metadata?.fulfilled_days_override !== undefined && contract.metadata?.fulfilled_days_override !== null
+                    ? String(contract.metadata.fulfilled_days_override)
+                    : String(autoFulfilled)
+            );
+            setNoticeApplyDeduction(true);
+        } else {
+            const st = contract.metadata?.notice_status === 'abandoned'
+                ? 'abandoned'
+                : contract.metadata?.notice_status === 'completed'
+                ? 'completed'
+                : 'in_progress';
+            setNoticeStatus(st);
+            setNoticeStopDate(info.stopDate || '');
+            setNoticeFulfilledDaysOverride(
+                contract.metadata?.fulfilled_days_override !== undefined && contract.metadata?.fulfilled_days_override !== null
+                    ? String(contract.metadata.fulfilled_days_override)
+                    : ''
+            );
+            setNoticeApplyDeduction(info.applyDeduction);
+        }
+        setNoticeNotes(info.notes);
+        setNoticeDialogOpen(true);
+    };
+
+    const handleQuickToggleDeduction = async (contract: Contract) => {
+        const currentApply = contract.metadata?.apply_deduction !== false;
+        const nextApply = !currentApply;
+        try {
+            await updateContractNoticeMetadata(contract.id, {
+                apply_deduction: nextApply,
+            });
+            toast.success(
+                nextApply
+                    ? `Desconto de aviso prévio ativado para ${contract.worker?.nome || 'o trabalhador'}.`
+                    : `${contract.worker?.nome || 'Trabalhador'} marcado como Isento (Não Descontar).`
+            );
+            loadContracts();
+        } catch (err: any) {
+            toast.error(`Erro ao atualizar opção de desconto: ${err.message || err}`);
+        }
+    };
+
+    const handleSaveNoticeModal = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (noticeDialogMode === 'create' && !noticeWorkerId) {
+            toast.error('Selecione o trabalhador para incluir no controle de aviso prévio.');
+            return;
+        }
+        if (!noticeStartDate || !noticeEndDate) {
+            toast.error('Informe a data de início e fim do período de aviso prévio.');
+            return;
+        }
+
+        const parsedPenalty = Number(String(noticePenaltyTotal).replace(',', '.'));
+        const penaltyTotalVal = Number.isFinite(parsedPenalty) && parsedPenalty >= 0 ? parsedPenalty : 460;
+        const parsedWorkedDays = noticeMonthWorkedDays.trim() !== '' ? Number(noticeMonthWorkedDays) : null;
+        const parsedOverride = noticeFulfilledDaysOverride.trim() !== '' ? Number(noticeFulfilledDaysOverride) : null;
+
+        const metadataPayload: NonNullable<Contract['metadata']> = {
+            request_date: noticeRequestDate || noticeStartDate,
+            notice_start_date: noticeStartDate,
+            notice_end_date: noticeEndDate,
+            effective_date: noticeStartDate,
+            notice_days: 15,
+            penalty_total: penaltyTotalVal,
+            apply_deduction: noticeApplyDeduction,
+            notice_status: noticeStatus,
+            stop_date: noticeStatus === 'abandoned' ? (noticeStopDate || todayIsoStr()) : (noticeStopDate || null),
+            work_start_date: noticeWorkStartDate || null,
+            month_worked_days: parsedWorkedDays !== null && Number.isFinite(parsedWorkedDays) ? parsedWorkedDays : null,
+            fulfilled_days_override: parsedOverride !== null && Number.isFinite(parsedOverride) ? parsedOverride : null,
+            notice_notes: noticeNotes.trim() || null,
+        };
+
+        try {
+            setSavingNotice(true);
+            if (noticeDialogMode === 'create' && noticeWorkerId) {
+                const targetEmpresaId = resolveEmpresaIdFromContratante(noticeContratante, selectedEmpresaId || activeEmpresaId);
+                await createManualNoticeEntry({
+                    empresa_id: targetEmpresaId,
+                    worker_id: noticeWorkerId,
+                    contratante: noticeContratante,
+                    assignment_id: noticeAssignmentId,
+                    signed_manually: noticeSignedManually,
+                    metadata: metadataPayload,
+                });
+                toast.success('Trabalhador incluído no controle de Aviso Prévio com sucesso!');
+                setRescisaoSubView('aviso_previo');
+            } else if (editingNoticeContract) {
+                await updateContractNoticeMetadata(editingNoticeContract.id, metadataPayload);
+                toast.success('Dados do Aviso Prévio e Desconto atualizados com sucesso!');
+            }
+            setNoticeDialogOpen(false);
+            loadContracts();
+        } catch (err: any) {
+            console.error('Erro ao salvar gestão de aviso prévio:', err);
+            toast.error(`Erro ao salvar: ${err.message || err}`);
+        } finally {
+            setSavingNotice(false);
+        }
+    };
+
     return (
         <Layout>
             <div className="flex flex-col h-[calc(100vh-115px)] overflow-hidden space-y-6 p-4">
@@ -3756,66 +4118,142 @@ Muchas gracias.`;
                         </div>
                     </TabsContent>
 
-                    {/* Conteúdo 3.5: Controle de Cartas de Rescisão (Assinadas vs Pendentes) */}
+                    {/* Conteúdo 3.5: Controle de Cartas de Rescisão & Gestão do Aviso Prévio */}
                     <TabsContent value="rescisoes" className="flex-1 hidden data-[state=active]:flex flex-col min-h-0 overflow-hidden pt-4 space-y-4">
-                        {/* Cards de Controle de Assinatura */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => setStatusFilterRescisao('all')}
-                                className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
-                                    statusFilterRescisao === 'all'
-                                        ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 shadow-sm'
-                                        : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
-                                }`}
-                            >
-                                <div>
-                                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total de Cartas Emitidas</span>
-                                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{rescisaoStats.total}</div>
-                                </div>
-                                <div className="h-10 w-10 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
-                                    <FileText className="h-5 w-5" />
-                                </div>
-                            </button>
+                        {/* Cards de Resumo Dinâmicos conforme a Sub-Visão selecionada */}
+                        {rescisaoSubView === 'assinaturas' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilterRescisao('all')}
+                                    className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                        statusFilterRescisao === 'all'
+                                            ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 shadow-sm'
+                                            : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total de Cartas / Registros</span>
+                                        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{rescisaoStats.total}</div>
+                                    </div>
+                                    <div className="h-10 w-10 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                        <FileText className="h-5 w-5" />
+                                    </div>
+                                </button>
 
-                            <button
-                                type="button"
-                                onClick={() => setStatusFilterRescisao('pending_signature')}
-                                className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
-                                    statusFilterRescisao === 'pending_signature'
-                                        ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 shadow-sm'
-                                        : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
-                                }`}
-                            >
-                                <div>
-                                    <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Não Assinadas (Pendentes)</span>
-                                    <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{rescisaoStats.pending}</div>
-                                </div>
-                                <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
-                                    <Clock className="h-5 w-5" />
-                                </div>
-                            </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilterRescisao('pending_signature')}
+                                    className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                        statusFilterRescisao === 'pending_signature'
+                                            ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 shadow-sm'
+                                            : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Não Assinadas (Pendentes)</span>
+                                        <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{rescisaoStats.pending}</div>
+                                    </div>
+                                    <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                        <Clock className="h-5 w-5" />
+                                    </div>
+                                </button>
 
-                            <button
-                                type="button"
-                                onClick={() => setStatusFilterRescisao('signed')}
-                                className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
-                                    statusFilterRescisao === 'signed'
-                                        ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 shadow-sm'
-                                        : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
-                                }`}
-                            >
-                                <div>
-                                    <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Assinadas pelo Trabalhador</span>
-                                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{rescisaoStats.signed}</div>
-                                </div>
-                                <div className="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                                    <CheckCircle className="h-5 w-5" />
-                                </div>
-                            </button>
-                        </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setStatusFilterRescisao('signed')}
+                                    className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                        statusFilterRescisao === 'signed'
+                                            ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/30 shadow-sm'
+                                            : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Assinadas pelo Trabalhador</span>
+                                        <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{rescisaoStats.signed}</div>
+                                    </div>
+                                    <div className="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                                        <CheckCircle className="h-5 w-5" />
+                                    </div>
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setNoticeStatusFilter('all')}
+                                    className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                        noticeStatusFilter === 'all'
+                                            ? 'border-indigo-500 bg-indigo-50/40 dark:bg-indigo-950/30 shadow-sm'
+                                            : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total em Controle de Aviso</span>
+                                        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{noticeStats.total}</div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">Base padrão: € 460,00 (€ 30,67/dia)</div>
+                                    </div>
+                                    <div className="h-10 w-10 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                                        <Clock className="h-5 w-5" />
+                                    </div>
+                                </button>
 
-                        {/* Barra de Busca e Filtros */}
+                                <button
+                                    type="button"
+                                    onClick={() => setNoticeStatusFilter('in_progress')}
+                                    className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                        noticeStatusFilter === 'in_progress'
+                                            ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/30 shadow-sm'
+                                            : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Cumprindo Aviso (Ativos)</span>
+                                        <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{noticeStats.inProgress}</div>
+                                        <div className="text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-0.5">Reduz € 30,67/dia (Sáb/Dom incl.)</div>
+                                    </div>
+                                    <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+                                        <RefreshCw className="h-5 w-5" />
+                                    </div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setNoticeStatusFilter('abandoned')}
+                                    className={`text-left p-4 rounded-xl border transition-all flex items-center justify-between ${
+                                        noticeStatusFilter === 'abandoned'
+                                            ? 'border-rose-500 bg-rose-50/50 dark:bg-rose-950/30 shadow-sm'
+                                            : 'border-slate-200 dark:border-slate-800 bg-card hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                                    }`}
+                                >
+                                    <div>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Abandonaram / Pararam</span>
+                                        <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{noticeStats.abandoned}</div>
+                                        <div className="text-[11px] text-rose-700/80 dark:text-rose-300/80 mt-0.5">Contagem parada p/ desconto</div>
+                                    </div>
+                                    <div className="h-10 w-10 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                                        <AlertTriangle className="h-5 w-5" />
+                                    </div>
+                                </button>
+
+                                <div className="p-4 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-gradient-to-br from-rose-50/80 to-white dark:from-rose-950/30 dark:to-slate-900 flex items-center justify-between shadow-sm">
+                                    <div>
+                                        <span className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">Saldo Previsto a Descontar</span>
+                                        <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
+                                            {formatCurrencyEur(noticeStats.totalToDeduct)}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">
+                                            Cumpridos / Isentos: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{noticeStats.completedOrWaived}</span>
+                                        </div>
+                                    </div>
+                                    <div className="h-10 w-10 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-sm">
+                                        €
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Barra de Busca, Filtros e Ações Rápidas */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0">
                             <div className="relative flex-1 max-w-md">
                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -3836,20 +4274,37 @@ Muchas gracias.`;
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2">
-                                <div className="w-[210px]">
-                                    <Select value={statusFilterRescisao} onValueChange={setStatusFilterRescisao}>
-                                        <SelectTrigger className="bg-white dark:bg-black">
-                                            <SelectValue placeholder="Status da Assinatura" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">Todos os Status</SelectItem>
-                                            <SelectItem value="pending_signature">⏳ Pendente Assinatura</SelectItem>
-                                            <SelectItem value="signed">✅ Assinado</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                                {rescisaoSubView === 'assinaturas' ? (
+                                    <div className="w-[200px]">
+                                        <Select value={statusFilterRescisao} onValueChange={setStatusFilterRescisao}>
+                                            <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectValue placeholder="Status da Assinatura" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todos os Status</SelectItem>
+                                                <SelectItem value="pending_signature">⏳ Pendente Assinatura</SelectItem>
+                                                <SelectItem value="signed">✅ Assinado</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                ) : (
+                                    <div className="w-[215px]">
+                                        <Select value={noticeStatusFilter} onValueChange={(v: any) => setNoticeStatusFilter(v)}>
+                                            <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectValue placeholder="Situação do Aviso" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todas as Situações</SelectItem>
+                                                <SelectItem value="in_progress">⏳ Em Cumprimento</SelectItem>
+                                                <SelectItem value="abandoned">🛑 Abandonou / Parou</SelectItem>
+                                                <SelectItem value="completed">✅ Aviso Cumprido</SelectItem>
+                                                <SelectItem value="waived">⚪ Isento (Não Descontar)</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
 
-                                <div className="w-[220px]">
+                                <div className="w-[210px]">
                                     <Select value={empresaFilterRescisao} onValueChange={setEmpresaFilterRescisao}>
                                         <SelectTrigger className="bg-white dark:bg-black">
                                             <SelectValue placeholder="Empresa Contratante" />
@@ -3867,6 +4322,16 @@ Muchas gracias.`;
                                 </div>
 
                                 <Button
+                                    variant="outline"
+                                    onClick={handleOpenCreateManualNotice}
+                                    className="border-amber-500/50 bg-amber-50/60 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-900/40 text-amber-800 dark:text-amber-300 font-semibold gap-1.5"
+                                    title="Incluir trabalhador que assinou carta manual ou sem carta digital para controlar o aviso prévio e desconto"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Incluir no Aviso Prévio
+                                </Button>
+
+                                <Button
                                     onClick={() => handleOpenRescisaoDialog()}
                                     className="bg-rose-600 hover:bg-rose-500 text-white font-semibold gap-1.5"
                                 >
@@ -3876,43 +4341,112 @@ Muchas gracias.`;
                             </div>
                         </div>
 
-                        {/* Tabela de Cartas de Rescisão */}
+                        {/* Galeria Principal com Alternador Lateral: Controle Carta Rescisão | Aviso Prévio */}
                         <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
-                            <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
-                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">
-                                    Controle de Assinaturas — Cartas de Rescisão
-                                </h3>
-                                <Button size="sm" variant="ghost" onClick={loadContracts}><RefreshCw className="h-4 w-4" /></Button>
+                            <div className="p-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/50 shrink-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="inline-flex p-1 rounded-lg bg-slate-200/80 dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700">
+                                        <button
+                                            type="button"
+                                            onClick={() => setRescisaoSubView('assinaturas')}
+                                            className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+                                                rescisaoSubView === 'assinaturas'
+                                                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            <FileText className="h-3.5 w-3.5 text-rose-500" />
+                                            Controle de Cartas de Rescisão
+                                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+                                                {rescisaoStats.total}
+                                            </Badge>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => setRescisaoSubView('aviso_previo')}
+                                            className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-2 ${
+                                                rescisaoSubView === 'aviso_previo'
+                                                    ? 'bg-amber-500 text-white shadow-sm'
+                                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                            }`}
+                                        >
+                                            <Clock className="h-3.5 w-3.5" />
+                                            Aviso Prévio & Descontos
+                                            <Badge className={`text-[10px] px-1.5 py-0 h-4 ${
+                                                rescisaoSubView === 'aviso_previo'
+                                                    ? 'bg-white/20 text-white border-transparent'
+                                                    : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                                            }`}>
+                                                {noticeStats.total}
+                                            </Badge>
+                                        </button>
+                                    </div>
+
+                                    {rescisaoSubView === 'aviso_previo' && (
+                                        <span className="text-xs text-slate-500 dark:text-slate-400 hidden xl:inline-flex items-center gap-1.5 pl-2">
+                                            • 15 dias corridos (Sáb/Dom contam como cumpridos) • Base padrão: <strong>€ 460,00</strong> (€ 30,67/dia)
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {rescisaoSubView === 'aviso_previo' && (
+                                        <Button
+                                            size="sm"
+                                            onClick={handleOpenCreateManualNotice}
+                                            className="h-8 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold gap-1.5"
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Incluir Trabalhador (Manual)
+                                        </Button>
+                                    )}
+                                    <Button size="sm" variant="ghost" onClick={loadContracts} title="Atualizar lista">
+                                        <RefreshCw className="h-4 w-4" />
+                                    </Button>
+                                </div>
                             </div>
 
                             <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
                                 {loadingContracts ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                                         <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
-                                        <span>Carregando cartas de rescisão...</span>
+                                        <span>Carregando registros...</span>
                                     </div>
                                 ) : filteredRescisoes.length === 0 ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-3">
                                         <FileText className="h-10 w-10 text-slate-400" />
-                                        <span>Nenhuma Carta de Rescisão encontrada para os filtros selecionados.</span>
-                                        <Button
-                                            size="sm"
-                                            onClick={() => handleOpenRescisaoDialog()}
-                                            className="bg-rose-600 hover:bg-rose-500 text-white font-semibold gap-1.5"
-                                        >
-                                            <Plus className="h-4 w-4" />
-                                            Emitir Primeira Carta de Rescisão
-                                        </Button>
+                                        <span>Nenhum trabalhador encontrado para os filtros selecionados.</span>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={handleOpenCreateManualNotice}
+                                                className="border-amber-500/50 text-amber-700 dark:text-amber-300 font-semibold gap-1.5"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                Incluir Trabalhador no Aviso Prévio
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                onClick={() => handleOpenRescisaoDialog()}
+                                                className="bg-rose-600 hover:bg-rose-500 text-white font-semibold gap-1.5"
+                                            >
+                                                <Plus className="h-4 w-4" />
+                                                Emitir Carta de Rescisão
+                                            </Button>
+                                        </div>
                                     </div>
-                                ) : (
+                                ) : rescisaoSubView === 'assinaturas' ? (
+                                    /* SUB-VISÃO 1: CONTROLE DE ASSINATURAS (GALERIA MELHORADA COM INÍCIO DE TRABALHO E DIAS NO MÊS) */
                                     <Table>
                                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
                                             <TableRow>
                                                 <TableHead>Trabalhador</TableHead>
-                                                <TableHead>Empresa Contratante</TableHead>
-                                                <TableHead>Cliente / Obra</TableHead>
-                                                <TableHead>Data Solicitação</TableHead>
-                                                <TableHead>Período Aviso Prévio (15d)</TableHead>
+                                                <TableHead>Empresa / Cliente</TableHead>
+                                                <TableHead>Início Trabalho & Dias no Mês</TableHead>
+                                                <TableHead>Solicitação & Aviso (15d)</TableHead>
+                                                <TableHead>Resumo Aviso Prévio</TableHead>
                                                 <TableHead>Código OTP</TableHead>
                                                 <TableHead>Status Assinatura</TableHead>
                                                 <TableHead className="text-right">Ações</TableHead>
@@ -3920,37 +4454,81 @@ Muchas gracias.`;
                                         </TableHeader>
                                         <TableBody>
                                             {filteredRescisoes.map((c) => {
+                                                const today = todayIsoStr();
+                                                const info = computeNoticeDetails(c, today);
                                                 const signLink = `${window.location.origin}/assinar/${c.signature_token}`;
                                                 const clientName = c.assignment?.client?.trade_name || c.assignment?.client?.legal_name || c.worker?.cliente || 'Sem Alocação';
-                                                const reqDate = c.metadata?.request_date || (c.created_at ? c.created_at.split('T')[0] : '');
-                                                const startNotice = c.metadata?.notice_start_date || reqDate;
-                                                const endNotice = c.metadata?.notice_end_date || (c.terminated_at ? c.terminated_at.split('T')[0] : addDaysToIso(startNotice, 15));
 
                                                 return (
                                                     <TableRow key={c.id}>
                                                         <TableCell>
-                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">
-                                                                {c.worker?.nome}
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                                                <span>{c.worker?.nome}</span>
+                                                                {info.isManualEntry && (
+                                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400/50 text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/30">
+                                                                        Manual
+                                                                    </Badge>
+                                                                )}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
                                                                 {[c.worker?.pasaporte ? `Pass: ${c.worker.pasaporte}` : null, c.worker?.nif ? `NIF: ${c.worker.nif}` : null, c.worker?.movil].filter(Boolean).join(' • ') || c.worker?.email || '-'}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="font-medium text-xs">
-                                                            {c.contratante}
-                                                        </TableCell>
-                                                        <TableCell className="font-medium text-xs">
-                                                            {clientName}
-                                                        </TableCell>
-                                                        <TableCell className="text-xs font-medium">
-                                                            {formatIsoToBr(reqDate)}
+                                                        <TableCell>
+                                                            <div className="font-semibold text-xs text-slate-800 dark:text-slate-200">{c.contratante}</div>
+                                                            <div className="text-[11px] text-muted-foreground truncate max-w-[180px]" title={clientName}>{clientName}</div>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <div className="inline-flex items-center gap-1.5 font-mono text-xs bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 px-2 py-0.5 rounded">
-                                                                <span>{formatIsoToBr(startNotice)}</span>
-                                                                <span>→</span>
-                                                                <span className="font-bold">{formatIsoToBr(endNotice)}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditNotice(c)}
+                                                                className="text-left group hover:bg-slate-100 dark:hover:bg-slate-800/70 p-1.5 -m-1.5 rounded-md transition-colors"
+                                                                title="Clique para ajustar a data de início ou dias trabalhados no mês"
+                                                            >
+                                                                <div className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                                                    <Calendar className="h-3 w-3 text-indigo-500 shrink-0" />
+                                                                    <span>Início: <strong>{info.workStartDate ? formatIsoToBr(info.workStartDate) : 'Informar'}</strong></span>
+                                                                    <Pencil className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                </div>
+                                                                <div className="mt-1">
+                                                                    <Badge variant="outline" className={`text-[10px] font-semibold ${
+                                                                        info.monthWorkedDays > 0
+                                                                            ? 'border-indigo-200 bg-indigo-50/60 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300'
+                                                                            : 'border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
+                                                                    }`}>
+                                                                        {info.monthWorkedDays} {info.monthWorkedDays === 1 ? 'dia trab. no mês' : 'dias trab. no mês'}
+                                                                    </Badge>
+                                                                </div>
+                                                            </button>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <div className="text-[11px] text-slate-500 mb-0.5">
+                                                                Solicitado: <span className="font-medium text-slate-700 dark:text-slate-300">{formatIsoToBr(info.reqDate)}</span>
                                                             </div>
+                                                            <div className="inline-flex items-center gap-1.5 font-mono text-xs bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 px-2 py-0.5 rounded">
+                                                                <span>{formatIsoToBr(info.startNotice)}</span>
+                                                                <span>→</span>
+                                                                <span className="font-bold">{formatIsoToBr(info.endNotice)}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditNotice(c)}
+                                                                className="text-left group space-y-0.5"
+                                                                title="Clique para gerenciar o aviso prévio e desconto na folha"
+                                                            >
+                                                                <div className="text-xs font-bold flex items-center gap-1.5">
+                                                                    <span className={info.finalToDeduct > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                                                                        {info.applyDeduction ? `Descontar: ${formatCurrencyEur(info.finalToDeduct)}` : 'Isento (€ 0,00)'}
+                                                                    </span>
+                                                                    <Pencil className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                </div>
+                                                                <div className="text-[11px] text-slate-500">
+                                                                    {info.fulfilledDays}/{info.totalNoticeDays}d cumpridos
+                                                                    {info.stopDate ? ` • Parou ${formatIsoToBr(info.stopDate)}` : ''}
+                                                                </div>
+                                                            </button>
                                                         </TableCell>
                                                         <TableCell className="font-mono text-indigo-600 dark:text-indigo-400 font-bold text-xs">
                                                             {c.otp_code || '-'}
@@ -3959,7 +4537,7 @@ Muchas gracias.`;
                                                             {c.status === 'signed' ? (
                                                                 <div className="space-y-0.5">
                                                                     <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
-                                                                        ✅ Assinado
+                                                                        {info.isManualEntry && !c.document_url ? '📝 Assinado (Manual)' : '✅ Assinado'}
                                                                     </Badge>
                                                                     {c.signed_at && (
                                                                         <div className="text-[10px] text-slate-500">
@@ -3977,48 +4555,272 @@ Muchas gracias.`;
                                                             <Button
                                                                 size="icon"
                                                                 variant="ghost"
-                                                                onClick={() => handleDownloadContract(c)}
-                                                                title="Visualizar / Baixar Carta de Rescisão (.docx)"
+                                                                onClick={() => handleOpenEditNotice(c)}
+                                                                title="Gerenciar Aviso Prévio & Desconto em Folha"
+                                                                className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-slate-800"
                                                             >
-                                                                <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                                <Clock className="h-4 w-4" />
                                                             </Button>
+
+                                                            {c.document_url && (
+                                                                <>
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        onClick={() => handleDownloadContract(c)}
+                                                                        title="Visualizar / Baixar Carta de Rescisão (.docx)"
+                                                                    >
+                                                                        <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                                    </Button>
+
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        onClick={() => handleAttachContractToWorkerProfile(c)}
+                                                                        title="Arquivar Carta de Rescisão no Cadastro do Trabalhador"
+                                                                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800"
+                                                                    >
+                                                                        <FolderPlus className="h-4 w-4" />
+                                                                    </Button>
+
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        onClick={() => handleSendRescisaoWhatsApp(signLink, c.worker?.nome, c.worker?.movil, c.otp_code, info.startNotice, info.endNotice)}
+                                                                        title="Enviar Link de Assinatura via WhatsApp"
+                                                                        className="text-emerald-600 hover:text-emerald-700"
+                                                                    >
+                                                                        <Send className="h-4 w-4" />
+                                                                    </Button>
+
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        onClick={() => handleCopyRescisaoSignLink(signLink, c.worker?.nome, c.otp_code, info.startNotice, info.endNotice)}
+                                                                        title="Copiar mensagem com link e código OTP"
+                                                                    >
+                                                                        <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
+                                                                    </Button>
+
+                                                                    <Button
+                                                                        size="icon"
+                                                                        variant="ghost"
+                                                                        onClick={() => window.open(signLink, '_blank')}
+                                                                        title="Abrir Tela de Assinatura"
+                                                                    >
+                                                                        <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
+                                                                    </Button>
+                                                                </>
+                                                            )}
 
                                                             <Button
                                                                 size="icon"
                                                                 variant="ghost"
-                                                                onClick={() => handleAttachContractToWorkerProfile(c)}
-                                                                title="Arquivar Carta de Rescisão no Cadastro do Trabalhador"
-                                                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800"
+                                                                onClick={() => handleDeleteContractItem(c.id)}
+                                                                title="Excluir Registro"
                                                             >
-                                                                <FolderPlus className="h-4 w-4" />
+                                                                <Trash2 className="h-4 w-4 text-rose-500 hover:text-rose-700" />
                                                             </Button>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                ) : (
+                                    /* SUB-VISÃO 2: GESTÃO DO AVISO PRÉVIO & DESCONTOS NA FOLHA */
+                                    <Table>
+                                        <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
+                                            <TableRow>
+                                                <TableHead>Trabalhador</TableHead>
+                                                <TableHead>Empresa / Cliente</TableHead>
+                                                <TableHead>Início Trabalho & Dias no Mês</TableHead>
+                                                <TableHead>Período Aviso (15d)</TableHead>
+                                                <TableHead>Cumprimento (Sáb/Dom incl.)</TableHead>
+                                                <TableHead>Valor Base / Diária</TableHead>
+                                                <TableHead>Saldo a Descontar (Folha)</TableHead>
+                                                <TableHead className="text-right">Gestão / Ações</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredRescisoes.map((c) => {
+                                                const today = todayIsoStr();
+                                                const info = computeNoticeDetails(c, today);
+                                                const clientName = c.assignment?.client?.trade_name || c.assignment?.client?.legal_name || c.worker?.cliente || 'Sem Alocação';
+                                                const progressPct = Math.min(100, Math.max(0, Math.round((info.fulfilledDays / info.totalNoticeDays) * 100)));
+
+                                                return (
+                                                    <TableRow key={c.id} className={info.computedStatus === 'abandoned' ? 'bg-rose-50/20 dark:bg-rose-950/10' : ''}>
+                                                        <TableCell>
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                                                                <span>{c.worker?.nome}</span>
+                                                                {info.isManualEntry ? (
+                                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400/50 text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/30">
+                                                                        Manual
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-indigo-400/40 text-indigo-600 dark:text-indigo-300">
+                                                                        Carta Digital
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {[c.worker?.cod_colab ? `Cód: ${c.worker.cod_colab}` : null, c.worker?.pasaporte ? `Pass: ${c.worker.pasaporte}` : null, c.worker?.nif ? `NIF: ${c.worker.nif}` : null].filter(Boolean).join(' • ') || '-'}
+                                                            </div>
+                                                        </TableCell>
+
+                                                        <TableCell>
+                                                            <div className="font-semibold text-xs text-slate-800 dark:text-slate-200">{c.contratante}</div>
+                                                            <div className="text-[11px] text-muted-foreground truncate max-w-[170px]" title={clientName}>{clientName}</div>
+                                                        </TableCell>
+
+                                                        <TableCell>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditNotice(c)}
+                                                                className="text-left group hover:bg-slate-100 dark:hover:bg-slate-800/70 p-1.5 -m-1.5 rounded-md transition-colors"
+                                                                title="Clique para editar data de admissão e dias trabalhados no mês"
+                                                            >
+                                                                <div className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                                                    <Calendar className="h-3 w-3 text-indigo-500 shrink-0" />
+                                                                    <span>Início: <strong>{info.workStartDate ? formatIsoToBr(info.workStartDate) : 'Definir'}</strong></span>
+                                                                    <Pencil className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                </div>
+                                                                <div className="mt-1 flex items-center gap-1">
+                                                                    <Badge variant="outline" className={`text-[10px] font-bold ${
+                                                                        info.monthWorkedDays > 0
+                                                                            ? 'border-indigo-200 bg-indigo-50/70 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300'
+                                                                            : 'border-rose-200 bg-rose-50/70 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
+                                                                    }`}>
+                                                                        {info.monthWorkedDays} {info.monthWorkedDays === 1 ? 'dia trab. no mês' : 'dias trab. no mês'}
+                                                                    </Badge>
+                                                                </div>
+                                                            </button>
+                                                        </TableCell>
+
+                                                        <TableCell>
+                                                            <div className="inline-flex items-center gap-1.5 font-mono text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 px-2 py-0.5 rounded">
+                                                                <span>{formatIsoToBr(info.startNotice)}</span>
+                                                                <span>→</span>
+                                                                <span className="font-bold">{formatIsoToBr(info.endNotice)}</span>
+                                                            </div>
+                                                            {info.stopDate && (
+                                                                <div className="mt-1">
+                                                                    <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[10px] px-1.5 py-0">
+                                                                        🛑 Parou em: {formatIsoToBr(info.stopDate)}
+                                                                    </Badge>
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+
+                                                        <TableCell>
+                                                            <div className="w-[175px] space-y-1">
+                                                                <div className="flex items-center justify-between text-xs">
+                                                                    <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                                        {info.fulfilledDays} / {info.totalNoticeDays} dias
+                                                                    </span>
+                                                                    <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                                                                        - {formatCurrencyEur(info.fulfilledAmount)}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full transition-all ${
+                                                                            info.computedStatus === 'abandoned'
+                                                                                ? 'bg-rose-500'
+                                                                                : info.computedStatus === 'completed'
+                                                                                ? 'bg-emerald-500'
+                                                                                : 'bg-amber-500'
+                                                                        }`}
+                                                                        style={{ width: `${progressPct}%` }}
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center justify-between pt-0.5">
+                                                                    {info.computedStatus === 'abandoned' ? (
+                                                                        <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 text-[10px] px-1.5 py-0">
+                                                                            🛑 Abandonou / Parou
+                                                                        </Badge>
+                                                                    ) : info.computedStatus === 'completed' ? (
+                                                                        <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] px-1.5 py-0">
+                                                                            ✅ Aviso Cumprido
+                                                                        </Badge>
+                                                                    ) : info.computedStatus === 'waived' ? (
+                                                                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-slate-500">
+                                                                            ⚪ Isento de Desconto
+                                                                        </Badge>
+                                                                    ) : (
+                                                                        <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] px-1.5 py-0">
+                                                                            ⏳ Em Cumprimento ({info.remainingDays}d rest.)
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+
+                                                        <TableCell>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenEditNotice(c)}
+                                                                className="text-left group"
+                                                                title="Clique para ajustar o valor base (ex: € 460,00)"
+                                                            >
+                                                                <div className="font-semibold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                                                                    <span>{formatCurrencyEur(info.penaltyTotal)}</span>
+                                                                    <Pencil className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                </div>
+                                                                <div className="text-[11px] text-muted-foreground font-mono">
+                                                                    {formatCurrencyEur(info.dailyRate)} / dia
+                                                                </div>
+                                                            </button>
+                                                        </TableCell>
+
+                                                        <TableCell>
+                                                            <div className="space-y-1">
+                                                                <div className={`text-sm font-black font-mono ${
+                                                                    !info.applyDeduction || info.finalToDeduct === 0
+                                                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                                                        : 'text-rose-600 dark:text-rose-400'
+                                                                }`}>
+                                                                    {formatCurrencyEur(info.finalToDeduct)}
+                                                                </div>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleQuickToggleDeduction(c)}
+                                                                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                                                                        info.applyDeduction
+                                                                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 hover:bg-rose-100'
+                                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                                                                    }`}
+                                                                    title="Clique para alternar entre Descontar na Folha ou Isentar"
+                                                                >
+                                                                    {info.applyDeduction ? '💰 Descontar na Folha' : '⚪ Não Descontar (Isento)'}
+                                                                </button>
+                                                            </div>
+                                                        </TableCell>
+
+                                                        <TableCell className="text-right space-x-1.5 whitespace-nowrap">
+                                                            {info.computedStatus !== 'completed' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    onClick={() => handleOpenEditNotice(c, true)}
+                                                                    className="h-8 text-xs font-semibold border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 px-2.5"
+                                                                    title="Informar data em que o trabalhador abandonou/parou e travar valor para desconto em folha"
+                                                                >
+                                                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                                                    Parar / Abandonou
+                                                                </Button>
+                                                            )}
 
                                                             <Button
-                                                                size="icon"
-                                                                variant="ghost"
-                                                                onClick={() => handleSendRescisaoWhatsApp(signLink, c.worker?.nome, c.worker?.movil, c.otp_code, startNotice, endNotice)}
-                                                                title="Enviar Link de Assinatura via WhatsApp"
-                                                                className="text-emerald-600 hover:text-emerald-700"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleOpenEditNotice(c, false)}
+                                                                className="h-8 text-xs font-semibold gap-1 px-2.5"
+                                                                title="Editar datas, dias trabalhados no mês e valores do aviso prévio"
                                                             >
-                                                                <Send className="h-4 w-4" />
-                                                            </Button>
-
-                                                            <Button
-                                                                size="icon"
-                                                                variant="ghost"
-                                                                onClick={() => handleCopyRescisaoSignLink(signLink, c.worker?.nome, c.otp_code, startNotice, endNotice)}
-                                                                title="Copiar mensagem com link e código OTP"
-                                                            >
-                                                                <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
-                                                            </Button>
-
-                                                            <Button
-                                                                size="icon"
-                                                                variant="ghost"
-                                                                onClick={() => window.open(signLink, '_blank')}
-                                                                title="Abrir Tela de Assinatura"
-                                                            >
-                                                                <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
+                                                                <Pencil className="h-3.5 w-3.5 text-indigo-600" />
+                                                                Gerenciar
                                                             </Button>
 
                                                             <Button
@@ -4026,6 +4828,7 @@ Muchas gracias.`;
                                                                 variant="ghost"
                                                                 onClick={() => handleDeleteContractItem(c.id)}
                                                                 title="Excluir Registro"
+                                                                className="h-8 w-8"
                                                             >
                                                                 <Trash2 className="h-4 w-4 text-rose-500 hover:text-rose-700" />
                                                             </Button>
@@ -4807,6 +5610,396 @@ Muchas gracias.`;
                     <div className="flex justify-end gap-2 pt-2 border-t mt-4">
                         <Button variant="outline" onClick={() => setWorkersDialogOpen(false)}>Fechar</Button>
                     </div>
+                </DialogContent>
+            </Dialog>
+            {/* Modal de Gestão e Inclusão no Controle de Aviso Prévio */}
+            <Dialog open={noticeDialogOpen} onOpenChange={setNoticeDialogOpen}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+                            <Clock className="h-5 w-5 text-amber-500" />
+                            {noticeDialogMode === 'create'
+                                ? 'Incluir Trabalhador no Controle de Aviso Prévio'
+                                : `Gerenciar Aviso Prévio & Desconto — ${noticeWorkerName}`}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {noticeDialogMode === 'create'
+                                ? 'Adicione um trabalhador ao controle de aviso prévio (ex: carta assinada manualmente) para acompanhar os 15 dias corridos, os dias trabalhados no mês e o saldo a descontar na folha.'
+                                : 'Ajuste a data de início no trabalho, os dias trabalhados no mês, o valor base do aviso (€ 460,00 padrão) ou registre a data de abandono/encerramento para congelar o valor a descontar na folha.'}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {(() => {
+                        const parsedPenalty = Number(String(noticePenaltyTotal).replace(',', '.'));
+                        const safePenalty = Number.isFinite(parsedPenalty) && parsedPenalty >= 0 ? parsedPenalty : 460;
+                        const dailyRatePreview = safePenalty / 15;
+                        const today = todayIsoStr();
+
+                        let previewFulfilledDays = 0;
+                        if (noticeFulfilledDaysOverride.trim() !== '' && Number.isFinite(Number(noticeFulfilledDaysOverride))) {
+                            previewFulfilledDays = Math.max(0, Math.min(15, Number(noticeFulfilledDaysOverride)));
+                        } else if (noticeStatus === 'completed') {
+                            previewFulfilledDays = 15;
+                        } else if (noticeStatus === 'abandoned' && !noticeStopDate) {
+                            previewFulfilledDays = 0;
+                        } else {
+                            const ref = noticeStopDate || today;
+                            previewFulfilledDays = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, ref)));
+                        }
+
+                        const previewAbatido = Math.min(safePenalty, previewFulfilledDays * dailyRatePreview);
+                        const previewRestante = Math.max(0, Number((safePenalty - previewAbatido).toFixed(2)));
+                        const previewFinalDesconto = noticeApplyDeduction ? previewRestante : 0;
+
+                        return (
+                            <form onSubmit={handleSaveNoticeModal} className="space-y-5 pt-2">
+                                {noticeDialogMode === 'create' ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Trabalhador *</Label>
+                                            <Combobox
+                                                options={workersList}
+                                                value={noticeWorkerId}
+                                                onChange={(val) => handleSelectManualNoticeWorker(val)}
+                                                placeholder="Buscar por nome, passaporte, NIF ou código..."
+                                                emptyText="Nenhum trabalhador encontrado."
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Empresa Contratante *</Label>
+                                            <Select value={noticeContratante} onValueChange={setNoticeContratante}>
+                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                    <SelectValue placeholder="Selecione a empresa..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="STOCCO">Stocco</SelectItem>
+                                                    <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
+                                                    <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
+                                                    <SelectItem value="TRIANGULO">Triângulo</SelectItem>
+                                                    <SelectItem value="HEXAGON">Hexagon</SelectItem>
+                                                    <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
+                                        <div>
+                                            <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{noticeWorkerName}</div>
+                                            <div className="text-xs text-slate-500">Empresa: <strong>{noticeContratante}</strong></div>
+                                        </div>
+                                        <Badge variant="outline" className="w-fit text-xs font-mono">
+                                            Período: {formatIsoToBr(noticeStartDate)} → {formatIsoToBr(noticeEndDate)}
+                                        </Badge>
+                                    </div>
+                                )}
+
+                                {/* Bloco 1: Início do Trabalho (Admissão) e Controle de Dias Trabalhados no Mês */}
+                                <div className="p-4 rounded-lg border border-indigo-200/70 dark:border-indigo-900/50 bg-indigo-50/30 dark:bg-indigo-950/20 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                                            <Calendar className="h-4 w-4" />
+                                            1. Histórico de Trabalho & Dias Trabalhados no Mês
+                                        </h4>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() => setNoticeMonthWorkedDays('0')}
+                                            className="h-6 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2"
+                                        >
+                                            Zerar Dias no Mês (Abandono s/ Saldo)
+                                        </Button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Data que Iniciou o Trabalho (Admissão)</Label>
+                                            <Input
+                                                type="date"
+                                                value={noticeWorkStartDate}
+                                                onChange={(e) => {
+                                                    const ws = e.target.value;
+                                                    setNoticeWorkStartDate(ws);
+                                                    const autoDays = computeDefaultMonthWorkedDays(ws || null, noticeStartDate, noticeStopDate || null, today);
+                                                    setNoticeMonthWorkedDays(String(autoDays));
+                                                }}
+                                                className="bg-white dark:bg-black"
+                                            />
+                                            <p className="text-[11px] text-slate-500">
+                                                Data em que o colaborador começou a trabalhar na empresa/obra.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">Dias Trabalhados no Mês da Rescisão</Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={31}
+                                                value={noticeMonthWorkedDays}
+                                                onChange={(e) => setNoticeMonthWorkedDays(e.target.value)}
+                                                className="bg-white dark:bg-black font-bold"
+                                            />
+                                            <p className="text-[11px] text-slate-500">
+                                                Ex: pediu aviso dia 15 → tem 15 dias trabalhados no mês para abater/conferir na folha.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Bloco 2: Período de 15 Dias e Valor Base (€ 460,00 padrão) */}
+                                <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 space-y-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                        <Clock className="h-4 w-4 text-amber-500" />
+                                        2. Período do Aviso Prévio (15 Dias Corridos) & Valor Base
+                                    </h4>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold leading-tight block">Início do Aviso Prévio</Label>
+                                            <Input
+                                                type="date"
+                                                value={noticeStartDate}
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    setNoticeStartDate(val);
+                                                    if (val) {
+                                                        setNoticeEndDate(addDaysToIso(val, 15));
+                                                    }
+                                                }}
+                                                className="bg-white dark:bg-black"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold leading-tight block">Fim do Aviso (15 dias)</Label>
+                                            <Input
+                                                type="date"
+                                                value={noticeEndDate}
+                                                onChange={(e) => setNoticeEndDate(e.target.value)}
+                                                className="bg-white dark:bg-black"
+                                            />
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold leading-tight block">
+                                                Valor Total do Aviso (€)
+                                            </Label>
+                                            <div className="relative">
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value={noticePenaltyTotal}
+                                                    onChange={(e) => setNoticePenaltyTotal(e.target.value)}
+                                                    className="bg-white dark:bg-black font-bold pr-24"
+                                                />
+                                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono text-slate-500">
+                                                    {formatCurrencyEur(dailyRatePreview)}/d
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500">
+                                        O sábado e o domingo contam como dias cumpridos. A cada dia cumprido, o saldo diminui <strong>{formatCurrencyEur(dailyRatePreview)}</strong>.
+                                    </p>
+                                </div>
+
+                                {/* Bloco 3: Controle de Cumprimento / Parada por Abandono */}
+                                <div className="p-4 rounded-lg border border-rose-200/70 dark:border-rose-900/50 bg-rose-50/20 dark:bg-rose-950/15 space-y-3">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        3. Situação de Cumprimento / Parada por Abandono
+                                    </h4>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setNoticeStatus('in_progress');
+                                                setNoticeStopDate('');
+                                                setNoticeFulfilledDaysOverride('');
+                                            }}
+                                            className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                                                noticeStatus === 'in_progress'
+                                                    ? 'border-amber-500 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold shadow-sm'
+                                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            <div>⏳ Em Cumprimento</div>
+                                            <div className="text-[10px] font-normal opacity-80 mt-0.5">Vai diminuindo dia a dia</div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setNoticeStatus('abandoned');
+                                                const defaultStop = noticeStopDate || today;
+                                                setNoticeStopDate(defaultStop);
+                                                const autoF = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, defaultStop)));
+                                                setNoticeFulfilledDaysOverride(String(autoF));
+                                            }}
+                                            className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                                                noticeStatus === 'abandoned'
+                                                    ? 'border-rose-600 bg-rose-500/15 text-rose-900 dark:text-rose-200 font-bold shadow-sm'
+                                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            <div>🛑 Abandonou / Parou</div>
+                                            <div className="text-[10px] font-normal opacity-80 mt-0.5">Trava o valor p/ descontar</div>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setNoticeStatus('completed');
+                                                setNoticeStopDate('');
+                                                setNoticeFulfilledDaysOverride('15');
+                                            }}
+                                            className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
+                                                noticeStatus === 'completed'
+                                                    ? 'border-emerald-600 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold shadow-sm'
+                                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            <div>✅ Cumpriu 15 Dias</div>
+                                            <div className="text-[10px] font-normal opacity-80 mt-0.5">Saldo zerado (€ 0,00)</div>
+                                        </button>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-semibold">
+                                                Data em que Encerrou / Abandonou (Parar Contagem)
+                                            </Label>
+                                            <Input
+                                                type="date"
+                                                value={noticeStopDate}
+                                                onChange={(e) => {
+                                                    const stopVal = e.target.value;
+                                                    setNoticeStopDate(stopVal);
+                                                    if (stopVal) {
+                                                        setNoticeStatus('abandoned');
+                                                        const autoF = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, stopVal)));
+                                                        setNoticeFulfilledDaysOverride(String(autoF));
+                                                    }
+                                                }}
+                                                className="bg-white dark:bg-black"
+                                            />
+                                            <p className="text-[11px] text-slate-500">
+                                                Se o trabalhador saiu antes, informe a data para congelar o saldo restante.
+                                            </p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-xs font-semibold">Dias de Aviso Cumpridos (0 a 15)</Label>
+                                                {noticeFulfilledDaysOverride !== '' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setNoticeFulfilledDaysOverride('')}
+                                                        className="text-[10px] text-indigo-600 hover:underline"
+                                                    >
+                                                        Usar cálculo automático
+                                                    </button>
+                                                )}
+                                            </div>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                max={15}
+                                                placeholder={`Automático (${previewFulfilledDays} dias)`}
+                                                value={noticeFulfilledDaysOverride}
+                                                onChange={(e) => setNoticeFulfilledDaysOverride(e.target.value)}
+                                                className="bg-white dark:bg-black font-bold"
+                                            />
+                                            <p className="text-[11px] text-slate-500">
+                                                Deixe em branco para reduzir automaticamente a cada dia ou digite (ex: 0 se abandonou no 1º dia).
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-rose-200/50 dark:border-rose-900/40">
+                                        <div className="flex items-center gap-2">
+                                            <Label className="text-xs font-semibold">Descontar este aviso na folha?</Label>
+                                            <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 overflow-hidden">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNoticeApplyDeduction(true)}
+                                                    className={`px-3 py-1 text-xs font-bold ${
+                                                        noticeApplyDeduction
+                                                            ? 'bg-rose-600 text-white'
+                                                            : 'bg-white dark:bg-slate-900 text-slate-600'
+                                                    }`}
+                                                >
+                                                    Sim, Descontar
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNoticeApplyDeduction(false)}
+                                                    className={`px-3 py-1 text-xs font-bold ${
+                                                        !noticeApplyDeduction
+                                                            ? 'bg-slate-700 text-white'
+                                                            : 'bg-white dark:bg-slate-900 text-slate-600'
+                                                    }`}
+                                                >
+                                                    Não (Isentar)
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex-1 max-w-xs">
+                                            <Input
+                                                placeholder="Observações (ex: abandonou a obra dia 29)..."
+                                                value={noticeNotes}
+                                                onChange={(e) => setNoticeNotes(e.target.value)}
+                                                className="h-8 text-xs bg-white dark:bg-black"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Card Resumo Final de Cálculo para a Folha */}
+                                <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
+                                            Resumo do Cálculo para Fechamento de Folha
+                                        </div>
+                                        <div className="text-xs text-slate-300 flex flex-wrap items-center gap-x-4 gap-y-1">
+                                            <span>Dias Trab. no Mês: <strong className="text-white">{noticeMonthWorkedDays || 0} dias</strong></span>
+                                            <span>•</span>
+                                            <span>Aviso Cumprido: <strong className="text-emerald-400">{previewFulfilledDays}/15 dias (- {formatCurrencyEur(previewAbatido)})</strong></span>
+                                        </div>
+                                    </div>
+
+                                    <div className="text-left sm:text-right shrink-0">
+                                        <div className="text-[11px] uppercase tracking-wider text-rose-300 font-semibold">
+                                            Valor a Descontar na Folha
+                                        </div>
+                                        <div className="text-2xl font-black text-rose-400 font-mono">
+                                            {formatCurrencyEur(previewFinalDesconto)}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2">
+                                    <Button type="button" variant="outline" onClick={() => setNoticeDialogOpen(false)}>
+                                        Cancelar
+                                    </Button>
+                                    <Button
+                                        type="submit"
+                                        disabled={savingNotice}
+                                        className="bg-rose-600 hover:bg-rose-500 text-white font-bold gap-1.5"
+                                    >
+                                        {savingNotice ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                        {noticeDialogMode === 'create' ? 'Incluir no Aviso Prévio' : 'Salvar Alterações do Aviso'}
+                                    </Button>
+                                </div>
+                            </form>
+                        );
+                    })()}
                 </DialogContent>
             </Dialog>
         </Layout>
