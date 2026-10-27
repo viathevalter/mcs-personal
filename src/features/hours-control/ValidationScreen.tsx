@@ -104,6 +104,7 @@ export function ValidationScreen({
     const [imageZoom, setImageZoom] = useState(1);
     
     const [clientId, setClientId] = useState<string | null>(null);
+    const [billingCycleStartDay, setBillingCycleStartDay] = useState<number>(1);
     const [clientSites, setClientSites] = useState<{ id: string; name: string }[]>([]);
     const [loadingSites, setLoadingSites] = useState(true);
     const [workerFuncId, setWorkerFuncId] = useState<string | null>(null);
@@ -286,9 +287,39 @@ export function ValidationScreen({
 
             setClientSites(finalSites);
 
-            // 5. Load existing hours for this period
-            const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
-            const endDateStr = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+            // 4.5 Fetch billing cycle start day for this client
+            const { data: clientSettings } = await supabase
+                .schema('core_common')
+                .from('client_company_settings')
+                .select('billing_cycle_start_day')
+                .eq('client_id', cId)
+                .eq('empresa_id', empresaId)
+                .maybeSingle();
+
+            const cycleStartDay = Number(clientSettings?.billing_cycle_start_day) || 1;
+            setBillingCycleStartDay(cycleStartDay);
+
+            const prevMonth = month === 1 ? 12 : month - 1;
+            const prevYear = month === 1 ? year - 1 : year;
+            const prevMonthDays = new Date(prevYear, prevMonth, 0).getDate();
+            const currMonthDays = new Date(year, month, 0).getDate();
+
+            const resolveCycleDateStr = (dayNum: number) => {
+                if (cycleStartDay > 1 && dayNum >= cycleStartDay) {
+                    const clampedDay = Math.min(dayNum, prevMonthDays);
+                    return `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+                }
+                const clampedCurrDay = Math.min(dayNum, currMonthDays);
+                return `${year}-${String(month).padStart(2, '0')}-${String(clampedCurrDay).padStart(2, '0')}`;
+            };
+
+            // 5. Load existing hours for this period (respecting custom billing cycle if > 1)
+            const startDateStr = cycleStartDay > 1
+                ? `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(cycleStartDay).padStart(2, '0')}`
+                : `${year}-${String(month).padStart(2, '0')}-01`;
+            const endDateStr = cycleStartDay > 1
+                ? `${year}-${String(month).padStart(2, '0')}-${String(cycleStartDay - 1).padStart(2, '0')}`
+                : `${year}-${String(month).padStart(2, '0')}-${currMonthDays}`;
 
             const { data: existingHours, error: loadErr } = await supabase
                 .schema('core_finance')
@@ -362,19 +393,21 @@ export function ValidationScreen({
             }
 
             // Generate days of month
-            const numDays = new Date(year, month, 0).getDate();
+            const numDays = cycleStartDay > 1 ? Math.max(currMonthDays, prevMonthDays) : currMonthDays;
             const locale = i18n?.language?.startsWith('es') ? 'es-ES' : 'pt-BR';
 
             const initialRecords = Array.from({ length: numDays }, (_, i) => {
                 const dayNum = i + 1;
-                const dateObj = new Date(year, month - 1, dayNum);
+                const dateObj = (cycleStartDay > 1 && dayNum >= cycleStartDay)
+                    ? new Date(prevYear, prevMonth - 1, Math.min(dayNum, prevMonthDays))
+                    : new Date(year, month - 1, Math.min(dayNum, currMonthDays));
                 const dayOfWeek = dateObj.getDay();
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // 0 = Sunday, 6 = Saturday
                 const weekdayName = dateObj.toLocaleDateString(locale, { weekday: 'long' });
                 const weekdayFormatted = weekdayName.charAt(0).toUpperCase() + weekdayName.slice(1);
 
                 // Find existing db record in core_finance.horas_trabalhadas
-                const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                const dayStr = resolveCycleDateStr(dayNum);
                 const dbRec = existingHours?.find(h => h.data_trabalho === dayStr);
 
                 // Fallback to worker portal draft entry if not yet inserted into horas_trabalhadas
@@ -916,8 +949,38 @@ export function ValidationScreen({
                 return { normal: base, noturna: base };
             };
 
-            const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
-            const endDateStr = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
+            const prevMonth = month === 1 ? 12 : month - 1;
+            const prevYear = month === 1 ? year - 1 : year;
+            const prevMonthDays = new Date(prevYear, prevMonth, 0).getDate();
+            const currMonthDays = new Date(year, month, 0).getDate();
+
+            const resolveSaveDateStr = (dayNum: number) => {
+                if (billingCycleStartDay > 1 && dayNum >= billingCycleStartDay) {
+                    const clampedDay = Math.min(dayNum, prevMonthDays);
+                    return `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+                }
+                const clampedCurrDay = Math.min(dayNum, currMonthDays);
+                return `${year}-${String(month).padStart(2, '0')}-${String(clampedCurrDay).padStart(2, '0')}`;
+            };
+
+            const startDateStr = billingCycleStartDay > 1
+                ? `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(billingCycleStartDay).padStart(2, '0')}`
+                : `${year}-${String(month).padStart(2, '0')}-01`;
+            const endDateStr = billingCycleStartDay > 1
+                ? `${year}-${String(month).padStart(2, '0')}-${String(billingCycleStartDay - 1).padStart(2, '0')}`
+                : `${year}-${String(month).padStart(2, '0')}-${currMonthDays}`;
+
+            const { data: billedRows } = await supabase
+                .schema('core_finance')
+                .from('horas_trabalhadas')
+                .select('data_trabalho')
+                .eq('worker_id', workerId)
+                .eq('client_id', clientId)
+                .not('fatura_id', 'is', null)
+                .gte('data_trabalho', startDateStr)
+                .lte('data_trabalho', endDateStr);
+
+            const billedDateSet = new Set((billedRows || []).map((b: any) => b.data_trabalho));
 
             const { error: deleteError } = await supabase
                 .schema('core_finance')
@@ -925,6 +988,7 @@ export function ValidationScreen({
                 .delete()
                 .eq('worker_id', workerId)
                 .eq('client_id', clientId)
+                .is('fatura_id', null)
                 .gte('data_trabalho', startDateStr)
                 .lte('data_trabalho', endDateStr);
 
@@ -939,7 +1003,7 @@ export function ValidationScreen({
                     return !isNaN(hrs) && hrs > 0;
                 })
                 .map(r => {
-                    const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(r.day).padStart(2, '0')}`;
+                    const dayStr = resolveSaveDateStr(r.day);
                     const siteId = r.obra || (clientSites.length === 1 ? clientSites[0].id : null);
                     const tariffPair = resolveTariff(workerId, workerFuncId, siteId);
                     const totalH = parseFloat(r.totalHoras) || 0;
@@ -963,11 +1027,12 @@ export function ValidationScreen({
                     };
                 });
 
-            if (rowsToInsert.length > 0) {
+            const unbilledRowsToInsert = rowsToInsert.filter(r => !billedDateSet.has(r.data_trabalho));
+            if (unbilledRowsToInsert.length > 0) {
                 const { error: insertError } = await supabase
                     .schema('core_finance')
                     .from('horas_trabalhadas')
-                    .insert(rowsToInsert);
+                    .insert(unbilledRowsToInsert);
 
                 if (insertError) {
                     console.error("Erro ao salvar lançamentos diários:", insertError);
