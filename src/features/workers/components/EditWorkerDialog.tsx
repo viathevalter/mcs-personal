@@ -33,7 +33,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Edit2, Wallet, FileText, BadgeDollarSign } from 'lucide-react';
+import { Loader2, Edit2, Wallet, FileText, BadgeDollarSign, Plus, Trash2, Phone } from 'lucide-react';
 import type { Worker } from '@/shared/types/corePersonal';
 import { useUpdateWorker } from '../hooks/useUpdateWorker';
 import { useTranslation } from 'react-i18next';
@@ -47,7 +47,7 @@ import { useJobFunctions } from '@/features/master-data/job-functions/hooks/useJ
 const formSchema = z.object({
     nome: z.string().min(3, { message: "O nome deve ter no mínimo 3 caracteres." }),
     email: z.string().email({ message: "Insira um email válido." }).or(z.literal("")),
-    movil: z.string().max(20, { message: "No máximo 20 caracteres." }).nullable(),
+    movil: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
     niss: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
     nif: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
     nie: z.string().max(30, { message: "No máximo 30 caracteres." }).nullable(),
@@ -73,6 +73,9 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
     const { selectedEmpresaId } = useEmpresa();
     const [open, setOpen] = useState(false);
     const [activeTab, setActiveTab] = useState("basico");
+    const [extraPhones, setExtraPhones] = useState<string[]>(() =>
+        Array.isArray(worker.telefones_adicionais) ? worker.telefones_adicionais.filter(Boolean) : []
+    );
     const benefitsTabRef = useRef<BenefitsTabRef>(null);
     const bankTabRef = useRef<BankTabRef>(null);
 
@@ -122,16 +125,42 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                 status_seguridad: worker.status_seguridad || "",
                 funcion: worker.funcion || "none",
             });
+            setExtraPhones(
+                Array.isArray(worker.telefones_adicionais)
+                    ? worker.telefones_adicionais.filter(Boolean)
+                    : []
+            );
             setActiveTab("basico");
         }
     }, [open, worker, form]);
 
+    const handleAddExtraPhone = () => {
+        setExtraPhones((prev) => [...prev, ""]);
+    };
+
+    const handleChangeExtraPhone = (index: number, val: string) => {
+        setExtraPhones((prev) => prev.map((p, idx) => (idx === index ? val : p)));
+    };
+
+    const handleRemoveExtraPhone = (index: number) => {
+        setExtraPhones((prev) => prev.filter((_, idx) => idx !== index));
+    };
+
     const onSubmit = (values: FormValues) => {
+        const cleanedExtraPhones = Array.from(
+            new Set(
+                extraPhones
+                    .map((p) => p.trim())
+                    .filter((p) => p.length > 0 && p !== (values.movil || "").trim())
+            )
+        );
+
         updateWorker({
             id: worker.id,
             nome: values.nome,
             email: values.email || null,
-            movil: values.movil || null,
+            movil: values.movil ? values.movil.trim() : null,
+            telefones_adicionais: cleanedExtraPhones,
             niss: values.niss || null,
             nif: values.nif || null,
             nie: values.nie || null,
@@ -271,15 +300,25 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                         )}
                                     />
 
-
                                     <FormField
                                         control={form.control}
                                         name="movil"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel>{t('editWorker.fields.mobile')}</FormLabel>
+                                                <div className="flex items-center justify-between">
+                                                    <FormLabel>{t('editWorker.fields.mobile')}</FormLabel>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleAddExtraPhone}
+                                                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 cursor-pointer"
+                                                        title="Adicionar outro número de telefone / WhatsApp (ex: número da Colômbia, Espanha, Portugal...)"
+                                                    >
+                                                        <Plus className="h-3 w-3" />
+                                                        + Telefone
+                                                    </button>
+                                                </div>
                                                 <FormControl>
-                                                    <Input placeholder={t('editWorker.placeholders.mobile')} {...field} value={field.value || ''} />
+                                                    <Input placeholder="+34 600 000 000" {...field} value={field.value || ''} />
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -324,6 +363,50 @@ export function EditWorkerDialog({ worker }: EditWorkerDialogProps) {
                                         )}
                                     />
                                 </div>
+
+                                {extraPhones.length > 0 && (
+                                    <div className="rounded-lg border border-emerald-200/80 dark:border-emerald-900/60 bg-emerald-50/40 dark:bg-emerald-950/20 p-3 space-y-2.5">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                                                <Phone className="h-3.5 w-3.5" />
+                                                Telefones / WhatsApp Adicionais ({extraPhones.length})
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleAddExtraPhone}
+                                                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 cursor-pointer"
+                                            >
+                                                <Plus className="h-3.5 w-3.5" />
+                                                Adicionar mais um nº
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                            {extraPhones.map((phoneVal, idx) => (
+                                                <div key={idx} className="flex items-center gap-1.5">
+                                                    <Input
+                                                        value={phoneVal}
+                                                        onChange={(e) => handleChangeExtraPhone(idx, e.target.value)}
+                                                        placeholder={`Ex: +57 313... ou +34 657... (Móvil ${idx + 2})`}
+                                                        className="bg-white dark:bg-slate-900 h-9 text-sm"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => handleRemoveExtraPhone(idx)}
+                                                        className="h-9 w-9 shrink-0 text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                                                        title="Remover este número"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <p className="text-[11px] text-muted-foreground">
+                                            Quando o trabalhador enviar mensagem de qualquer um destes números no WhatsApp (MCS Chat), o sistema identificará automaticamente a ficha dele.
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
                                     <FormField

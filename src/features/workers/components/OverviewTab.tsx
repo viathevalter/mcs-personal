@@ -19,6 +19,10 @@ export function OverviewTab({ worker }: OverviewTabProps) {
         return acc;
     }, [] as { functionName: string; client: string; date: string | null }[]) || [];
 
+    const extraPhones = Array.isArray(worker.telefones_adicionais)
+        ? worker.telefones_adicionais.filter(Boolean)
+        : [];
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
             <div className="space-y-6">
@@ -33,7 +37,18 @@ export function OverviewTab({ worker }: OverviewTabProps) {
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-1">Telemóvel</p>
-                                <p className="text-sm font-medium">{worker.movil || 'Não informado'}</p>
+                                <div className="space-y-1">
+                                    <p className="text-sm font-medium">{worker.movil || 'Não informado'}</p>
+                                    {extraPhones.map((ep, idx) => (
+                                        <p key={idx} className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                                            <Phone className="h-3 w-3 shrink-0" />
+                                            <span>{ep}</span>
+                                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300">
+                                                Móvil {idx + 2}
+                                            </span>
+                                        </p>
+                                    ))}
+                                </div>
                             </div>
                             <div>
                                 <p className="text-xs uppercase tracking-wide font-medium text-muted-foreground mb-1">Email</p>

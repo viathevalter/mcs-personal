@@ -5,6 +5,7 @@ export interface Worker {
     nome: string;
     email: string | null;
     movil: string | null;
+    telefones_adicionais?: string[] | null;
     niss: string | null;
     nif: string | null;
     nie: string | null;

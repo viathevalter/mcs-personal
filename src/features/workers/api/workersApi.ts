@@ -121,6 +121,7 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
             nome: updates.nome,
             email: updates.email,
             movil: updates.movil,
+            ...(updates.telefones_adicionais !== undefined ? { telefones_adicionais: updates.telefones_adicionais || [] } : {}),
             niss: updates.niss,
             nif: updates.nif,
             nie: updates.nie,
@@ -155,6 +156,7 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
         if (updates.nome !== undefined) colabUpdates.nombre = updates.nome;
         if (updates.email !== undefined) colabUpdates.email = updates.email;
         if (updates.movil !== undefined) colabUpdates.movil = updates.movil;
+        if (updates.telefones_adicionais !== undefined) colabUpdates.telefones_adicionais = updates.telefones_adicionais || [];
         if (updates.niss !== undefined) colabUpdates.niss = updates.niss;
         if (updates.nif !== undefined) colabUpdates.nif = updates.nif;
         if (updates.nie !== undefined) colabUpdates.nie = updates.nie;
@@ -187,7 +189,7 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
         const chatUpdates: Record<string, any> = {};
         if (updates.nome) chatUpdates.contact_name = updates.nome.trim();
         if (updates.funcion) chatUpdates.worker_function_name = updates.funcion;
-        if (updates.movil) {
+        if (updates.movil && (!updates.telefones_adicionais || updates.telefones_adicionais.length === 0)) {
             let digits = updates.movil.replace(/\D/g, '');
             if (digits.startsWith('00')) digits = digits.replace(/^00+/, '');
             if (digits.length === 9 && (digits.startsWith('6') || digits.startsWith('7'))) digits = '34' + digits;
