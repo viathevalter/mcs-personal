@@ -439,11 +439,26 @@ export function CobroFormSheet({ isOpen, onClose, onSave, initialData }: CobroFo
     if (isOpen) {
       loadRelationalData();
 
+      const formatLocalYMD = (d: Date | string | null | undefined): string => {
+        if (!d) return '';
+        if (d instanceof Date && !isNaN(d.getTime())) {
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        const s = String(d).trim();
+        const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) {
+          return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+        }
+        return '';
+      };
+
       if (initialData) {
         setFormData({
           ...initialData,
-          Data_emissao: initialData.Data_emissao ? new Date(initialData.Data_emissao).toISOString().split('T')[0] as any : '',
-          Dt_venc: initialData.Dt_venc ? new Date(initialData.Dt_venc).toISOString().split('T')[0] as any : '',
+          Data_emissao: formatLocalYMD(initialData.Data_emissao) as any,
+          Dt_venc: formatLocalYMD(initialData.Dt_venc) as any,
         });
         if (initialData.obra_id) setCentroCustoTipo('obra');
         else setCentroCustoTipo('departamento');

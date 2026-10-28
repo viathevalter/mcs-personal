@@ -34,6 +34,7 @@ import { supabase } from '@/shared/supabase/client';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { getBillingCycleDays } from './FaturasPendentes';
+import { resolveFaturaDatesForPdf } from '../utils/faturaPdfExport';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QRCodeSVG } from 'qrcode.react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -338,11 +339,21 @@ export function FaturasTracking() {
 
   useEffect(() => {
     if (cobroConfirmFatura) {
-      const termDays = cobroConfirmFatura.client?.paymentTermDays || 30;
-      const emissionDate = cobroConfirmFatura.data_emissao ? new Date(cobroConfirmFatura.data_emissao) : new Date();
-      const dueDate = new Date(emissionDate);
-      dueDate.setDate(dueDate.getDate() + termDays);
-      setCobroDueDate(dueDate.toISOString().split('T')[0]);
+      const savedVenc =
+        cobroConfirmFatura.data_vencimento ||
+        cobroConfirmFatura.ajustes_json?.data_vencimento ||
+        cobroConfirmFatura.ajustes_json?.dataVencimento ||
+        cobroConfirmFatura.ajustesJson?.data_vencimento ||
+        cobroConfirmFatura.ajustesJson?.dataVencimento;
+      if (savedVenc && /^\d{4}-\d{2}-\d{2}/.test(String(savedVenc))) {
+        setCobroDueDate(String(savedVenc).slice(0, 10));
+      } else {
+        const termDays = cobroConfirmFatura.client?.paymentTermDays || 30;
+        const emissionDate = cobroConfirmFatura.data_emissao ? new Date(cobroConfirmFatura.data_emissao) : new Date();
+        const dueDate = new Date(emissionDate);
+        dueDate.setDate(dueDate.getDate() + termDays);
+        setCobroDueDate(dueDate.toISOString().split('T')[0]);
+      }
       setCobroApplyIva(false);
       setCobroIvaPct(cobroConfirmFatura.ajustes_json?.iva_pct ?? 23);
     }
@@ -602,12 +613,7 @@ export function FaturasTracking() {
       : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; tracking: -0.025em;">${(targetEmpresa?.nome || 'STOCCO').toUpperCase()}</h3>`;
 
     const docNumber = `IF-${new Date(fat.created_at || fat.data_emissao).getFullYear()}/${String(fat.fatura_numero || targetEmpresa?.next_invoice_number || '0001').padStart(4, '0')}`;
-    const emissionDateStr = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT');
-    
-    // Calculate vencimento date
-    const emissionDateObj = new Date(fat.data_emissao || new Date());
-    emissionDateObj.setDate(emissionDateObj.getDate() + (fat.client?.paymentTermDays || 30));
-    const vencimentoDateStr = emissionDateObj.toLocaleDateString('pt-PT');
+    const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(fat);
 
     const firstPageLimit = 8;
     const subsequentPageLimit = 16;
@@ -900,14 +906,7 @@ export function FaturasTracking() {
       targetObraId
     );
 
-    const emissionDateStr = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT');
-    const vencimentoDateStr = fat.data_vencimento
-      ? new Date(fat.data_vencimento + 'T00:00:00').toLocaleDateString('pt-PT')
-      : (() => {
-          const emission = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00');
-          emission.setDate(emission.getDate() + (fat.client?.paymentTermDays || 30));
-          return emission.toLocaleDateString('pt-PT');
-        })();
+    const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(fat);
 
     let qrSvgString = '';
     try {
@@ -3383,7 +3382,7 @@ MCS - Gestão Comercial`;
             const emissionDate = selectedDispute.data_emissao ? new Date(selectedDispute.data_emissao) : new Date();
             const dueDate = new Date(emissionDate);
             dueDate.setDate(dueDate.getDate() + termDays);
-            const dataVencimentoStr = dueDate.toISOString().split('T')[0];
+            const dataVencimentoStr = selectedDispute.data_vencimento || selectedDispute.ajustes_json?.data_vencimento || selectedDispute.ajustes_json?.dataVencimento || dueDate.toISOString().split('T')[0];
             const year = new Date(dataEmissaoStr).getFullYear();
 
             const combinedDisputedHours = deepMergeDisputedHours(
@@ -4831,11 +4830,7 @@ MCS - Gestão Comercial`;
                         <p className="font-bold text-slate-500 uppercase text-[10px]">Documento</p>
                         <p className="font-bold text-slate-900">IF-{new Date(emailData.fatura.created_at || emailData.fatura.data_emissao).getFullYear()}/{String(emailData.fatura.fatura_numero || currentEmpresa?.next_invoice_number || '0001').padStart(4, '0')}</p>
                         <p className="text-muted-foreground mt-2">Emissão: <span className="font-semibold text-slate-700">{new Date((emailData.fatura.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
-                        <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700">{(() => {
-                          const emission = new Date(emailData.fatura.data_emissao || new Date());
-                          emission.setDate(emission.getDate() + (emailData.fatura.client?.paymentTermDays || 30));
-                          return emission.toLocaleDateString('pt-PT');
-                        })()}</span></p>
+                        <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700">{resolveFaturaDatesForPdf(emailData.fatura).vencimentoDateStr}</span></p>
                       </div>
                     </div>
 
@@ -5031,11 +5026,7 @@ MCS - Gestão Comercial`;
                           <p className="text-slate-700">{new Date((emailData.fatura.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT')}</p>
                           
                           <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mt-3">Data de Vencimento</p>
-                          <p className="text-slate-700">{(() => {
-                            const emission = new Date(emailData.fatura.data_emissao || new Date());
-                            emission.setDate(emission.getDate() + (emailData.fatura.client?.paymentTermDays || 30));
-                            return emission.toLocaleDateString('pt-PT');
-                          })()}</p>
+                          <p className="text-slate-700">{resolveFaturaDatesForPdf(emailData.fatura).vencimentoDateStr}</p>
                         </div>
                                                  
                         {/* Coluna 3: Para */}
@@ -5483,7 +5474,7 @@ MCS - Gestão Comercial`;
         const emissionDate = fat.data_emissao ? new Date(fat.data_emissao) : new Date();
         const dueDate = new Date(emissionDate);
         dueDate.setDate(dueDate.getDate() + termDays);
-        const dataVencimentoStr = dueDate.toISOString().split('T')[0];
+        const dataVencimentoStr = fat.data_vencimento || fat.ajustes_json?.data_vencimento || fat.ajustes_json?.dataVencimento || dueDate.toISOString().split('T')[0];
         const year = new Date(dataEmissaoStr).getFullYear();
 
         return (

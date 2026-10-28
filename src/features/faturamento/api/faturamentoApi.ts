@@ -2747,15 +2747,22 @@ export async function atualizarTarifaFaturada(
 
 export async function gerarCobroDaFatura(fatura: any, empresaNome: string, customDueDate?: string, valorTotalComIva?: number): Promise<void> {
   const termDays = fatura.client?.paymentTermDays || 30;
-  const emissionDate = fatura.data_emissao ? new Date(fatura.data_emissao) : new Date();
+  const rawEmissao = fatura.data_emissao || fatura.ajustes_json?.data_emissao || new Date().toISOString().split('T')[0];
+  const emissaoYMD = String(rawEmissao).slice(0, 10);
+  const emissionDate = new Date(`${emissaoYMD}T00:00:00.000Z`);
   
-  let dueDate: Date;
-  if (customDueDate) {
-    dueDate = new Date(customDueDate);
+  let dueDateYMD: string;
+  const savedFaturaVenc = fatura.data_vencimento || fatura.ajustes_json?.data_vencimento || fatura.ajustes_json?.dataVencimento;
+  if (customDueDate && /^\d{4}-\d{2}-\d{2}/.test(customDueDate)) {
+    dueDateYMD = customDueDate.slice(0, 10);
+  } else if (savedFaturaVenc && /^\d{4}-\d{2}-\d{2}/.test(String(savedFaturaVenc))) {
+    dueDateYMD = String(savedFaturaVenc).slice(0, 10);
   } else {
-    dueDate = new Date(emissionDate);
-    dueDate.setDate(dueDate.getDate() + termDays);
+    const dueDateCalc = new Date(emissionDate);
+    dueDateCalc.setUTCDate(dueDateCalc.getUTCDate() + termDays);
+    dueDateYMD = dueDateCalc.toISOString().split('T')[0];
   }
+  const dueDate = new Date(`${dueDateYMD}T00:00:00.000Z`);
 
   // Use the calculated total value passed from frontend, otherwise fallback to subtotal * 1.21
   const valorTotal = valorTotalComIva !== undefined ? valorTotalComIva : Number(fatura.total_valor || 0) * 1.21;
@@ -2837,10 +2844,11 @@ export async function gerarCobroDaFatura(fatura: any, empresaNome: string, custo
 
   if (insertError) throw mapSupabaseError(insertError);
 
-  // 2. Update fatura's ajustes_json with cobro_gerado: true
+  // 2. Update fatura's ajustes_json with cobro_gerado: true and synchronized data_vencimento
   const currentAjustes = fatura.ajustes_json || {};
   const updatedAjustes = {
     ...currentAjustes,
+    data_vencimento: dueDateYMD,
     cobro_gerado: true,
     cobro_gerado_em: new Date().toISOString()
   };

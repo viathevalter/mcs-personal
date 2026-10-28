@@ -351,6 +351,30 @@ export async function saveObservacao(obs: Partial<CobrancaObservacao>): Promise<
   }
 }
 
+function toSafeIsoDateString(val: Date | string | null | undefined): string | null {
+  if (!val) return null;
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const y = val.getFullYear();
+    const m = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}T00:00:00.000Z`;
+  }
+  const s = String(val).trim();
+  if (!s) return null;
+  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T00:00:00.000Z`;
+  }
+  const parsed = parseDate(s);
+  if (parsed && !isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}T00:00:00.000Z`;
+  }
+  return new Date(s).toISOString();
+}
+
 export async function createContaReceber(data: Partial<ContasReceber>): Promise<{ success: boolean; error?: any }> {
   try {
     // Query max sp_id to generate next value sequentially and avoid null violation
@@ -375,8 +399,8 @@ export async function createContaReceber(data: Partial<ContasReceber>): Promise<
       banco: data.Banco || null,
       obs: data.Obs || (data as any).obs || null,
       tipo_cobros: data.Tipo_cobros || null,
-      data_emissao: data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null,
-      dt_venc: data.Dt_venc ? new Date(data.Dt_venc).toISOString() : null,
+      data_emissao: toSafeIsoDateString(data.Data_emissao),
+      dt_venc: toSafeIsoDateString(data.Dt_venc),
       valot_total: data.Valot_total?.toString() || null,
       saldo_a_pagar: data.Saldo_a_pagar?.toString() || null,
       status: data.Status || 'A vencer',
@@ -413,8 +437,8 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     if (data.Obs !== undefined) dbData.obs = data.Obs;
     else if ((data as any).obs !== undefined) dbData.obs = (data as any).obs;
     if (data.Tipo_cobros !== undefined) dbData.tipo_cobros = data.Tipo_cobros;
-    if (data.Data_emissao !== undefined) dbData.data_emissao = data.Data_emissao ? new Date(data.Data_emissao).toISOString() : null;
-    if (data.Dt_venc !== undefined) dbData.dt_venc = data.Dt_venc ? new Date(data.Dt_venc).toISOString() : null;
+    if (data.Data_emissao !== undefined) dbData.data_emissao = toSafeIsoDateString(data.Data_emissao);
+    if (data.Dt_venc !== undefined) dbData.dt_venc = toSafeIsoDateString(data.Dt_venc);
     if (data.Valot_total !== undefined) {
       dbData.valot_total = data.Valot_total?.toString() || null;
       if (data.Saldo_a_pagar === undefined && (data.Status === 'A vencer' || data.Status === 'Vencido')) {
@@ -428,7 +452,7 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
     if (data.comentarios !== undefined) dbData.comentarios = data.comentarios;
     if (data.obs_recebimento !== undefined) dbData.obs_recebimento = data.obs_recebimento;
     if (data.Form_receb !== undefined) dbData.form_receb = data.Form_receb;
-    if (data.dt_recebimento !== undefined) dbData.dt_recebimento = data.dt_recebimento ? new Date(data.dt_recebimento).toISOString() : null;
+    if (data.dt_recebimento !== undefined) dbData.dt_recebimento = toSafeIsoDateString(data.dt_recebimento);
     if (data.categoria_id !== undefined) dbData.categoria_id = data.categoria_id;
     if (data.departamento_id !== undefined) dbData.departamento_id = data.departamento_id;
     if (data.obra_id !== undefined) dbData.obra_id = data.obra_id;
@@ -437,6 +461,45 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
 
     const { error } = await supabase.from('contas_receber').update(dbData).eq('id', id);
     if (error) throw error;
+
+    // Keep linked core_finance.faturas ajustes_json.data_vencimento in sync when Dt_venc is updated
+    if (dbData.dt_venc) {
+      try {
+        const vencYMD = String(dbData.dt_venc).slice(0, 10);
+        let targetFaturaId = data.fatura_id;
+        if (!targetFaturaId) {
+          const { data: crRow } = await supabase
+            .from('contas_receber')
+            .select('fatura_id')
+            .eq('id', id)
+            .maybeSingle();
+          targetFaturaId = crRow?.fatura_id;
+        }
+        if (targetFaturaId) {
+          const { data: fatRow } = await supabase
+            .schema('core_finance')
+            .from('faturas')
+            .select('ajustes_json')
+            .eq('id', targetFaturaId)
+            .maybeSingle();
+          if (fatRow) {
+            await supabase
+              .schema('core_finance')
+              .from('faturas')
+              .update({
+                ajustes_json: {
+                  ...(fatRow.ajustes_json || {}),
+                  data_vencimento: vencYMD,
+                }
+              })
+              .eq('id', targetFaturaId);
+          }
+        }
+      } catch (syncErr) {
+        console.warn('Could not sync Dt_venc to faturas.ajustes_json:', syncErr);
+      }
+    }
+
     return { success: true };
   } catch (err) {
     console.error("Error updating conta:", err);

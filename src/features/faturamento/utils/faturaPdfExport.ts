@@ -145,6 +145,81 @@ export async function resolveEmpresaForFatura(fat: any, providedEmpresa?: any): 
   };
 }
 
+export function formatSafeDatePt(rawDate: any): string | null {
+  if (!rawDate) return null;
+  if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+    const d = String(rawDate.getDate()).padStart(2, '0');
+    const m = String(rawDate.getMonth() + 1).padStart(2, '0');
+    const y = rawDate.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  const str = String(rawDate).trim();
+  if (!str) return null;
+  // Match YYYY-MM-DD at start of string (avoids UTC shift)
+  const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  }
+  // Match DD/MM/YYYY
+  const euMatch = str.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (euMatch) {
+    return `${euMatch[1]}/${euMatch[2]}/${euMatch[3]}`;
+  }
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const y = parsed.getFullYear();
+    return `${d}/${m}/${y}`;
+  }
+  return null;
+}
+
+export function resolveFaturaDatesForPdf(fat: any): { emissionDateStr: string; vencimentoDateStr: string } {
+  const adj = fat?.ajustes_json || fat?.ajustesJson || {};
+  const rawEmissao =
+    fat?.cobro_data_emissao ||
+    fat?.data_emissao ||
+    adj?.data_emissao ||
+    adj?.dataEmissao ||
+    new Date().toISOString().split('T')[0];
+
+  const emissionDateStr = formatSafeDatePt(rawEmissao) || new Date().toLocaleDateString('pt-PT');
+
+  // Priority for Due Date (Vencimento):
+  // 1. Explicit cobro stipulated due date (from contas_receber Dt_venc)
+  // 2. fat.data_vencimento (top-level)
+  // 3. fat.ajustes_json.data_vencimento / dataVencimento (saved on fatura)
+  // 4. Fallback: emission + paymentTermDays
+  const rawVencimento =
+    fat?.cobro_dt_venc ||
+    fat?.data_vencimento ||
+    adj?.data_vencimento ||
+    adj?.dataVencimento ||
+    null;
+
+  const formattedStipulatedVenc = formatSafeDatePt(rawVencimento);
+  if (formattedStipulatedVenc) {
+    return { emissionDateStr, vencimentoDateStr: formattedStipulatedVenc };
+  }
+
+  // Fallback calculation if no stipulated due date exists anywhere
+  const isoEmissaoMatch = String(rawEmissao).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const emissionObj = isoEmissaoMatch
+    ? new Date(Number(isoEmissaoMatch[1]), Number(isoEmissaoMatch[2]) - 1, Number(isoEmissaoMatch[3]))
+    : new Date(rawEmissao);
+
+  let termDays = fat?.client?.paymentTermDays || fat?.client?.payment_term_days;
+  if (!termDays && adj?.condicoes_pagamento) {
+    const daysMatch = String(adj.condicoes_pagamento).match(/(\d+)\s*dias?/i);
+    if (daysMatch) termDays = Number(daysMatch[1]);
+  }
+  emissionObj.setDate(emissionObj.getDate() + (Number(termDays) || 30));
+  const vencimentoDateStr = formatSafeDatePt(emissionObj) || emissionObj.toLocaleDateString('pt-PT');
+
+  return { emissionDateStr, vencimentoDateStr };
+}
+
 export async function generateFacturaPDF(
   fat: any, 
   hours: any[], 
@@ -163,14 +238,7 @@ export async function generateFacturaPDF(
     targetObraId
   );
 
-  const emissionDateStr = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT');
-  const vencimentoDateStr = fat.data_vencimento
-    ? new Date(fat.data_vencimento + 'T00:00:00').toLocaleDateString('pt-PT')
-    : (() => {
-        const emission = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00');
-        emission.setDate(emission.getDate() + (fat.client?.paymentTermDays || 30));
-        return emission.toLocaleDateString('pt-PT');
-      })();
+  const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(fat);
 
   let qrSvgString = '';
   try {
@@ -472,11 +540,7 @@ export async function generateInformePDF(
     : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; letter-spacing: -0.025em;">${(targetEmpresa?.nome || 'STOCCO').toUpperCase()}</h3>`;
 
   const docNumber = `IF-${new Date(fat.created_at || fat.data_emissao).getFullYear()}/${String(fat.fatura_numero || targetEmpresa?.next_invoice_number || '0001').padStart(4, '0')}`;
-  const emissionDateStr = new Date((fat.data_emissao || new Date().toISOString().split('T')[0]) + 'T00:00:00').toLocaleDateString('pt-PT');
-  
-  const emissionDateObj = new Date(fat.data_emissao || new Date());
-  emissionDateObj.setDate(emissionDateObj.getDate() + (fat.client?.paymentTermDays || 30));
-  const vencimentoDateStr = emissionDateObj.toLocaleDateString('pt-PT');
+  const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(fat);
 
   const firstPageLimit = 8;
   const subsequentPageLimit = 16;

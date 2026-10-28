@@ -77,6 +77,41 @@ export function CobroDetalhesSheet({
     const [currentUser, setCurrentUser] = useState('Sistema');
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+    const toLocalYMD = (d: Date | string | null | undefined): string | null => {
+        if (!d) return null;
+        if (d instanceof Date && !isNaN(d.getTime())) {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        const s = String(d).trim();
+        const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+        return null;
+    };
+
+    const buildFaturaWithCobroDates = (fatData: any, tRecord: EnrichedTitulo) => {
+        if (!fatData) return fatData;
+        const cobroVencYMD = toLocalYMD(tRecord?.Dt_venc);
+        const cobroEmissaoYMD = toLocalYMD(tRecord?.Data_emissao);
+        const currentAdj = fatData.ajustes_json || fatData.ajustesJson || {};
+        const effectiveVenc = cobroVencYMD || currentAdj.data_vencimento || currentAdj.dataVencimento || fatData.data_vencimento || null;
+        const effectiveEmissao = cobroEmissaoYMD || fatData.data_emissao || currentAdj.data_emissao || null;
+        return {
+            ...fatData,
+            cobro_dt_venc: effectiveVenc,
+            cobro_data_emissao: effectiveEmissao,
+            data_vencimento: effectiveVenc,
+            data_emissao: effectiveEmissao || fatData.data_emissao,
+            ajustes_json: {
+                ...currentAdj,
+                ...(effectiveVenc ? { data_vencimento: effectiveVenc } : {}),
+                ...(effectiveEmissao ? { data_emissao: effectiveEmissao } : {}),
+            }
+        };
+    };
+
     const isHtmlContent = (str: string) => {
         if (!str) return false;
         return /<[a-z][\s\S]*>/i.test(str) || str.includes('<img') || str.includes('<div') || str.includes('<p') || str.includes('<br') || str.includes('<span');
@@ -254,7 +289,7 @@ export function CobroDetalhesSheet({
                     }
                 }
 
-                setFaturaInfo(fatData);
+                setFaturaInfo(buildFaturaWithCobroDates(fatData, tRecord));
 
                 // 2. Fetch hours worked using paginated query
                 const horasData = await fetchAllPages(async (from, to) => {
@@ -304,9 +339,10 @@ export function CobroDetalhesSheet({
         const toastId = toast.loading(t('financeiro.detail_sheet.generating_factura_pdf', 'Gerando PDF da Factura Oficial / Pró-forma...'));
         try {
             const clientName = titulo.Cliente || faturaInfo.client?.legal_name || 'Cliente';
-            const pdf = await generateFacturaPDF(faturaInfo, horasTrabalhadas, clientName, faturaInfo.empresa);
+            const syncedFatura = buildFaturaWithCobroDates(faturaInfo, titulo);
+            const pdf = await generateFacturaPDF(syncedFatura, horasTrabalhadas, clientName, syncedFatura.empresa);
             if (pdf) {
-                const filename = buildFaturaPdfFilename(faturaInfo, horasTrabalhadas, clientName, 'factura');
+                const filename = buildFaturaPdfFilename(syncedFatura, horasTrabalhadas, clientName, 'factura');
                 pdf.save(filename);
                 toast.success(t('financeiro.detail_sheet.factura_pdf_success', 'Factura baixada com sucesso!'), { id: toastId });
             } else {
@@ -329,9 +365,10 @@ export function CobroDetalhesSheet({
         const toastId = toast.loading(t('financeiro.detail_sheet.generating_informe_pdf', 'Gerando PDF do Informe de Facturación...'));
         try {
             const clientName = titulo.Cliente || faturaInfo.client?.legal_name || 'Cliente';
-            const pdf = await generateInformePDF(faturaInfo, horasTrabalhadas, clientName, faturaInfo.empresa);
+            const syncedFatura = buildFaturaWithCobroDates(faturaInfo, titulo);
+            const pdf = await generateInformePDF(syncedFatura, horasTrabalhadas, clientName, syncedFatura.empresa);
             if (pdf) {
-                const filename = buildFaturaPdfFilename(faturaInfo, horasTrabalhadas, clientName, 'informe');
+                const filename = buildFaturaPdfFilename(syncedFatura, horasTrabalhadas, clientName, 'informe');
                 pdf.save(filename);
                 toast.success(t('financeiro.detail_sheet.informe_pdf_success', 'Informe de Faturamento baixado com sucesso!'), { id: toastId });
             } else {
