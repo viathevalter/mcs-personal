@@ -128,6 +128,7 @@ import { ProvedorForm } from '../features/logistica/pages/Registros/ProvedorForm
 import { DemandasAlocacaoPage } from '../features/logistica/pages/DemandasAlocacaoPage';
 import { ContratosList } from '../features/logistica/pages/Contratos/ContratosList';
 import { FinanceiroLogisticaPage } from '../features/logistica/pages/FinanceiroLogisticaPage';
+import { PublicTermoAlojamentoPage } from '../features/logistica/pages/PublicTermoAlojamentoPage';
 import { FinanceiroRhPage } from '../features/personal/pages/FinanceiroRhPage';
 
 import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
@@ -211,6 +212,11 @@ export const router = createBrowserRouter([
     {
         path: '/public/update-iban/:token',
         element: <UpdateIbanPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/termo-alojamento/:token',
+        element: <PublicTermoAlojamentoPage />,
         errorElement: <RootErrorBoundary />,
     },
     {

@@ -56,6 +56,12 @@ import type {
 } from '../services/logisticsService';
 import { ExportLogisticaDialog, type ExportColumnDef } from '../components/ExportLogisticaDialog';
 import { AlojamentoSearchSelect } from '../components/AlojamentoSearchSelect';
+import {
+  termoResponsabilidadeService,
+  type TermoResponsabilidadeAlojamento
+} from '../services/termoResponsabilidadeService';
+import { TermoResponsabilidadeModal } from '../components/TermoResponsabilidadeModal';
+import { downloadTermoAlojamentoPdf } from '../utils/termoAlojamentoPdfGenerator';
 
 const MESES_NOMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -72,7 +78,12 @@ const formatBaixaDate = (dateStr?: string) => {
 
 export const DemandasAlocacaoPage: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio' | 'cliente'>('demandas');
+  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio' | 'cliente' | 'termos'>('demandas');
+  const [termosList, setTermosList] = useState<TermoResponsabilidadeAlojamento[]>([]);
+  const [selectedTermoModal, setSelectedTermoModal] = useState<TermoResponsabilidadeAlojamento | null>(null);
+  const [termosSearch, setTermosSearch] = useState('');
+  const [termosStatusFilter, setTermosStatusFilter] = useState<'todos' | 'pendentes' | 'assinados' | 'incidencias'>('todos');
+  const [isGeneratingBatchTermos, setIsGeneratingBatchTermos] = useState(false);
   const [pedidos, setPedidos] = useState<PedidoDemandaLogistica[]>([]);
   const [alojados, setAlojados] = useState<TrabalhadorAlojado[]>([]);
   const [alojamentos, setAlojamentos] = useState<Alojamento[]>([]);
@@ -215,6 +226,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
       setAlojados(alojadosData);
       setAlojamentos(alojData);
       setCamasDisponiveis(camasData.filter(c => c.status === 'livre'));
+      try {
+        const termosData = await termoResponsabilidadeService.fetchAllTermos();
+        setTermosList(termosData);
+      } catch (e) {
+        console.warn('Error al cargar términos:', e);
+      }
 
       // Se nenhum selecionado e houver pedidos, seleciona o primeiro
       if (pedidosData.length > 0 && !selectedPedidoId) {
@@ -230,6 +247,103 @@ export const DemandasAlocacaoPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  const findTermoForWorker = (params: {
+    alocacaoId?: string;
+    workerId?: string;
+    workerCodigo?: string;
+    alojamentoNome?: string;
+  }): TermoResponsabilidadeAlojamento | undefined => {
+    return termosList.find(t => {
+      if (params.alocacaoId && t.alocacao_id === params.alocacaoId) return true;
+      if (
+        params.workerId &&
+        t.worker_id === params.workerId &&
+        (!params.alojamentoNome || t.alojamento_nome === params.alojamentoNome)
+      ) {
+        return true;
+      }
+      if (
+        params.workerCodigo &&
+        params.workerCodigo !== 'E-XXXX' &&
+        t.worker_codigo === params.workerCodigo &&
+        (!params.alojamentoNome || t.alojamento_nome === params.alojamentoNome)
+      ) {
+        return true;
+      }
+      return false;
+    });
+  };
+
+  const handleOpenTermoForWorker = async (input: {
+    alocacao_id?: string;
+    alojamento_id?: string;
+    alojamento_codigo?: string;
+    alojamento_nome: string;
+    alojamento_cidade?: string;
+    cama_identificador?: string;
+    worker_id?: string;
+    worker_codigo?: string;
+    worker_nome: string;
+    worker_cargo?: string;
+    worker_movil?: string;
+    empresa_contratante?: string;
+    pedido_id?: string;
+    pedido_codigo?: string;
+    cliente_nome?: string;
+    obra_nome?: string;
+    data_checkin?: string;
+  }) => {
+    const alojObj = alojamentos.find(
+      a => (input.alojamento_id && a.id === input.alojamento_id) || a.nome === input.alojamento_nome
+    );
+    const createdOrExisting = await termoResponsabilidadeService.createOrGetTermoForAlocacao({
+      ...input,
+      alojamento_id: input.alojamento_id || alojObj?.id,
+      alojamento_codigo: input.alojamento_codigo || alojObj?.codigo,
+      alojamento_endereco: alojObj?.endereco || `${input.alojamento_nome} (${alojObj?.municipio || input.alojamento_cidade || 'España'})`,
+      alojamento_cidade: input.alojamento_cidade || alojObj?.municipio || 'España',
+      alojamento_provincia: alojObj?.provincia || ''
+    });
+    setTermosList(prev => [
+      createdOrExisting,
+      ...prev.filter(t => t.id !== createdOrExisting.id && t.token !== createdOrExisting.token)
+    ]);
+    setSelectedTermoModal(createdOrExisting);
+  };
+
+  const handleGenerateAllMissingTermos = async () => {
+    setIsGeneratingBatchTermos(true);
+    try {
+      for (const aloc of empresaAlojadosRaw) {
+        const alojObj = alojamentos.find(a => a.id === aloc.alojamento_id || a.nome === aloc.alojamento_nome);
+        await termoResponsabilidadeService.createOrGetTermoForAlocacao({
+          alocacao_id: aloc.alocacao_id || aloc.id,
+          alojamento_id: aloc.alojamento_id || alojObj?.id,
+          alojamento_codigo: aloc.alojamento_codigo || alojObj?.codigo,
+          alojamento_nome: aloc.alojamento_nome,
+          alojamento_endereco: alojObj?.endereco || `${aloc.alojamento_nome}, ${aloc.municipio || ''}`,
+          alojamento_cidade: aloc.municipio || alojObj?.municipio || 'España',
+          alojamento_provincia: aloc.provincia || alojObj?.provincia || '',
+          cama_identificador: aloc.cama_identificador,
+          worker_id: aloc.worker_id,
+          worker_codigo: aloc.codigo_colab,
+          worker_nome: aloc.worker_nome,
+          worker_movil: aloc.worker_movil,
+          empresa_contratante: aloc.empresa_contratante || 'LUMINOUS',
+          pedido_id: aloc.pedido_id,
+          pedido_codigo: aloc.pedido_codigo,
+          cliente_nome: aloc.cliente_nome,
+          obra_nome: aloc.obra_nome,
+          data_checkin: aloc.data_checkin
+        });
+      }
+      const updated = await termoResponsabilidadeService.fetchAllTermos();
+      setTermosList(updated);
+    } finally {
+      setIsGeneratingBatchTermos(false);
+    }
+  };
 
   // Limpar seleção ao trocar de pedido
   useEffect(() => {
@@ -904,16 +1018,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
     try {
       setIsAllocatingSingle(true);
+      const snapWorker = allocatingWorker.worker;
+      const snapPedido = allocatingWorker.pedido;
+      const snapAloj = alojamentos.find(a => a.id === singleAlojamentoId);
+      const snapCama = camasDisponiveis.find(c => c.id === singleCamaId);
+
       await logisticsService.alocarTrabalhador({
         cama_id: singleCamaId,
         alojamento_id: singleAlojamentoId,
-        worker_id: allocatingWorker.worker.worker_id,
-        worker_nome: allocatingWorker.worker.worker_nome,
-        codigo_colab: allocatingWorker.worker.codigo_colab,
-        cliente_nome: allocatingWorker.pedido.cliente_nome,
-        obra_nome: allocatingWorker.pedido.obra_nome,
-        pedido_id: allocatingWorker.pedido.pedido_id,
-        pedido_codigo: allocatingWorker.pedido.pedido_codigo,
+        worker_id: snapWorker.worker_id,
+        worker_nome: snapWorker.worker_nome,
+        codigo_colab: snapWorker.codigo_colab,
+        cliente_nome: snapPedido.cliente_nome,
+        obra_nome: snapPedido.obra_nome,
+        pedido_id: snapPedido.pedido_id,
+        pedido_codigo: snapPedido.pedido_codigo,
         data_inicio: singleDataInicio,
         data_fim: singleDataFim,
         observacoes: singleObservacoes
@@ -921,6 +1040,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       setAllocatingWorker(null);
       await loadData();
+
+      await handleOpenTermoForWorker({
+        alojamento_id: singleAlojamentoId,
+        alojamento_codigo: snapAloj?.codigo,
+        alojamento_nome: snapAloj?.nome || 'Alojamiento Corporativo',
+        alojamento_cidade: snapAloj?.municipio || snapPedido.cidade,
+        cama_identificador: snapCama?.codigo_cama || 'Habitación Asignada',
+        worker_id: snapWorker.worker_id,
+        worker_codigo: snapWorker.codigo_colab,
+        worker_nome: snapWorker.worker_nome,
+        worker_cargo: snapWorker.funcao,
+        worker_movil: snapWorker.movil,
+        empresa_contratante: snapPedido.empresa_contratante,
+        pedido_id: snapPedido.pedido_id,
+        pedido_codigo: snapPedido.pedido_codigo,
+        cliente_nome: snapPedido.cliente_nome,
+        obra_nome: snapPedido.obra_nome,
+        data_checkin: singleDataInicio
+      });
     } catch (err: any) {
       console.error(err);
       alert('Error al asignar el alojamiento: ' + (err.message || 'Error desconocido'));
@@ -1550,6 +1688,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 ⚠️ {inactivosRHCliente.length}
               </span>
             )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('termos')}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+              activeTab === 'termos'
+                ? 'bg-teal-700 text-white shadow-sm'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+            }`}
+          >
+            <ShieldCheck size={15} />
+            Términos & Check-list
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              activeTab === 'termos'
+                ? 'bg-white/20 text-white'
+                : 'bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300'
+            }`}>
+              {termosList.filter(t => t.status === 'ASSINADO' || t.status === 'COM_INCIDENCIAS').length}/{termosList.length} firmados
+            </span>
           </button>
         </div>
 
@@ -2385,38 +2542,94 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
                                   <td className="px-4 py-3.5 text-right">
                                     {isAllocated ? (
-                                      <button
-                                        onClick={() => {
-                                          const todayStr = new Date().toISOString().split('T')[0];
-                                          setCheckingOutData({
-                                            alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
-                                            workers: [{
-                                              id: worker.alocacao_detalhe!.alocacao_id,
-                                              nome: worker.worker_nome,
-                                              alojamento: worker.alocacao_detalhe!.alojamento_nome,
-                                              alojamentoId: worker.alocacao_detalhe!.alojamento_id,
-                                              dataBaixa: worker.data_baixa,
-                                              alertaInativoRh: worker.alerta_inativo_rh,
-                                              isInativoRh: worker.is_inativo_rh
-                                            }],
-                                            alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
-                                            alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
+                                      <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                                        {(() => {
+                                          const workerTermo = findTermoForWorker({
+                                            alocacaoId: worker.alocacao_detalhe?.alocacao_id,
+                                            workerId: worker.worker_id,
+                                            workerCodigo: worker.codigo_colab,
+                                            alojamentoNome: worker.alocacao_detalhe?.alojamento_nome
                                           });
-                                          setMotivoCheckout(worker.is_inativo_rh ? 'Baja en Personal / Fin de Contrato' : 'Fin de Pedido / Obra');
-                                          setDataSaidaEfetiva(worker.data_baixa || todayStr);
-                                          setUsarDataBaixaIndividual(true);
-                                          setObservacoesCheckout(
-                                            worker.is_inativo_rh
-                                              ? `Baja en Personal (${worker.alerta_inativo_rh || 'Inactivo'})${worker.data_baixa ? ` - Último día RRHH: ${formatBaixaDate(worker.data_baixa)}` : ''}`
-                                              : ''
+                                          const isSignedT =
+                                            workerTermo?.status === 'ASSINADO' ||
+                                            workerTermo?.status === 'COM_INCIDENCIAS' ||
+                                            Boolean(workerTermo?.worker_assinatura_url);
+                                          return (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleOpenTermoForWorker({
+                                                  alocacao_id: worker.alocacao_detalhe?.alocacao_id,
+                                                  alojamento_id: worker.alocacao_detalhe?.alojamento_id,
+                                                  alojamento_nome:
+                                                    worker.alocacao_detalhe?.alojamento_nome || 'Alojamiento',
+                                                  alojamento_cidade: selectedPedido.cidade,
+                                                  cama_identificador:
+                                                    worker.alocacao_detalhe?.cama_identificador || 'Habitación',
+                                                  worker_id: worker.worker_id,
+                                                  worker_codigo: worker.codigo_colab,
+                                                  worker_nome: worker.worker_nome,
+                                                  worker_cargo: worker.funcao,
+                                                  worker_movil: worker.movil,
+                                                  empresa_contratante: selectedPedido.empresa_contratante,
+                                                  pedido_id: selectedPedido.pedido_id,
+                                                  pedido_codigo: selectedPedido.pedido_codigo,
+                                                  cliente_nome: selectedPedido.cliente_nome,
+                                                  obra_nome: selectedPedido.obra_nome,
+                                                  data_checkin: selectedPedido.data_inicio
+                                                })
+                                              }
+                                              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer border ${
+                                                workerTermo?.status === 'COM_INCIDENCIAS'
+                                                  ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                                  : isSignedT
+                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                                    : 'bg-teal-50 text-teal-800 border-teal-300 hover:bg-teal-100'
+                                              }`}
+                                              title="Enviar Dirección del Alojamiento y Término de Responsabilidad / Check-list"
+                                            >
+                                              <ShieldCheck size={12} />
+                                              {workerTermo?.status === 'COM_INCIDENCIAS'
+                                                ? 'Termo (Con Averías)'
+                                                : isSignedT
+                                                  ? 'Termo Firmado'
+                                                  : 'Enviar Dirección + Termo'}
+                                            </button>
                                           );
-                                          setDesativarAlojamento(false);
-                                        }}
-                                        className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
-                                      >
-                                        <LogOut size={12} />
-                                        Check-out
-                                      </button>
+                                        })()}
+                                        <button
+                                          onClick={() => {
+                                            const todayStr = new Date().toISOString().split('T')[0];
+                                            setCheckingOutData({
+                                              alocacaoIds: [worker.alocacao_detalhe!.alocacao_id],
+                                              workers: [{
+                                                id: worker.alocacao_detalhe!.alocacao_id,
+                                                nome: worker.worker_nome,
+                                                alojamento: worker.alocacao_detalhe!.alojamento_nome,
+                                                alojamentoId: worker.alocacao_detalhe!.alojamento_id,
+                                                dataBaixa: worker.data_baixa,
+                                                alertaInativoRh: worker.alerta_inativo_rh,
+                                                isInativoRh: worker.is_inativo_rh
+                                              }],
+                                              alojamentoNomePrincipal: worker.alocacao_detalhe!.alojamento_nome,
+                                              alojamentoIdPrincipal: worker.alocacao_detalhe!.alojamento_id
+                                            });
+                                            setMotivoCheckout(worker.is_inativo_rh ? 'Baja en Personal / Fin de Contrato' : 'Fin de Pedido / Obra');
+                                            setDataSaidaEfetiva(worker.data_baixa || todayStr);
+                                            setUsarDataBaixaIndividual(true);
+                                            setObservacoesCheckout(
+                                              worker.is_inativo_rh
+                                                ? `Baja en Personal (${worker.alerta_inativo_rh || 'Inactivo'})${worker.data_baixa ? ` - Último día RRHH: ${formatBaixaDate(worker.data_baixa)}` : ''}`
+                                                : ''
+                                            );
+                                            setDesativarAlojamento(false);
+                                          }}
+                                          className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                        >
+                                          <LogOut size={12} />
+                                          Check-out
+                                        </button>
+                                      </div>
                                     ) : (
                                       <button
                                         onClick={() => handleOpenSingleAlloc(worker, selectedPedido)}
@@ -3133,13 +3346,67 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         </td>
 
                         <td className="px-4 py-3.5 text-right">
-                          <button
-                            onClick={() => handleOpenSingleCheckout(aloc)}
-                            className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <LogOut size={13} />
-                            Check-out
-                          </button>
+                          <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
+                            {(() => {
+                              const workerTermo = findTermoForWorker({
+                                alocacaoId: aloc.alocacao_id || aloc.id,
+                                workerId: aloc.worker_id,
+                                workerCodigo: aloc.codigo_colab,
+                                alojamentoNome: aloc.alojamento_nome
+                              });
+                              const isSignedT =
+                                workerTermo?.status === 'ASSINADO' ||
+                                workerTermo?.status === 'COM_INCIDENCIAS' ||
+                                Boolean(workerTermo?.worker_assinatura_url);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleOpenTermoForWorker({
+                                      alocacao_id: aloc.alocacao_id || aloc.id,
+                                      alojamento_id: aloc.alojamento_id,
+                                      alojamento_codigo: aloc.alojamento_codigo,
+                                      alojamento_nome: aloc.alojamento_nome,
+                                      alojamento_cidade: aloc.municipio,
+                                      cama_identificador: aloc.cama_identificador,
+                                      worker_id: aloc.worker_id,
+                                      worker_codigo: aloc.codigo_colab,
+                                      worker_nome: aloc.worker_nome,
+                                      worker_movil: aloc.worker_movil,
+                                      empresa_contratante: aloc.empresa_contratante || 'LUMINOUS',
+                                      pedido_id: aloc.pedido_id,
+                                      pedido_codigo: aloc.pedido_codigo,
+                                      cliente_nome: aloc.cliente_nome,
+                                      obra_nome: aloc.obra_nome,
+                                      data_checkin: aloc.data_checkin
+                                    })
+                                  }
+                                  className={`px-2.5 py-1.5 text-xs font-bold rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer border ${
+                                    workerTermo?.status === 'COM_INCIDENCIAS'
+                                      ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                      : isSignedT
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                                        : 'bg-teal-50 text-teal-800 border-teal-300 hover:bg-teal-100'
+                                  }`}
+                                  title="Ver / Enviar Dirección del Alojamiento y Término de Responsabilidad"
+                                >
+                                  <ShieldCheck size={13} />
+                                  {workerTermo?.status === 'COM_INCIDENCIAS'
+                                    ? 'Termo (Averías)'
+                                    : isSignedT
+                                      ? 'Termo Firmado'
+                                      : 'Termo / Dirección'}
+                                </button>
+                              );
+                            })()}
+                            <button
+                              onClick={() => handleOpenSingleCheckout(aloc)}
+                              className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <LogOut size={13} />
+                              Check-out
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -4033,6 +4300,239 @@ export const DemandasAlocacaoPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* ABA 5: TÉRMINOS DE RESPONSABILIDAD & CHECK-LIST DE ALOJAMIENTO */}
+      {/* ========================================================================= */}
+      {activeTab === 'termos' && (
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-teal-200 dark:border-teal-900/60 p-5 shadow-xs space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-2xl bg-teal-600 text-white shadow-sm">
+                  <ShieldCheck size={22} />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-900 dark:text-white tracking-tight">
+                    Términos de Responsabilidad en la Asignación de Alojamiento & Check-list
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Envío de dirección, reglas de cuentas/suministros, cuestionario de conservación con fotos de averías y firma electrónica archivada en el trabajador.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleGenerateAllMissingTermos}
+                  disabled={isGeneratingBatchTermos}
+                  className="px-4 py-2 bg-teal-700 hover:bg-teal-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition cursor-pointer disabled:opacity-50"
+                >
+                  <Sparkles size={14} />
+                  {isGeneratingBatchTermos
+                    ? 'Generando Términos...'
+                    : `Generar Términos para Todos los Alojados (${empresaAlojadosRaw.length})`}
+                </button>
+              </div>
+            </div>
+
+            {/* KPIs */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold uppercase text-slate-500 block">Total Términos Emitidos</span>
+                <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{termosList.length}</p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
+                <span className="text-[10px] font-bold uppercase text-amber-700 block">Pendientes de Firma</span>
+                <p className="text-2xl font-black text-amber-800 dark:text-amber-300 mt-0.5">
+                  {termosList.filter(t => t.status === 'PENDENTE' || t.status === 'ENVIADO').length}
+                </p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50">
+                <span className="text-[10px] font-bold uppercase text-emerald-700 block">Firmados y Archivados</span>
+                <p className="text-2xl font-black text-emerald-800 dark:text-emerald-300 mt-0.5">
+                  {termosList.filter(t => t.status === 'ASSINADO' || t.status === 'COM_INCIDENCIAS').length}
+                </p>
+              </div>
+              <div className="p-3.5 rounded-2xl bg-rose-50/70 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50">
+                <span className="text-[10px] font-bold uppercase text-rose-700 block">Con Averías / Fotos Reportadas</span>
+                <p className="text-2xl font-black text-rose-800 dark:text-rose-300 mt-0.5">
+                  {termosList.filter(t => t.status === 'COM_INCIDENCIAS' || t.tem_avarias).length}
+                </p>
+              </div>
+            </div>
+
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { key: 'todos', label: `Todos (${termosList.length})` },
+                  {
+                    key: 'pendentes',
+                    label: `Pendientes (${termosList.filter(t => t.status === 'PENDENTE' || t.status === 'ENVIADO').length})`
+                  },
+                  {
+                    key: 'assinados',
+                    label: `Firmados (${termosList.filter(t => t.status === 'ASSINADO' || t.status === 'COM_INCIDENCIAS').length})`
+                  },
+                  {
+                    key: 'incidencias',
+                    label: `Con Averías / Fotos (${termosList.filter(t => t.status === 'COM_INCIDENCIAS' || t.tem_avarias).length})`
+                  }
+                ].map(f => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setTermosStatusFilter(f.key as any)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                      termosStatusFilter === f.key
+                        ? 'bg-teal-700 text-white shadow-2xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input
+                  type="text"
+                  placeholder="Buscar por trabajador, alojamiento, código..."
+                  value={termosSearch}
+                  onChange={e => setTermosSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 dark:bg-slate-800/80 uppercase text-[10px] font-bold text-slate-400 border-b border-slate-200 dark:border-slate-800">
+                  <tr>
+                    <th className="px-4 py-3">Código Termo</th>
+                    <th className="px-4 py-3">Trabajador</th>
+                    <th className="px-4 py-3">Alojamiento & Habitación</th>
+                    <th className="px-4 py-3">Cliente / Obra</th>
+                    <th className="px-4 py-3">Estado & Check-list</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {termosList
+                    .filter(t => {
+                      if (termosStatusFilter === 'pendentes') return t.status === 'PENDENTE' || t.status === 'ENVIADO';
+                      if (termosStatusFilter === 'assinados') return t.status === 'ASSINADO' || t.status === 'COM_INCIDENCIAS';
+                      if (termosStatusFilter === 'incidencias') return t.status === 'COM_INCIDENCIAS' || t.tem_avarias;
+                      return true;
+                    })
+                    .filter(t => {
+                      if (!termosSearch.trim()) return true;
+                      const q = termosSearch.toLowerCase();
+                      return (
+                        (t.worker_nome || '').toLowerCase().includes(q) ||
+                        (t.worker_codigo || '').toLowerCase().includes(q) ||
+                        (t.alojamento_nome || '').toLowerCase().includes(q) ||
+                        (t.codigo_termo || '').toLowerCase().includes(q) ||
+                        (t.cliente_nome || '').toLowerCase().includes(q)
+                      );
+                    })
+                    .map(t => (
+                      <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="px-4 py-3.5 font-mono font-bold text-slate-700 dark:text-slate-300">
+                          {t.codigo_termo}
+                          <span className="block text-[10px] font-normal text-slate-400">
+                            Check-in: {t.data_checkin}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <p className="font-bold text-slate-900 dark:text-white">{t.worker_nome}</p>
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {t.worker_codigo} • {t.empresa_contratante}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <p className="font-bold text-slate-800 dark:text-slate-200">{t.alojamento_nome}</p>
+                          <p className="text-[10px] text-teal-700 dark:text-teal-400 font-semibold">
+                            {t.cama_identificador} • {t.alojamento_cidade}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <p className="font-semibold text-slate-700 dark:text-slate-300">{t.cliente_nome || '—'}</p>
+                          <p className="text-[10px] text-slate-400">{t.obra_nome || t.pedido_codigo || ''}</p>
+                        </td>
+                        <td className="px-4 py-3.5">
+                          {t.status === 'COM_INCIDENCIAS' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                              <AlertTriangle size={11} />
+                              Firmado con Averías ({t.total_fotos} foto/s)
+                            </span>
+                          ) : t.status === 'ASSINADO' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              <CheckCircle2 size={11} />
+                              Firmado y Archivado
+                            </span>
+                          ) : t.status === 'ENVIADO' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                              <Clock size={11} />
+                              Enviado al Trabajador
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                              <Clock size={11} />
+                              Pendiente de Envío / Firma
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-right">
+                          <div className="inline-flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTermoModal(t)}
+                              className="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs transition cursor-pointer"
+                            >
+                              Gestionar / Enviar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => downloadTermoAlojamentoPdf(t)}
+                              className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs transition cursor-pointer inline-flex items-center gap-1"
+                              title="Descargar PDF Oficial"
+                            >
+                              <Download size={13} />
+                              PDF
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  {termosList.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-12 text-center text-slate-400">
+                        No hay términos generados aún. Haga clic en "Generar Términos para Todos los Alojados" o asigne un trabajador a un alojamiento.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <TermoResponsabilidadeModal
+        isOpen={Boolean(selectedTermoModal)}
+        onClose={() => setSelectedTermoModal(null)}
+        termo={selectedTermoModal}
+        onUpdated={updated => {
+          setSelectedTermoModal(updated);
+          setTermosList(prev => [updated, ...prev.filter(x => x.id !== updated.id && x.token !== updated.token)]);
+        }}
+      />
 
       {/* ========================================================================= */}
       {/* MODAL 1: ALOCAÇÃO INDIVIDUAL */}

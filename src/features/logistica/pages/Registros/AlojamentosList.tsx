@@ -60,6 +60,11 @@ import { registrosService } from '../../services/registrosService';
 import type { Alojamento, Provedor, Alocacao, Cama } from '../../services/logisticsService';
 import { ImportModal } from '../../components/ImportModal';
 import { matchesPartialSearch } from '../../components/ProvedorSearchCombobox';
+import {
+  termoResponsabilidadeService,
+  type TermoResponsabilidadeAlojamento
+} from '../../services/termoResponsabilidadeService';
+import { TermoResponsabilidadeModal } from '../../components/TermoResponsabilidadeModal';
 
 export const AlojamentosList: React.FC = () => {
   const { t } = useLanguage();
@@ -73,6 +78,7 @@ export const AlojamentosList: React.FC = () => {
   const [provedores, setProvedores] = useState<Provedor[]>([]);
   const [alocacoes, setAlocacoes] = useState<Alocacao[]>([]);
   const [camas, setCamas] = useState<Cama[]>([]);
+  const [selectedTermoModal, setSelectedTermoModal] = useState<TermoResponsabilidadeAlojamento | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
@@ -1557,13 +1563,47 @@ export const AlojamentosList: React.FC = () => {
                                         </td>
 
                                         <td className="px-4 py-3 text-right">
-                                          <button
-                                            onClick={() => handleOpenSingleCheckout(oc, a)}
-                                            className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
-                                          >
-                                            <LogOut size={12} />
-                                            Check-out
-                                          </button>
+                                          <div className="inline-flex items-center justify-end gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={async () => {
+                                                const termo = await termoResponsabilidadeService.createOrGetTermoForAlocacao({
+                                                  alocacao_id: oc.id,
+                                                  alojamento_id: a.id,
+                                                  alojamento_codigo: a.codigo,
+                                                  alojamento_nome: a.nome,
+                                                  alojamento_endereco: a.endereco,
+                                                  alojamento_cidade: a.municipio,
+                                                  alojamento_provincia: a.provincia,
+                                                  cama_identificador:
+                                                    oc.cama_identificador ||
+                                                    (oc.cama_id?.includes('dup') ? 'Cama Doble' : 'Cama Individual'),
+                                                  worker_id: oc.worker_id,
+                                                  worker_codigo: oc.codigo_colab,
+                                                  worker_nome: oc.worker_nome,
+                                                  worker_movil: oc.worker_movil,
+                                                  empresa_contratante: oc.empresa_contratante || 'LUMINOUS',
+                                                  pedido_codigo: oc.pedido_codigo,
+                                                  cliente_nome: oc.cliente_nome,
+                                                  obra_nome: oc.obra_nome,
+                                                  data_checkin: oc.data_inicio
+                                                });
+                                                setSelectedTermoModal(termo);
+                                              }}
+                                              className="px-2.5 py-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                              title="Enviar Dirección y Término de Responsabilidad / Check-list"
+                                            >
+                                              <ShieldCheck size={12} />
+                                              Termo / Check-in
+                                            </button>
+                                            <button
+                                              onClick={() => handleOpenSingleCheckout(oc, a)}
+                                              className="px-2.5 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                            >
+                                              <LogOut size={12} />
+                                              Check-out
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     );
@@ -3000,6 +3040,13 @@ export const AlojamentosList: React.FC = () => {
           </div>
         </div>
       )}
+
+      <TermoResponsabilidadeModal
+        isOpen={Boolean(selectedTermoModal)}
+        onClose={() => setSelectedTermoModal(null)}
+        termo={selectedTermoModal}
+        onUpdated={updated => setSelectedTermoModal(updated)}
+      />
 
     </div>
   );

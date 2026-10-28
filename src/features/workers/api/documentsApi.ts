@@ -90,7 +90,10 @@ export async function deleteWorkerDocument(document: WorkerDocument): Promise<vo
 
 export async function getDocumentDownloadUrl(filePath: string): Promise<string> {
     if (!filePath) return '';
-    const buckets = ['mcs-personal-docs', 'worker-contracts', 'worker-incoming-docs', 'worker-documents', 'documents'];
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        return filePath;
+    }
+    const buckets = ['mcs-personal-docs', 'worker-contracts', 'worker-incoming-docs', 'worker-documents', 'documents', 'alojamentos'];
     
     let bucketToUse = BUCKET_NAME;
     let cleanPath = filePath.replace(/^\/+/, '').trim();

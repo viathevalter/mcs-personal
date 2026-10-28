@@ -43,6 +43,7 @@ const DOC_TYPES = [
     { value: 'identificacao', label: 'Doc. Identificação Genérica' },
     { value: 'a1', label: 'Certificado A1' },
     { value: 'apto_medico', label: 'Apto Médico' },
+    { value: 'termo_alojamento', label: 'Termo de Responsabilidade de Alojamento' },
     { value: 'prl_certificate', label: 'Certificado PRL' },
     { value: 'epi_recibo', label: 'Recibo de EPIs' },
     { value: 'formacao_seguranca', label: 'Formação de Posto / Segurança' },

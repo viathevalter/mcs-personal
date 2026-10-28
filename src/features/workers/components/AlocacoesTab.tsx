@@ -1,14 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, PlusCircle, Edit2 } from 'lucide-react';
+import { Loader2, PlusCircle, Edit2, ShieldCheck, FileDown, Eye, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
 import { format } from 'date-fns';
 import { AddManualAllocationModal } from './WorkerModals/AddManualAllocationModal';
 import { EditManualAllocationModal } from './WorkerModals/EditManualAllocationModal';
 import type { WorkerAlocacao } from '../api/workersApi';
+import {
+    termoResponsabilidadeService,
+    type TermoResponsabilidadeAlojamento
+} from '@/features/logistica/services/termoResponsabilidadeService';
+import { TermoResponsabilidadeModal } from '@/features/logistica/components/TermoResponsabilidadeModal';
+import { downloadTermoAlojamentoPdf } from '@/features/logistica/utils/termoAlojamentoPdfGenerator';
 
 interface AlocacoesTabProps {
     workerCodColab: string;
@@ -20,6 +26,15 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedAllocation, setSelectedAllocation] = useState<WorkerAlocacao | null>(null);
+    const [termosAlojamento, setTermosAlojamento] = useState<TermoResponsabilidadeAlojamento[]>([]);
+    const [selectedTermoModal, setSelectedTermoModal] = useState<TermoResponsabilidadeAlojamento | null>(null);
+
+    useEffect(() => {
+        termoResponsabilidadeService
+            .fetchTermosByWorker({ workerCodigo: workerCodColab, workerNome: workerName })
+            .then(setTermosAlojamento)
+            .catch(() => {});
+    }, [workerCodColab, workerName]);
 
     if (isLoading) {
         return (
@@ -40,6 +55,7 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
     }
 
     return (
+        <div className="space-y-6">
         <Card className="overflow-hidden relative">
             <CardHeader className="bg-muted/30">
                 <div className="flex items-center justify-between">
@@ -155,5 +171,107 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                 </TableBody>
             </Table>
         </Card>
+
+        <Card className="overflow-hidden border-teal-200 dark:border-teal-900">
+            <CardHeader className="bg-teal-50/50 dark:bg-teal-950/30">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <ShieldCheck className="h-5 w-5 text-teal-600" />
+                        <div>
+                            <CardTitle className="text-base">
+                                Termos de Responsabilidade e Check-list de Alojamento (Logística)
+                            </CardTitle>
+                            <CardDescription>
+                                Documentos de entrega de alojamento, regras de contas, vistoria de entrada com fotos e assinatura eletrônica vinculados a este trabalhador.
+                            </CardDescription>
+                        </div>
+                    </div>
+                </div>
+            </CardHeader>
+            <Table>
+                <TableHeader>
+                    <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold text-foreground">Código</TableHead>
+                        <TableHead className="font-semibold text-foreground">Alojamento & Quarto/Cama</TableHead>
+                        <TableHead className="font-semibold text-foreground">Data Check-in</TableHead>
+                        <TableHead className="font-semibold text-foreground">Status & Vistoria</TableHead>
+                        <TableHead className="font-semibold text-foreground text-right">Ações / Documento</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {termosAlojamento.length === 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={5} className="text-center h-20 text-muted-foreground">
+                                Nenhum Termo de Responsabilidade de Alojamento emitido para este trabalhador até o momento.
+                            </TableCell>
+                        </TableRow>
+                    ) : (
+                        termosAlojamento.map(termo => (
+                            <TableRow key={termo.id}>
+                                <TableCell className="font-mono font-bold text-xs">{termo.codigo_termo}</TableCell>
+                                <TableCell>
+                                    <p className="font-semibold text-sm">{termo.alojamento_nome}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {termo.cama_identificador} • {termo.alojamento_endereco}
+                                    </p>
+                                </TableCell>
+                                <TableCell className="text-sm">{termo.data_checkin}</TableCell>
+                                <TableCell>
+                                    {termo.status === 'COM_INCIDENCIAS' ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                            <AlertTriangle className="h-3 w-3" />
+                                            Assinado com Avarias ({termo.total_fotos} foto/s)
+                                        </span>
+                                    ) : termo.status === 'ASSINADO' ? (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                            <CheckCircle2 className="h-3 w-3" />
+                                            Assinado Eletronicamente
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                                            <Clock className="h-3 w-3" />
+                                            Pendente de Assinatura
+                                        </span>
+                                    )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="inline-flex items-center gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setSelectedTermoModal(termo)}
+                                            className="gap-1.5"
+                                        >
+                                            <Eye className="h-3.5 w-3.5" />
+                                            Ver / Enviar
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="default"
+                                            onClick={() => downloadTermoAlojamentoPdf(termo)}
+                                            className="gap-1.5 bg-teal-600 hover:bg-teal-700 text-white"
+                                        >
+                                            <FileDown className="h-3.5 w-3.5" />
+                                            PDF
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    )}
+                </TableBody>
+            </Table>
+        </Card>
+
+        <TermoResponsabilidadeModal
+            isOpen={Boolean(selectedTermoModal)}
+            onClose={() => setSelectedTermoModal(null)}
+            termo={selectedTermoModal}
+            onUpdated={updated => {
+                setSelectedTermoModal(updated);
+                setTermosAlojamento(prev => [updated, ...prev.filter(x => x.id !== updated.id)]);
+            }}
+        />
+        </div>
     );
 }
