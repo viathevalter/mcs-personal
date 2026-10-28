@@ -1700,6 +1700,50 @@ export const ContratosList: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* Arquivos / Documentos do Contrato Anexados */}
+              {viewingContrato.documentos_contrato && viewingContrato.documentos_contrato.length > 0 && (
+                <div className="p-4 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-900/60 rounded-2xl space-y-2">
+                  <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText size={14} />
+                    Archivos / Documentos del Contrato ({viewingContrato.documentos_contrato.length})
+                  </span>
+                  <div className="space-y-1.5">
+                    {viewingContrato.documentos_contrato.map(doc => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center justify-between gap-2 p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-indigo-100 dark:border-indigo-900/60"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 dark:text-slate-100 truncate">{doc.nome}</p>
+                          <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-semibold">
+                            {doc.tipo_documento || 'Contrato'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <a
+                            href={doc.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold inline-flex items-center gap-1"
+                          >
+                            <Eye size={12} />
+                            Ver
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => downloadFile(doc.url, doc.nome || 'Contrato.pdf')}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold inline-flex items-center gap-1"
+                          >
+                            <DownloadCloud size={12} />
+                            Descargar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer Modal */}

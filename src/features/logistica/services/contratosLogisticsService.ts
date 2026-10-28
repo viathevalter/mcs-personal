@@ -1,5 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
-import { registrosService } from './registrosService';
+import { registrosService, type AnexoContratoAlojamento } from './registrosService';
 import { logisticsService, type Alojamento, type Provedor } from './logisticsService';
 import type { DocumentoVistoria } from './storageService';
 
@@ -66,6 +66,7 @@ export interface ContratoAlojamento {
   swift?: string;
   titular?: string;
   observacoes?: string;
+  documentos_contrato?: AnexoContratoAlojamento[];
   alojamento?: Alojamento;
   provedor?: Provedor;
 }
@@ -317,6 +318,7 @@ export const contratosLogisticsService = {
           swift: cont.swift || prov?.swift || '',
           titular: cont.titular || prov?.titular_conta || prov?.nome_razao_social || '',
           observacoes: a.observacoes || '',
+          documentos_contrato: (a as any).documentos_contrato || cont.documentos_contrato || (comod as any).__documentos_contrato || [],
           alojamento: a,
           provedor: prov as any
         };

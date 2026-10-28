@@ -43,6 +43,15 @@ export interface Provedor {
   ativo: boolean;
 }
 
+export interface AnexoContratoAlojamento {
+  id: string;
+  nome: string;
+  tipo_documento?: 'Contrato Firmado' | 'Borrador / Pendiente Firma' | 'Adenda / Anexo' | 'Recibo Fianza' | 'Otro';
+  url: string;
+  tamanho_bytes?: number;
+  data_upload: string;
+}
+
 export interface ContratoInfo {
   codigo?: string;
   status?: string;
@@ -62,6 +71,7 @@ export interface ContratoInfo {
   iban?: string;
   swift?: string;
   titular?: string;
+  documentos_contrato?: AnexoContratoAlojamento[];
 }
 
 export interface AnexoObservacao {
@@ -139,6 +149,7 @@ export interface Alojamento {
   };
   fotos?: string[];
   contrato?: ContratoInfo;
+  documentos_contrato?: AnexoContratoAlojamento[];
   valor_mensal?: number;
   observacoes?: string;
   observacoes_html?: string;
@@ -252,11 +263,20 @@ const buildAlojamentoPayload = (input: any) => {
     : (Array.isArray(input.comodidades?.__historico_observacoes) ? input.comodidades.__historico_observacoes : []);
 
   const observacoesHtml = input.observacoes_html ?? input.comodidades?.__observacoes_html ?? '';
+  const documentosContrato = Array.isArray(input.documentos_contrato)
+    ? input.documentos_contrato
+    : (Array.isArray(input.contrato?.documentos_contrato)
+      ? input.contrato.documentos_contrato
+      : (Array.isArray(input.comodidades?.__documentos_contrato) ? input.comodidades.__documentos_contrato : []));
 
   const comodidadesMeta = {
     ...(input.comodidades || {}),
     __fotos: input.fotos || [],
-    __contrato: input.contrato || {},
+    __contrato: {
+      ...(input.contrato || {}),
+      documentos_contrato: documentosContrato
+    },
+    __documentos_contrato: documentosContrato,
     __historico_observacoes: historicoManutencao,
     __observacoes_html: observacoesHtml,
     __created_at: input.created_at || new Date().toISOString()
@@ -289,6 +309,7 @@ const buildAlojamentoPayload = (input: any) => {
     observacoes: input.observacoes || '',
     observacoes_html: observacoesHtml,
     historico_manutencao: historicoManutencao,
+    documentos_contrato: documentosContrato,
     status: isInactive ? 'inativo' : 'ativo'
   };
 
@@ -320,6 +341,12 @@ const hydrateAlojamento = (a: any): Alojamento => {
       ? a.historico_manutencao
       : (Array.isArray(comodidades.__historico_observacoes) ? comodidades.__historico_observacoes : []);
   const observacoesHtml = a.observacoes_html || comodidades.__observacoes_html || '';
+  const rawDocsContrato =
+    (Array.isArray(a.documentos_contrato) && a.documentos_contrato.length > 0)
+      ? a.documentos_contrato
+      : (Array.isArray(contrato.documentos_contrato) && contrato.documentos_contrato.length > 0)
+        ? contrato.documentos_contrato
+        : (Array.isArray(comodidades.__documentos_contrato) ? comodidades.__documentos_contrato : []);
 
   return {
     ...a,
@@ -335,7 +362,11 @@ const hydrateAlojamento = (a: any): Alojamento => {
     comodidades: comodidades,
     suministros: a.suministros || {},
     fotos: Array.isArray(fotos) ? fotos : [],
-    contrato: contrato,
+    contrato: {
+      ...contrato,
+      documentos_contrato: rawDocsContrato
+    },
+    documentos_contrato: rawDocsContrato,
     valor_mensal: a.valor_mensal || a.custo_mensal_total || contrato.valor_mensal,
     capacidade_pessoas: a.capacidade_pessoas || a.capacidade_total || 0,
     observacoes: a.observacoes || '',

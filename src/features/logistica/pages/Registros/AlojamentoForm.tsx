@@ -37,9 +37,14 @@ import {
   Bath,
   ArrowRight,
   Globe,
-  ExternalLink
+  ExternalLink,
+  Upload,
+  Download,
+  Eye,
+  Paperclip
 } from 'lucide-react';
-import { registrosService, type RegistroObservacaoHistorico } from '../../services/registrosService';
+import { registrosService, type RegistroObservacaoHistorico, type AnexoContratoAlojamento } from '../../services/registrosService';
+import { uploadDocumentoVistoria, downloadFile } from '../../services/storageService';
 import type { Provedor, Alojamento } from '../../services/logisticsService';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
 import { FotosAlojamentoManager } from '../../components/FotosAlojamentoManager';
@@ -133,6 +138,10 @@ export const AlojamentoForm: React.FC = () => {
   const [fotos, setFotos] = useState<string[]>([]);
   const [historicoManutencao, setHistoricoManutencao] = useState<RegistroObservacaoHistorico[]>([]);
   const [observacoesHtml, setObservacoesHtml] = useState<string>('');
+  const [documentosContrato, setDocumentosContrato] = useState<AnexoContratoAlojamento[]>([]);
+  const [tipoDocContrato, setTipoDocContrato] = useState<AnexoContratoAlojamento['tipo_documento']>('Contrato Firmado');
+  const [isUploadingContrato, setIsUploadingContrato] = useState<boolean>(false);
+  const contratoFileInputRef = useRef<HTMLInputElement>(null);
   const [showColabModal, setShowColabModal] = useState(false);
   const dataLoadedRef = useRef(false);
 
@@ -248,7 +257,7 @@ export const AlojamentoForm: React.FC = () => {
         const savedDraft = localStorage.getItem('mcs_alojamento_draft_novo');
         if (savedDraft) {
           const parsed = JSON.parse(savedDraft);
-          if (parsed && (parsed.nome || parsed.provedor_id || parsed.endereco || (parsed.__savedFotos && parsed.__savedFotos.length > 0) || (parsed.__savedHistoricoManutencao && parsed.__savedHistoricoManutencao.length > 0))) {
+          if (parsed && (parsed.nome || parsed.provedor_id || parsed.endereco || (parsed.__savedFotos && parsed.__savedFotos.length > 0) || (parsed.__savedHistoricoManutencao && parsed.__savedHistoricoManutencao.length > 0) || (parsed.__savedDocumentosContrato && parsed.__savedDocumentosContrato.length > 0))) {
             reset(parsed);
             if (parsed.__savedFotos && Array.isArray(parsed.__savedFotos)) {
               setFotos(parsed.__savedFotos);
@@ -258,6 +267,9 @@ export const AlojamentoForm: React.FC = () => {
             }
             if (parsed.__savedObservacoesHtml) {
               setObservacoesHtml(parsed.__savedObservacoesHtml);
+            }
+            if (parsed.__savedDocumentosContrato && Array.isArray(parsed.__savedDocumentosContrato)) {
+              setDocumentosContrato(parsed.__savedDocumentosContrato);
             }
             setIsDraftRestored(true);
           }
@@ -322,13 +334,14 @@ export const AlojamentoForm: React.FC = () => {
       const timer = setTimeout(() => {
         if (skipDraftSaveRef.current) return;
         try {
-          const hasContent = allWatchedValues.nome || allWatchedValues.provedor_id || allWatchedValues.endereco || (fotos && fotos.length > 0) || (historicoManutencao && historicoManutencao.length > 0);
+          const hasContent = allWatchedValues.nome || allWatchedValues.provedor_id || allWatchedValues.endereco || (fotos && fotos.length > 0) || (historicoManutencao && historicoManutencao.length > 0) || (documentosContrato && documentosContrato.length > 0);
           if (hasContent) {
             const draftPayload = {
               ...allWatchedValues,
               __savedFotos: fotos,
               __savedHistoricoManutencao: historicoManutencao,
               __savedObservacoesHtml: observacoesHtml,
+              __savedDocumentosContrato: documentosContrato,
               __draftSavedAt: new Date().toISOString()
             };
             localStorage.setItem('mcs_alojamento_draft_novo', JSON.stringify(draftPayload));
@@ -339,7 +352,7 @@ export const AlojamentoForm: React.FC = () => {
       }, 400);
       return () => clearTimeout(timer);
     }
-  }, [allWatchedValues, fotos, historicoManutencao, observacoesHtml, isEditing]);
+  }, [allWatchedValues, fotos, historicoManutencao, observacoesHtml, documentosContrato, isEditing]);
 
   const handleDiscardDraft = () => {
     localStorage.removeItem('mcs_alojamento_draft_novo');
@@ -378,6 +391,7 @@ export const AlojamentoForm: React.FC = () => {
     setFotos([]);
     setHistoricoManutencao([]);
     setObservacoesHtml('');
+    setDocumentosContrato([]);
     setIsDraftRestored(false);
   };
 
@@ -506,6 +520,15 @@ export const AlojamentoForm: React.FC = () => {
           if ((a as any).observacoes_html || comod.__observacoes_html) {
             setObservacoesHtml((a as any).observacoes_html || comod.__observacoes_html || '');
           }
+          const loadedDocsContrato =
+            (Array.isArray((a as any).documentos_contrato) && (a as any).documentos_contrato.length > 0)
+              ? (a as any).documentos_contrato
+              : (Array.isArray(cont.documentos_contrato) && cont.documentos_contrato.length > 0)
+                ? cont.documentos_contrato
+                : (Array.isArray(comod.__documentos_contrato) ? comod.__documentos_contrato : []);
+          if (loadedDocsContrato.length > 0) {
+            setDocumentosContrato(loadedDocsContrato);
+          }
 
           reset({
             nome: a.nome || a.titulo || '',
@@ -625,6 +648,7 @@ export const AlojamentoForm: React.FC = () => {
         iban: data.iban,
         swift: data.swift,
         titular: data.titular_conta,
+        documentos_contrato: documentosContrato,
       };
 
       const payload = {
@@ -635,6 +659,7 @@ export const AlojamentoForm: React.FC = () => {
         fotos,
         historico_manutencao: historicoManutencao,
         observacoes_html: observacoesHtml,
+        documentos_contrato: documentosContrato,
         contrato,
         valor_mensal: data.valor_mensal,
         status: data.status,
@@ -682,6 +707,7 @@ export const AlojamentoForm: React.FC = () => {
         setFotos([]);
         setHistoricoManutencao([]);
         setObservacoesHtml('');
+        setDocumentosContrato([]);
         setTimeout(() => setSaveSuccess(false), 2500);
       }
     } catch (error: any) {
@@ -1553,6 +1579,148 @@ export const AlojamentoForm: React.FC = () => {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* BLOCO: Archivo / Documento del Contrato (Anexos PDF / Contrato Assinado) */}
+            <div className="p-3 bg-indigo-50/40 dark:bg-indigo-950/20 rounded-xl border border-indigo-200/80 dark:border-indigo-900/60 space-y-2.5">
+              <input
+                type="file"
+                ref={contratoFileInputRef}
+                multiple
+                accept=".pdf,.doc,.docx,image/*"
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files || files.length === 0) return;
+                  try {
+                    setIsUploadingContrato(true);
+                    const novosDocs: AnexoContratoAlojamento[] = [];
+                    for (const file of Array.from(files)) {
+                      const uploaded = await uploadDocumentoVistoria(file, 'outro');
+                      novosDocs.push({
+                        id: `cont-doc-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                        nome: file.name,
+                        tipo_documento: tipoDocContrato || 'Contrato Firmado',
+                        url: uploaded.url,
+                        tamanho_bytes: file.size,
+                        data_upload: new Date().toISOString(),
+                      });
+                    }
+                    setDocumentosContrato(prev => [...prev, ...novosDocs]);
+                  } catch (err: any) {
+                    console.error('Error al adjuntar contrato:', err);
+                    alert('Error al adjuntar el archivo del contrato: ' + (err.message || 'Intente nuevamente'));
+                  } finally {
+                    setIsUploadingContrato(false);
+                    if (contratoFileInputRef.current) contratoFileInputRef.current.value = '';
+                  }
+                }}
+                className="hidden"
+              />
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Paperclip size={13} />
+                  Archivo / Documento del Contrato ({documentosContrato.length})
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <select
+                  value={tipoDocContrato}
+                  onChange={e => setTipoDocContrato(e.target.value as any)}
+                  className="w-full px-2 py-1.5 bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800 rounded-lg text-[11px] font-semibold text-slate-700 dark:text-slate-200"
+                >
+                  <option value="Contrato Firmado">✅ Contrato Firmado</option>
+                  <option value="Borrador / Pendiente Firma">📝 Contrato para Firma / Borrador</option>
+                  <option value="Adenda / Anexo">📎 Adenda / Anexo de Contrato</option>
+                  <option value="Recibo Fianza">🛡️ Comprobante / Recibo Fianza</option>
+                  <option value="Otro">📄 Otro Documento</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => contratoFileInputRef.current?.click()}
+                  disabled={isUploadingContrato}
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition-colors shadow-2xs disabled:opacity-50"
+                >
+                  {isUploadingContrato ? (
+                    <>
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <Upload size={12} />
+                      + Adjuntar Contrato
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {documentosContrato.length > 0 ? (
+                <div className="space-y-1.5 pt-1">
+                  {documentosContrato.map(doc => (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between gap-2 p-2 bg-white dark:bg-slate-900 rounded-lg border border-indigo-100 dark:border-indigo-900/60 shadow-2xs"
+                    >
+                      <div className="min-w-0 flex items-center gap-2">
+                        <FileText size={15} className="text-indigo-600 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-bold text-slate-800 dark:text-slate-100 truncate" title={doc.nome}>
+                            {doc.nome}
+                          </p>
+                          <div className="flex items-center gap-1.5 text-[9px] text-slate-500">
+                            <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+                              {doc.tipo_documento || 'Contrato'}
+                            </span>
+                            {doc.data_upload && (
+                              <span>• {new Date(doc.data_upload).toLocaleDateString('es-ES')}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 rounded-md transition-colors"
+                          title="Ver / Abrir Contrato"
+                        >
+                          <Eye size={12} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => downloadFile(doc.url, doc.nome || 'Contrato_Alojamiento.pdf')}
+                          className="p-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-md transition-colors"
+                          title="Descargar Contrato"
+                        >
+                          <Download size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDocumentosContrato(prev => prev.filter(d => d.id !== doc.id))}
+                          className="p-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/60 text-red-600 rounded-md transition-colors"
+                          title="Eliminar Archivo"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  onClick={() => contratoFileInputRef.current?.click()}
+                  className="p-3 border border-dashed border-indigo-200 dark:border-indigo-800/80 rounded-lg text-center cursor-pointer hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 transition-colors"
+                >
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    Ningún contrato adjunto. Haga clic en <strong>+ Adjuntar Contrato</strong> para subir el PDF o documento firmado.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
