@@ -111,7 +111,7 @@ export function WorkerDocCapturePage() {
         nie: '',
         dni: '',
         pasaporte: '',
-        tiene_residencia_ue: false,
+        tiene_residencia_ue: true,
         tipo_residencia: '',
         numero_residencia: '',
         pais_residencia: '',
@@ -165,7 +165,7 @@ export function WorkerDocCapturePage() {
                 const existingData = reqData.extracted_data || {};
                 const workerObj = (reqData.worker || {}) as any;
 
-                const hasResidence = reqData.tiene_residencia_ue ?? existingData.tiene_residencia_ue ?? (!!existingData.numero_residencia || !!reqData.residence_url || !!workerObj.nie);
+                const hasResidence = reqData.tiene_residencia_ue ?? existingData.tiene_residencia_ue ?? true;
 
                 setFormData(prev => ({
                     ...prev,

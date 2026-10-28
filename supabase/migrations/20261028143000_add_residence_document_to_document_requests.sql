@@ -3,4 +3,4 @@ ALTER TABLE core_personal.document_requests
 ADD COLUMN IF NOT EXISTS residence_url text;
 
 ALTER TABLE core_personal.document_requests 
-ADD COLUMN IF NOT EXISTS tiene_residencia_ue boolean DEFAULT false;
+ADD COLUMN IF NOT EXISTS tiene_residencia_ue boolean DEFAULT true;
