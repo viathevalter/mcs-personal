@@ -13,10 +13,73 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+/**
+ * Comprime imagem client-side via canvas para compatibilidade universal:
+ * - Evita limites de memória ou uploads pesados (>10MB de câmeras móveis).
+ * - Normaliza para JPEG padrão aceito pelo Supabase storage e OCR.
+ * - PDFs são preservados intactos.
+ */
+async function compressImageIfNeeded(file: File, maxDimension = 1920, quality = 0.85): Promise<{ blob: Blob; fileExt: string; contentType: string }> {
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        return { blob: file, fileExt: 'pdf', contentType: 'application/pdf' };
+    }
+
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxDimension || height > maxDimension) {
+                    if (width > height) {
+                        height = Math.round((height * maxDimension) / width);
+                        width = maxDimension;
+                    } else {
+                        width = Math.round((width * maxDimension) / height);
+                        height = maxDimension;
+                    }
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    canvas.toBlob(
+                        (blob) => {
+                            if (blob) {
+                                resolve({ blob, fileExt: 'jpg', contentType: 'image/jpeg' });
+                                return;
+                            }
+                            resolve({ blob: file, fileExt: 'jpg', contentType: file.type || 'image/jpeg' });
+                        },
+                        'image/jpeg',
+                        quality
+                    );
+                } else {
+                    resolve({ blob: file, fileExt: 'jpg', contentType: file.type || 'image/jpeg' });
+                }
+            };
+            img.onerror = () => {
+                resolve({ blob: file, fileExt: 'jpg', contentType: file.type || 'image/jpeg' });
+            };
+            img.src = e.target?.result as string;
+        };
+        reader.onerror = () => {
+            resolve({ blob: file, fileExt: 'jpg', contentType: file.type || 'image/jpeg' });
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 export function WorkerDocCapturePage() {
     const { token } = useParams<{ token: string }>();
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
     const [request, setRequest] = useState<DocumentRequest | null>(null);
 
@@ -134,33 +197,17 @@ export function WorkerDocCapturePage() {
         e.target.value = '';
         if (!file || !token) return;
 
-        // Validar tamanho (máx 15MB)
-        if (file.size > 15 * 1024 * 1024) {
-            toast.error("O arquivo excede o limite de 15MB.");
-            return;
-        }
-
         try {
-            // Setar carregamento
-            if (docType !== 'selfie' && docType !== 'iban') {
-                setOcrLoading(prev => ({ ...prev, [docType]: true }));
-            }
+            setUploadingDoc(docType);
 
-            let fileExt = (file.name.split('.').pop() || 'jpg').toLowerCase();
-            let contentType = file.type || '';
+            // Comprimir imagem se for foto (garante compatibilidade total e upload rápido em qualquer celular)
+            toast.info("Processando arquivo...");
+            const { blob, fileExt, contentType } = await compressImageIfNeeded(file);
 
-            // Sanitizar/normalizar content-type para imagens comuns e formatos móveis
-            if (!contentType) {
-                if (fileExt === 'png') contentType = 'image/png';
-                else if (fileExt === 'webp') contentType = 'image/webp';
-                else if (fileExt === 'pdf') contentType = 'application/pdf';
-                else {
-                    contentType = 'image/jpeg';
-                    fileExt = 'jpg';
-                }
-            } else if (contentType === 'image/heic' || contentType === 'image/heif') {
-                contentType = 'image/jpeg';
-                fileExt = 'jpg';
+            // Validar tamanho final (máx 15MB)
+            if (blob.size > 15 * 1024 * 1024) {
+                toast.error("O arquivo excede o limite de 15MB.");
+                return;
             }
 
             const filePath = `${token}/${docType}_${Date.now()}.${fileExt}`;
@@ -168,7 +215,7 @@ export function WorkerDocCapturePage() {
             // Upload no bucket privado worker-incoming-docs
             const { error: uploadErr } = await supabase.storage
                 .from('worker-incoming-docs')
-                .upload(filePath, file, {
+                .upload(filePath, blob, {
                     contentType: contentType,
                     upsert: true
                 });
@@ -182,16 +229,17 @@ export function WorkerDocCapturePage() {
             if (docType === 'license') setLicenseUrl(filePath);
             if (docType === 'iban') {
                 setIbanUrl(filePath);
-                toast.success("Comprobante de IBAN cargado!");
+                toast.success("Comprovante de IBAN carregado!");
                 return;
             }
             if (docType === 'selfie') {
                 setSelfieUrl(filePath);
-                toast.success("Foto de perfil carregada!");
+                toast.success("Foto de perfil carregada com sucesso!");
                 return;
             }
 
             // Chamar IA OCR se não for selfie ou iban
+            setOcrLoading(prev => ({ ...prev, [docType]: true }));
             toast.info("Processando documento com IA...");
             try {
                 const ocrRes = await processDocumentOcr({
@@ -234,14 +282,14 @@ export function WorkerDocCapturePage() {
             } catch (ocrErr: any) {
                 console.warn(`Erro no OCR (não impeditivo) para ${docType}:`, ocrErr);
                 toast.warning("Não foi possível extrair os dados automaticamente. Por favor, preencha as informações abaixo.");
+            } finally {
+                setOcrLoading(prev => ({ ...prev, [docType]: false }));
             }
         } catch (err: any) {
             console.error(`Erro ao processar upload de ${docType}:`, err);
             toast.error(`Falha no upload do documento: ${err.message || err}`);
         } finally {
-            if (docType !== 'selfie' && docType !== 'iban') {
-                setOcrLoading(prev => ({ ...prev, [docType]: false }));
-            }
+            setUploadingDoc(null);
         }
     };
 
@@ -350,23 +398,60 @@ export function WorkerDocCapturePage() {
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <input 
-                                id="upload-identity"
-                                type="file" 
-                                accept="image/*,application/pdf" 
-                                ref={inputRefs.identity}
-                                onChange={(e) => handleFileUpload(e, 'identity')}
-                                className="sr-only"
-                            />
-                            {!passportUrl ? (
-                                <label
-                                    htmlFor="upload-identity"
-                                    className="w-full h-28 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
-                                >
-                                    <Camera className="h-8 w-8 mb-2 text-slate-500" />
-                                    <span className="text-sm font-medium">Tirar Foto ou Carregar Arquivo</span>
-                                    <span className="text-[11px] text-slate-500 mt-0.5">Câmera, Galeria de Fotos ou PDF</span>
-                                </label>
+                            {uploadingDoc === 'identity' ? (
+                                <div className="w-full h-32 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-4">
+                                    <Loader2 className="h-8 w-8 animate-spin mb-2 text-indigo-400" />
+                                    <span className="text-sm font-semibold animate-pulse">Enviando documento...</span>
+                                    <span className="text-xs text-slate-500 mt-1">Aguarde a conclusão do envio</span>
+                                </div>
+                            ) : !passportUrl ? (
+                                <div className="space-y-3">
+                                    {/* Opções de Captura Rápidas */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                        {/* Botão Câmera Traseira */}
+                                        <div className="relative overflow-hidden rounded-xl border border-indigo-500/40 bg-indigo-950/30 hover:bg-indigo-900/40 p-3.5 flex items-center justify-center gap-2.5 text-indigo-200 cursor-pointer transition-all active:scale-[0.98]">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                capture="environment"
+                                                onChange={(e) => handleFileUpload(e, 'identity')}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                title="Fotografar Documento com Câmera"
+                                            />
+                                            <Camera className="h-5 w-5 text-indigo-400 shrink-0 pointer-events-none" />
+                                            <span className="text-xs font-semibold pointer-events-none">Fotografar (Câmera)</span>
+                                        </div>
+
+                                        {/* Botão Galeria ou PDF */}
+                                        <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800/60 p-3.5 flex items-center justify-center gap-2.5 text-slate-200 cursor-pointer transition-all active:scale-[0.98]">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*,application/pdf" 
+                                                onChange={(e) => handleFileUpload(e, 'identity')}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                title="Escolher Foto da Galeria ou PDF"
+                                            />
+                                            <UploadCloud className="h-5 w-5 text-slate-400 shrink-0 pointer-events-none" />
+                                            <span className="text-xs font-semibold pointer-events-none">Galeria ou PDF</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Box de Toque Geral */}
+                                    <div className="relative w-full h-20 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*,application/pdf" 
+                                            ref={inputRefs.identity}
+                                            onChange={(e) => handleFileUpload(e, 'identity')}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                            title="Tirar Foto ou Carregar Arquivo"
+                                        />
+                                        <div className="flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                                            <Camera className="h-6 w-6 mb-1 text-slate-500" />
+                                            <span className="text-xs font-medium">Ou toque aqui para selecionar o arquivo</span>
+                                        </div>
+                                    </div>
+                                </div>
                             ) : ocrLoading.identity ? (
                                 <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <Loader2 className="h-6 w-6 animate-spin mb-1" />
@@ -386,7 +471,16 @@ export function WorkerDocCapturePage() {
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 space-y-3">
                                     <div className="flex items-center justify-between text-emerald-400 text-sm font-semibold">
                                         <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Documento Lido</span>
-                                        <label htmlFor="upload-identity" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
+                                        <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*,application/pdf" 
+                                                onChange={(e) => handleFileUpload(e, 'identity')}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                title="Alterar Documento"
+                                            />
+                                            <span className="text-xs font-medium text-slate-300 pointer-events-none">Alterar</span>
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-800/80">
                                         <div>
@@ -647,22 +741,26 @@ export function WorkerDocCapturePage() {
 
                             <div>
                                 <label className="text-xs font-semibold text-slate-300 block mb-1">Comprobante de Titularidad del IBAN / Justificante Bancario</label>
-                                <input 
-                                    id="upload-iban"
-                                    type="file" 
-                                    accept="image/*,application/pdf" 
-                                    ref={inputRefs.iban}
-                                    onChange={(e) => handleFileUpload(e, 'iban')}
-                                    className="sr-only"
-                                />
-                                {!ibanUrl ? (
-                                    <label
-                                        htmlFor="upload-iban"
-                                        className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
-                                    >
-                                        <UploadCloud className="h-6 w-6 text-slate-500" />
-                                        <span className="text-sm font-medium">Adjuntar Comprobante del IBAN (Foto o PDF)</span>
-                                    </label>
+                                {uploadingDoc === 'iban' ? (
+                                    <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                        <Loader2 className="h-5 w-5 animate-spin mb-1 text-indigo-400" />
+                                        <span className="text-xs font-semibold animate-pulse">Cargando comprobante...</span>
+                                    </div>
+                                ) : !ibanUrl ? (
+                                    <div className="relative w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*,application/pdf" 
+                                            ref={inputRefs.iban}
+                                            onChange={(e) => handleFileUpload(e, 'iban')}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                            title="Adjuntar Comprobante del IBAN (Foto o PDF)"
+                                        />
+                                        <div className="flex items-center gap-3 pointer-events-none">
+                                            <UploadCloud className="h-6 w-6 text-slate-500" />
+                                            <span className="text-sm font-medium">Adjuntar Comprobante del IBAN (Foto o PDF)</span>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -672,7 +770,16 @@ export function WorkerDocCapturePage() {
                                                 <span className="text-xs text-emerald-400 font-semibold">{formData.banco || 'Documento bancario listo'}</span>
                                             </div>
                                         </div>
-                                        <label htmlFor="upload-iban" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
+                                        <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*,application/pdf" 
+                                                onChange={(e) => handleFileUpload(e, 'iban')}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                title="Alterar Comprobante"
+                                            />
+                                            <span className="text-xs font-medium text-slate-300 pointer-events-none">Alterar</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -691,22 +798,26 @@ export function WorkerDocCapturePage() {
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <input 
-                                id="upload-nif"
-                                type="file" 
-                                accept="image/*,application/pdf" 
-                                ref={inputRefs.nif}
-                                onChange={(e) => handleFileUpload(e, 'nif')}
-                                className="sr-only"
-                            />
-                            {!nifUrl ? (
-                                <label
-                                    htmlFor="upload-nif"
-                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
-                                >
-                                    <UploadCloud className="h-6 w-6 text-slate-500" />
-                                    <span className="text-sm font-medium">Carregue seu NIF</span>
-                                </label>
+                            {uploadingDoc === 'nif' ? (
+                                <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                    <Loader2 className="h-5 w-5 animate-spin mb-1 text-indigo-400" />
+                                    <span className="text-xs font-semibold animate-pulse">Cargando NIF...</span>
+                                </div>
+                            ) : !nifUrl ? (
+                                <div className="relative w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,application/pdf" 
+                                        ref={inputRefs.nif}
+                                        onChange={(e) => handleFileUpload(e, 'nif')}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                        title="Carregue seu NIF"
+                                    />
+                                    <div className="flex items-center gap-3 pointer-events-none">
+                                        <UploadCloud className="h-6 w-6 text-slate-500" />
+                                        <span className="text-sm font-medium">Carregue seu NIF (Foto ou PDF)</span>
+                                    </div>
+                                </div>
                             ) : ocrLoading.nif ? (
                                 <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <div className="flex items-center gap-2">
@@ -735,7 +846,16 @@ export function WorkerDocCapturePage() {
                                             />
                                         </div>
                                     </div>
-                                    <label htmlFor="upload-nif" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
+                                    <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*,application/pdf" 
+                                            onChange={(e) => handleFileUpload(e, 'nif')}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                            title="Alterar NIF"
+                                        />
+                                        <span className="text-xs font-medium text-slate-300 pointer-events-none">Alterar</span>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
@@ -753,22 +873,26 @@ export function WorkerDocCapturePage() {
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <input 
-                                id="upload-niss"
-                                type="file" 
-                                accept="image/*,application/pdf" 
-                                ref={inputRefs.niss}
-                                onChange={(e) => handleFileUpload(e, 'niss')}
-                                className="sr-only"
-                            />
-                            {!nissUrl ? (
-                                <label
-                                    htmlFor="upload-niss"
-                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
-                                >
-                                    <UploadCloud className="h-6 w-6 text-slate-500" />
-                                    <span className="text-sm font-medium">Carregue seu NISS</span>
-                                </label>
+                            {uploadingDoc === 'niss' ? (
+                                <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                    <Loader2 className="h-5 w-5 animate-spin mb-1 text-indigo-400" />
+                                    <span className="text-xs font-semibold animate-pulse">Cargando NISS...</span>
+                                </div>
+                            ) : !nissUrl ? (
+                                <div className="relative w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,application/pdf" 
+                                        ref={inputRefs.niss}
+                                        onChange={(e) => handleFileUpload(e, 'niss')}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                        title="Carregue seu NISS"
+                                    />
+                                    <div className="flex items-center gap-3 pointer-events-none">
+                                        <UploadCloud className="h-6 w-6 text-slate-500" />
+                                        <span className="text-sm font-medium">Carregue seu NISS (Foto ou PDF)</span>
+                                    </div>
+                                </div>
                             ) : ocrLoading.niss ? (
                                 <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <div className="flex items-center gap-2">
@@ -797,7 +921,16 @@ export function WorkerDocCapturePage() {
                                             />
                                         </div>
                                     </div>
-                                    <label htmlFor="upload-niss" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
+                                    <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*,application/pdf" 
+                                            onChange={(e) => handleFileUpload(e, 'niss')}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                            title="Alterar NISS"
+                                        />
+                                        <span className="text-xs font-medium text-slate-300 pointer-events-none">Alterar</span>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
@@ -815,22 +948,26 @@ export function WorkerDocCapturePage() {
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <input 
-                                id="upload-license"
-                                type="file" 
-                                accept="image/*,application/pdf" 
-                                ref={inputRefs.license}
-                                onChange={(e) => handleFileUpload(e, 'license')}
-                                className="sr-only"
-                            />
-                            {!licenseUrl ? (
-                                <label
-                                    htmlFor="upload-license"
-                                    className="w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
-                                >
-                                    <UploadCloud className="h-6 w-6 text-slate-500" />
-                                    <span className="text-sm font-medium">Carregue a Carta de Condução</span>
-                                </label>
+                            {uploadingDoc === 'license' ? (
+                                <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                    <Loader2 className="h-5 w-5 animate-spin mb-1 text-indigo-400" />
+                                    <span className="text-xs font-semibold animate-pulse">Cargando Carta de Condução...</span>
+                                </div>
+                            ) : !licenseUrl ? (
+                                <div className="relative w-full h-20 border border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex items-center justify-center gap-3 bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
+                                    <input 
+                                        type="file" 
+                                        accept="image/*,application/pdf" 
+                                        ref={inputRefs.license}
+                                        onChange={(e) => handleFileUpload(e, 'license')}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                        title="Carregue a Carta de Condução"
+                                    />
+                                    <div className="flex items-center gap-3 pointer-events-none">
+                                        <UploadCloud className="h-6 w-6 text-slate-500" />
+                                        <span className="text-sm font-medium">Carregue a Carta de Condução (Foto ou PDF)</span>
+                                    </div>
+                                </div>
                             ) : ocrLoading.license ? (
                                 <div className="w-full h-20 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
                                     <div className="flex items-center gap-2">
@@ -859,7 +996,16 @@ export function WorkerDocCapturePage() {
                                             />
                                         </div>
                                     </div>
-                                    <label htmlFor="upload-license" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Alterar</label>
+                                    <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*,application/pdf" 
+                                            onChange={(e) => handleFileUpload(e, 'license')}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                            title="Alterar Carta"
+                                        />
+                                        <span className="text-xs font-medium text-slate-300 pointer-events-none">Alterar</span>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
@@ -876,34 +1022,85 @@ export function WorkerDocCapturePage() {
                                 <Badge className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">Obrigatório</Badge>
                             </div>
                             <CardDescription className="text-slate-400 text-xs">
-                                Tire uma foto nítida do seu rosto em um ambiente iluminado.
+                                Tire uma foto nítida do seu rosto em um ambiente iluminado ou escolha da sua galeria.
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <input 
-                                id="upload-selfie"
-                                type="file" 
-                                accept="image/*" 
-                                ref={inputRefs.selfie}
-                                onChange={(e) => handleFileUpload(e, 'selfie')}
-                                className="sr-only"
-                            />
-                            {!selfieUrl ? (
-                                <label
-                                    htmlFor="upload-selfie"
-                                    className="w-full h-24 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer select-none active:scale-[0.99]"
-                                >
-                                    <Camera className="h-7 w-7 mb-1.5 text-slate-500" />
-                                    <span className="text-sm font-medium">Tirar Foto ou Escolher Selfie</span>
-                                    <span className="text-[11px] text-slate-500 mt-0.5">Câmera ou Galeria de Fotos</span>
-                                </label>
+                            {uploadingDoc === 'selfie' ? (
+                                <div className="w-full h-32 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-4">
+                                    <Loader2 className="h-8 w-8 animate-spin mb-2 text-indigo-400" />
+                                    <span className="text-sm font-semibold animate-pulse">Enviando foto de perfil...</span>
+                                    <span className="text-xs text-slate-500 mt-1">Aguarde a conclusão do envio</span>
+                                </div>
+                            ) : !selfieUrl ? (
+                                <div className="space-y-3">
+                                    {/* Opções Diretas: Câmera ou Galeria */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                        {/* Botão Câmera Frontal (Selfie) */}
+                                        <div className="relative overflow-hidden rounded-xl border border-indigo-500/40 bg-indigo-950/30 hover:bg-indigo-900/40 p-3.5 flex items-center justify-center gap-2.5 text-indigo-200 cursor-pointer transition-all active:scale-[0.98]">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                capture="user"
+                                                onChange={(e) => handleFileUpload(e, 'selfie')}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                title="Tirar Foto (Câmera Frontal)"
+                                            />
+                                            <Camera className="h-5 w-5 text-indigo-400 shrink-0 pointer-events-none" />
+                                            <span className="text-xs font-semibold pointer-events-none">📷 Tirar Foto (Câmera)</span>
+                                        </div>
+
+                                        {/* Botão Escolher da Galeria */}
+                                        <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800/60 p-3.5 flex items-center justify-center gap-2.5 text-slate-200 cursor-pointer transition-all active:scale-[0.98]">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*" 
+                                                onChange={(e) => handleFileUpload(e, 'selfie')}
+                                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                title="Escolher Foto da Galeria"
+                                            />
+                                            <UploadCloud className="h-5 w-5 text-slate-400 shrink-0 pointer-events-none" />
+                                            <span className="text-xs font-semibold pointer-events-none">🖼️ Escolher da Galeria</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Box de Toque Geral */}
+                                    <div className="relative w-full h-24 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            ref={inputRefs.selfie}
+                                            onChange={(e) => handleFileUpload(e, 'selfie')}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                            title="Tirar Foto ou Escolher Selfie"
+                                        />
+                                        <div className="flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                                            <Camera className="h-6 w-6 mb-1 text-slate-500" />
+                                            <span className="text-xs font-medium">Ou toque aqui para selecionar a foto</span>
+                                            <span className="text-[11px] text-slate-500 mt-0.5">Compatível com Samsung, Xiaomi, iPhone e Android</span>
+                                        </div>
+                                    </div>
+                                </div>
                             ) : (
                                 <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center"><CheckCircle2 className="h-5 w-5 text-emerald-500" /></div>
-                                        <span className="text-sm text-slate-300 font-semibold">Foto carregada com sucesso!</span>
+                                        <div>
+                                            <span className="text-sm text-slate-300 font-semibold block">Foto carregada com sucesso!</span>
+                                            <span className="text-xs text-emerald-400">Pronta para o contrato</span>
+                                        </div>
                                     </div>
-                                    <label htmlFor="upload-selfie" className="cursor-pointer text-xs font-medium text-slate-400 hover:text-white px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 transition-colors">Tirar Outra</label>
+                                    <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            capture="user"
+                                            onChange={(e) => handleFileUpload(e, 'selfie')}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                            title="Tirar Outra Foto"
+                                        />
+                                        <span className="text-xs font-medium text-slate-300 pointer-events-none">Tirar Outra</span>
+                                    </div>
                                 </div>
                             )}
                         </CardContent>
