@@ -177,18 +177,12 @@ export const AlojamentoSearchSelect: React.FC<AlojamentoSearchSelectProps> = ({
       const residents = residentsByAlojamento.get(a.id) || [];
       const hasSameClient = clienteTargetClean ? residents.some(r => normalize(r.cliente_nome).includes(clienteTargetClean)) : false;
 
-      // 1. Busca por Texto Livre (nome, código, rua, cidade, fornecedor, nome dos colegas hospedados)
+      // 1. Busca por Texto Livre Parcial Multi-Palavra (nome, código, rua, cidade, fornecedor, nome dos colegas hospedados)
       if (q) {
         const residentNames = residents.map(r => normalize(r.worker_nome)).join(' ');
-        const matchesQ =
-          nome.includes(q) ||
-          codigo.includes(q) ||
-          municipio.includes(q) ||
-          provincia.includes(q) ||
-          endereco.includes(q) ||
-          tipo.includes(q) ||
-          provedorNome.includes(q) ||
-          residentNames.includes(q);
+        const combinedHaystack = `${nome} ${codigo} ${municipio} ${provincia} ${endereco} ${tipo} ${provedorNome} ${residentNames}`;
+        const tokens = q.split(/\s+/).filter(Boolean);
+        const matchesQ = tokens.every(token => combinedHaystack.includes(token));
 
         if (!matchesQ) return false;
       }

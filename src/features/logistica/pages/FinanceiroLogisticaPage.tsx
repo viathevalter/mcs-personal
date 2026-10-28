@@ -54,6 +54,7 @@ import { logisticsService } from '../services/logisticsService';
 import type { Alojamento, Provedor, PedidoDemandaLogistica } from '../services/logisticsService';
 import { EditarOrdemPagoModal } from '../components/EditarOrdemPagoModal';
 import { ReciboPagoModal } from '../components/ReciboPagoModal';
+import { AlojamentoQuickCombobox, matchesPartialSearch } from '../components/ProvedorSearchCombobox';
 
 export const FinanceiroLogisticaPage: React.FC = () => {
   const navigate = useNavigate();
@@ -752,16 +753,18 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
   // Filtragem da Lista
   const filtered = pagos.filter(p => {
-    const matchesSearch =
-      p.codigo_pago.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.alojamento_nome && p.alojamento_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.worker_nome && p.worker_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.worker_codigo && p.worker_codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.pedido_codigo && p.pedido_codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.rota_deslocamento && p.rota_deslocamento.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.provedor_nome && p.provedor_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.centro_custo_cliente && p.centro_custo_cliente.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (p.iban_cobranca && p.iban_cobranca.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesSearch = matchesPartialSearch(searchTerm, [
+      p.codigo_pago,
+      p.alojamento_nome,
+      p.worker_nome,
+      p.worker_codigo,
+      p.pedido_codigo,
+      p.rota_deslocamento,
+      p.provedor_nome,
+      p.centro_custo_cliente,
+      p.iban_cobranca,
+      p.observacoes
+    ]);
 
     if (!matchesSearch) return false;
     if (statusFilter !== 'todos' && p.status_pago !== statusFilter) return false;
@@ -2005,19 +2008,11 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                     <Home size={13} className="text-blue-500" />
                     Inmueble / Alojamiento Vinculado <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={selectedAlojamentoId}
-                    onChange={e => handleSelectAlojamento(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold"
-                    required={modoVinculacao === 'alojamento'}
-                  >
-                    <option value="">Seleccione un alojamiento...</option>
-                    {alojamentos.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.codigo} - {a.nome} ({a.municipio || 'España'})
-                      </option>
-                    ))}
-                  </select>
+                  <AlojamentoQuickCombobox
+                    alojamentos={alojamentos}
+                    selectedAlojamentoId={selectedAlojamentoId}
+                    onSelectAlojamento={alojId => handleSelectAlojamento(alojId)}
+                  />
                 </div>
               )}
 

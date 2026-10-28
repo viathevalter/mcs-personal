@@ -55,6 +55,7 @@ import { financeLogisticsService } from '../../services/financeLogisticsService'
 import { uploadDocumentoVistoria, downloadFile, type DocumentoVistoria } from '../../services/storageService';
 import { GenerarOrdemPagoModal } from '../../components/GenerarOrdemPagoModal';
 import { GenerarLoteModal } from '../../components/GenerarLoteModal';
+import { matchesPartialSearch } from '../../components/ProvedorSearchCombobox';
 
 export const ContratosList: React.FC = () => {
   const navigate = useNavigate();
@@ -340,21 +341,23 @@ export const ContratosList: React.FC = () => {
   // Filtragem dos Contratos
   const filtered = useMemo(() => {
     return contratos.filter(c => {
-      // 1. Filtro de Texto
-      const matchesSearch =
-        (c.codigo && c.codigo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.alojamento_nome && c.alojamento_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.provedor_nome && c.provedor_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.cliente_nome && c.cliente_nome.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.empresa_contratante && c.empresa_contratante.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.ocupantes_nomes && c.ocupantes_nomes.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.fianza_detalhes?.observacoes_vistoria && c.fianza_detalhes.observacoes_vistoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (c.ocupantes_detalhados && c.ocupantes_detalhados.some(o => 
-          o.worker_nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          o.codigo_colab?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          o.perfil?.toLowerCase().includes(searchTerm.toLowerCase())
-        )) ||
-        (c.iban_cobranca && c.iban_cobranca.toLowerCase().includes(searchTerm.toLowerCase()));
+      // 1. Filtro de Texto Parcial Multi-Palavra (sem depender de acentos ou ordem das palavras)
+      const ocupantesExtra = (c.ocupantes_detalhados || [])
+        .map(o => `${o.worker_nome || ''} ${o.codigo_colab || ''} ${o.perfil || ''}`)
+        .join(' ');
+
+      const matchesSearch = matchesPartialSearch(searchTerm, [
+        c.codigo,
+        c.alojamento_nome,
+        c.alojamento?.codigo,
+        c.provedor_nome,
+        c.cliente_nome,
+        c.empresa_contratante,
+        c.ocupantes_nomes,
+        c.fianza_detalhes?.observacoes_vistoria,
+        c.iban_cobranca,
+        ocupantesExtra
+      ]);
 
       if (!matchesSearch) return false;
 

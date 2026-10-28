@@ -59,6 +59,7 @@ import { logisticsService } from '../../services/logisticsService';
 import { registrosService } from '../../services/registrosService';
 import type { Alojamento, Provedor, Alocacao, Cama } from '../../services/logisticsService';
 import { ImportModal } from '../../components/ImportModal';
+import { matchesPartialSearch } from '../../components/ProvedorSearchCombobox';
 
 export const AlojamentosList: React.FC = () => {
   const { t } = useLanguage();
@@ -468,18 +469,27 @@ export const AlojamentosList: React.FC = () => {
   // Filtros de Alojamentos
   const filteredAlojamentos = useMemo(() => {
     return alojamentos.filter(a => {
-      const q = searchTerm.toLowerCase().trim();
       const occupants = getOccupantsForAlojamento(a);
-      
-      const matchesSearch = !q || (
-        a.nome.toLowerCase().includes(q) ||
-        (a.codigo && a.codigo.toLowerCase().includes(q)) ||
-        (a.municipio && a.municipio.toLowerCase().includes(q)) ||
-        (a.provincia && a.provincia.toLowerCase().includes(q)) ||
-        (a.endereco && a.endereco.toLowerCase().includes(q)) ||
-        (a.provedor?.nome_razao_social && a.provedor.nome_razao_social.toLowerCase().includes(q)) ||
-        occupants.some(o => o.worker_nome.toLowerCase().includes(q) || o.codigo_colab?.toLowerCase().includes(q))
-      );
+      const occupantText = occupants
+        .map(o => `${o.worker_nome || ''} ${o.codigo_colab || ''} ${o.cliente_nome || ''}`)
+        .join(' ');
+
+      const matchesSearch = matchesPartialSearch(searchTerm, [
+        a.nome,
+        a.titulo,
+        a.codigo,
+        a.municipio,
+        a.provincia,
+        a.endereco,
+        a.codigo_postal,
+        a.tipo_alojamento,
+        a.observacoes,
+        a.provedor?.nome_razao_social,
+        a.provedor?.codigo,
+        a.provedor?.cif_nif,
+        a.provedor?.telefone,
+        occupantText
+      ]);
 
       if (!matchesSearch) return false;
 
@@ -592,15 +602,20 @@ export const AlojamentosList: React.FC = () => {
   // Filtros e Ordenação de Proveedores
   const filteredProvedores = useMemo(() => {
     return provedores.filter(p => {
-      const q = searchTerm.toLowerCase().trim();
-      const matchesSearch = !q || (
-        p.nome_razao_social.toLowerCase().includes(q) ||
-        (p.cif_nif && p.cif_nif.toLowerCase().includes(q)) ||
-        (p.municipio && p.municipio.toLowerCase().includes(q)) ||
-        (p.provincia && p.provincia.toLowerCase().includes(q)) ||
-        (p.iban && p.iban.toLowerCase().includes(q))
-      );
-      return matchesSearch;
+      return matchesPartialSearch(searchTerm, [
+        p.nome_razao_social,
+        p.nome_comercial,
+        p.codigo,
+        p.cif_nif,
+        p.municipio,
+        p.provincia,
+        p.endereco,
+        p.codigo_postal,
+        p.contato_nome,
+        p.telefone,
+        p.email,
+        p.iban
+      ]);
     }).sort((a, b) => {
       let valA: any = a[sortField as keyof Provedor];
       let valB: any = b[sortField as keyof Provedor];
