@@ -562,6 +562,7 @@ serve(async (req) => {
       EMPRESA_PRESTADORA: empresa.legal_name || empresa.trade_name || "",
       EMAIL_PRESTADORA: sellerEmail || senderEmail,
       WEB_EMPRESA: empresa.website || (
+        (empresa.trade_name || "").toLowerCase().includes("hexagon") ? "www.montajeshexagon.com" :
         (empresa.trade_name || "").toLowerCase().includes("luminous") ? "www.luminousalley.com" :
         (empresa.trade_name || "").toLowerCase().includes("wise") ? "www.wiseowe.com" :
         (empresa.trade_name || "").toLowerCase().includes("triangulo") ? "www.triangulolda.com" :
@@ -901,7 +902,7 @@ serve(async (req) => {
 
       let msCredentials: { tenantId?: string; clientId?: string; clientSecret?: string } | undefined = undefined;
       let finalSenderEmail = senderEmail;
-      if (empresa && empresa.microsoft_tenant_id && empresa.microsoft_client_id && empresa.microsoft_client_secret) {
+      if (empresa && empresa.microsoft_tenant_id && empresa.microsoft_client_id && !empresa.microsoft_client_id.includes("@") && empresa.microsoft_client_secret) {
         msCredentials = {
           tenantId: empresa.microsoft_tenant_id,
           clientId: empresa.microsoft_client_id,

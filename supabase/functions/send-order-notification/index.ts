@@ -786,9 +786,10 @@ serve(async (req) => {
             const fileName = `${templateType}_operacional_${solicitud.codigo}.docx`;
 
             // Converter para PDF via OneDrive/Microsoft Graph
-            const tenantId = empresa?.microsoft_tenant_id || Deno.env.get('SHAREPOINT_TENANT_ID');
-            const clientId = empresa?.microsoft_client_id || Deno.env.get('SHAREPOINT_CLIENT_ID');
-            const clientSecret = empresa?.microsoft_client_secret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+            const hasValidMs = Boolean(empresa?.microsoft_tenant_id && empresa?.microsoft_client_id && !empresa.microsoft_client_id.includes('@') && empresa?.microsoft_client_secret);
+            const tenantId = (hasValidMs ? empresa.microsoft_tenant_id : null) || Deno.env.get('SHAREPOINT_TENANT_ID');
+            const clientId = (hasValidMs ? empresa.microsoft_client_id : null) || Deno.env.get('SHAREPOINT_CLIENT_ID');
+            const clientSecret = (hasValidMs ? empresa.microsoft_client_secret : null) || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
             const driveId = empresa?.microsoft_sharepoint_drive_id || Deno.env.get('SHAREPOINT_DRIVE_ID');
 
             if (tenantId && clientId && clientSecret && driveId) {
@@ -972,6 +973,7 @@ serve(async (req) => {
     if (resolvedEmpresa) {
       const hasMicrosoftCreds = resolvedEmpresa.microsoft_tenant_id && 
                                resolvedEmpresa.microsoft_client_id && 
+                               !resolvedEmpresa.microsoft_client_id.includes('@') &&
                                resolvedEmpresa.microsoft_client_secret;
 
       if (hasMicrosoftCreds) {
