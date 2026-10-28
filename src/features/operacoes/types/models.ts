@@ -138,23 +138,72 @@ export interface CommissionSettings {
   comissao_base: number;
   bonus_novo_cliente: number;
   carencia_dias: number;
+  exigir_fatura_quitada?: boolean;
+  data_corte_novos_clientes?: string;
   updated_at: string;
 }
 
+export interface CommissionSeller {
+  id: string;
+  email: string;
+  name: string;
+  role?: string;
+}
+
+export interface CommissionSlotHistoryEntry {
+  assignment_id: string;
+  worker_id: string;
+  worker_name: string;
+  worker_doc: string;
+  step_order: number;
+  is_current: boolean;
+  is_relocated: boolean;
+  start_date: string | null;
+  planned_start_date: string | null;
+  end_date: string | null;
+  days_worked: number;
+  status: string;
+  status_label: string;
+  reason?: string | null;
+  solicitud_codigo?: string | null;
+}
+
 export type CommissionType = 'contratacao' | 'bonus_cliente_novo' | 'desconto_reemplazo';
-export type CommissionAdjustmentType = 'pagamento' | 'ajuste_positivo' | 'ajuste_negativo';
+export type CommissionAdjustmentType = 'pagamento' | 'ajuste_positivo' | 'ajuste_negativo' | 'liberacao_fatura';
 
 export interface CommissionGenerated {
-  id: string; // 'hire_123', 'bonus_123', 'desc_123'
+  id: string; // 'vaga_...', 'bonus_cli_...'
+  vendedor_id?: string;
   vendedor_nome: string;
   vendedor_email: string;
   codpedido: string;
+  pedido_id?: string;
   nome_colab: string;
+  worker_doc?: string;
+  job_function?: string;
+  cliente_id?: string;
+  cliente_cod?: string;
   cliente_nombre: string;
+  cliente_created_at?: string | null;
   tipo: CommissionType;
   valor: number;
   data_referencia: string;
   mes_referencia: string; // 'YYYY-MM'
+  mes_referencia_label?: string; // 'Outubro 2026'
+  dias_trabalhados?: number;
+  carencia_dias_meta?: number;
+  carencia_cumprida?: boolean;
+  is_pending_start?: boolean;
+  is_remanejado?: boolean;
+  repasses_count?: number;
+  historico_vaga?: CommissionSlotHistoryEntry[];
+  fatura_quitada?: boolean;
+  fatura_status?: 'QUITADA' | 'LIBERADA_FINANCEIRO' | 'FATURA_ABERTA' | 'AGUARDANDO_FATURA';
+  fatura_status_label?: string;
+  fatura_num_doc?: string | null;
+  fatura_dt_recebimento?: string | null;
+  elegivel?: boolean;
+  motivo_bloqueio?: string | null;
 }
 
 export interface CommissionLancamento {
@@ -164,7 +213,7 @@ export interface CommissionLancamento {
   tipo: CommissionAdjustmentType;
   mes_referencia: string; // 'YYYY-MM'
   valor: number;
-  referencia_id?: string; // Links to CommissionGenerated.id if it's a payment
+  referencia_id?: string; // Links to CommissionGenerated.id if it's a payment or liberacao_fatura
   descricao?: string;
   created_at: string;
   created_by?: string;
