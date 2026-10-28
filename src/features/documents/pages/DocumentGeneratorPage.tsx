@@ -6,6 +6,7 @@ import { pdfExportService } from '../services/pdfExportService';
 import { DocumentVariablesCheatSheetModal } from '../components/DocumentVariablesCheatSheetModal';
 import { DocumentTemplateManagerModal } from '../components/DocumentTemplateManagerModal';
 import { GenerateDocumentWizardModal } from '../components/GenerateDocumentWizardModal';
+import { CompanySignatureModal } from '../components/CompanySignatureModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     Sparkles, Upload, FileText, Search, RefreshCw, Copy, ExternalLink,
-    CheckCircle2, Clock, Trash2, Loader2, User, Building, Download, FileCheck
+    CheckCircle2, Clock, Trash2, Loader2, User, Building, Download, FileCheck, PenTool, ShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -30,6 +31,7 @@ export const DocumentGeneratorPage: React.FC = () => {
     const [isWizardOpen, setIsWizardOpen] = useState(false);
     const [isTemplateManagerOpen, setIsTemplateManagerOpen] = useState(false);
     const [isCheatSheetOpen, setIsCheatSheetOpen] = useState(false);
+    const [companySignDoc, setCompanySignDoc] = useState<GeneratedDocument | null>(null);
 
     useEffect(() => {
         loadData();
@@ -88,7 +90,9 @@ export const DocumentGeneratorPage: React.FC = () => {
     // Filtered Docs
     const filteredDocs = useMemo(() => {
         return docs.filter(d => {
-            const titleMatches = d.title.toLowerCase().includes(searchQuery.toLowerCase());
+            const titleMatches = d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (d.signed_by_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+                (d.company_signed_by_name || '').toLowerCase().includes(searchQuery.toLowerCase());
             const targetMatches = targetFilter === 'all' || d.target_type === targetFilter;
             const statusMatches = statusFilter === 'all'
                 ? true
@@ -108,7 +112,7 @@ export const DocumentGeneratorPage: React.FC = () => {
                     <div className="space-y-1">
                         <div className="flex items-center gap-2">
                             <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full">
-                                Automação & Assinatura Digital
+                                Automação & Assinatura Digital Bilateral
                             </span>
                         </div>
                         <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2.5">
@@ -116,7 +120,7 @@ export const DocumentGeneratorPage: React.FC = () => {
                             Gerador de Documentos & Assinaturas Digitais
                         </h1>
                         <p className="text-xs md:text-sm text-slate-300 max-w-3xl">
-                            Criação instantânea de contratos a partir de modelos Word (.docx), preenchimento inteligente de dados de Trabalhadores e Clientes e controle de assinaturas públicas.
+                            Criação instantânea de contratos a partir de modelos Word (.docx), assinatura eletrônica bilateral (Empresa + Cliente/Trabalhador) e certificado de auditoria OCT.
                         </p>
                     </div>
 
@@ -288,19 +292,19 @@ export const DocumentGeneratorPage: React.FC = () => {
                                 <Table>
                                     <TableHeader className="bg-slate-50 dark:bg-slate-800/60">
                                         <TableRow className="border-b border-slate-200 dark:border-slate-800">
-                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 pl-6 min-w-[280px]">
+                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 pl-6 min-w-[260px]">
                                                 Título do Documento
                                             </TableHead>
-                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 w-[140px]">
+                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 w-[130px]">
                                                 Entidade Alvo
                                             </TableHead>
-                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 min-w-[220px]">
-                                                Status de Assinatura
+                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 min-w-[260px]">
+                                                Status de Assinatura (Cliente & Empresa)
                                             </TableHead>
-                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 w-[120px]">
+                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 w-[110px]">
                                                 Criação
                                             </TableHead>
-                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 pr-6 text-right min-w-[360px]">
+                                            <TableHead className="text-xs font-bold uppercase text-slate-500 py-3.5 pr-6 text-right min-w-[440px]">
                                                 Ações & Download
                                             </TableHead>
                                         </TableRow>
@@ -308,6 +312,14 @@ export const DocumentGeneratorPage: React.FC = () => {
                                     <TableBody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                                         {filteredDocs.map(doc => {
                                             const publicLink = `${window.location.origin}/assinar/doc/${doc.public_token}`;
+                                            const isCompanySigned =
+                                                doc.company_signature_status === 'signed' ||
+                                                !!doc.company_signature_url ||
+                                                !!doc.custom_data?.company_signature_url;
+                                            const companySigner =
+                                                doc.company_signed_by_name ||
+                                                doc.custom_data?.company_signed_by_name;
+
                                             return (
                                                 <TableRow key={doc.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
                                                     {/* Document Title */}
@@ -340,22 +352,35 @@ export const DocumentGeneratorPage: React.FC = () => {
                                                         )}
                                                     </TableCell>
 
-                                                    {/* Signature Status */}
+                                                    {/* Signature Status (Bilateral) */}
                                                     <TableCell className="py-4">
-                                                        {doc.signature_status === 'signed' ? (
-                                                            <div className="flex flex-col gap-1">
-                                                                <Badge className="bg-emerald-500 text-white text-[11px] font-bold flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-lg shadow-2xs">
-                                                                    <CheckCircle2 className="h-3.5 w-3.5" /> Assinado
-                                                                </Badge>
-                                                                <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-[200px]">
-                                                                    por <strong className="text-slate-800 dark:text-slate-200">{doc.signed_by_name || 'Signatário'}</strong>
-                                                                </span>
+                                                        <div className="flex flex-col gap-1.5">
+                                                            {/* Client Status */}
+                                                            <div className="flex items-center gap-2">
+                                                                {doc.signature_status === 'signed' ? (
+                                                                    <Badge className="bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1 w-fit px-2 py-0.5 rounded-md shadow-2xs">
+                                                                        <CheckCircle2 className="h-3 w-3" /> Cliente: {doc.signed_by_name || 'Assinado'}
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[10px] font-bold flex items-center gap-1 w-fit px-2 py-0.5 rounded-md">
+                                                                        <Clock className="h-3 w-3 text-amber-500" /> Cliente: Aguardando
+                                                                    </Badge>
+                                                                )}
                                                             </div>
-                                                        ) : (
-                                                            <Badge variant="outline" className="bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800 text-[11px] font-bold flex items-center gap-1.5 w-fit px-2.5 py-1 rounded-lg">
-                                                                <Clock className="h-3.5 w-3.5 text-amber-500 animate-pulse" /> Aguardando Assinatura
-                                                            </Badge>
-                                                        )}
+
+                                                            {/* Company Status */}
+                                                            <div className="flex items-center gap-2">
+                                                                {isCompanySigned ? (
+                                                                    <Badge className="bg-blue-600 text-white text-[10px] font-bold flex items-center gap-1 w-fit px-2 py-0.5 rounded-md shadow-2xs">
+                                                                        <ShieldCheck className="h-3 w-3" /> Empresa: {companySigner || 'Assinado'}
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700 text-[10px] font-semibold flex items-center gap-1 w-fit px-2 py-0.5 rounded-md">
+                                                                        <PenTool className="h-2.5 w-2.5" /> Empresa: Pendente Assinatura
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </TableCell>
 
                                                     {/* Creation Date */}
@@ -363,7 +388,7 @@ export const DocumentGeneratorPage: React.FC = () => {
                                                         {doc.created_at ? new Date(doc.created_at).toLocaleDateString('pt-BR') : '-'}
                                                     </TableCell>
 
-                                                    {/* Action Buttons (Aligned, spacious and un-crowded) */}
+                                                    {/* Action Buttons */}
                                                     <TableCell className="py-4 pr-6 text-right">
                                                         <div className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap">
                                                             {/* Copy Link Button */}
@@ -372,23 +397,38 @@ export const DocumentGeneratorPage: React.FC = () => {
                                                                 size="sm"
                                                                 onClick={() => {
                                                                     navigator.clipboard.writeText(publicLink);
-                                                                    toast.success('Link de assinatura copiado!');
+                                                                    toast.success('Link público copiado! Você pode enviar este link para o cliente assinar ou baixar o PDF.');
                                                                 }}
                                                                 className="h-8 px-2.5 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/60 rounded-xl"
-                                                                title="Copiar Link de Assinatura"
+                                                                title="Copiar Link para enviar ao Cliente"
                                                             >
                                                                 <Copy className="h-3.5 w-3.5 mr-1" /> Copiar Link
                                                             </Button>
 
-                                                            {/* Open Signature Portal Button */}
+                                                            {/* Sign as Company Button */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setCompanySignDoc(doc)}
+                                                                className={`inline-flex items-center justify-center h-8 px-3 text-xs font-bold rounded-xl shadow-xs transition-all ${
+                                                                    isCompanySigned
+                                                                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                                                        : 'bg-blue-600 hover:bg-blue-500 text-white'
+                                                                }`}
+                                                                title="Assinar eletronicamente pela sua Empresa (Prestadora)"
+                                                            >
+                                                                <PenTool className="h-3.5 w-3.5 mr-1" />
+                                                                {isCompanySigned ? 'Reassinar (Empresa)' : 'Assinar (Empresa)'}
+                                                            </button>
+
+                                                            {/* Open Public Link Button */}
                                                             <a
                                                                 href={publicLink}
                                                                 target="_blank"
                                                                 rel="noreferrer"
-                                                                className="inline-flex items-center justify-center h-8 px-3 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl shadow-xs transition-all"
-                                                                title="Abrir página de assinatura"
+                                                                className="inline-flex items-center justify-center h-8 px-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl transition-all"
+                                                                title="Abrir tela pública do Cliente"
                                                             >
-                                                                <ExternalLink className="h-3.5 w-3.5 mr-1" /> Assinar
+                                                                <ExternalLink className="h-3.5 w-3.5 mr-1" /> Ver Link
                                                             </a>
 
                                                             {/* Download PDF Button */}
@@ -396,20 +436,20 @@ export const DocumentGeneratorPage: React.FC = () => {
                                                                 onClick={() => handleDownloadPdf(doc)}
                                                                 disabled={downloadingId === doc.id}
                                                                 className="inline-flex items-center justify-center h-8 px-3 text-xs font-bold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800 rounded-xl transition-all disabled:opacity-50 shadow-2xs"
-                                                                title="Baixar em formato PDF"
+                                                                title="Baixar em formato PDF com Certificado de Assinatura Eletrônica"
                                                             >
                                                                 {downloadingId === doc.id ? (
                                                                     <Loader2 className="h-3.5 w-3.5 animate-spin mr-1 text-rose-600" />
                                                                 ) : (
                                                                     <Download className="h-3.5 w-3.5 mr-1 text-rose-600 dark:text-rose-400" />
                                                                 )}
-                                                                {doc.signature_status === 'signed' ? 'PDF Assinado' : 'Baixar PDF'}
+                                                                {(doc.signature_status === 'signed' || isCompanySigned) ? 'PDF Assinado' : 'Baixar PDF'}
                                                             </button>
 
                                                             {/* Delete Button */}
                                                             <button
                                                                 onClick={() => handleDeleteDoc(doc.id)}
-                                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-xl transition-all ml-1"
+                                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-xl transition-all ml-0.5"
                                                                 title="Excluir documento"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
@@ -444,6 +484,14 @@ export const DocumentGeneratorPage: React.FC = () => {
                     isOpen={isWizardOpen}
                     onClose={() => setIsWizardOpen(false)}
                     onDocumentGenerated={loadData}
+                />
+                <CompanySignatureModal
+                    isOpen={!!companySignDoc}
+                    doc={companySignDoc}
+                    onClose={() => setCompanySignDoc(null)}
+                    onSignedSuccess={(updated) => {
+                        setDocs(prev => prev.map(d => d.id === updated.id ? updated : d));
+                    }}
                 />
             </div>
         </Layout>

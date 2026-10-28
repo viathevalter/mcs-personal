@@ -50,6 +50,11 @@ export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     { key: '{{empresa.nome}}', label: 'Nome da Sua Empresa', category: 'empresa', example: 'Mastercorp' },
     { key: '{{empresa.nif}}', label: 'NIF da Sua Empresa', category: 'empresa', example: 'B98765432' },
     { key: '{{empresa.endereco}}', label: 'Endereço da Sua Empresa', category: 'empresa', example: 'Plaza de España, 1' },
+    { key: '{{IMAGE FIRMA_EMPRESA}}', label: 'Local da Assinatura Eletrônica da Sua Empresa / Prestadora', category: 'empresa', example: '[Assinatura Eletrônica da Empresa]' },
+    { key: '{{IMAGE_FIRMA_EMPRESA}}', label: 'Local da Assinatura da Empresa (Alias)', category: 'empresa', example: '[Assinatura Eletrônica da Empresa]' },
+    { key: '{{FIRMA_PRESTADORA}}', label: 'Local da Assinatura da Prestadora (Alias ES)', category: 'empresa', example: '[Assinatura Eletrônica da Prestadora]' },
+    { key: '{{NOMBRE_FIRMANTE_PRESTADORA}}', label: 'Nome do Signatário da Empresa / Prestadora', category: 'empresa', example: 'Emmanuel de Lima Maciel' },
+    { key: '{{CARGO_FIRMANTE_PRESTADORA}}', label: 'Cargo do Signatário da Empresa / Prestadora', category: 'empresa', example: 'Administrador' },
     { key: '{{acuerdo_codigo}}', label: 'Código do Acordo / Contrato', category: 'geral', example: 'AC-2026-001' },
     { key: '{{acuerdo_data}}', label: 'Data do Acordo', category: 'geral', example: '20/08/2026' },
     { key: '{{contenido}}', label: 'Conteúdo Livre / Cláusulas Especiais', category: 'geral', example: 'Acordo comercial e condições acordadas.' },
@@ -57,9 +62,10 @@ export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     { key: '{{geral.data_atual}}', label: 'Data de Hoje Por Extenso', category: 'geral', example: '20 de Agosto de 2026' },
     { key: '{{geral.data_curta}}', label: 'Data de Hoje (DD/MM/AAAA)', category: 'geral', example: '20/08/2026' },
     { key: '{{geral.cidade_emissao}}', label: 'Cidade de Emissão', category: 'geral', example: 'Madrid' },
-    // ASSINATURAS E IMAGEM DE ASSINATURA
+    // ASSINATURAS E IMAGEM DE ASSINATURA DO CLIENTE / TRABALHADOR
     { key: '{{IMAGE FIRMA_CLIENTE}}', label: 'Local da Imagem da Assinatura do Cliente', category: 'geral', example: '[Imagem da Assinatura]' },
     { key: '{{IMAGE_FIRMA_CLIENTE}}', label: 'Local da Imagem da Assinatura (Alias)', category: 'geral', example: '[Imagem da Assinatura]' },
+    { key: '{{IMAGE FIRMA_TRABALHADOR}}', label: 'Local da Imagem da Assinatura do Trabalhador', category: 'trabalhador', example: '[Imagem da Assinatura]' },
     { key: '{{assinatura_imagem}}', label: 'Local da Imagem da Assinatura (Alias PT)', category: 'geral', example: '[Imagem da Assinatura]' },
     { key: '{{assinatura.nome}}', label: 'Nome do Signatário Registrado', category: 'geral', example: 'Christian Andrade' },
     { key: '{{assinatura.data}}', label: 'Data da Assinatura', category: 'geral', example: '20/08/2026' }

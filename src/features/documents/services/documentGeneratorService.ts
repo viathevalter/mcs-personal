@@ -18,6 +18,11 @@ export interface GeneratedDocument {
     signed_at?: string;
     signed_by_name?: string;
     signed_ip?: string;
+    company_signature_status?: 'pending' | 'signed';
+    company_signature_url?: string;
+    company_signed_at?: string;
+    company_signed_by_name?: string;
+    company_signed_role?: string;
     custom_data?: any;
     created_at?: string;
     created_by?: string;
@@ -212,6 +217,53 @@ export function convertHtmlToWordXml(html: string): string {
     }
 }
 
+async function uploadSignatureDataUrl(signatureDataUrl: string, prefix: string): Promise<string> {
+    if (!signatureDataUrl.startsWith('data:')) {
+        return signatureDataUrl;
+    }
+    const base64Data = signatureDataUrl.split(',')[1];
+    const byteCharacters = atob(base64Data);
+    const byteNumbers = new Array(byteCharacters.length);
+    for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+    }
+    const byteArray = new Uint8Array(byteNumbers);
+    const sigBlob = new Blob([byteArray], { type: 'image/png' });
+
+    const sigFileName = `sig_${prefix}_${Date.now()}.png`;
+    const sigPath = `signatures/${sigFileName}`;
+
+    let sigBucket = 'proposal-signatures';
+    let sigUploadErr = (await supabase.storage
+        .from(sigBucket)
+        .upload(sigPath, sigBlob, {
+            contentType: 'image/png',
+            upsert: true
+        })).error;
+
+    if (sigUploadErr) {
+        const fallbackRes = await supabase.storage
+            .from('signatures')
+            .upload(sigPath, sigBlob, {
+                contentType: 'image/png',
+                upsert: true
+            });
+        if (!fallbackRes.error) {
+            sigUploadErr = null;
+            sigBucket = 'signatures';
+        }
+    }
+
+    if (!sigUploadErr) {
+        const { data: sigPublicUrlData } = supabase.storage
+            .from(sigBucket)
+            .getPublicUrl(sigPath);
+        return sigPublicUrlData.publicUrl;
+    }
+
+    return signatureDataUrl;
+}
+
 export const documentGeneratorService = {
     async generateDocumentFromTemplate(params: {
         templateUrl: string;
@@ -287,7 +339,7 @@ export const documentGeneratorService = {
             }
         }
 
-        // Preserve signature placeholders in docx-templates
+        // Preserve signature placeholders in docx-templates (Client, Worker, and Company/Prestadora)
         const signaturePlaceholders = [
             'IMAGE FIRMA_CLIENTE',
             'IMAGE_FIRMA_CLIENTE',
@@ -295,14 +347,24 @@ export const documentGeneratorService = {
             'IMAGE_FIRMA_TRABALHADOR',
             'IMAGE FIRMA_EMPLEADO',
             'IMAGE_FIRMA_EMPLEADO',
+            'IMAGE FIRMA_EMPRESA',
+            'IMAGE_FIRMA_EMPRESA',
+            'IMAGE FIRMA_PRESTADORA',
+            'IMAGE_FIRMA_PRESTADORA',
+            'FIRMA_EMPRESA',
+            'FIRMA_PRESTADORA',
+            'NOMBRE_FIRMANTE_PRESTADORA',
+            'CARGO_FIRMANTE_PRESTADORA',
             'assinatura_imagem',
             'imagem_assinatura',
             'trabalhador_assinatura_imagem',
+            'empresa_assinatura_imagem',
             'FIRMA_CLIENTE',
             'FIRMA_TRABALHADOR',
             'FIRMA_EMPLEADO',
             'assinatura_cliente',
             'assinatura_trabalhador',
+            'assinatura_empresa',
             'firma',
             'assinatura'
         ];
@@ -323,7 +385,7 @@ export const documentGeneratorService = {
                 processLineBreaks: true,
                 failFast: false,
                 errorHandler: (err: any, cmd?: string) => {
-                    if (cmd && /firma|assinatura|image/i.test(cmd)) {
+                    if (cmd && /firma|assinatura|image|prestadora/i.test(cmd)) {
                         return `{{${cmd}}}`;
                     }
                     return '';
@@ -347,7 +409,6 @@ export const documentGeneratorService = {
             });
 
         if (uploadRes.error) {
-            // Fallback to 'documents' bucket
             const fallbackRes = await supabase.storage
                 .from('documents')
                 .upload(filePath, filledBuffer, {
@@ -381,6 +442,7 @@ export const documentGeneratorService = {
                 title: params.title,
                 document_url: documentUrl,
                 signature_status: 'pending',
+                company_signature_status: 'pending',
                 public_token: publicToken,
                 custom_data: params.dataMap
             })
@@ -427,49 +489,8 @@ export const documentGeneratorService = {
         signedByName: string;
         signatureDataUrl: string;
     }): Promise<GeneratedDocument> {
-        // 1. Upload signature image to storage
-        const base64Data = payload.signatureDataUrl.split(',')[1];
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const sigBlob = new Blob([byteArray], { type: 'image/png' });
+        const signatureUrl = await uploadSignatureDataUrl(payload.signatureDataUrl, `client_${token.slice(0, 8)}`);
 
-        const sigFileName = `sig_${Date.now()}_${token.slice(0, 8)}.png`;
-        const sigPath = `signatures/${sigFileName}`;
-
-        let sigBucket = 'proposal-signatures';
-        let sigUploadErr = (await supabase.storage
-            .from(sigBucket)
-            .upload(sigPath, sigBlob, {
-                contentType: 'image/png',
-                upsert: true
-            })).error;
-
-        if (sigUploadErr) {
-            const fallbackRes = await supabase.storage
-                .from('signatures')
-                .upload(sigPath, sigBlob, {
-                    contentType: 'image/png',
-                    upsert: true
-                });
-            if (!fallbackRes.error) {
-                sigUploadErr = null;
-                sigBucket = 'signatures';
-            }
-        }
-
-        let signatureUrl = payload.signatureDataUrl;
-        if (!sigUploadErr) {
-            const { data: sigPublicUrlData } = supabase.storage
-                .from(sigBucket)
-                .getPublicUrl(sigPath);
-            signatureUrl = sigPublicUrlData.publicUrl;
-        }
-
-        // 2. Update record in database
         const { data, error } = await supabase
             .from('generated_documents')
             .update({
@@ -484,6 +505,152 @@ export const documentGeneratorService = {
 
         if (error) {
             throw new Error(`Erro ao registrar assinatura: ${error.message}`);
+        }
+
+        return data as GeneratedDocument;
+    },
+
+    /**
+     * Submits the Company / Prestadora electronic signature for a document.
+     * Can also automatically strip the old static signature image from the existing .docx
+     * and replace it with {{IMAGE FIRMA_EMPRESA}}, or accept a new .docx file upload,
+     * while preserving 100% of the Client's existing signature and public link!
+     */
+    async submitCompanySignature(docItem: GeneratedDocument, payload: {
+        signedByName: string;
+        signedRole?: string;
+        signatureDataUrl: string;
+        removeStaticSignatureFromDocx?: boolean;
+        replacementDocxFile?: File | null;
+    }): Promise<GeneratedDocument> {
+        // 1. Upload Company electronic signature image
+        const companySignatureUrl = await uploadSignatureDataUrl(
+            payload.signatureDataUrl,
+            `company_${docItem.id.slice(0, 8)}`
+        );
+
+        let updatedDocumentUrl = docItem.document_url;
+
+        // 2. Update .docx if requested (either via manual file upload or automatic static image removal)
+        if (payload.replacementDocxFile) {
+            const fileName = `generated_${Date.now()}_replaced_${Math.random().toString(36).substring(2, 7)}.docx`;
+            const filePath = `generated/${fileName}`;
+            const arrayBuf = await payload.replacementDocxFile.arrayBuffer();
+
+            // Preprocess the uploaded docx so any static drawing in the body or {{NOMBRE_FIRMANTE_PRESTADORA}} is updated
+            let finalBytes = new Uint8Array(arrayBuf);
+            try {
+                const zip = await JSZip.loadAsync(arrayBuf);
+                if (zip.files['word/document.xml']) {
+                    let xmlStr = await zip.files['word/document.xml'].async('string');
+                    xmlStr = xmlStr.replace(/\{\{(?:<[^>]+>|[^}])*\}\}/g, (m) => m.replace(/<[^>]+>/g, ''));
+                    if (payload.removeStaticSignatureFromDocx !== false) {
+                        xmlStr = xmlStr.replace(/<w:drawing>[\s\S]*?<\/w:drawing>/g, '<w:t>{{IMAGE FIRMA_EMPRESA}}</w:t><w:br/>');
+                    }
+                    xmlStr = xmlStr.replace(/\{\{\s*NOMBRE_FIRMANTE_PRESTADORA\s*\}\}/gi, escapeXml(payload.signedByName));
+                    xmlStr = xmlStr.replace(/\{\{\s*CARGO_FIRMANTE_PRESTADORA\s*\}\}/gi, escapeXml(payload.signedRole || 'Representante Legal'));
+                    zip.file('word/document.xml', xmlStr);
+                    finalBytes = await zip.generateAsync({ type: 'uint8array' });
+                }
+            } catch (e) {
+                console.warn('Could not preprocess replacement docx:', e);
+            }
+
+            let usedBucket = 'generated-documents';
+            const uploadRes = await supabase.storage
+                .from(usedBucket)
+                .upload(filePath, finalBytes, {
+                    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    upsert: true
+                });
+
+            if (!uploadRes.error) {
+                const { data: pubData } = supabase.storage.from(usedBucket).getPublicUrl(filePath);
+                updatedDocumentUrl = pubData.publicUrl;
+            }
+        } else if (payload.removeStaticSignatureFromDocx !== false && docItem.document_url) {
+            try {
+                const res = await fetch(docItem.document_url);
+                if (res.ok) {
+                    const buf = await res.arrayBuffer();
+                    const zip = await JSZip.loadAsync(buf);
+                    if (zip.files['word/document.xml']) {
+                        let xmlStr = await zip.files['word/document.xml'].async('string');
+                        xmlStr = xmlStr.replace(/\{\{(?:<[^>]+>|[^}])*\}\}/g, (m) => m.replace(/<[^>]+>/g, ''));
+
+                        // Replace static embedded signature drawing in document.xml with {{IMAGE FIRMA_EMPRESA}}
+                        let modifiedXml = false;
+                        if (/<w:drawing>[\s\S]*?<\/w:drawing>/.test(xmlStr)) {
+                            xmlStr = xmlStr.replace(
+                                /<w:drawing>[\s\S]*?<\/w:drawing>/g,
+                                '<w:t>{{IMAGE FIRMA_EMPRESA}}</w:t><w:br/>'
+                            );
+                            modifiedXml = true;
+                        }
+
+                        // Also fill in NOMBRE_FIRMANTE_PRESTADORA & CARGO_FIRMANTE_PRESTADORA if present
+                        if (/NOMBRE_FIRMANTE_PRESTADORA/i.test(xmlStr)) {
+                            xmlStr = xmlStr.replace(/\{\{\s*NOMBRE_FIRMANTE_PRESTADORA\s*\}\}/gi, escapeXml(payload.signedByName));
+                            modifiedXml = true;
+                        }
+                        if (/CARGO_FIRMANTE_PRESTADORA/i.test(xmlStr)) {
+                            xmlStr = xmlStr.replace(/\{\{\s*CARGO_FIRMANTE_PRESTADORA\s*\}\}/gi, escapeXml(payload.signedRole || 'Representante Legal'));
+                            modifiedXml = true;
+                        }
+
+                        if (modifiedXml) {
+                            zip.file('word/document.xml', xmlStr);
+                            const updatedBytes = await zip.generateAsync({ type: 'uint8array' });
+                            const fileName = `generated_${Date.now()}_co_signed_${Math.random().toString(36).substring(2, 7)}.docx`;
+                            const filePath = `generated/${fileName}`;
+                            const usedBucket = 'generated-documents';
+
+                            const uploadRes = await supabase.storage
+                                .from(usedBucket)
+                                .upload(filePath, updatedBytes, {
+                                    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                    upsert: true
+                                });
+
+                            if (!uploadRes.error) {
+                                const { data: pubData } = supabase.storage.from(usedBucket).getPublicUrl(filePath);
+                                updatedDocumentUrl = pubData.publicUrl;
+                            }
+                        }
+                    }
+                }
+            } catch (zipErr) {
+                console.warn('Failed to strip static signature from existing docx, continuing:', zipErr);
+            }
+        }
+
+        const signedAtIso = new Date().toISOString();
+        const updatedCustomData = {
+            ...(docItem.custom_data || {}),
+            company_signature_status: 'signed',
+            company_signature_url: companySignatureUrl,
+            company_signed_by_name: payload.signedByName,
+            company_signed_role: payload.signedRole || '',
+            company_signed_at: signedAtIso
+        };
+
+        const { data, error } = await supabase
+            .from('generated_documents')
+            .update({
+                document_url: updatedDocumentUrl,
+                company_signature_status: 'signed',
+                company_signature_url: companySignatureUrl,
+                company_signed_by_name: payload.signedByName,
+                company_signed_role: payload.signedRole || null,
+                company_signed_at: signedAtIso,
+                custom_data: updatedCustomData
+            })
+            .eq('id', docItem.id)
+            .select('*')
+            .single();
+
+        if (error) {
+            throw new Error(`Erro ao registrar assinatura da empresa: ${error.message}`);
         }
 
         return data as GeneratedDocument;

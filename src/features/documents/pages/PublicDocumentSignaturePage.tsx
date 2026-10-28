@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { documentGeneratorService, type GeneratedDocument } from '../services/documentGeneratorService';
-import { pdfExportService } from '../services/pdfExportService';
-import { FileText, CheckCircle2, Loader2, Download, PenTool, RotateCcw, Lock } from 'lucide-react';
+import { pdfExportService, replaceAllSignaturesInDom } from '../services/pdfExportService';
+import { FileText, CheckCircle2, Loader2, Download, PenTool, RotateCcw, Lock, ShieldCheck } from 'lucide-react';
 import { renderAsync } from 'docx-preview';
 import { toast } from 'sonner';
 
@@ -51,68 +51,8 @@ export const PublicDocumentSignaturePage: React.FC = () => {
             setLoading(false);
         }
     };
-    const replaceSignaturePlaceholdersInHtml = (container: HTMLElement, signatureUrl: string) => {
-        const signaturePatterns = [
-            /\{\{\s*IMAGE\s+FIRMA_CLIENTE_?\s*\}\}/gi,
-            /\{\{\s*IMAGE_FIRMA_CLIENTE_?\s*\}\}/gi,
-            /\{\{\s*IMAGE\s+FIRMA_TRABALHADOR_?\s*\}\}/gi,
-            /\{\{\s*IMAGE_FIRMA_TRABALHADOR_?\s*\}\}/gi,
-            /\{\{\s*IMAGE\s+FIRMA_EMPLEADO_?\s*\}\}/gi,
-            /\{\{\s*IMAGE_FIRMA_EMPLEADO_?\s*\}\}/gi,
-            /\{\{\s*assinatura_imagem\s*\}\}/gi,
-            /\{\{\s*imagem_assinatura\s*\}\}/gi,
-            /\{\{\s*trabalhador_assinatura_imagem\s*\}\}/gi,
-            /\{\{\s*FIRMA_CLIENTE\s*\}\}/gi,
-            /\{\{\s*FIRMA_TRABALHADOR\s*\}\}/gi,
-            /\{\{\s*FIRMA_EMPLEADO\s*\}\}/gi,
-            /\{\{\s*assinatura_cliente\s*\}\}/gi,
-            /\{\{\s*assinatura_trabalhador\s*\}\}/gi,
-            /\{\{\s*firma\s*\}\}/gi,
-            /\{\{\s*assinatura\s*\}\}/gi
-        ];
-
-        const imgTag = `<img src="${signatureUrl}" style="max-height: 85px; max-width: 250px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
-
-        const walkTextNodes = (node: Node) => {
-            if (node.nodeType === Node.TEXT_NODE) {
-                let text = node.nodeValue || '';
-                let modified = false;
-                for (const pattern of signaturePatterns) {
-                    if (pattern.test(text)) {
-                        text = text.replace(pattern, '###SIG_IMG###');
-                        modified = true;
-                    }
-                }
-
-                if (modified && node.parentNode) {
-                    const span = document.createElement('span');
-                    span.innerHTML = text.split('###SIG_IMG###').join(imgTag);
-                    node.parentNode.replaceChild(span, node);
-                }
-            } else {
-                const children = Array.from(node.childNodes);
-                children.forEach(walkTextNodes);
-            }
-        };
-
-        walkTextNodes(container);
-
-        // Also do a pass on innerHTML to catch any placeholders that were split across multiple tags
-        let html = container.innerHTML;
-        let htmlModified = false;
-        for (const pattern of signaturePatterns) {
-            if (pattern.test(html)) {
-                html = html.replace(pattern, imgTag);
-                htmlModified = true;
-            }
-        }
-        if (htmlModified) {
-            container.innerHTML = html;
-        }
-    };
 
     const applyDirectDomNumbering = (container: HTMLElement) => {
-        // 1. Disable browser CSS pseudo-element counters
         const style = document.createElement('style');
         style.innerHTML = `
             p[class*="num-"]::before, 
@@ -125,7 +65,6 @@ export const PublicDocumentSignaturePage: React.FC = () => {
         `;
         container.appendChild(style);
 
-        // 2. Track hierarchical counters per numbering definition
         const counters: Record<string, number[]> = {};
 
         const paragraphs = Array.from(
@@ -152,15 +91,12 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                 counters[numId] = [0, 0, 0, 0, 0, 0, 0, 0, 0];
             }
 
-            // Increment current level
             counters[numId][level]++;
 
-            // Reset all subordinate levels to 0
             for (let l = level + 1; l < counters[numId].length; l++) {
                 counters[numId][l] = 0;
             }
 
-            // Build prefix string
             let prefix = '';
             if (level === 0) {
                 prefix = `${counters[numId][0]}. `;
@@ -189,12 +125,11 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                 docContainerRef.current.innerHTML = '';
                 await renderAsync(blob, docContainerRef.current);
 
-                // Apply Direct DOM Numbering (1.1, 2.1, 3.1, 4.1) guaranteeing reset at each clause
                 applyDirectDomNumbering(docContainerRef.current);
 
                 const activeDoc = currentDoc || doc;
-                if (activeDoc?.signature_status === 'signed' && activeDoc?.signature_url) {
-                    replaceSignaturePlaceholdersInHtml(docContainerRef.current, activeDoc.signature_url);
+                if (activeDoc) {
+                    replaceAllSignaturesInDom(docContainerRef.current, document, activeDoc);
                 }
             }
         } catch (err) {
@@ -221,7 +156,6 @@ export const PublicDocumentSignaturePage: React.FC = () => {
             clientY = (e as React.MouseEvent<HTMLCanvasElement>).clientY;
         }
 
-        // Scale factor between CSS display size and internal canvas resolution
         const scaleX = rect.width > 0 ? canvas.width / rect.width : 1;
         const scaleY = rect.height > 0 ? canvas.height / rect.height : 1;
 
@@ -370,6 +304,12 @@ export const PublicDocumentSignaturePage: React.FC = () => {
         );
     }
 
+    const companySigUrl = doc.company_signature_url || doc.custom_data?.company_signature_url;
+    const isCompanySigned = doc.company_signature_status === 'signed' || !!companySigUrl;
+    const companySignerName = doc.company_signed_by_name || doc.custom_data?.company_signed_by_name;
+    const companySignerRole = doc.company_signed_role || doc.custom_data?.company_signed_role;
+    const companySignedAt = doc.company_signed_at || doc.custom_data?.company_signed_at;
+
     return (
         <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
             {/* Top Bar */}
@@ -402,7 +342,7 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                         className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 text-slate-200 transition-all disabled:opacity-50"
                     >
                         {downloadingPdf ? <Loader2 size={14} className="animate-spin text-emerald-400" /> : <Download size={14} className="text-red-400" />}
-                        {doc.signature_status === 'signed' ? 'Baixar PDF Assinado' : 'Baixar PDF'}
+                        {(doc.signature_status === 'signed' || isCompanySigned) ? 'Baixar PDF Assinado' : 'Baixar PDF'}
                     </button>
                 </div>
             </header>
@@ -440,16 +380,22 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                             className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-extrabold text-xs rounded-xl shadow-lg flex items-center gap-2 transition-all disabled:opacity-50"
                         >
                             {downloadingPdf ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                            {doc.signature_status === 'signed' ? 'Baixar PDF Assinado' : 'Baixar PDF'}
+                            {(doc.signature_status === 'signed' || isCompanySigned) ? 'Baixar PDF Assinado' : 'Baixar PDF'}
                         </button>
 
                         {doc.signature_status === 'signed' ? (
                             <div className="px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl font-bold text-xs flex items-center gap-2">
-                                <CheckCircle2 size={16} /> Documento Assinado
+                                <CheckCircle2 size={16} /> Assinado pelo Cliente
                             </div>
                         ) : (
                             <div className="px-4 py-2 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-xl font-bold text-xs flex items-center gap-2">
                                 <PenTool size={16} /> Aguardando Assinatura
+                            </div>
+                        )}
+
+                        {isCompanySigned && (
+                            <div className="px-4 py-2 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-xl font-bold text-xs flex items-center gap-2">
+                                <ShieldCheck size={16} className="text-blue-400" /> Assinado pela Empresa
                             </div>
                         )}
                     </div>
@@ -473,22 +419,82 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* SIGNATURE SECTION */}
-                {doc.signature_status === 'signed' ? (
-                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 text-center space-y-4 shadow-xl">
-                        <CheckCircle2 size={48} className="text-emerald-400 mx-auto animate-bounce" />
-                        <h3 className="text-lg font-bold text-white">Este documento já foi assinado com sucesso!</h3>
-                        <p className="text-xs text-slate-400">
-                            Assinado por <strong className="text-white">{doc.signed_by_name}</strong> em{' '}
-                            {doc.signed_at ? new Date(doc.signed_at).toLocaleString('pt-BR') : ''}.
-                        </p>
-                        {doc.signature_url && (
-                            <div className="p-4 bg-white rounded-xl inline-block border border-slate-200">
-                                <img src={doc.signature_url} alt="Assinatura" className="max-h-24 mx-auto object-contain" />
+                {/* BILATERAL OCT SUMMARY BLOCK */}
+                {(doc.signature_status === 'signed' || isCompanySigned) && (
+                    <div className="bg-slate-800/90 border-2 border-emerald-500/40 rounded-2xl p-6 space-y-4 shadow-xl">
+                        <div className="flex items-center justify-between border-b border-slate-700 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <ShieldCheck size={22} className="text-emerald-400" />
+                                <h3 className="text-sm md:text-base font-bold text-white uppercase tracking-wide">
+                                    Certificado de Assinatura Eletrônica (OCT)
+                                </h3>
                             </div>
-                        )}
+                            <span className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] font-extrabold uppercase">
+                                Validado e Verificado
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Client / Worker Signature Box */}
+                            {doc.signature_status === 'signed' && (
+                                <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-4 flex items-center gap-4">
+                                    {doc.signature_url && (
+                                        <div className="p-2 bg-white rounded-lg border border-slate-200 shrink-0">
+                                            <img src={doc.signature_url} alt="Assinatura Cliente" className="max-h-16 max-w-[140px] object-contain" />
+                                        </div>
+                                    )}
+                                    <div className="text-xs space-y-1">
+                                        <span className="text-[10px] font-extrabold uppercase text-emerald-400 block">
+                                            {doc.target_type === 'worker' ? 'Assinatura Trabalhador' : 'Assinatura Contratante / Cliente'}
+                                        </span>
+                                        <p className="text-slate-300">
+                                            <strong>Assinado por:</strong> <span className="text-white">{doc.signed_by_name}</span>
+                                        </p>
+                                        <p className="text-slate-400">
+                                            <strong>Data/Hora:</strong> {doc.signed_at ? new Date(doc.signed_at).toLocaleString('pt-BR') : '-'}
+                                        </p>
+                                        <p className="text-[10px] font-mono text-slate-500">
+                                            Token: {doc.public_token}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Company / Prestadora Signature Box */}
+                            {isCompanySigned && (
+                                <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-4 flex items-center gap-4">
+                                    {companySigUrl && (
+                                        <div className="p-2 bg-white rounded-lg border border-slate-200 shrink-0">
+                                            <img src={companySigUrl} alt="Assinatura Empresa" className="max-h-16 max-w-[140px] object-contain" />
+                                        </div>
+                                    )}
+                                    <div className="text-xs space-y-1">
+                                        <span className="text-[10px] font-extrabold uppercase text-blue-400 block">
+                                            Assinatura Empresa / Prestadora
+                                        </span>
+                                        <p className="text-slate-300">
+                                            <strong>Assinado por:</strong> <span className="text-white">{companySignerName || 'Representante Legal'}</span>
+                                        </p>
+                                        {companySignerRole && (
+                                            <p className="text-slate-400">
+                                                <strong>Cargo:</strong> {companySignerRole}
+                                            </p>
+                                        )}
+                                        <p className="text-slate-400">
+                                            <strong>Data/Hora:</strong> {companySignedAt ? new Date(companySignedAt).toLocaleString('pt-BR') : '-'}
+                                        </p>
+                                        <p className="text-[10px] font-mono text-slate-500">
+                                            Hash: OCT-EMP-{doc.id.slice(0, 8).toUpperCase()}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                ) : (
+                )}
+
+                {/* CLIENT SIGNATURE FORM (Only if client hasn't signed yet) */}
+                {doc.signature_status !== 'signed' && (
                     <div className="bg-slate-800/90 border border-slate-700 rounded-2xl p-6 space-y-5 shadow-2xl">
                         <div className="flex items-center gap-3 border-b border-slate-700 pb-4">
                             <PenTool size={24} className="text-blue-400" />
@@ -590,7 +596,6 @@ export const PublicDocumentSignaturePage: React.FC = () => {
                                     className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
 
-                                {/* Preview Card */}
                                 <div className="bg-white rounded-xl p-6 border-2 border-dashed border-slate-400 text-center">
                                     <p className="text-[10px] text-slate-400 uppercase font-bold mb-2">Pré-visualização da Assinatura Gerada:</p>
                                     <div className="font-serif italic text-3xl text-slate-900 tracking-wide font-extrabold py-2 border-b-2 border-slate-300 inline-block px-8">

@@ -78,6 +78,155 @@ function applyDirectDomNumbering(container: HTMLElement, doc: Document) {
     }
 }
 
+export function replaceAllSignaturesInDom(
+    container: HTMLElement,
+    docDom: Document,
+    docItem: GeneratedDocument
+) {
+    const clientSigUrl = docItem.signature_status === 'signed' ? docItem.signature_url : undefined;
+    const companySigUrl =
+        docItem.company_signature_url ||
+        docItem.custom_data?.company_signature_url;
+    const companySignerName =
+        docItem.company_signed_by_name ||
+        docItem.custom_data?.company_signed_by_name;
+    const companySignerRole =
+        docItem.company_signed_role ||
+        docItem.custom_data?.company_signed_role;
+
+    const clientPatterns = [
+        /\{\{\s*IMAGE\s+FIRMA_CLIENTE_?\s*\}\}/gi,
+        /\{\{\s*IMAGE_FIRMA_CLIENTE_?\s*\}\}/gi,
+        /\{\{\s*IMAGE\s+FIRMA_TRABALHADOR_?\s*\}\}/gi,
+        /\{\{\s*IMAGE_FIRMA_TRABALHADOR_?\s*\}\}/gi,
+        /\{\{\s*IMAGE\s+FIRMA_EMPLEADO_?\s*\}\}/gi,
+        /\{\{\s*IMAGE_FIRMA_EMPLEADO_?\s*\}\}/gi,
+        /\{\{\s*assinatura_imagem\s*\}\}/gi,
+        /\{\{\s*imagem_assinatura\s*\}\}/gi,
+        /\{\{\s*trabalhador_assinatura_imagem\s*\}\}/gi,
+        /\{\{\s*FIRMA_CLIENTE\s*\}\}/gi,
+        /\{\{\s*FIRMA_TRABALHADOR\s*\}\}/gi,
+        /\{\{\s*FIRMA_EMPLEADO\s*\}\}/gi,
+        /\{\{\s*assinatura_cliente\s*\}\}/gi,
+        /\{\{\s*assinatura_trabalhador\s*\}\}/gi,
+        /\{\{\s*firma\s*\}\}/gi,
+        /\{\{\s*assinatura\s*\}\}/gi
+    ];
+
+    const companyPatterns = [
+        /\{\{\s*IMAGE\s+FIRMA_EMPRESA_?\s*\}\}/gi,
+        /\{\{\s*IMAGE_FIRMA_EMPRESA_?\s*\}\}/gi,
+        /\{\{\s*IMAGE\s+FIRMA_PRESTADORA_?\s*\}\}/gi,
+        /\{\{\s*IMAGE_FIRMA_PRESTADORA_?\s*\}\}/gi,
+        /\{\{\s*FIRMA_EMPRESA\s*\}\}/gi,
+        /\{\{\s*FIRMA_PRESTADORA\s*\}\}/gi,
+        /\{\{\s*empresa_assinatura_imagem\s*\}\}/gi,
+        /\{\{\s*assinatura_empresa\s*\}\}/gi
+    ];
+
+    // If Company signed, also replace any static embedded signature image inside the Prestadora table cell
+    if (companySigUrl) {
+        const tableCells = Array.from(container.querySelectorAll('td')) as HTMLElement[];
+        for (const td of tableCells) {
+            const cellText = td.innerText || '';
+            if (cellText.includes('_____') || /PRESTADORA|Nombre:|Cargo:/i.test(cellText)) {
+                const imgs = Array.from(td.querySelectorAll('img')) as HTMLImageElement[];
+                for (const img of imgs) {
+                    if (img.src !== clientSigUrl) {
+                        img.src = companySigUrl;
+                        img.style.maxHeight = '80px';
+                        img.style.maxWidth = '240px';
+                        img.style.objectFit = 'contain';
+                    }
+                }
+            }
+        }
+    }
+
+    const clientImgTag = clientSigUrl
+        ? `<img src="${clientSigUrl}" style="max-height: 80px; max-width: 240px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura Cliente" />`
+        : '';
+
+    const companyImgTag = companySigUrl
+        ? `<img src="${companySigUrl}" style="max-height: 80px; max-width: 240px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura Empresa" />`
+        : '';
+
+    const walkTextNodes = (node: Node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            let text = node.nodeValue || '';
+            let modified = false;
+
+            if (clientSigUrl) {
+                for (const pattern of clientPatterns) {
+                    if (pattern.test(text)) {
+                        text = text.replace(pattern, '###CLIENT_SIG_IMG###');
+                        modified = true;
+                    }
+                }
+            }
+
+            if (companySigUrl) {
+                for (const pattern of companyPatterns) {
+                    if (pattern.test(text)) {
+                        text = text.replace(pattern, '###COMPANY_SIG_IMG###');
+                        modified = true;
+                    }
+                }
+            }
+
+            if (companySignerName && /\{\{\s*NOMBRE_FIRMANTE_PRESTADORA\s*\}\}/i.test(text)) {
+                text = text.replace(/\{\{\s*NOMBRE_FIRMANTE_PRESTADORA\s*\}\}/gi, companySignerName);
+                modified = true;
+            }
+            if (companySignerRole && /\{\{\s*CARGO_FIRMANTE_PRESTADORA\s*\}\}/i.test(text)) {
+                text = text.replace(/\{\{\s*CARGO_FIRMANTE_PRESTADORA\s*\}\}/gi, companySignerRole);
+                modified = true;
+            }
+
+            if (modified && node.parentNode) {
+                const span = docDom.createElement('span');
+                let finalHtml = text;
+                if (clientSigUrl) {
+                    finalHtml = finalHtml.split('###CLIENT_SIG_IMG###').join(clientImgTag);
+                }
+                if (companySigUrl) {
+                    finalHtml = finalHtml.split('###COMPANY_SIG_IMG###').join(companyImgTag);
+                }
+                span.innerHTML = finalHtml;
+                node.parentNode.replaceChild(span, node);
+            }
+        } else {
+            const children = Array.from(node.childNodes);
+            children.forEach(walkTextNodes);
+        }
+    };
+
+    walkTextNodes(container);
+
+    let html = container.innerHTML;
+    let htmlModified = false;
+
+    if (clientSigUrl) {
+        for (const pattern of clientPatterns) {
+            if (pattern.test(html)) {
+                html = html.replace(pattern, clientImgTag);
+                htmlModified = true;
+            }
+        }
+    }
+    if (companySigUrl) {
+        for (const pattern of companyPatterns) {
+            if (pattern.test(html)) {
+                html = html.replace(pattern, companyImgTag);
+                htmlModified = true;
+            }
+        }
+    }
+    if (htmlModified) {
+        container.innerHTML = html;
+    }
+}
+
 export const pdfExportService = {
     /**
      * Downloads a generated document as PDF with:
@@ -85,6 +234,7 @@ export const pdfExportService = {
      * 2. Top and bottom margins on EVERY page (printer-safe)
      * 3. Perfect symmetric left and right margins
      * 4. Exact multi-level clause numbering reset (1.1, 2.1, 3.1, 4.1) via Direct DOM Numbering
+     * 5. Bilateral Electronic Signature Audit Certificate (Cliente + Empresa)
      */
     async downloadDocumentAsPdf(docItem: GeneratedDocument): Promise<void> {
         // 1. Fetch .docx binary
@@ -179,100 +329,87 @@ export const pdfExportService = {
                 sec.style.boxSizing = 'border-box';
             });
 
-            // 5. If signed, replace placeholder inside document and append signature block
-            if (docItem.signature_status === 'signed') {
-                if (docItem.signature_url) {
-                    const signaturePatterns = [
-                        /\{\{\s*IMAGE\s+FIRMA_CLIENTE_?\s*\}\}/gi,
-                        /\{\{\s*IMAGE_FIRMA_CLIENTE_?\s*\}\}/gi,
-                        /\{\{\s*IMAGE\s+FIRMA_TRABALHADOR_?\s*\}\}/gi,
-                        /\{\{\s*IMAGE_FIRMA_TRABALHADOR_?\s*\}\}/gi,
-                        /\{\{\s*IMAGE\s+FIRMA_EMPLEADO_?\s*\}\}/gi,
-                        /\{\{\s*IMAGE_FIRMA_EMPLEADO_?\s*\}\}/gi,
-                        /\{\{\s*assinatura_imagem\s*\}\}/gi,
-                        /\{\{\s*imagem_assinatura\s*\}\}/gi,
-                        /\{\{\s*trabalhador_assinatura_imagem\s*\}\}/gi,
-                        /\{\{\s*FIRMA_CLIENTE\s*\}\}/gi,
-                        /\{\{\s*FIRMA_TRABALHADOR\s*\}\}/gi,
-                        /\{\{\s*FIRMA_EMPLEADO\s*\}\}/gi,
-                        /\{\{\s*assinatura_cliente\s*\}\}/gi,
-                        /\{\{\s*assinatura_trabalhador\s*\}\}/gi,
-                        /\{\{\s*firma\s*\}\}/gi,
-                        /\{\{\s*assinatura\s*\}\}/gi
-                    ];
+            // 5. Replace placeholders and static signature images inside document
+            replaceAllSignaturesInDom(container, iframeDoc, docItem);
 
-                    const imgTag = `<img src="${docItem.signature_url}" style="max-height: 80px; max-width: 240px; display: inline-block; vertical-align: middle; margin: 4px 0;" alt="Assinatura" />`;
+            const isClientSigned = docItem.signature_status === 'signed';
+            const companySigUrl = docItem.company_signature_url || docItem.custom_data?.company_signature_url;
+            const isCompanySigned = docItem.company_signature_status === 'signed' || !!companySigUrl;
 
-                    const walkTextNodes = (node: Node) => {
-                        if (node.nodeType === Node.TEXT_NODE) {
-                            let text = node.nodeValue || '';
-                            let modified = false;
-                            for (const pattern of signaturePatterns) {
-                                if (pattern.test(text)) {
-                                    text = text.replace(pattern, '###SIG_IMG###');
-                                    modified = true;
-                                }
-                            }
-
-                            if (modified && node.parentNode) {
-                                const span = iframeDoc.createElement('span');
-                                span.innerHTML = text.split('###SIG_IMG###').join(imgTag);
-                                node.parentNode.replaceChild(span, node);
-                            }
-                        } else {
-                            const children = Array.from(node.childNodes);
-                            children.forEach(walkTextNodes);
-                        }
-                    };
-
-                    walkTextNodes(container);
-
-                    let html = container.innerHTML;
-                    let htmlModified = false;
-                    for (const pattern of signaturePatterns) {
-                        if (pattern.test(html)) {
-                            html = html.replace(pattern, imgTag);
-                            htmlModified = true;
-                        }
-                    }
-                    if (htmlModified) {
-                        container.innerHTML = html;
-                    }
-                }
-
+            // Append Bilateral OCT Digital Signature Certificate Block if either party signed
+            if (isClientSigned || isCompanySigned) {
                 const sigBlock = iframeDoc.createElement('div');
                 sigBlock.className = 'sig-block';
-                sigBlock.style.margin = '40px 30px 20px 30px';
+                sigBlock.style.margin = '36px 30px 20px 30px';
                 sigBlock.style.padding = '20px';
                 sigBlock.style.border = '2px solid #10b981';
                 sigBlock.style.borderRadius = '12px';
                 sigBlock.style.backgroundColor = '#f0fdf4';
                 sigBlock.style.pageBreakInside = 'avoid';
 
-                const formattedDate = docItem.signed_at
+                const clientFormattedDate = docItem.signed_at
                     ? new Date(docItem.signed_at).toLocaleString('pt-BR')
                     : new Date().toLocaleString('pt-BR');
 
+                const companySignedAtRaw = docItem.company_signed_at || docItem.custom_data?.company_signed_at;
+                const companyFormattedDate = companySignedAtRaw
+                    ? new Date(companySignedAtRaw).toLocaleString('pt-BR')
+                    : new Date().toLocaleString('pt-BR');
+
+                const companySignerName =
+                    docItem.company_signed_by_name ||
+                    docItem.custom_data?.company_signed_by_name ||
+                    'Representante da Empresa';
+
+                const companySignerRole =
+                    docItem.company_signed_role ||
+                    docItem.custom_data?.company_signed_role ||
+                    'La Prestadora';
+
                 sigBlock.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #a7f3d0; padding-bottom: 10px; margin-bottom: 12px;">
-                        <span style="font-weight: bold; color: #047857; font-size: 14px;">TERMO DE ASSINATURA DIGITAL (OCT)</span>
-                        <span style="font-size: 11px; color: #059669;">VALIDADO E VERIFICADO</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #a7f3d0; padding-bottom: 10px; margin-bottom: 14px;">
+                        <span style="font-weight: bold; color: #047857; font-size: 13px;">CERTIFICADO DE ASSINATURA ELETRÔNICA (OCT)</span>
+                        <span style="font-size: 10px; font-weight: bold; color: #059669; background: #d1fae5; padding: 3px 8px; border-radius: 6px;">VALIDADO E VERIFICADO</span>
                     </div>
-                    <div style="display: flex; gap: 20px; align-items: center;">
-                        ${docItem.signature_url ? `<img src="${docItem.signature_url}" style="max-height: 70px; max-width: 220px; object-contain: contain; border: 1px solid #cbd5e1; border-radius: 6px; padding: 4px; background: #ffffff;" />` : ''}
-                        <div style="font-size: 12px; color: #334155; line-height: 1.6;">
-                            <p style="margin: 0;"><strong>Assinado por:</strong> ${docItem.signed_by_name || 'N/A'}</p>
-                            <p style="margin: 0;"><strong>Data e Hora:</strong> ${formattedDate}</p>
-                            <p style="margin: 0; font-family: monospace; font-size: 10px; color: #64748b;"><strong>Token Audit:</strong> ${docItem.public_token}</p>
+                    <div style="display: grid; grid-template-columns: ${isClientSigned && isCompanySigned ? '1fr 1fr' : '1fr'}; gap: 16px;">
+                        ${isClientSigned ? `
+                        <div style="background: #ffffff; border: 1px solid #a7f3d0; border-radius: 10px; padding: 12px;">
+                            <div style="font-size: 10px; font-weight: bold; color: #047857; text-transform: uppercase; margin-bottom: 8px;">
+                                Assinatura Eletrônica — ${docItem.target_type === 'worker' ? 'Trabalhador' : 'Contratante / Cliente'}
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                ${docItem.signature_url ? `<img src="${docItem.signature_url}" style="max-height: 60px; max-width: 150px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; background: #ffffff;" />` : ''}
+                                <div style="font-size: 11px; color: #334155; line-height: 1.5;">
+                                    <p style="margin: 0;"><strong>Assinado por:</strong> ${docItem.signed_by_name || 'N/A'}</p>
+                                    <p style="margin: 0;"><strong>Data/Hora:</strong> ${clientFormattedDate}</p>
+                                    <p style="margin: 0; font-family: monospace; font-size: 9px; color: #64748b;"><strong>Token:</strong> ${docItem.public_token}</p>
+                                </div>
+                            </div>
                         </div>
+                        ` : ''}
+
+                        ${isCompanySigned ? `
+                        <div style="background: #ffffff; border: 1px solid #a7f3d0; border-radius: 10px; padding: 12px;">
+                            <div style="font-size: 10px; font-weight: bold; color: #047857; text-transform: uppercase; margin-bottom: 8px;">
+                                Assinatura Eletrônica — Empresa / Prestadora
+                            </div>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                ${companySigUrl ? `<img src="${companySigUrl}" style="max-height: 60px; max-width: 150px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; background: #ffffff;" />` : ''}
+                                <div style="font-size: 11px; color: #334155; line-height: 1.5;">
+                                    <p style="margin: 0;"><strong>Assinado por:</strong> ${companySignerName}</p>
+                                    <p style="margin: 0;"><strong>Cargo:</strong> ${companySignerRole}</p>
+                                    <p style="margin: 0;"><strong>Data/Hora:</strong> ${companyFormattedDate}</p>
+                                    <p style="margin: 0; font-family: monospace; font-size: 9px; color: #64748b;"><strong>Hash Empresa:</strong> OCT-EMP-${docItem.id.slice(0, 8).toUpperCase()}</p>
+                                </div>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
                 `;
                 container.appendChild(sigBlock);
             }
 
             // 6. Smart Page Break Spacer Insertion:
-            // A4 page height at 794px width is ~1123px.
-            // With top margin (50px = ~13mm) and bottom margin (50px = ~13mm), printable height is ~1023px.
             const PAGE_HEIGHT = 1123;
             const TOP_MARGIN = 50;
             const BOTTOM_MARGIN = 50;
@@ -286,13 +423,11 @@ export const pdfExportService = {
 
             for (let i = 0; i < blockElements.length; i++) {
                 const el = blockElements[i];
-                // Ignore nested elements inside tables
                 if (el.closest('table') && el.tagName.toLowerCase() !== 'table') continue;
 
                 const elTop = el.offsetTop;
                 const elHeight = el.offsetHeight;
 
-                // If element exceeds printable area of current page, push it to next page
                 if ((elTop + elHeight) - currentPageTop > PRINTABLE_HEIGHT && (elTop - currentPageTop) > 60) {
                     const spacer = iframeDoc.createElement('div');
                     const neededGap = (currentPageTop + PAGE_HEIGHT) - elTop + TOP_MARGIN;
@@ -306,7 +441,6 @@ export const pdfExportService = {
                 }
             }
 
-            // Wait a moment for layout calculation
             await new Promise(r => setTimeout(r, 250));
 
             // 7. Capture HTML to Canvas (High clarity scale 1.5)
@@ -330,11 +464,9 @@ export const pdfExportService = {
             let heightLeft = imgHeight;
             let position = 0;
 
-            // Page 1
             pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight, undefined, 'FAST');
             heightLeft -= pdfPageHeight;
 
-            // Subsequent pages (Page 2, 3, 4, ..., N)
             while (heightLeft > 0) {
                 position -= pdfPageHeight;
                 pdf.addPage();
@@ -342,11 +474,10 @@ export const pdfExportService = {
                 heightLeft -= pdfPageHeight;
             }
 
-            // Clean PDF filename
             const cleanTitle = (docItem.title || 'documento')
                 .replace(/[^a-zA-Z0-9_-]/g, '_')
                 .toLowerCase();
-            const pdfName = docItem.signature_status === 'signed'
+            const pdfName = (isClientSigned || isCompanySigned)
                 ? `${cleanTitle}_assinado.pdf`
                 : `${cleanTitle}.pdf`;
 
