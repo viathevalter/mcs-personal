@@ -395,6 +395,7 @@ export function DocumentacionTasksPage() {
     const [selectedAttachDocType, setSelectedAttachDocType] = useState<string>('passaporte');
     const [savingAttachDoc, setSavingAttachDoc] = useState(false);
     const [uploadingDoc, setUploadingDoc] = useState(false);
+    const [rejectingDoc, setRejectingDoc] = useState(false);
     const docFileInputRef = useRef<HTMLInputElement>(null);
 
     const handleTabChange = (tab: 'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
@@ -2117,6 +2118,102 @@ Muchas gracias.`;
             toast.error(`Falha no upload do arquivo: ${err.message || 'Erro desconhecido'}`);
         } finally {
             setUploadingDoc(false);
+        }
+    };
+
+    // 6.7. Recusar / Eliminar documento da aba atual
+    const handleRejectCurrentDoc = async () => {
+        if (!selectedRequest) return;
+
+        let path = '';
+        let updateColumn = '';
+        let tabLabel = '';
+
+        if (activeDocTab === 'identity') { path = selectedRequest.passport_url || ''; updateColumn = 'passport_url'; tabLabel = 'Identificação'; }
+        else if (activeDocTab === 'nif') { path = selectedRequest.nif_url || ''; updateColumn = 'nif_url'; tabLabel = 'NIF'; }
+        else if (activeDocTab === 'niss') { path = selectedRequest.niss_url || ''; updateColumn = 'niss_url'; tabLabel = 'NISS'; }
+        else if (activeDocTab === 'license') { path = selectedRequest.license_url || ''; updateColumn = 'license_url'; tabLabel = 'Carta de Condução'; }
+        else if (activeDocTab === 'iban') { path = selectedRequest.iban_url || (selectedRequest.extracted_data?.iban_url) || ''; updateColumn = 'iban_url'; tabLabel = 'IBAN'; }
+        else if (activeDocTab === 'selfie') { path = selectedRequest.selfie_url || ''; updateColumn = 'selfie_url'; tabLabel = 'Selfie'; }
+
+        if (!path && !activeDocUrl) {
+            toast.error("Não há arquivo nesta aba para recusar/eliminar.");
+            return;
+        }
+
+        const confirmed = window.confirm(
+            `Tem certeza que deseja RECUSAR e ELIMINAR o documento da aba "${tabLabel}"?\n\nO arquivo atual será removido para que você possa anexar o documento correto.`
+        );
+        if (!confirmed) return;
+
+        setRejectingDoc(true);
+        try {
+            const reqUpdatePayload: any = {
+                [updateColumn]: null
+            };
+            if (activeDocTab === 'iban') {
+                reqUpdatePayload.extracted_data = {
+                    ...(selectedRequest.extracted_data || {}),
+                    iban_url: null
+                };
+            }
+
+            const { error: updateErr } = await supabase
+                .schema('core_personal')
+                .from('document_requests')
+                .update(reqUpdatePayload)
+                .eq('id', selectedRequest.id);
+
+            if (updateErr) throw updateErr;
+
+            // Se o documento também já tinha sido anexado na ficha do trabalhador (worker_documents), remover de lá
+            if (selectedRequest.worker_id && path) {
+                const fullStoragePath = `worker-incoming-docs/${path}`;
+                await supabase
+                    .schema('core_personal')
+                    .from('worker_documents')
+                    .delete()
+                    .eq('worker_id', selectedRequest.worker_id)
+                    .in('file_path', [fullStoragePath, path]);
+
+                if (activeDocTab === 'selfie') {
+                    await supabase
+                        .schema('core_personal')
+                        .from('workers')
+                        .update({ foto: null })
+                        .eq('id', selectedRequest.worker_id)
+                        .eq('foto', fullStoragePath);
+                }
+            }
+
+            // Tentar remover do Storage para limpar espaço
+            if (path) {
+                await supabase.storage
+                    .from('worker-incoming-docs')
+                    .remove([path]);
+            }
+
+            const updatedReq: any = {
+                ...selectedRequest,
+                [updateColumn]: null
+            };
+            if (activeDocTab === 'iban') {
+                updatedReq.extracted_data = {
+                    ...(selectedRequest.extracted_data || {}),
+                    iban_url: null
+                };
+            }
+
+            setSelectedRequest(updatedReq);
+            setDocRequests(prev => prev.map(r => r.id === selectedRequest.id ? updatedReq : r));
+            setActiveDocUrl(null);
+
+            toast.success(`Documento de ${tabLabel} recusado e eliminado! Agora você pode carregar o arquivo correto.`);
+        } catch (err: any) {
+            console.error("Erro ao recusar/eliminar documento:", err);
+            toast.error(`Erro ao eliminar documento: ${err.message || 'Falha desconhecida'}`);
+        } finally {
+            setRejectingDoc(false);
         }
     };
 
@@ -5021,42 +5118,42 @@ Muchas gracias.`;
                                         onClick={() => handleTabChange('identity')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'identity' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        Identificação
+                                        Identificação {selectedRequest.passport_url ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => handleTabChange('nif')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'nif' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        NIF
+                                        NIF {selectedRequest.nif_url ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => handleTabChange('niss')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'niss' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        NISS
+                                        NISS {selectedRequest.niss_url ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => handleTabChange('license')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'license' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        Carta
+                                        Carta {selectedRequest.license_url ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => handleTabChange('iban')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'iban' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        IBAN
+                                        IBAN {(selectedRequest.iban_url || selectedRequest.extracted_data?.iban_url) ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => handleTabChange('selfie')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all ${activeDocTab === 'selfie' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        Selfie
+                                        Selfie {selectedRequest.selfie_url ? '●' : ''}
                                     </button>
                                 </div>
 
@@ -5093,7 +5190,20 @@ Muchas gracias.`;
                                             <option value="outros">Outros</option>
                                         </select>
                                     </div>
-                                    <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                                    <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 flex-wrap justify-end">
+                                        {activeDocUrl && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                disabled={rejectingDoc || uploadingDoc}
+                                                onClick={handleRejectCurrentDoc}
+                                                className="h-8 bg-red-600 hover:bg-red-500 text-white text-xs font-semibold gap-1 shrink-0 px-2.5"
+                                                title="Recusar e eliminar o documento atual desta aba para liberar novo envio"
+                                            >
+                                                {rejectingDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                Recusar / Eliminar
+                                            </Button>
+                                        )}
                                         <Button
                                             type="button"
                                             size="sm"
