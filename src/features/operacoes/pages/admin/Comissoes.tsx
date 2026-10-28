@@ -126,18 +126,46 @@ export const Comissoes: React.FC = () => {
         }
     };
 
+    const [showInactiveSellers, setShowInactiveSellers] = useState(false);
+
     // Merge commercial sellers with any additional sellers present in generated/lancamentos
     const allSellers = useMemo(() => {
-        const map = new Map<string, string>();
-        sellers.forEach(s => map.set(s.email.toLowerCase(), s.name));
+        const map = new Map<string, { email: string; name: string; active: boolean; estadotrabajador: string }>();
+        sellers.forEach(s => {
+            const email = s.email.toLowerCase();
+            map.set(email, {
+                email,
+                name: s.name,
+                active: s.active !== false,
+                estadotrabajador: s.estadotrabajador || (s.active === false ? 'Inativo' : 'Ativo')
+            });
+        });
         geradas.forEach(g => {
-            if (g.vendedor_email) map.set(g.vendedor_email.toLowerCase(), g.vendedor_nome);
+            if (g.vendedor_email) {
+                const email = g.vendedor_email.toLowerCase();
+                if (!map.has(email)) {
+                    map.set(email, { email, name: g.vendedor_nome, active: true, estadotrabajador: 'Ativo' });
+                }
+            }
         });
         lancamentos.forEach(l => {
-            if (l.vendedor_email) map.set(l.vendedor_email.toLowerCase(), l.vendedor_nome);
+            if (l.vendedor_email) {
+                const email = l.vendedor_email.toLowerCase();
+                if (!map.has(email)) {
+                    map.set(email, { email, name: l.vendedor_nome, active: true, estadotrabajador: 'Ativo' });
+                }
+            }
         });
-        return Array.from(map.entries()).map(([email, name]) => ({ email, name }));
+        return Array.from(map.values());
     }, [sellers, geradas, lancamentos]);
+
+    const activeSellers = useMemo(() => allSellers.filter(s => s.active !== false), [allSellers]);
+    const inactiveSellers = useMemo(() => allSellers.filter(s => s.active === false), [allSellers]);
+    const sellerStatusByEmail = useMemo(() => {
+        const map = new Map<string, { active: boolean; estadotrabajador: string }>();
+        allSellers.forEach(s => map.set(s.email.toLowerCase(), { active: s.active, estadotrabajador: s.estadotrabajador }));
+        return map;
+    }, [allSellers]);
 
     // Combine generated commissions + payments + manual invoice releases + adjustments into Conta Corrente rows
     const rows = useMemo(() => {
@@ -602,18 +630,47 @@ export const Comissoes: React.FC = () => {
                     </div>
 
                     {isSupervisor && (
-                        <select
-                            value={vendedorFilter}
-                            onChange={e => setVendedorFilter(e.target.value)}
-                            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium rounded-lg outline-none min-w-[210px]"
-                        >
-                            <option value="">Todos os Vendedores ({allSellers.length})</option>
-                            {allSellers.map(s => (
-                                <option key={s.email} value={s.email}>
-                                    {s.name} ({s.email.split('@')[0]})
-                                </option>
-                            ))}
-                        </select>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <select
+                                value={vendedorFilter}
+                                onChange={e => setVendedorFilter(e.target.value)}
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium rounded-lg outline-none min-w-[230px]"
+                            >
+                                <option value="">Vendedores Ativos ({activeSellers.length})</option>
+                                <optgroup label={`Vendedores Ativos (${activeSellers.length})`}>
+                                    {activeSellers.map(s => (
+                                        <option key={s.email} value={s.email}>
+                                            {s.name} ({s.email.split('@')[0]})
+                                        </option>
+                                    ))}
+                                </optgroup>
+                                {(showInactiveSellers || inactiveSellers.some(s => s.email === vendedorFilter)) && inactiveSellers.length > 0 && (
+                                    <optgroup label={`Inativos no Sistema (${inactiveSellers.length})`}>
+                                        {inactiveSellers.map(s => (
+                                            <option key={s.email} value={s.email}>
+                                                {s.name} ({s.email.split('@')[0]}) — [INATIVO]
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                            </select>
+
+                            {inactiveSellers.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowInactiveSellers(prev => !prev)}
+                                    title={`Vendedores inativos no cadastro de Trabalhadores: ${inactiveSellers.map(s => s.name).join(', ')}. Clique para ${showInactiveSellers ? 'ocultar do seletor' : 'exibir no seletor'}.`}
+                                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+                                        showInactiveSellers
+                                            ? 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/40 dark:text-yellow-300 dark:border-yellow-700'
+                                            : 'bg-yellow-50/80 text-yellow-700 border-yellow-200 hover:bg-yellow-100 dark:bg-yellow-950/30 dark:text-yellow-400 dark:border-yellow-800/60'
+                                    }`}
+                                >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>
+                                    <span>Inativos ({inactiveSellers.length}): {inactiveSellers.map(s => s.name.split(' ')[0]).join(', ')}</span>
+                                </button>
+                            )}
+                        </div>
                     )}
 
                     <button
@@ -946,8 +1003,13 @@ export const Comissoes: React.FC = () => {
 
                                                 {/* Vendedor */}
                                                 <td className="px-3 py-3 whitespace-nowrap">
-                                                    <div className="font-semibold text-slate-800 dark:text-slate-100">
-                                                        {row.vendedor_nome}
+                                                    <div className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                                        <span>{row.vendedor_nome}</span>
+                                                        {sellerStatusByEmail.get(String(row.vendedor_email || '').toLowerCase())?.active === false && (
+                                                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300">
+                                                                Inativo
+                                                            </span>
+                                                        )}
                                                     </div>
                                                     <div className="text-[11px] text-slate-400">
                                                         {row.vendedor_email}
@@ -1475,12 +1537,23 @@ export const Comissoes: React.FC = () => {
                                     }}
                                     className="w-full border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 dark:text-white"
                                 >
-                                    <option value="">Selecione o vendedor...</option>
-                                    {allSellers.map(s => (
-                                        <option key={s.email} value={s.email}>
-                                            {s.name} ({s.email})
-                                        </option>
-                                    ))}
+                                    <option value="">Selecione o vendedor ativo...</option>
+                                    <optgroup label={`Vendedores Ativos (${activeSellers.length})`}>
+                                        {activeSellers.map(s => (
+                                            <option key={s.email} value={s.email}>
+                                                {s.name} ({s.email})
+                                            </option>
+                                        ))}
+                                    </optgroup>
+                                    {inactiveSellers.length > 0 && (
+                                        <optgroup label={`Inativos no Sistema (${inactiveSellers.length})`}>
+                                            {inactiveSellers.map(s => (
+                                                <option key={s.email} value={s.email}>
+                                                    {s.name} ({s.email}) — [INATIVO]
+                                                </option>
+                                            ))}
+                                        </optgroup>
+                                    )}
                                 </select>
                             </div>
 

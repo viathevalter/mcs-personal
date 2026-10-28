@@ -133,28 +133,53 @@ export const commissionService = {
     },
 
     async getCommercialSellers(): Promise<CommissionSeller[]> {
-        const { data, error } = await supabase
-            .from('mcs_users')
-            .select('id, email, display_name, role, department_id')
-            .eq('department_id', COMMERCIAL_DEPT_ID)
-            .order('display_name');
+        const [usersRes, membersRes] = await Promise.all([
+            supabase
+                .from('mcs_users')
+                .select('id, email, display_name, role, department_id')
+                .eq('department_id', COMMERCIAL_DEPT_ID)
+                .order('display_name'),
+            supabase
+                .from('mcs_department_members')
+                .select('id, user_id, active, estadotrabajador, nombrecompleto, correoempresarial, usuario')
+                .eq('department_id', COMMERCIAL_DEPT_ID)
+        ]);
 
-        if (error || !data || data.length === 0) {
+        const data = usersRes.data;
+        const members = membersRes.data || [];
+
+        if (usersRes.error || !data || data.length === 0) {
             return [
-                { id: ALEX_ID, email: ALEX_EMAIL, name: ALEX_NAME, role: 'admin' },
-                { id: OMAR_ID, email: OMAR_EMAIL, name: OMAR_NAME, role: 'admin' }
+                { id: ALEX_ID, email: ALEX_EMAIL, name: ALEX_NAME, role: 'admin', active: true, estadotrabajador: 'Ativo' },
+                { id: OMAR_ID, email: OMAR_EMAIL, name: OMAR_NAME, role: 'admin', active: true, estadotrabajador: 'Ativo' }
             ];
         }
 
-        const list: CommissionSeller[] = data.map((u: any) => ({
-            id: u.id,
-            email: (u.email || '').toLowerCase().trim(),
-            name: u.display_name || u.email,
-            role: u.role
-        }));
+        const memberByUserId = new Map<string, any>();
+        const memberByName = new Map<string, any>();
+        members.forEach((m: any) => {
+            if (m.user_id) memberByUserId.set(m.user_id, m);
+            if (m.nombrecompleto) memberByName.set(String(m.nombrecompleto).toLowerCase().trim(), m);
+            if (m.usuario) memberByName.set(String(m.usuario).toLowerCase().trim(), m);
+        });
 
-        // Prioritize Alex and Omar at the top of the sellers list
+        const list: CommissionSeller[] = data.map((u: any) => {
+            const m = memberByUserId.get(u.id) || memberByName.get(String(u.display_name || '').toLowerCase().trim());
+            const rawEstado = String(m?.estadotrabajador || '').trim();
+            const isInactive = m ? (m.active === false || /^inact?ivo|desligado$/i.test(rawEstado)) : false;
+            return {
+                id: u.id,
+                email: (u.email || '').toLowerCase().trim(),
+                name: m?.nombrecompleto || u.display_name || u.email,
+                role: u.role,
+                active: !isInactive,
+                estadotrabajador: isInactive ? 'Inativo' : (rawEstado || 'Ativo')
+            };
+        });
+
+        // Prioritize active sellers first (Alex and Omar at the top), then inactive sellers
         return list.sort((a, b) => {
+            if (a.active !== b.active) return a.active ? -1 : 1;
             const aPriority = a.email === ALEX_EMAIL ? 0 : a.email === OMAR_EMAIL ? 1 : 2;
             const bPriority = b.email === ALEX_EMAIL ? 0 : b.email === OMAR_EMAIL ? 1 : 2;
             if (aPriority !== bPriority) return aPriority - bPriority;

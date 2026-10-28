@@ -1,4 +1,3 @@
-
 export interface Department {
   id: string;
   name: string;
@@ -148,6 +147,8 @@ export interface CommissionSeller {
   email: string;
   name: string;
   role?: string;
+  active?: boolean;
+  estadotrabajador?: string;
 }
 
 export interface CommissionSlotHistoryEntry {
