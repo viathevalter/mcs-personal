@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
     Loader2, UploadCloud, CheckCircle2, User, 
     FileText, CreditCard, Sparkles, Camera, Smartphone, AlertTriangle,
-    Mail, MapPin, Phone, Users, Home, Shirt
+    Mail, MapPin, Phone, Users, Home, Shirt, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -85,6 +85,7 @@ export function WorkerDocCapturePage() {
 
     // Document URLs and File states
     const [passportUrl, setPassportUrl] = useState<string | null>(null);
+    const [residenceUrl, setResidenceUrl] = useState<string | null>(null);
     const [nifUrl, setNifUrl] = useState<string | null>(null);
     const [nissUrl, setNissUrl] = useState<string | null>(null);
     const [licenseUrl, setLicenseUrl] = useState<string | null>(null);
@@ -94,6 +95,7 @@ export function WorkerDocCapturePage() {
     // OCR Loading states
     const [ocrLoading, setOcrLoading] = useState<{ [key: string]: boolean }>({
         identity: false,
+        residence: false,
         nif: false,
         niss: false,
         license: false
@@ -109,6 +111,10 @@ export function WorkerDocCapturePage() {
         nie: '',
         dni: '',
         pasaporte: '',
+        tiene_residencia_ue: false,
+        tipo_residencia: '',
+        numero_residencia: '',
+        pais_residencia: '',
         licencia_conducir: '',
         banco: '',
         iban: '',
@@ -126,6 +132,7 @@ export function WorkerDocCapturePage() {
     // Refs for file inputs
     const inputRefs = {
         identity: useRef<HTMLInputElement>(null),
+        residence: useRef<HTMLInputElement>(null),
         nif: useRef<HTMLInputElement>(null),
         niss: useRef<HTMLInputElement>(null),
         license: useRef<HTMLInputElement>(null),
@@ -148,6 +155,7 @@ export function WorkerDocCapturePage() {
 
                 // Carregar dados existentes se houver
                 setPassportUrl(reqData.passport_url);
+                setResidenceUrl(reqData.residence_url || (reqData.extracted_data as any)?.residence_url || null);
                 setNifUrl(reqData.nif_url);
                 setNissUrl(reqData.niss_url);
                 setLicenseUrl(reqData.license_url);
@@ -156,6 +164,8 @@ export function WorkerDocCapturePage() {
 
                 const existingData = reqData.extracted_data || {};
                 const workerObj = (reqData.worker || {}) as any;
+
+                const hasResidence = reqData.tiene_residencia_ue ?? existingData.tiene_residencia_ue ?? (!!existingData.numero_residencia || !!reqData.residence_url || !!workerObj.nie);
 
                 setFormData(prev => ({
                     ...prev,
@@ -176,6 +186,10 @@ export function WorkerDocCapturePage() {
                     pasaporte: existingData.pasaporte || workerObj.pasaporte || '',
                     nie: existingData.nie || workerObj.nie || '',
                     dni: existingData.dni || workerObj.dni || '',
+                    tiene_residencia_ue: hasResidence,
+                    tipo_residencia: existingData.tipo_residencia || '',
+                    numero_residencia: existingData.numero_residencia || workerObj.nie || '',
+                    pais_residencia: existingData.pais_residencia || (workerObj.nie ? 'España' : ''),
                     licencia_conducir: existingData.licencia_conducir || workerObj.licencia_conducir || '',
                     nacionalidade: existingData.nacionalidade || workerObj.nacionalidade || '',
                     fecha_nacimiento: existingData.fecha_nacimiento || workerObj.fecha_nacimiento || ''
@@ -191,7 +205,7 @@ export function WorkerDocCapturePage() {
     }, [token]);
 
     // 2. Upload de arquivo e execução do OCR
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'identity' | 'residence' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
         const file = e.target.files?.[0];
         // Reset input value so user can select the same file or re-try
         e.target.value = '';
@@ -224,6 +238,10 @@ export function WorkerDocCapturePage() {
 
             // Salvar URL correspondente
             if (docType === 'identity') setPassportUrl(filePath);
+            if (docType === 'residence') {
+                setResidenceUrl(filePath);
+                setFormData(prev => ({ ...prev, tiene_residencia_ue: true }));
+            }
             if (docType === 'nif') setNifUrl(filePath);
             if (docType === 'niss') setNissUrl(filePath);
             if (docType === 'license') setLicenseUrl(filePath);
@@ -245,7 +263,7 @@ export function WorkerDocCapturePage() {
                 const ocrRes = await processDocumentOcr({
                     file_path: filePath,
                     mime_type: contentType,
-                    document_type: docType
+                    document_type: docType === 'residence' ? 'identity' : docType
                 });
 
                 if (ocrRes.success && ocrRes.data) {
@@ -266,10 +284,23 @@ export function WorkerDocCapturePage() {
                                 updated.pasaporte = prev.pasaporte ? prev.pasaporte : docNum;
                             } else if (data.tipo_identificacao === 'nie') {
                                 updated.nie = prev.nie ? prev.nie : docNum;
+                                updated.tiene_residencia_ue = true;
+                                updated.numero_residencia = prev.numero_residencia ? prev.numero_residencia : docNum;
                             } else {
                                 updated.dni = prev.dni ? prev.dni : docNum;
                             }
                             return updated;
+                        });
+                    } else if (docType === 'residence') {
+                        setFormData(prev => {
+                            const docNum = data.numero_documento || data.nie || '';
+                            return {
+                                ...prev,
+                                tiene_residencia_ue: true,
+                                numero_residencia: prev.numero_residencia ? prev.numero_residencia : docNum,
+                                nie: prev.nie ? prev.nie : (docNum.match(/^[XYZxyz]/) ? docNum : prev.nie),
+                                pais_residencia: prev.pais_residencia ? prev.pais_residencia : (data.pais || (docNum.match(/^[XYZxyz]/) ? 'España' : ''))
+                            };
                         });
                     } else if (docType === 'nif') {
                         setFormData(prev => ({ ...prev, nif: prev.nif ? prev.nif : (data.nif || '') }));
@@ -296,8 +327,16 @@ export function WorkerDocCapturePage() {
     // 3. Submeter formulário final
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validação obrigatória principal
         if (!passportUrl || !selfieUrl) {
             toast.error("Por favor, envie os documentos obrigatórios (Identificação e Selfie).");
+            return;
+        }
+
+        // Validação condicional: se possui residência europeia, o comprovativo é obrigatório
+        if (formData.tiene_residencia_ue && !residenceUrl) {
+            toast.error("Você indicou que possui residência europeia. Por favor, anexe a foto do seu comprovativo de residência (NIE / Título de Residência).");
             return;
         }
 
@@ -307,6 +346,8 @@ export function WorkerDocCapturePage() {
             // Submeter caminhos e dados extraídos consolidados
             await submitDocumentRequest(token!, {
                 passport_url: passportUrl,
+                residence_url: residenceUrl,
+                tiene_residencia_ue: formData.tiene_residencia_ue,
                 nif_url: nifUrl,
                 niss_url: nissUrl,
                 license_url: licenseUrl,
@@ -314,7 +355,9 @@ export function WorkerDocCapturePage() {
                 selfie_url: selfieUrl,
                 extracted_data: {
                     ...formData,
-                    iban_url: ibanUrl
+                    iban_url: ibanUrl,
+                    residence_url: residenceUrl,
+                    tiene_residencia_ue: formData.tiene_residencia_ue
                 }
             });
 
@@ -512,6 +555,182 @@ export function WorkerDocCapturePage() {
                         </CardContent>
                     </Card>
 
+                    {/* Pergunta e Upload: Residência / Autorização Europeia */}
+                    <Card className="bg-slate-900 border-slate-800">
+                        <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                                <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-100">
+                                    <Globe className="h-5 w-5 text-indigo-400" />
+                                    ¿Tiene Residencia Legal en la Unión Europea?
+                                </CardTitle>
+                                <Badge variant="secondary" className={formData.tiene_residencia_ue ? "bg-indigo-950 text-indigo-300 border border-indigo-800" : "bg-slate-800 text-slate-400"}>
+                                    {formData.tiene_residencia_ue ? "Requerido" : "Opcional"}
+                                </Badge>
+                            </div>
+                            <CardDescription className="text-slate-400 text-xs">
+                                Indique si posee permiso de residencia, NIE comunitario, Título de Residencia (España, Portugal u otro país de la UE).
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {/* Seleção rápida Sí / No com botões táteis no celular */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, tiene_residencia_ue: true }))}
+                                    className={`p-3.5 rounded-xl border text-sm font-semibold flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.98] ${
+                                        formData.tiene_residencia_ue 
+                                            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200 ring-2 ring-indigo-500/40' 
+                                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                                    }`}
+                                >
+                                    <CheckCircle2 className={`h-5 w-5 ${formData.tiene_residencia_ue ? 'text-indigo-400' : 'text-slate-500'}`} />
+                                    <span>SÍ, tengo residencia UE</span>
+                                    <span className="text-[11px] font-normal text-slate-400">NIE / Título / Tarjeta UE</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, tiene_residencia_ue: false }))}
+                                    className={`p-3.5 rounded-xl border text-sm font-semibold flex flex-col items-center justify-center gap-1.5 transition-all active:scale-[0.98] ${
+                                        !formData.tiene_residencia_ue 
+                                            ? 'bg-slate-800/80 border-slate-600 text-slate-200 ring-2 ring-slate-600/30' 
+                                            : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                                    }`}
+                                >
+                                    <FileText className={`h-5 w-5 ${!formData.tiene_residencia_ue ? 'text-slate-300' : 'text-slate-500'}`} />
+                                    <span>NO, solo pasaporte</span>
+                                    <span className="text-[11px] font-normal text-slate-400">Documento de origen</span>
+                                </button>
+                            </div>
+
+                            {/* Se respondeu SÍ: Seção de upload obrigatório com suporte móvel universal */}
+                            {formData.tiene_residencia_ue && (
+                                <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
+                                            <Sparkles className="h-4 w-4 text-indigo-400" />
+                                            Foto de la Tarjeta / Permiso de Residencia Europea
+                                        </label>
+                                        <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[10px]">Obligatorio</Badge>
+                                    </div>
+                                    <p className="text-xs text-slate-400">
+                                        Suba una foto clara del anverso y reverso de su tarjeta de residencia (NIE/TIE de España, Título de Residência de Portugal, etc.).
+                                    </p>
+
+                                    {uploadingDoc === 'residence' ? (
+                                        <div className="w-full h-32 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-4">
+                                            <Loader2 className="h-8 w-8 animate-spin mb-2 text-indigo-400" />
+                                            <span className="text-sm font-semibold animate-pulse">Cargando documento de residencia...</span>
+                                            <span className="text-xs text-slate-500 mt-1">Espere a que finalice el envío</span>
+                                        </div>
+                                    ) : !residenceUrl ? (
+                                        <div className="space-y-3">
+                                            {/* Opções de Captura Rápidas */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                {/* Botão Câmera Traseira */}
+                                                <div className="relative overflow-hidden rounded-xl border border-indigo-500/40 bg-indigo-950/30 hover:bg-indigo-900/40 p-3.5 flex items-center justify-center gap-2.5 text-indigo-200 cursor-pointer transition-all active:scale-[0.98]">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*" 
+                                                        capture="environment"
+                                                        onChange={(e) => handleFileUpload(e, 'residence')}
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                        title="Fotografar Residência com Câmera"
+                                                    />
+                                                    <Camera className="h-5 w-5 text-indigo-400 shrink-0 pointer-events-none" />
+                                                    <span className="text-xs font-semibold pointer-events-none">Fotografar Tarjeta</span>
+                                                </div>
+
+                                                {/* Botão Galeria ou PDF */}
+                                                <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800/60 p-3.5 flex items-center justify-center gap-2.5 text-slate-200 cursor-pointer transition-all active:scale-[0.98]">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*,application/pdf" 
+                                                        onChange={(e) => handleFileUpload(e, 'residence')}
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                        title="Elegir Foto o PDF"
+                                                    />
+                                                    <UploadCloud className="h-5 w-5 text-slate-400 shrink-0 pointer-events-none" />
+                                                    <span className="text-xs font-semibold pointer-events-none">Galería o PDF</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Box de Toque Geral */}
+                                            <div className="relative w-full h-20 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*,application/pdf" 
+                                                    ref={inputRefs.residence}
+                                                    onChange={(e) => handleFileUpload(e, 'residence')}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                    title="Adjuntar Tarjeta de Residencia"
+                                                />
+                                                <div className="flex flex-col items-center justify-center pointer-events-none text-center px-2">
+                                                    <Camera className="h-6 w-6 mb-1 text-slate-500" />
+                                                    <span className="text-xs font-medium">O toque aquí para seleccionar el archivo</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : ocrLoading.residence ? (
+                                        <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                            <Loader2 className="h-6 w-6 animate-spin mb-1" />
+                                            <span className="text-xs font-semibold flex items-center gap-1.5 animate-pulse">
+                                                <Sparkles className="h-3 w-3 text-amber-500" /> IA Leyendo Tarjeta de Residencia...
+                                            </span>
+                                            <Button
+                                                type="button"
+                                                variant="link"
+                                                className="text-xs text-indigo-400/80 hover:text-white mt-1 h-auto py-0"
+                                                onClick={() => setOcrLoading(prev => ({ ...prev, residence: false }))}
+                                            >
+                                                Completar manualmente
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 space-y-3">
+                                            <div className="flex items-center justify-between text-emerald-400 text-sm font-semibold">
+                                                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Tarjeta de Residencia Cargada</span>
+                                                <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*,application/pdf" 
+                                                        onChange={(e) => handleFileUpload(e, 'residence')}
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                        title="Cambiar Documento"
+                                                    />
+                                                    <span className="text-xs font-medium text-slate-300 pointer-events-none">Cambiar</span>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-800/80">
+                                                <div>
+                                                    <label className="text-slate-400 block mb-1">Nº NIE / Título de Residencia</label>
+                                                    <Input 
+                                                        placeholder="Ej: Y1234567X / PT123456" 
+                                                        value={formData.numero_residencia} 
+                                                        onChange={(e) => {
+                                                            const val = e.target.value.toUpperCase();
+                                                            setFormData(prev => ({ ...prev, numero_residencia: val, nie: prev.nie || val }));
+                                                        }} 
+                                                        className="bg-slate-950 border-slate-800 text-slate-200 h-8 text-xs font-mono" 
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="text-slate-400 block mb-1">País Emisor de la Residencia</label>
+                                                    <Input 
+                                                        placeholder="Ej: España, Portugal, Italia..." 
+                                                        value={formData.pais_residencia} 
+                                                        onChange={(e) => setFormData({ ...formData, pais_residencia: e.target.value })} 
+                                                        className="bg-slate-950 border-slate-800 text-slate-200 h-8 text-xs" 
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     {/* Dados de Contacto y Dirección */}
                     <Card className="bg-slate-900 border-slate-800">
                         <CardHeader className="pb-3">
@@ -606,7 +825,7 @@ export function WorkerDocCapturePage() {
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Nombre Completo del Familiar</label>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1 whitespace-nowrap truncate">Nombre Familiar</label>
                                     <Input 
                                         placeholder="Ej: María Gómez"
                                         value={formData.contacto_emergencia_nombre}
@@ -616,7 +835,7 @@ export function WorkerDocCapturePage() {
                                 </div>
 
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Parentesco</label>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1 whitespace-nowrap truncate">Parentesco</label>
                                     <Input 
                                         placeholder="Ej: Esposa, Padre, Hermano..."
                                         value={formData.contacto_emergencia_parentesco}
@@ -626,7 +845,7 @@ export function WorkerDocCapturePage() {
                                 </div>
 
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-300 block mb-1">Teléfono con Prefijo</label>
+                                    <label className="text-xs font-semibold text-slate-300 block mb-1 whitespace-nowrap truncate">Teléfono con Prefijo</label>
                                     <div className="relative">
                                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
                                         <Input 

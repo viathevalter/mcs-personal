@@ -466,6 +466,8 @@ export interface DocumentRequest {
     license_url: string | null;
     iban_url: string | null;
     selfie_url: string | null;
+    residence_url?: string | null;
+    tiene_residencia_ue?: boolean | null;
     extracted_data: any;
     expires_at: string;
     created_at: string;
