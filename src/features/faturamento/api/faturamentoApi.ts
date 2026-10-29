@@ -1830,19 +1830,22 @@ export function resolveFaturaBillingCycle(
 
 export async function getFaturasTracking(empresaId?: string | null): Promise<any[]> {
   try {
-    let query = supabase
-      .schema('core_finance')
-      .from('faturas')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const faturas = await fetchAllPages(async (from, to) => {
+      let query = supabase
+        .schema('core_finance')
+        .from('faturas')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
+        .range(from, to);
 
-    if (empresaId) {
-      query = query.eq('empresa_id', empresaId);
-    }
+      if (empresaId) {
+        query = query.eq('empresa_id', empresaId);
+      }
 
-    const { data: faturas, error: faturasError } = await query;
+      return query;
+    });
 
-    if (faturasError) throw mapSupabaseError(faturasError);
     if (!faturas || faturas.length === 0) return [];
 
     // 3. Fetch clients
@@ -2912,15 +2915,18 @@ export async function sincronizarTarifasFaturamento(
   const jobFunctionsByName = new Map((jobFuncs || []).map(jf => [jf.name.toUpperCase().trim(), jf.id]));
 
   // 4. Fetch hours
-  const { data: hours, error: hrError } = await supabase
-    .schema('core_finance')
-    .from('horas_trabalhadas')
-    .select('id, worker_id, funcao_id, obra_id, tarifa_faturada, tarifa_faturada_noturna')
-    .eq('client_id', clientId)
-    .gte('data_trabalho', startDateStr)
-    .lte('data_trabalho', endDateStr);
+  const hours = await fetchAllPages(async (from, to) => {
+    return supabase
+      .schema('core_finance')
+      .from('horas_trabalhadas')
+      .select('id, worker_id, funcao_id, obra_id, tarifa_faturada, tarifa_faturada_noturna')
+      .eq('client_id', clientId)
+      .gte('data_trabalho', startDateStr)
+      .lte('data_trabalho', endDateStr)
+      .order('id', { ascending: true })
+      .range(from, to);
+  });
 
-  if (hrError) throw mapSupabaseError(hrError);
   if (!hours || hours.length === 0) return;
 
   // 5. Fetch workers mapping

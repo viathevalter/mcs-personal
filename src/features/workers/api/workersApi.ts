@@ -76,19 +76,35 @@ export interface GetHoursControlWorkersParams {
 }
 
 export async function getHoursControlWorkers({ empresaId, periodYear, periodMonth, contratante, clienteNombre }: GetHoursControlWorkersParams): Promise<Worker[]> {
-    const { data, error } = await supabase.schema('core_personal').rpc('get_hours_control_workers', {
-        p_empresa_id: empresaId,
-        p_period_year: periodYear,
-        p_period_month: periodMonth,
-        p_contratante: contratante || null,
-        p_cliente_nombre: clienteNombre || null
-    });
+    const PAGE_SIZE = 1000;
+    const allWorkers: Worker[] = [];
+    const seenIds = new Set<string>();
+    let page = 0;
+    while (true) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        const { data, error } = await supabase.schema('core_personal').rpc('get_hours_control_workers', {
+            p_empresa_id: empresaId,
+            p_period_year: periodYear,
+            p_period_month: periodMonth,
+            p_contratante: contratante || null,
+            p_cliente_nombre: clienteNombre || null
+        }).range(from, to);
 
-    if (error) {
-        throw mapSupabaseError(error);
+        if (error) {
+            throw mapSupabaseError(error);
+        }
+
+        if (!data || data.length === 0) break;
+        for (const w of data as Worker[]) {
+            if (w.id && seenIds.has(w.id)) continue;
+            if (w.id) seenIds.add(w.id);
+            allWorkers.push(w);
+        }
+        if (data.length < PAGE_SIZE) break;
+        page++;
     }
-
-    return (data || []) as Worker[];
+    return allWorkers;
 }
 
 import { normalizeEmpresaName, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
