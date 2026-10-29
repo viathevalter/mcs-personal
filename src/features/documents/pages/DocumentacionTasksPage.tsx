@@ -401,7 +401,7 @@ export function DocumentacionTasksPage() {
     const handleTabChange = (tab: 'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie' | 'residence') => {
         setActiveDocTab(tab);
         if (tab === 'identity') setSelectedAttachDocType('passaporte');
-        else if (tab === 'residence') setSelectedAttachDocType('nie');
+        else if (tab === 'residence') setSelectedAttachDocType('residencia_europeia');
         else if (tab === 'nif') setSelectedAttachDocType('nif');
         else if (tab === 'niss') setSelectedAttachDocType('niss');
         else if (tab === 'license') setSelectedAttachDocType('permision_conducir');
@@ -427,6 +427,9 @@ export function DocumentacionTasksPage() {
         nie: '',
         dni: '',
         pasaporte: '',
+        tiene_residencia_ue: false,
+        numero_residencia: '',
+        pais_residencia: '',
         licencia_conducir: '',
         nacionalidade: '',
         fecha_nacimiento: ''
@@ -1851,6 +1854,12 @@ Muchas gracias.`;
         const rawBirthDate = data.fecha_nacimiento || req.worker?.fecha_nacimiento || '';
         const normalizedBirthDate = parseDateToInput(rawBirthDate);
 
+        const hasResidence = data.tiene_residencia_ue !== undefined
+            ? Boolean(data.tiene_residencia_ue)
+            : (req.tiene_residencia_ue !== undefined && req.tiene_residencia_ue !== null
+                ? Boolean(req.tiene_residencia_ue)
+                : Boolean(req.residence_url || data.residence_url || data.numero_residencia || data.nie || req.worker?.nie));
+
         setVerifyFormData({
             nome: data.nome || req.worker?.nome || '',
             email: data.email || req.worker?.email || '',
@@ -1867,9 +1876,12 @@ Muchas gracias.`;
             iban: data.iban || req.worker?.iban || '',
             nif: data.nif || req.worker?.nif || '',
             niss: data.niss || req.worker?.niss || '',
-            nie: data.nie || req.worker?.nie || '',
+            nie: data.nie || data.numero_residencia || req.worker?.nie || '',
             dni: data.dni || req.worker?.dni || '',
             pasaporte: data.pasaporte || req.worker?.pasaporte || '',
+            tiene_residencia_ue: hasResidence,
+            numero_residencia: data.numero_residencia || data.nie || req.worker?.nie || '',
+            pais_residencia: data.pais_residencia || '',
             licencia_conducir: data.licencia_conducir || req.worker?.licencia_conducir || '',
             nacionalidade: data.nacionalidade || req.worker?.nacionalidade || '',
             fecha_nacimiento: normalizedBirthDate
@@ -1905,6 +1917,8 @@ Muchas gracias.`;
             const docTypeLabelMap: Record<string, string> = {
                 foto: 'Foto do Trabalhador',
                 passaporte: 'Passaporte',
+                residencia_europeia: 'Residência Europeia',
+                nie: 'Residência Europeia',
                 identificacao: 'Doc. Identificação Genérica',
                 nif: 'NIF',
                 niss: 'NISS',
@@ -5080,7 +5094,7 @@ Muchas gracias.`;
 
             {/* Modal Lado a Lado de Verificação (Revisão OCR) */}
             <Dialog open={verifyDialogOpen} onOpenChange={setVerifyDialogOpen}>
-                <DialogContent className="max-w-7xl h-[85vh] flex flex-col bg-white dark:bg-slate-900">
+                <DialogContent className="sm:max-w-[95vw] max-w-[95vw] xl:max-w-[1440px] h-[90vh] flex flex-col bg-white dark:bg-slate-900">
                     <DialogHeader>
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                             <div>
@@ -5089,7 +5103,7 @@ Muchas gracias.`;
                                     Revisão e Visualização de Documentos do Trabalhador
                                 </DialogTitle>
                                 <DialogDescription>
-                                    Visualize e baixe os documentos originais (Identificação, NIF, NISS, Carta de Condução, Selfie) enviados pelo trabalhador.
+                                    Visualize e baixe os documentos originais (Identificação, Residência Europeia, NIF, NISS, Carta de Condução, IBAN, Selfie) enviados pelo trabalhador.
                                 </DialogDescription>
                             </div>
                             {selectedRequest && (
@@ -5127,15 +5141,13 @@ Muchas gracias.`;
                                     >
                                         Identificação {selectedRequest.passport_url ? '●' : ''}
                                     </button>
-                                    {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url || selectedRequest.tiene_residencia_ue) && (
-                                        <button 
-                                            type="button"
-                                            onClick={() => handleTabChange('residence')}
-                                            className={`flex-1 py-3 px-2 border-b-2 text-center transition-all whitespace-nowrap ${activeDocTab === 'residence' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
-                                        >
-                                            Residência {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? '●' : ''}
-                                        </button>
-                                    )}
+                                    <button 
+                                        type="button"
+                                        onClick={() => handleTabChange('residence')}
+                                        className={`flex-1 py-3 px-2 border-b-2 text-center transition-all whitespace-nowrap ${activeDocTab === 'residence' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
+                                    >
+                                        Residência {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? '●' : ''}
+                                    </button>
                                     <button 
                                         type="button"
                                         onClick={() => handleTabChange('nif')}
@@ -5174,17 +5186,17 @@ Muchas gracias.`;
                                 </div>
 
                                 {/* Barra de Ação Rápida: Classificar & Anexar ao Cadastro do Trabalhador */}
-                                <div className="p-2.5 bg-indigo-950/40 border-b border-indigo-500/20 flex flex-col sm:flex-row items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2 w-full sm:w-auto flex-1">
+                                <div className="p-2.5 bg-indigo-950/40 border-b border-indigo-500/20 flex flex-wrap items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-[240px] flex-1">
                                         <span className="text-[11px] font-semibold text-indigo-300 shrink-0">Tipo no Cadastro:</span>
                                         <select
                                             value={selectedAttachDocType}
                                             onChange={(e) => setSelectedAttachDocType(e.target.value)}
-                                            className="h-8 text-xs bg-slate-900 border border-slate-700 text-white rounded px-2 w-full flex-1 focus:outline-none focus:border-indigo-500"
+                                            className="h-8 text-xs bg-slate-900 border border-slate-700 text-white rounded px-2 w-full min-w-[160px] flex-1 focus:outline-none focus:border-indigo-500"
                                         >
                                             <option value="foto">Foto do Trabalhador</option>
                                             <option value="passaporte">Passaporte</option>
-                                            <option value="nie">Residência UE / NIE / Título</option>
+                                            <option value="residencia_europeia">Residência Europeia</option>
                                             <option value="identificacao">Doc. Identificação Genérica</option>
                                             <option value="nif">NIF</option>
                                             <option value="niss">NISS</option>
@@ -5207,7 +5219,7 @@ Muchas gracias.`;
                                             <option value="outros">Outros</option>
                                         </select>
                                     </div>
-                                    <div className="flex items-center gap-1.5 w-full sm:w-auto shrink-0 flex-wrap justify-end">
+                                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
                                         {activeDocUrl && (
                                             <Button
                                                 type="button"
@@ -5237,7 +5249,7 @@ Muchas gracias.`;
                                             size="sm"
                                             disabled={!activeDocUrl || savingAttachDoc}
                                             onClick={handleSaveDocToWorkerProfile}
-                                            className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 shrink-0 px-3 w-full sm:w-auto"
+                                            className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 shrink-0 px-3"
                                         >
                                             {savingAttachDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                                             Anexar ao Cadastro
@@ -5275,7 +5287,7 @@ Muchas gracias.`;
                                                 <UploadCloud className="h-6 w-6" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-semibold text-slate-200">Nenhum arquivo enviado para {activeDocTab.toUpperCase()}</p>
+                                                <p className="text-sm font-semibold text-slate-200">Nenhum arquivo enviado para {activeDocTab === 'residence' ? 'RESIDÊNCIA EUROPEIA' : activeDocTab.toUpperCase()}</p>
                                                 <p className="text-xs text-slate-400 mt-1">Clique aqui para carregar o arquivo (Foto/PDF) enviado pelo trabalhador via WhatsApp ou e-mail</p>
                                             </div>
                                             <Button
@@ -5339,27 +5351,103 @@ Muchas gracias.`;
                                             </div>
                                         </div>
 
+                                        {/* Bloco Interativo de Validação de Residência Europeia */}
+                                        <div className="p-3 rounded-lg border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/50 dark:bg-indigo-950/30 space-y-2.5">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                <div>
+                                                    <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 block">
+                                                        Possui Residência Legal na União Europeia?
+                                                    </span>
+                                                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                        Resposta informada pelo trabalhador (clique para ajustar)
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setVerifyFormData(prev => ({ ...prev, tiene_residencia_ue: true }))}
+                                                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border ${
+                                                            verifyFormData.tiene_residencia_ue
+                                                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm'
+                                                                : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-300 dark:border-slate-700 hover:text-slate-700'
+                                                        }`}
+                                                    >
+                                                        SIM (Tem Residência)
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setVerifyFormData(prev => ({ ...prev, tiene_residencia_ue: false }))}
+                                                        className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all border ${
+                                                            !verifyFormData.tiene_residencia_ue
+                                                                ? 'bg-slate-700 text-white border-slate-600 shadow-sm'
+                                                                : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-300 dark:border-slate-700 hover:text-slate-700'
+                                                        }`}
+                                                    >
+                                                        NÃO (Só Passaporte)
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between pt-2 border-t border-indigo-200/60 dark:border-indigo-800/60 text-xs">
+                                                {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? (
+                                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
+                                                        <CheckCircle2 className="h-4 w-4 shrink-0" /> Foto da Residência Europeia anexada
+                                                    </span>
+                                                ) : verifyFormData.tiene_residencia_ue ? (
+                                                    <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
+                                                        <AlertTriangle className="h-4 w-4 shrink-0" /> Sem foto de residência anexada
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                                        Não possui residência europeia (apenas passaporte)
+                                                    </span>
+                                                )}
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => handleTabChange('residence')}
+                                                    className="h-7 text-xs px-2.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                                                >
+                                                    {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? 'Ver Foto da Residência' : 'Abrir Aba Residência'}
+                                                </Button>
+                                            </div>
+
+                                            {verifyFormData.tiene_residencia_ue && (
+                                                <div className="grid grid-cols-2 gap-3 pt-1">
+                                                    <div>
+                                                        <Label className="text-xs">Nº Residência / NIE / Título</Label>
+                                                        <Input
+                                                            value={verifyFormData.numero_residencia || verifyFormData.nie}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value.toUpperCase();
+                                                                setVerifyFormData(prev => ({
+                                                                    ...prev,
+                                                                    numero_residencia: val,
+                                                                    nie: val
+                                                                }));
+                                                            }}
+                                                            placeholder="Ex: Y1234567X / PT..."
+                                                            className="h-8 text-xs font-mono bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <Label className="text-xs">País da Residência UE</Label>
+                                                        <Input
+                                                            value={verifyFormData.pais_residencia}
+                                                            onChange={(e) => setVerifyFormData(prev => ({ ...prev, pais_residencia: e.target.value }))}
+                                                            placeholder="Ex: España, Portugal..."
+                                                            className="h-8 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
                                         <div>
                                             <Label className="text-xs">Carta de Condução / Habilitação</Label>
                                             <Input value={verifyFormData.licencia_conducir} onChange={(e) => setVerifyFormData({ ...verifyFormData, licencia_conducir: e.target.value })} />
                                         </div>
-
-                                        {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url || selectedRequest.tiene_residencia_ue) && (
-                                            <div className="p-2.5 rounded-lg bg-indigo-950/40 border border-indigo-500/30 flex items-center justify-between text-xs">
-                                                <div className="flex items-center gap-2">
-                                                    <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
-                                                    <div>
-                                                        <span className="text-indigo-300 font-semibold block">Possui Residência Legal na UE</span>
-                                                        <span className="text-slate-400 text-[11px]">
-                                                            {selectedRequest.extracted_data?.pais_residencia ? `País: ${selectedRequest.extracted_data.pais_residencia}` : 'Residência Europeia'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30 text-[11px] font-mono">
-                                                    {selectedRequest.extracted_data?.numero_residencia || selectedRequest.extracted_data?.nie || 'Doc. Anexo'}
-                                                </Badge>
-                                            </div>
-                                        )}
 
                                          <div className="grid grid-cols-2 gap-3">
                                             <div>

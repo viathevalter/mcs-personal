@@ -992,9 +992,11 @@ export async function approveDocumentRequest(
     if (currentReq) {
         try {
             const empresaIdForDocs = currentReq.empresa_id || 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
+            const residenceFileUrl = currentReq.residence_url || (currentReq.extracted_data?.residence_url) || null;
             const docsToArchive: Array<{ docType: string; label: string; filePath: string | null }> = [
                 { docType: 'foto', label: 'Foto do Trabalhador', filePath: currentReq.selfie_url },
                 { docType: 'passaporte', label: 'Passaporte / Identificação', filePath: currentReq.passport_url },
+                { docType: 'residencia_europeia', label: 'Residência Europeia', filePath: residenceFileUrl },
                 { docType: 'nif', label: 'NIF', filePath: currentReq.nif_url },
                 { docType: 'niss', label: 'NISS', filePath: currentReq.niss_url },
                 { docType: 'permision_conducir', label: 'Carta de Condução', filePath: currentReq.license_url },
@@ -1049,6 +1051,7 @@ export async function approveDocumentRequest(
         .from('document_requests')
         .update({
             status: 'verified',
+            ...(updatedFormData?.tiene_residencia_ue !== undefined ? { tiene_residencia_ue: Boolean(updatedFormData.tiene_residencia_ue) } : {}),
             extracted_data: mergedExtracted,
             updated_at: new Date().toISOString()
         })

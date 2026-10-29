@@ -33,6 +33,7 @@ const DOC_TYPES = [
     { value: 'certificado_banco', label: 'Cert. Titularidade Banco' },
     { value: 'autorizacao_banco', label: 'Autorização Mudança Conta Banco' },
     { value: 'passaporte', label: 'Passaporte' },
+    { value: 'residencia_europeia', label: 'Residência Europeia' },
     { value: 'niss', label: 'NISS' },
     { value: 'nif', label: 'NIF' },
     { value: 'permision_conducir', label: 'Permision de Conducir' },
@@ -272,7 +273,7 @@ export function DocumentsTab({ workerId, empresaId }: DocumentsTabProps) {
                                     </TableRow>
                                 )}
                                 {!isLoading && !isError && filteredDocs.map((doc) => {
-                                    const tipoLabel = DOC_TYPES.find(t => t.value === doc.doc_type)?.label || doc.doc_type;
+                                    const tipoLabel = DOC_TYPES.find(t => t.value === doc.doc_type)?.label || (doc.doc_type === 'nie' ? 'Residência Europeia' : doc.doc_type);
                                     const date = new Date(doc.created_at).toLocaleDateString('pt-PT');
 
                                     return (
