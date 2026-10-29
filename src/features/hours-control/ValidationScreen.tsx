@@ -431,17 +431,18 @@ export function ValidationScreen({
                     initialObra = finalSites[0].id;
                 }
 
-                const inicioVal = dbRec?.hora_inicio 
-                    ? dbRec.hora_inicio.substring(0, 5) 
-                    : (draftRec?.inicio || draftRec?.entrada || '');
-
-                const fimVal = dbRec?.hora_fim 
-                    ? dbRec.hora_fim.substring(0, 5) 
-                    : (draftRec?.fim || draftRec?.saida || '');
-
                 const rawNormais = draftRec?.horasNormais ?? draftRec?.horas_normais;
                 const rawNoturnas = draftRec?.horasNoturnas ?? draftRec?.horas_noturnas;
                 const rawTotal = draftRec?.totalHoras ?? draftRec?.total_horas;
+                const hasDraftHours = Number(rawTotal ?? (Number(rawNormais || 0) + Number(rawNoturnas || 0))) > 0;
+
+                const inicioVal = dbRec?.hora_inicio 
+                    ? dbRec.hora_inicio.substring(0, 5) 
+                    : (hasDraftHours ? (draftRec?.inicio || draftRec?.entrada || '') : '');
+
+                const fimVal = dbRec?.hora_fim 
+                    ? dbRec.hora_fim.substring(0, 5) 
+                    : (hasDraftHours ? (draftRec?.fim || draftRec?.saida || '') : '');
 
                 const normaisVal = dbRec?.horas_normais !== undefined && dbRec?.horas_normais !== null
                     ? String(dbRec.horas_normais)
@@ -1234,9 +1235,10 @@ export function ValidationScreen({
                                             <TableBody className="text-xs">
                                                 {portalDrafts
                                                     .filter((d: any) => {
-                                                        const tot = Number(d.total_horas ?? d.totalHoras ?? 0);
-                                                        const ini = d.inicio || d.entrada;
-                                                        return tot > 0 || !!ini;
+                                                        const norm = Number(d.horas_normais ?? d.horasNormais ?? 0);
+                                                        const notu = Number(d.horas_noturnas ?? d.horasNoturnas ?? 0);
+                                                        const tot = Number(d.total_horas ?? d.totalHoras ?? (norm + notu));
+                                                        return tot > 0;
                                                     })
                                                     .sort((a: any, b: any) => Number(a.day ?? a.dia) - Number(b.day ?? b.dia))
                                                     .map((d: any) => {

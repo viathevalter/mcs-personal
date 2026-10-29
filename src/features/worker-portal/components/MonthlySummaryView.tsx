@@ -33,6 +33,8 @@ export function MonthlySummaryView({
     const isSpanish = (i18n.language || '').toLowerCase().startsWith('es');
     const locale = isSpanish ? 'es-ES' : 'pt-PT';
 
+    const today = new Date();
+    const canGoNextMonth = year < today.getFullYear() || (year === today.getFullYear() && month < (today.getMonth() + 1));
     const dateObj = new Date(year, month - 1, 1);
     const monthName = dateObj.toLocaleDateString(locale, { month: 'long' });
 
@@ -44,6 +46,7 @@ export function MonthlySummaryView({
     };
 
     const handleNextMonth = () => {
+        if (!canGoNextMonth) return;
         let m = month + 1;
         let y = year;
         if (m > 12) { m = 1; y++; }
@@ -84,8 +87,9 @@ export function MonthlySummaryView({
 
                 <button
                     type="button"
+                    disabled={!canGoNextMonth}
                     onClick={handleNextMonth}
-                    className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-25 disabled:pointer-events-none transition-colors"
                 >
                     <ChevronRight className="h-5 w-5" />
                 </button>

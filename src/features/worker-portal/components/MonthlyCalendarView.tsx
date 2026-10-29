@@ -39,6 +39,8 @@ export function MonthlyCalendarView({
 
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === year && (today.getMonth() + 1) === month;
+    const isPastMonth = year < today.getFullYear() || (year === today.getFullYear() && month < (today.getMonth() + 1));
+    const canGoNextMonth = year < today.getFullYear() || (year === today.getFullYear() && month < (today.getMonth() + 1));
     const todayDay = isCurrentMonth ? today.getDate() : null;
 
     // Calcular dias vazios antes do dia 1 (para alinhar com Segunda-feira como coluna 0)
@@ -118,12 +120,18 @@ export function MonthlyCalendarView({
                     <span className="text-xs font-semibold text-emerald-700">
                         {monthlyStats.totalHours.toFixed(1).replace('.', ',')}h &bull; {monthlyStats.daysWorked} {t('workerPortal.dashboard.daysUnit', 'dias')}
                     </span>
+                    {isPastMonth && (
+                        <span className="block mt-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                            {isSpanish ? 'Solo Consulta (Mes Cerrado)' : 'Apenas Consulta (Mês Fechado)'}
+                        </span>
+                    )}
                 </div>
 
                 <button
                     type="button"
+                    disabled={!canGoNextMonth}
                     onClick={handleNextMonth}
-                    className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-25 disabled:pointer-events-none transition-colors"
                 >
                     <ChevronRight className="h-5 w-5" />
                 </button>
@@ -162,14 +170,21 @@ export function MonthlyCalendarView({
                         const hasHours = Number(day.totalHoras || 0) > 0;
                         const isRest = day.obs === 'Descanso' || day.obs === 'Folga' || day.obs?.toLowerCase().includes('descanso');
                         const isPending = !hasHours && !isRest && dateObj <= today && !isWeekend;
+                        const isFutureDay = isCurrentMonth && todayDay !== null && day.dia > todayDay;
+                        const isLocked = isPastMonth || isFutureDay;
 
                         return (
                             <button
                                 key={day.dia}
                                 type="button"
-                                onClick={() => onSelectDay(day.dia)}
+                                disabled={isLocked}
+                                onClick={() => !isLocked && onSelectDay(day.dia)}
                                 className={`h-12 rounded-2xl flex flex-col items-center justify-between p-1.5 transition-all select-none border ${
-                                    isToday
+                                    isFutureDay
+                                        ? 'border-slate-100 bg-slate-50/30 opacity-40 cursor-not-allowed'
+                                        : isPastMonth
+                                        ? 'border-slate-100 bg-slate-50/60 cursor-default'
+                                        : isToday
                                         ? 'border-emerald-500 bg-emerald-50/50 shadow-xs ring-2 ring-emerald-500/20'
                                         : 'border-slate-100 bg-slate-50/50 hover:bg-slate-100/80 active:scale-95'
                                 }`}

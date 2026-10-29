@@ -82,8 +82,8 @@ const buildDaysFromPeriod = (currentPeriod: WorkerHour): TimesheetDayEntry[] => 
             const tot = Number(found.totalHoras ?? found.total_horas ?? (norm + not));
             result.push({
                 dia: d,
-                entrada: found.entrada || found.inicio || (isWeekend ? '' : '08:00'),
-                saida: found.saida || found.fim || (isWeekend ? '' : '17:00'),
+                entrada: tot > 0 ? (found.entrada || found.inicio || '08:00') : '',
+                saida: tot > 0 ? (found.saida || found.fim || '17:00') : '',
                 horasNormais: norm,
                 horasNoturnas: not,
                 totalHoras: tot,
@@ -93,8 +93,8 @@ const buildDaysFromPeriod = (currentPeriod: WorkerHour): TimesheetDayEntry[] => 
         } else {
             result.push({
                 dia: d,
-                entrada: isWeekend ? '' : '08:00',
-                saida: isWeekend ? '' : '17:00',
+                entrada: '',
+                saida: '',
                 horasNormais: 0,
                 horasNoturnas: 0,
                 totalHoras: 0,

@@ -143,7 +143,9 @@ export function useWorkerTimesheet(workerAuth: any) {
 
     const selectedPeriod = useMemo(() => {
         if (selectedPeriodId) {
-            const match = allPeriods.find(p => p.id === selectedPeriodId);
+            const match = allPeriods.find(
+                p => p.id === selectedPeriodId && p.period_year === currentYear && p.period_month === currentMonth
+            );
             if (match) return match;
         }
         const candidates = allPeriods.filter(
@@ -161,7 +163,7 @@ export function useWorkerTimesheet(workerAuth: any) {
             });
             return candidates[0];
         }
-        return allPeriods[0] || null;
+        return null;
     }, [allPeriods, selectedPeriodId, currentYear, currentMonth, activeProfile]);
 
     // Obras / Locais de Trabalho do cliente selecionado
@@ -213,11 +215,12 @@ export function useWorkerTimesheet(workerAuth: any) {
 
     // Parse dos dias do mês com saneamento rigoroso de obras
     const days = useMemo<TimesheetDayEntry[]>(() => {
-        if (!selectedPeriod) return [];
-        const numDays = new Date(selectedPeriod.period_year, selectedPeriod.period_month, 0).getDate();
+        const targetYear = selectedPeriod?.period_year ?? currentYear;
+        const targetMonth = selectedPeriod?.period_month ?? currentMonth;
+        const numDays = new Date(targetYear, targetMonth, 0).getDate();
         
         let existing: any[] = [];
-        const raw = selectedPeriod.apontamentos_diarios;
+        const raw = selectedPeriod?.apontamentos_diarios;
         if (Array.isArray(raw)) existing = raw;
         else if (typeof raw === 'string') {
             try { existing = JSON.parse(raw); } catch { existing = []; }
@@ -246,7 +249,7 @@ export function useWorkerTimesheet(workerAuth: any) {
         const result: TimesheetDayEntry[] = [];
         for (let d = 1; d <= numDays; d++) {
             const found = existing.find(item => Number(item.dia ?? item.day) === d);
-            const dateObj = new Date(selectedPeriod.period_year, selectedPeriod.period_month - 1, d);
+            const dateObj = new Date(targetYear, targetMonth - 1, d);
             const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
 
             if (found) {
@@ -258,8 +261,8 @@ export function useWorkerTimesheet(workerAuth: any) {
 
                 result.push({
                     dia: d,
-                    entrada: found.entrada || found.inicio || (isWeekend ? '' : '08:00'),
-                    saida: found.saida || found.fim || (isWeekend ? '' : '17:00'),
+                    entrada: tot > 0 ? (found.entrada || found.inicio || '08:00') : '',
+                    saida: tot > 0 ? (found.saida || found.fim || '17:00') : '',
                     horasNormais: norm,
                     horasNoturnas: not,
                     totalHoras: tot,
@@ -271,8 +274,8 @@ export function useWorkerTimesheet(workerAuth: any) {
                 const matchedSite = availableObras.find(s => s.name.trim().toLowerCase() === fallbackObra.trim().toLowerCase());
                 result.push({
                     dia: d,
-                    entrada: isWeekend ? '' : '08:00',
-                    saida: isWeekend ? '' : '17:00',
+                    entrada: '',
+                    saida: '',
                     horasNormais: 0,
                     horasNoturnas: 0,
                     totalHoras: 0,
@@ -283,7 +286,7 @@ export function useWorkerTimesheet(workerAuth: any) {
             }
         }
         return result;
-    }, [selectedPeriod, availableObras, workerAuth?.cliente]);
+    }, [selectedPeriod, currentYear, currentMonth, availableObras, workerAuth?.cliente]);
 
     // Dia de Hoje
     const todayDayNumber = now.getFullYear() === currentYear && (now.getMonth() + 1) === currentMonth ? now.getDate() : null;
@@ -412,14 +415,34 @@ export function useWorkerTimesheet(workerAuth: any) {
         return Number(pastPending[pastPending.length - 1].dia);
     }, [days, selectedPeriod, now]);
 
-    // SALVAR APONTAMENTO DIÁRIO
+    // SALVAR APONTAMENTO DIÁRIO (permitido apenas no mês corrente e até o dia de hoje)
     const saveDayEntry = async (entry: TimesheetDayEntry) => {
-        if (!selectedPeriod) return;
+        if (!selectedPeriod) {
+            toast.error('Só é permitido lançar horas no mês corrente.');
+            return;
+        }
+
+        const realNow = new Date();
+        const realYear = realNow.getFullYear();
+        const realMonth = realNow.getMonth() + 1;
+        const realDay = realNow.getDate();
+
+        if (selectedPeriod.period_year !== realYear || selectedPeriod.period_month !== realMonth || currentYear !== realYear || currentMonth !== realMonth) {
+            toast.error('Meses anteriores estão fechados apenas para consulta. Só é permitido lançar horas no mês corrente.');
+            return;
+        }
 
         const targetDia = Number(entry.dia);
+        if (targetDia > realDay) {
+            toast.error('Não é permitido lançar horas em datas futuras.');
+            return;
+        }
+
         const cleanEntry: TimesheetDayEntry = {
             ...entry,
-            dia: targetDia
+            dia: targetDia,
+            entrada: Number(entry.totalHoras || 0) > 0 ? (entry.entrada || '') : '',
+            saida: Number(entry.totalHoras || 0) > 0 ? (entry.saida || '') : ''
         };
 
         // Atualizar lista local de dias
@@ -432,17 +455,18 @@ export function useWorkerTimesheet(workerAuth: any) {
 
         const formattedPayload = updatedDays.map(d => {
             const siteMatch = availableObras.find(s => s.name.trim().toLowerCase() === (d.obra || '').trim().toLowerCase());
+            const dayTot = Number(d.totalHoras || 0);
             return {
                 dia: d.dia,
                 day: d.dia,
-                entrada: d.entrada || '',
-                saida: d.saida || '',
+                entrada: dayTot > 0 ? (d.entrada || '') : '',
+                saida: dayTot > 0 ? (d.saida || '') : '',
                 horasNormais: Number(d.horasNormais || 0),
                 horas_normais: Number(d.horasNormais || 0),
                 horasNoturnas: Number(d.horasNoturnas || 0),
                 horas_noturnas: Number(d.horasNoturnas || 0),
-                totalHoras: Number(d.totalHoras || 0),
-                total_horas: Number(d.totalHoras || 0),
+                totalHoras: dayTot,
+                total_horas: dayTot,
                 obra: d.obra || '',
                 obra_id: d.obra_id || siteMatch?.id || '',
                 obs: d.obs || ''
@@ -520,8 +544,17 @@ export function useWorkerTimesheet(workerAuth: any) {
         await saveDayEntry(cleared);
     };
 
-    // MUDAR MÊS / ANO
+    // MUDAR MÊS / ANO (bloqueia meses futuros)
     const setMonthYear = (month: number, year: number) => {
+        const realNow = new Date();
+        const realYear = realNow.getFullYear();
+        const realMonth = realNow.getMonth() + 1;
+
+        if (year > realYear || (year === realYear && month > realMonth)) {
+            toast.warning('Não é permitido visualizar ou lançar horas em meses futuros.');
+            return;
+        }
+
         setSelectedPeriodId(null);
         setCurrentMonth(month);
         setCurrentYear(year);

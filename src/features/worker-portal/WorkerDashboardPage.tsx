@@ -235,12 +235,37 @@ export function WorkerDashboardPage() {
         return d.toLocaleDateString(locale, { month: 'long' });
     }, [currentYear, currentMonth, locale]);
 
-    // Abertura do modal para um dia específico (garantir sempre número inteiro de 1 a 31)
+    // Abertura do modal para um dia específico (permitido apenas no mês corrente e até a data de hoje)
     const handleOpenDailyModal = (day: number | any) => {
+        const realNow = new Date();
+        const realYear = realNow.getFullYear();
+        const realMonth = realNow.getMonth() + 1;
+        const realDay = realNow.getDate();
+
+        if (currentYear !== realYear || currentMonth !== realMonth) {
+            toast.warning(
+                isSpanish
+                    ? 'Los meses anteriores están cerrados solo para consulta.'
+                    : 'Os meses anteriores estão bloqueados apenas para consulta.'
+            );
+            return;
+        }
+
         const parsed = typeof day === 'object' && day !== null 
             ? Number(day.dia ?? day.day ?? 1) 
             : Number(day);
-        setModalDay(Number.isFinite(parsed) ? parsed : 1);
+        const targetDay = Number.isFinite(parsed) ? parsed : 1;
+
+        if (targetDay > realDay) {
+            toast.warning(
+                isSpanish
+                    ? 'No se permite registrar horas en fechas futuras.'
+                    : 'Não é permitido lançar horas em datas futuras.'
+            );
+            return;
+        }
+
+        setModalDay(targetDay);
     };
 
     // Download rápido direto do PDF

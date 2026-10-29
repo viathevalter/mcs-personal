@@ -249,6 +249,11 @@ export function DailyEntryModal({
         }
     };
 
+    const todayNow = new Date();
+    const maxAllowedDay = (year === todayNow.getFullYear() && month === (todayNow.getMonth() + 1))
+        ? Math.min(maxDaysInMonth, todayNow.getDate())
+        : maxDaysInMonth;
+
     return (
         <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
             <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden border border-slate-100">
@@ -301,8 +306,8 @@ export function DailyEntryModal({
 
                             <button
                                 type="button"
-                                disabled={validDay >= maxDaysInMonth}
-                                onClick={() => onNavigateDay && onNavigateDay(validDay + 1)}
+                                disabled={validDay >= maxAllowedDay}
+                                onClick={() => onNavigateDay && validDay < maxAllowedDay && onNavigateDay(validDay + 1)}
                                 className="p-1 rounded-lg text-emerald-800 hover:bg-emerald-100/70 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                             >
                                 <ChevronRight className="h-4 w-4" />
