@@ -10,13 +10,21 @@ export async function fetchAllPages<T = any>(
   maxPages = 50
 ): Promise<T[]> {
   const allRows: T[] = [];
+  const seenIds = new Set<any>();
   for (let page = 0; page < maxPages; page++) {
     const from = page * pageSize;
     const to = from + pageSize - 1;
     const { data, error } = await buildQuery(from, to);
     if (error) throw error;
     if (!data || data.length === 0) break;
-    allRows.push(...data);
+    for (const item of data) {
+      const itemId = (item as any)?.id;
+      if (itemId !== undefined && itemId !== null) {
+        if (seenIds.has(itemId)) continue;
+        seenIds.add(itemId);
+      }
+      allRows.push(item);
+    }
     if (data.length < pageSize) break;
   }
   return allRows;

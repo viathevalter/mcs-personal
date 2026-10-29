@@ -843,6 +843,7 @@ MCS - Gestão Comercial`;
           .from('horas_trabalhadas')
           .select('*')
           .eq('fatura_id', faturaId)
+          .order('id', { ascending: true })
           .range(from, to);
       });
       

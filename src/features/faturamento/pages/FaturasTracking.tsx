@@ -382,6 +382,7 @@ export function FaturasTracking() {
           .from('horas_trabalhadas')
           .select('*')
           .eq('fatura_id', fatura.id)
+          .order('id', { ascending: true })
           .range(from, to);
       });
       
@@ -1234,6 +1235,7 @@ export function FaturasTracking() {
             .from('horas_trabalhadas')
             .select('*')
             .eq('fatura_id', faturaId)
+            .order('id', { ascending: true })
             .range(from, to);
         });
 
@@ -1342,6 +1344,7 @@ export function FaturasTracking() {
           .from('horas_trabalhadas')
           .select('*')
           .eq('fatura_id', faturaId)
+          .order('id', { ascending: true })
           .range(from, to);
       });
 
@@ -2476,6 +2479,7 @@ MCS - Gestão Comercial`;
           .from('horas_trabalhadas')
           .select('*')
           .eq('fatura_id', fatura.id)
+          .order('id', { ascending: true })
           .range(from, to);
       });
 

@@ -298,6 +298,7 @@ export function CobroDetalhesSheet({
                         .from('horas_trabalhadas')
                         .select('*')
                         .eq('fatura_id', targetFaturaId)
+                        .order('id', { ascending: true })
                         .range(from, to);
                 });
 

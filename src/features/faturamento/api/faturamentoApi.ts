@@ -24,6 +24,7 @@ export async function fetchAllPages<T>(
   queryFn: (from: number, to: number) => Promise<{ data: T[] | null; error: any }>
 ): Promise<T[]> {
   const allData: T[] = [];
+  const seenIds = new Set<any>();
   let page = 0;
   const pageSize = 1000;
   while (true) {
@@ -32,7 +33,14 @@ export async function fetchAllPages<T>(
     const { data, error } = await queryFn(from, to);
     if (error) throw error;
     if (!data || data.length === 0) break;
-    allData.push(...data);
+    for (const item of data) {
+      const itemId = (item as any)?.id;
+      if (itemId !== undefined && itemId !== null) {
+        if (seenIds.has(itemId)) continue;
+        seenIds.add(itemId);
+      }
+      allData.push(item);
+    }
     if (data.length < pageSize) break;
     page++;
   }
@@ -502,6 +510,7 @@ export async function getHorasPendentesFaturamento(
             .in('client_id', chunk)
             .gte('data_trabalho', startDateStr)
             .lte('data_trabalho', endDateStr)
+            .order('id', { ascending: true })
             .range(from, to);
         });
       });
@@ -1887,8 +1896,9 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
             return supabase
               .schema('core_finance')
               .from('horas_trabalhadas')
-              .select('fatura_id, worker_id, data_trabalho, horas_totais, horas_normais, horas_noturnas, tarifa_faturada, tarifa_faturada_noturna, obra_id')
+              .select('id, fatura_id, worker_id, data_trabalho, horas_totais, horas_normais, horas_noturnas, tarifa_faturada, tarifa_faturada_noturna, obra_id')
               .in('fatura_id', chunk)
+              .order('id', { ascending: true })
               .range(from, to);
           });
         });
@@ -2444,6 +2454,7 @@ export async function desmembrarFaturaPorObras(
       .from('horas_trabalhadas')
       .select('id, worker_id, obra_id, horas_totais, tarifa_faturada, client_id, funcao_id, data_trabalho')
       .eq('fatura_id', faturaId)
+      .order('id', { ascending: true })
       .range(from, to);
   });
 

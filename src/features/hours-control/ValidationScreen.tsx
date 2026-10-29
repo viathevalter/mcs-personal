@@ -1008,7 +1008,8 @@ export function ValidationScreen({
                     const tariffPair = resolveTariff(workerId, workerFuncId, siteId);
                     const totalH = parseFloat(r.totalHoras) || 0;
                     const noturnasH = parseFloat(r.horasNoturnas) || 0;
-                    const normaisH = r.horasNormais !== '' ? (parseFloat(r.horasNormais) || 0) : Math.max(0, totalH - noturnasH);
+                    const parsedNorm = parseFloat(r.horasNormais);
+                    const normaisH = (!isNaN(parsedNorm) && parsedNorm > 0) ? parsedNorm : Math.max(0, totalH - noturnasH);
                     
                     return {
                         worker_id: workerId,
