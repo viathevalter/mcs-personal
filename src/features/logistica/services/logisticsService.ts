@@ -733,15 +733,27 @@ export const logisticsService = {
       }
 
       // Formatar cada linha do banco em Alocacao unificada
-      const rawMerged: Alocacao[] = dbAlocs.map((row: any) => {
-        const base = importedMap.get(row.worker_id) || importedMap.get(row.id) || {};
-        const rawCode = String(base.codigo_colab || row.codigo_colab || '').toUpperCase().trim();
+      const rawMerged: Array<Alocacao & { _created_at?: string }> = dbAlocs.map((row: any) => {
+        const workerBase = importedMap.get(row.worker_id) || importedMap.get(row.id) || {};
+        // Somente herda metadados de estadia/imóvel do JSON importado se for a MESMA alocação ou o MESMO alojamento;
+        // se o trabalhador fez check-out e foi alocado em outro imóvel (ex: saiu de AL-1032 Huelva para AL-1054 León),
+        // nunca deve herdar o alojamento, cama ou datas antigas da planilha importada!
+        const isSameAllocationOrAloj = Boolean(
+          workerBase.id && (
+            row.id === workerBase.id ||
+            (row.alojamento_id && workerBase.alojamento_id && String(row.alojamento_id) === String(workerBase.alojamento_id)) ||
+            (!row.alojamento_id && !workerBase.alojamento_id)
+          )
+        );
+        const base = isSameAllocationOrAloj ? workerBase : {};
+
+        const rawCode = String(workerBase.codigo_colab || row.codigo_colab || '').toUpperCase().trim();
         const workerInfo = dbWorkersMap.get(row.worker_id) || (rawCode ? dbWorkersByCodeMap.get(rawCode) : undefined) || {};
         const alojInfo = dbAlojMap.get(row.alojamento_id) || {};
 
-        const resolvedWorkerId = workerInfo.id || row.worker_id || base.worker_id;
-        const workerNome = base.worker_nome || workerInfo.nome || row.observacoes || 'Trabalhador';
-        const codColab = workerInfo.cod_colab || base.codigo_colab || 'E-XXXX';
+        const resolvedWorkerId = workerInfo.id || row.worker_id || workerBase.worker_id;
+        const workerNome = workerInfo.nome || workerBase.worker_nome || row.observacoes || 'Trabalhador';
+        const codColab = workerInfo.cod_colab || workerBase.codigo_colab || 'E-XXXX';
         const codColabKey = String(codColab).toUpperCase().trim();
         const alojCodigo = alojInfo.codigo || base.alojamento_codigo;
         const alojNome = alojInfo.nome || base.alojamento_nome || row.cliente_obra_nome || 'Alojamiento';
@@ -751,8 +763,8 @@ export const logisticsService = {
           statusNormalized = 'Checkout';
         }
 
-        const statusTrabajador = workerInfo.status_trabajador || base.status_trabajador;
-        const statusSeguridad = workerInfo.status_seguridad || base.status_seguridad;
+        const statusTrabajador = workerInfo.status_trabajador || workerBase.status_trabajador;
+        const statusSeguridad = workerInfo.status_seguridad || workerBase.status_seguridad;
         const rhCheck = checkWorkerInativoRH(statusTrabajador, statusSeguridad);
 
         // Somente exibe data de baixa RRHH quando o trabalhador está efetivamente Inativo no RH/Seguridade
@@ -765,10 +777,26 @@ export const logisticsService = {
               segBaixaMap.get(resolvedWorkerId) ||
               assEndMap.get(resolvedWorkerId) ||
               (codColabKey ? colabSalidaMap.get(codColabKey) : undefined) ||
-              base.data_baixa
+              workerBase.data_baixa
             );
 
         const dataBaixaFormatted = rawDataBaixa ? formatToLocalDate(rawDataBaixa) : undefined;
+
+        const resolvedAlojamentoObj = alojInfo.id
+          ? {
+              id: alojInfo.id,
+              nome: alojInfo.nome || alojNome,
+              codigo: alojInfo.codigo || alojCodigo,
+              municipio: alojInfo.cidade || alojInfo.municipio || base.municipio || 'España',
+              endereco: alojInfo.endereco_completo || alojInfo.endereco || base.endereco || '',
+              capacidade_pessoas: Number(alojInfo.capacidade_total || alojInfo.capacidade_pessoas || 1),
+              dormitorios: Number(alojInfo.dormitorios || 1),
+              total_camas: Number(alojInfo.total_camas || 1),
+              camas_individuais: Number(alojInfo.camas_individuais || 0),
+              camas_duplas: Number(alojInfo.camas_duplas || 0),
+              banheiros: Number(alojInfo.banheiros || 1)
+            }
+          : base.alojamento;
 
         return {
           id: row.id,
@@ -780,12 +808,12 @@ export const logisticsService = {
           worker_id: resolvedWorkerId,
           worker_nome: workerNome,
           codigo_colab: codColab,
-          worker_movil: base.worker_movil || workerInfo.movil || '',
-          empresa_contratante: base.empresa_contratante || row.empresa_id || 'LUMINOUS',
-          cliente_nome: base.cliente_nome || row.cliente_obra_nome || row.project_name || 'Cliente Obra',
-          obra_nome: base.obra_nome || row.cliente_obra_nome || row.project_name || 'Obra Principal',
-          municipio: base.municipio || 'España',
-          endereco: base.endereco || '',
+          worker_movil: workerInfo.movil || workerBase.worker_movil || '',
+          empresa_contratante: row.empresa_id || workerBase.empresa_contratante || 'LUMINOUS',
+          cliente_nome: row.cliente_obra_nome || row.project_name || base.cliente_nome || 'Cliente Obra',
+          obra_nome: row.project_name || row.cliente_obra_nome || base.obra_nome || 'Obra Principal',
+          municipio: alojInfo.cidade || alojInfo.municipio || base.municipio || 'España',
+          endereco: alojInfo.endereco_completo || alojInfo.endereco || base.endereco || '',
           pedido_id: row.pedido_id || base.pedido_id,
           pedido_codigo: base.pedido_codigo,
           data_inicio: row.data_inicio ? (String(row.data_inicio).split('T')[0]) : (base.data_inicio || new Date().toISOString().split('T')[0]),
@@ -797,22 +825,25 @@ export const logisticsService = {
           observacoes: row.observacoes || base.observacoes || '',
           tipo_alojamento: row.tipo_alojamento || base.tipo_alojamento || 'FIJO',
           custo_alojamento: Number(row.valor_ajuda_moradia || base.custo_alojamento || 0),
-          alojamento: base.alojamento,
+          alojamento: resolvedAlojamentoObj,
           status_trabajador: statusTrabajador,
           status_seguridad: statusSeguridad,
           is_inativo_rh: rhCheck.isInativo,
           is_afastado_rh: rhCheck.isAfastado,
           alerta_inativo_rh: rhCheck.motivo,
-          data_baixa: dataBaixaFormatted
+          data_baixa: dataBaixaFormatted,
+          _created_at: row.created_at ? String(row.created_at) : ''
         };
       });
 
-      // Regra de unicidade: cada trabalhador só pode ter 1 alocação ativa por vez (a mais recente por data_inicio)
+      // Regra de unicidade: cada trabalhador só pode ter 1 alocação ativa por vez (a mais recente por data_inicio / created_at)
       const seenActiveWorkerIds = new Set<string>();
       const sortedForDedup = [...rawMerged].sort((a, b) => {
         if (a.status === 'Checkout' && b.status !== 'Checkout') return 1;
         if (a.status !== 'Checkout' && b.status === 'Checkout') return -1;
-        return String(b.data_inicio || '').localeCompare(String(a.data_inicio || ''));
+        const dateComp = String(b.data_inicio || '').localeCompare(String(a.data_inicio || ''));
+        if (dateComp !== 0) return dateComp;
+        return String(b._created_at || '').localeCompare(String(a._created_at || ''));
       });
       const merged: Alocacao[] = [];
       for (const item of sortedForDedup) {
@@ -822,7 +853,8 @@ export const logisticsService = {
           }
           seenActiveWorkerIds.add(item.worker_id);
         }
-        merged.push(item);
+        const { _created_at, ...cleanItem } = item;
+        merged.push(cleanItem);
       }
 
       try {

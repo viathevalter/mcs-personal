@@ -241,9 +241,12 @@ export const AlojamentosList: React.FC = () => {
   const getOccupantsForAlojamento = (aloj: Alojamento): Alocacao[] => {
     return alocacoes.filter(a => {
       if (a.status === 'Checkout') return false;
-      if (a.alojamento_id === aloj.id) return true;
-      if (a.alojamento?.codigo && aloj.codigo && a.alojamento.codigo === aloj.codigo) return true;
-      if (a.alojamento?.nome && aloj.nome && a.alojamento.nome.toLowerCase().trim() === aloj.nome.toLowerCase().trim()) return true;
+      // Se a alocação possui um alojamento_id definido, compara estritamente por ID para evitar falso vínculo com imóveis anteriores
+      if (a.alojamento_id && aloj.id) {
+        return String(a.alojamento_id).trim() === String(aloj.id).trim();
+      }
+      if (a.alojamento_codigo && aloj.codigo && a.alojamento_codigo === aloj.codigo) return true;
+      if (a.alojamento_nome && aloj.nome && a.alojamento_nome.toLowerCase().trim() === aloj.nome.toLowerCase().trim()) return true;
       return false;
     });
   };
