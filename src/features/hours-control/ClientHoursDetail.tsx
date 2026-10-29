@@ -334,7 +334,7 @@ export function ClientHoursDetail() {
         }
     };
 
-    const handleRejectFile = async (recordId: string, filePath: string, workerId: string) => {
+    const handleRejectFile = async (recordId: string, filePath: string | undefined, workerId: string) => {
         if (!confirm(t('clientHoursDetail.messages.confirmReject'))) {
             return;
         }
@@ -342,15 +342,16 @@ export function ClientHoursDetail() {
         try {
             setActionLoading(recordId + '-rj');
 
-            // Delete file from storage first
-            const bucketName = getBucketName(filePath);
-            const { error: storageError } = await supabase.storage
-                .from(bucketName)
-                .remove([filePath]);
+            // Delete file from storage first if there is one
+            if (filePath) {
+                const bucketName = getBucketName(filePath);
+                const { error: storageError } = await supabase.storage
+                    .from(bucketName)
+                    .remove([filePath]);
 
-            if (storageError) {
-                console.error('Error deleting file:', storageError);
-                // Proceed anyway to fix the database state if storage fails
+                if (storageError) {
+                    console.error('Error deleting file:', storageError);
+                }
             }
 
             // Get client ID from database using clientName
@@ -398,9 +399,14 @@ export function ClientHoursDetail() {
                     status: 'pendente',
                     file_url: null,
                     file_name: null,
+                    apontamentos_diarios: [],
                     total_horas_normais: 0,
                     total_horas_noturnas: 0,
-                    horas_totais: 0
+                    horas_totais: 0,
+                    signed_at: null,
+                    signed_ip: null,
+                    encarregado_nome: null,
+                    signature_image_url: null
                 })
                 .eq('id', recordId);
 
@@ -1043,7 +1049,7 @@ export function ClientHoursDetail() {
                                     </TableCell>
                                     <TableCell className="text-right align-top pt-4">
                                         <div className="flex justify-end gap-2">
-                                            {worker.status === 'pendente' && (role === 'super_admin' || role === 'admin_rh') && (
+                                            {(worker.status === 'pendente' || (!worker.file_url && ['em_andamento', 'aguardando_assinatura'].includes(worker.status))) && (role === 'super_admin' || role === 'admin_rh') && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
@@ -1129,14 +1135,14 @@ export function ClientHoursDetail() {
                                                             </span>
                                                         </Button>
                                                     )}
-                                                    {worker.file_url && (role === 'super_admin' || role === 'admin_rh') && (
+                                                    {(role === 'super_admin' || role === 'admin_rh') && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
                                                             className="h-8 text-red-600 border-red-200 hover:bg-red-50"
-                                                            onClick={() => handleRejectFile(worker.hour_record_id!, worker.file_url!, worker.worker_id)}
+                                                            onClick={() => handleRejectFile(worker.hour_record_id!, worker.file_url, worker.worker_id)}
                                                             disabled={actionLoading === worker.hour_record_id + '-rj'}
-                                                            title={t('clientHoursDetail.tooltips.reject')}
+                                                            title={worker.file_url ? t('clientHoursDetail.tooltips.reject') : 'Eliminar rascunho / horas do portal e voltar para Pendente'}
                                                         >
                                                             {actionLoading === worker.hour_record_id + '-rj' ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                                                         </Button>
