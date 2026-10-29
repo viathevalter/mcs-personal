@@ -415,7 +415,7 @@ export function useWorkerTimesheet(workerAuth: any) {
         return Number(pastPending[pastPending.length - 1].dia);
     }, [days, selectedPeriod, now]);
 
-    // SALVAR APONTAMENTO DIÁRIO (permitido apenas no mês corrente e até o dia de hoje)
+    // SALVAR APONTAMENTO DIÁRIO (permitido em todos os dias do mês corrente)
     const saveDayEntry = async (entry: TimesheetDayEntry) => {
         if (!selectedPeriod) {
             toast.error('Só é permitido lançar horas no mês corrente.');
@@ -425,7 +425,6 @@ export function useWorkerTimesheet(workerAuth: any) {
         const realNow = new Date();
         const realYear = realNow.getFullYear();
         const realMonth = realNow.getMonth() + 1;
-        const realDay = realNow.getDate();
 
         if (selectedPeriod.period_year !== realYear || selectedPeriod.period_month !== realMonth || currentYear !== realYear || currentMonth !== realMonth) {
             toast.error('Meses anteriores estão fechados apenas para consulta. Só é permitido lançar horas no mês corrente.');
@@ -433,10 +432,6 @@ export function useWorkerTimesheet(workerAuth: any) {
         }
 
         const targetDia = Number(entry.dia);
-        if (targetDia > realDay) {
-            toast.error('Não é permitido lançar horas em datas futuras.');
-            return;
-        }
 
         const cleanEntry: TimesheetDayEntry = {
             ...entry,

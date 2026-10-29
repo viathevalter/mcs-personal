@@ -170,8 +170,7 @@ export function MonthlyCalendarView({
                         const hasHours = Number(day.totalHoras || 0) > 0;
                         const isRest = day.obs === 'Descanso' || day.obs === 'Folga' || day.obs?.toLowerCase().includes('descanso');
                         const isPending = !hasHours && !isRest && dateObj <= today && !isWeekend;
-                        const isFutureDay = isCurrentMonth && todayDay !== null && day.dia > todayDay;
-                        const isLocked = isPastMonth || isFutureDay;
+                        const isLocked = isPastMonth;
 
                         return (
                             <button
@@ -180,9 +179,7 @@ export function MonthlyCalendarView({
                                 disabled={isLocked}
                                 onClick={() => !isLocked && onSelectDay(day.dia)}
                                 className={`h-12 rounded-2xl flex flex-col items-center justify-between p-1.5 transition-all select-none border ${
-                                    isFutureDay
-                                        ? 'border-slate-100 bg-slate-50/30 opacity-40 cursor-not-allowed'
-                                        : isPastMonth
+                                    isPastMonth
                                         ? 'border-slate-100 bg-slate-50/60 cursor-default'
                                         : isToday
                                         ? 'border-emerald-500 bg-emerald-50/50 shadow-xs ring-2 ring-emerald-500/20'

@@ -306,8 +306,8 @@ export function DailyEntryModal({
 
                             <button
                                 type="button"
-                                disabled={validDay >= maxAllowedDay}
-                                onClick={() => onNavigateDay && validDay < maxAllowedDay && onNavigateDay(validDay + 1)}
+                                disabled={validDay >= maxDaysInMonth}
+                                onClick={() => onNavigateDay && validDay < maxDaysInMonth && onNavigateDay(validDay + 1)}
                                 className="p-1 rounded-lg text-emerald-800 hover:bg-emerald-100/70 disabled:opacity-30 disabled:pointer-events-none transition-colors"
                             >
                                 <ChevronRight className="h-4 w-4" />

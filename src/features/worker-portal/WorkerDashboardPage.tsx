@@ -235,12 +235,11 @@ export function WorkerDashboardPage() {
         return d.toLocaleDateString(locale, { month: 'long' });
     }, [currentYear, currentMonth, locale]);
 
-    // Abertura do modal para um dia específico (permitido apenas no mês corrente e até a data de hoje)
+    // Abertura do modal para um dia específico (permitido em qualquer dia do mês corrente; meses anteriores apenas consulta)
     const handleOpenDailyModal = (day: number | any) => {
         const realNow = new Date();
         const realYear = realNow.getFullYear();
         const realMonth = realNow.getMonth() + 1;
-        const realDay = realNow.getDate();
 
         if (currentYear !== realYear || currentMonth !== realMonth) {
             toast.warning(
@@ -255,15 +254,6 @@ export function WorkerDashboardPage() {
             ? Number(day.dia ?? day.day ?? 1) 
             : Number(day);
         const targetDay = Number.isFinite(parsed) ? parsed : 1;
-
-        if (targetDay > realDay) {
-            toast.warning(
-                isSpanish
-                    ? 'No se permite registrar horas en fechas futuras.'
-                    : 'Não é permitido lançar horas em datas futuras.'
-            );
-            return;
-        }
 
         setModalDay(targetDay);
     };
