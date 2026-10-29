@@ -856,7 +856,23 @@ export async function getHorasPendentesFaturamento(
         const horasDiarias: Record<string, any> = {};
         wHours.forEach(h => {
           const dateOnly = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
-          horasDiarias[dateOnly] = h;
+          if (!horasDiarias[dateOnly]) {
+            horasDiarias[dateOnly] = {
+              ...h,
+              horas_totais: Number(h.horas_totais || 0),
+              horas_normais: Number(h.horas_normais || 0),
+              horas_noturnas: Number(h.horas_noturnas || 0),
+              ids: h.id ? [h.id] : [],
+              entries: [h]
+            };
+          } else {
+            const existing = horasDiarias[dateOnly];
+            existing.horas_totais = Number(existing.horas_totais || 0) + Number(h.horas_totais || 0);
+            existing.horas_normais = Number(existing.horas_normais || 0) + Number(h.horas_normais || 0);
+            existing.horas_noturnas = Number(existing.horas_noturnas || 0) + Number(h.horas_noturnas || 0);
+            if (h.id && !existing.ids.includes(h.id)) existing.ids.push(h.id);
+            existing.entries.push(h);
+          }
         });
 
         // Determine job function profile name
@@ -909,7 +925,8 @@ export async function getHorasPendentesFaturamento(
           dataInicio,
           observacoes,
           isException: hasException,
-          horasDiarias
+          horasDiarias,
+          horasLista: wHours
         });
       }
 
@@ -947,7 +964,23 @@ export async function getHorasPendentesFaturamento(
         const horasDiarias: Record<string, any> = {};
         wHours.forEach(h => {
           const dateOnly = h.data_trabalho.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
-          horasDiarias[dateOnly] = h;
+          if (!horasDiarias[dateOnly]) {
+            horasDiarias[dateOnly] = {
+              ...h,
+              horas_totais: Number(h.horas_totais || 0),
+              horas_normais: Number(h.horas_normais || 0),
+              horas_noturnas: Number(h.horas_noturnas || 0),
+              ids: h.id ? [h.id] : [],
+              entries: [h]
+            };
+          } else {
+            const existing = horasDiarias[dateOnly];
+            existing.horas_totais = Number(existing.horas_totais || 0) + Number(h.horas_totais || 0);
+            existing.horas_normais = Number(existing.horas_normais || 0) + Number(h.horas_normais || 0);
+            existing.horas_noturnas = Number(existing.horas_noturnas || 0) + Number(h.horas_noturnas || 0);
+            if (h.id && !existing.ids.includes(h.id)) existing.ids.push(h.id);
+            existing.entries.push(h);
+          }
         });
 
         const tariff = sampleHour ? Number(sampleHour.tarifa_faturada || 0) : 27.00;
@@ -992,7 +1025,8 @@ export async function getHorasPendentesFaturamento(
           dataInicio,
           observacoes: null,
           isException: hasException,
-          horasDiarias
+          horasDiarias,
+          horasLista: wHours
         });
         
         validatedWorkersCount++;
@@ -2673,13 +2707,13 @@ export async function atualizarHorasDiarias(
       const { error } = await supabase
         .schema('core_finance')
         .from('horas_trabalhadas')
-        .update({ horas_totais: novasHoras, horas_normais: 0 })
+        .update({ horas_totais: novasHoras, horas_normais: novasHoras })
         .eq('id', horaId);
       if (error) throw mapSupabaseError(error);
     }
   } else if (novasHoras > 0 && workerId && clientId && dataTrabalho) {
-    let resolvedObraId = obraId || null;
-    if (!resolvedObraId) {
+    let resolvedObraId = obraId !== undefined ? obraId : null;
+    if (obraId === undefined) {
       const { data: recentRow } = await supabase
         .schema('core_finance')
         .from('horas_trabalhadas')
@@ -2695,16 +2729,22 @@ export async function atualizarHorasDiarias(
       }
     }
 
-    const { data: existingDay } = await supabase
+    let existingQuery = supabase
       .schema('core_finance')
       .from('horas_trabalhadas')
       .select('id')
       .eq('worker_id', workerId)
       .eq('client_id', clientId)
       .eq('data_trabalho', dataTrabalho)
-      .is('fatura_id', null)
-      .limit(1)
-      .maybeSingle();
+      .is('fatura_id', null);
+
+    if (resolvedObraId) {
+      existingQuery = existingQuery.eq('obra_id', resolvedObraId);
+    } else {
+      existingQuery = existingQuery.is('obra_id', null);
+    }
+
+    const { data: existingDay } = await existingQuery.limit(1).maybeSingle();
 
     if (existingDay?.id) {
       const { error } = await supabase
@@ -2712,7 +2752,7 @@ export async function atualizarHorasDiarias(
         .from('horas_trabalhadas')
         .update({
           horas_totais: novasHoras,
-          horas_normais: 0,
+          horas_normais: novasHoras,
           obra_id: resolvedObraId,
           status: 'validado'
         })
@@ -2727,6 +2767,8 @@ export async function atualizarHorasDiarias(
           client_id: clientId,
           data_trabalho: dataTrabalho,
           horas_totais: novasHoras,
+          horas_normais: novasHoras,
+          horas_noturnas: 0,
           status: 'validado',
           funcao_id: funcaoId || null,
           tarifa_faturada: tarifaFaturada || 27.00,

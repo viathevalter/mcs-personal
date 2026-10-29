@@ -135,6 +135,37 @@ export function FaturasPendentes() {
   });
 
   const [expandedWorkers, setExpandedWorkers] = useState<Record<string, boolean>>({});
+  const [showAllWorkersInObra, setShowAllWorkersInObra] = useState<Record<string, boolean>>({});
+
+  const filterWorkerHorasDiarias = (w: any, filterFn: (h: any) => boolean): Record<string, any> => {
+    const rawList: any[] = Array.isArray(w.horasLista)
+      ? w.horasLista
+      : Object.values(w.horasDiarias || {}).flatMap((h: any) => Array.isArray(h?.entries) ? h.entries : (h ? [h] : []));
+    const map: Record<string, any> = {};
+    rawList.forEach((h: any) => {
+      if (!h || !filterFn(h)) return;
+      const dateOnly = h.data_trabalho?.includes('T') ? h.data_trabalho.split('T')[0] : h.data_trabalho;
+      if (!dateOnly) return;
+      if (!map[dateOnly]) {
+        map[dateOnly] = {
+          ...h,
+          horas_totais: Number(h.horas_totais || 0),
+          horas_normais: Number(h.horas_normais || 0),
+          horas_noturnas: Number(h.horas_noturnas || 0),
+          ids: h.id ? [h.id] : [],
+          entries: [h]
+        };
+      } else {
+        const existing = map[dateOnly];
+        existing.horas_totais = Number(existing.horas_totais || 0) + Number(h.horas_totais || 0);
+        existing.horas_normais = Number(existing.horas_normais || 0) + Number(h.horas_normais || 0);
+        existing.horas_noturnas = Number(existing.horas_noturnas || 0) + Number(h.horas_noturnas || 0);
+        if (h.id && !existing.ids.includes(h.id)) existing.ids.push(h.id);
+        existing.entries.push(h);
+      }
+    });
+    return map;
+  };
   const [searchQuery, setSearchQuery] = useState(() => {
     return sessionStorage.getItem('mcs:faturamento_pendentes_search') || '';
   });
@@ -688,8 +719,11 @@ MCS - Gestão Comercial`;
     const horasIds: string[] = [];
     workers.forEach(w => {
       Object.values(w.horasDiarias).forEach((h: any) => {
-        if (h && h.id && h.status !== 'pending_client_approval' && h.status !== 'approved' && h.status !== 'disputed' && h.status !== 'invoiced') {
-          horasIds.push(h.id);
+        if (h && h.status !== 'pending_client_approval' && h.status !== 'approved' && h.status !== 'disputed' && h.status !== 'invoiced') {
+          const ids = Array.isArray(h.ids) ? h.ids : (h.id ? [h.id] : []);
+          ids.forEach((id: string) => {
+            if (id && !horasIds.includes(id)) horasIds.push(id);
+          });
         }
       });
     });
@@ -1442,16 +1476,12 @@ MCS - Gestão Comercial`;
     const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
     
     const filteredWorkers = f.workers.map(w => {
-      const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+      const filteredHorasDiarias = filterWorkerHorasDiarias(w, (h: any) => {
         const belongsToActiveSession = isAlreadyInvoiced
           ? h.fatura_id !== null
           : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
-
-        if (belongsToActiveSession && (!hasObraFilter || h.obra_id === selectedObraId)) {
-          acc[date] = h;
-        }
-        return acc;
-      }, {} as Record<string, any>);
+        return belongsToActiveSession && (!hasObraFilter || h.obra_id === selectedObraId);
+      });
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
       const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
@@ -1802,12 +1832,9 @@ MCS - Gestão Comercial`;
 
     // Filter workers/hours to only those matching emailData.horasIds
     const filteredWorkersForPDF = f.workers.map(w => {
-      const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-        if (h && h.id && emailData.horasIds.includes(h.id)) {
-          acc[date] = h;
-        }
-        return acc;
-      }, {} as Record<string, any>);
+      const filteredHorasDiarias = filterWorkerHorasDiarias(w, (h: any) => {
+        return Boolean(h && h.id && emailData.horasIds.includes(h.id));
+      });
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
       const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
@@ -2275,16 +2302,11 @@ MCS - Gestão Comercial`;
     const isAlreadyInvoiced = f.statusBilling.startsWith('invoiced');
     // Filter active workers and their hours (only unbilled / active session hours)
     const activeWorkersCombined = f.workers.map(w => {
-      const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-        const belongsToActiveSession = isAlreadyInvoiced
+      const filteredHorasDiarias = filterWorkerHorasDiarias(w, (h: any) => {
+        return isAlreadyInvoiced
           ? h.fatura_id !== null
           : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
-
-        if (belongsToActiveSession) {
-          acc[date] = h;
-        }
-        return acc;
-      }, {} as Record<string, any>);
+      });
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
       const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
@@ -2312,16 +2334,12 @@ MCS - Gestão Comercial`;
     if (f.obras && f.obras.some(o => o.id !== null)) {
       f.obras.forEach(obra => {
         const oWorkers = f.workers.map(w => {
-          const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+          const filteredHorasDiarias = filterWorkerHorasDiarias(w, (h: any) => {
             const belongsToActiveSession = isAlreadyInvoiced
               ? h.fatura_id !== null
               : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
-
-            if (belongsToActiveSession && h.obra_id === obra.id) {
-              acc[date] = h;
-            }
-            return acc;
-          }, {} as Record<string, any>);
+            return belongsToActiveSession && h.obra_id === obra.id;
+          });
 
           const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
           const wTotalValor = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + (Number(h.horas_totais || 0) * Number(h.tarifa_faturada || 0)), 0);
@@ -2589,12 +2607,7 @@ MCS - Gestão Comercial`;
     
     const filteredWorkers = f.workers.map(w => {
       const filteredHorasDiarias = hasObraFilter
-        ? Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
-            if (h.obra_id === selectedObraId) {
-              acc[date] = h;
-            }
-            return acc;
-          }, {} as Record<string, any>)
+        ? filterWorkerHorasDiarias(w, (h: any) => h.obra_id === selectedObraId)
         : w.horasDiarias;
 
       const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
@@ -2933,9 +2946,11 @@ MCS - Gestão Comercial`;
     worker: any,
     targetDateStr: string,
     record: any,
-    clientId: string
+    clientId: string,
+    selectedObraId?: string | null,
+    hasObraFilter?: boolean
   ) => {
-    const newValStr = e.target.value.trim();
+    const newValStr = e.target.value.trim().replace(',', '.');
     if (newValStr === '') return;
     const newVal = parseFloat(newValStr);
     const oldVal = record ? Number(record.horas_totais) : 0;
@@ -2948,11 +2963,22 @@ MCS - Gestão Comercial`;
 
     if (newVal === oldVal) return; // Sem alteração
 
+    if (!hasObraFilter && Array.isArray(record?.entries) && record.entries.length > 1) {
+      toast.info('Este dia possui horas em mais de uma obra. Selecione a obra desejada acima para editar as horas de cada obra separadamente.');
+      e.target.value = oldVal.toString();
+      return;
+    }
+
     try {
       toast.loading('Salvando alterações...', { id: 'saving_hours' });
-      const inferredObraId = record?.obra_id || (Object.values(worker.horasDiarias || {}).find((h: any) => h?.obra_id) as any)?.obra_id || null;
+      const inferredObraId = hasObraFilter
+        ? (selectedObraId ?? null)
+        : (record?.obra_id || (Object.values(worker.horasDiarias || {}).find((h: any) => h?.obra_id) as any)?.obra_id || null);
+      const effectiveRecordId = (record && (!hasObraFilter || (record.obra_id || null) === (selectedObraId || null)) && (!record.entries || record.entries.length === 1))
+        ? (record.id || '')
+        : '';
       await atualizarHorasDiarias(
-        record?.id || '',
+        effectiveRecordId,
         newVal,
         worker.workerId,
         clientId,
@@ -3362,17 +3388,14 @@ MCS - Gestão Comercial`;
             const hasObraFilter = selectedObraId !== undefined;
 
             // 1. All workers for the monthly grid (Aba 1)
+            const showAllInObra = Boolean(hasObraFilter && showAllWorkersInObra[cardId]);
             const allWorkers = f.workers.map(w => {
-              const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+              const filteredHorasDiarias = filterWorkerHorasDiarias(w, (h: any) => {
                 const belongsToActiveSession = f.activeFaturaId
                   ? h.fatura_id === f.activeFaturaId
                   : h.fatura_id === null;
-
-                if ((belongsToActiveSession || isAlreadyInvoiced) && (!hasObraFilter || h.obra_id === selectedObraId)) {
-                  acc[date] = h;
-                }
-                return acc;
-              }, {} as Record<string, any>);
+                return (belongsToActiveSession || isAlreadyInvoiced) && (!hasObraFilter || h.obra_id === selectedObraId);
+              });
 
               const wTotalHorasMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
               const wTotalValorMes = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
@@ -3393,20 +3416,16 @@ MCS - Gestão Comercial`;
                 totalHorasMes: wTotalHorasMes,
                 totalValorMes: wTotalValorMes
               };
-            }).filter(w => w.totalHorasMes > 0 && (!w.isBilled || isAlreadyInvoiced));
+            }).filter(w => (w.totalHorasMes > 0 || showAllInObra) && (!w.isBilled || isAlreadyInvoiced));
 
             // 2. Active billing session workers (for invoicing, previews, and PDFs)
             const filteredWorkers = f.workers.map(w => {
-              const filteredHorasDiarias = Object.entries(w.horasDiarias).reduce((acc, [date, h]: [string, any]) => {
+              const filteredHorasDiarias = filterWorkerHorasDiarias(w, (h: any) => {
                 const belongsToActiveSession = isAlreadyInvoiced
                   ? h.fatura_id !== null
                   : (f.activeFaturaId ? h.fatura_id === f.activeFaturaId : h.fatura_id === null);
-
-                if ((belongsToActiveSession || isAlreadyInvoiced) && (!hasObraFilter || h.obra_id === selectedObraId)) {
-                  acc[date] = h;
-                }
-                return acc;
-              }, {} as Record<string, any>);
+                return (belongsToActiveSession || isAlreadyInvoiced) && (!hasObraFilter || h.obra_id === selectedObraId);
+              });
 
               const wTotalHoras = Object.values(filteredHorasDiarias).reduce((sum, h: any) => sum + Number(h.horas_totais || 0), 0);
               const wTotalHorasNormais = Object.values(filteredHorasDiarias).reduce((sum, h: any) => {
@@ -3867,14 +3886,30 @@ MCS - Gestão Comercial`;
                         Factura Única
                       </button>
 
-                      <button
-                        onClick={() => handleRecalculateTariffs(f)}
-                        disabled={recalculatingTariffs === f.clientId}
-                        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors font-semibold text-xs disabled:opacity-50"
-                      >
-                        <RefreshCw size={12} className={recalculatingTariffs === f.clientId ? 'animate-spin' : ''} />
-                        Sincronizar Tarifas
-                      </button>
+                      <div className="ml-auto flex items-center gap-2">
+                        {hasObraFilter && !isAlreadyInvoiced && getActiveTab(cardId) === 'edicao' && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllWorkersInObra(prev => ({ ...prev, [cardId]: !prev[cardId] }))}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors font-semibold text-xs ${
+                              showAllInObra
+                                ? 'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900'
+                            }`}
+                            title="Exibe todos os trabalhadores deste cliente para permitir lançar horas em duas obras no mesmo dia"
+                          >
+                            {showAllInObra ? 'Ocultar trabalhadores sem horas nesta obra' : '+ Incluir trabalhador nesta obra'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleRecalculateTariffs(f)}
+                          disabled={recalculatingTariffs === f.clientId}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors font-semibold text-xs disabled:opacity-50"
+                        >
+                          <RefreshCw size={12} className={recalculatingTariffs === f.clientId ? 'animate-spin' : ''} />
+                          Sincronizar Tarifas
+                        </button>
+                      </div>
                     </div>
 
                     {/* Aba 1: Edição dos dados */}
@@ -4110,12 +4145,18 @@ MCS - Gestão Comercial`;
                                                     🌙{nightVal}
                                                   </span>
                                                 )}
+                                                {!hasObraFilter && Array.isArray(record?.entries) && record.entries.length > 1 && (
+                                                  <span className="text-[7.5px] leading-tight font-extrabold text-blue-600 dark:text-blue-400 mb-0.5" title="Trabalhou em mais de uma obra neste dia. Filtre pela obra acima para editar separadamente.">
+                                                    {record.entries.length} obras
+                                                  </span>
+                                                )}
                                                 <input
+                                                  key={`${dInfo.dateStr}-${selectedObraId ?? 'all'}-${hoursVal}`}
                                                   type="text"
                                                   disabled={!worker.isValidated || isAlreadyInvoiced || worker.isBilled}
                                                   defaultValue={hoursVal === 0 ? '0' : hoursVal.toString()}
                                                   onKeyDown={handleInputKeyDown}
-                                                  onBlur={(e) => handleInputBlur(e, worker, targetDateStr, record, f.clientId)}
+                                                  onBlur={(e) => handleInputBlur(e, worker, targetDateStr, record, f.clientId, selectedObraId, hasObraFilter)}
                                                   className="w-8 h-6 text-center text-xs font-bold rounded border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 p-0 disabled:opacity-50 disabled:bg-slate-100/50 dark:disabled:bg-slate-900"
                                                 />
                                               </div>
