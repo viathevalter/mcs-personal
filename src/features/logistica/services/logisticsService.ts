@@ -693,9 +693,13 @@ export const logisticsService = {
       });
 
       const histBaixaMap = new Map<string, string>();
+      const histSeenWorker = new Set<string>();
       (statusHistRes.data || []).forEach((h: any) => {
-        if (h.worker_id && !histBaixaMap.has(h.worker_id)) {
-          const nv = String(h.new_value || '').toUpperCase();
+        if (!h.worker_id || histSeenWorker.has(h.worker_id)) return;
+        const ct = String(h.change_type || '').toUpperCase();
+        const nv = String(h.new_value || '').toUpperCase();
+        if (ct === 'TRABALHADOR') {
+          histSeenWorker.add(h.worker_id);
           if (nv.includes('INATIV') || nv.includes('BAIX') || nv.includes('BAJA') || nv.includes('DESLIG') || nv.includes('DESIST')) {
             const dt = h.effective_date || h.created_at;
             if (dt) histBaixaMap.set(h.worker_id, formatToLocalDate(dt));
@@ -729,7 +733,7 @@ export const logisticsService = {
       }
 
       // Formatar cada linha do banco em Alocacao unificada
-      const merged: Alocacao[] = dbAlocs.map((row: any) => {
+      const rawMerged: Alocacao[] = dbAlocs.map((row: any) => {
         const base = importedMap.get(row.worker_id) || importedMap.get(row.id) || {};
         const rawCode = String(base.codigo_colab || row.codigo_colab || '').toUpperCase().trim();
         const workerInfo = dbWorkersMap.get(row.worker_id) || (rawCode ? dbWorkersByCodeMap.get(rawCode) : undefined) || {};
@@ -751,15 +755,16 @@ export const logisticsService = {
         const statusSeguridad = workerInfo.status_seguridad || base.status_seguridad;
         const rhCheck = checkWorkerInativoRH(statusTrabajador, statusSeguridad);
 
-        const rawDataBaixa = rhCheck.isAfastado
+        // Somente exibe data de baixa RRHH quando o trabalhador está efetivamente Inativo no RH/Seguridade
+        const rawDataBaixa = (!rhCheck.isInativo || rhCheck.isAfastado)
           ? undefined
           : (
               workerInfo.data_baixa ||
               workerInfo.data_baixa_seguridad ||
               histBaixaMap.get(resolvedWorkerId) ||
               segBaixaMap.get(resolvedWorkerId) ||
-              (rhCheck.isInativo ? assEndMap.get(resolvedWorkerId) : undefined) ||
-              (rhCheck.isInativo && codColabKey ? colabSalidaMap.get(codColabKey) : undefined) ||
+              assEndMap.get(resolvedWorkerId) ||
+              (codColabKey ? colabSalidaMap.get(codColabKey) : undefined) ||
               base.data_baixa
             );
 
@@ -802,6 +807,24 @@ export const logisticsService = {
         };
       });
 
+      // Regra de unicidade: cada trabalhador só pode ter 1 alocação ativa por vez (a mais recente por data_inicio)
+      const seenActiveWorkerIds = new Set<string>();
+      const sortedForDedup = [...rawMerged].sort((a, b) => {
+        if (a.status === 'Checkout' && b.status !== 'Checkout') return 1;
+        if (a.status !== 'Checkout' && b.status === 'Checkout') return -1;
+        return String(b.data_inicio || '').localeCompare(String(a.data_inicio || ''));
+      });
+      const merged: Alocacao[] = [];
+      for (const item of sortedForDedup) {
+        if (item.status !== 'Checkout' && item.worker_id) {
+          if (seenActiveWorkerIds.has(item.worker_id)) {
+            continue;
+          }
+          seenActiveWorkerIds.add(item.worker_id);
+        }
+        merged.push(item);
+      }
+
       try {
         localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(merged));
       } catch (e) {}
@@ -834,6 +857,18 @@ export const logisticsService = {
     let newId = `propio-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
     try {
+      if (isUuid(payload.worker_id)) {
+        await client
+          .from('alocacoes')
+          .update({
+            status: 'Checkout',
+            data_fim: payload.data_inicio,
+            motivo_checkout: 'Cambio a Alojamiento Propio'
+          })
+          .eq('worker_id', payload.worker_id)
+          .neq('status', 'Checkout');
+      }
+
       const { data: inserted, error } = await client
         .from('alocacoes')
         .insert({
@@ -923,6 +958,18 @@ export const logisticsService = {
     let newId = `cliente-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
     try {
+      if (isUuid(payload.worker_id)) {
+        await client
+          .from('alocacoes')
+          .update({
+            status: 'Checkout',
+            data_fim: payload.data_inicio,
+            motivo_checkout: 'Cambio a Alojamiento por Cliente'
+          })
+          .eq('worker_id', payload.worker_id)
+          .neq('status', 'Checkout');
+      }
+
       const { data: inserted, error } = await client
         .from('alocacoes')
         .insert({
@@ -1116,6 +1163,19 @@ export const logisticsService = {
     const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
 
     try {
+      const validWorkerUuids = items.map(i => i.worker_id).filter(isUuid);
+      if (validWorkerUuids.length > 0) {
+        await client
+          .from('alocacoes')
+          .update({
+            status: 'Checkout',
+            data_fim: pedidoContext.data_inicio,
+            motivo_checkout: 'Reasignación en lote a otro alojamiento'
+          })
+          .in('worker_id', validWorkerUuids)
+          .neq('status', 'Checkout');
+      }
+
       const rowsToInsert = items.map(item => ({
         cama_id: isUuid(item.cama_id) ? item.cama_id : null,
         alojamento_id: isUuid(alojamento_id) ? alojamento_id : null,
@@ -1386,6 +1446,23 @@ export const logisticsService = {
           }
         });
 
+      // Mapear em quais pedidos cada trabalhador possui atribuição ATIVA / PLANEJADA / PAUSADA no momento
+      const activeAssignmentOrdersByWorker = new Map<string, Set<string>>();
+      (assignmentsRes.data || []).forEach((ass: any) => {
+        const st = (ass.status || '').toLowerCase().trim();
+        if (st === 'active' || st === 'planned' || st === 'paused') {
+          const rawW = Array.isArray(ass.worker) ? ass.worker[0] : (ass.worker || {});
+          const wId = rawW.id || ass.worker_id;
+          const pId = ass.pedido_id ? String(ass.pedido_id).trim() : '';
+          if (wId && pId) {
+            if (!activeAssignmentOrdersByWorker.has(wId)) {
+              activeAssignmentOrdersByWorker.set(wId, new Set());
+            }
+            activeAssignmentOrdersByWorker.get(wId)!.add(pId);
+          }
+        }
+      });
+
       // 3. Montar Lista de Pedidos com seus Trabalhadores Contratados
       const result: PedidoDemandaLogistica[] = pedidos.map((ped: any) => {
         const client = clientsMap.get(ped.client_id) as any;
@@ -1473,9 +1550,46 @@ export const logisticsService = {
         const seenWorkerIds = new Set<string>();
         const trabalhadores: TrabalhadorDemandaItem[] = [];
 
+        const pedIdStr = String(ped.id || '').trim();
         const isPedidoCompleted = (ped.operational_status || '').toLowerCase() === 'completed' || (ped.commercial_status || '').toLowerCase() === 'completed';
+        const hasOngoingAssignmentsInPedido = pedAssignments.some((a: any) => {
+          const st = (a.status || '').toLowerCase().trim();
+          return st === 'active' || st === 'planned' || st === 'paused';
+        });
 
-        // 1. Processar primeiro as atribuições ATIVAS, PLANEJADAS, PAUSADAS ou CONCLUÍDAS (quando o pedido foi concluído ou trabalhador encerrou ciclo normal)
+        // Helper para vincular a alocação de alojamento apenas ao pedido vigente do trabalhador,
+        // evitando que o alojamento atual de um novo pedido (ex: Zaragoza) apareça em um pedido anterior já encerrado para esse trabalhador (ex: Huelva)
+        const resolveAlocLogForPedido = (workerId: string, wCode: string, normName: string, assStatus: string): Alocacao | undefined => {
+          const candidate = alocacoesLogisticaMap.get(workerId) ||
+                            (wCode ? alocacoesByCodeMap.get(wCode) : undefined) ||
+                            (normName ? alocacoesByNameMap.get(normName) : undefined);
+          if (!candidate) return undefined;
+
+          const isActiveInThisOrder = assStatus === 'active' || assStatus === 'planned' || assStatus === 'paused';
+          const workerActiveOrders = activeAssignmentOrdersByWorker.get(workerId);
+          const isActiveInAnotherOrder = Boolean(
+            workerActiveOrders && Array.from(workerActiveOrders).some(oid => oid !== pedIdStr)
+          );
+
+          // Se o trabalhador já saiu deste pedido (completed/replaced/relocated/terminated) e está ativo em outro pedido,
+          // o alojamento atual dele pertence ao pedido novo, não a este pedido antigo.
+          if (!isActiveInThisOrder && isActiveInAnotherOrder) {
+            return undefined;
+          }
+
+          const candPedidoId = candidate.pedido_id ? String(candidate.pedido_id).trim() : '';
+          const isCandPedidoUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candPedidoId);
+          if (isCandPedidoUuid && candPedidoId !== pedIdStr) {
+            // Se o alojamento está vinculado explicitamente a outro pedido e o trabalhador não está ativo neste pedido (ou está ativo no outro pedido)
+            if (!isActiveInThisOrder || workerActiveOrders?.has(candPedidoId)) {
+              return undefined;
+            }
+          }
+
+          return candidate;
+        };
+
+        // 1. Processar primeiro as atribuições ATIVAS, PLANEJADAS, PAUSADAS ou CONCLUÍDAS (somente quando o pedido inteiro encerrou e o trabalhador não saiu antes)
         for (const ass of pedAssignments) {
           const assStatus = (ass.status || '').toLowerCase().trim();
           if (assStatus !== 'active' && assStatus !== 'planned' && assStatus !== 'paused' && assStatus !== 'completed') {
@@ -1487,6 +1601,18 @@ export const logisticsService = {
           
           if (!workerId || seenWorkerIds.has(workerId)) {
             continue;
+          }
+
+          // Se o status da atribuição for 'completed', mas o pedido ainda está em andamento com outros trabalhadores ativos
+          // (ou se este trabalhador foi substituído neste pedido ou já está ativo em outro pedido),
+          // significa que ele encerrou seu ciclo antecipadamente neste pedido (ex: realocado/baixa) e deve ser tratado no bloco histórico (bloco 2).
+          if (assStatus === 'completed') {
+            const wasReplacedHere = pedAssignments.some((other: any) => other.replacement_of_assignment_id === ass.id);
+            const workerActiveOrders = activeAssignmentOrdersByWorker.get(workerId);
+            const isActiveElsewhere = Boolean(workerActiveOrders && Array.from(workerActiveOrders).some(oid => oid !== pedIdStr));
+            if ((!isPedidoCompleted && hasOngoingAssignmentsInPedido) || wasReplacedHere || isActiveElsewhere) {
+              continue;
+            }
           }
 
           seenWorkerIds.add(workerId);
@@ -1510,14 +1636,14 @@ export const logisticsService = {
           const normName = normalizeWName(rawWorker.nome);
           const wCode = (rawWorker.cod_colab || '').toUpperCase().trim();
 
-          const alocLog = alocacoesLogisticaMap.get(workerId) ||
-                          (wCode ? alocacoesByCodeMap.get(wCode) : undefined) ||
-                          (normName ? alocacoesByNameMap.get(normName) : undefined);
+          const alocLog = resolveAlocLogForPedido(workerId, wCode, normName, assStatus);
 
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
 
           const rhCheck = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
-          const rawBaixa = rhCheck.isAfastado ? undefined : (rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || (rhCheck.isInativo ? ass.end_date : undefined));
+          const rawBaixa = (!rhCheck.isInativo || rhCheck.isAfastado)
+            ? undefined
+            : (rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || ass.end_date);
 
           trabalhadores.push({
             assignment_id: ass.id,
@@ -1554,10 +1680,10 @@ export const logisticsService = {
           });
         }
 
-        // 2. Processar atribuições SUBSTITUÍDAS / HISTÓRICAS deste pedido
+        // 2. Processar atribuições SUBSTITUÍDAS / HISTÓRICAS / ENCERRADAS ANTECIPADAMENTE deste pedido
         for (const ass of pedAssignments) {
           const assStatus = (ass.status || '').toLowerCase().trim();
-          if (assStatus !== 'replaced' && assStatus !== 'relocated' && assStatus !== 'terminated') {
+          if (assStatus !== 'replaced' && assStatus !== 'relocated' && assStatus !== 'terminated' && assStatus !== 'completed') {
             continue;
           }
 
@@ -1568,14 +1694,12 @@ export const logisticsService = {
           const normName = normalizeWName(rawWorker.nome);
           const wCode = (rawWorker.cod_colab || '').toUpperCase().trim();
 
-          const alocLog = alocacoesLogisticaMap.get(workerId) ||
-                          (wCode ? alocacoesByCodeMap.get(wCode) : undefined) ||
-                          (normName ? alocacoesByNameMap.get(normName) : undefined);
+          const alocLog = resolveAlocLogForPedido(workerId, wCode, normName, assStatus);
 
           // Verificar se foi substituído por alguém neste pedido
           const incomingReplacement = pedAssignments.find((other: any) => other.replacement_of_assignment_id === ass.id);
           
-          // Se não estiver alojado E não tiver relação de substituição ativa neste pedido, ignora
+          // Se não estiver alojado neste pedido E não tiver relação de substituição ativa neste pedido, ignora
           if (!alocLog && !incomingReplacement) {
             continue;
           }
@@ -1592,7 +1716,7 @@ export const logisticsService = {
           const solCodigo = solId ? solicitudesMap.get(solId)?.codigo : undefined;
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
           const rhCheckHist = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
-          const rawBaixaHist = rhCheckHist.isAfastado ? undefined : (rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || ass.end_date);
+          const rawBaixaHist = rhCheckHist.isAfastado ? undefined : ((rhCheckHist.isInativo ? (rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa) : undefined) || ass.end_date);
 
           trabalhadores.push({
             assignment_id: ass.id,
