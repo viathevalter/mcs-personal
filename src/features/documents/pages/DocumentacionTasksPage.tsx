@@ -19,7 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/shared/supabase/client';
 import { 
-    FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, 
+    FileText, Copy, ExternalLink, Plus, RefreshCw, CheckCircle, CheckCircle2,
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
     MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2,
     Calendar, MapPin, Clock, AlertTriangle, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Package,
