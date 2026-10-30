@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Dialog, 
@@ -23,9 +23,18 @@ interface CreateCampaignModalProps {
   onClose: () => void;
   selectedLeadIds: string[];
   selectedCount: number;
+  defaultTitle?: string;
+  defaultVendedorHint?: string;
 }
 
-export function CreateCampaignModal({ isOpen, onClose, selectedLeadIds, selectedCount }: CreateCampaignModalProps) {
+export function CreateCampaignModal({
+  isOpen,
+  onClose,
+  selectedLeadIds,
+  selectedCount,
+  defaultTitle,
+  defaultVendedorHint,
+}: CreateCampaignModalProps) {
   const navigate = useNavigate();
   const { data: salespeople = [] } = useSalespeople();
   const { data: scripts = [] } = useSalesScripts();
@@ -35,6 +44,31 @@ export function CreateCampaignModal({ isOpen, onClose, selectedLeadIds, selected
   const [description, setDescription] = useState('');
   const [assignedTo, setAssignedTo] = useState<string>('unassigned');
   const [scriptId, setScriptId] = useState<string>(scripts[0]?.id || '');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (defaultTitle) {
+        setTitle(defaultTitle);
+      } else {
+        setTitle(`Fila de Prospecção - ${new Date().toLocaleDateString('pt-BR')}`);
+      }
+      if (defaultVendedorHint && defaultVendedorHint !== 'all' && salespeople.length > 0) {
+        const hintLower = defaultVendedorHint.toLowerCase();
+        const matched = salespeople.find(sp => {
+          const nameLower = (sp.display_name || '').toLowerCase();
+          const emailLower = (sp.email || '').toLowerCase();
+          const commNameLower = (sp.commercial_name || '').toLowerCase();
+          if (hintLower === 'michelle') {
+            return nameLower.includes('michel') || nameLower.includes('mitch') || emailLower.includes('mitch') || emailLower.includes('michel');
+          }
+          return nameLower.includes(hintLower) || emailLower.includes(hintLower) || commNameLower.includes(hintLower);
+        });
+        if (matched) {
+          setAssignedTo(matched.id);
+        }
+      }
+    }
+  }, [isOpen, defaultTitle, defaultVendedorHint, salespeople]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

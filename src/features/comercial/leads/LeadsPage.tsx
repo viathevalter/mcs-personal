@@ -5,6 +5,12 @@ import { supabase } from '@/shared/supabase/client';
 import { useLeads, useMutateLead } from './hooks/useLeads';
 import { normalizeSectorName } from './services/prospectingService';
 import { detectLeadCountry, COUNTRY_LABELS } from './utils/leadCountryUtils';
+import {
+  loadAllMarketingAudiences,
+  doesLeadMatchAudience,
+  doesLeadMatchVendedor,
+  VENDEDOR_CATEGORIES,
+} from './utils/marketingAudiences';
 import { useKanbanStages } from './hooks/useKanban';
 import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
@@ -72,6 +78,9 @@ import {
   PhoneCall,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Users,
+  Sparkles,
   X,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -830,6 +839,76 @@ export function LeadsPage() {
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
   const [selectedWebsiteFilter, setSelectedWebsiteFilter] = useState<'all' | 'with_web' | 'no_web'>('all');
 
+  // Audience / Público de Campanha (Por Vendedor) Filters
+  const [selectedVendedor, setSelectedVendedor] = useState<string>('all');
+  const [selectedAudienceId, setSelectedAudienceId] = useState<string>('all');
+  const [isAudienceDropdownOpen, setIsAudienceDropdownOpen] = useState<boolean>(false);
+  const [audienceSearchQuery, setAudienceSearchQuery] = useState<string>('');
+
+  const allMarketingAudiences = useMemo(() => {
+    return loadAllMarketingAudiences(leads);
+  }, [leads, selectedEmpresaId]);
+
+  const activeAudience = useMemo(() => {
+    if (selectedAudienceId === 'all') return null;
+    return allMarketingAudiences.find((a) => a.id === selectedAudienceId) || null;
+  }, [allMarketingAudiences, selectedAudienceId]);
+
+  const visibleAudiencesForDropdown = useMemo(() => {
+    let list = allMarketingAudiences;
+    if (selectedVendedor !== 'all') {
+      list = list.filter((a) => a.vendedor === selectedVendedor);
+    }
+    if (audienceSearchQuery.trim()) {
+      const q = audienceSearchQuery.toLowerCase().trim();
+      list = list.filter(
+        (a) =>
+          a.name.toLowerCase().includes(q) ||
+          a.vendedor.toLowerCase().includes(q) ||
+          (a.filters?.tagKeyword || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [allMarketingAudiences, selectedVendedor, audienceSearchQuery]);
+
+  const handleSelectVendedorFilter = (vendedor: string) => {
+    setSelectedVendedor(vendedor);
+    if (selectedAudienceId !== 'all') {
+      const currentAud = allMarketingAudiences.find((a) => a.id === selectedAudienceId);
+      if (vendedor !== 'all' && currentAud && currentAud.vendedor !== vendedor) {
+        setSelectedAudienceId('all');
+      }
+    }
+    if (vendedor === 'Omar') {
+      if (selectedCountry !== 'FR' && selectedCountry !== 'all') setSelectedCountry('FR');
+    } else if (vendedor === 'Giada') {
+      if (selectedCountry !== 'IT' && selectedCountry !== 'all') setSelectedCountry('IT');
+    } else if (vendedor === 'Alex' || vendedor === 'Michelle' || vendedor === 'Rosa') {
+      if (selectedCountry !== 'ES' && selectedCountry !== 'all') setSelectedCountry('ES');
+    }
+  };
+
+  const handleSelectAudienceFilter = (audId: string) => {
+    setSelectedAudienceId(audId);
+    setIsAudienceDropdownOpen(false);
+    if (audId === 'all') return;
+    const aud = allMarketingAudiences.find((a) => a.id === audId);
+    if (!aud) return;
+    const audCountries = aud.filters?.selectedCountries || [];
+    if (audCountries.length === 1) {
+      const targetC = audCountries[0];
+      if (['ES', 'FR', 'PT', 'IT', 'DE', 'NL', 'BE', 'GB'].includes(targetC)) {
+        if (selectedCountry !== 'all' && selectedCountry !== targetC) {
+          setSelectedCountry(targetC);
+        }
+      } else {
+        setSelectedCountry('all');
+      }
+    } else if (audCountries.length > 1) {
+      setSelectedCountry('all');
+    }
+  };
+
   useEffect(() => {
     try {
       if (selectedCountry) {
@@ -842,7 +921,7 @@ export function LeadsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCountry, selectedSector, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, sortField, sortDirection, pageSize]);
+  }, [searchTerm, selectedCountry, selectedSector, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, selectedVendedor, selectedAudienceId, sortField, sortDirection, pageSize]);
 
   const countryLabels = COUNTRY_LABELS;
 
@@ -871,11 +950,15 @@ export function LeadsPage() {
     return counts;
   }, [leads]);
 
-  // Leads scoped to the currently selected country (or all)
+  // Leads scoped to the currently selected country, vendedor & audience
   const countryFilteredBaseLeads = useMemo(() => {
-    if (selectedCountry === 'all') return leads;
-    return leads.filter((l) => detectLeadCountry(l) === selectedCountry);
-  }, [leads, selectedCountry]);
+    return leads.filter((l) => {
+      if (selectedCountry !== 'all' && detectLeadCountry(l) !== selectedCountry) return false;
+      if (activeAudience && !doesLeadMatchAudience(l, activeAudience)) return false;
+      if (!activeAudience && selectedVendedor !== 'all' && !doesLeadMatchVendedor(l, selectedVendedor)) return false;
+      return true;
+    });
+  }, [leads, selectedCountry, activeAudience, selectedVendedor]);
 
   // Sector counts scoped dynamically to active country filter
   const sectorCounts = useMemo(() => {
@@ -954,6 +1037,9 @@ export function LeadsPage() {
 
   const filteredLeads = useMemo(() => {
     return leads.filter((lead: any) => {
+      if (activeAudience && !doesLeadMatchAudience(lead, activeAudience)) return false;
+      if (!activeAudience && selectedVendedor !== 'all' && !doesLeadMatchVendedor(lead, selectedVendedor)) return false;
+
       const leadNormSector = normalizeSectorName(lead.sector);
       if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
       if (selectedCountry !== 'all' && detectLeadCountry(lead) !== selectedCountry) return false;
@@ -987,7 +1073,7 @@ export function LeadsPage() {
         (Array.isArray(lead.tags) && lead.tags.some((t: string) => t.toLowerCase().includes(search)))
       );
     });
-  }, [leads, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
+  }, [leads, activeAudience, selectedVendedor, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
 
   const sortedLeads = useMemo(() => {
     return [...filteredLeads].sort((a, b) => {
@@ -1059,6 +1145,31 @@ export function LeadsPage() {
   const handleClearSelection = () => {
     setSelectedLeadIds([]);
   };
+
+  const handleGenerateQueueFromFiltered = () => {
+    const callableLeads = filteredLeads.filter((l) => !l.do_not_call);
+    if (callableLeads.length === 0) {
+      toast.error('Nenhum lead disponível para discagem no filtro atual.');
+      return;
+    }
+    if (selectedLeadIds.length === 0) {
+      const allIds = callableLeads.map((l) => l.id);
+      setSelectedLeadIds(allIds);
+    }
+    setIsDialerModalOpen(true);
+  };
+
+  const dialerDefaultTitle = useMemo(() => {
+    const dateStr = new Date().toLocaleDateString('pt-BR');
+    if (activeAudience) {
+      const cleanName = activeAudience.name.replace(/^[^\w\dÀ-ÿ]+/, '').trim();
+      return `Fila: ${cleanName} - ${dateStr}`;
+    }
+    if (selectedVendedor !== 'all') {
+      return `Fila: Públicos ${selectedVendedor} - ${dateStr}`;
+    }
+    return `Fila de Prospecção - ${dateStr}`;
+  }, [activeAudience, selectedVendedor]);
 
   return (
     <div className="flex flex-col space-y-6 p-4">
@@ -1258,6 +1369,203 @@ export function LeadsPage() {
               {countryCounts.total}
             </span>
           </button>
+        </div>
+      </div>
+
+      {/* Filtro por Públicos de Campanhas de E-mail & Vendedor */}
+      <div className="flex flex-col gap-3 bg-gradient-to-r from-amber-500/5 via-card to-blue-500/5 p-3.5 rounded-xl border border-amber-500/30 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
+            <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+            <span>Filtrar por Públicos de Campanhas de E-mail (Por Vendedor):</span>
+          </div>
+
+          {/* Quick 1-click button to generate Work Queue from the filtered audience/vendedor */}
+          {(selectedAudienceId !== 'all' || selectedVendedor !== 'all') && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
+                🎯 {filteredLeads.length} leads no público filtrado
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleGenerateQueueFromFiltered}
+                className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md shadow-emerald-900/30 gap-1.5"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Gerar Fila de Trabalho deste Público ({selectedLeadIds.length > 0 ? selectedLeadIds.length : filteredLeads.filter((l) => !l.do_not_call).length})
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedAudienceId('all');
+                  setSelectedVendedor('all');
+                }}
+                className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1 px-2"
+              >
+                <X className="w-3.5 h-3.5" />
+                Limpar Público
+              </Button>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          {/* Salesperson (Vendedor) Quick Pills */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {VENDEDOR_CATEGORIES.map((vc) => {
+              const isActive = selectedVendedor === vc.id;
+              const countForVendedor =
+                vc.id === 'all'
+                  ? allMarketingAudiences.length
+                  : allMarketingAudiences.filter((a) => a.vendedor === vc.id).length;
+              if (vc.id === 'Personalizados' && countForVendedor === 0) return null;
+              return (
+                <button
+                  key={vc.id}
+                  type="button"
+                  onClick={() => handleSelectVendedorFilter(vc.id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-sm font-bold'
+                      : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <span>{vc.flag}</span>
+                  <span>{vc.label}</span>
+                  <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                    {countForVendedor}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Searchable Público de Campanha Combobox */}
+          <div className="relative min-w-[300px] sm:min-w-[380px] lg:w-[440px]">
+            <button
+              type="button"
+              onClick={() => setIsAudienceDropdownOpen((prev) => !prev)}
+              className={`w-full h-9 px-3 rounded-lg border text-xs font-semibold flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                selectedAudienceId !== 'all'
+                  ? 'bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-300 shadow-sm'
+                  : 'bg-background border-input text-foreground hover:border-amber-500/50'
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                <Users className="w-4 h-4 text-amber-500 shrink-0" />
+                <span className="truncate">
+                  {activeAudience
+                    ? `${activeAudience.name} (${filteredLeads.length} leads)`
+                    : selectedVendedor !== 'all'
+                    ? `Todos os Públicos de ${selectedVendedor} (${visibleAudiencesForDropdown.length} públicos)`
+                    : `Selecionar Público de Campanha de E-mail (${allMarketingAudiences.length} públicos)...`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {selectedAudienceId !== 'all' && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedAudienceId('all');
+                    }}
+                    className="p-0.5 rounded hover:bg-amber-500/20 text-muted-foreground hover:text-destructive"
+                    title="Limpar público selecionado"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </span>
+                )}
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              </div>
+            </button>
+
+            {isAudienceDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsAudienceDropdownOpen(false)}
+                />
+                <div className="absolute right-0 left-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-2xl z-50 p-2.5 space-y-2 max-h-96 flex flex-col">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
+                    <Input
+                      placeholder="Buscar público por nome, vendedor, região ou tag..."
+                      value={audienceSearchQuery}
+                      onChange={(e) => setAudienceSearchQuery(e.target.value)}
+                      className="h-8 pl-8 pr-7 text-xs"
+                      autoFocus
+                    />
+                    {audienceSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setAudienceSearchQuery('')}
+                        className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="overflow-y-auto max-h-72 space-y-1 pr-1 scrollbar-thin">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAudienceFilter('all')}
+                      className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                        selectedAudienceId === 'all'
+                          ? 'bg-amber-500/15 text-amber-900 dark:text-amber-300 font-bold'
+                          : 'hover:bg-muted text-foreground'
+                      }`}
+                    >
+                      <span>
+                        🌐 {selectedVendedor !== 'all' ? `Todos os Públicos de ${selectedVendedor}` : 'Todos os Públicos (Sem filtro de campanha)'}
+                      </span>
+                    </button>
+
+                    {visibleAudiencesForDropdown.length === 0 ? (
+                      <div className="text-xs text-muted-foreground text-center py-6">
+                        Nenhum público encontrado para "{audienceSearchQuery}".
+                      </div>
+                    ) : (
+                      visibleAudiencesForDropdown.map((aud) => {
+                        const isSelected = selectedAudienceId === aud.id;
+                        return (
+                          <button
+                            key={aud.id}
+                            type="button"
+                            onClick={() => handleSelectAudienceFilter(aud.id)}
+                            className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-amber-500/20 text-amber-900 dark:text-amber-200 font-bold border border-amber-500/40'
+                                : 'hover:bg-muted text-foreground'
+                            }`}
+                          >
+                            <div className="flex flex-col min-w-0">
+                              <span className="truncate">{aud.name}</span>
+                              <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                                <span className="font-semibold text-amber-600 dark:text-amber-400">
+                                  Vendedor: {aud.vendedor}
+                                </span>
+                                {aud.filters?.tagKeyword && (
+                                  <span className="truncate">• Tag: {aud.filters.tagKeyword}</span>
+                                )}
+                              </span>
+                            </div>
+                            {aud.leadCount !== undefined && (
+                              <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                                {aud.leadCount} leads
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1521,7 +1829,7 @@ export function LeadsPage() {
           </div>
 
           {/* Quick Clear All Filters button */}
-          {(searchTerm || selectedSector !== 'all' || selectedCompanySize !== 'all' || selectedRegion !== 'all' || selectedProvince !== 'all' || selectedWebsiteFilter !== 'all') && (
+          {(searchTerm || selectedSector !== 'all' || selectedCompanySize !== 'all' || selectedRegion !== 'all' || selectedProvince !== 'all' || selectedWebsiteFilter !== 'all' || selectedVendedor !== 'all' || selectedAudienceId !== 'all') && (
             <Button
               type="button"
               variant="ghost"
@@ -1533,6 +1841,8 @@ export function LeadsPage() {
                 setSelectedRegion('all');
                 setSelectedProvince('all');
                 setSelectedWebsiteFilter('all');
+                setSelectedVendedor('all');
+                setSelectedAudienceId('all');
               }}
               className="h-9 text-xs text-muted-foreground hover:text-destructive gap-1.5 px-3 shrink-0"
               title="Limpar todos os filtros da busca"
@@ -2934,6 +3244,8 @@ export function LeadsPage() {
         onClose={() => setIsDialerModalOpen(false)}
         selectedLeadIds={selectedLeadIds}
         selectedCount={selectedLeadIds.length}
+        defaultTitle={dialerDefaultTitle}
+        defaultVendedorHint={activeAudience?.vendedor || selectedVendedor}
       />
     </div>
   );
