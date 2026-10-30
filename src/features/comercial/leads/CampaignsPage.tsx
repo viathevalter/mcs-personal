@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_sector_metal_ampliado_4_2026',
+        name: '🚀 Mailing Alex - Inéditos Sector Metal Ampliado 4 / Galicia & Multirregional (70 leads)',
+        leadCount: 70,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Sector Metal España Ampliado 4 (Galicia & Multirregional) 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-30T07:22:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_sector_metal_ampliado_4_completo_2026',
+        name: '🎯 Mailing Alex - Sector Metal Ampliado 4 / Galicia & Multirregional Completo (70 leads)',
+        leadCount: 70,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - Sector Metal España Ampliado 4 (Galicia & Multirregional) 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-30T07:22:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_guipuzcoa_navarra_alava_2026',
         name: '🚀 Mailing Alex - Inéditos Guipúzcoa, Navarra & Álava (150 leads)',
         leadCount: 150,
