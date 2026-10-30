@@ -1615,6 +1615,52 @@ export function CampaignsPage() {
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
       {
+        id: 'aud_mailing_alex_ineditos_huesca_cuenca_barcelona_2026',
+        name: '🚀 Mailing Alex - Inéditos Huesca, Cuenca & Barcelona (460 leads)',
+        leadCount: 460,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex Inéditos - Huesca, Cuenca & Barcelona 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-30T10:09:00.000Z'
+      },
+      {
+        id: 'aud_mailing_alex_huesca_cuenca_barcelona_completo_2026',
+        name: '🎯 Mailing Alex - Huesca, Cuenca & Barcelona Completo (574 leads)',
+        leadCount: 574,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Alex - Huesca, Cuenca & Barcelona 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-30T10:09:00.000Z'
+      },
+      {
         id: 'aud_mailing_alex_ineditos_sector_metal_ampliado_4_2026',
         name: '🚀 Mailing Alex - Inéditos Sector Metal Ampliado 4 / Galicia & Multirregional (70 leads)',
         leadCount: 70,
