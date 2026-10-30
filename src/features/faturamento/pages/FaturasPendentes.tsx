@@ -296,7 +296,9 @@ export function FaturasPendentes() {
     let body = '';
     const link = `${window.location.origin}/aprovacao-cliente/${emailData.token}`;
 
-    const docNum = String(faturamento.faturaNumero || faturamento.empresaNextInvoiceNumber || '0001').padStart(4, '0');
+    const rawFaturaNum = selectedObra?.faturaNumero || faturamento.faturaNumero;
+    const seqDigits = rawFaturaNum ? (rawFaturaNum.match(/\/(\d+)$/)?.[1] || rawFaturaNum) : String(faturamento.empresaNextInvoiceNumber || '0001');
+    const docNum = String(seqDigits).padStart(4, '0');
     if (lang === 'es') {
       subject = `MCS - Solicitud de Aprobación de Horas - ${faturamento.clientName}${obraSuffix} - ${periodStr}`;
       body = `Hola,
@@ -743,7 +745,9 @@ MCS - Gestão Comercial`;
     
     const previewToken = crypto.randomUUID(); 
     const link = `${window.location.origin}/aprovacao-cliente/${previewToken}`;
-    const docNum = String(faturamento.faturaNumero || faturamento.empresaNextInvoiceNumber || '0001').padStart(4, '0');
+    const rawFaturaNum = selectedObra?.faturaNumero || faturamento.faturaNumero;
+    const seqDigits = rawFaturaNum ? (rawFaturaNum.match(/\/(\d+)$/)?.[1] || rawFaturaNum) : String(faturamento.empresaNextInvoiceNumber || '0001');
+    const docNum = String(seqDigits).padStart(4, '0');
     
     const body = `Olá,
 
@@ -778,7 +782,7 @@ MCS - Gestão Comercial`;
 
     const emailCacheKey = selectedObraId ? `${cardId}::${selectedObraId}` : cardId;
     const cached = emailCache[emailCacheKey];
-    if (cached) {
+    if (cached && cached.body.includes(`IF-${faturamento.year}/${docNum}`)) {
       setSelectedEmails(cached.selectedEmails);
       setAdditionalEmails(cached.additionalEmails);
       setSendEmailCheckbox(cached.sendEmailCheckbox);
@@ -1204,10 +1208,16 @@ MCS - Gestão Comercial`;
     }
   };
 
-  const generateFacturaPDFProgrammatically = async (f: ClientBillingSummary, cardId: string): Promise<jsPDF | null> => {
+  const generateFacturaPDFProgrammatically = async (
+    f: ClientBillingSummary,
+    cardId: string,
+    overrideMeta?: { faturaNumero?: string | null; atcud?: string | null }
+  ): Promise<jsPDF | null> => {
     const selectedObraId = selectedObraByClient[cardId];
     const hasObraFilter = selectedObraId !== undefined;
     const selectedObra = hasObraFilter ? f.obras.find(o => o.id === selectedObraId) : null;
+    const effectiveFaturaNumero = overrideMeta?.faturaNumero || selectedObra?.faturaNumero || f.faturaNumero || `Factura nº${f.empresaInvoiceSeries || "1"} ${f.year || new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`;
+    const effectiveAtcud = overrideMeta?.atcud || selectedObra?.atcud || f.atcud || `${f.empresaAtcudPrefix || "J6XBVVRV"}-${f.empresaNextInvoiceNumber || 1}`;
     
     const displayTotalHoras = hasObraFilter
       ? (f.obras.find(o => o.id === selectedObraId)?.totalHoras || 0)
@@ -1250,13 +1260,13 @@ MCS - Gestão Comercial`;
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px;">
             <div>
               <h3 style="font-size: 24px; font-weight: 800; color: #0f172a; margin: 0; letter-spacing: -0.025em;">
-                ${f.faturaNumero || `Factura nº${f.empresaInvoiceSeries || '1'} ${f.year || new Date().getFullYear()}/${f.empresaNextInvoiceNumber || 1}`}
+                ${effectiveFaturaNumero}
               </h3>
               <p style="font-size: 11px; font-weight: 700; color: #0f172a; margin: 4px 0 0 0; text-transform: uppercase; letter-spacing: 0.05em;">ORIGINAL</p>
             </div>
             <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
               <span style="font-size: 9px; font-weight: 700; color: #475569;">
-                ATCUD: ${f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}
+                ATCUD: ${effectiveAtcud}
               </span>
               <div style="border: 1px solid #e2e8f0; padding: 4px; background-color: #ffffff; border-radius: 4px;">
                 ${qrCodeHtml}
@@ -1281,7 +1291,7 @@ MCS - Gestão Comercial`;
 
             <div>
               <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">ATCUD</p>
-              <p style="font-weight: 600; color: #0f172a; margin: 0;">${f.atcud || `${f.empresaAtcudPrefix || 'J6XBVVRV'}-${f.empresaNextInvoiceNumber || 1}`}</p>
+              <p style="font-weight: 600; color: #0f172a; margin: 0;">${effectiveAtcud}</p>
               
               <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 12px 0 2px 0;">Data de Emissão</p>
               <p style="color: #334155; margin: 0;">${emissionDateStr}</p>
@@ -1430,7 +1440,12 @@ MCS - Gestão Comercial`;
     }
   };
 
-  const generatePDFAttachment = async (cardId: string, clientName: string, type: 'informe' | 'factura'): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
+  const generatePDFAttachment = async (
+    cardId: string,
+    clientName: string,
+    type: 'informe' | 'factura',
+    overrideMeta?: { faturaNumero?: string | null; atcud?: string | null }
+  ): Promise<{ name: string, contentType: string, contentBytes: string } | null> => {
     if (type === 'factura') {
       const f = faturamentos.find(item => {
         const expectedCardId = item.magicLinkToken 
@@ -1444,7 +1459,7 @@ MCS - Gestão Comercial`;
       }
 
       try {
-        const pdf = await generateFacturaPDFProgrammatically(f, cardId);
+        const pdf = await generateFacturaPDFProgrammatically(f, cardId, overrideMeta);
         if (!pdf) return null;
 
         const pdfBase64 = pdf.output('datauristring').split(',')[1];
@@ -1536,8 +1551,9 @@ MCS - Gestão Comercial`;
       ? `<div style="height: 56px; display: flex; align-items: center; margin-bottom: 8px;"><img src="${f.empresaInvoiceLogoUrl}" style="max-height: 100%; max-width: 220px; object-fit: contain;" /></div>`
       : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; tracking: -0.025em;">${f.empresaNome.toUpperCase()}</h3>`;
 
-    const effectiveFaturaNum = selectedObra?.faturaNumero || f.faturaNumero;
-    const docNumber = `IF-${f.year}/${String(effectiveFaturaNum || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}`;
+    const effectiveFaturaNum = overrideMeta?.faturaNumero || selectedObra?.faturaNumero || f.faturaNumero;
+    const effectiveSeq = effectiveFaturaNum ? (effectiveFaturaNum.match(/\/(\d+)$/)?.[1] || effectiveFaturaNum) : String(f.empresaNextInvoiceNumber || '0001');
+    const docNumber = `IF-${f.year}/${String(effectiveSeq).padStart(4, '0')}`;
     const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
     const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
 
@@ -2119,6 +2135,19 @@ MCS - Gestão Comercial`;
 
       const toastId = toast.loading('Compilando relatórios e gerando anexos em PDF de alta qualidade. Por favor, aguarde...');
 
+      // Fetch the exact fatura_numero and atcud persisted in DB for this magic_link_token
+      const { data: createdFaturaRow } = await supabase
+        .schema('core_finance')
+        .from('faturas')
+        .select('fatura_numero, atcud')
+        .eq('magic_link_token', emailData.token)
+        .maybeSingle();
+
+      const overrideMeta = {
+        faturaNumero: createdFaturaRow?.fatura_numero || null,
+        atcud: createdFaturaRow?.atcud || null
+      };
+
       // 1. Ensure the client card is expanded so the DOM elements are mounted and accessible
       if (!expandedClients[emailData.cardId]) {
         setExpandedClients(prev => ({ ...prev, [emailData.cardId]: true }));
@@ -2131,11 +2160,11 @@ MCS - Gestão Comercial`;
         if (relatorioAttachment) custom_attachments.push(relatorioAttachment);
       }
       if (selectedAttachments.informe) {
-        const informeAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'informe');
+        const informeAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'informe', overrideMeta);
         if (informeAttachment) custom_attachments.push(informeAttachment);
       }
       if (selectedAttachments.factura) {
-        const facturaAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'factura');
+        const facturaAttachment = await generatePDFAttachment(emailData.cardId, emailData.clientName, 'factura', overrideMeta);
         if (facturaAttachment) custom_attachments.push(facturaAttachment);
       }
 
@@ -2178,8 +2207,9 @@ MCS - Gestão Comercial`;
         return next;
       });
 
+      setEmailCache({});
       setIsEmailModalOpen(false);
-      fetchHoras();
+      await fetchHoras();
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao solicitar aprovação: ' + err.message);
@@ -2664,7 +2694,9 @@ MCS - Gestão Comercial`;
       ? `<div style="height: 56px; display: flex; align-items: center; margin-bottom: 8px;"><img src="${f.empresaInvoiceLogoUrl}" style="max-height: 100%; max-width: 220px; object-fit: contain;" /></div>`
       : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; tracking: -0.025em;">${f.empresaNome.toUpperCase()}</h3>`;
 
-    const docNumber = `IF-${f.year}/${String(f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}`;
+    const rawExportFaturaNum = selectedObra?.faturaNumero || f.faturaNumero;
+    const exportSeqDigits = rawExportFaturaNum ? (rawExportFaturaNum.match(/\/(\d+)$/)?.[1] || rawExportFaturaNum) : String(f.empresaNextInvoiceNumber || '0001');
+    const docNumber = `IF-${f.year}/${String(exportSeqDigits).padStart(4, '0')}`;
     const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
     const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
 
@@ -4541,7 +4573,7 @@ MCS - Gestão Comercial`;
                               </div>
                               <div className="text-right text-xs space-y-1">
                                 <p className="font-bold text-slate-500 uppercase text-[10px]">Documento</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">IF-{f.year}/{String(selectedObra?.faturaNumero || f.faturaNumero || f.empresaNextInvoiceNumber || '0001').padStart(4, '0')}</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">IF-{f.year}/{String(((selectedObra?.faturaNumero || f.faturaNumero)?.match(/\/(\d+)$/)?.[1] || selectedObra?.faturaNumero || f.faturaNumero || f.empresaNextInvoiceNumber || '0001')).padStart(4, '0')}</p>
                                 <p className="text-muted-foreground mt-2">Emissão: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                                 <p className="text-muted-foreground">Vencimento: <span className="font-semibold text-slate-700 dark:text-slate-300">{new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT')}</span></p>
                               </div>

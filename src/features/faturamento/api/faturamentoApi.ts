@@ -523,24 +523,83 @@ export async function getHorasPendentesFaturamento(
         .filter(id => id && !activeWorkers.some(w => w.id === id))
     ));
 
+    const normTargetEmpresa = normalizeEmpresaName(empresaNome);
+
     let unknownWorkers: any[] = [];
     if (unknownWorkerIds.length > 0) {
-      const { data: uwData } = await supabase
-        .schema('core_personal')
-        .from('workers')
-        .select('id, nome, status_trabajador, data_baixa, funcion, cod_colab, contracts(empresa_id)')
-        .in('id', unknownWorkerIds);
-      unknownWorkers = (uwData || []).map((w: any) => ({
-        ...w,
-        empresa_id: w.contracts?.find((c: any) => c.empresa_id === empresaId)?.empresa_id || null
-      }));
+      const uwData = await fetchInChunks(unknownWorkerIds, 30, async (chunk) => {
+        const { data, error } = await supabase
+          .schema('core_personal')
+          .from('workers')
+          .select('id, nome, status_trabajador, data_baixa, funcion, cod_colab, contratante, contracts(empresa_id, status)')
+          .in('id', chunk);
+        if (error) console.error('Error fetching unknown workers in billing:', error);
+        return data || [];
+      });
+      unknownWorkers = (uwData || []).map((w: any) => {
+        const wContratanteNorm = w.contratante ? normalizeEmpresaName(w.contratante) : '';
+        let resolvedEmpresaId: string | null = null;
+        if (wContratanteNorm && normTargetEmpresa && wContratanteNorm === normTargetEmpresa) {
+          resolvedEmpresaId = empresaId;
+        } else if (wContratanteNorm && normTargetEmpresa && wContratanteNorm !== normTargetEmpresa) {
+          resolvedEmpresaId = 'OTHER_COMPANY';
+        } else if (Array.isArray(w.contracts) && w.contracts.length > 0) {
+          const matchingContract = w.contracts.find((c: any) => c.empresa_id === empresaId);
+          resolvedEmpresaId = matchingContract ? empresaId : 'OTHER_COMPANY';
+        }
+        return {
+          ...w,
+          empresa_id: resolvedEmpresaId
+        };
+      });
     }
     const unknownWorkersMap = new Map(unknownWorkers.map(w => [w.id, w]));
 
+    // Fetch existing faturas early so we can also verify fatura.empresa_id when filtering hoursList
+    const rawFaturaIds = Array.from(new Set(horasTrabalhadasList.map(h => h.fatura_id).filter(Boolean)));
+    let faturasList: any[] = [];
+    if (rawFaturaIds.length > 0) {
+      faturasList = await fetchInChunks(rawFaturaIds, 30, async (chunk) => {
+        const { data: fatData } = await supabase
+          .schema('core_finance')
+          .from('faturas')
+          .select('id, client_id, empresa_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud, observacoes_cliente')
+          .in('id', chunk);
+        return fatData || [];
+      });
+    }
+    const faturasMap = new Map(faturasList.map(f => [f.id, f]));
+
     // Fetch start dates and allocations for workers to know when each worker started with that client
-    const allWorkersToEnrich = [...activeWorkers, ...unknownWorkers];
+    const allWorkersToEnrich = [...activeWorkers, ...unknownWorkers.filter(w => w.empresa_id === empresaId)];
     const allWorkerIds = Array.from(new Set(allWorkersToEnrich.map(w => w.id).filter(Boolean)));
     const allCodColabs = Array.from(new Set(allWorkersToEnrich.map(w => w.cod_colab).filter(Boolean)));
+
+    // Also fetch worker_hours for any unknownWorkers belonging to this company that were not in activeWorkerIds
+    const extraWorkerIds = allWorkerIds.filter(id => !activeWorkerIds.includes(id));
+    if (extraWorkerIds.length > 0) {
+      const extraWhList = await fetchInChunks(extraWorkerIds, 30, async (chunk) => {
+        const { data: whData } = await supabase
+          .schema('core_personal')
+          .from('worker_hours')
+          .select('worker_id, status, observacoes, cliente_nombre')
+          .in('worker_id', chunk)
+          .eq('period_year', periodYear)
+          .eq('period_month', periodMonth);
+        return whData || [];
+      });
+      extraWhList.forEach(wh => {
+        const key = `${wh.worker_id}-${wh.cliente_nombre?.trim().toLowerCase()}`;
+        const existing = workerHoursMap.get(key);
+        if (!existing || getStatusPriority(wh.status) >= getStatusPriority(existing.status)) {
+          const val = { status: wh.status, observacoes: wh.observacoes };
+          workerHoursMap.set(key, val);
+          if (!wh.cliente_nombre || wh.cliente_nombre === 'NÃO DEFINIDO') {
+            workerHoursMap.set(wh.worker_id, val);
+          }
+        }
+      });
+    }
 
     let workersDetails: any[] = [];
     if (allWorkerIds.length > 0) {
@@ -569,27 +628,28 @@ export async function getHorasPendentesFaturamento(
       });
     }
 
-    const belongsToCompany = (wId: string) => {
-      if (activeWorkers.some(w => w.id === wId)) return true;
-      const uw = unknownWorkersMap.get(wId);
-      return uw ? uw.empresa_id === empresaId : false;
-    };
-
-    // Filter hours to keep those belonging to the company (either the client belongs to the company or the worker belongs to it) AND falling within custom cycle
+    // Filter hours to strictly keep ONLY those belonging to this company AND falling within the client's billing cycle
     const hoursList = horasTrabalhadasList.filter(h => {
       const client = clientsList.find(c => c.id === h.client_id);
       if (!client) return false;
 
-      // If the worker belongs to another specific company, reject
-      const uw = unknownWorkersMap.get(h.worker_id);
-      const isOurActiveWorker = activeWorkers.some(w => w.id === h.worker_id);
-      if (!isOurActiveWorker && uw?.empresa_id && uw.empresa_id !== empresaId) {
-        return false;
+      // 1. If the hour is already linked to a fatura, it belongs to this company ONLY if the fatura belongs to this company
+      if (h.fatura_id) {
+        const fat = faturasMap.get(h.fatura_id);
+        if (fat?.empresa_id) {
+          if (fat.empresa_id !== empresaId) return false;
+        } else {
+          const isOurActiveWorker = activeWorkers.some(w => w.id === h.worker_id);
+          const uw = unknownWorkersMap.get(h.worker_id);
+          if (!isOurActiveWorker && uw?.empresa_id !== empresaId) return false;
+        }
+      } else {
+        // 2. For unbilled hours, the worker MUST belong to this company (never leak workers from Luminous/Wiseowe into Stocco, etc.)
+        const isOurActiveWorker = activeWorkers.some(w => w.id === h.worker_id);
+        const uw = unknownWorkersMap.get(h.worker_id);
+        const workerBelongsToCompany = isOurActiveWorker || (uw?.empresa_id === empresaId);
+        if (!workerBelongsToCompany) return false;
       }
-
-      const clientBelongsToCompany = client.empresa_id === empresaId;
-      const workerBelongsToCompany = isOurActiveWorker || (uw?.empresa_id === empresaId);
-      if (!clientBelongsToCompany && !workerBelongsToCompany) return false;
 
       const cycleStartDay = client.billing_cycle_start_day || 1;
       const { start: clientStart, end: clientEnd } = getClientDateRange(cycleStartDay, periodYear, periodMonth);
@@ -623,19 +683,6 @@ export async function getHorasPendentesFaturamento(
       });
     }
     const clientSitesMap = new Map(clientSites.map(s => [s.id, s.name]));
-
-    // 8. Fetch existing faturas
-    const faturaIds = Array.from(new Set(hoursList.map(h => h.fatura_id).filter(Boolean)));
-    let faturasList: any[] = [];
-    if (faturaIds.length > 0) {
-      const { data: fatData } = await supabase
-        .schema('core_finance')
-        .from('faturas')
-        .select('id, client_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud, observacoes_cliente')
-        .in('id', faturaIds);
-      faturasList = fatData || [];
-    }
-    const faturasMap = new Map(faturasList.map(f => [f.id, f]));
 
     // 9. Fetch job functions for profile names
     const funcaoIds = Array.from(new Set(hoursList.map(h => h.funcao_id).filter(Boolean)));
@@ -1004,6 +1051,15 @@ export async function getHorasPendentesFaturamento(
           wHours
         );
 
+        const clientNameLower = client.trade_name?.trim().toLowerCase();
+        const whObj = workerHoursMap.get(`${wId}-${clientNameLower}`) || workerHoursMap.get(wId);
+        const whStatus = whObj?.status;
+        const allHoursValidated = wHours.length > 0 && wHours.every(h =>
+          h.status === 'validado' || h.status === 'invoiced' || h.status === 'pending_client_approval' || h.status === 'approved'
+        );
+        const isValidated = whStatus === 'validado' || whStatus === 'validated' || (!whStatus && allHoursValidated);
+        const observacoes = whObj?.observacoes || null;
+
         workersSummary.push({
           workerId: wId,
           workerName: wName,
@@ -1017,19 +1073,21 @@ export async function getHorasPendentesFaturamento(
           totalValor: wTotalValor,
           totalHorasMes: wTotalHorasMes,
           totalValorMes: wTotalValorMes,
-          isValidated: true,
+          isValidated,
           isBilled,
           funcaoId: wFuncaoId,
           workerStatus: wStatus,
           dataBaixa: wDataBaixa,
           dataInicio,
-          observacoes: null,
+          observacoes,
           isException: hasException,
           horasDiarias,
           horasLista: wHours
         });
         
-        validatedWorkersCount++;
+        if (isValidated) {
+          validatedWorkersCount++;
+        }
       }
 
       // Calculate unbilled and billed counts
@@ -1209,20 +1267,39 @@ export async function solicitarAprovacaoCliente(
 
     if (empresa) {
       const series = empresa.invoice_series || '1';
-      const number = empresa.next_invoice_number || 1;
+      let number = empresa.next_invoice_number || 1;
       const year = new Date().getFullYear();
-      
-      faturaNumero = `Factura nº${series} ${year}/${number}`;
+
+      // Ensure the invoice number has never been used in core_finance.faturas for this company
+      while (true) {
+        const candidateNumero = `Factura nº${series} ${year}/${number}`;
+        const { data: existingWithNum } = await supabase
+          .schema('core_finance')
+          .from('faturas')
+          .select('id')
+          .eq('empresa_id', empresaId)
+          .eq('fatura_numero', candidateNumero)
+          .limit(1);
+        if (!existingWithNum || existingWithNum.length === 0) {
+          faturaNumero = candidateNumero;
+          break;
+        }
+        number++;
+      }
+
       if (empresa.atcud_prefix) {
         atcud = `${empresa.atcud_prefix}-${number}`;
       }
 
       // 2. Increment next_invoice_number
-      await supabase
+      const { error: empUpdErr } = await supabase
         .schema('core_common')
         .from('empresas')
         .update({ next_invoice_number: number + 1 })
         .eq('id', empresaId);
+      if (empUpdErr) {
+        console.error('Erro ao incrementar next_invoice_number:', empUpdErr);
+      }
     }
   }
 
