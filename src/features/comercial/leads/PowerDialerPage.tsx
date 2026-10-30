@@ -14,53 +14,28 @@ import {
   Building2, 
   MapPin, 
   Globe, 
-  Linkedin, 
   MessageSquare, 
   Copy, 
-  Check, 
-  Play, 
-  Pause, 
-  RotateCcw, 
   ChevronRight, 
   ChevronLeft, 
-  Sparkles, 
-  Volume2, 
-  AlertTriangle, 
   BarChart3, 
   Zap, 
   Layers, 
   Flame, 
-  Loader2, 
-  Plus, 
-  Search,
   ExternalLink,
-  SlidersHorizontal,
-  Info,
   Wrench,
   FileText,
-  CreditCard,
   Edit
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter,
-  DialogDescription 
-} from '@/components/ui/dialog';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { format, parseISO } from 'date-fns';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
   useDialerCampaigns, 
   useDialerCampaign, 
@@ -68,7 +43,8 @@ import {
   useLeadCallLogs, 
   useMutateDialer 
 } from './hooks/useDialer';
-import { useSalespeople } from './hooks/useLeads';
+import { useCommercialScope } from './hooks/useLeads';
+import { useComercialLanguage } from './utils/comercialI18n';
 
 import { QuickPresupuestoModal } from './components/QuickPresupuestoModal';
 import { SalesScriptCard } from './components/SalesScriptCard';
@@ -94,18 +70,31 @@ const countryFlags: Record<string, string> = {
 };
 
 export function PowerDialerPage() {
+  const { tr } = useComercialLanguage();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const campaignIdParam = searchParams.get('campaignId');
 
-  const { selectedEmpresaId } = useEmpresa();
-  const { data: campaigns = [], isLoading: loadingCampaigns } = useDialerCampaigns();
-  const { data: salespeople = [] } = useSalespeople();
+  const {
+    activeProfile,
+    allProfiles,
+    selectedCommercialKey,
+    setSelectedCommercialKey,
+    isCommercialOperator,
+  } = useCommercialScope();
+
+  const { data: campaigns = [] } = useDialerCampaigns();
 
   // Active Campaign State
-  const activeCampaignId = campaignIdParam || (campaigns.length > 0 ? campaigns[0].id : null);
-  const { data: activeCampaign, isLoading: loadingActiveCampaign } = useDialerCampaign(activeCampaignId);
-  const { data: queue = [], isLoading: loadingQueue } = useDialerQueue(activeCampaignId);
+  const activeCampaignId = useMemo(() => {
+    if (campaignIdParam && campaigns.some(c => c.id === campaignIdParam)) {
+      return campaignIdParam;
+    }
+    return campaigns.length > 0 ? campaigns[0].id : null;
+  }, [campaignIdParam, campaigns]);
+
+  const { data: activeCampaign } = useDialerCampaign(activeCampaignId);
+  const { data: queue = [] } = useDialerQueue(activeCampaignId);
   const { logCallAndAdvance, isLoggingCall, createQuickPresupuesto } = useMutateDialer();
 
   // Active Lead Pointer in Queue
@@ -122,8 +111,6 @@ export function PowerDialerPage() {
   const [isCallbackModalOpen, setIsCallbackModalOpen] = useState(false);
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
   const [isGatekeeperModalOpen, setIsGatekeeperModalOpen] = useState(false);
-  const [callbackDate, setCallbackDate] = useState('');
-  const [callbackTime, setCallbackTime] = useState('10:00');
   const [isPresupuestoModalOpen, setIsPresupuestoModalOpen] = useState(false);
   const [isDemandModalOpen, setIsDemandModalOpen] = useState(false);
   const [isFiscalModalOpen, setIsFiscalModalOpen] = useState(false);
@@ -204,7 +191,6 @@ export function PowerDialerPage() {
     setIsCalling(true);
     setCallDuration(0);
     if (currentLead?.phone) {
-      // Trigger tel: protocol
       window.open(`tel:${currentLead.phone.replace(/\s+/g, '')}`, '_self');
     }
   };
@@ -217,7 +203,11 @@ export function PowerDialerPage() {
     if (!currentLead?.phone) return;
     const cleanNumber = currentLead.phone.replace(/\D/g, '');
     const message = encodeURIComponent(
-      `Hola, me pongo en contacto de MCS Servicios Industriales respecto al refuerzo de personal técnico (soldadores y montadores) para ${currentLead.company_name || 'su empresa'}.`
+      tr(
+        `Hola, me pongo en contacto de MCS Servicios Industriales respecto al refuerzo de personal técnico (soldadores y montadores) para ${currentLead.company_name || 'su empresa'}.`,
+        `Hola, me pongo en contacto de MCS Servicios Industriales respecto al refuerzo de personal técnico (soldadores y montadores) para ${currentLead.company_name || 'su empresa'}.`,
+        `Bonjour, je vous contacte de la part de MCS Services Industriels concernant le renfort de personnel technique (soudeurs et monteurs) pour ${currentLead.company_name || 'votre entreprise'}.`
+      )
     );
     window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
   };
@@ -228,35 +218,67 @@ export function PowerDialerPage() {
   const handleCopyBudgetLink = () => {
     if (!budgetFormUrl) return;
     navigator.clipboard.writeText(budgetFormUrl);
-    toast.success('Link de solicitação de orçamento copiado!');
+    toast.success(
+      tr(
+        'Link de solicitação de orçamento copiado!',
+        '¡Enlace de solicitud de presupuesto copiado!',
+        'Lien de demande de devis copié !'
+      )
+    );
   };
 
   const handleCopyFiscalLink = () => {
     if (!fiscalFormUrl) return;
     navigator.clipboard.writeText(fiscalFormUrl);
-    toast.success('Link da ficha cadastral (CIF) copiado!');
+    toast.success(
+      tr(
+        'Link da ficha cadastral (CIF) copiado!',
+        '¡Enlace de la ficha de registro (CIF) copiado!',
+        'Lien de la fiche fiscale copié !'
+      )
+    );
   };
 
   const handleSendBudgetWhatsApp = () => {
     if (!currentLead?.phone) {
-      toast.error('Lead não possui telefone cadastrado.');
+      toast.error(
+        tr(
+          'Lead não possui telefone cadastrado.',
+          'El lead no tiene teléfono registrado.',
+          'Ce lead n’a pas de téléphone enregistré.'
+        )
+      );
       return;
     }
     const cleanNumber = currentLead.phone.replace(/\D/g, '');
     const message = encodeURIComponent(
-      `Hola, le comparto el enlace directo para detallar los perfiles de operarios (soldadores, tuberos, etc.) y necesidades de su obra para preparar el presupuesto:\n\n${budgetFormUrl}`
+      tr(
+        `Hola, le comparto el enlace directo para detallar los perfiles de operarios (soldadores, tuberos, etc.) y necesidades de su obra para preparar el presupuesto:\n\n${budgetFormUrl}`,
+        `Hola, le comparto el enlace directo para detallar los perfiles de operarios (soldadores, tuberos, etc.) y necesidades de su obra para preparar el presupuesto:\n\n${budgetFormUrl}`,
+        `Bonjour, voici le lien direct pour détailler les profils d’opérateurs (soudeurs, tuyauteurs, etc.) et les besoins de votre chantier afin de préparer le devis :\n\n${budgetFormUrl}`
+      )
     );
     window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
   };
 
   const handleSendFiscalWhatsApp = () => {
     if (!currentLead?.phone) {
-      toast.error('Lead não possui telefone cadastrado.');
+      toast.error(
+        tr(
+          'Lead não possui telefone cadastrado.',
+          'El lead no tiene teléfono registrado.',
+          'Ce lead n’a pas de téléphone enregistré.'
+        )
+      );
       return;
     }
     const cleanNumber = currentLead.phone.replace(/\D/g, '');
     const message = encodeURIComponent(
-      `Hola, le comparto el enlace de la ficha de registro para confirmar los datos fiscales (CIF/NIF, Razón Social y facturación) de ${currentLead.company_name || 'su empresa'}:\n\n${fiscalFormUrl}`
+      tr(
+        `Hola, le comparto el enlace de la ficha de registro para confirmar los datos fiscales (CIF/NIF, Razón Social y facturación) de ${currentLead.company_name || 'su empresa'}:\n\n${fiscalFormUrl}`,
+        `Hola, le comparto el enlace de la ficha de registro para confirmar los datos fiscales (CIF/NIF, Razón Social y facturación) de ${currentLead.company_name || 'su empresa'}:\n\n${fiscalFormUrl}`,
+        `Bonjour, voici le lien de la fiche d’enregistrement pour confirmer les données fiscales (SIRET/TVA, Raison Sociale et facturation) de ${currentLead.company_name || 'votre entreprise'} :\n\n${fiscalFormUrl}`
+      )
     );
     window.open(`https://wa.me/${cleanNumber}?text=${message}`, '_blank');
   };
@@ -291,16 +313,16 @@ export function PowerDialerPage() {
 
       toast.success(
         outcome === 'answered_converted' 
-          ? '🎉 Lead convertido com sucesso!' 
+          ? tr('🎉 Lead convertido com sucesso!', '🎉 ¡Lead convertido con éxito!', '🎉 Lead converti avec succès !')
           : outcome === 'answered_callback'
-          ? '📅 Retorno agendado com sucesso na Agenda!'
+          ? tr('📅 Retorno agendado com sucesso na Agenda!', '📅 ¡Llamada de seguimiento agendada con éxito!', '📅 Rappel planifié avec succès dans l’Agenda !')
           : outcome === 'answered_interested'
-          ? 'E-mail com material comercial registrado!'
+          ? tr('E-mail com material comercial registrado!', '¡Correo con material comercial registrado!', 'E-mail avec documentation commerciale enregistré !')
           : outcome === 'gatekeeper_blocked'
-          ? 'Contato com a recepção registrado!'
+          ? tr('Contato com a recepção registrado!', '¡Contacto con recepción registrado!', 'Contact avec la réception enregistré !')
           : outcome === 'no_answer'
-          ? 'Lead movido para o rodízio no fim da fila.'
-          : 'Atendimento registrado!'
+          ? tr('Lead movido para o rodízio no fim da fila.', 'Lead movido al final de la cola.', 'Lead déplacé à la fin de la file.')
+          : tr('Atendimento registrado!', '¡Atención registrada!', 'Appel enregistré !')
       );
 
       // Advance to next lead
@@ -311,7 +333,7 @@ export function PowerDialerPage() {
       }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao registrar desfecho');
+      toast.error(err.message || tr('Erro ao registrar desfecho', 'Error al registrar resultado', 'Erreur lors de l’enregistrement du résultat'));
     }
   };
 
@@ -321,18 +343,18 @@ export function PowerDialerPage() {
       await handleOutcomeSubmit('answered_converted');
       toast.success(
         payload?.existing_estimacion_id
-          ? '🎉 Orçamento atualizado com sucesso!'
-          : '🎉 Pré-orçamento gerado com sucesso!',
+          ? tr('🎉 Orçamento atualizado com sucesso!', '🎉 ¡Presupuesto actualizado con éxito!', '🎉 Devis mis à jour avec succès !')
+          : tr('🎉 Pré-orçamento gerado com sucesso!', '🎉 ¡Pre-presupuesto generado con éxito!', '🎉 Pré-devis généré avec succès !'),
         {
           action: {
-            label: 'Ver Orçamento',
+            label: tr('Ver Orçamento', 'Ver Presupuesto', 'Voir le Devis'),
             onClick: () => navigate(`/comercial/estimaciones/${createdEst.id}`),
           },
         }
       );
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao gerar pré-orçamento');
+      toast.error(err.message || tr('Erro ao gerar pré-orçamento', 'Error al generar pre-presupuesto', 'Erreur lors de la génération du pré-devis'));
     }
   };
 
@@ -398,22 +420,66 @@ export function PowerDialerPage() {
                   Cockpit SDR
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground">Prospecção Ativa & Gestão de Chamadas Outbound</p>
+              <p className="text-xs text-muted-foreground">
+                {tr(
+                  'Prospecção Ativa & Gestão de Chamadas Outbound',
+                  'Prospección Activa y Gestión de Llamadas Outbound',
+                  'Prospection Active & Gestion des Appels Sortants'
+                )}
+              </p>
             </div>
           </div>
 
           <div className="hidden sm:block h-6 w-px bg-border" />
 
+          {/* Commercial Scope Filter (for Super Admin or locked indicator for Commercial) */}
+          {isCommercialOperator && activeProfile ? (
+            <div className="px-2.5 py-1 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-xs font-bold flex items-center gap-1.5">
+              <span>{activeProfile.flag}</span>
+              <span>{activeProfile.shortName}</span>
+              <span className="text-[10px] opacity-80">({activeProfile.empresaName})</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl border border-border">
+              <button
+                type="button"
+                onClick={() => setSelectedCommercialKey('all')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                  selectedCommercialKey === 'all'
+                    ? 'bg-slate-800 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tr('Todos', 'Todos', 'Tous')}
+              </button>
+              {allProfiles.map(prof => (
+                <button
+                  key={prof.key}
+                  type="button"
+                  onClick={() => setSelectedCommercialKey(prof.key)}
+                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 ${
+                    selectedCommercialKey === prof.key
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <span>{prof.flag}</span>
+                  <span>{prof.shortName}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Campaign Selector */}
           <div className="flex items-center gap-2">
             <Select value={activeCampaignId || ''} onValueChange={handleSelectCampaign}>
               <SelectTrigger className="bg-background text-foreground border-input text-xs h-9 w-[220px] sm:w-[280px]">
-                <SelectValue placeholder="Selecione o Trabalho / Fila..." />
+                <SelectValue placeholder={tr('Selecione o Trabalho / Fila...', 'Seleccione el Trabajo / Cola...', 'Sélectionnez le Lot / File...')} />
               </SelectTrigger>
               <SelectContent className="bg-card text-card-foreground border-border">
                 {campaigns.map(c => (
                   <SelectItem key={c.id} value={c.id} className="text-xs">
-                    {c.title} ({c.items_count?.pending || 0} pendentes)
+                    {c.title} ({c.items_count?.pending || 0} {tr('pendentes', 'pendientes', 'en attente')})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -424,9 +490,9 @@ export function PowerDialerPage() {
               size="sm"
               onClick={() => navigate('/comercial/discador/trabalhos')}
               className="h-9 text-xs bg-background text-foreground border-input hover:bg-muted gap-1.5"
-              title="Gerenciar Trabalhos & Filas"
+              title={tr('Gerenciar Trabalhos & Filas', 'Gestionar Trabajos y Colas', 'Gérer les Lots & Files')}
             >
-              <Layers className="w-3.5 h-3.5 text-blue-500" /> Trabalhos
+              <Layers className="w-3.5 h-3.5 text-blue-500" /> {tr('Trabalhos', 'Trabajos', 'Lots')}
             </Button>
           </div>
         </div>
@@ -439,7 +505,7 @@ export function PowerDialerPage() {
             onClick={() => navigate('/comercial/discador/agenda')}
             className="h-8 text-xs bg-background hover:bg-muted text-foreground gap-1.5"
           >
-            <CalendarDays className="w-3.5 h-3.5 text-amber-500" /> Agenda
+            <CalendarDays className="w-3.5 h-3.5 text-amber-500" /> {tr('Agenda', 'Agenda', 'Agenda')}
           </Button>
 
           <Button
@@ -448,7 +514,7 @@ export function PowerDialerPage() {
             onClick={() => navigate('/comercial/discador/trabalhos')}
             className="h-8 text-xs bg-background hover:bg-muted text-foreground gap-1.5"
           >
-            <Layers className="w-3.5 h-3.5 text-blue-500" /> Filas
+            <Layers className="w-3.5 h-3.5 text-blue-500" /> {tr('Filas', 'Colas', 'Files')}
           </Button>
 
           <Button
@@ -457,7 +523,7 @@ export function PowerDialerPage() {
             onClick={() => navigate('/comercial/discador/supervisao')}
             className="h-8 text-xs bg-background hover:bg-muted text-foreground gap-1.5"
           >
-            <BarChart3 className="w-3.5 h-3.5 text-indigo-500" /> Supervisão
+            <BarChart3 className="w-3.5 h-3.5 text-indigo-500" /> {tr('Supervisão', 'Supervisión', 'Supervision')}
           </Button>
 
           <Button
@@ -466,7 +532,7 @@ export function PowerDialerPage() {
             onClick={() => navigate('/comercial/discador/operadores')}
             className="h-8 text-xs bg-background hover:bg-muted text-foreground gap-1.5"
           >
-            <User className="w-3.5 h-3.5 text-purple-500" /> Operadores & Scripts
+            <User className="w-3.5 h-3.5 text-purple-500" /> {tr('Operadores & Scripts', 'Operadores y Guiones', 'Opérateurs & Scripts')}
           </Button>
         </div>
       </header>
@@ -482,11 +548,16 @@ export function PowerDialerPage() {
               </div>
               <div>
                 <h4 className="text-xs font-bold text-amber-600 dark:text-amber-300 uppercase tracking-wider flex items-center gap-2">
-                  Retorno Agendado com Prioridade Máxima
+                  {tr(
+                    'Retorno Agendado com Prioridade Máxima',
+                    'Seguimiento Agendado con Prioridad Máxima',
+                    'Rappel Planifié avec Priorité Maximale'
+                  )}
                 </h4>
                 <p className="text-xs text-foreground">
-                  Empresa: <strong className="text-foreground font-bold">{dueCallback.lead.company_name || dueCallback.lead.name}</strong> • 
-                  Contato: {dueCallback.lead.name} ({dueCallback.lead.phone})
+                  {tr('Empresa:', 'Empresa:', 'Entreprise :')}{' '}
+                  <strong className="text-foreground font-bold">{dueCallback.lead.company_name || dueCallback.lead.name}</strong> •{' '}
+                  {tr('Contato:', 'Contacto:', 'Contact :')} {dueCallback.lead.name} ({dueCallback.lead.phone})
                 </p>
               </div>
             </div>
@@ -499,7 +570,7 @@ export function PowerDialerPage() {
               }}
               className="h-8 text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold gap-1.5 shadow-md shadow-amber-500/20"
             >
-              <PhoneCall className="w-3.5 h-3.5" /> Atender Retorno Agora
+              <PhoneCall className="w-3.5 h-3.5" /> {tr('Atender Retorno Agora', 'Atender Ahora', 'Appeler Maintenant')}
             </Button>
           </div>
         )}
@@ -509,9 +580,9 @@ export function PowerDialerPage() {
           {/* Queue Counter */}
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-muted-foreground uppercase">Fila:</span>
+              <span className="text-xs font-bold text-muted-foreground uppercase">{tr('Fila:', 'Cola:', 'File :')}</span>
               <span className="text-base font-black text-foreground px-3 py-1 rounded-xl bg-muted/60 border border-border">
-                Lead {totalQueue > 0 ? currentQueueIndex + 1 : 0} <span className="text-muted-foreground font-normal">de {totalQueue}</span>
+                Lead {totalQueue > 0 ? currentQueueIndex + 1 : 0} <span className="text-muted-foreground font-normal">{tr('de', 'de', 'sur')} {totalQueue}</span>
               </span>
             </div>
 
@@ -530,7 +601,7 @@ export function PowerDialerPage() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2.5 px-4 py-1.5 rounded-xl bg-muted/60 border border-border font-mono text-sm">
               <div className={`w-2.5 h-2.5 rounded-full ${isCalling ? 'bg-emerald-500 animate-ping' : 'bg-muted-foreground'}`} />
-              <span className="text-xs text-muted-foreground uppercase font-semibold">Duração:</span>
+              <span className="text-xs text-muted-foreground uppercase font-semibold">{tr('Duração:', 'Duración:', 'Durée :')}</span>
               <span className={`font-bold ${isCalling ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}`}>
                 {Math.floor(callDuration / 60).toString().padStart(2, '0')}:
                 {(callDuration % 60).toString().padStart(2, '0')}
@@ -543,7 +614,7 @@ export function PowerDialerPage() {
                 onClick={handleEndCall}
                 className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs h-9 gap-1.5 shadow-md shadow-rose-500/20"
               >
-                <PhoneOff className="w-4 h-4" /> Finalizar Chamada
+                <PhoneOff className="w-4 h-4" /> {tr('Finalizar Chamada', 'Finalizar Llamada', 'Terminer l’Appel')}
               </Button>
             ) : (
               <Button
@@ -552,7 +623,7 @@ export function PowerDialerPage() {
                 disabled={!currentLead?.phone}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-9 gap-1.5 shadow-md shadow-emerald-500/20"
               >
-                <PhoneCall className="w-4 h-4" /> Iniciar Ligação
+                <PhoneCall className="w-4 h-4" /> {tr('Iniciar Ligação', 'Iniciar Llamada', 'Démarrer l’Appel')}
               </Button>
             )}
 
@@ -564,7 +635,7 @@ export function PowerDialerPage() {
                 onClick={handlePrevLead}
                 disabled={currentQueueIndex === 0}
                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                title="Lead Anterior"
+                title={tr('Lead Anterior', 'Lead Anterior', 'Lead Précédent')}
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
@@ -574,7 +645,7 @@ export function PowerDialerPage() {
                 onClick={handleNextLead}
                 disabled={currentQueueIndex >= totalQueue - 1}
                 className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hover:bg-muted"
-                title="Próximo Lead"
+                title={tr('Próximo Lead', 'Siguiente Lead', 'Lead Suivant')}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -586,9 +657,15 @@ export function PowerDialerPage() {
         {!currentLead ? (
           <div className="p-12 text-center rounded-2xl bg-card border border-border space-y-4 my-8">
             <PhoneOff className="w-12 h-12 text-muted-foreground/40 mx-auto" />
-            <h3 className="text-base font-bold text-foreground">Nenhum lead pendente nesta fila</h3>
+            <h3 className="text-base font-bold text-foreground">
+              {tr('Nenhum lead pendente nesta fila', 'Ningún lead pendiente en esta cola', 'Aucun lead en attente dans cette file')}
+            </h3>
             <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              Parabéns! Todos os leads deste lote foram processados ou a fila está vazia. Selecione outro trabalho ou gere um novo lote na tela de leads.
+              {tr(
+                'Parabéns! Todos os leads deste lote foram processados ou a fila está vazia. Selecione outro trabalho ou gere um novo lote na tela de leads.',
+                '¡Enhorabuena! Todos los leads de este lote fueron procesados o la cola está vacía. Seleccione otro trabajo o genere un nuevo lote en la pantalla de leads.',
+                'Bravo ! Tous les leads de ce lot ont été traités ou la file est vide. Sélectionnez un autre lot ou créez-en un nouveau depuis la base de leads.'
+              )}
             </p>
             <div className="flex justify-center gap-3">
               <Button
@@ -596,13 +673,13 @@ export function PowerDialerPage() {
                 variant="outline"
                 className="text-xs font-semibold"
               >
-                Ver Outros Trabalhos
+                {tr('Ver Outros Trabalhos', 'Ver Otros Trabajos', 'Voir les Autres Lots')}
               </Button>
               <Button
                 onClick={() => navigate('/comercial/leads')}
                 className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
               >
-                Ir para Base de Leads
+                {tr('Ir para Base de Leads', 'Ir a Base de Leads', 'Aller à la Base de Leads')}
               </Button>
             </div>
           </div>
@@ -625,7 +702,7 @@ export function PowerDialerPage() {
                     </div>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                      {currentLead.city || currentLead.province || 'Espanha'} • {currentLead.sector || 'Industrial'}
+                      {currentLead.city || currentLead.province || tr('Espanha', 'España', 'Espagne')} • {currentLead.sector || tr('Industrial', 'Industrial', 'Industriel')}
                     </p>
                   </div>
 
@@ -635,10 +712,14 @@ export function PowerDialerPage() {
                       size="sm"
                       onClick={() => setIsEditLeadModalOpen(true)}
                       className="h-7 text-xs border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 font-semibold gap-1 px-2.5 shadow-sm"
-                      title="Editar cadastro completo do Lead (Telefone, E-mail, CIF, etc.)"
+                      title={tr(
+                        'Editar cadastro completo do Lead (Telefone, E-mail, CIF, etc.)',
+                        'Editar registro completo del Lead (Teléfono, Correo, CIF, etc.)',
+                        'Modifier la fiche complète du Lead (Téléphone, E-mail, SIRET, etc.)'
+                      )}
                     >
                       <Edit className="w-3.5 h-3.5 text-amber-500" />
-                      Editar Lead
+                      {tr('Editar Lead', 'Editar Lead', 'Modifier Lead')}
                     </Button>
 
                     {currentLead.do_not_call ? (
@@ -659,14 +740,16 @@ export function PowerDialerPage() {
                     <div className="flex items-center justify-between">
                       <span className="font-black text-amber-700 dark:text-amber-300 flex items-center gap-1.5 uppercase text-[11px] tracking-wide">
                         <Calendar className="w-4 h-4 text-amber-500" />
-                        Retorno Agendado
+                        {tr('Retorno Agendado', 'Seguimiento Agendado', 'Rappel Planifié')}
                       </span>
                       <Badge className={
                         currentQueueItem.priority === 'high' 
                           ? 'bg-rose-500 text-white text-[10px]' 
                           : 'bg-amber-500 text-white text-[10px]'
                       }>
-                        {currentQueueItem.priority === 'high' ? '🔥 Alta Prioridade' : '⚡ Agendado'}
+                        {currentQueueItem.priority === 'high'
+                          ? tr('🔥 Alta Prioridade', '🔥 Alta Prioridad', '🔥 Haute Priorité')
+                          : tr('⚡ Agendado', '⚡ Agendado', '⚡ Planifié')}
                       </Badge>
                     </div>
 
@@ -677,7 +760,7 @@ export function PowerDialerPage() {
                           const d = typeof currentQueueItem.scheduled_for === 'string'
                             ? parseISO(currentQueueItem.scheduled_for)
                             : new Date(currentQueueItem.scheduled_for);
-                          return format(d, "dd/MM/yyyy 'às' HH:mm");
+                          return format(d, "dd/MM/yyyy '•' HH:mm");
                         } catch {
                           return String(currentQueueItem.scheduled_for);
                         }
@@ -687,7 +770,11 @@ export function PowerDialerPage() {
                     {currentQueueItem.scheduled_notes && (
                       <div className="pt-2 border-t border-amber-500/20 space-y-1">
                         <span className="text-[10px] font-bold text-muted-foreground uppercase">
-                          Anotações / Instruções Salvas no Agendamento:
+                          {tr(
+                            'Anotações / Instruções Salvas no Agendamento:',
+                            'Notas / Instrucciones Guardadas en el Agendamiento:',
+                            'Notes / Instructions Enregistrées dans le Rappel :'
+                          )}
                         </span>
                         <div 
                           className="p-2.5 rounded-lg bg-background/90 border border-border text-foreground text-[11px] leading-relaxed max-h-32 overflow-y-auto"
@@ -705,8 +792,12 @@ export function PowerDialerPage() {
                       {currentLead.name ? currentLead.name.charAt(0).toUpperCase() : 'C'}
                     </div>
                     <div>
-                      <p className="text-xs font-bold text-foreground">{currentLead.name || 'Decisor / Compras'}</p>
-                      <p className="text-[11px] text-muted-foreground">{currentLead.cargo || 'Responsável Técnico / Compras'}</p>
+                      <p className="text-xs font-bold text-foreground">
+                        {currentLead.name || tr('Decisor / Compras', 'Decisor / Compras', 'Décideur / Achats')}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {currentLead.cargo || tr('Responsável Técnico / Compras', 'Responsable Técnico / Compras', 'Responsable Technique / Achats')}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -717,7 +808,7 @@ export function PowerDialerPage() {
                     <div className="flex items-center gap-2">
                       <Phone className="w-4 h-4 text-emerald-500 shrink-0" />
                       <span className="font-mono text-sm font-bold text-foreground select-all">
-                        {currentLead.phone || 'Sem telefone'}
+                        {currentLead.phone || tr('Sem telefone', 'Sin teléfono', 'Sans téléphone')}
                       </span>
                     </div>
 
@@ -727,7 +818,11 @@ export function PowerDialerPage() {
                         size="sm"
                         onClick={() => setIsEditLeadModalOpen(true)}
                         className="h-7 w-7 p-0 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                        title="Corrigir ou alterar número de telefone do lead"
+                        title={tr(
+                          'Corrigir ou alterar número de telefone do lead',
+                          'Corregir o cambiar número de teléfono del lead',
+                          'Corriger ou modifier le numéro de téléphone du lead'
+                        )}
                       >
                         <Edit className="w-3.5 h-3.5" />
                       </Button>
@@ -737,11 +832,11 @@ export function PowerDialerPage() {
                         onClick={() => {
                           if (currentLead.phone) {
                             navigator.clipboard.writeText(currentLead.phone);
-                            toast.success('Telefone copiado!');
+                            toast.success(tr('Telefone copiado!', '¡Teléfono copiado!', 'Téléphone copié !'));
                           }
                         }}
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        title="Copiar Telefone"
+                        title={tr('Copiar Telefone', 'Copiar Teléfono', 'Copier le Téléphone')}
                       >
                         <Copy className="w-3.5 h-3.5" />
                       </Button>
@@ -789,10 +884,10 @@ export function PowerDialerPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
                       <FileText className="w-3.5 h-3.5 text-indigo-500" />
-                      Links & Formulários do Lead
+                      {tr('Links & Formulários do Lead', 'Enlaces y Formularios del Lead', 'Liens & Formulaires du Lead')}
                     </span>
                     <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                      Cliente / Obra
+                      {tr('Cliente / Obra', 'Cliente / Obra', 'Client / Chantier')}
                     </Badge>
                   </div>
 
@@ -800,15 +895,21 @@ export function PowerDialerPage() {
                   <div className="p-3 rounded-xl bg-card border border-border space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-foreground">📋 Demanda & Perfis (Orçamento)</span>
+                        <span className="text-xs font-bold text-foreground">
+                          📋 {tr('Demanda & Perfis (Orçamento)', 'Demanda y Perfiles (Presupuesto)', 'Demande & Profils (Devis)')}
+                        </span>
                       </div>
                       <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]">
-                        Orçamento
+                        {tr('Orçamento', 'Presupuesto', 'Devis')}
                       </Badge>
                     </div>
 
                     <p className="text-[11px] text-muted-foreground leading-tight">
-                      Envie o link para o cliente ou anote os operários (soldadores, tubistas, etc.) na chamada.
+                      {tr(
+                        'Envie o link para o cliente ou anote os operários (soldadores, tubistas, etc.) na chamada.',
+                        'Envíe el enlace al cliente o anote los operarios (soldadores, tuberos, etc.) en la llamada.',
+                        'Envoyez le lien au client ou notez les opérateurs (soudeurs, tuyauteurs, etc.) pendant l’appel.'
+                      )}
                     </p>
 
                     <div className="flex items-center gap-1.5 flex-wrap pt-1">
@@ -816,9 +917,8 @@ export function PowerDialerPage() {
                         size="sm"
                         onClick={() => setIsDemandModalOpen(true)}
                         className="h-7 text-xs bg-amber-600 hover:bg-amber-500 text-white font-bold gap-1 shadow-sm px-2.5"
-                        title="Abrir modal para preencher a demanda com o cliente na chamada"
                       >
-                        <Wrench className="w-3 h-3" /> Preencher na Chamada
+                        <Wrench className="w-3 h-3" /> {tr('Preencher na Chamada', 'Completar en Llamada', 'Remplir Pendant l’Appel')}
                       </Button>
 
                       <Button
@@ -826,9 +926,8 @@ export function PowerDialerPage() {
                         size="sm"
                         onClick={handleCopyBudgetLink}
                         className="h-7 text-xs border-input gap-1 px-2"
-                        title="Copiar link do formulário de orçamento deste lead"
                       >
-                        <Copy className="w-3 h-3" /> Copiar Link
+                        <Copy className="w-3 h-3" /> {tr('Copiar Link', 'Copiar Enlace', 'Copier le Lien')}
                       </Button>
 
                       <Button
@@ -836,7 +935,6 @@ export function PowerDialerPage() {
                         onClick={handleSendBudgetWhatsApp}
                         disabled={!currentLead.phone}
                         className="h-7 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 gap-1 font-semibold px-2"
-                        title="Enviar link de solicitação de orçamento via WhatsApp"
                       >
                         <MessageSquare className="w-3 h-3" /> WhatsApp
                       </Button>
@@ -846,7 +944,6 @@ export function PowerDialerPage() {
                         size="sm"
                         onClick={() => window.open(budgetFormUrl, '_blank')}
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        title="Abrir formulário de orçamento em nova aba"
                       >
                         <ExternalLink className="w-3 h-3" />
                       </Button>
@@ -857,7 +954,9 @@ export function PowerDialerPage() {
                   <div className="p-3 rounded-xl bg-card border border-border space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-bold text-foreground">🏢 Ficha Cadastral (CIF / NIF)</span>
+                        <span className="text-xs font-bold text-foreground">
+                          🏢 {tr('Ficha Cadastral (CIF / NIF)', 'Ficha de Registro (CIF / NIF)', 'Fiche Fiscale (SIRET / TVA)')}
+                        </span>
                       </div>
                       {currentLead.tax_id ? (
                         <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-[10px] font-mono">
@@ -865,13 +964,17 @@ export function PowerDialerPage() {
                         </Badge>
                       ) : (
                         <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 text-[10px]">
-                          ⚠️ Sem CIF Fiscal
+                          ⚠️ {tr('Sem CIF Fiscal', 'Sin CIF Fiscal', 'Sans N° Fiscal')}
                         </Badge>
                       )}
                     </div>
 
                     <p className="text-[11px] text-muted-foreground leading-tight">
-                      Razão Social, CIF e endereço fiscal para emissão do contrato e faturamento.
+                      {tr(
+                        'Razão Social, CIF e endereço fiscal para emissão do contrato e faturamento.',
+                        'Razón Social, CIF y dirección fiscal para emisión del contrato y facturación.',
+                        'Raison Sociale, SIRET/TVA et adresse fiscale pour l’émission du contrat et la facturation.'
+                      )}
                     </p>
 
                     <div className="flex items-center gap-1.5 flex-wrap pt-1">
@@ -879,9 +982,8 @@ export function PowerDialerPage() {
                         size="sm"
                         onClick={() => setIsFiscalModalOpen(true)}
                         className="h-7 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1 shadow-sm px-2.5"
-                        title="Abrir modal para digitar o CIF e Razão Social do cliente"
                       >
-                        <Building2 className="w-3 h-3" /> Preencher na Chamada
+                        <Building2 className="w-3 h-3" /> {tr('Preencher na Chamada', 'Completar en Llamada', 'Remplir Pendant l’Appel')}
                       </Button>
 
                       <Button
@@ -889,9 +991,8 @@ export function PowerDialerPage() {
                         size="sm"
                         onClick={handleCopyFiscalLink}
                         className="h-7 text-xs border-input gap-1 px-2"
-                        title="Copiar link da ficha cadastral deste lead"
                       >
-                        <Copy className="w-3 h-3" /> Copiar Link
+                        <Copy className="w-3 h-3" /> {tr('Copiar Link', 'Copiar Enlace', 'Copier le Lien')}
                       </Button>
 
                       <Button
@@ -899,7 +1000,6 @@ export function PowerDialerPage() {
                         onClick={handleSendFiscalWhatsApp}
                         disabled={!currentLead.phone}
                         className="h-7 text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/30 gap-1 font-semibold px-2"
-                        title="Enviar link da ficha cadastral via WhatsApp"
                       >
                         <MessageSquare className="w-3 h-3" /> WhatsApp
                       </Button>
@@ -909,7 +1009,6 @@ export function PowerDialerPage() {
                         size="sm"
                         onClick={() => window.open(fiscalFormUrl, '_blank')}
                         className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                        title="Abrir ficha cadastral em nova aba"
                       >
                         <ExternalLink className="w-3 h-3" />
                       </Button>
@@ -920,7 +1019,9 @@ export function PowerDialerPage() {
                 {/* Previous Notes / Tags */}
                 {currentLead.notes && (
                   <div className="p-3 rounded-xl bg-muted/30 border border-border text-xs space-y-1">
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground">Notas do Lead:</span>
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                      {tr('Notas do Lead:', 'Notas del Lead:', 'Notes du Lead :')}
+                    </span>
                     <p className="text-foreground/90 line-clamp-3">{currentLead.notes}</p>
                   </div>
                 )}
@@ -928,7 +1029,7 @@ export function PowerDialerPage() {
                 {/* Call History Timeline */}
                 <div className="pt-2 border-t border-border space-y-2">
                   <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5" /> Histórico de Contatos ({leadHistory.length})
+                    <Clock className="w-3.5 h-3.5" /> {tr('Histórico de Contatos', 'Historial de Contactos', 'Historique des Contacts')} ({leadHistory.length})
                   </span>
                   <div className="max-h-48 overflow-y-auto pr-1">
                     <LeadCallHistoryTimeline logs={leadHistory} isLoading={loadingHistory} />
@@ -942,7 +1043,7 @@ export function PowerDialerPage() {
               <SalesScriptCard 
                 script={activeCampaign?.script}
                 companyName={currentLead.company_name || currentLead.name}
-                contactName={currentLead.name || 'Responsable'}
+                contactName={currentLead.name || tr('Responsável', 'Responsable', 'Responsable')}
               />
             </div>
 
@@ -952,9 +1053,9 @@ export function PowerDialerPage() {
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
                     <Zap className="w-4 h-4 text-amber-500" />
-                    Desfecho do Atendimento
+                    {tr('Desfecho do Atendimento', 'Resultado de la Llamada', 'Résultat de l’Appel')}
                   </h3>
-                  <span className="text-[11px] text-muted-foreground font-mono">1-Clique</span>
+                  <span className="text-[11px] text-muted-foreground font-mono">{tr('1-Clique', '1-Clic', '1-Clic')}</span>
                 </div>
 
                 {/* Primary Outcomes: Gerar Orçamento ou Coletar Demanda */}
@@ -963,12 +1064,11 @@ export function PowerDialerPage() {
                     onClick={() => setIsPresupuestoModalOpen(true)}
                     disabled={isLoggingCall}
                     className="h-12 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01]"
-                    title="Calcular proposta comercial completa com tarifas e margem"
                   >
                     <CheckCircle2 className="w-4 h-4 shrink-0" />
                     <span className="text-left leading-tight truncate">
-                      <span className="block font-black truncate">Gerar Orçamento</span>
-                      <span className="text-[10px] opacity-85 font-normal block truncate">Tarifas & Valores</span>
+                      <span className="block font-black truncate">{tr('Gerar Orçamento', 'Generar Presupuesto', 'Générer un Devis')}</span>
+                      <span className="text-[10px] opacity-85 font-normal block truncate">{tr('Tarifas & Valores', 'Tarifas y Valores', 'Tarifs & Montants')}</span>
                     </span>
                   </Button>
 
@@ -976,12 +1076,11 @@ export function PowerDialerPage() {
                     onClick={() => setIsDemandModalOpen(true)}
                     disabled={isLoggingCall}
                     className="h-12 bg-gradient-to-r from-amber-600 via-orange-600 to-amber-500 hover:from-amber-500 hover:to-orange-400 text-white font-bold text-xs rounded-xl shadow-md shadow-amber-600/20 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01]"
-                    title="Anotar os perfis de operários solicitados e prazos da obra"
                   >
                     <Wrench className="w-4 h-4 shrink-0" />
                     <span className="text-left leading-tight truncate">
-                      <span className="block font-black truncate">Coletar Demanda</span>
-                      <span className="text-[10px] opacity-85 font-normal block truncate">Perfis & Obra</span>
+                      <span className="block font-black truncate">{tr('Coletar Demanda', 'Recopilar Demanda', 'Collecter Demande')}</span>
+                      <span className="text-[10px] opacity-85 font-normal block truncate">{tr('Perfis & Obra', 'Perfiles y Obra', 'Profils & Chantier')}</span>
                     </span>
                   </Button>
                 </div>
@@ -997,8 +1096,8 @@ export function PowerDialerPage() {
                   >
                     <PhoneOff className="w-4 h-4 text-amber-500 shrink-0" />
                     <div className="text-left leading-tight truncate">
-                      <p className="font-bold">Não Atendeu</p>
-                      <span className="text-[10px] text-muted-foreground">Fim da fila</span>
+                      <p className="font-bold">{tr('Não Atendeu', 'No Contestó', 'Pas de Réponse')}</p>
+                      <span className="text-[10px] text-muted-foreground">{tr('Fim da fila', 'Fin de la cola', 'Fin de file')}</span>
                     </div>
                   </Button>
 
@@ -1011,7 +1110,7 @@ export function PowerDialerPage() {
                   >
                     <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
                     <div className="text-left leading-tight truncate">
-                      <p className="font-bold">Agendar Retorno</p>
+                      <p className="font-bold">{tr('Agendar Retorno', 'Agendar Llamada', 'Planifier Rappel')}</p>
                       <span className="text-[10px] text-muted-foreground">Callback</span>
                     </div>
                   </Button>
@@ -1025,8 +1124,8 @@ export function PowerDialerPage() {
                   >
                     <Globe className="w-4 h-4 text-blue-500 shrink-0" />
                     <div className="text-left leading-tight truncate">
-                      <p className="font-bold">Pediu Material</p>
-                      <span className="text-[10px] text-muted-foreground">Enviar e-mail</span>
+                      <p className="font-bold">{tr('Pediu Material', 'Pidió Material', 'Demande Infos')}</p>
+                      <span className="text-[10px] text-muted-foreground">{tr('Enviar e-mail', 'Enviar correo', 'Envoyer e-mail')}</span>
                     </div>
                   </Button>
 
@@ -1039,8 +1138,8 @@ export function PowerDialerPage() {
                   >
                     <PhoneForwarded className="w-4 h-4 text-orange-500 shrink-0" />
                     <div className="text-left leading-tight truncate">
-                      <p className="font-bold">Recepção</p>
-                      <span className="text-[10px] text-muted-foreground">Sem decisor</span>
+                      <p className="font-bold">{tr('Recepção', 'Recepción', 'Standard')}</p>
+                      <span className="text-[10px] text-muted-foreground">{tr('Sem decisor', 'Sin decisor', 'Sans décideur')}</span>
                     </div>
                   </Button>
                 </div>
@@ -1049,21 +1148,21 @@ export function PowerDialerPage() {
                 <div className="p-3.5 rounded-xl bg-rose-500/5 dark:bg-slate-950/70 border border-rose-500/20 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
-                      <Ban className="w-3.5 h-3.5" /> Sem Interesse / Recusa
+                      <Ban className="w-3.5 h-3.5" /> {tr('Sem Interesse / Recusa', 'Sin Interés / Rechazo', 'Sans Intérêt / Refus')}
                     </span>
                   </div>
 
                   <Select value={rejectionReason} onValueChange={(v: any) => setRejectionReason(v)}>
                     <SelectTrigger className="bg-background text-foreground border-input text-xs h-8">
-                      <SelectValue placeholder="Selecione o motivo..." />
+                      <SelectValue placeholder={tr('Selecione o motivo...', 'Seleccione el motivo...', 'Sélectionnez le motif...')} />
                     </SelectTrigger>
                     <SelectContent className="bg-card text-card-foreground border-border text-xs">
-                      <SelectItem value="has_own_team">Já possui equipe própria / Fixos</SelectItem>
-                      <SelectItem value="no_demand">Sem obras no momento</SelectItem>
-                      <SelectItem value="price_too_high">Preço acima da meta</SelectItem>
-                      <SelectItem value="does_not_outsource">Não terceiriza montagem/solda</SelectItem>
-                      <SelectItem value="bad_contact">Número incorreto / Inexistente</SelectItem>
-                      <SelectItem value="other">Outros motivos</SelectItem>
+                      <SelectItem value="has_own_team">{tr('Já possui equipe própria / Fixos', 'Ya tiene equipo propio / Fijos', 'Possède déjà sa propre équipe')}</SelectItem>
+                      <SelectItem value="no_demand">{tr('Sem obras no momento', 'Sin obras en este momento', 'Pas de chantier en ce moment')}</SelectItem>
+                      <SelectItem value="price_too_high">{tr('Preço acima da meta', 'Precio por encima del objetivo', 'Tarif au-dessus du budget')}</SelectItem>
+                      <SelectItem value="does_not_outsource">{tr('Não terceiriza montagem/solda', 'No subcontrata montaje/soldadura', 'Ne sous-traite pas montage/soudure')}</SelectItem>
+                      <SelectItem value="bad_contact">{tr('Número incorreto / Inexistente', 'Número incorrecto / Inexistente', 'Numéro incorrect / Inexistant')}</SelectItem>
+                      <SelectItem value="other">{tr('Outros motivos', 'Otros motivos', 'Autres motifs')}</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -1073,17 +1172,23 @@ export function PowerDialerPage() {
                     disabled={isLoggingCall}
                     className="w-full h-8 text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-300 border border-rose-500/30 font-semibold gap-1.5"
                   >
-                    <Ban className="w-3.5 h-3.5" /> Registrar Recusa & Blacklist
+                    <Ban className="w-3.5 h-3.5" /> {tr('Registrar Recusa & Blacklist', 'Registrar Rechazo y Blacklist', 'Enregistrer Refus & Blacklist')}
                   </Button>
                 </div>
 
                 {/* Notes for this specific call */}
                 <div className="space-y-1.5 pt-1">
-                  <Label className="text-xs text-muted-foreground font-medium">Anotações da Ligação (Opcional)</Label>
+                  <Label className="text-xs text-muted-foreground font-medium">
+                    {tr('Anotações da Ligação (Opcional)', 'Notas de la Llamada (Opcional)', 'Notes de l’Appel (Optionnel)')}
+                  </Label>
                   <Textarea
                     value={callNotes}
                     onChange={e => setCallNotes(e.target.value)}
-                    placeholder="Ex: Sr. Pedro disse que em outubro terá parada de refinaria..."
+                    placeholder={tr(
+                      'Ex: Sr. Pedro disse que em outubro terá parada de refinaria...',
+                      'Ej: El Sr. Pedro indicó que en octubre tendrá parada de refinería...',
+                      'Ex : M. Pierre a indiqué qu’en octobre il aura un arrêt de raffinerie...'
+                    )}
                     rows={2}
                     className="bg-background border-input text-foreground text-xs resize-none"
                   />

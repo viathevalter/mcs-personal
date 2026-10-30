@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
-import { useLeads, useMutateLead } from './hooks/useLeads';
+import { useLeads, useMutateLead, useCommercialScope } from './hooks/useLeads';
+import { useComercialLanguage } from './utils/comercialI18n';
 import { normalizeSectorName } from './services/prospectingService';
 import { detectLeadCountry, COUNTRY_LABELS } from './utils/leadCountryUtils';
 import {
@@ -100,7 +101,8 @@ const ensureAbsoluteUrl = (url?: string | null): string => {
 
 export function LeadsPage() {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
+  const { t, i18n, tr } = useComercialLanguage();
+  const { isCommercialOperator, activeCommercialProfile, effectiveOwnerKey, setSelectedOwnerKey, profiles: commercialProfiles } = useCommercialScope();
   const queryClient = useQueryClient();
   const { empresas, selectedEmpresaId } = useEmpresa();
   const { data: leads = [], isLoading, error } = useLeads({ global: true });
@@ -842,9 +844,43 @@ export function LeadsPage() {
   const [isAudienceDropdownOpen, setIsAudienceDropdownOpen] = useState<boolean>(false);
   const [audienceSearchQuery, setAudienceSearchQuery] = useState<string>('');
 
+  const commercialScopedLeads = useMemo(() => {
+    if (effectiveOwnerKey === "all") return leads;
+    return leads.filter((l: any) => {
+      const c = detectLeadCountry(l);
+      const tagsLower = Array.isArray(l.tags) ? l.tags.map((x: any) => String(x).toLowerCase()) : [];
+      const hasAlexTag = tagsLower.some((tg: string) => tg.includes("alex"));
+      const hasLisethTag = tagsLower.some((tg: string) => tg.includes("liseth") || tg.includes("lizeth") || tg.includes("comercial 3") || tg.includes("kr-captacion"));
+      const hasAlbaTag = tagsLower.some((tg: string) => tg.includes("triangulo") || tg.includes("mitchelle") || tg.includes("michelle") || tg.includes("alba"));
+      const hasFatumataTag = tagsLower.some((tg: string) => tg.includes("omar") || tg.includes("fatumata") || tg.includes("frança") || tg.includes("france"));
+
+      if (effectiveOwnerKey === "fatumata") {
+        return c === "FR" || c === "BE" || hasFatumataTag;
+      }
+      if (effectiveOwnerKey === "alex") {
+        return hasAlexTag || (c === "ES" && l.empresa_id === "847796c4-b253-4e53-9e6b-34a127ec7d85" && !hasLisethTag);
+      }
+      if (effectiveOwnerKey === "alba") {
+        return hasAlbaTag || (c === "ES" && !hasAlexTag && !hasLisethTag);
+      }
+      if (effectiveOwnerKey === "liseth") {
+        return hasLisethTag || (c === "ES" && !hasAlexTag && !hasAlbaTag);
+      }
+      return true;
+    });
+  }, [leads, effectiveOwnerKey]);
+
   const allMarketingAudiences = useMemo(() => {
-    return loadAllMarketingAudiences(leads);
-  }, [leads, selectedEmpresaId]);
+    return loadAllMarketingAudiences(commercialScopedLeads, { ownerKey: effectiveOwnerKey });
+  }, [commercialScopedLeads, effectiveOwnerKey, selectedEmpresaId]);
+
+  useEffect(() => {
+    setSelectedAudienceId("all");
+    setSelectedLeadIds([]);
+    if (activeCommercialProfile) {
+      setSelectedCountry(activeCommercialProfile.country);
+    }
+  }, [effectiveOwnerKey]);
 
   const activeAudience = useMemo(() => {
     if (selectedAudienceId === 'all') return null;
@@ -894,7 +930,7 @@ export function LeadsPage() {
   // Single-pass computation of lead counts per country with useMemo
   const countryCounts = useMemo(() => {
     const counts: Record<string, number> = {
-      total: leads.length,
+      total: commercialScopedLeads.length,
       ES: 0,
       PT: 0,
       FR: 0,
@@ -905,7 +941,7 @@ export function LeadsPage() {
       GB: 0,
       OTHER: 0,
     };
-    for (const l of leads) {
+    for (const l of commercialScopedLeads) {
       const c = detectLeadCountry(l);
       if (c in counts) {
         counts[c]++;
@@ -914,16 +950,16 @@ export function LeadsPage() {
       }
     }
     return counts;
-  }, [leads]);
+  }, [commercialScopedLeads]);
 
   // Leads scoped to the currently selected country & audience
   const countryFilteredBaseLeads = useMemo(() => {
-    return leads.filter((l) => {
+    return commercialScopedLeads.filter((l) => {
       if (activeAudience && !doesLeadMatchAudience(l, activeAudience)) return false;
-      if (!activeAudience && selectedCountry !== 'all' && detectLeadCountry(l) !== selectedCountry) return false;
+      if (!activeAudience && selectedCountry !== "all" && detectLeadCountry(l) !== selectedCountry) return false;
       return true;
     });
-  }, [leads, selectedCountry, activeAudience]);
+  }, [commercialScopedLeads, selectedCountry, activeAudience]);
 
   // Sector counts scoped dynamically to active country filter
   const sectorCounts = useMemo(() => {
@@ -1001,7 +1037,7 @@ export function LeadsPage() {
   };
 
   const filteredLeads = useMemo(() => {
-    return leads.filter((lead: any) => {
+    return commercialScopedLeads.filter((lead: any) => {
       if (activeAudience && !doesLeadMatchAudience(lead, activeAudience)) return false;
 
       const leadNormSector = normalizeSectorName(lead.sector);
@@ -1037,7 +1073,7 @@ export function LeadsPage() {
         (Array.isArray(lead.tags) && lead.tags.some((t: string) => t.toLowerCase().includes(search)))
       );
     });
-  }, [leads, activeAudience, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
+  }, [commercialScopedLeads, activeAudience, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
 
   const sortedLeads = useMemo(() => {
     return [...filteredLeads].sort((a, b) => {
@@ -1152,7 +1188,7 @@ export function LeadsPage() {
             className="h-8 text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-sm gap-1.5 border-0"
           >
             <Phone className="h-3.5 w-3.5" />
-            Cockpit Discador
+            {tr('Cockpit Discador', 'Cockpit Discador', 'Cockpit d\x27Appels')}
           </Button>
 
           {selectedLeadIds.length > 0 && (
@@ -1162,31 +1198,98 @@ export function LeadsPage() {
               className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md gap-1.5 animate-pulse"
             >
               <Zap className="h-3.5 w-3.5" />
-              Criar Fila de Discagem ({selectedLeadIds.length})
+              {tr('Criar Fila de Discagem', 'Crear Cola de Llamadas', 'Créer File d\x27Appels')} ({selectedLeadIds.length})
             </Button>
           )}
 
           <Button size="sm" onClick={handleExportExcel} variant="outline" className="h-8 text-xs border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
             <Download className="mr-1.5 h-3.5 w-3.5" />
-            Exportar Excel ({filteredLeads.length})
+            {tr('Exportar Excel', 'Exportar Excel', 'Exporter Excel')} ({filteredLeads.length})
           </Button>
           <Button size="sm" onClick={handleCopyNewLeadLink} variant="outline" className="h-8 text-xs border-slate-300 dark:border-slate-800">
             <Share2 className="mr-1.5 h-3.5 w-3.5 text-yellow-500" />
-            Link Cadastro
+            {tr('Link Cadastro', 'Enlace Registro', 'Lien Inscription')}
           </Button>
           <Button size="sm" onClick={handleCopyNewBudgetLink} variant="outline" className="h-8 text-xs border-slate-300 dark:border-slate-800">
             <Share2 className="mr-1.5 h-3.5 w-3.5 text-orange-500" />
-            Link Orçamento
+            {tr('Link Orçamento', 'Enlace Presupuesto', 'Lien Devis')}
           </Button>
           <Button size="sm" onClick={() => setIsImportOpen(true)} variant="outline" className="h-8 text-xs border-slate-300 dark:border-slate-800">
             <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-yellow-500" />
-            Importar Planilha
+            {tr('Importar Planilha', 'Importar Planilla', 'Importer Fichier')}
           </Button>
           <Button size="sm" onClick={handleOpenCreate} className="h-8 text-xs bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             {t('comercial.leads.btnNew')}
           </Button>
         </div>
+      </div>
+
+      {/* Commercial Operator Isolation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/5 dark:bg-slate-900/60 px-3 py-2 rounded-xl border border-indigo-500/20">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5" />
+            {tr("Comercial Ativo (Isolamento):", "Comercial Activo (Aislamiento):", "Commercial Actif (Isolation) :")}
+          </span>
+
+          {isCommercialOperator && activeCommercialProfile ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
+              <span>{activeCommercialProfile.flag}</span>
+              <span>{activeCommercialProfile.name}</span>
+              <span className="opacity-80">• {activeCommercialProfile.empresaName} ({activeCommercialProfile.country})</span>
+            </span>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {commercialProfiles.map((prof) => {
+                const isActive = effectiveOwnerKey === prof.ownerKey;
+                return (
+                  <button
+                    key={prof.ownerKey}
+                    type="button"
+                    onClick={() => setSelectedOwnerKey(prof.ownerKey)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-500/30"
+                        : "bg-background hover:bg-muted border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>{prof.flag}</span>
+                    <span>{prof.shortName}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded ${isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"}`}>
+                      {prof.empresaName} • {prof.country}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setSelectedOwnerKey("all")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  effectiveOwnerKey === "all"
+                    ? "bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-500/30"
+                    : "bg-background hover:bg-muted border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>🌐</span>
+                <span>{tr("Todos os Comerciais", "Todos los Comerciales", "Tous les Commerciaux")}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {activeCommercialProfile && (
+          <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+            <span>
+              {tr("Públicos Isolados:", "Públicos Aislados:", "Audiences Isolées :")}{" "}
+              <strong className="text-foreground">{allMarketingAudiences.length}</strong>
+            </span>
+            <span>•</span>
+            <span className="font-mono text-indigo-600 dark:text-indigo-400">
+              {activeCommercialProfile.commercialEmail}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Unified Compact Bar: Country Tabs (Left) + Selection & Público Queue Generator (Right Corner) */}
@@ -1206,7 +1309,7 @@ export function LeadsPage() {
             }`}
           >
             <span>🇪🇸</span>
-            <span>Espanha</span>
+            <span>{tr('Espanha', 'España', 'Espagne')}</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
               {countryCounts.ES}
             </span>
@@ -1225,7 +1328,7 @@ export function LeadsPage() {
             }`}
           >
             <span>🇫🇷</span>
-            <span>França</span>
+            <span>{tr('França', 'Francia', 'France')}</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
               {countryCounts.FR}
             </span>
@@ -1263,7 +1366,7 @@ export function LeadsPage() {
             }`}
           >
             <span>🇮🇹</span>
-            <span>Itália</span>
+            <span>{tr('Itália', 'Italia', 'Italie')}</span>
             <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
               {countryCounts.IT}
             </span>
@@ -1282,7 +1385,7 @@ export function LeadsPage() {
             }`}
           >
             <span>🌐</span>
-            <span>Todos ({countryCounts.total})</span>
+            <span>{tr('Todos', 'Todos', 'Tous')} ({countryCounts.total})</span>
           </button>
         </div>
 
@@ -1292,7 +1395,7 @@ export function LeadsPage() {
           <div className="flex items-center gap-1.5 text-xs">
             {selectedLeadIds.length > 0 && (
               <span className="font-bold text-emerald-500 text-xs mr-1">
-                {selectedLeadIds.length} selecionados
+                {selectedLeadIds.length} {tr('selecionados', 'seleccionados', 'sélectionnés')}
               </span>
             )}
             <Button
@@ -1320,7 +1423,7 @@ export function LeadsPage() {
               onClick={handleSelectAllFiltered}
               className="h-7 px-2 text-[11px]"
             >
-              Sel. Todos ({filteredLeads.length})
+              {tr('Sel. Todos', 'Sel. Todos', 'Sél. Tous')} ({filteredLeads.length})
             </Button>
             {selectedLeadIds.length > 0 && (
               <Button
@@ -1329,9 +1432,7 @@ export function LeadsPage() {
                 size="sm"
                 onClick={handleClearSelection}
                 className="h-7 px-2 text-[11px] text-muted-foreground hover:text-red-500"
-              >
-                Limpar
-              </Button>
+              >{tr('Limpar', 'Limpiar', 'Effacer')}</Button>
             )}
           </div>
 
@@ -1351,7 +1452,7 @@ export function LeadsPage() {
                 <span className="truncate">
                   {activeAudience
                     ? `${activeAudience.name} (${filteredLeads.length})`
-                    : '🎯 Filtrar por Público Criado...'}
+                    : tr('🎯 Filtrar por Público Criado...', '🎯 Filtrar por Público Creado...', '🎯 Filtrer par Audience Créée...')}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -1381,7 +1482,7 @@ export function LeadsPage() {
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
                     <Input
-                      placeholder="Buscar público criado (ex: Liseth, Omar, Alex, Giada)..."
+                      placeholder={tr('Buscar público do comercial (ex: Alex, Alba, Liseth, Fatumata)...', 'Buscar público del comercial (ej: Alex, Alba, Liseth, Fatumata)...', 'Rechercher une audience (ex : Fatumata, Liseth, Alex, Alba)...')}
                       value={audienceSearchQuery}
                       onChange={(e) => setAudienceSearchQuery(e.target.value)}
                       className="h-8 pl-8 pr-7 text-xs"
@@ -1408,7 +1509,7 @@ export function LeadsPage() {
                           : 'hover:bg-muted text-foreground'
                       }`}
                     >
-                      <span>🌐 Todos os Leads (Sem filtro de público)</span>
+                      <span>🌐 {tr('Todos os Leads (Sem filtro de público)', 'Todos los Leads (Sin filtro de público)', 'Tous les Leads (Sans filtre d\x27audience)')}</span>
                     </button>
 
                     {visibleAudiencesForDropdown.length === 0 ? (
@@ -1454,7 +1555,7 @@ export function LeadsPage() {
               className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-sm gap-1.5"
             >
               <Zap className="w-3.5 h-3.5" />
-              Gerar Fila do Público ({selectedLeadIds.length > 0 ? selectedLeadIds.length : filteredLeads.filter((l) => !l.do_not_call).length})
+              {tr('Gerar Fila do Público', 'Generar Cola del Público', 'Créer File de l\x27Audience')} ({selectedLeadIds.length > 0 ? selectedLeadIds.length : filteredLeads.filter((l) => !l.do_not_call).length})
             </Button>
           )}
         </div>
@@ -1511,7 +1612,7 @@ export function LeadsPage() {
                 <SelectValue placeholder="Todos os Setores" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Setores ({leads.length})</SelectItem>
+                <SelectItem value="all">{tr('Todos os Setores', 'Todos los Sectores', 'Tous les Secteurs')} ({commercialScopedLeads.length})</SelectItem>
                 {availableSectors.map((sec, idx) => (
                   <SelectItem key={idx} value={sec!}>
                     {sec} ({leads.filter((l) => normalizeSectorName(l.sector) === sec).length})
@@ -1528,7 +1629,7 @@ export function LeadsPage() {
                 <SelectValue placeholder="Porte da Empresa" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">🏢 Todos os Portes</SelectItem>
+                <SelectItem value="all">🏢 {tr('Todos os Portes', 'Todos los Tamaños', 'Toutes les Tailles')}</SelectItem>
                 {availableCompanySizes.map((s, idx) => (
                   <SelectItem key={idx} value={s.value}>
                     {s.label} ({leads.filter((l: any) => l.company_size === s.value || (Array.isArray(l.tags) && l.tags.includes(s.value))).length})
@@ -1545,7 +1646,7 @@ export function LeadsPage() {
                 <SelectValue placeholder="Comunidade / Região" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">🗺️ Todas as Regiões</SelectItem>
+                <SelectItem value="all">🗺️ {tr('Todas as Regiões', 'Todas las Regiones', 'Toutes les Régions')}</SelectItem>
                 {availableRegions.map((reg, idx) => (
                   <SelectItem key={idx} value={reg}>
                     {reg} ({leads.filter((l: any) => l.region === reg || (Array.isArray(l.tags) && l.tags.includes(reg))).length})
@@ -1563,7 +1664,7 @@ export function LeadsPage() {
                   <SelectValue placeholder="Província" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">📍 Todas as Províncias</SelectItem>
+                  <SelectItem value="all">📍 {tr('Todas as Províncias', 'Todas las Provincias', 'Toutes les Provinces')}</SelectItem>
                   {availableProvinces.map((prov, idx) => (
                     <SelectItem key={idx} value={prov}>
                       {prov} ({leads.filter((l: any) => l.province === prov).length})
@@ -1581,9 +1682,9 @@ export function LeadsPage() {
                 <SelectValue placeholder="Status Website" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">🌐 Todos os Sites</SelectItem>
-                <SelectItem value="with_web">✅ Com Website</SelectItem>
-                <SelectItem value="no_web">⚠️ Sem Website</SelectItem>
+                <SelectItem value="all">🌐 {tr('Todos os Sites', 'Todos los Sitios Web', 'Tous les Sites Web')}</SelectItem>
+                <SelectItem value="with_web">✅ {tr('Com Website', 'Con Sitio Web', 'Avec Site Web')}</SelectItem>
+                <SelectItem value="no_web">⚠️ {tr('Sem Website', 'Sin Sitio Web', 'Sans Site Web')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1606,9 +1707,7 @@ export function LeadsPage() {
               className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1 px-2 shrink-0"
               title="Limpar todos os filtros da busca"
             >
-              <X className="h-3.5 w-3.5" />
-              Limpar Filtros
-            </Button>
+              <X className="h-3.5 w-3.5" /><X className="h-3.5 w-3.5" /> {tr('Limpar Filtros', 'Limpiar Filtros', 'Effacer les Filtres')}</Button>
           )}
         </div>
       </div>
@@ -3004,6 +3103,7 @@ export function LeadsPage() {
         selectedLeadIds={selectedLeadIds}
         selectedCount={selectedLeadIds.length}
         defaultTitle={dialerDefaultTitle}
+        defaultVendedorHint={effectiveOwnerKey !== 'all' ? effectiveOwnerKey : undefined}
       />
     </div>
   );

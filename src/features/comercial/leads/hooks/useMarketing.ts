@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useCommercialScope } from './useLeads';
 
 export interface MarketingTemplate {
   id: string;
@@ -19,6 +20,8 @@ export interface MarketingCampaign {
   title: string;
   status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'paused';
   scheduled_at: string | null;
+  assigned_to?: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
   marketing_templates?: MarketingTemplate;
@@ -47,17 +50,30 @@ export function useMarketingTemplates() {
 
 export function useMarketingCampaigns() {
   const { selectedEmpresaId } = useEmpresa();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
 
   return useQuery({
-    queryKey: ['marketing_campaigns', selectedEmpresaId],
+    queryKey: [
+      'marketing_campaigns',
+      selectedEmpresaId,
+      loggedCommercialProfile?.userId || activeCommercialProfile?.userId || 'all',
+    ],
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
-      const { data, error } = await supabase
+      let query = supabase
         .schema('core_comercial')
         .from('marketing_campaigns')
         .select('*, marketing_templates(*)')
         .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
+
+      if (isCommercialOperator && loggedCommercialProfile) {
+        query = query.eq('assigned_to', loggedCommercialProfile.userId);
+      } else if (activeCommercialProfile) {
+        query = query.eq('assigned_to', activeCommercialProfile.userId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as MarketingCampaign[];
@@ -69,6 +85,7 @@ export function useMarketingCampaigns() {
 export function useMutateMarketing() {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();
+  const { loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
 
   // Template mutations
   const createTemplate = useMutation({
@@ -127,14 +144,23 @@ export function useMutateMarketing() {
 
   // Campaign mutations
   const createCampaign = useMutation({
-    mutationFn: async (payload: { title: string; template_id: string }) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+    mutationFn: async (payload: { title: string; template_id: string; assigned_to?: string | null }) => {
+      const targetEmpresaId = activeCommercialProfile?.empresaId || selectedEmpresaId;
+      if (!targetEmpresaId) throw new Error('Empresa não selecionada');
+      const targetAssignedTo =
+        payload.assigned_to ||
+        loggedCommercialProfile?.userId ||
+        activeCommercialProfile?.userId ||
+        null;
+
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('marketing_campaigns')
         .insert({
-          ...payload,
-          empresa_id: selectedEmpresaId,
+          title: payload.title,
+          template_id: payload.template_id,
+          empresa_id: targetEmpresaId,
+          assigned_to: targetAssignedTo,
           status: 'draft',
         })
         .select()
@@ -144,7 +170,7 @@ export function useMutateMarketing() {
       return data as MarketingCampaign;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing_campaigns', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
     },
   });
 
@@ -179,16 +205,15 @@ export function useMutateMarketing() {
       if (errCheck) throw errCheck;
 
       if (queueCount && queueCount > 0) {
-        // Se já existe público-alvo configurado na fila, respeitar os alvos e apenas retornar
-        console.log(`Campanha ${campaignId} já possui fila configurada com ${queueCount} itens.`);
         return campaign as MarketingCampaign;
       }
 
-      // 3. Caso contrário (fallback): Buscar todos os leads da base global do grupo (excluindo descadastrados)
+      // 3. Caso contrário (fallback): Buscar leads da empresa
       const { data: leads, error: errLeads } = await supabase
         .schema('core_comercial')
         .from('leads')
-        .select('id, email, name, notes');
+        .select('id, email, name, notes')
+        .eq('empresa_id', selectedEmpresaId);
 
       if (errLeads) throw errLeads;
 
@@ -196,7 +221,7 @@ export function useMutateMarketing() {
         throw new Error('Nenhum lead cadastrado na base de dados.');
       }
 
-      // 4. Montar a fila de disparos (Ignora leads sem email, inválidos ou descadastrados)
+      // 4. Montar a fila de disparos
       const queueItems = leads
         .filter((l) => {
           if (!l.email || !l.email.includes('@')) return false;
@@ -221,7 +246,7 @@ export function useMutateMarketing() {
       return campaign as MarketingCampaign;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing_campaigns', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
     },
   });
 
@@ -236,7 +261,7 @@ export function useMutateMarketing() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['marketing_campaigns', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
     },
   });
 

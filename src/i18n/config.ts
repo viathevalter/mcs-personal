@@ -1,10 +1,10 @@
 import i18n from 'i18next';
-// Force reload translations after updates
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 import ptTranslation from './locales/pt.json';
 import esTranslation from './locales/es.json';
+import frTranslation from './locales/fr.json';
 import enTranslation from './locales/en.json';
 
 const resources = {
@@ -13,6 +13,9 @@ const resources = {
     },
     es: {
         translation: esTranslation,
+    },
+    fr: {
+        translation: frTranslation,
     },
     en: {
         translation: enTranslation,
@@ -24,11 +27,11 @@ i18n
     .use(initReactI18next)
     .init({
         resources,
-        fallbackLng: 'pt', // fallback to Portuguese
-        supportedLngs: ['pt', 'es', 'en'],
-        load: 'languageOnly', // helps map 'es-ES' -> 'es' automatically
+        fallbackLng: 'es',
+        supportedLngs: ['pt', 'es', 'fr', 'en'],
+        load: 'languageOnly',
         interpolation: {
-            escapeValue: false, // react already safes from xss
+            escapeValue: false,
         },
         detection: {
             order: ['queryString', 'localStorage', 'navigator', 'cookie', 'htmlTag'],

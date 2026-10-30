@@ -3,6 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { cn } from '@/lib/utils';
 import { useMarketingTemplates, useMarketingCampaigns, useMutateMarketing } from './hooks/useMarketing';
+import { useCommercialScope } from './hooks/useLeads';
+import { classifyAudienceOwner, normalizeAudienceDisplayName } from './utils/marketingAudiences';
+import { useComercialLanguage } from './utils/comercialI18n';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -355,6 +358,8 @@ export function CampaignsPage() {
   const { t, i18n } = useTranslation();
   const { user } = useAuth();
   const { selectedEmpresaId, empresas } = useEmpresa();
+  const { tr } = useComercialLanguage();
+  const { isCommercialOperator, activeCommercialProfile, effectiveOwnerKey, setSelectedOwnerKey, profiles: commercialProfiles } = useCommercialScope();
   const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
   const rawEmpresaName = currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || (currentEmpresa as any)?.razon_social || '';
   const empresaCanonical = normalizeEmpresaName(rawEmpresaName);
@@ -2840,19 +2845,33 @@ export function CampaignsPage() {
     }
   };
 
+  const commercialIsolatedAudiences = useMemo(() => {
+    return savedAudiences
+      .filter((aud: any) => {
+        const nameLower = String(aud.name || "").toLowerCase();
+        if (nameLower.includes("giada") || nameLower === "teste10") return false;
+        if (effectiveOwnerKey === "all") return true;
+        return classifyAudienceOwner(aud) === effectiveOwnerKey;
+      })
+      .map((aud: any) => ({
+        ...aud,
+        name: normalizeAudienceDisplayName(aud.name || ""),
+      }));
+  }, [savedAudiences, effectiveOwnerKey]);
+
   const filteredAudiences = useMemo(() => {
-    if (!audienceSearchTerm.trim()) return savedAudiences;
+    if (!audienceSearchTerm.trim()) return commercialIsolatedAudiences;
     const term = audienceSearchTerm.toLowerCase().trim();
-    return savedAudiences.filter((aud: any) => {
-      const nameMatch = (aud.name || '').toLowerCase().includes(term);
-      const tagMatch = (aud.filters?.tagKeyword || '').toLowerCase().includes(term);
-      const sectorMatch = (aud.filters?.sectorKeyword || '').toLowerCase().includes(term);
-      const provMatch = (aud.filters?.provinceKeyword || '').toLowerCase().includes(term);
-      const countMatch = String(aud.leadCount || '').includes(term);
+    return commercialIsolatedAudiences.filter((aud: any) => {
+      const nameMatch = (aud.name || "").toLowerCase().includes(term);
+      const tagMatch = (aud.filters?.tagKeyword || "").toLowerCase().includes(term);
+      const sectorMatch = (aud.filters?.sectorKeyword || "").toLowerCase().includes(term);
+      const provMatch = (aud.filters?.provinceKeyword || "").toLowerCase().includes(term);
+      const countMatch = String(aud.leadCount || "").includes(term);
       const dateMatch = formatAudienceDate(aud.created_at).toLowerCase().includes(term);
       return nameMatch || tagMatch || sectorMatch || provMatch || countMatch || dateMatch;
     });
-  }, [savedAudiences, audienceSearchTerm]);
+  }, [commercialIsolatedAudiences, audienceSearchTerm]);
 
   // Form states - Templates
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
@@ -3901,10 +3920,10 @@ export function CampaignsPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
             <Mail className="h-8 w-8 text-yellow-500" />
-            Campanhas de Marketing
+            {tr('Campanhas de Marketing', 'Campañas de Marketing', 'Campagnes Marketing')}
           </h1>
           <p className="text-muted-foreground">
-            Dispare e-mails HTML customizados e acompanhe o funil de e-mails em lote
+            {tr('Dispare e-mails HTML customizados e acompanhe o funil de e-mails em lote', 'Envíe correos HTML personalizados y supervise el embudo de campañas por comercial', 'Envoyez des e-mails HTML personnalisés et suivez vos campagnes par commercial')}
           </p>
         </div>
         <div className="flex items-center gap-3 w-full md:w-auto">
@@ -3924,15 +3943,82 @@ export function CampaignsPage() {
         </div>
       </div>
 
+      {/* Commercial Operator Isolation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/5 dark:bg-slate-900/60 px-3.5 py-2.5 rounded-xl border border-indigo-500/20">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5" />
+            {tr("Comercial Ativo (Isolamento):", "Comercial Activo (Aislamiento):", "Commercial Actif (Isolation) :")}
+          </span>
+
+          {isCommercialOperator && activeCommercialProfile ? (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-600 text-white shadow-xs">
+              <span>{activeCommercialProfile.flag}</span>
+              <span>{activeCommercialProfile.name}</span>
+              <span className="opacity-80">• {activeCommercialProfile.empresaName} ({activeCommercialProfile.country})</span>
+            </span>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {commercialProfiles.map((prof) => {
+                const isActive = effectiveOwnerKey === prof.ownerKey;
+                return (
+                  <button
+                    key={prof.ownerKey}
+                    type="button"
+                    onClick={() => setSelectedOwnerKey(prof.ownerKey)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      isActive
+                        ? "bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-500/30"
+                        : "bg-background hover:bg-muted border text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>{prof.flag}</span>
+                    <span>{prof.shortName}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded ${isActive ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"}`}>
+                      {prof.empresaName} • {prof.country}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setSelectedOwnerKey("all")}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  effectiveOwnerKey === "all"
+                    ? "bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-500/30"
+                    : "bg-background hover:bg-muted border text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>🌐</span>
+                <span>{tr("Todos os Comerciais", "Todos los Comerciales", "Tous les Commerciaux")}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {activeCommercialProfile && (
+          <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+            <span>
+              {tr("Públicos do Comercial:", "Públicos del Comercial:", "Audiences du Commercial :")}{" "}
+              <strong className="text-foreground">{commercialIsolatedAudiences.length}</strong>
+            </span>
+            <span>•</span>
+            <span className="font-mono text-indigo-600 dark:text-indigo-400">
+              {activeCommercialProfile.commercialEmail}
+            </span>
+          </div>
+        )}
+      </div>
+
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="bg-slate-100 dark:bg-slate-950 border p-1 rounded-xl w-fit">
-          <TabsTrigger value="campaigns" className="rounded-lg">Campanhas</TabsTrigger>
-          <TabsTrigger value="templates" className="rounded-lg">Templates de E-mail</TabsTrigger>
+          <TabsTrigger value="campaigns" className="rounded-lg">{tr('Campanhas', 'Campañas', 'Campagnes')}</TabsTrigger>
+          <TabsTrigger value="templates" className="rounded-lg">{tr('Templates de E-mail', 'Plantillas de Correo', 'Modèles d\x27E-mail')}</TabsTrigger>
           <TabsTrigger value="audiences" className="rounded-lg font-medium flex items-center gap-1.5">
-            <span>Públicos / Segmentos</span>
-            {savedAudiences.length > 0 && (
+            <span>{tr('Públicos / Segmentos', 'Públicos / Segmentos', 'Audiences / Segments')}</span>
+            {commercialIsolatedAudiences.length > 0 && (
               <span className="text-[10px] bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.2 rounded-full font-bold">
-                {savedAudiences.length}
+                {commercialIsolatedAudiences.length}
               </span>
             )}
           </TabsTrigger>
@@ -4571,7 +4657,7 @@ export function CampaignsPage() {
             </div>
           </div>
 
-          {savedAudiences.length === 0 ? (
+          {commercialIsolatedAudiences.length === 0 ? (
             <div className="flex flex-col justify-center items-center py-20 text-muted-foreground border border-dashed rounded-xl bg-card">
               <Users className="h-12 w-12 text-slate-400 mb-2" />
               <p className="font-semibold text-slate-900 dark:text-slate-100">Nenhum público salvo</p>

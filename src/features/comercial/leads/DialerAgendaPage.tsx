@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { 
   CalendarDays, 
   Clock, 
-  Flame, 
   Search, 
   CheckCircle2, 
   AlertCircle, 
@@ -11,21 +10,15 @@ import {
   ListFilter, 
   ChevronLeft, 
   ChevronRight, 
-  Phone, 
   PhoneCall, 
   Copy, 
-  MessageSquare, 
   Edit3, 
   Trash2, 
   Check, 
   Play, 
   Users, 
   User,
-  Sparkles,
-  Building,
   MapPin,
-  ExternalLink,
-  Plus,
   Bold,
   Italic,
   Underline,
@@ -36,7 +29,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
   Dialog, 
   DialogContent, 
@@ -49,7 +41,6 @@ import {
   format, 
   isSameDay, 
   isToday, 
-  isPast, 
   isFuture, 
   startOfMonth, 
   endOfMonth, 
@@ -61,27 +52,31 @@ import {
   isBefore,
   startOfToday
 } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { ptBR, es, fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useDialerAgenda, useMutateDialer, type ScheduledAppointmentItem } from './hooks/useDialer';
-import { useSalespeople } from './hooks/useLeads';
-
-const QUICK_TAGS = [
-  'Decisor em reunião',
-  'Pediu ligar após o almoço',
-  'Parada técnica prevista',
-  'Aguardando aprovação de compras',
-  'Ligar direto no celular do engenheiro',
-  'Enviar portfólio de caldeiraria e tubulação'
-];
+import { useSalespeople, useCommercialScope } from './hooks/useLeads';
+import { useComercialLanguage } from './utils/comercialI18n';
 
 export function DialerAgendaPage() {
+  const { tr, lang } = useComercialLanguage();
+  const dateLocale = lang === 'fr' ? fr : lang === 'es' ? es : ptBR;
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { data: agenda = [], isLoading } = useDialerAgenda();
+  const { isCommercialOperator } = useCommercialScope();
+  const { data: agenda = [] } = useDialerAgenda();
   const { data: salespeople = [] } = useSalespeople();
   const { updateAppointment, deleteAppointment, isUpdatingAppointment } = useMutateDialer();
+
+  const quickTags = useMemo(() => [
+    tr('Decisor em reunião', 'Decisor en reunión', 'Décideur en réunion'),
+    tr('Pediu ligar após o almoço', 'Pidió llamar después de comer', 'A demandé d’appeler après déjeuner'),
+    tr('Parada técnica prevista', 'Parada técnica prevista', 'Arrêt technique prévu'),
+    tr('Aguardando aprovação de compras', 'Esperando aprobación de compras', 'En attente d’approbation achats'),
+    tr('Ligar direto no celular do engenheiro', 'Llamar directo al móvil del ingeniero', 'Appeler directement sur le mobile de l’ingénieur'),
+    tr('Enviar portfólio de caldeiraria e tubulação', 'Enviar dossier de calderería y tubería', 'Envoyer présentation chaudronnerie et tuyauterie'),
+  ], [tr]);
 
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [operatorScope, setOperatorScope] = useState<'mine' | 'all'>('mine');
@@ -208,7 +203,13 @@ export function DialerAgendaPage() {
   const handleHighlightEditColor = (bgColor: string, textColor: string) => {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      toast.info('Selecione o texto que deseja destacar com cor.');
+      toast.info(
+        tr(
+          'Selecione o texto que deseja destacar com cor.',
+          'Seleccione el texto que desea resaltar con color.',
+          'Sélectionnez le texte que vous souhaitez surligner.'
+        )
+      );
       return;
     }
     document.execCommand('backColor', false, bgColor);
@@ -264,20 +265,28 @@ export function DialerAgendaPage() {
         assigned_to: editAssignedTo || null,
       });
 
-      toast.success('Agendamento atualizado com sucesso!');
+      toast.success(
+        tr('Agendamento atualizado com sucesso!', '¡Agendamiento actualizado con éxito!', 'Rendez-vous mis à jour avec succès !')
+      );
       setIsEditModalOpen(false);
     } catch (err: any) {
-      toast.error(err.message || 'Erro ao atualizar agendamento');
+      toast.error(err.message || tr('Erro ao atualizar agendamento', 'Error al actualizar agendamiento', 'Erreur lors de la mise à jour'));
     }
   };
 
   const handleCancelAppointment = async (queueItemId: string) => {
-    if (!confirm('Deseja cancelar este agendamento de retorno?')) return;
+    if (!confirm(
+      tr(
+        'Deseja cancelar este agendamento de retorno?',
+        '¿Desea cancelar este agendamiento de retorno?',
+        'Voulez-vous annuler ce rappel planifié ?'
+      )
+    )) return;
     try {
       await deleteAppointment(queueItemId);
-      toast.success('Agendamento cancelado com sucesso.');
+      toast.success(tr('Agendamento cancelado com sucesso.', 'Agendamiento cancelado con éxito.', 'Rendez-vous annulé avec succès.'));
     } catch (err: any) {
-      toast.error('Erro ao cancelar agendamento');
+      toast.error(tr('Erro ao cancelar agendamento', 'Error al cancelar agendamiento', 'Erreur lors de l’annulation'));
     }
   };
 
@@ -287,15 +296,25 @@ export function DialerAgendaPage() {
         queueItemId,
         status: 'converted',
       });
-      toast.success('Agendamento marcado como concluído!');
+      toast.success(tr('Agendamento marcado como concluído!', '¡Agendamiento marcado como completado!', 'Rendez-vous marqué comme terminé !'));
     } catch (err: any) {
-      toast.error('Erro ao concluir agendamento');
+      toast.error(tr('Erro ao concluir agendamento', 'Error al completar agendamiento', 'Erreur lors de la clôture'));
     }
   };
 
   const handleStartDialer = (item: ScheduledAppointmentItem) => {
     navigate(`/comercial/discador?campaignId=${item.campaign_id}&queueItemId=${item.id}`);
   };
+
+  const dayHeaders = useMemo(() => [
+    tr('Seg', 'Lun', 'Lun'),
+    tr('Ter', 'Mar', 'Mar'),
+    tr('Qua', 'Mié', 'Mer'),
+    tr('Qui', 'Jue', 'Jeu'),
+    tr('Sex', 'Vie', 'Ven'),
+    tr('Sáb', 'Sáb', 'Sam'),
+    tr('Dom', 'Dom', 'Dim'),
+  ], [tr]);
 
   return (
     <div className="flex flex-col space-y-6 p-4 lg:p-8 max-w-7xl mx-auto w-full">
@@ -307,56 +326,62 @@ export function DialerAgendaPage() {
           </div>
           <div>
             <h1 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
-              Minha Agenda & Retornos (Callbacks)
+              {tr('Minha Agenda & Retornos (Callbacks)', 'Mi Agenda y Seguimientos (Callbacks)', 'Mon Agenda & Rappels (Callbacks)')}
               <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs">
                 SDR & Telemarketing
               </Badge>
             </h1>
             <p className="text-xs text-muted-foreground">
-              Acompanhe, reagende e atenda todos os retornos marcados com decisores de compras e engenheiros.
+              {tr(
+                'Acompanhe, reagende e atenda todos os retornos marcados com decisores de compras e engenheiros.',
+                'Siga, reagende y atienda todos los retornos programados con decisores de compras e ingenieros.',
+                'Suivez, replanifiez et traitez tous les rappels fixés avec les décideurs achats et ingénieurs.'
+              )}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
           {/* Operator Scope Switcher */}
-          <div className="flex items-center gap-2">
-            <div className="bg-muted/60 border border-border p-0.5 rounded-xl flex items-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setOperatorScope('mine')}
-                className={`h-8 text-xs font-bold gap-1.5 rounded-lg transition-all ${
-                  operatorScope === 'mine' ? 'bg-amber-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <User className="w-3.5 h-3.5" /> Minha Agenda ({myAppointmentsCount})
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setOperatorScope('all')}
-                className={`h-8 text-xs font-bold gap-1.5 rounded-lg transition-all ${
-                  operatorScope === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" /> Toda a Equipe ({agenda.length})
-              </Button>
-            </div>
+          {!isCommercialOperator && (
+            <div className="flex items-center gap-2">
+              <div className="bg-muted/60 border border-border p-0.5 rounded-xl flex items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setOperatorScope('mine')}
+                  className={`h-8 text-xs font-bold gap-1.5 rounded-lg transition-all ${
+                    operatorScope === 'mine' ? 'bg-amber-600 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" /> {tr('Minha Agenda', 'Mi Agenda', 'Mon Agenda')} ({myAppointmentsCount})
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setOperatorScope('all')}
+                  className={`h-8 text-xs font-bold gap-1.5 rounded-lg transition-all ${
+                    operatorScope === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" /> {tr('Toda a Equipe', 'Todo el Equipo', 'Toute l’Équipe')} ({agenda.length})
+                </Button>
+              </div>
 
-            {operatorScope === 'all' && (
-              <select
-                value={selectedOperatorId}
-                onChange={e => setSelectedOperatorId(e.target.value)}
-                className="h-8 rounded-xl bg-card border border-input text-foreground text-xs px-2.5 shadow-sm font-medium"
-              >
-                <option value="all">Todos os Operadores ({agenda.length})</option>
-                {salespeople.map(sp => (
-                  <option key={sp.id} value={sp.id}>{sp.display_name}</option>
-                ))}
-              </select>
-            )}
-          </div>
+              {operatorScope === 'all' && (
+                <select
+                  value={selectedOperatorId}
+                  onChange={e => setSelectedOperatorId(e.target.value)}
+                  className="h-8 rounded-xl bg-card border border-input text-foreground text-xs px-2.5 shadow-sm font-medium"
+                >
+                  <option value="all">{tr('Todos os Operadores', 'Todos los Operadores', 'Tous les Opérateurs')} ({agenda.length})</option>
+                  {salespeople.map(sp => (
+                    <option key={sp.id} value={sp.id}>{sp.display_name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           {/* View switcher */}
           <div className="bg-muted/60 border border-border p-0.5 rounded-xl flex items-center">
@@ -368,7 +393,7 @@ export function DialerAgendaPage() {
                 viewMode === 'calendar' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
               }`}
             >
-              <CalendarIcon className="w-3.5 h-3.5 text-amber-500" /> Modo Calendário
+              <CalendarIcon className="w-3.5 h-3.5 text-amber-500" /> {tr('Modo Calendário', 'Modo Calendario', 'Vue Calendrier')}
             </Button>
             <Button
               variant="ghost"
@@ -378,7 +403,7 @@ export function DialerAgendaPage() {
                 viewMode === 'list' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
               }`}
             >
-              <ListFilter className="w-3.5 h-3.5 text-indigo-500" /> Modo Lista ({scopedAgenda.length})
+              <ListFilter className="w-3.5 h-3.5 text-indigo-500" /> {tr('Modo Lista', 'Modo Lista', 'Vue Liste')} ({scopedAgenda.length})
             </Button>
           </div>
 
@@ -387,7 +412,7 @@ export function DialerAgendaPage() {
             onClick={() => navigate('/comercial/discador')}
             className="h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shadow-md shadow-emerald-600/20"
           >
-            <Play className="w-3.5 h-3.5 fill-current" /> Abrir Cockpit Discador
+            <Play className="w-3.5 h-3.5 fill-current" /> {tr('Abrir Cockpit Discador', 'Abrir Cockpit Marcador', 'Ouvrir Cockpit Dialer')}
           </Button>
         </div>
       </div>
@@ -402,14 +427,18 @@ export function DialerAgendaPage() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase">Agendados para Hoje</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase">
+              {tr('Agendados para Hoje', 'Agendados para Hoy', 'Planifiés Aujourd’hui')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
               <Clock className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-black text-foreground">{stats.todayCount}</span>
-            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">Prioritários do dia</span>
+            <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold">
+              {tr('Prioritários do dia', 'Prioritarios del día', 'Prioritaires du jour')}
+            </span>
           </div>
         </div>
 
@@ -421,14 +450,18 @@ export function DialerAgendaPage() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase">Atrasados / Pendentes</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase">
+              {tr('Atrasados / Pendentes', 'Atrasados / Pendientes', 'En Retard / En Attente')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
               <AlertCircle className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-black text-rose-600 dark:text-rose-400">{stats.overdueCount}</span>
-            <span className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">Necessitam contato</span>
+            <span className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold">
+              {tr('Necessitam contato', 'Requieren contacto', 'Nécessitent un appel')}
+            </span>
           </div>
         </div>
 
@@ -440,14 +473,18 @@ export function DialerAgendaPage() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase">Próximos 7 Dias</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase">
+              {tr('Próximos 7 Dias', 'Próximos 7 Días', '7 Prochains Jours')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
               <CalendarDays className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-black text-foreground">{stats.upcomingCount}</span>
-            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">Programados</span>
+            <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold">
+              {tr('Programados', 'Programados', 'Programmés')}
+            </span>
           </div>
         </div>
 
@@ -459,14 +496,18 @@ export function DialerAgendaPage() {
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-muted-foreground uppercase">Atendidos / Concluídos</span>
+            <span className="text-xs font-bold text-muted-foreground uppercase">
+              {tr('Atendidos / Concluídos', 'Atendidos / Completados', 'Traités / Terminés')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
             <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{stats.completedCount}</span>
-            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">Convertidos ou concluídos</span>
+            <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">
+              {tr('Convertidos ou concluídos', 'Convertidos o completados', 'Convertis ou terminés')}
+            </span>
           </div>
         </div>
       </div>
@@ -480,7 +521,7 @@ export function DialerAgendaPage() {
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div className="flex items-center gap-3">
                 <h3 className="text-lg font-bold text-foreground capitalize">
-                  {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+                  {format(currentMonth, 'MMMM yyyy', { locale: dateLocale })}
                 </h3>
                 <Button
                   variant="outline"
@@ -488,7 +529,7 @@ export function DialerAgendaPage() {
                   onClick={() => { setCurrentMonth(new Date()); setSelectedDay(new Date()); }}
                   className="h-7 text-xs border-input"
                 >
-                  Hoje
+                  {tr('Hoje', 'Hoy', 'Aujourd’hui')}
                 </Button>
               </div>
 
@@ -514,13 +555,9 @@ export function DialerAgendaPage() {
 
             {/* Day Headers */}
             <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-muted-foreground uppercase">
-              <span>Seg</span>
-              <span>Ter</span>
-              <span>Qua</span>
-              <span>Qui</span>
-              <span>Sex</span>
-              <span>Sáb</span>
-              <span>Dom</span>
+              {dayHeaders.map((dh, idx) => (
+                <span key={idx}>{dh}</span>
+              ))}
             </div>
 
             {/* Days Grid */}
@@ -533,7 +570,6 @@ export function DialerAgendaPage() {
                 const isSelected = selectedDay && isSameDay(day, selectedDay);
                 const isDayToday = isToday(day);
 
-                // Find appointments on this day
                 const dayAppointments = scopedAgenda.filter(item => {
                   if (!item.scheduled_for) return false;
                   return isSameDay(parseISO(item.scheduled_for), day);
@@ -588,7 +624,7 @@ export function DialerAgendaPage() {
 
                       {dayAppointments.length > 2 && (
                         <span className="text-[9px] text-muted-foreground font-semibold block text-center">
-                          +{dayAppointments.length - 2} mais
+                          +{dayAppointments.length - 2} {tr('mais', 'más', 'de plus')}
                         </span>
                       )}
                     </div>
@@ -603,14 +639,19 @@ export function DialerAgendaPage() {
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div>
                 <h4 className="text-sm font-bold text-foreground capitalize">
-                  {selectedDay ? format(selectedDay, "EEEE, dd 'de' MMMM", { locale: ptBR }) : 'Selecione um Dia'}
+                  {selectedDay
+                    ? format(selectedDay, "EEEE, dd MMM", { locale: dateLocale })
+                    : tr('Selecione um Dia', 'Seleccione un Día', 'Sélectionnez un Jour')}
                 </h4>
-                <p className="text-[11px] text-muted-foreground">Compromissos agendados para este dia</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {tr('Compromissos agendados para este dia', 'Compromisos agendados para este día', 'Rendez-vous planifiés pour ce jour')}
+                </p>
               </div>
 
               {selectedDay && (
                 <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs">
-                  {scopedAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length} Agendados
+                  {scopedAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length}{' '}
+                  {tr('Agendados', 'Agendados', 'Planifiés')}
                 </Badge>
               )}
             </div>
@@ -630,7 +671,9 @@ export function DialerAgendaPage() {
                             {format(parseISO(item.scheduled_for), 'HH:mm')}
                           </span>
                           {item.priority === 'high' && (
-                            <Badge className="bg-rose-500 text-white text-[9px] px-1 py-0">🔥 Urgente</Badge>
+                            <Badge className="bg-rose-500 text-white text-[9px] px-1 py-0">
+                              🔥 {tr('Urgente', 'Urgente', 'Urgent')}
+                            </Badge>
                           )}
                           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
                             item.assigned_to === user?.id 
@@ -639,15 +682,15 @@ export function DialerAgendaPage() {
                           }`}>
                             <User className="w-2.5 h-2.5" />
                             {item.assigned_to === user?.id 
-                              ? 'Você' 
-                              : (item.assigned_user?.display_name || 'Equipe Geral')}
+                              ? tr('Você', 'Tú', 'Vous')
+                              : (item.assigned_user?.display_name || tr('Equipe Geral', 'Equipo General', 'Équipe'))}
                           </span>
                         </div>
                         <h5 className="text-sm font-bold text-foreground mt-0.5">
                           {item.lead?.company_name || item.lead?.name}
                         </h5>
                         <p className="text-[11px] text-muted-foreground">
-                          {item.lead?.name || 'Responsável'} • {item.lead?.city || 'Espanha'}
+                          {item.lead?.name || tr('Responsável', 'Responsable', 'Responsable')} • {item.lead?.city || tr('Espanha', 'España', 'Espagne')}
                         </p>
                       </div>
 
@@ -666,7 +709,7 @@ export function DialerAgendaPage() {
                             size="sm"
                             onClick={() => {
                               navigator.clipboard.writeText(item.lead!.phone!);
-                              toast.success('Telefone copiado!');
+                              toast.success(tr('Telefone copiado!', '¡Teléfono copiado!', 'Téléphone copié !'));
                             }}
                             className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
                           >
@@ -692,7 +735,7 @@ export function DialerAgendaPage() {
                         onClick={() => handleOpenEdit(item)}
                         className="h-7 text-xs border-input gap-1"
                       >
-                        <Edit3 className="w-3 h-3" /> Editar
+                        <Edit3 className="w-3 h-3" /> {tr('Editar', 'Editar', 'Modifier')}
                       </Button>
 
                       <Button
@@ -700,7 +743,7 @@ export function DialerAgendaPage() {
                         onClick={() => handleStartDialer(item)}
                         className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1 shadow-sm"
                       >
-                        <PhoneCall className="w-3 h-3" /> Atender no Discador
+                        <PhoneCall className="w-3 h-3" /> {tr('Atender no Discador', 'Atender en Marcador', 'Appeler dans le Dialer')}
                       </Button>
                     </div>
                   </div>
@@ -709,7 +752,9 @@ export function DialerAgendaPage() {
               {selectedDay && scopedAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length === 0 && (
                 <div className="p-8 text-center rounded-xl border border-dashed border-border space-y-2">
                   <CalendarDays className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-                  <p className="text-xs text-muted-foreground">Nenhum compromisso agendado para este dia.</p>
+                  <p className="text-xs text-muted-foreground">
+                    {tr('Nenhum compromisso agendado para este dia.', 'Ningún compromiso agendado para este día.', 'Aucun rendez-vous planifié pour ce jour.')}
+                  </p>
                 </div>
               )}
             </div>
@@ -728,7 +773,7 @@ export function DialerAgendaPage() {
                 <Input
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Buscar empresa, contato ou nota..."
+                  placeholder={tr('Buscar empresa, contato ou nota...', 'Buscar empresa, contacto o nota...', 'Rechercher entreprise, contact ou note...')}
                   className="pl-8 h-8 text-xs bg-background border-input"
                 />
               </div>
@@ -740,51 +785,53 @@ export function DialerAgendaPage() {
                   onClick={() => setStatusFilter('all')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusFilter === 'all' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
                 >
-                  Todos ({scopedAgenda.length})
+                  {tr('Todos', 'Todos', 'Tous')} ({scopedAgenda.length})
                 </button>
                 <button
                   type="button"
                   onClick={() => setStatusFilter('today')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusFilter === 'today' ? 'bg-amber-500 text-white' : 'text-muted-foreground'}`}
                 >
-                  Hoje ({stats.todayCount})
+                  {tr('Hoje', 'Hoy', 'Aujourd’hui')} ({stats.todayCount})
                 </button>
                 <button
                   type="button"
                   onClick={() => setStatusFilter('overdue')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusFilter === 'overdue' ? 'bg-rose-500 text-white' : 'text-muted-foreground'}`}
                 >
-                  Atrasados ({stats.overdueCount})
+                  {tr('Atrasados', 'Atrasados', 'En Retard')} ({stats.overdueCount})
                 </button>
                 <button
                   type="button"
                   onClick={() => setStatusFilter('upcoming')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusFilter === 'upcoming' ? 'bg-indigo-500 text-white' : 'text-muted-foreground'}`}
                 >
-                  Próximos ({stats.upcomingCount})
+                  {tr('Próximos', 'Próximos', 'À Venir')} ({stats.upcomingCount})
                 </button>
                 <button
                   type="button"
                   onClick={() => setStatusFilter('completed')}
                   className={`px-2.5 py-1 rounded-lg text-xs font-semibold ${statusFilter === 'completed' ? 'bg-emerald-500 text-white' : 'text-muted-foreground'}`}
                 >
-                  Concluídos ({stats.completedCount})
+                  {tr('Concluídos', 'Completados', 'Terminés')} ({stats.completedCount})
                 </button>
               </div>
             </div>
 
             {/* Priority filter */}
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-semibold">Prioridade:</span>
+              <span className="text-xs text-muted-foreground font-semibold">
+                {tr('Prioridade:', 'Prioridad:', 'Priorité :')}
+              </span>
               <select
                 value={priorityFilter}
                 onChange={e => setPriorityFilter(e.target.value)}
                 className="h-8 rounded-lg bg-background border border-input text-foreground text-xs px-2"
               >
-                <option value="all">Todas as Prioridades</option>
-                <option value="high">🔥 Alta Prioridade / Urgente</option>
+                <option value="all">{tr('Todas as Prioridades', 'Todas las Prioridades', 'Toutes les Priorités')}</option>
+                <option value="high">🔥 {tr('Alta Prioridade / Urgente', 'Alta Prioridad / Urgente', 'Haute Priorité / Urgent')}</option>
                 <option value="normal">⚡ Normal</option>
-                <option value="low">⏳ Baixa</option>
+                <option value="low">⏳ {tr('Baixa', 'Baja', 'Basse')}</option>
               </select>
             </div>
           </div>
@@ -795,14 +842,14 @@ export function DialerAgendaPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-muted/40 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                    <th className="py-3 px-4">Data & Horário</th>
-                    <th className="py-3 px-4">Empresa & Cidade</th>
-                    <th className="py-3 px-4">Contato & Telefone</th>
-                    <th className="py-3 px-4">Prioridade</th>
-                    <th className="py-3 px-4">Observações do Agendamento</th>
-                    <th className="py-3 px-4">Operador</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Ações</th>
+                    <th className="py-3 px-4">{tr('Data & Horário', 'Fecha y Hora', 'Date & Heure')}</th>
+                    <th className="py-3 px-4">{tr('Empresa & Cidade', 'Empresa y Ciudad', 'Entreprise & Ville')}</th>
+                    <th className="py-3 px-4">{tr('Contato & Telefone', 'Contacto y Teléfono', 'Contact & Téléphone')}</th>
+                    <th className="py-3 px-4">{tr('Prioridade', 'Prioridad', 'Priorité')}</th>
+                    <th className="py-3 px-4">{tr('Observações do Agendamento', 'Observaciones del Agendamiento', 'Notes du Rendez-vous')}</th>
+                    <th className="py-3 px-4">{tr('Operador', 'Operador', 'Opérateur')}</th>
+                    <th className="py-3 px-4">{tr('Status', 'Estado', 'Statut')}</th>
+                    <th className="py-3 px-4 text-right">{tr('Ações', 'Acciones', 'Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-xs">
@@ -816,16 +863,16 @@ export function DialerAgendaPage() {
                         <td className="py-3.5 px-4 font-mono">
                           <div className="flex flex-col">
                             <span className="font-bold text-foreground">
-                              {format(date, "dd/MM/yyyy 'às' HH:mm")}
+                              {format(date, "dd/MM/yyyy '•' HH:mm")}
                             </span>
                             {isDueToday && (
                               <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                                ⏰ É HOJE
+                                ⏰ {tr('É HOJE', 'ES HOY', 'AUJOURD’HUI')}
                               </span>
                             )}
                             {isOverdue && (
                               <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
-                                🚨 ATRASADO
+                                🚨 {tr('ATRASADO', 'ATRASADO', 'EN RETARD')}
                               </span>
                             )}
                           </div>
@@ -835,13 +882,13 @@ export function DialerAgendaPage() {
                           <div className="font-bold text-foreground">{item.lead?.company_name || item.lead?.name}</div>
                           <div className="text-[11px] text-muted-foreground flex items-center gap-1">
                             <MapPin className="w-3 h-3 text-emerald-500" />
-                            {item.lead?.city || 'Espanha'} • {item.lead?.sector || 'Geral'}
+                            {item.lead?.city || tr('Espanha', 'España', 'Espagne')} • {item.lead?.sector || tr('Geral', 'General', 'Général')}
                           </div>
                         </td>
 
                         <td className="py-3.5 px-4">
-                          <div className="text-foreground font-medium">{item.lead?.name || 'Decisor'}</div>
-                          <div className="text-muted-foreground font-mono text-[11px]">{item.lead?.phone || 'Sem telefone'}</div>
+                          <div className="text-foreground font-medium">{item.lead?.name || tr('Decisor', 'Decisor', 'Décideur')}</div>
+                          <div className="text-muted-foreground font-mono text-[11px]">{item.lead?.phone || tr('Sem telefone', 'Sin teléfono', 'Sans téléphone')}</div>
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -852,7 +899,11 @@ export function DialerAgendaPage() {
                               ? 'bg-muted text-muted-foreground'
                               : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
                           }>
-                            {item.priority === 'high' ? '🔥 Alta' : item.priority === 'low' ? '⏳ Baixa' : '⚡ Normal'}
+                            {item.priority === 'high'
+                              ? `🔥 ${tr('Alta', 'Alta', 'Haute')}`
+                              : item.priority === 'low'
+                              ? `⏳ ${tr('Baixa', 'Baja', 'Basse')}`
+                              : '⚡ Normal'}
                           </Badge>
                         </td>
 
@@ -863,7 +914,9 @@ export function DialerAgendaPage() {
                               dangerouslySetInnerHTML={{ __html: item.scheduled_notes }}
                             />
                           ) : (
-                            <span className="text-muted-foreground italic text-[11px]">Sem anotações</span>
+                            <span className="text-muted-foreground italic text-[11px]">
+                              {tr('Sem anotações', 'Sin notas', 'Sans notes')}
+                            </span>
                           )}
                         </td>
 
@@ -875,8 +928,8 @@ export function DialerAgendaPage() {
                           }`}>
                             <User className="w-3 h-3" />
                             {item.assigned_to === user?.id
-                              ? 'Você'
-                              : (item.assigned_user?.display_name || 'Equipe Geral')}
+                              ? tr('Você', 'Tú', 'Vous')
+                              : (item.assigned_user?.display_name || tr('Equipe Geral', 'Equipo General', 'Équipe'))}
                           </span>
                         </td>
 
@@ -892,9 +945,9 @@ export function DialerAgendaPage() {
                               size="sm"
                               onClick={() => handleStartDialer(item)}
                               className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1 shadow-sm"
-                              title="Abrir no Cockpit do Discador"
+                              title={tr('Abrir no Cockpit do Discador', 'Abrir en el Cockpit del Marcador', 'Ouvrir dans le Cockpit Dialer')}
                             >
-                              <PhoneCall className="w-3 h-3" /> Atender
+                              <PhoneCall className="w-3 h-3" /> {tr('Atender', 'Atender', 'Appeler')}
                             </Button>
 
                             <Button
@@ -902,7 +955,7 @@ export function DialerAgendaPage() {
                               size="sm"
                               onClick={() => handleOpenEdit(item)}
                               className="h-7 text-xs border-input"
-                              title="Editar / Reagendar"
+                              title={tr('Editar / Reagendar', 'Editar / Reagendar', 'Modifier / Replanifier')}
                             >
                               <Edit3 className="w-3 h-3" />
                             </Button>
@@ -913,7 +966,7 @@ export function DialerAgendaPage() {
                                 size="sm"
                                 onClick={() => handleMarkCompleted(item.id)}
                                 className="h-7 text-xs text-emerald-600 hover:bg-emerald-500/10"
-                                title="Marcar como Concluído"
+                                title={tr('Marcar como Concluído', 'Marcar como Completado', 'Marquer comme Terminé')}
                               >
                                 <Check className="w-3.5 h-3.5" />
                               </Button>
@@ -924,7 +977,7 @@ export function DialerAgendaPage() {
                               size="sm"
                               onClick={() => handleCancelAppointment(item.id)}
                               className="h-7 text-xs text-muted-foreground hover:text-rose-500"
-                              title="Cancelar Agendamento"
+                              title={tr('Cancelar Agendamento', 'Cancelar Agendamiento', 'Annuler le Rendez-vous')}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </Button>
@@ -937,7 +990,11 @@ export function DialerAgendaPage() {
                   {filteredAgenda.length === 0 && (
                     <tr>
                       <td colSpan={8} className="p-8 text-center text-muted-foreground text-xs">
-                        Nenhum agendamento encontrado com os filtros selecionados.
+                        {tr(
+                          'Nenhum agendamento encontrado com os filtros selecionados.',
+                          'Ningún agendamiento encontrado con los filtros seleccionados.',
+                          'Aucun rendez-vous trouvé avec les filtres sélectionnés.'
+                        )}
                       </td>
                     </tr>
                   )}
@@ -958,10 +1015,12 @@ export function DialerAgendaPage() {
               </div>
               <div>
                 <DialogTitle className="text-lg font-bold text-foreground">
-                  Editar / Reagendar Retorno Comercial
+                  {tr('Editar / Reagendar Retorno Comercial', 'Editar / Reagendar Retorno Comercial', 'Modifier / Replanifier le Rappel Commercial')}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
-                  {editingItem ? `Empresa: ${editingItem.lead?.company_name || editingItem.lead?.name}` : 'Ajuste a data, horário e instruções'}
+                  {editingItem
+                    ? `${tr('Empresa:', 'Empresa:', 'Entreprise :')} ${editingItem.lead?.company_name || editingItem.lead?.name}`
+                    : tr('Ajuste a data, horário e instruções', 'Ajuste la fecha, hora e instrucciones', 'Ajustez la date, l’heure et les instructions')}
                 </DialogDescription>
               </div>
             </div>
@@ -970,7 +1029,9 @@ export function DialerAgendaPage() {
           <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-foreground">Nova Data do Retorno</Label>
+                <Label className="text-xs font-bold text-foreground">
+                  {tr('Nova Data do Retorno', 'Nueva Fecha del Retorno', 'Nouvelle Date du Rappel')}
+                </Label>
                 <Input
                   type="date"
                   value={editDate}
@@ -981,7 +1042,9 @@ export function DialerAgendaPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-foreground">Novo Horário</Label>
+                <Label className="text-xs font-bold text-foreground">
+                  {tr('Novo Horário', 'Nueva Hora', 'Nouvelle Heure')}
+                </Label>
                 <Input
                   type="time"
                   value={editTime}
@@ -994,28 +1057,31 @@ export function DialerAgendaPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-foreground">Nível de Prioridade</Label>
+                <Label className="text-xs font-bold text-foreground">
+                  {tr('Nível de Prioridade', 'Nivel de Prioridad', 'Niveau de Priorité')}
+                </Label>
                 <select
                   value={editPriority}
                   onChange={(e: any) => setEditPriority(e.target.value)}
                   className="w-full h-9 rounded-lg bg-background border border-input text-foreground text-xs px-2"
                 >
-                  <option value="high">🔥 Alta Prioridade / Urgente</option>
+                  <option value="high">🔥 {tr('Alta Prioridade / Urgente', 'Alta Prioridad / Urgente', 'Haute Priorité / Urgent')}</option>
                   <option value="normal">⚡ Normal</option>
-                  <option value="low">⏳ Baixa</option>
+                  <option value="low">⏳ {tr('Baixa', 'Baja', 'Basse')}</option>
                 </select>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-foreground">Operador Responsável</Label>
+                <Label className="text-xs font-bold text-foreground">
+                  {tr('Operador Responsável', 'Operador Responsable', 'Opérateur Responsable')}
+                </Label>
                 <select
                   value={editAssignedTo}
                   onChange={e => setEditAssignedTo(e.target.value)}
                   className="w-full h-9 rounded-lg bg-background border border-input text-foreground text-xs px-2"
                 >
-                  <option value="">Equipe Geral (Disponível a qualquer operador)</option>
                   {user && (
-                    <option value={user.id}>👤 Atribuir a Mim (Você)</option>
+                    <option value={user.id}>👤 {tr('Atribuir a Mim (Você)', 'Asignarme a Mí (Tú)', 'M’attribuer (Vous)')}</option>
                   )}
                   {salespeople
                     .filter(sp => sp.id !== user?.id)
@@ -1027,22 +1093,28 @@ export function DialerAgendaPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold text-foreground">Status do Agendamento</Label>
+              <Label className="text-xs font-bold text-foreground">
+                {tr('Status do Agendamento', 'Estado del Agendamiento', 'Statut du Rendez-vous')}
+              </Label>
               <select
                 value={editStatus}
                 onChange={e => setEditStatus(e.target.value)}
                 className="w-full h-9 rounded-lg bg-background border border-input text-foreground text-xs px-2"
               >
-                <option value="scheduled">📅 Agendado / Pendente</option>
-                <option value="converted">🎉 Concluído / Atendido com Sucesso</option>
-                <option value="no_answer">📞 Tentado / Sem Resposta</option>
-                <option value="pending">🔄 Retornar à Fila Geral</option>
+                <option value="scheduled">📅 {tr('Agendado / Pendente', 'Agendado / Pendiente', 'Planifié / En Attente')}</option>
+                <option value="converted">🎉 {tr('Concluído / Atendido com Sucesso', 'Completado / Atendido con Éxito', 'Terminé / Traité avec Succès')}</option>
+                <option value="no_answer">📞 {tr('Tentado / Sem Resposta', 'Intentado / Sin Respuesta', 'Tenté / Sans Réponse')}</option>
+                <option value="pending">🔄 {tr('Retornar à Fila Geral', 'Devolver a la Cola General', 'Remettre dans la File Générale')}</option>
               </select>
             </div>
 
             <div className="space-y-1.5">
               <Label className="text-xs font-bold text-foreground">
-                Instruções & Observações do Agendamento (Rich Text)
+                {tr(
+                  'Instruções & Observações do Agendamento (Rich Text)',
+                  'Instrucciones y Observaciones del Agendamiento (Rich Text)',
+                  'Instructions & Observations du Rendez-vous (Rich Text)'
+                )}
               </Label>
               <div className="rounded-2xl border border-border bg-background shadow-sm overflow-hidden flex flex-col">
                 {/* Formatting Toolbar */}
@@ -1053,7 +1125,7 @@ export function DialerAgendaPage() {
                     size="sm"
                     onClick={() => handleFormatEditCommand('bold')}
                     className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="Negrito (Ctrl+B)"
+                    title="Bold"
                   >
                     <Bold className="w-3.5 h-3.5 font-bold" />
                   </Button>
@@ -1064,7 +1136,7 @@ export function DialerAgendaPage() {
                     size="sm"
                     onClick={() => handleFormatEditCommand('italic')}
                     className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="Itálico (Ctrl+I)"
+                    title="Italic"
                   >
                     <Italic className="w-3.5 h-3.5" />
                   </Button>
@@ -1075,7 +1147,7 @@ export function DialerAgendaPage() {
                     size="sm"
                     onClick={() => handleFormatEditCommand('underline')}
                     className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="Sublinhado"
+                    title="Underline"
                   >
                     <Underline className="w-3.5 h-3.5" />
                   </Button>
@@ -1086,7 +1158,7 @@ export function DialerAgendaPage() {
                     size="sm"
                     onClick={() => handleFormatEditCommand('insertUnorderedList')}
                     className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="Lista com Marcadores"
+                    title="List"
                   >
                     <List className="w-3.5 h-3.5" />
                   </Button>
@@ -1099,25 +1171,21 @@ export function DialerAgendaPage() {
                       type="button"
                       onClick={() => handleHighlightEditColor('#fef08a', '#854d0e')}
                       className="w-5 h-5 rounded-full bg-yellow-300 border border-yellow-500 hover:scale-110 transition-transform"
-                      title="Destacar Amarelo"
                     />
                     <button
                       type="button"
                       onClick={() => handleHighlightEditColor('#bbf7d0', '#166534')}
                       className="w-5 h-5 rounded-full bg-emerald-300 border border-emerald-500 hover:scale-110 transition-transform"
-                      title="Destacar Verde"
                     />
                     <button
                       type="button"
                       onClick={() => handleHighlightEditColor('#fecdd3', '#9f1239')}
                       className="w-5 h-5 rounded-full bg-rose-300 border border-rose-500 hover:scale-110 transition-transform"
-                      title="Destacar Vermelho / Urgente"
                     />
                     <button
                       type="button"
                       onClick={() => handleHighlightEditColor('#bfdbfe', '#1e40af')}
                       className="w-5 h-5 rounded-full bg-blue-300 border border-blue-500 hover:scale-110 transition-transform"
-                      title="Destacar Azul"
                     />
                   </div>
                 </div>
@@ -1138,7 +1206,7 @@ export function DialerAgendaPage() {
                 <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1 mr-1">
                   <Tag className="w-3 h-3" /> Tags:
                 </span>
-                {QUICK_TAGS.map(tagText => (
+                {quickTags.map(tagText => (
                   <button
                     key={tagText}
                     type="button"
@@ -1158,7 +1226,7 @@ export function DialerAgendaPage() {
                 onClick={() => setIsEditModalOpen(false)}
                 className="border-input text-xs"
               >
-                Cancelar
+                {tr('Cancelar', 'Cancelar', 'Annuler')}
               </Button>
 
               <Button
@@ -1166,7 +1234,7 @@ export function DialerAgendaPage() {
                 disabled={isUpdatingAppointment}
                 className="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-5 gap-1.5 shadow-md shadow-amber-600/20"
               >
-                <Check className="w-4 h-4" /> Salvar Alterações
+                <Check className="w-4 h-4" /> {tr('Salvar Alterações', 'Guardar Cambios', 'Enregistrer les Modifications')}
               </Button>
             </DialogFooter>
           </form>

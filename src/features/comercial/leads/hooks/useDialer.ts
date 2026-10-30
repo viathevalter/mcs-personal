@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useCommercialScope, getCommercialProfileByUser, COMMERCIAL_DEPARTMENT_ID } from './useLeads';
 import type { 
   DialerCampaign, 
   DialerQueueItem, 
@@ -50,15 +51,16 @@ export interface ScheduledAppointmentItem {
 
 export function useDialerAgenda() {
   const { selectedEmpresaId } = useEmpresa();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
 
   return useQuery({
-    queryKey: ['dialer_agenda', selectedEmpresaId],
+    queryKey: ["dialer_agenda", selectedEmpresaId, loggedCommercialProfile?.userId || activeCommercialProfile?.userId || "all"],
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
 
       const { data: queueItems, error } = await supabase
-        .schema('core_comercial')
-        .from('dialer_queue_items')
+        .schema("core_comercial")
+        .from("dialer_queue_items")
         .select(`
           id,
           campaign_id,
@@ -72,34 +74,45 @@ export function useDialerAgenda() {
           last_attempt_at,
           created_at,
           updated_at,
-          campaign:dialer_campaigns!campaign_id ( id, title, empresa_id ),
+          campaign:dialer_campaigns!campaign_id ( id, title, empresa_id, assigned_to ),
           lead:leads!lead_id ( id, name, company_name, phone, email, city, sector, cargo, notes, empresa_id )
         `)
-        .not('scheduled_for', 'is', null)
-        .order('scheduled_for', { ascending: true });
+        .not("scheduled_for", "is", null)
+        .order("scheduled_for", { ascending: true });
 
       if (error) throw error;
 
-      // Filter by current empresa_id
-      const filtered = (queueItems || []).filter(
-        (it: any) => 
-          it.campaign?.empresa_id === selectedEmpresaId || 
-          it.lead?.empresa_id === selectedEmpresaId ||
-          (!it.campaign?.empresa_id && !it.lead?.empresa_id)
-      );
+      const targetUserId = isCommercialOperator
+        ? loggedCommercialProfile?.userId
+        : activeCommercialProfile?.userId || null;
 
-      // Fetch users for assignment mapping
+      const filtered = (queueItems || []).filter((it: any) => {
+        const matchesCompany =
+          it.campaign?.empresa_id === selectedEmpresaId ||
+          it.lead?.empresa_id === selectedEmpresaId ||
+          (!it.campaign?.empresa_id && !it.lead?.empresa_id);
+        if (!matchesCompany) return false;
+        if (targetUserId) {
+          const itemOwner = it.assigned_to || it.campaign?.assigned_to;
+          if (itemOwner && itemOwner !== targetUserId) return false;
+        }
+        return true;
+      });
+
       const { data: users } = await supabase
-        .from('mcs_users')
-        .select('id, display_name, email');
+        .from("mcs_users")
+        .select("id, display_name, email")
+        .eq("department_id", COMMERCIAL_DEPARTMENT_ID);
 
       const userMap = new Map<string, any>();
       (users || []).forEach(u => userMap.set(u.id, u));
 
       return filtered.map((it: any) => ({
         ...it,
-        priority: it.priority || 'normal',
-        assigned_user: it.assigned_to ? userMap.get(it.assigned_to) || null : null,
+        priority: it.priority || "normal",
+        assigned_user: (it.assigned_to || it.campaign?.assigned_to)
+          ? userMap.get(it.assigned_to || it.campaign?.assigned_to) || null
+          : null,
       })) as ScheduledAppointmentItem[];
     },
     enabled: !!selectedEmpresaId,
@@ -129,43 +142,50 @@ export function useSalesScripts() {
 
 export function useDialerCampaigns() {
   const { selectedEmpresaId } = useEmpresa();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
 
   return useQuery({
-    queryKey: ['dialer_campaigns', selectedEmpresaId],
+    queryKey: ["dialer_campaigns", selectedEmpresaId, loggedCommercialProfile?.userId || activeCommercialProfile?.userId || "all"],
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
-      
-      // 1. Fetch campaigns
-      const { data: campaigns, error } = await supabase
-        .schema('core_comercial')
-        .from('dialer_campaigns')
+
+      let query = supabase
+        .schema("core_comercial")
+        .from("dialer_campaigns")
         .select(`
           *,
           script:sales_scripts(*)
         `)
-        .eq('empresa_id', selectedEmpresaId)
-        .order('created_at', { ascending: false });
+        .eq("empresa_id", selectedEmpresaId)
+        .order("created_at", { ascending: false });
+
+      if (isCommercialOperator && loggedCommercialProfile) {
+        query = query.eq("assigned_to", loggedCommercialProfile.userId);
+      } else if (activeCommercialProfile) {
+        query = query.eq("assigned_to", activeCommercialProfile.userId);
+      }
+
+      const { data: campaigns, error } = await query;
 
       if (error) throw error;
 
-      // 2. Fetch users for clean assignment mapping
       const { data: users } = await supabase
-        .from('mcs_users')
-        .select('id, display_name, email');
+        .from("mcs_users")
+        .select("id, display_name, email")
+        .eq("department_id", COMMERCIAL_DEPARTMENT_ID);
 
       const userMap = new Map<string, { id: string; display_name: string; email: string }>();
       (users || []).forEach(u => userMap.set(u.id, u));
 
-      // 3. Fetch queue items stats for each campaign
       const campaignIds = (campaigns || []).map(c => c.id);
       let statsMap = new Map<string, any>();
 
       if (campaignIds.length > 0) {
         const { data: queueItems } = await supabase
-          .schema('core_comercial')
-          .from('dialer_queue_items')
-          .select('campaign_id, status')
-          .in('campaign_id', campaignIds);
+          .schema("core_comercial")
+          .from("dialer_queue_items")
+          .select("campaign_id, status")
+          .in("campaign_id", campaignIds);
 
         if (queueItems) {
           queueItems.forEach(item => {
@@ -178,11 +198,11 @@ export function useDialerCampaigns() {
               no_answer: 0,
             };
             current.total += 1;
-            if (item.status === 'pending' || item.status === 'in_progress') current.pending += 1;
-            else if (item.status === 'converted') current.converted += 1;
-            else if (item.status === 'scheduled') current.scheduled += 1;
-            else if (item.status === 'rejected') current.rejected += 1;
-            else if (item.status === 'no_answer') current.no_answer += 1;
+            if (item.status === "pending" || item.status === "in_progress") current.pending += 1;
+            else if (item.status === "converted") current.converted += 1;
+            else if (item.status === "scheduled") current.scheduled += 1;
+            else if (item.status === "rejected") current.rejected += 1;
+            else if (item.status === "no_answer") current.no_answer += 1;
             statsMap.set(item.campaign_id, current);
           });
         }
@@ -461,6 +481,7 @@ export function useDialerSupervisorKPIs() {
 export function useMutateDialer() {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();
+  const { loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
 
   const createCampaign = useMutation({
     mutationFn: async ({
@@ -476,20 +497,32 @@ export function useMutateDialer() {
       script_id?: string | null;
       lead_ids: string[];
     }) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
-      if (lead_ids.length === 0) throw new Error('Nenhum lead selecionado para a fila');
+      const assignedProfile = getCommercialProfileByUser(assigned_to);
+      const effectiveAssignedTo =
+        assigned_to ||
+        loggedCommercialProfile?.userId ||
+        activeCommercialProfile?.userId ||
+        null;
+      const effectiveEmpresaId =
+        assignedProfile?.empresaId ||
+        loggedCommercialProfile?.empresaId ||
+        activeCommercialProfile?.empresaId ||
+        selectedEmpresaId;
+
+      if (!effectiveEmpresaId) throw new Error("Empresa não selecionada");
+      if (lead_ids.length === 0) throw new Error("Nenhum lead selecionado para a fila");
 
       // 1. Create Campaign
       const { data: campaign, error: campError } = await supabase
-        .schema('core_comercial')
-        .from('dialer_campaigns')
+        .schema("core_comercial")
+        .from("dialer_campaigns")
         .insert({
-          empresa_id: selectedEmpresaId,
+          empresa_id: effectiveEmpresaId,
           title,
           description: description || null,
-          assigned_to: assigned_to || null,
+          assigned_to: effectiveAssignedTo,
           script_id: script_id || null,
-          status: 'active',
+          status: "active",
           total_leads: lead_ids.length,
           completed_leads: 0,
         })
@@ -502,7 +535,7 @@ export function useMutateDialer() {
       const queueItems = lead_ids.map((leadId, idx) => ({
         campaign_id: campaign.id,
         lead_id: leadId,
-        assigned_to: assigned_to || null,
+        assigned_to: effectiveAssignedTo,
         status: 'pending',
         attempts_count: 0,
         max_attempts: 3,

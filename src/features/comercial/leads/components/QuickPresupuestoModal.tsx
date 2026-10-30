@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { Lead } from '@/features/comercial/estimaciones/types';
 import type { QuickPresupuestoItem } from '../types/dialerTypes';
+import { useComercialLanguage } from '../utils/comercialI18n';
 
 interface QuickPresupuestoModalProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ const getEmptyItem = (): QuickPresupuestoItem => ({
 });
 
 export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPresupuestoModalProps) {
+  const { tr } = useComercialLanguage();
   const navigate = useNavigate();
   const { selectedEmpresaId } = useEmpresa();
   const { data: jobFunctions = [] } = useJobFunctions();
@@ -179,7 +181,6 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
   const handleRemoveItem = (index: number) => {
     if (items.length <= 1) {
-      // Se só tem 1 item, zera o item ao invés de bloquear
       setItems([getEmptyItem()]);
       return;
     }
@@ -196,7 +197,6 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
         if (found) {
           updated[index].job_title = found.name;
 
-          // Lookup country or global tariff
           const jfRates = rateRefs.filter((r: any) => r.job_function_id === value);
           const rateToUse = (leadCountryId && jfRates.find((r: any) => r.country_id === leadCountryId && r.empresa_id === selectedEmpresaId))
             || (leadCountryId && jfRates.find((r: any) => r.country_id === leadCountryId))
@@ -226,7 +226,13 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.some(it => !it.job_function_id)) {
-      toast.error('Selecione o cargo/função para todos os itens');
+      toast.error(
+        tr(
+          'Selecione o cargo/função para todos os itens',
+          'Seleccione el puesto/función para todos los ítems',
+          'Sélectionnez le poste/fonction pour tous les éléments'
+        )
+      );
       return;
     }
 
@@ -244,11 +250,15 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
         items,
         notes,
       });
-      toast.success(existingEstimacion ? 'Orçamento atualizado com sucesso!' : 'Pré-Orçamento gerado e vinculado com sucesso!');
+      toast.success(
+        existingEstimacion
+          ? tr('Orçamento atualizado com sucesso!', '¡Presupuesto actualizado con éxito!', 'Devis mis à jour avec succès !')
+          : tr('Pré-Orçamento gerado e vinculado com sucesso!', '¡Pre-Presupuesto generado y vinculado con éxito!', 'Pré-devis généré et lié avec succès !')
+      );
       onClose();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || 'Erro ao gerar orçamento');
+      toast.error(err.message || tr('Erro ao gerar orçamento', 'Error al generar presupuesto', 'Erreur lors de la génération du devis'));
     } finally {
       setIsSubmitting(false);
     }
@@ -265,13 +275,21 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                  {existingEstimacion ? `Orçamento ${existingEstimacion.codigo}` : 'Gerar Pré-Orçamento Rápido'}
+                  {existingEstimacion
+                    ? `${tr('Orçamento', 'Presupuesto', 'Devis')} ${existingEstimacion.codigo}`
+                    : tr('Gerar Pré-Orçamento Rápido', 'Generar Pre-Presupuesto Rápido', 'Générer un Pré-Devis Rapide')}
                   <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
-                    {existingEstimacion ? 'Orçamento Existente' : 'Novo Rascunho (Zerado)'}
+                    {existingEstimacion
+                      ? tr('Orçamento Existente', 'Presupuesto Existente', 'Devis Existant')
+                      : tr('Novo Rascunho (Zerado)', 'Nuevo Borrador (Desde Cero)', 'Nouveau Brouillon (Vierge)')}
                   </span>
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
-                  Preencha a demanda levantada na ligação para gerar o orçamento em modo rascunho. Nada é enviado ao cliente agora — você poderá revisar tarifas e margens com calma.
+                  {tr(
+                    'Preencha a demanda levantada na ligação para gerar o orçamento em modo rascunho. Nada é enviado ao cliente agora — você poderá revisar tarifas e margens com calma.',
+                    'Complete la demanda levantada en la llamada para generar el presupuesto en modo borrador. Nada se envía al cliente ahora — podrá revisar tarifas y márgenes con calma.',
+                    'Renseignez la demande identifiée lors de l’appel pour générer un devis en brouillon. Rien n’est envoyé au client maintenant — vous pourrez réviser les tarifs et marges ensuite.'
+                  )}
                 </DialogDescription>
               </div>
             </div>
@@ -286,7 +304,7 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                   className="h-8 text-xs gap-1.5 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  Novo Zerado
+                  {tr('Novo Zerado', 'Nuevo desde Cero', 'Nouveau Vierge')}
                 </Button>
                 <Button
                   type="button"
@@ -299,7 +317,7 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                   className="h-8 text-xs gap-1.5"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  Abrir Completo
+                  {tr('Abrir Completo', 'Abrir Completo', 'Ouvrir Complet')}
                 </Button>
               </div>
             )}
@@ -309,7 +327,13 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
         {loadingExisting ? (
           <div className="p-12 flex flex-col items-center justify-center gap-3 text-muted-foreground">
             <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-            <span className="text-xs">Verificando histórico de orçamentos deste cliente...</span>
+            <span className="text-xs">
+              {tr(
+                'Verificando histórico de orçamentos deste cliente...',
+                'Verificando historial de presupuestos de este cliente...',
+                'Vérification de l’historique des devis de ce client...'
+              )}
+            </span>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -321,18 +345,22 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                   <p className="text-sm font-semibold text-foreground">{lead.company_name || lead.name}</p>
                   <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                     <MapPin className="w-3.5 h-3.5 text-muted-foreground" />
-                    {lead.city || lead.province || lead.country_id || 'Espanha'} • {lead.sector || 'Industrial'}
+                    {lead.city || lead.province || lead.country_id || tr('Espanha', 'España', 'Espagne')} • {lead.sector || tr('Industrial', 'Industrial', 'Industriel')}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-6 text-right">
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase font-medium">Horas Estimadas/Mês</p>
+                  <p className="text-xs text-muted-foreground uppercase font-medium">
+                    {tr('Horas Estimadas/Mês', 'Horas Estimadas/Mes', 'Heures Estimées/Mois')}
+                  </p>
                   <p className="text-base font-bold text-foreground">{totalMonthlyHours}h</p>
                 </div>
                 <div>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-medium">Faturamento Estimado</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400 uppercase font-medium">
+                    {tr('Faturamento Estimado', 'Facturación Estimada', 'Chiffre d’Affaires Estimé')}
+                  </p>
                   <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                     {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalEstimatedRevenue)}
                   </p>
@@ -343,7 +371,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
             {/* Form Fields: General */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-foreground font-medium">Nome do Decisor / Contato</Label>
+                <Label className="text-xs text-foreground font-medium">
+                  {tr('Nome do Decisor / Contato', 'Nombre del Decisor / Contacto', 'Nom du Décideur / Contact')}
+                </Label>
                 <Input
                   value={contactName}
                   onChange={e => setContactName(e.target.value)}
@@ -352,7 +382,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-foreground font-medium">E-mail para Envio da Proposta</Label>
+                <Label className="text-xs text-foreground font-medium">
+                  {tr('E-mail para Envio da Proposta', 'Correo para Envío de Propuesta', 'E-mail pour l’Envoi du Devis')}
+                </Label>
                 <Input
                   type="email"
                   value={contactEmail}
@@ -362,7 +394,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-foreground font-medium">Local da Obra / Cidade</Label>
+                <Label className="text-xs text-foreground font-medium">
+                  {tr('Local da Obra / Cidade', 'Lugar de la Obra / Ciudad', 'Lieu du Chantier / Ville')}
+                </Label>
                 <Input
                   value={workCity}
                   onChange={e => setWorkCity(e.target.value)}
@@ -374,7 +408,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-foreground font-medium">Data Prevista de Início</Label>
+                <Label className="text-xs text-foreground font-medium">
+                  {tr('Data Prevista de Início', 'Fecha Prevista de Inicio', 'Date de Début Prévue')}
+                </Label>
                 <Input
                   type="date"
                   value={expectedStartDate}
@@ -383,11 +419,17 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                 />
               </div>
               <div className="sm:col-span-2 space-y-1.5">
-                <Label className="text-xs text-foreground font-medium">Observações da Negociação</Label>
+                <Label className="text-xs text-foreground font-medium">
+                  {tr('Observações da Negociação', 'Observaciones de la Negociación', 'Observations de la Négociation')}
+                </Label>
                 <Input
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  placeholder="Ex: Cliente tem parada técnica de 45 dias no estaleiro..."
+                  placeholder={tr(
+                    'Ex: Cliente tem parada técnica de 45 dias no estaleiro...',
+                    'Ej: Cliente tiene parada técnica de 45 días en el astillero...',
+                    'Ex : Le client a un arrêt technique de 45 jours sur le chantier...'
+                  )}
                   className="bg-background border-input text-foreground text-sm"
                 />
               </div>
@@ -398,15 +440,25 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
                   <Building2 className="w-4 h-4" />
-                  Dados Fiscais da Empresa (CIF / Razão Social)
+                  {tr(
+                    'Dados Fiscais da Empresa (CIF / Razão Social)',
+                    'Datos Fiscales de la Empresa (CIF / Razón Social)',
+                    'Données Fiscales de l’Entreprise (SIRET / Raison Sociale)'
+                  )}
                 </Label>
                 <span className="text-[11px] text-muted-foreground">
-                  Se coletado na ligação, já qualifica para contrato
+                  {tr(
+                    'Se coletado na ligação, já qualifica para contrato',
+                    'Si se recopila en la llamada, ya cualifica para contrato',
+                    'Si collecté pendant l’appel, qualifie directement pour le contrat'
+                  )}
                 </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-foreground font-medium">Razão Social (Nome Registrado)</Label>
+                  <Label className="text-xs text-foreground font-medium">
+                    {tr('Razão Social (Nome Registrado)', 'Razón Social (Nombre Registrado)', 'Raison Sociale (Nom Enregistré)')}
+                  </Label>
                   <Input
                     value={legalName}
                     onChange={e => setLegalName(e.target.value)}
@@ -415,7 +467,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-foreground font-medium">CIF / NIF / Tax ID</Label>
+                  <Label className="text-xs text-foreground font-medium">
+                    {tr('CIF / NIF / Tax ID', 'CIF / NIF / Tax ID', 'CIF / NIF / SIRET / TVA')}
+                  </Label>
                   <Input
                     value={taxId}
                     onChange={e => setTaxId(e.target.value)}
@@ -431,7 +485,11 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
               <div className="flex items-center justify-between">
                 <Label className="text-sm font-semibold text-foreground flex items-center gap-2">
                   <Calculator className="w-4 h-4 text-emerald-500" />
-                  Mão de Obra Solicitada (Perfis Técnicos)
+                  {tr(
+                    'Mão de Obra Solicitada (Perfis Técnicos)',
+                    'Mano de Obra Solicitada (Perfiles Técnicos)',
+                    'Main-d’Œuvre Demandée (Profils Techniques)'
+                  )}
                 </Label>
                 <Button
                   type="button"
@@ -440,7 +498,7 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                   onClick={handleAddItem}
                   className="h-8 text-xs bg-background border-input hover:bg-muted text-emerald-600 dark:text-emerald-400 gap-1.5"
                 >
-                  <Plus className="w-3.5 h-3.5" /> Adicionar Função
+                  <Plus className="w-3.5 h-3.5" /> {tr('Adicionar Função', 'Añadir Función', 'Ajouter un Profil')}
                 </Button>
               </div>
 
@@ -453,13 +511,15 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                       {/* Function Selector */}
                       <div className="sm:col-span-4 space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Cargo / Especialidade Técnica</Label>
+                        <Label className="text-[11px] text-muted-foreground">
+                          {tr('Cargo / Especialidade Técnica', 'Puesto / Especialidad Técnica', 'Poste / Spécialité Technique')}
+                        </Label>
                         <Select
                           value={item.job_function_id}
                           onValueChange={val => handleItemChange(index, 'job_function_id', val)}
                         >
                           <SelectTrigger className="bg-background border-input text-foreground text-xs h-9">
-                            <SelectValue placeholder="Selecione o cargo..." />
+                            <SelectValue placeholder={tr('Selecione o cargo...', 'Seleccione el puesto...', 'Sélectionnez le poste...')} />
                           </SelectTrigger>
                           <SelectContent className="bg-card text-card-foreground border-border text-xs">
                             {jobFunctions.map(jf => (
@@ -473,7 +533,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
                       {/* Quantity */}
                       <div className="sm:col-span-2 space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Qtd Técnicos</Label>
+                        <Label className="text-[11px] text-muted-foreground">
+                          {tr('Qtd Técnicos', 'Cant. Técnicos', 'Nb Techniciens')}
+                        </Label>
                         <Input
                           type="number"
                           min={1}
@@ -485,7 +547,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
                       {/* Hours/Day */}
                       <div className="sm:col-span-2 space-y-1">
-                        <Label className="text-[11px] text-muted-foreground">Horas/Dia</Label>
+                        <Label className="text-[11px] text-muted-foreground">
+                          {tr('Horas/Dia', 'Horas/Día', 'Heures/Jour')}
+                        </Label>
                         <Input
                           type="number"
                           min={1}
@@ -498,7 +562,9 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
 
                       {/* Sell Rate / Hour */}
                       <div className="sm:col-span-3 space-y-1">
-                        <Label className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">Taxa Venda (€/h)</Label>
+                        <Label className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                          {tr('Taxa Venda (€/h)', 'Tarifa Venta (€/h)', 'Taux de Vente (€/h)')}
+                        </Label>
                         <div className="relative">
                           <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">€</span>
                           <Input
@@ -534,7 +600,7 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                           checked={item.includes_accommodation}
                           onCheckedChange={c => handleItemChange(index, 'includes_accommodation', !!c)}
                         />
-                        <span>Inclui Alojamento MCS</span>
+                        <span>{tr('Inclui Alojamento MCS', 'Incluye Alojamiento MCS', 'Inclut Hébergement MCS')}</span>
                       </label>
 
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -542,7 +608,7 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                           checked={item.includes_transport}
                           onCheckedChange={c => handleItemChange(index, 'includes_transport', !!c)}
                         />
-                        <span>Inclui Transporte / Viatura</span>
+                        <span>{tr('Inclui Transporte / Viatura', 'Incluye Transporte / Vehículo', 'Inclut Transport / Véhicule')}</span>
                       </label>
                     </div>
                   </div>
@@ -553,7 +619,12 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
             <DialogFooter className="p-0 pt-4 border-t border-border flex justify-between">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
-                  🛡️ <strong>Rascunho Interno:</strong> Nada é enviado ao cliente agora. Você poderá revisar tarifas antes de enviar.
+                  🛡️ <strong>{tr('Rascunho Interno:', 'Borrador Interno:', 'Brouillon Interne :')}</strong>{' '}
+                  {tr(
+                    'Nada é enviado ao cliente agora. Você poderá revisar tarifas antes de enviar.',
+                    'Nada se envía al cliente ahora. Podrá revisar tarifas antes de enviar.',
+                    'Rien n’est envoyé au client maintenant. Vous pourrez réviser les tarifs avant l’envoi.'
+                  )}
                 </span>
               </div>
 
@@ -564,7 +635,7 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                   onClick={onClose}
                   className="border-input text-xs"
                 >
-                  Cancelar
+                  {tr('Cancelar', 'Cancelar', 'Annuler')}
                 </Button>
 
                 <Button
@@ -575,12 +646,14 @@ export function QuickPresupuestoModal({ isOpen, onClose, lead, onSave }: QuickPr
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Salvando...
+                      {tr('Salvando...', 'Guardando...', 'Enregistrement...')}
                     </>
                   ) : (
                     <>
                       <CheckCircle className="w-4 h-4" />
-                      {existingEstimacion ? 'Atualizar Orçamento' : 'Salvar Rascunho & Criar Orçamento'}
+                      {existingEstimacion
+                        ? tr('Atualizar Orçamento', 'Actualizar Presupuesto', 'Mettre à Jour le Devis')
+                        : tr('Salvar Rascunho & Criar Orçamento', 'Guardar Borrador y Crear Presupuesto', 'Enregistrer le Brouillon & Créer le Devis')}
                     </>
                   )}
                 </Button>

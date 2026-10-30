@@ -13,7 +13,6 @@ import {
   ChevronUp,
   Image as ImageIcon,
   Maximize2,
-  ExternalLink,
   Code
 } from 'lucide-react';
 import { 
@@ -25,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { SalesScript } from '../types/dialerTypes';
+import { useComercialLanguage } from '../utils/comercialI18n';
 
 interface SalesScriptCardProps {
   script?: SalesScript | null;
@@ -33,6 +33,7 @@ interface SalesScriptCardProps {
 }
 
 export function SalesScriptCard({ script, companyName = 'Empresa', contactName = 'Responsable' }: SalesScriptCardProps) {
+  const { tr } = useComercialLanguage();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [openObjectionIndex, setOpenObjectionIndex] = useState<number | null>(0);
   const [isImageZoomOpen, setIsImageZoomOpen] = useState(false);
@@ -40,7 +41,13 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
   const handleCopy = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
     setCopiedKey(key);
-    toast.success('Copiado para a área de transferência!');
+    toast.success(
+      tr(
+        'Copiado para a área de transferência!',
+        '¡Copiado al portapapeles!',
+        'Copié dans le presse-papiers !'
+      )
+    );
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
@@ -48,9 +55,19 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
     return (
       <div className="p-6 rounded-2xl bg-card border border-border text-center space-y-3">
         <BookOpen className="w-8 h-8 text-muted-foreground/40 mx-auto" />
-        <p className="text-sm font-medium text-foreground">Nenhum script configurado para este lote.</p>
+        <p className="text-sm font-medium text-foreground">
+          {tr(
+            'Nenhum script configurado para este lote.',
+            'Ningún guion configurado para este lote.',
+            'Aucun script configuré pour ce lot.'
+          )}
+        </p>
         <p className="text-xs text-muted-foreground">
-          Apresente a MCS como fornecedora especializada em soldadores homologados, tubistas e montadores industriais para Espanha e França.
+          {tr(
+            'Apresente a MCS como fornecedora especializada em soldadores homologados, tubistas e montadores industriais para Espanha e França.',
+            'Presente a MCS como proveedor especializado en soldadores homologados, tuberos y montadores industriales para España y Francia.',
+            'Présentez MCS comme fournisseur spécialisé de soudeurs qualifiés, tuyauteurs et monteurs industriels pour l’Espagne et la France.'
+          )}
         </p>
       </div>
     );
@@ -75,7 +92,13 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
           </div>
           <div>
             <h3 className="text-sm font-bold text-foreground leading-tight">{script.title}</h3>
-            <p className="text-[11px] text-muted-foreground">Guia de Abordagem & Quebra de Objeções</p>
+            <p className="text-[11px] text-muted-foreground">
+              {tr(
+                'Guia de Abordagem & Quebra de Objeções',
+                'Guía de Abordaje y Manejo de Objeciones',
+                'Guide d’Approche & Traitement des Objections'
+              )}
+            </p>
           </div>
         </div>
 
@@ -87,14 +110,14 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
               size="sm"
               onClick={() => setIsImageZoomOpen(true)}
               className="h-7 px-2 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 border-indigo-500/20 hover:bg-indigo-500/20 gap-1"
-              title="Expandir Imagem de Apoio"
+              title={tr('Expandir Imagem de Apoio', 'Ampliar Imagen de Apoyo', 'Agrandir l’Image de Support')}
             >
-              <ImageIcon className="w-3 h-3" /> Ver Imagem
+              <ImageIcon className="w-3 h-3" /> {tr('Ver Imagem', 'Ver Imagen', 'Voir Image')}
             </Button>
           )}
 
           <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
-            {script.sector || 'Industrial'}
+            {script.sector || tr('Industrial', 'Industrial', 'Industriel')}
           </span>
         </div>
       </div>
@@ -104,20 +127,20 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
         <div className="px-4 pt-3 border-b border-border bg-muted/10">
           <TabsList className={`grid ${hasVisualMaterial ? 'grid-cols-5' : 'grid-cols-4'} bg-muted/60 border border-border p-0.5 rounded-xl h-9`}>
             <TabsTrigger value="opening" className="text-xs data-[state=active]:bg-indigo-600 data-[state=active]:text-white gap-1 truncate">
-              <BookOpen className="w-3.5 h-3.5 shrink-0" /> Abertura
+              <BookOpen className="w-3.5 h-3.5 shrink-0" /> {tr('Abertura', 'Apertura', 'Ouverture')}
             </TabsTrigger>
             <TabsTrigger value="questions" className="text-xs data-[state=active]:bg-indigo-600 data-[state=active]:text-white gap-1 truncate">
-              <HelpCircle className="w-3.5 h-3.5 shrink-0" /> Perguntas ({questionsCount})
+              <HelpCircle className="w-3.5 h-3.5 shrink-0" /> {tr('Perguntas', 'Preguntas', 'Questions')} ({questionsCount})
             </TabsTrigger>
             <TabsTrigger value="objections" className="text-xs data-[state=active]:bg-indigo-600 data-[state=active]:text-white gap-1 truncate">
-              <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> Objeções ({objectionsCount})
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> {tr('Objeções', 'Objeciones', 'Objections')} ({objectionsCount})
             </TabsTrigger>
             <TabsTrigger value="closing" className="text-xs data-[state=active]:bg-indigo-600 data-[state=active]:text-white gap-1 truncate">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> Fechamento
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> {tr('Fechamento', 'Cierre', 'Conclusion')}
             </TabsTrigger>
             {hasVisualMaterial && (
               <TabsTrigger value="visual" className="text-xs data-[state=active]:bg-indigo-600 data-[state=active]:text-white gap-1 truncate">
-                <ImageIcon className="w-3.5 h-3.5 shrink-0 text-amber-400" /> Material Visual
+                <ImageIcon className="w-3.5 h-3.5 shrink-0 text-amber-400" /> {tr('Material Visual', 'Material Visual', 'Support Visuel')}
               </TabsTrigger>
             )}
           </TabsList>
@@ -128,7 +151,7 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
           <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-3 relative group">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                Roteiro de Ligação (Fala Sugerida)
+                {tr('Roteiro de Ligação (Fala Sugerida)', 'Guion de Llamada (Discurso Sugerido)', 'Script d’Appel (Discours Suggéré)')}
               </span>
               <Button
                 variant="ghost"
@@ -137,7 +160,7 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
                 className="h-7 text-xs text-muted-foreground hover:text-foreground hover:bg-muted gap-1"
               >
                 {copiedKey === 'opening' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                Copiar
+                {tr('Copiar', 'Copiar', 'Copier')}
               </Button>
             </div>
 
@@ -157,8 +180,12 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
                   <img src={script.image_url} alt="Material" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-foreground">Material Visual Anexo</p>
-                  <p className="text-[10px] text-muted-foreground">Clique para expandir tabela / certificados</p>
+                  <p className="text-xs font-bold text-foreground">
+                    {tr('Material Visual Anexo', 'Material Visual Adjunto', 'Support Visuel Joint')}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {tr('Clique para expandir tabela / certificados', 'Haga clic para ampliar tabla / certificados', 'Cliquez pour agrandir le tableau / certificats')}
+                  </p>
                 </div>
               </div>
               <Maximize2 className="w-4 h-4 text-muted-foreground group-hover:text-indigo-500 mr-2" />
@@ -167,10 +194,14 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
 
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 space-y-1">
             <p className="font-bold flex items-center gap-1.5">
-              💡 Dica de SDR:
+              💡 {tr('Dica de SDR:', 'Consejo SDR:', 'Conseil SDR :')}
             </p>
             <p className="text-[11px] text-amber-800/90 dark:text-amber-200/80">
-              Seja direto e seguro nos primeiros 10 segundos. O objetivo não é vender na hora, mas sim descobrir se têm obras ou picos para orçar.
+              {tr(
+                'Seja direto e seguro nos primeiros 10 segundos. O objetivo não é vender na hora, mas sim descobrir se têm obras ou picos para orçar.',
+                'Sea directo y seguro en los primeros 10 segundos. El objetivo no es vender al instante, sino descubrir si tienen obras o picos de trabajo para presupuestar.',
+                'Soyez direct et assuré dès les 10 premières secondes. L’objectif est d’identifier leurs chantiers ou pics d’activité à chiffrer.'
+              )}
             </p>
           </div>
         </TabsContent>
@@ -195,7 +226,11 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
 
           {questionsCount === 0 && (
             <div className="p-6 text-center text-xs text-muted-foreground">
-              Nenhuma pergunta de qualificação cadastrada neste script.
+              {tr(
+                'Nenhuma pergunta de qualificação cadastrada neste script.',
+                'Ninguna pregunta de cualificación registrada en este guion.',
+                'Aucune question de qualification enregistrée dans ce script.'
+              )}
             </div>
           )}
         </TabsContent>
@@ -224,7 +259,9 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
                 {isOpen && (
                   <div className="p-3 pt-0 border-t border-border/50 bg-background/50 space-y-2">
                     <div className="flex items-center justify-between pt-2">
-                      <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">Resposta Recomendada:</span>
+                      <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400">
+                        {tr('Resposta Recomendada:', 'Respuesta Recomendada:', 'Réponse Recommandée :')}
+                      </span>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -232,7 +269,7 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
                         className="h-6 text-[10px] text-muted-foreground hover:text-foreground"
                       >
                         {copiedKey === `obj-${idx}` ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                        Copiar
+                        {tr('Copiar', 'Copiar', 'Copier')}
                       </Button>
                     </div>
                     <p className="text-xs text-foreground/90 leading-relaxed italic">
@@ -246,7 +283,11 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
 
           {objectionsCount === 0 && (
             <div className="p-6 text-center text-xs text-muted-foreground">
-              Nenhuma quebra de objeção cadastrada neste script.
+              {tr(
+                'Nenhuma quebra de objeção cadastrada neste script.',
+                'Ningún manejo de objeción registrado en este guion.',
+                'Aucun traitement d’objection enregistré dans ce script.'
+              )}
             </div>
           )}
         </TabsContent>
@@ -255,17 +296,25 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
         <TabsContent value="closing" className="p-4 flex-1 overflow-y-auto space-y-4 m-0">
           <div className="p-4 rounded-xl bg-muted/40 border border-border space-y-2">
             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-              Gatilho de Fechamento / Próximo Passo
+              {tr('Gatilho de Fechamento / Próximo Passo', 'Cierre / Próximo Paso', 'Déclencheur de Conclusion / Prochaine Étape')}
             </span>
             <p className="text-xs text-foreground leading-relaxed">
-              "{script.closing_pitch || '¿Les parece si les preparo una cotización rápida sin compromiso para que comparen tarifas?'}"
+              "{script.closing_pitch || tr(
+                '¿Les parece si les preparo una cotización rápida sin compromiso para que comparen tarifas?',
+                '¿Les parece si les preparo una cotización rápida sin compromiso para que comparen tarifas?',
+                'Souhaitez-vous que je vous prépare un devis rapide sans engagement pour comparer nos tarifs ?'
+              )}"
             </p>
           </div>
 
           <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-700 dark:text-indigo-300 space-y-1">
-            <p className="font-bold">🎯 Objetivo da Chamada:</p>
+            <p className="font-bold">🎯 {tr('Objetivo da Chamada:', 'Objetivo de la Llamada:', 'Objectif de l’Appel :')}</p>
             <p className="text-[11px] text-indigo-800/90 dark:text-indigo-200/80">
-              Conquistar o envio de uma proposta técnica preliminar ou agendar uma conversa com o diretor de compras/operações.
+              {tr(
+                'Conquistar o envio de uma proposta técnica preliminar ou agendar uma conversa com o diretor de compras/operações.',
+                'Lograr el envío de una propuesta técnica preliminar o agendar una conversación con el director de compras/operaciones.',
+                'Obtenir l’envoi d’une proposition technique préliminaire ou planifier un échange avec le responsable achats/opérations.'
+              )}
             </p>
           </div>
         </TabsContent>
@@ -278,7 +327,7 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                     <ImageIcon className="w-3.5 h-3.5 text-indigo-500" />
-                    Material / Imagem de Apoio Técnico
+                    {tr('Material / Imagem de Apoio Técnico', 'Material / Imagen de Apoyo Técnico', 'Support / Image Technique')}
                   </span>
                   <Button
                     variant="ghost"
@@ -286,7 +335,7 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
                     onClick={() => setIsImageZoomOpen(true)}
                     className="h-6 text-[11px] text-indigo-600 dark:text-indigo-400 hover:bg-muted gap-1"
                   >
-                    <Maximize2 className="w-3 h-3" /> Expandir
+                    <Maximize2 className="w-3 h-3" /> {tr('Expandir', 'Ampliar', 'Agrandir')}
                   </Button>
                 </div>
 
@@ -296,11 +345,11 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
                 >
                   <img 
                     src={script.image_url} 
-                    alt="Material de Apoio" 
+                    alt="Material" 
                     className="w-full max-h-56 object-contain mx-auto group-hover:scale-[1.02] transition-transform" 
                   />
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1.5 backdrop-blur-[1px]">
-                    <Maximize2 className="w-4 h-4" /> Clique para ver em tamanho ampliado
+                    <Maximize2 className="w-4 h-4" /> {tr('Clique para ver em tamanho ampliado', 'Haga clic para ver en tamaño ampliado', 'Cliquez pour agrandir')}
                   </div>
                 </div>
               </div>
@@ -310,7 +359,7 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
               <div className="space-y-1.5 pt-2">
                 <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                   <Code className="w-3.5 h-3.5 text-indigo-500" />
-                  Especificações / Conteúdo Técnico
+                  {tr('Especificações / Conteúdo Técnico', 'Especificaciones / Contenido Técnico', 'Spécifications / Contenu Technique')}
                 </span>
                 <div 
                   className="p-3.5 rounded-xl bg-muted/40 border border-border text-xs leading-relaxed overflow-x-auto"
@@ -330,10 +379,14 @@ export function SalesScriptCard({ script, companyName = 'Empresa', contactName =
               <div>
                 <DialogTitle className="text-base font-bold text-foreground flex items-center gap-2">
                   <ImageIcon className="w-4 h-4 text-indigo-500" />
-                  {script.title} — Material de Apoio Técnico
+                  {script.title} — {tr('Material de Apoio Técnico', 'Material de Apoyo Técnico', 'Support Technique')}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
-                  Visualize tabelas de tarifas, normas técnicas ou certificados em alta resolução.
+                  {tr(
+                    'Visualize tabelas de tarifas, normas técnicas ou certificados em alta resolução.',
+                    'Visualice tablas de tarifas, normas técnicas o certificados en alta resolución.',
+                    'Visualisez les grilles tarifaires, normes techniques ou certificats en haute résolution.'
+                  )}
                 </DialogDescription>
               </div>
             </DialogHeader>

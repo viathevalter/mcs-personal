@@ -14,7 +14,6 @@ import {
     Award,
     PhoneCall,
     Layers,
-    Headphones,
     CalendarDays,
     ShieldCheck
 } from 'lucide-react';
@@ -22,10 +21,10 @@ import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
 import type { AppRole } from '@/shared/rbac/roles';
 import { useSidebar } from '@/app/providers/SidebarProvider';
-import { useTranslation } from 'react-i18next';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { useComercialLanguage } from '../leads/utils/comercialI18n';
 
 type SidebarLink = {
     to: string;
@@ -36,15 +35,15 @@ type SidebarLink = {
 };
 
 type SidebarSection = {
-    titleKey: string;
-    titleDefault: string;
+    key: string;
+    title: string;
     links: SidebarLink[];
 };
 
 export function ComercialSidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const navigate = useNavigate();
-    const { t } = useTranslation();
+    const { t, tr } = useComercialLanguage();
     const { selectedEmpresaId } = useEmpresa();
 
     const { data: pendingCount = 0 } = useQuery({
@@ -69,48 +68,124 @@ export function ComercialSidebar() {
 
     const sections: SidebarSection[] = [
         {
-            titleKey: 'comercial.sidebar.gestaoComercial',
-            titleDefault: 'Gestão Comercial',
+            key: 'gestaoComercial',
+            title: tr('Gestão Comercial', 'Gestión Comercial', 'Gestion Commerciale'),
             links: [
-                { to: '/comercial/estimaciones', label: t('comercial.sidebar.estimaciones'), icon: Briefcase, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/aprovacoes', label: 'Mesa de Aprovações', icon: ShieldCheck, roles: ['admin'], badge: pendingCount },
-                { to: '/comercial/portfolio', label: 'Portfólio & Referências', icon: Award, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/tarefas', label: t('comercial.sidebar.tasks'), icon: CheckSquare, roles: ['admin', 'commercial', 'rh'] },
+                {
+                    to: '/comercial/estimaciones',
+                    label: tr('Orçamentos / Estimativa', 'Presupuestos / Estimaciones', 'Devis / Estimations'),
+                    icon: Briefcase,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/aprovacoes',
+                    label: tr('Mesa de Aprovações', 'Mesa de Aprobaciones', 'Table d\'Approbations'),
+                    icon: ShieldCheck,
+                    roles: ['admin'],
+                    badge: pendingCount,
+                },
+                {
+                    to: '/comercial/portfolio',
+                    label: tr('Portfólio & Referências', 'Portafolio y Referencias', 'Portfolio & Références'),
+                    icon: Award,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/tarefas',
+                    label: tr('Tarefas', 'Tareas', 'Tâches'),
+                    icon: CheckSquare,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
             ]
         },
         {
-            titleKey: 'comercial.sidebar.marketing',
-            titleDefault: 'Marketing & Leads',
+            key: 'marketing',
+            title: tr('Marketing', 'Marketing', 'Marketing'),
             links: [
-                { to: '/comercial/leads', label: t('comercial.sidebar.leads'), icon: Users, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/prospector', label: t('comercial.sidebar.prospector') || 'Máquina de Leads (AI)', icon: Zap, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/kanban', label: t('comercial.sidebar.kanban') || 'Funil de Vendas', icon: Kanban, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/campanhas', label: t('comercial.sidebar.campaigns') || 'Campanhas de Marketing', icon: Mail, roles: ['admin', 'commercial', 'rh'] },
+                {
+                    to: '/comercial/leads',
+                    label: tr('Leads de Marketing', 'Leads de Marketing', 'Leads Marketing'),
+                    icon: Users,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/prospector',
+                    label: tr('Máquina de Leads (IA)', 'Máquina de Leads (IA)', 'Machine à Leads (IA)'),
+                    icon: Zap,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/kanban',
+                    label: tr('Funil de Vendas', 'Embudo de Ventas', 'Entonnoir de Ventes'),
+                    icon: Kanban,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/campanhas',
+                    label: tr('Campanhas de Marketing', 'Campañas de Marketing', 'Campagnes Marketing'),
+                    icon: Mail,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
             ]
         },
         {
-            titleKey: 'comercial.sidebar.powerDialer',
-            titleDefault: 'Power Dialer (SDR)',
+            key: 'powerDialer',
+            title: tr('Power Dialer (SDR)', 'Power Dialer (SDR)', 'Power Dialer (SDR)'),
             links: [
-                { to: '/comercial/discador', label: 'Cockpit Discador', icon: PhoneCall, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/discador/agenda', label: 'Agenda & Retornos', icon: CalendarDays, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/discador/trabalhos', label: 'Trabalhos & Filas', icon: Layers, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/discador/supervisao', label: 'Supervisão & KPIs', icon: BarChart3, roles: ['admin', 'commercial', 'rh'] },
-                { to: '/comercial/discador/operadores', label: 'Operadores & Scripts', icon: Users, roles: ['admin', 'commercial', 'rh'] },
+                {
+                    to: '/comercial/discador',
+                    label: tr('Cockpit Discador', 'Cockpit Discador', 'Cockpit d\'Appels'),
+                    icon: PhoneCall,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/discador/agenda',
+                    label: tr('Agenda & Retornos', 'Agenda y Retornos', 'Agenda & Rappels'),
+                    icon: CalendarDays,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/discador/trabalhos',
+                    label: tr('Trabalhos & Filas', 'Trabajos y Colas', 'Travaux & Files'),
+                    icon: Layers,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/discador/supervisao',
+                    label: tr('Supervisão & KPIs', 'Supervisión y KPIs', 'Supervision & KPIs'),
+                    icon: BarChart3,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
+                {
+                    to: '/comercial/discador/operadores',
+                    label: tr('Operadores & Scripts', 'Operadores y Scripts', 'Opérateurs & Scripts'),
+                    icon: Users,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
             ]
         },
         {
-            titleKey: 'comercial.sidebar.analises',
-            titleDefault: 'Análises',
+            key: 'analises',
+            title: tr('Análises', 'Análisis', 'Analyses'),
             links: [
-                { to: '/comercial/analises', label: t('comercial.sidebar.analisesItem') || 'Análises & Simulações', icon: BarChart3, roles: ['admin', 'commercial', 'rh'] },
+                {
+                    to: '/comercial/analises',
+                    label: tr('Análises & Simulações', 'Análisis y Simulaciones', 'Analyses et Simulations'),
+                    icon: BarChart3,
+                    roles: ['admin', 'commercial', 'rh'],
+                },
             ]
         },
         {
-            titleKey: 'comercial.sidebar.settings',
-            titleDefault: 'Sistema',
+            key: 'settings',
+            title: tr('Configuração', 'Configuración', 'Configuration'),
             links: [
-                { to: '/comercial/configuracion', label: t('comercial.sidebar.settings'), icon: Sliders, roles: ['admin', 'rh'] },
+                {
+                    to: '/comercial/configuracion',
+                    label: tr('Configurações', 'Configuración', 'Paramètres'),
+                    icon: Sliders,
+                    roles: ['admin', 'rh'],
+                },
             ]
         }
     ];
@@ -125,7 +200,7 @@ export function ComercialSidebar() {
                     <div className="flex h-8 w-8 items-center justify-center shrink-0 rounded bg-yellow-500 font-bold text-white text-lg leading-none">
                         CM
                     </div>
-                    {isExpanded && <span className="text-xl tracking-tight">{t('comercial.sidebar.title')}</span>}
+                    {isExpanded && <span className="text-xl tracking-tight">{tr('Comercial', 'Comercial', 'Commercial')}</span>}
                 </NavLink>
             </div>
             
@@ -136,20 +211,20 @@ export function ComercialSidebar() {
                         "flex items-center justify-center py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700",
                         isExpanded ? "w-full gap-2 px-4" : "w-12 mx-auto"
                     )}
-                    title={!isExpanded ? t('comercial.sidebar.backToHub') : undefined}
+                    title={!isExpanded ? tr('Voltar ao Hub', 'Volver al Hub', 'Retour au Hub') : undefined}
                 >
                     <ArrowLeft size={16} className="shrink-0" />
-                    {isExpanded && <span>{t('comercial.sidebar.backToHub')}</span>}
+                    {isExpanded && <span>{tr('Voltar ao Hub', 'Volver al Hub', 'Retour au Hub')}</span>}
                 </button>
             </div>
             
             <div className="flex-1 pb-6 pt-2 flex flex-col justify-between overflow-y-auto overflow-x-hidden">
                 <div className="space-y-4">
                     {sections.map((section, sectionIdx) => (
-                        <div key={section.titleKey} className={cn(sectionIdx > 0 && "pt-2 border-t border-slate-800/60")}>
+                        <div key={section.key} className={cn(sectionIdx > 0 && "pt-2 border-t border-slate-800/60")}>
                             {isExpanded ? (
                                 <div className="px-4 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                                    {t(section.titleKey, section.titleDefault)}
+                                    {section.title}
                                 </div>
                             ) : sectionIdx > 0 && (
                                 <div className="mx-4 my-2 border-t border-slate-800/80" />
@@ -206,4 +281,3 @@ export function ComercialSidebar() {
         </aside>
     );
 }
-

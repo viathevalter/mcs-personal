@@ -1,37 +1,39 @@
 import { 
-  Users, 
   PhoneCall, 
-  PhoneForwarded, 
   CheckCircle2, 
-  Clock, 
   TrendingUp, 
   Award, 
-  Ban, 
-  BarChart3, 
   ShieldAlert,
   Calendar,
-  Layers,
   Loader2
 } from 'lucide-react';
 import { useDialerSupervisorKPIs } from '../hooks/useDialer';
-
-const REJECTION_LABELS: Record<string, string> = {
-  has_own_team: 'Já possui equipe própria / Fixos',
-  no_demand: 'Sem obras ou paradas no momento',
-  price_too_high: 'Tarifa horária acima do orçamento',
-  does_not_outsource: 'Não terceiriza mão de obra',
-  bad_contact: 'Contato incorreto / Sem decisor',
-  other: 'Outros motivos',
-};
+import { useComercialLanguage } from '../utils/comercialI18n';
 
 export function DialerSupervisorView() {
+  const { tr } = useComercialLanguage();
   const { data: kpis, isLoading } = useDialerSupervisorKPIs();
+
+  const rejectionLabels: Record<string, string> = {
+    has_own_team: tr('Já possui equipe própria / Fixos', 'Ya tiene equipo propio / Fijos', 'Possède déjà sa propre équipe'),
+    no_demand: tr('Sem obras ou paradas no momento', 'Sin obras o paradas en este momento', 'Pas de chantier ou d’arrêt en ce moment'),
+    price_too_high: tr('Tarifa horária acima do orçamento', 'Tarifa horaria por encima del presupuesto', 'Tarif horaire au-dessus du budget'),
+    does_not_outsource: tr('Não terceiriza mão de obra', 'No subcontrata mano de obra', 'Ne sous-traite pas la main-d’œuvre'),
+    bad_contact: tr('Contato incorreto / Sem decisor', 'Contacto incorrecto / Sin decisor', 'Contact incorrect / Sans décideur'),
+    other: tr('Outros motivos', 'Otros motivos', 'Autres motifs'),
+  };
 
   if (isLoading) {
     return (
       <div className="p-12 text-center text-muted-foreground space-y-3">
         <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mx-auto" />
-        <p className="text-sm">Carregando métricas da equipe de prospecção...</p>
+        <p className="text-sm">
+          {tr(
+            'Carregando métricas da equipe de prospecção...',
+            'Cargando métricas del equipo de prospección...',
+            'Chargement des métriques de l’équipe de prospection...'
+          )}
+        </p>
       </div>
     );
   }
@@ -40,9 +42,15 @@ export function DialerSupervisorView() {
     return (
       <div className="p-12 text-center rounded-2xl bg-card border border-border space-y-3">
         <PhoneCall className="w-12 h-12 text-muted-foreground/40 mx-auto" />
-        <h3 className="text-base font-bold text-foreground">Nenhuma chamada registrada no período</h3>
+        <h3 className="text-base font-bold text-foreground">
+          {tr('Nenhuma chamada registrada no período', 'Ninguna llamada registrada en el período', 'Aucun appel enregistré sur la période')}
+        </h3>
         <p className="text-xs text-muted-foreground max-w-md mx-auto">
-          Inicie as filas de prospecção com a equipe (Omar, Michele) para acompanhar o desempenho, conversão e tempo de atendimento em tempo real.
+          {tr(
+            'Inicie as filas de prospecção com a equipe (Alex, Alba, Liseth e Fatumata) para acompanhar o desempenho, conversão e tempo de atendimento em tempo real.',
+            'Inicie las colas de prospección con el equipo (Alex, Alba, Liseth y Fatumata) para seguir el rendimiento, conversión y tiempo de atención en tiempo real.',
+            'Lancez les files de prospection avec l’équipe (Alex, Alba, Liseth et Fatumata) pour suivre la performance, la conversion et le temps d’appel en temps réel.'
+          )}
         </p>
       </div>
     );
@@ -55,56 +63,66 @@ export function DialerSupervisorView() {
         {/* Total Calls */}
         <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total Discagens</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {tr('Total Discagens', 'Total Llamadas', 'Total d’Appels')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-500">
               <PhoneCall className="w-4 h-4" />
             </div>
           </div>
           <p className="text-2xl font-black text-foreground">{kpis.totalCalls}</p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{kpis.answeredCount}</span> contatos atendidos
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{kpis.answeredCount}</span>{' '}
+            {tr('contatos atendidos', 'contactos atendidos', 'contacts répondus')}
           </div>
         </div>
 
         {/* Contact Rate */}
         <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Taxa de Contato</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+              {tr('Taxa de Contato', 'Tasa de Contacto', 'Taux de Contact')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-500">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
           <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{kpis.contactRate}%</p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Eficiência do mailing de leads</span>
+            <span>{tr('Eficiência do mailing de leads', 'Eficiencia del mailing de leads', 'Efficacité du mailing de leads')}</span>
           </div>
         </div>
 
         {/* Converted into Presupuestos */}
         <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Orçamentos Gerados</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              {tr('Orçamentos Gerados', 'Presupuestos Generados', 'Devis Générés')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
               <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
           <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{kpis.convertedCount}</p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{kpis.conversionRate}%</span> taxa de conversão direta
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{kpis.conversionRate}%</span>{' '}
+            {tr('taxa de conversão direta', 'tasa de conversión directa', 'taux de conversion directe')}
           </div>
         </div>
 
         {/* Scheduled Callbacks */}
         <div className="p-5 rounded-2xl bg-card border border-border shadow-sm space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Retornos Agendados</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+              {tr('Retornos Agendados', 'Llamadas Agendadas', 'Rappels Planifiés')}
+            </span>
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
               <Calendar className="w-4 h-4" />
             </div>
           </div>
           <p className="text-2xl font-black text-amber-600 dark:text-amber-400">{kpis.scheduledCount}</p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Leads em aquecimento para recontato</span>
+            <span>{tr('Leads em aquecimento para recontato', 'Leads en seguimiento para recontacto', 'Leads en suivi pour rappel')}</span>
           </div>
         </div>
       </div>
@@ -116,25 +134,29 @@ export function DialerSupervisorView() {
           <div className="p-4 border-b border-border bg-muted/20 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Award className="w-4 h-4 text-indigo-500" />
-              <h3 className="text-sm font-bold text-foreground">Produtividade por Operador (SDR)</h3>
+              <h3 className="text-sm font-bold text-foreground">
+                {tr('Produtividade por Operador (SDR)', 'Productividad por Operador (SDR)', 'Productivité par Opérateur (SDR)')}
+              </h3>
             </div>
-            <span className="text-xs text-muted-foreground">{kpis.sdrPerformances.length} operadores ativos</span>
+            <span className="text-xs text-muted-foreground">
+              {kpis.sdrPerformances.length} {tr('operadores ativos', 'operadores activos', 'opérateurs actifs')}
+            </span>
           </div>
 
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-left text-xs">
               <thead className="bg-muted/40 text-muted-foreground uppercase font-bold border-b border-border">
                 <tr>
-                  <th className="py-3 px-4">Operador</th>
-                  <th className="py-3 px-3 text-center">Chamadas</th>
-                  <th className="py-3 px-3 text-center">Atendidas</th>
-                  <th className="py-3 px-3 text-center">Orçamentos</th>
-                  <th className="py-3 px-3 text-center">Retornos</th>
-                  <th className="py-3 px-4 text-right">Taxa Conv.</th>
+                  <th className="py-3 px-4">{tr('Operador', 'Operador', 'Opérateur')}</th>
+                  <th className="py-3 px-3 text-center">{tr('Chamadas', 'Llamadas', 'Appels')}</th>
+                  <th className="py-3 px-3 text-center">{tr('Atendidas', 'Atendidas', 'Répondus')}</th>
+                  <th className="py-3 px-3 text-center">{tr('Orçamentos', 'Presupuestos', 'Devis')}</th>
+                  <th className="py-3 px-3 text-center">{tr('Retornos', 'Retornos', 'Rappels')}</th>
+                  <th className="py-3 px-4 text-right">{tr('Taxa Conv.', 'Tasa Conv.', 'Taux Conv.')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {kpis.sdrPerformances.map((sdr, idx) => {
+                {kpis.sdrPerformances.map(sdr => {
                   const sdrConversion = sdr.totalCalls > 0 ? ((sdr.convertedCalls / sdr.totalCalls) * 100).toFixed(1) : '0.0';
                   return (
                     <tr key={sdr.userId} className="hover:bg-muted/30 transition-colors">
@@ -164,14 +186,18 @@ export function DialerSupervisorView() {
           <div className="flex items-center justify-between border-b border-border pb-3">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-rose-500" />
-              <h3 className="text-sm font-bold text-foreground">Distribuição de Motivos de Recusa</h3>
+              <h3 className="text-sm font-bold text-foreground">
+                {tr('Distribuição de Motivos de Recusa', 'Distribución de Motivos de Rechazo', 'Répartition des Motifs de Refus')}
+              </h3>
             </div>
-            <span className="text-xs text-rose-600 dark:text-rose-400 font-mono font-bold">{kpis.rejectedCount} recusas</span>
+            <span className="text-xs text-rose-600 dark:text-rose-400 font-mono font-bold">
+              {kpis.rejectedCount} {tr('recusas', 'rechazos', 'refus')}
+            </span>
           </div>
 
           <div className="space-y-3">
             {Object.entries(kpis.rejectionBreakdown).map(([reasonKey, count]) => {
-              const label = REJECTION_LABELS[reasonKey] || reasonKey;
+              const label = rejectionLabels[reasonKey] || reasonKey;
               const percent = kpis.rejectedCount > 0 ? Math.round((count / kpis.rejectedCount) * 100) : 0;
 
               return (

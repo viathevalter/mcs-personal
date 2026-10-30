@@ -1,33 +1,258 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useAuth } from '@/app/providers/AuthProvider';
 import type { Lead } from '../../estimaciones/types';
+
+export type CommercialOwnerKey = 'alex' | 'alba' | 'liseth' | 'fatumata';
+
+export interface CommercialOperatorProfile {
+  ownerKey: CommercialOwnerKey;
+  userId: string;
+  email: string;
+  name: string;
+  shortName: string;
+  empresaId: string;
+  empresaCode: 'LUM' | 'TRI' | 'WIS';
+  empresaName: string;
+  country: 'ES' | 'FR';
+  flag: string;
+  language: 'es' | 'fr';
+  commercialEmail: string;
+}
+
+export const COMMERCIAL_DEPARTMENT_ID = 'd3d525e8-14bc-43b4-9d66-b59826eba2ab';
+
+export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
+  {
+    ownerKey: 'alex',
+    userId: 'efc6c631-f22a-4ce6-b662-9309a50a4cb7',
+    email: 'alex@gestaologinpro.com',
+    name: 'Alex Carmona Archiles',
+    shortName: 'Alex',
+    empresaId: '847796c4-b253-4e53-9e6b-34a127ec7d85',
+    empresaCode: 'LUM',
+    empresaName: 'Luminous',
+    country: 'ES',
+    flag: '🇪🇸',
+    language: 'es',
+    commercialEmail: 'comercial1@mail.luminousalley.com',
+  },
+  {
+    ownerKey: 'alba',
+    userId: 'ca69863d-998b-4bad-865a-19720e7a1f67',
+    email: 'alba@gestaologinpro.com',
+    name: 'Alba',
+    shortName: 'Alba',
+    empresaId: 'a798620a-358a-4c6c-9db2-3a507c583cac',
+    empresaCode: 'TRI',
+    empresaName: 'Triangulo',
+    country: 'ES',
+    flag: '🇪🇸',
+    language: 'es',
+    commercialEmail: 'comercial2@triangulolda.com',
+  },
+  {
+    ownerKey: 'liseth',
+    userId: 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa',
+    email: 'liseth@gestaologinpro.com',
+    name: 'Liseth',
+    shortName: 'Liseth',
+    empresaId: 'dae64d51-2181-4510-b14f-e63d2f111a8e',
+    empresaCode: 'WIS',
+    empresaName: 'Wiseowe',
+    country: 'ES',
+    flag: '🇪🇸',
+    language: 'es',
+    commercialEmail: 'comercial3@wiseowe.com',
+  },
+  {
+    ownerKey: 'fatumata',
+    userId: '2a25dd76-8a1b-44ea-8ea9-47e9232beee2',
+    email: 'fatumata@gestaologinpro.com',
+    name: 'Fatumata',
+    shortName: 'Fatumata',
+    empresaId: 'dae64d51-2181-4510-b14f-e63d2f111a8e',
+    empresaCode: 'WIS',
+    empresaName: 'Wiseowe',
+    country: 'FR',
+    flag: '🇫🇷',
+    language: 'fr',
+    commercialEmail: 'comercial3@fr.wiseowe.com',
+  },
+];
+
+export function getCommercialProfileByUser(userOrIdOrEmail?: { id?: string; email?: string | null } | string | null): CommercialOperatorProfile | null {
+  if (!userOrIdOrEmail) return null;
+  if (typeof userOrIdOrEmail === 'string') {
+    const val = userOrIdOrEmail.toLowerCase().trim();
+    return (
+      ACTIVE_COMMERCIAL_PROFILES.find(
+        p => p.userId.toLowerCase() === val || p.email.toLowerCase() === val || p.ownerKey === val
+      ) || null
+    );
+  }
+  const uid = (userOrIdOrEmail.id || '').toLowerCase().trim();
+  const uemail = (userOrIdOrEmail.email || '').toLowerCase().trim();
+  return (
+    ACTIVE_COMMERCIAL_PROFILES.find(
+      p => (uid && p.userId.toLowerCase() === uid) || (uemail && p.email.toLowerCase() === uemail)
+    ) || null
+  );
+}
 
 export interface Salesperson {
   id: string;
   email: string;
   display_name: string;
   role: string;
+  department_id?: string | null;
   commercial_email?: string;
   commercial_name?: string;
   commercial_phone?: string;
+  commercial_country?: string | null;
+  commercial_empresa_id?: string | null;
+  ownerKey?: CommercialOwnerKey;
+  empresaName?: string;
+  empresaCode?: string;
+  flag?: string;
 }
 
 export function useSalespeople() {
   return useQuery({
-    queryKey: ['salespeople_users'],
+    queryKey: ['salespeople_users', COMMERCIAL_DEPARTMENT_ID],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('mcs_users')
-        .select('id, email, display_name, role, commercial_email, commercial_name, commercial_phone')
+        .select('id, email, display_name, role, department_id, commercial_email, commercial_name, commercial_phone, commercial_country, commercial_empresa_id')
         .eq('active', true)
+        .eq('department_id', COMMERCIAL_DEPARTMENT_ID)
         .order('display_name', { ascending: true });
 
       if (error) throw error;
-      return (data || []) as Salesperson[];
+
+      const rows = (data || []) as Salesperson[];
+      return rows.map(row => {
+        const profile = getCommercialProfileByUser({ id: row.id, email: row.email });
+        return {
+          ...row,
+          ownerKey: profile?.ownerKey,
+          commercial_country: row.commercial_country || profile?.country || 'ES',
+          commercial_empresa_id: row.commercial_empresa_id || profile?.empresaId || null,
+          commercial_email: row.commercial_email || profile?.commercialEmail,
+          empresaName: profile?.empresaName,
+          empresaCode: profile?.empresaCode,
+          flag: profile?.flag || (row.commercial_country === 'FR' ? '🇫🇷' : '🇪🇸'),
+        };
+      });
     },
     staleTime: 5 * 60 * 1000,
   });
+}
+
+const COMMERCIAL_FILTER_STORAGE_KEY = 'mcs_active_commercial_owner_filter';
+
+export function useCommercialScope() {
+  const { user } = useAuth();
+  const { selectedEmpresaId, setSelectedEmpresaId } = useEmpresa();
+  const { i18n } = useTranslation();
+
+  const loggedCommercialProfile = useMemo(
+    () => getCommercialProfileByUser(user),
+    [user?.id, user?.email]
+  );
+
+  const isCommercialOperator = Boolean(loggedCommercialProfile);
+
+  const defaultOwnerForEmpresa = useCallback(
+    (empId: string | null, currentKey?: CommercialOwnerKey | 'all'): CommercialOwnerKey => {
+      if (empId === '847796c4-b253-4e53-9e6b-34a127ec7d85') return 'alex';
+      if (empId === 'a798620a-358a-4c6c-9db2-3a507c583cac') return 'alba';
+      if (empId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
+        if (currentKey === 'liseth' || currentKey === 'fatumata') return currentKey;
+        return i18n.language?.startsWith('fr') ? 'fatumata' : 'liseth';
+      }
+      return 'alex';
+    },
+    [i18n.language]
+  );
+
+  const [selectedOwnerKey, setSelectedOwnerKeyState] = useState<CommercialOwnerKey | 'all'>(() => {
+    if (loggedCommercialProfile) return loggedCommercialProfile.ownerKey;
+    const saved = localStorage.getItem(COMMERCIAL_FILTER_STORAGE_KEY) as CommercialOwnerKey | 'all' | null;
+    if (saved && (saved === 'all' || ACTIVE_COMMERCIAL_PROFILES.some(p => p.ownerKey === saved))) {
+      return saved;
+    }
+    return defaultOwnerForEmpresa(selectedEmpresaId);
+  });
+
+  // When a commercial operator logs in, lock their scope, company, and default language
+  useEffect(() => {
+    if (!loggedCommercialProfile) return;
+    setSelectedOwnerKeyState(loggedCommercialProfile.ownerKey);
+    if (selectedEmpresaId !== loggedCommercialProfile.empresaId) {
+      setSelectedEmpresaId(loggedCommercialProfile.empresaId);
+    }
+    const langInitKey = `mcs_commercial_lang_init_${loggedCommercialProfile.userId}`;
+    if (!sessionStorage.getItem(langInitKey)) {
+      sessionStorage.setItem(langInitKey, '1');
+      if (i18n.language !== loggedCommercialProfile.language) {
+        i18n.changeLanguage(loggedCommercialProfile.language);
+        localStorage.setItem('mcs_lang', loggedCommercialProfile.language);
+      }
+    }
+  }, [loggedCommercialProfile, selectedEmpresaId, setSelectedEmpresaId, i18n]);
+
+  // For Admin: when top bar selectedEmpresaId changes, sync commercial filter if current filter belongs to a different company
+  useEffect(() => {
+    if (loggedCommercialProfile || !selectedEmpresaId) return;
+    if (selectedOwnerKey === 'all') return;
+    const currentProfile = ACTIVE_COMMERCIAL_PROFILES.find(p => p.ownerKey === selectedOwnerKey);
+    if (currentProfile && currentProfile.empresaId !== selectedEmpresaId) {
+      const nextKey = defaultOwnerForEmpresa(selectedEmpresaId, selectedOwnerKey);
+      setSelectedOwnerKeyState(nextKey);
+      localStorage.setItem(COMMERCIAL_FILTER_STORAGE_KEY, nextKey);
+    }
+  }, [selectedEmpresaId, loggedCommercialProfile]);
+
+  const setSelectedOwnerKey = useCallback(
+    (nextKey: CommercialOwnerKey | 'all') => {
+      if (loggedCommercialProfile) {
+        setSelectedOwnerKeyState(loggedCommercialProfile.ownerKey);
+        return;
+      }
+      setSelectedOwnerKeyState(nextKey);
+      localStorage.setItem(COMMERCIAL_FILTER_STORAGE_KEY, nextKey);
+      if (nextKey !== 'all') {
+        const targetProfile = ACTIVE_COMMERCIAL_PROFILES.find(p => p.ownerKey === nextKey);
+        if (targetProfile && selectedEmpresaId !== targetProfile.empresaId) {
+          setSelectedEmpresaId(targetProfile.empresaId);
+        }
+      }
+    },
+    [loggedCommercialProfile, selectedEmpresaId, setSelectedEmpresaId]
+  );
+
+  const effectiveOwnerKey: CommercialOwnerKey | 'all' = loggedCommercialProfile
+    ? loggedCommercialProfile.ownerKey
+    : selectedOwnerKey;
+
+  const activeCommercialProfile: CommercialOperatorProfile | null = useMemo(() => {
+    if (loggedCommercialProfile) return loggedCommercialProfile;
+    if (effectiveOwnerKey === 'all') return null;
+    return ACTIVE_COMMERCIAL_PROFILES.find(p => p.ownerKey === effectiveOwnerKey) || null;
+  }, [loggedCommercialProfile, effectiveOwnerKey]);
+
+  return {
+    isCommercialOperator,
+    loggedCommercialProfile,
+    activeCommercialProfile,
+    effectiveOwnerKey,
+    setSelectedOwnerKey,
+    profiles: ACTIVE_COMMERCIAL_PROFILES,
+  };
 }
 
 export interface UseLeadsOptions {

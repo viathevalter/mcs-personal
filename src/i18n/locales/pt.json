@@ -972,7 +972,16 @@
       "analisesItem": "Análises & Simulações",
       "settings": "Configurações",
       "collapse": "Recolher Menu",
-      "expand": "Expandir Menu"
+      "expand": "Expandir Menu",
+      "aprovacoes": "Mesa de Aprovações",
+      "portfolio": "Portfólio & Referências",
+      "powerDialer": "Power Dialer (SDR)",
+      "cockpit": "Cockpit Discador",
+      "agenda": "Agenda & Retornos",
+      "filas": "Trabalhos & Filas",
+      "supervisao": "Supervisão & KPIs",
+      "operadores": "Operadores & Scripts",
+      "configuracion": "Configuração"
     },
     "prospector": {
       "title": "Máquina de Leads Qualificados",
