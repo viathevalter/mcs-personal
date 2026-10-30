@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -13,14 +13,10 @@ import { Label } from '@/components/ui/label';
 import { 
   Building2, 
   CheckCircle, 
-  FileText, 
   MapPin, 
-  Mail, 
-  Phone, 
   User, 
   Loader2, 
-  CreditCard,
-  Building
+  CreditCard
 } from 'lucide-react';
 import { supabase } from '@/shared/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
@@ -53,6 +49,23 @@ export function CollectFiscalDataModal({
   const [postalCode, setPostalCode] = useState(lead.postal_code || '');
   const [countryId, setCountryId] = useState(lead.country_id || 'ES');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && lead) {
+      setLegalName(lead.legal_name || lead.company_name || '');
+      setCompanyName(lead.company_name || lead.name || '');
+      setTaxId(lead.tax_id || '');
+      setContactName(lead.name || '');
+      setContactEmail(lead.email || '');
+      setBillingEmail(lead.billing_email || lead.email || '');
+      setPhone(lead.phone || '');
+      setAddressLine(lead.address_line || '');
+      setCity(lead.city || '');
+      setProvince(lead.province || '');
+      setPostalCode(lead.postal_code || '');
+      setCountryId(lead.country_id || 'ES');
+    }
+  }, [lead?.id, isOpen]);
 
   const handleSaveFiscalData = async (e: React.FormEvent) => {
     e.preventDefault();

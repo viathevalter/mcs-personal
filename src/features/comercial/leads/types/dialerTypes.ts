@@ -96,6 +96,7 @@ export interface DialerQueueItem {
   max_attempts: number;
   scheduled_for?: string | null;
   scheduled_notes?: string | null;
+  priority?: 'high' | 'normal' | 'low';
   sort_order: number;
   last_attempt_at?: string | null;
   created_at: string;
@@ -141,9 +142,10 @@ export interface QuickPresupuestoItem {
 }
 
 export interface QuickPresupuestoPayload {
-  empresa_id: string;
+  empresa_id?: string;
   lead_id: string;
-  title: string;
+  existing_estimacion_id?: string | null;
+  title?: string;
   contact_name: string;
   contact_email: string;
   expected_start_date: string;

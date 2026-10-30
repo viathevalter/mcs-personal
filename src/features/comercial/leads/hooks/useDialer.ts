@@ -274,12 +274,6 @@ export function useDialerQueue(campaignId?: string | null, userId?: string | nul
 
       const items = (data || []) as DialerQueueItem[];
 
-      // Intelligent sort:
-      // 1. Scheduled callbacks due NOW or in the past (Priority 1 - Top of Queue)
-      // 2. Scheduled callbacks due in the future
-      // 3. Pending / In progress leads sorted by sort_order
-      // 4. No Answer (re-queued at the end of the line)
-      // 5. Converted / Rejected (already finished)
       const now = new Date().getTime();
 
       return items.sort((a, b) => {
@@ -596,7 +590,6 @@ export function useMutateDialer() {
     }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
 
-      // Obter usuário autenticado
       const { data: authData } = await supabase.auth.getUser();
       const effectiveUserId = userId || authData?.user?.id || null;
 
@@ -701,7 +694,6 @@ export function useMutateDialer() {
 
       // 5. Update Campaign Progress Counter
       if (['converted', 'rejected', 'skipped'].includes(nextStatus)) {
-        // Increment completed count
         const { data: campData } = await supabase
           .schema('core_comercial')
           .from('dialer_campaigns')
@@ -735,6 +727,9 @@ export function useMutateDialer() {
     mutationFn: async (payload: QuickPresupuestoPayload) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
 
+      const { data: authData } = await supabase.auth.getUser();
+      const effectiveUserId = authData?.user?.id || null;
+
       const randNum = Math.floor(1000 + Math.random() * 9000);
       const codigo = `EST-${new Date().getFullYear()}-${randNum}`;
 
@@ -763,7 +758,6 @@ export function useMutateDialer() {
       let postalCode: string | null = payload.work_city || null;
 
       if (payload.lead_id) {
-        // Update lead fiscal data if provided
         const leadFiscalUpdates: Record<string, any> = {};
         if (payload.legal_name?.trim()) leadFiscalUpdates.legal_name = payload.legal_name.trim();
         if (payload.tax_id?.trim()) leadFiscalUpdates.tax_id = payload.tax_id.trim();
@@ -793,6 +787,105 @@ export function useMutateDialer() {
         }
       }
 
+      // Se existir orçamento deste lead para atualizar
+      if (payload.existing_estimacion_id) {
+        const { data: updatedEst, error: updEstError } = await supabase
+          .schema('core_comercial')
+          .from('estimaciones')
+          .update({
+            client_id: leadClientId,
+            country_id: leadCountryId,
+            postal_code: postalCode,
+            contact_name: payload.contact_name,
+            contact_email: payload.contact_email,
+            expected_start_date: payload.expected_start_date || null,
+            general_notes: payload.notes || `Pré-orçamento atualizado via Cockpit Discador. Cidade: ${payload.work_city || 'N/A'}`,
+            updated_by: effectiveUserId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', payload.existing_estimacion_id)
+          .select()
+          .single();
+
+        if (updEstError) throw updEstError;
+
+        let targetVersionId = updatedEst.current_version_id;
+        if (targetVersionId) {
+          await supabase
+            .schema('core_comercial')
+            .from('estimacion_versions')
+            .update({
+              total_cost: totalCost,
+              total_revenue: totalRevenue,
+              margin_percent: marginPercent,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', targetVersionId);
+
+          await supabase
+            .schema('core_comercial')
+            .from('estimacion_items')
+            .delete()
+            .eq('estimacion_version_id', targetVersionId);
+        } else {
+          const { data: newVer, error: newVerErr } = await supabase
+            .schema('core_comercial')
+            .from('estimacion_versions')
+            .insert({
+              empresa_id: selectedEmpresaId,
+              estimacion_id: updatedEst.id,
+              version_number: 1,
+              status: 'active',
+              total_cost: totalCost,
+              total_revenue: totalRevenue,
+              margin_percent: marginPercent,
+              notes: 'Versão atualizada no Cockpit de Prospecção',
+            })
+            .select()
+            .single();
+
+          if (newVerErr) throw newVerErr;
+          targetVersionId = newVer.id;
+          await supabase
+            .schema('core_comercial')
+            .from('estimaciones')
+            .update({ current_version_id: targetVersionId })
+            .eq('id', updatedEst.id);
+        }
+
+        if (itemsWithCalculations.length > 0 && targetVersionId) {
+          const estItemsToInsert = itemsWithCalculations.map(it => ({
+            empresa_id: selectedEmpresaId,
+            estimacion_id: updatedEst.id,
+            estimacion_version_id: targetVersionId,
+            job_function_id: it.job_function_id,
+            job_function_name_snapshot: it.job_title || null,
+            description: it.job_title || null,
+            quantity: it.quantity,
+            planned_hours_per_day: it.hours_per_day,
+            planned_days_per_week: it.days_per_week,
+            planned_total_hours: it.totalHours,
+            includes_housing: Boolean(it.includes_accommodation),
+            includes_transport: Boolean(it.includes_transport),
+            includes_epi: true,
+            base_cost_hour: Number((it.sell_rate_hour * 0.70).toFixed(2)),
+            recommended_sell_rate_hour: it.sell_rate_hour,
+            minimum_sell_rate_hour: Number((it.sell_rate_hour * 0.90).toFixed(2)),
+            sell_rate_hour: it.sell_rate_hour,
+            margin_percent: marginPercent,
+          }));
+
+          const { error: itemsError } = await supabase
+            .schema('core_comercial')
+            .from('estimacion_items')
+            .insert(estItemsToInsert);
+
+          if (itemsError) throw itemsError;
+        }
+
+        return updatedEst;
+      }
+
       const { data: estimacion, error: estError } = await supabase
         .schema('core_comercial')
         .from('estimaciones')
@@ -810,6 +903,9 @@ export function useMutateDialer() {
           expected_start_date: payload.expected_start_date || null,
           general_notes: payload.notes || `Pré-orçamento gerado via Cockpit Discador. Cidade: ${payload.work_city || 'N/A'}`,
           status: 'draft',
+          commercial_owner_id: effectiveUserId,
+          created_by: effectiveUserId,
+          updated_by: effectiveUserId,
         })
         .select()
         .single();

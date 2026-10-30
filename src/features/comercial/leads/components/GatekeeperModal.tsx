@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -10,14 +10,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { 
   PhoneForwarded, 
-  Clock, 
   Calendar, 
   Check, 
-  RotateCcw, 
-  UserCheck 
+  RotateCcw
 } from 'lucide-react';
 import { addDays, format } from 'date-fns';
 import type { Lead } from '@/features/comercial/estimaciones/types';
@@ -41,6 +38,15 @@ export function GatekeeperModal({
   const [directPhone, setDirectPhone] = useState('');
   const [bestTimeToCall, setBestTimeToCall] = useState('A partir das 10h da manhã');
   const [actionType, setActionType] = useState<'requeue_end' | 'schedule_tomorrow'>('schedule_tomorrow');
+
+  useEffect(() => {
+    if (isOpen) {
+      setGatekeeperName('');
+      setDirectPhone('');
+      setBestTimeToCall('A partir das 10h da manhã');
+      setActionType('schedule_tomorrow');
+    }
+  }, [lead?.id, isOpen]);
 
   const handleSave = () => {
     let notes = `Atendido por recepção/secretária: ${gatekeeperName || 'Não informou nome'}. Melhores horários: ${bestTimeToCall}`;

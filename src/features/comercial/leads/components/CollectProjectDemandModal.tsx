@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Dialog, 
   DialogContent, 
@@ -63,6 +63,19 @@ export function CollectProjectDemandModal({
   const [entryTime, setEntryTime] = useState('08:00');
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && lead) {
+      setSelectedProfiles([]);
+      setWorkersCount('2');
+      setStartDate('');
+      setDuration('');
+      setWorkAddress(lead.city || lead.province || '');
+      setDaysHours('Seg a Sex, 8h às 17h (40h/sem)');
+      setEntryTime('08:00');
+      setAdditionalNotes('');
+    }
+  }, [lead?.id, isOpen]);
 
   const toggleProfile = (key: string) => {
     setSelectedProfiles(prev =>

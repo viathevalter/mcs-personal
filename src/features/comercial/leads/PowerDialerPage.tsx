@@ -150,6 +150,12 @@ export function PowerDialerPage() {
     ? activeLeadOverride
     : currentQueueItem?.lead;
 
+  // Reset override and call notes when switching leads in the queue
+  useEffect(() => {
+    setActiveLeadOverride(null);
+    setCallNotes('');
+  }, [currentQueueIndex, currentQueueItem?.lead?.id]);
+
   const handleLeadUpdated = (updatedLead: Lead) => {
     setActiveLeadOverride(updatedLead);
     queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
@@ -313,12 +319,17 @@ export function PowerDialerPage() {
     try {
       const createdEst = await createQuickPresupuesto(payload);
       await handleOutcomeSubmit('answered_converted');
-      toast.success('🎉 Pré-orçamento gerado com sucesso!', {
-        action: {
-          label: 'Ver Orçamento',
-          onClick: () => navigate(`/comercial/estimaciones/${createdEst.id}`),
-        },
-      });
+      toast.success(
+        payload?.existing_estimacion_id
+          ? '🎉 Orçamento atualizado com sucesso!'
+          : '🎉 Pré-orçamento gerado com sucesso!',
+        {
+          action: {
+            label: 'Ver Orçamento',
+            onClick: () => navigate(`/comercial/estimaciones/${createdEst.id}`),
+          },
+        }
+      );
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Erro ao gerar pré-orçamento');
@@ -1086,6 +1097,7 @@ export function PowerDialerPage() {
       {/* Quick Presupuesto Modal */}
       {currentLead && (
         <QuickPresupuestoModal
+          key={`presupuesto-${currentLead.id}`}
           isOpen={isPresupuestoModalOpen}
           onClose={() => setIsPresupuestoModalOpen(false)}
           lead={currentLead}
@@ -1095,6 +1107,7 @@ export function PowerDialerPage() {
 
       {/* Schedule Callback Modal (Expanded with Calendar & Rich Text) */}
       <ScheduleCallbackModal
+        key={`callback-${currentLead?.id || 'none'}`}
         isOpen={isCallbackModalOpen}
         onClose={() => setIsCallbackModalOpen(false)}
         lead={currentLead}
@@ -1104,6 +1117,7 @@ export function PowerDialerPage() {
 
       {/* Send Commercial Material Modal (M365 Direct) */}
       <SendMaterialModal
+        key={`material-${currentLead?.id || 'none'}`}
         isOpen={isMaterialModalOpen}
         onClose={() => setIsMaterialModalOpen(false)}
         lead={currentLead}
@@ -1115,6 +1129,7 @@ export function PowerDialerPage() {
 
       {/* Edit Lead Modal (CRUD Cockpit Discador) */}
       <EditLeadModal
+        key={`edit-lead-${currentLead?.id || 'none'}`}
         isOpen={isEditLeadModalOpen}
         onClose={() => setIsEditLeadModalOpen(false)}
         lead={currentLead}
@@ -1123,6 +1138,7 @@ export function PowerDialerPage() {
 
       {/* Gatekeeper / Reception Modal */}
       <GatekeeperModal
+        key={`gatekeeper-${currentLead?.id || 'none'}`}
         isOpen={isGatekeeperModalOpen}
         onClose={() => setIsGatekeeperModalOpen(false)}
         lead={currentLead}
@@ -1133,6 +1149,7 @@ export function PowerDialerPage() {
       {/* Collect Project Demand Modal (Demanda de Obra & Perfis) */}
       {currentLead && (
         <CollectProjectDemandModal
+          key={`demand-${currentLead.id}`}
           isOpen={isDemandModalOpen}
           onClose={() => setIsDemandModalOpen(false)}
           lead={currentLead}
@@ -1143,6 +1160,7 @@ export function PowerDialerPage() {
       {/* Collect Fiscal Data Modal (Ficha Cadastral & CIF / Faturamento) */}
       {currentLead && (
         <CollectFiscalDataModal
+          key={`fiscal-${currentLead.id}`}
           isOpen={isFiscalModalOpen}
           onClose={() => setIsFiscalModalOpen(false)}
           lead={currentLead}
