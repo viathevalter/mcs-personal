@@ -528,9 +528,9 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
     }
 
     // Se for folha de horas e tivermos os dados necessários, salvamos os lançamentos diários como rascunho no banco
-    if (!isWorkerDoc && worker_id && client_id && year && month) {
+    if (!isWorkerDoc && worker_id && year && month) {
       try {
-        console.log(`[DB Sync] Iniciando gravação de rascunhos para worker_id=${worker_id}, client_id=${client_id}, periodo=${month}/${year}...`);
+        console.log(`[DB Sync] Iniciando gravação de rascunhos para worker_id=${worker_id}, client_id=${client_id || 'indefinido'}, periodo=${month}/${year}...`);
 
         let workerFuncId = null;
         let workerFunction = body.worker_function;
@@ -570,38 +570,40 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
           }
         }
 
-        let clientSites = [];
-        const { data: sites } = await supabase
-          .schema('core_common')
-          .from('client_sites')
-          .select('id, name')
-          .eq('client_id', client_id)
-          .neq('status', 'archived');
-        clientSites = sites || [];
+        let clientSites: any[] = [];
+        if (client_id) {
+          const { data: sites } = await supabase
+            .schema('core_common')
+            .from('client_sites')
+            .select('id, name')
+            .eq('client_id', client_id)
+            .neq('status', 'archived');
+          clientSites = sites || [];
 
-        if (clientSites.length === 0 && worker_id) {
-          const { data: contractInfo } = await supabase
-            .schema('core_personal')
-            .from('contracts')
-            .select('empresa_id')
-            .eq('worker_id', worker_id)
-            .limit(1)
-            .maybeSingle();
-          
-          if (contractInfo?.empresa_id) {
-            const { data: defaultSite } = await supabase
-              .schema('core_common')
-              .from('client_sites')
-              .insert({
-                empresa_id: contractInfo.empresa_id,
-                client_id: client_id,
-                name: 'Taller',
-                status: 'active'
-              })
-              .select('id, name')
+          if (clientSites.length === 0 && worker_id) {
+            const { data: contractInfo } = await supabase
+              .schema('core_personal')
+              .from('contracts')
+              .select('empresa_id')
+              .eq('worker_id', worker_id)
+              .limit(1)
               .maybeSingle();
-            if (defaultSite) {
-              clientSites = [defaultSite];
+            
+            if (contractInfo?.empresa_id) {
+              const { data: defaultSite } = await supabase
+                .schema('core_common')
+                .from('client_sites')
+                .insert({
+                  empresa_id: contractInfo.empresa_id,
+                  client_id: client_id,
+                  name: 'Taller',
+                  status: 'active'
+                })
+                .select('id, name')
+                .maybeSingle();
+              if (defaultSite) {
+                clientSites = [defaultSite];
+              }
             }
           }
         }
@@ -612,36 +614,74 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
         const numDays = new Date(year, month, 0).getDate();
         const endDateStr = `${year}-${String(month).padStart(2, '0')}-${numDays}`;
 
-        console.log(`[DB Sync] Limpando rascunhos antigos entre ${startDateStr} e ${endDateStr}...`);
-        const { error: deleteError } = await supabase
-          .schema('core_finance')
-          .from('horas_trabalhadas')
-          .delete()
-          .eq('worker_id', worker_id)
-          .eq('client_id', client_id)
-          .gte('data_trabalho', startDateStr)
-          .lte('data_trabalho', endDateStr);
+        if (client_id) {
+          console.log(`[DB Sync] Limpando rascunhos antigos entre ${startDateStr} e ${endDateStr}...`);
+          const { error: deleteError } = await supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .delete()
+            .eq('worker_id', worker_id)
+            .eq('client_id', client_id)
+            .gte('data_trabalho', startDateStr)
+            .lte('data_trabalho', endDateStr);
 
-        if (deleteError) {
-          console.error("[DB Sync] Erro ao deletar registros de horas:", deleteError);
+          if (deleteError) {
+            console.error("[DB Sync] Erro ao deletar registros de horas:", deleteError);
+          }
         }
 
         const rowsToInsert = [];
+        const apontamentosPayload: any[] = [];
+        let sumNormais = 0;
+        let sumNoturnas = 0;
+        let sumTotais = 0;
+
         if (Array.isArray(extractedData.days)) {
           for (const day of extractedData.days) {
             const rawTotalHoras = day.total_horas;
             const isExplicitlyZero = rawTotalHoras === 0;
             
             const duration = calculateDuration(day.inicio || "", day.fim || "");
-            const finalTotalHoras = isExplicitlyZero ? 0 : (rawTotalHoras !== undefined && rawTotalHoras !== null ? rawTotalHoras : duration);
+            const finalTotalHoras = isExplicitlyZero ? 0 : (rawTotalHoras !== undefined && rawTotalHoras !== null ? Number(rawTotalHoras) : duration);
+
+            let hNorm = Number(day.horas_normais || 0);
+            let hNot = Number(day.horas_noturnas || 0);
 
             if (finalTotalHoras === 0) {
               day.inicio = null;
               day.fim = null;
-              day.total_horas = 0;
+              hNorm = 0;
+              hNot = 0;
+            } else if (hNorm === 0 && hNot === 0) {
+              if (day.tipo_jornada === 'noturna') {
+                hNot = finalTotalHoras;
+              } else {
+                hNorm = finalTotalHoras;
+              }
             }
 
-            if (finalTotalHoras > 0) {
+            sumNormais += hNorm;
+            sumNoturnas += hNot;
+            sumTotais += finalTotalHoras;
+
+            apontamentosPayload.push({
+              day: day.day,
+              dia: day.day,
+              inicio: day.inicio || "",
+              entrada: day.inicio || "",
+              fim: day.fim || "",
+              saida: day.fim || "",
+              obra: day.obra || "",
+              totalHoras: finalTotalHoras,
+              total_horas: finalTotalHoras,
+              horasNormais: hNorm,
+              horas_normais: hNorm,
+              horasNoturnas: hNot,
+              horas_noturnas: hNot,
+              tipo_jornada: day.tipo_jornada || null
+            });
+
+            if (finalTotalHoras > 0 && client_id) {
               const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(day.day).padStart(2, '0')}`;
               
               let matchedObraId = null;
@@ -663,6 +703,8 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
                 hora_inicio: formatTime(day.inicio),
                 hora_fim: formatTime(day.fim),
                 horas_totais: finalTotalHoras,
+                horas_normais: hNorm,
+                horas_noturnas: hNot,
                 status: 'pending_review',
                 funcao_id: workerFuncId,
                 obra_id: matchedObraId,
@@ -673,7 +715,7 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
           }
         }
 
-        if (rowsToInsert.length > 0) {
+        if (rowsToInsert.length > 0 && client_id) {
           console.log(`[DB Sync] Inserindo ${rowsToInsert.length} lançamentos diários...`);
           const { error: insertError } = await supabase
             .schema('core_finance')
@@ -687,14 +729,18 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
           }
         }
 
-        // Atualizar o status da folha de horas para 'processado' e limpar observações
-        console.log(`[DB Sync] Atualizando status de worker_hours para 'processado'...`);
+        // Atualizar o status da folha de horas para 'processado' e gravar apontamentos
+        console.log(`[DB Sync] Atualizando status de worker_hours para 'processado' (Total: ${sumTotais}h, Normais: ${sumNormais}h, Noturnas: ${sumNoturnas}h)...`);
         const { error: updateStatusError } = await supabase
           .schema('core_personal')
           .from('worker_hours')
           .update({ 
             status: 'processado', 
             observacoes: null,
+            apontamentos_diarios: apontamentosPayload,
+            total_horas_normais: sumNormais,
+            total_horas_noturnas: sumNoturnas,
+            horas_totais: sumTotais,
             updated_at: new Date().toISOString() 
           })
           .eq('worker_id', worker_id)

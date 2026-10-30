@@ -87,33 +87,25 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
                 throw new Error(t('workerPortal.upload.error.updateFailed'));
             }
 
-            // Trigger background OCR
-            const triggerOcr = () => {
-                try {
-                    const extension = file.name.split('.').pop() || 'pdf';
-                    const mimeType = file.type || (extension === 'pdf' ? 'application/pdf' : 'image/jpeg');
+            // Disparar OCR e aguardar para garantir que não seja cancelado pelo navegador ao desmontar a tela
+            try {
+                const extension = file.name.split('.').pop() || 'pdf';
+                const mimeType = file.type || (extension === 'pdf' ? 'application/pdf' : 'image/jpeg');
 
-                    supabase.functions.invoke('process-document-ocr', {
-                        body: {
-                            file_path: fileUrl,
-                            document_type: "timesheet",
-                            bucket_id: "horas_trabalhadores",
-                            mime_type: mimeType,
-                            worker_id: worker.id,
-                            year: period.period_year,
-                            month: period.period_month
-                        }
-                    }).then(res => {
-                        console.log("Background OCR triggered successfully:", res);
-                    }).catch(err => {
-                        console.error("Background OCR invoke error:", err);
-                    });
-                } catch (e) {
-                    console.error("[OCR Trigger] Erro ao disparar OCR:", e);
-                }
-            };
-
-            triggerOcr();
+                await supabase.functions.invoke('process-document-ocr', {
+                    body: {
+                        file_path: fileUrl,
+                        document_type: "timesheet",
+                        bucket_id: "horas_trabalhadores",
+                        mime_type: mimeType,
+                        worker_id: worker.id,
+                        year: period.period_year,
+                        month: period.period_month
+                    }
+                });
+            } catch (ocrErr) {
+                console.warn("[OCR Trigger] Aviso ao processar OCR em tempo real:", ocrErr);
+            }
 
             toast.success(t('workerPortal.upload.success'));
             onSuccess();

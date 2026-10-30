@@ -299,6 +299,38 @@ export function ClientHoursDetail() {
         }
     };
 
+    const handleReprocessOcr = async (worker: WorkerDetail) => {
+        if (!worker.file_url || !worker.hour_record_id) return;
+        try {
+            setActionLoading(worker.hour_record_id + '-ocr');
+            toast.info(`Iniciando leitura por IA para ${worker.worker_name}...`);
+            const extension = worker.file_name?.split('.').pop() || 'pdf';
+            const mimeType = extension === 'pdf' ? 'application/pdf' : 'image/jpeg';
+            const bucketName = getBucketName(worker.file_url);
+
+            const { data, error } = await supabase.functions.invoke('process-document-ocr', {
+                body: {
+                    file_path: worker.file_url,
+                    document_type: "timesheet",
+                    bucket_id: bucketName,
+                    mime_type: mimeType,
+                    worker_id: worker.worker_id,
+                    year: year,
+                    month: month
+                }
+            });
+
+            if (error) throw error;
+            toast.success(`Leitura por IA concluída com sucesso para ${worker.worker_name}!`);
+            await fetchClientWorkers(true);
+        } catch (e: any) {
+            console.error('Erro ao reprocessar OCR:', e);
+            toast.error(`Falha no processamento: ${e.message || String(e)}`);
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
     const handleOpenValidation = async (worker: WorkerDetail) => {
         if (!worker.hour_record_id) return;
         try {
@@ -1082,17 +1114,22 @@ export function ClientHoursDetail() {
                                                     )}
                                                     {worker.status === 'enviado' && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
                                                         <Button
-                                                            variant="ghost"
+                                                            variant="outline"
                                                             size="sm"
-                                                            disabled
-                                                            className="h-8 text-slate-500 bg-slate-50 border border-slate-100 flex items-center gap-1.5 cursor-not-allowed"
-                                                            title={t('clientHoursDetail.tooltips.processingIA', 'Extraindo dados com IA em segundo plano...')}
+                                                            disabled={actionLoading === worker.hour_record_id + '-ocr'}
+                                                            onClick={() => handleReprocessOcr(worker)}
+                                                            className="h-8 text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"
+                                                            title="Re-executar leitura com IA ou forçar reprocessamento"
                                                         >
-                                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
-                                                            <span>{t('clientHoursDetail.buttons.processing', 'Lendo folha...')}</span>
+                                                            {actionLoading === worker.hour_record_id + '-ocr' ? (
+                                                                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
+                                                            ) : (
+                                                                <RefreshCw className="h-3.5 w-3.5 text-blue-600" />
+                                                            )}
+                                                            <span>{actionLoading === worker.hour_record_id + '-ocr' ? 'Lendo...' : 'Reprocessar IA'}</span>
                                                         </Button>
                                                     )}
-                                                    {['processado', 'validado', 'em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
+                                                    {['enviado', 'processado', 'validado', 'em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
                                                         <Button
                                                             variant="default"
                                                             size="sm"
