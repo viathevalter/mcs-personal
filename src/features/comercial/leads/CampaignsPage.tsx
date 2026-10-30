@@ -1146,9 +1146,78 @@ export function CampaignsPage() {
       ];
     }
 
-    // 2. EMPRESA: WISEOWE (França)
+    // 2. EMPRESA: WISEOWE (França & Liseth)
     if (isWiseowe) {
       return [
+        {
+          id: 'aud_liseth_ineditos_3010_2026',
+          name: '🚀 Mailing Liseth - Inéditos Lote 30/10 (10 leads)',
+          leadCount: 10,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Liseth Inéditos - Lote 30-10 2026',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-10-30T12:25:00.000Z'
+        },
+        {
+          id: 'aud_liseth_lote_3010_completo_2026',
+          name: '🎯 Mailing Liseth - Lote 30/10 Completo (20 leads)',
+          leadCount: 20,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Liseth - Lote 30-10 2026',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-10-30T12:25:00.000Z'
+        },
+        {
+          id: 'aud_liseth_base_total_2026',
+          name: '🌟 Mailing Liseth - Base Total Consolidada (33 leads)',
+          leadCount: 33,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Liseth',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-10-30T12:25:00.000Z'
+        },
         {
           id: 'aud_fr_omar_scraping_inedits',
           name: '🚀 🇫🇷 Omar - Inédits Portais França / SCMF & Sous-Traiter (228 leads)',
@@ -1614,6 +1683,75 @@ export function CampaignsPage() {
 
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
     return [
+      {
+        id: 'aud_liseth_ineditos_3010_2026_lum',
+        name: '🚀 Mailing Liseth - Inéditos Lote 30/10 (10 leads)',
+        leadCount: 10,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Liseth Inéditos - Lote 30-10 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-30T12:25:00.000Z'
+      },
+      {
+        id: 'aud_liseth_lote_3010_completo_2026_lum',
+        name: '🎯 Mailing Liseth - Lote 30/10 Completo (20 leads)',
+        leadCount: 20,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Liseth - Lote 30-10 2026',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-30T12:25:00.000Z'
+      },
+      {
+        id: 'aud_liseth_base_total_2026_lum',
+        name: '🌟 Mailing Liseth - Base Total Consolidada (33 leads)',
+        leadCount: 33,
+        filters: {
+          stageId: '',
+          origin: '',
+          intelligence: 'all',
+          selectedCountries: ['ES'],
+          selectedCompanySizes: [],
+          selectedRegions: [],
+          selectedProvinces: [],
+          selectedSectors: [],
+          selectedServices: [],
+          sectorKeyword: '',
+          cargoKeyword: '',
+          provinceKeyword: '',
+          tagKeyword: 'Mailing Liseth',
+          limit: '',
+          offset: '',
+        },
+        created_at: '2026-10-30T12:25:00.000Z'
+      },
       {
         id: 'aud_mailing_alex_ineditos_huesca_cuenca_barcelona_2026',
         name: '🚀 Mailing Alex - Inéditos Huesca, Cuenca & Barcelona (460 leads)',
@@ -2635,14 +2773,15 @@ export function CampaignsPage() {
             });
           }
 
-          // Strict isolation: Wiseowe must ONLY have French audiences, NEVER Alex, Luminous, Triangulo, or Spanish presets
+          // Strict isolation: Wiseowe must ONLY have French audiences or Liseth audiences, NEVER Alex, Luminous, Triangulo, or other Spanish presets
           if (isWiseowe) {
             customOnly = customOnly.filter((p: any) => {
               const nameLower = (p.name || '').toLowerCase();
               const tagLower = (p.filters?.tagKeyword || '').toLowerCase();
               const isFrench = nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('FR'));
-              const isAlexOrSpain = nameLower.includes('alex') || nameLower.includes('espanha') || tagLower.includes('alex') || nameLower.includes('asturias') || nameLower.includes('álava') || nameLower.includes('lote') || nameLower.includes('comercial 3') || nameLower.includes('stocco') || nameLower.includes('captación') || nameLower.includes('rosa') || nameLower.includes('vip') || nameLower.includes('médias');
-              return isFrench && !isAlexOrSpain;
+              const isLiseth = nameLower.includes('liseth') || nameLower.includes('lizeth') || tagLower.includes('liseth') || tagLower.includes('lizeth');
+              const isAlexOrSpain = nameLower.includes('alex') || tagLower.includes('alex') || nameLower.includes('asturias') || nameLower.includes('álava') || nameLower.includes('comercial 3') || nameLower.includes('stocco') || nameLower.includes('captación') || nameLower.includes('rosa') || nameLower.includes('vip') || nameLower.includes('médias');
+              return (isFrench || isLiseth) && !isAlexOrSpain;
             });
           }
 
@@ -2650,7 +2789,9 @@ export function CampaignsPage() {
           if (isWiseowe) {
             merged = merged.filter((p: any) => {
               const nameLower = (p.name || '').toLowerCase();
-              return (nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('FR'))) && !nameLower.includes('alex') && !nameLower.includes('espanha') && !nameLower.includes('lote');
+              const tagLower = (p.filters?.tagKeyword || '').toLowerCase();
+              const isLiseth = nameLower.includes('liseth') || nameLower.includes('lizeth') || tagLower.includes('liseth') || tagLower.includes('lizeth');
+              return (isLiseth || nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('FR'))) && !nameLower.includes('alex');
             });
           }
 
@@ -3103,6 +3244,25 @@ export function CampaignsPage() {
           if (data.length < step) hasMore = false;
         } else {
           hasMore = false;
+        }
+      }
+
+      // Also include Liseth's tagged leads when viewing Wiseowe or Luminous so cross-company leads resolve
+      if (isWiseowe || isLuminous) {
+        const { data: lisethData } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes')
+          .contains('tags', ['Mailing Liseth']);
+
+        if (lisethData && lisethData.length > 0) {
+          const existingIds = new Set(allFetchedLeads.map(l => l.id));
+          for (const row of lisethData) {
+            if (!existingIds.has(row.id)) {
+              allFetchedLeads.push(row);
+              existingIds.add(row.id);
+            }
+          }
         }
       }
 
