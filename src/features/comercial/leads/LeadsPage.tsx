@@ -8,8 +8,6 @@ import { detectLeadCountry, COUNTRY_LABELS } from './utils/leadCountryUtils';
 import {
   loadAllMarketingAudiences,
   doesLeadMatchAudience,
-  doesLeadMatchVendedor,
-  VENDEDOR_CATEGORIES,
 } from './utils/marketingAudiences';
 import { useKanbanStages } from './hooks/useKanban';
 import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
@@ -839,8 +837,7 @@ export function LeadsPage() {
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
   const [selectedWebsiteFilter, setSelectedWebsiteFilter] = useState<'all' | 'with_web' | 'no_web'>('all');
 
-  // Audience / Público de Campanha (Por Vendedor) Filters
-  const [selectedVendedor, setSelectedVendedor] = useState<string>('all');
+  // Audience / Público de Campanha Filter
   const [selectedAudienceId, setSelectedAudienceId] = useState<string>('all');
   const [isAudienceDropdownOpen, setIsAudienceDropdownOpen] = useState<boolean>(false);
   const [audienceSearchQuery, setAudienceSearchQuery] = useState<string>('');
@@ -855,57 +852,26 @@ export function LeadsPage() {
   }, [allMarketingAudiences, selectedAudienceId]);
 
   const visibleAudiencesForDropdown = useMemo(() => {
-    let list = allMarketingAudiences;
-    if (selectedVendedor !== 'all') {
-      list = list.filter((a) => a.vendedor === selectedVendedor);
-    }
-    if (audienceSearchQuery.trim()) {
-      const q = audienceSearchQuery.toLowerCase().trim();
-      list = list.filter(
-        (a) =>
-          a.name.toLowerCase().includes(q) ||
-          a.vendedor.toLowerCase().includes(q) ||
-          (a.filters?.tagKeyword || '').toLowerCase().includes(q)
-      );
-    }
-    return list;
-  }, [allMarketingAudiences, selectedVendedor, audienceSearchQuery]);
-
-  const handleSelectVendedorFilter = (vendedor: string) => {
-    setSelectedVendedor(vendedor);
-    if (selectedAudienceId !== 'all') {
-      const currentAud = allMarketingAudiences.find((a) => a.id === selectedAudienceId);
-      if (vendedor !== 'all' && currentAud && currentAud.vendedor !== vendedor) {
-        setSelectedAudienceId('all');
-      }
-    }
-    if (vendedor === 'Omar') {
-      if (selectedCountry !== 'FR' && selectedCountry !== 'all') setSelectedCountry('FR');
-    } else if (vendedor === 'Giada') {
-      if (selectedCountry !== 'IT' && selectedCountry !== 'all') setSelectedCountry('IT');
-    } else if (vendedor === 'Alex' || vendedor === 'Michelle' || vendedor === 'Rosa') {
-      if (selectedCountry !== 'ES' && selectedCountry !== 'all') setSelectedCountry('ES');
-    }
-  };
+    if (!audienceSearchQuery.trim()) return allMarketingAudiences;
+    const q = audienceSearchQuery.toLowerCase().trim();
+    return allMarketingAudiences.filter(
+      (a) =>
+        a.name.toLowerCase().includes(q) ||
+        (a.filters?.tagKeyword || '').toLowerCase().includes(q)
+    );
+  }, [allMarketingAudiences, audienceSearchQuery]);
 
   const handleSelectAudienceFilter = (audId: string) => {
     setSelectedAudienceId(audId);
     setIsAudienceDropdownOpen(false);
-    if (audId === 'all') return;
-    const aud = allMarketingAudiences.find((a) => a.id === audId);
-    if (!aud) return;
-    const audCountries = aud.filters?.selectedCountries || [];
-    if (audCountries.length === 1) {
-      const targetC = audCountries[0];
-      if (['ES', 'FR', 'PT', 'IT', 'DE', 'NL', 'BE', 'GB'].includes(targetC)) {
-        if (selectedCountry !== 'all' && selectedCountry !== targetC) {
-          setSelectedCountry(targetC);
-        }
-      } else {
-        setSelectedCountry('all');
-      }
-    } else if (audCountries.length > 1) {
+    if (audId !== 'all') {
+      // Remove country/sector locks so all leads belonging to the selected audience appear immediately
       setSelectedCountry('all');
+      setSelectedSector('all');
+      setSelectedCompanySize('all');
+      setSelectedRegion('all');
+      setSelectedProvince('all');
+      setSelectedWebsiteFilter('all');
     }
   };
 
@@ -921,7 +887,7 @@ export function LeadsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedCountry, selectedSector, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, selectedVendedor, selectedAudienceId, sortField, sortDirection, pageSize]);
+  }, [searchTerm, selectedCountry, selectedSector, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, selectedAudienceId, sortField, sortDirection, pageSize]);
 
   const countryLabels = COUNTRY_LABELS;
 
@@ -950,15 +916,14 @@ export function LeadsPage() {
     return counts;
   }, [leads]);
 
-  // Leads scoped to the currently selected country, vendedor & audience
+  // Leads scoped to the currently selected country & audience
   const countryFilteredBaseLeads = useMemo(() => {
     return leads.filter((l) => {
-      if (selectedCountry !== 'all' && detectLeadCountry(l) !== selectedCountry) return false;
       if (activeAudience && !doesLeadMatchAudience(l, activeAudience)) return false;
-      if (!activeAudience && selectedVendedor !== 'all' && !doesLeadMatchVendedor(l, selectedVendedor)) return false;
+      if (!activeAudience && selectedCountry !== 'all' && detectLeadCountry(l) !== selectedCountry) return false;
       return true;
     });
-  }, [leads, selectedCountry, activeAudience, selectedVendedor]);
+  }, [leads, selectedCountry, activeAudience]);
 
   // Sector counts scoped dynamically to active country filter
   const sectorCounts = useMemo(() => {
@@ -1038,11 +1003,10 @@ export function LeadsPage() {
   const filteredLeads = useMemo(() => {
     return leads.filter((lead: any) => {
       if (activeAudience && !doesLeadMatchAudience(lead, activeAudience)) return false;
-      if (!activeAudience && selectedVendedor !== 'all' && !doesLeadMatchVendedor(lead, selectedVendedor)) return false;
 
       const leadNormSector = normalizeSectorName(lead.sector);
       if (selectedSector !== 'all' && leadNormSector !== selectedSector) return false;
-      if (selectedCountry !== 'all' && detectLeadCountry(lead) !== selectedCountry) return false;
+      if (!activeAudience && selectedCountry !== 'all' && detectLeadCountry(lead) !== selectedCountry) return false;
       if (selectedCompanySize !== 'all') {
         const sizeStr = lead.company_size || '';
         const inTags = Array.isArray(lead.tags) && lead.tags.includes(selectedCompanySize);
@@ -1073,7 +1037,7 @@ export function LeadsPage() {
         (Array.isArray(lead.tags) && lead.tags.some((t: string) => t.toLowerCase().includes(search)))
       );
     });
-  }, [leads, activeAudience, selectedVendedor, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
+  }, [leads, activeAudience, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
 
   const sortedLeads = useMemo(() => {
     return [...filteredLeads].sort((a, b) => {
@@ -1165,303 +1129,229 @@ export function LeadsPage() {
       const cleanName = activeAudience.name.replace(/^[^\w\dÀ-ÿ]+/, '').trim();
       return `Fila: ${cleanName} - ${dateStr}`;
     }
-    if (selectedVendedor !== 'all') {
-      return `Fila: Públicos ${selectedVendedor} - ${dateStr}`;
-    }
     return `Fila de Prospecção - ${dateStr}`;
-  }, [activeAudience, selectedVendedor]);
+  }, [activeAudience]);
 
   return (
-    <div className="flex flex-col space-y-6 p-4">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <UserPlus className="h-8 w-8 text-yellow-500" />
+    <div className="flex flex-col space-y-2.5 p-3">
+      {/* Compact Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-yellow-500" />
             {t('comercial.leads.title')}
           </h1>
-          <p className="text-muted-foreground">
-            {t('comercial.leads.subtitle')}
-          </p>
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30">
+            {filteredLeads.length} leads
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          {/* Power Dialer Main Action */}
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
           <Button 
+            size="sm"
             onClick={() => navigate('/comercial/discador')}
-            className="bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-md shadow-blue-900/30 gap-2 border-0"
+            className="h-8 text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-500 hover:from-blue-500 hover:to-indigo-500 text-white font-bold shadow-sm gap-1.5 border-0"
           >
-            <Phone className="h-4 w-4" />
-            Cockpit Discador (Power Dialer)
+            <Phone className="h-3.5 w-3.5" />
+            Cockpit Discador
           </Button>
 
           {selectedLeadIds.length > 0 && (
             <Button 
+              size="sm"
               onClick={() => setIsDialerModalOpen(true)}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-lg shadow-emerald-900/40 gap-2 animate-pulse"
+              className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md gap-1.5 animate-pulse"
             >
-              <Zap className="h-4 w-4" />
+              <Zap className="h-3.5 w-3.5" />
               Criar Fila de Discagem ({selectedLeadIds.length})
             </Button>
           )}
 
-          <Button onClick={handleExportExcel} variant="outline" className="border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold shadow-sm">
-            <Download className="mr-2 h-4 w-4" />
+          <Button size="sm" onClick={handleExportExcel} variant="outline" className="h-8 text-xs border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
+            <Download className="mr-1.5 h-3.5 w-3.5" />
             Exportar Excel ({filteredLeads.length})
           </Button>
-          <Button onClick={handleCopyNewLeadLink} variant="outline" className="border-slate-300 dark:border-slate-800">
-            <Share2 className="mr-2 h-4 w-4 text-yellow-500" />
-            Link de Cadastro
+          <Button size="sm" onClick={handleCopyNewLeadLink} variant="outline" className="h-8 text-xs border-slate-300 dark:border-slate-800">
+            <Share2 className="mr-1.5 h-3.5 w-3.5 text-yellow-500" />
+            Link Cadastro
           </Button>
-          <Button onClick={handleCopyNewBudgetLink} variant="outline" className="border-slate-300 dark:border-slate-800">
-            <Share2 className="mr-2 h-4 w-4 text-orange-500" />
-            Link Solicitação Orçamento
+          <Button size="sm" onClick={handleCopyNewBudgetLink} variant="outline" className="h-8 text-xs border-slate-300 dark:border-slate-800">
+            <Share2 className="mr-1.5 h-3.5 w-3.5 text-orange-500" />
+            Link Orçamento
           </Button>
-          <Button onClick={() => setIsImportOpen(true)} variant="outline" className="border-slate-300 dark:border-slate-800">
-            <FileSpreadsheet className="mr-2 h-4 w-4 text-yellow-500" />
+          <Button size="sm" onClick={() => setIsImportOpen(true)} variant="outline" className="h-8 text-xs border-slate-300 dark:border-slate-800">
+            <FileSpreadsheet className="mr-1.5 h-3.5 w-3.5 text-yellow-500" />
             Importar Planilha
           </Button>
-          <Button onClick={handleOpenCreate} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold shadow-lg shadow-yellow-500/10">
-            <Plus className="mr-2 h-4 w-4" />
+          <Button size="sm" onClick={handleOpenCreate} className="h-8 text-xs bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
             {t('comercial.leads.btnNew')}
           </Button>
         </div>
       </div>
 
-      {/* Bulk Selection Quick Toolbar (When filtering leads) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-slate-900/60 dark:bg-slate-900/90 border border-slate-800 rounded-xl">
-        <div className="flex items-center gap-2 text-xs text-slate-300">
-          <Phone className="w-4 h-4 text-blue-400 shrink-0" />
-          <span className="font-semibold">Seleção Rápida para Prospecção:</span>
-          {selectedLeadIds.length > 0 ? (
-            <span className="font-bold text-emerald-400">
-              {selectedLeadIds.length} selecionados
-            </span>
-          ) : (
-            <span className="text-slate-400">Nenhum selecionado</span>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap text-xs">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleSelectFirstN(50)}
-            className="h-7 text-xs bg-slate-950 border-slate-700 hover:bg-slate-800 text-slate-200"
-          >
-            Selecionar 50
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => handleSelectFirstN(100)}
-            className="h-7 text-xs bg-slate-950 border-slate-700 hover:bg-slate-800 text-slate-200"
-          >
-            Selecionar 100
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleSelectAllFiltered}
-            className="h-7 text-xs bg-slate-950 border-slate-700 hover:bg-slate-800 text-slate-200"
-          >
-            Selecionar Todos ({filteredLeads.length})
-          </Button>
-          {selectedLeadIds.length > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleClearSelection}
-              className="h-7 text-xs text-slate-400 hover:text-red-400"
-            >
-              Limpar
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Country Selection Header Tabs (Separar por País) */}
-      <div className="flex items-center justify-between gap-3 flex-wrap bg-card/60 p-2.5 rounded-xl border">
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          <Globe className="w-4 h-4 text-yellow-500" />
-          <span>Filtrar Base por País:</span>
-        </div>
+      {/* Unified Compact Bar: Country Tabs (Left) + Selection & Público Queue Generator (Right Corner) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-card/80 px-3 py-2 rounded-xl border shadow-2xs">
+        {/* Country Pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
-            onClick={() => setSelectedCountry('ES')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-              selectedCountry === 'ES'
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+            onClick={() => {
+              setSelectedAudienceId('all');
+              setSelectedCountry('ES');
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              selectedCountry === 'ES' && !activeAudience
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
                 : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
             }`}
           >
             <span>🇪🇸</span>
             <span>Espanha</span>
-            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
               {countryCounts.ES}
             </span>
           </button>
 
           <button
             type="button"
-            onClick={() => setSelectedCountry('FR')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-              selectedCountry === 'FR'
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+            onClick={() => {
+              setSelectedAudienceId('all');
+              setSelectedCountry('FR');
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              selectedCountry === 'FR' && !activeAudience
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
                 : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
             }`}
           >
             <span>🇫🇷</span>
             <span>França</span>
-            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
               {countryCounts.FR}
             </span>
           </button>
 
           <button
             type="button"
-            onClick={() => setSelectedCountry('PT')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-              selectedCountry === 'PT'
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+            onClick={() => {
+              setSelectedAudienceId('all');
+              setSelectedCountry('PT');
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              selectedCountry === 'PT' && !activeAudience
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
                 : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
             }`}
           >
             <span>🇵🇹</span>
             <span>Portugal</span>
-            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
               {countryCounts.PT}
             </span>
           </button>
 
           <button
             type="button"
-            onClick={() => setSelectedCountry('IT')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-              selectedCountry === 'IT'
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+            onClick={() => {
+              setSelectedAudienceId('all');
+              setSelectedCountry('IT');
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              selectedCountry === 'IT' && !activeAudience
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
                 : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
             }`}
           >
             <span>🇮🇹</span>
             <span>Itália</span>
-            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
               {countryCounts.IT}
             </span>
           </button>
 
           <button
             type="button"
-            onClick={() => setSelectedCountry('all')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-              selectedCountry === 'all'
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40 shadow-yellow-500/20'
+            onClick={() => {
+              setSelectedAudienceId('all');
+              setSelectedCountry('all');
+            }}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              selectedCountry === 'all' && !activeAudience
+                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
                 : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
             }`}
           >
             <span>🌐</span>
-            <span>Todos os Países</span>
-            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-              {countryCounts.total}
-            </span>
+            <span>Todos ({countryCounts.total})</span>
           </button>
         </div>
-      </div>
 
-      {/* Filtro por Públicos de Campanhas de E-mail & Vendedor */}
-      <div className="flex flex-col gap-3 bg-gradient-to-r from-amber-500/5 via-card to-blue-500/5 p-3.5 rounded-xl border border-amber-500/30 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-foreground uppercase tracking-wider">
-            <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>Filtrar por Públicos de Campanhas de E-mail (Por Vendedor):</span>
-          </div>
-
-          {/* Quick 1-click button to generate Work Queue from the filtered audience/vendedor */}
-          {(selectedAudienceId !== 'all' || selectedVendedor !== 'all') && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 rounded-lg">
-                🎯 {filteredLeads.length} leads no público filtrado
+        {/* Right Corner: Quick Selection + Searchable Público Filter + Generate Queue */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Quick Selection Buttons */}
+          <div className="flex items-center gap-1.5 text-xs">
+            {selectedLeadIds.length > 0 && (
+              <span className="font-bold text-emerald-500 text-xs mr-1">
+                {selectedLeadIds.length} selecionados
               </span>
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleGenerateQueueFromFiltered}
-                className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md shadow-emerald-900/30 gap-1.5"
-              >
-                <Zap className="w-3.5 h-3.5" />
-                Gerar Fila de Trabalho deste Público ({selectedLeadIds.length > 0 ? selectedLeadIds.length : filteredLeads.filter((l) => !l.do_not_call).length})
-              </Button>
+            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleSelectFirstN(50)}
+              className="h-7 px-2 text-[11px]"
+            >
+              Sel. 50
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => handleSelectFirstN(100)}
+              className="h-7 px-2 text-[11px]"
+            >
+              Sel. 100
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSelectAllFiltered}
+              className="h-7 px-2 text-[11px]"
+            >
+              Sel. Todos ({filteredLeads.length})
+            </Button>
+            {selectedLeadIds.length > 0 && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setSelectedAudienceId('all');
-                  setSelectedVendedor('all');
-                }}
-                className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1 px-2"
+                onClick={handleClearSelection}
+                className="h-7 px-2 text-[11px] text-muted-foreground hover:text-red-500"
               >
-                <X className="w-3.5 h-3.5" />
-                Limpar Público
+                Limpar
               </Button>
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-          {/* Salesperson (Vendedor) Quick Pills */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {VENDEDOR_CATEGORIES.map((vc) => {
-              const isActive = selectedVendedor === vc.id;
-              const countForVendedor =
-                vc.id === 'all'
-                  ? allMarketingAudiences.length
-                  : allMarketingAudiences.filter((a) => a.vendedor === vc.id).length;
-              if (vc.id === 'Personalizados' && countForVendedor === 0) return null;
-              return (
-                <button
-                  key={vc.id}
-                  type="button"
-                  onClick={() => handleSelectVendedorFilter(vc.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-sm font-bold'
-                      : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  <span>{vc.flag}</span>
-                  <span>{vc.label}</span>
-                  <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-                    {countForVendedor}
-                  </span>
-                </button>
-              );
-            })}
+            )}
           </div>
 
-          {/* Searchable Público de Campanha Combobox */}
-          <div className="relative min-w-[300px] sm:min-w-[380px] lg:w-[440px]">
+          {/* Searchable Público Selector in the Corner */}
+          <div className="relative min-w-[260px] sm:min-w-[310px]">
             <button
               type="button"
               onClick={() => setIsAudienceDropdownOpen((prev) => !prev)}
-              className={`w-full h-9 px-3 rounded-lg border text-xs font-semibold flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+              className={`w-full h-8 px-2.5 rounded-lg border text-xs font-semibold flex items-center justify-between gap-2 transition-colors cursor-pointer ${
                 selectedAudienceId !== 'all'
-                  ? 'bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-300 shadow-sm'
+                  ? 'bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-300 shadow-2xs'
                   : 'bg-background border-input text-foreground hover:border-amber-500/50'
               }`}
             >
-              <div className="flex items-center gap-2 truncate">
-                <Users className="w-4 h-4 text-amber-500 shrink-0" />
+              <div className="flex items-center gap-1.5 truncate">
+                <Users className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 <span className="truncate">
                   {activeAudience
-                    ? `${activeAudience.name} (${filteredLeads.length} leads)`
-                    : selectedVendedor !== 'all'
-                    ? `Todos os Públicos de ${selectedVendedor} (${visibleAudiencesForDropdown.length} públicos)`
-                    : `Selecionar Público de Campanha de E-mail (${allMarketingAudiences.length} públicos)...`}
+                    ? `${activeAudience.name} (${filteredLeads.length})`
+                    : '🎯 Filtrar por Público Criado...'}
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -1472,12 +1362,12 @@ export function LeadsPage() {
                       setSelectedAudienceId('all');
                     }}
                     className="p-0.5 rounded hover:bg-amber-500/20 text-muted-foreground hover:text-destructive"
-                    title="Limpar público selecionado"
+                    title="Limpar público"
                   >
                     <X className="w-3.5 h-3.5" />
                   </span>
                 )}
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
               </div>
             </button>
 
@@ -1487,11 +1377,11 @@ export function LeadsPage() {
                   className="fixed inset-0 z-40"
                   onClick={() => setIsAudienceDropdownOpen(false)}
                 />
-                <div className="absolute right-0 left-0 top-full mt-1.5 bg-card border border-border rounded-xl shadow-2xl z-50 p-2.5 space-y-2 max-h-96 flex flex-col">
+                <div className="absolute right-0 top-full mt-1.5 w-[360px] sm:w-[420px] bg-card border border-border rounded-xl shadow-2xl z-50 p-2.5 space-y-2 max-h-96 flex flex-col">
                   <div className="relative">
                     <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-2.5" />
                     <Input
-                      placeholder="Buscar público por nome, vendedor, região ou tag..."
+                      placeholder="Buscar público criado (ex: Liseth, Omar, Alex, Giada)..."
                       value={audienceSearchQuery}
                       onChange={(e) => setAudienceSearchQuery(e.target.value)}
                       className="h-8 pl-8 pr-7 text-xs"
@@ -1512,15 +1402,13 @@ export function LeadsPage() {
                     <button
                       type="button"
                       onClick={() => handleSelectAudienceFilter('all')}
-                      className={`w-full text-left px-2.5 py-2 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition-colors cursor-pointer ${
                         selectedAudienceId === 'all'
                           ? 'bg-amber-500/15 text-amber-900 dark:text-amber-300 font-bold'
                           : 'hover:bg-muted text-foreground'
                       }`}
                     >
-                      <span>
-                        🌐 {selectedVendedor !== 'all' ? `Todos os Públicos de ${selectedVendedor}` : 'Todos os Públicos (Sem filtro de campanha)'}
-                      </span>
+                      <span>🌐 Todos os Leads (Sem filtro de público)</span>
                     </button>
 
                     {visibleAudiencesForDropdown.length === 0 ? (
@@ -1541,17 +1429,7 @@ export function LeadsPage() {
                                 : 'hover:bg-muted text-foreground'
                             }`}
                           >
-                            <div className="flex flex-col min-w-0">
-                              <span className="truncate">{aud.name}</span>
-                              <span className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                                <span className="font-semibold text-amber-600 dark:text-amber-400">
-                                  Vendedor: {aud.vendedor}
-                                </span>
-                                {aud.filters?.tagKeyword && (
-                                  <span className="truncate">• Tag: {aud.filters.tagKeyword}</span>
-                                )}
-                              </span>
-                            </div>
+                            <span className="truncate">{aud.name}</span>
                             {aud.leadCount !== undefined && (
                               <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
                                 {aud.leadCount} leads
@@ -1566,141 +1444,29 @@ export function LeadsPage() {
               </>
             )}
           </div>
+
+          {/* 1-Click Generate Work Queue Button */}
+          {selectedAudienceId !== 'all' && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleGenerateQueueFromFiltered}
+              className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-sm gap-1.5"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Gerar Fila do Público ({selectedLeadIds.length > 0 ? selectedLeadIds.length : filteredLeads.filter((l) => !l.do_not_call).length})
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Premium Executive KPI Dashboard Cards (Clickable Bento Grid) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* Total Base */}
-        <div 
-          onClick={() => setSelectedSector('all')}
-          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
-            selectedSector === 'all' 
-              ? 'bg-amber-500/10 border-amber-500 ring-2 ring-amber-500/30' 
-              : 'bg-card hover:bg-muted/50 border-border hover:border-amber-500/50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              {selectedCountry === 'all' ? 'Base CRM' : `Base (${COUNTRY_LABELS[selectedCountry]?.flag || ''} ${selectedCountry})`}
-            </span>
-            <Building2 className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold text-foreground">{sectorCounts.total}</div>
-          <div className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1 font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span>
-            {selectedCountry === 'all' ? 'Ver Todos os Leads' : `Leads em ${COUNTRY_LABELS[selectedCountry]?.name || selectedCountry}`}
-          </div>
-        </div>
-
-        {/* Naval */}
-        <div 
-          onClick={() => setSelectedSector('Construção & Reparação Naval')}
-          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
-            selectedSector === 'Construção & Reparação Naval' 
-              ? 'bg-blue-500/10 border-blue-500 ring-2 ring-blue-500/30' 
-              : 'bg-card hover:bg-muted/50 border-border hover:border-blue-500/50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Naval</span>
-            <Ship className="w-4 h-4 text-blue-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold text-blue-600 dark:text-blue-400">{sectorCounts.naval}</div>
-          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
-            <span>Astilleros & 6G</span>
-            <span className="text-blue-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.naval / sectorCounts.total) * 100) : 0}%</span>
-          </div>
-        </div>
-
-        {/* Calderería */}
-        <div 
-          onClick={() => setSelectedSector('Calderería & Tubería Industrial')}
-          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
-            selectedSector === 'Calderería & Tubería Industrial' 
-              ? 'bg-amber-600/10 border-amber-600 ring-2 ring-amber-600/30' 
-              : 'bg-card hover:bg-muted/50 border-border hover:border-amber-600/50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Calderería</span>
-            <Flame className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">{sectorCounts.caldereria}</div>
-          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
-            <span>Tubería Pesada</span>
-            <span className="text-amber-600 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.caldereria / sectorCounts.total) * 100) : 0}%</span>
-          </div>
-        </div>
-
-        {/* Estructuras */}
-        <div 
-          onClick={() => setSelectedSector('Estructuras Metálicas & Montajes')}
-          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
-            selectedSector === 'Estructuras Metálicas & Montajes' 
-              ? 'bg-emerald-500/10 border-emerald-500 ring-2 ring-emerald-500/30' 
-              : 'bg-card hover:bg-muted/50 border-border hover:border-emerald-500/50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Estructuras</span>
-            <Layers className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">{sectorCounts.estructuras}</div>
-          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
-            <span>Talleres & Montajes</span>
-            <span className="text-emerald-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.estructuras / sectorCounts.total) * 100) : 0}%</span>
-          </div>
-        </div>
-
-        {/* Química */}
-        <div 
-          onClick={() => setSelectedSector('Industria Química & Petroquímica')}
-          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
-            selectedSector === 'Industria Química & Petroquímica' 
-              ? 'bg-purple-500/10 border-purple-500 ring-2 ring-purple-500/30' 
-              : 'bg-card hover:bg-muted/50 border-border hover:border-purple-500/50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Química</span>
-            <FlaskConical className="w-4 h-4 text-purple-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold text-purple-600 dark:text-purple-400">{sectorCounts.quimica}</div>
-          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
-            <span>Paradas de Planta</span>
-            <span className="text-purple-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.quimica / sectorCounts.total) * 100) : 0}%</span>
-          </div>
-        </div>
-
-        {/* Industrial Geral */}
-        <div 
-          onClick={() => setSelectedSector('Industrial Geral')}
-          className={`p-4 rounded-xl border transition-all duration-200 cursor-pointer shadow-sm relative overflow-hidden ${
-            selectedSector === 'Industrial Geral' 
-              ? 'bg-slate-500/10 border-slate-500 ring-2 ring-slate-500/30' 
-              : 'bg-card hover:bg-muted/50 border-border hover:border-slate-500/50'
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Geral</span>
-            <Factory className="w-4 h-4 text-slate-500" />
-          </div>
-          <div className="mt-2 text-2xl font-bold text-slate-700 dark:text-slate-300">{sectorCounts.geral}</div>
-          <div className="text-[11px] text-muted-foreground mt-1 flex items-center justify-between font-medium">
-            <span>Indústria Geral</span>
-            <span className="text-slate-500 font-bold">{sectorCounts.total > 0 ? Math.round((sectorCounts.geral / sectorCounts.total) * 100) : 0}%</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Filters Bar: Search, Country & Sector Filters */}
-      <div className="flex flex-col md:flex-row items-center gap-3 bg-card border p-3.5 rounded-xl shadow-sm justify-between">
-        <div className="relative flex-1 w-full max-w-md">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+      {/* Compact Filters Bar: Search, Country, Sector, Size, Region, Province & Website */}
+      <div className="flex flex-col md:flex-row items-center gap-2 bg-card border px-3 py-2 rounded-xl shadow-2xs justify-between">
+        <div className="relative flex-1 w-full max-w-sm">
+          <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder={t('comercial.leads.searchPlaceholder')}
-            className="pl-10 pr-9 h-9 text-xs focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
+            className="pl-8 pr-8 h-8 text-xs focus-visible:ring-yellow-500 focus-visible:border-yellow-500"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -1708,24 +1474,23 @@ export function LeadsPage() {
             <button
               type="button"
               onClick={() => setSearchTerm('')}
-              className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground p-0.5 rounded-full transition-colors"
+              className="absolute right-2 top-2 text-muted-foreground hover:text-foreground p-0.5 rounded-full transition-colors"
               title="Limpar pesquisa"
             >
-              <X className="h-4 w-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
 
-        <div className="flex items-center gap-3 w-full md:w-auto flex-wrap sm:flex-nowrap">
+        <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           {/* Country Filter Dropdown */}
-          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-            <Globe className="w-4 h-4 text-blue-500 shrink-0" />
+          <div className="flex items-center gap-1 w-full sm:w-auto">
             <Select value={selectedCountry} onValueChange={setSelectedCountry}>
-              <SelectTrigger className="w-full sm:w-44 h-9 text-xs font-semibold focus-visible:ring-blue-500">
+              <SelectTrigger className="w-full sm:w-36 h-8 text-xs font-semibold">
                 <SelectValue placeholder="Todos os Países" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">🌐 Todos Países ({leads.length})</SelectItem>
+                <SelectItem value="all">🌐 Todos ({leads.length})</SelectItem>
                 <SelectItem value="ES">🇪🇸 Espanha ({countryCounts.ES})</SelectItem>
                 <SelectItem value="PT">🇵🇹 Portugal ({countryCounts.PT})</SelectItem>
                 <SelectItem value="FR">🇫🇷 França ({countryCounts.FR})</SelectItem>
@@ -1740,10 +1505,9 @@ export function LeadsPage() {
           </div>
 
           {/* Sector Filter Dropdown */}
-          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-            <Filter className="w-4 h-4 text-yellow-500 shrink-0" />
+          <div className="flex items-center gap-1 w-full sm:w-auto">
             <Select value={selectedSector} onValueChange={setSelectedSector}>
-              <SelectTrigger className="w-full sm:w-52 h-9 text-xs font-semibold focus-visible:ring-yellow-500">
+              <SelectTrigger className="w-full sm:w-44 h-8 text-xs font-semibold">
                 <SelectValue placeholder="Todos os Setores" />
               </SelectTrigger>
               <SelectContent>
@@ -1758,10 +1522,9 @@ export function LeadsPage() {
           </div>
 
           {/* Company Size Tier Filter */}
-          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-            <Building2 className="w-4 h-4 text-purple-500 shrink-0" />
+          <div className="flex items-center gap-1 w-full sm:w-auto">
             <Select value={selectedCompanySize} onValueChange={setSelectedCompanySize}>
-              <SelectTrigger className="w-full sm:w-48 h-9 text-xs font-semibold focus-visible:ring-purple-500">
+              <SelectTrigger className="w-full sm:w-40 h-8 text-xs font-semibold">
                 <SelectValue placeholder="Porte da Empresa" />
               </SelectTrigger>
               <SelectContent>
@@ -1776,10 +1539,9 @@ export function LeadsPage() {
           </div>
 
           {/* Region / Autonomous Community Filter */}
-          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-            <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-1 w-full sm:w-auto">
             <Select value={selectedRegion} onValueChange={setSelectedRegion}>
-              <SelectTrigger className="w-full sm:w-48 h-9 text-xs font-semibold focus-visible:ring-emerald-500">
+              <SelectTrigger className="w-full sm:w-40 h-8 text-xs font-semibold">
                 <SelectValue placeholder="Comunidade / Região" />
               </SelectTrigger>
               <SelectContent>
@@ -1795,10 +1557,9 @@ export function LeadsPage() {
 
           {/* Province Filter */}
           {availableProvinces.length > 0 && (
-            <div className="flex items-center gap-1.5 w-full sm:w-auto">
-              <Layers className="w-4 h-4 text-cyan-500 shrink-0" />
+            <div className="flex items-center gap-1 w-full sm:w-auto">
               <Select value={selectedProvince} onValueChange={setSelectedProvince}>
-                <SelectTrigger className="w-full sm:w-44 h-9 text-xs font-semibold focus-visible:ring-cyan-500">
+                <SelectTrigger className="w-full sm:w-40 h-8 text-xs font-semibold">
                   <SelectValue placeholder="Província" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1814,10 +1575,9 @@ export function LeadsPage() {
           )}
 
           {/* Website Filter Dropdown */}
-          <div className="flex items-center gap-1.5 w-full sm:w-auto">
-            <Globe className="w-4 h-4 text-indigo-500 shrink-0" />
+          <div className="flex items-center gap-1 w-full sm:w-auto">
             <Select value={selectedWebsiteFilter} onValueChange={(val: any) => setSelectedWebsiteFilter(val)}>
-              <SelectTrigger className="w-full sm:w-40 h-9 text-xs font-semibold focus-visible:ring-indigo-500">
+              <SelectTrigger className="w-full sm:w-36 h-8 text-xs font-semibold">
                 <SelectValue placeholder="Status Website" />
               </SelectTrigger>
               <SelectContent>
@@ -1829,7 +1589,7 @@ export function LeadsPage() {
           </div>
 
           {/* Quick Clear All Filters button */}
-          {(searchTerm || selectedSector !== 'all' || selectedCompanySize !== 'all' || selectedRegion !== 'all' || selectedProvince !== 'all' || selectedWebsiteFilter !== 'all' || selectedVendedor !== 'all' || selectedAudienceId !== 'all') && (
+          {(searchTerm || selectedSector !== 'all' || selectedCompanySize !== 'all' || selectedRegion !== 'all' || selectedProvince !== 'all' || selectedWebsiteFilter !== 'all' || selectedAudienceId !== 'all') && (
             <Button
               type="button"
               variant="ghost"
@@ -1841,10 +1601,9 @@ export function LeadsPage() {
                 setSelectedRegion('all');
                 setSelectedProvince('all');
                 setSelectedWebsiteFilter('all');
-                setSelectedVendedor('all');
                 setSelectedAudienceId('all');
               }}
-              className="h-9 text-xs text-muted-foreground hover:text-destructive gap-1.5 px-3 shrink-0"
+              className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1 px-2 shrink-0"
               title="Limpar todos os filtros da busca"
             >
               <X className="h-3.5 w-3.5" />
@@ -1884,8 +1643,8 @@ export function LeadsPage() {
         </div>
       ) : (
         <div className="bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
-          {/* Scrollable table container with mouse-wheel scroll & sticky header */}
-          <div className="overflow-auto max-h-[620px] relative scrollbar-thin">
+          {/* Scrollable table container with large viewport height */}
+          <div className="overflow-auto max-h-[calc(100vh-215px)] min-h-[500px] relative scrollbar-thin">
             <table className="w-full text-sm">
               <thead className="border-b bg-slate-50 dark:bg-slate-900 sticky top-0 z-20 shadow-sm">
                 <tr>
@@ -3245,7 +3004,6 @@ export function LeadsPage() {
         selectedLeadIds={selectedLeadIds}
         selectedCount={selectedLeadIds.length}
         defaultTitle={dialerDefaultTitle}
-        defaultVendedorHint={activeAudience?.vendedor || selectedVendedor}
       />
     </div>
   );
