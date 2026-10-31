@@ -9,10 +9,12 @@ import type { Lead } from '../../estimaciones/types';
 export type CommercialOwnerKey = 'alex' | 'alba' | 'liseth' | 'fatumata';
 
 export interface CommercialOperatorProfile {
+  key: CommercialOwnerKey;
   ownerKey: CommercialOwnerKey;
   userId: string;
   email: string;
   name: string;
+  displayName: string;
   shortName: string;
   empresaId: string;
   empresaCode: 'LUM' | 'TRI' | 'WIS';
@@ -20,17 +22,21 @@ export interface CommercialOperatorProfile {
   country: 'ES' | 'FR';
   flag: string;
   language: 'es' | 'fr';
-  commercialEmail: string;
+  commercialEmail: string;       // E-mail Corporativo M365 / Outlook & Reply-To
+  marketingSenderEmail: string;  // E-mail Remetente de Campanhas (Subdomínio Resend)
+  senderBrandName: string;       // Nome de exibição nos disparos de e-mail
 }
 
 export const COMMERCIAL_DEPARTMENT_ID = 'd3d525e8-14bc-43b4-9d66-b59826eba2ab';
 
 export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
   {
+    key: 'alex',
     ownerKey: 'alex',
     userId: 'efc6c631-f22a-4ce6-b662-9309a50a4cb7',
     email: 'alex@gestaologinpro.com',
     name: 'Alex Carmona Archiles',
+    displayName: 'Alex Carmona Archiles',
     shortName: 'Alex',
     empresaId: '847796c4-b253-4e53-9e6b-34a127ec7d85',
     empresaCode: 'LUM',
@@ -38,13 +44,17 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     country: 'ES',
     flag: '🇪🇸',
     language: 'es',
-    commercialEmail: 'comercial1@mail.luminousalley.com',
+    commercialEmail: 'comercial1@luminousalley.com',
+    marketingSenderEmail: 'comercial1@mail.luminousalley.com',
+    senderBrandName: 'Luminous Alley',
   },
   {
+    key: 'alba',
     ownerKey: 'alba',
     userId: 'ca69863d-998b-4bad-865a-19720e7a1f67',
     email: 'alba@gestaologinpro.com',
     name: 'Alba',
+    displayName: 'Alba',
     shortName: 'Alba',
     empresaId: 'a798620a-358a-4c6c-9db2-3a507c583cac',
     empresaCode: 'TRI',
@@ -53,12 +63,16 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     flag: '🇪🇸',
     language: 'es',
     commercialEmail: 'comercial2@triangulolda.com',
+    marketingSenderEmail: 'comercial2@es.triangulolda.com',
+    senderBrandName: 'Triángulo Servicios Industriales',
   },
   {
+    key: 'liseth',
     ownerKey: 'liseth',
     userId: 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa',
     email: 'liseth@gestaologinpro.com',
     name: 'Liseth',
+    displayName: 'Liseth',
     shortName: 'Liseth',
     empresaId: 'dae64d51-2181-4510-b14f-e63d2f111a8e',
     empresaCode: 'WIS',
@@ -67,12 +81,16 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     flag: '🇪🇸',
     language: 'es',
     commercialEmail: 'comercial3@wiseowe.com',
+    marketingSenderEmail: 'comercial3@es.wiseowe.com',
+    senderBrandName: 'Wiseowe Servicios Industriales',
   },
   {
+    key: 'fatumata',
     ownerKey: 'fatumata',
     userId: '2a25dd76-8a1b-44ea-8ea9-47e9232beee2',
     email: 'fatumata@gestaologinpro.com',
     name: 'Fatumata',
+    displayName: 'Fatumata',
     shortName: 'Fatumata',
     empresaId: 'dae64d51-2181-4510-b14f-e63d2f111a8e',
     empresaCode: 'WIS',
@@ -80,25 +98,37 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     country: 'FR',
     flag: '🇫🇷',
     language: 'fr',
-    commercialEmail: 'comercial3@fr.wiseowe.com',
+    commercialEmail: 'comercial3@wiseowe.com',
+    marketingSenderEmail: 'comercial3@fr.wiseowe.com',
+    senderBrandName: 'Wiseowe Industrie',
   },
 ];
 
-export function getCommercialProfileByUser(userOrIdOrEmail?: { id?: string; email?: string | null } | string | null): CommercialOperatorProfile | null {
+export function getCommercialProfileByUser(
+  userOrIdOrEmail?: { id?: string; email?: string | null; display_name?: string | null } | string | null
+): CommercialOperatorProfile | null {
   if (!userOrIdOrEmail) return null;
   if (typeof userOrIdOrEmail === 'string') {
     const val = userOrIdOrEmail.toLowerCase().trim();
     return (
       ACTIVE_COMMERCIAL_PROFILES.find(
-        p => p.userId.toLowerCase() === val || p.email.toLowerCase() === val || p.ownerKey === val
+        p =>
+          p.userId.toLowerCase() === val ||
+          p.email.toLowerCase() === val ||
+          p.ownerKey === val ||
+          p.shortName.toLowerCase() === val
       ) || null
     );
   }
   const uid = (userOrIdOrEmail.id || '').toLowerCase().trim();
   const uemail = (userOrIdOrEmail.email || '').toLowerCase().trim();
+  const uname = (userOrIdOrEmail.display_name || '').toLowerCase().trim();
   return (
     ACTIVE_COMMERCIAL_PROFILES.find(
-      p => (uid && p.userId.toLowerCase() === uid) || (uemail && p.email.toLowerCase() === uemail)
+      p =>
+        (uid && p.userId.toLowerCase() === uid) ||
+        (uemail && p.email.toLowerCase() === uemail) ||
+        (uname && (p.name.toLowerCase() === uname || p.shortName.toLowerCase() === uname))
     ) || null
   );
 }
@@ -110,6 +140,7 @@ export interface Salesperson {
   role: string;
   department_id?: string | null;
   commercial_email?: string;
+  marketing_sender_email?: string;
   commercial_name?: string;
   commercial_phone?: string;
   commercial_country?: string | null;
@@ -126,7 +157,9 @@ export function useSalespeople() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('mcs_users')
-        .select('id, email, display_name, role, department_id, commercial_email, commercial_name, commercial_phone, commercial_country, commercial_empresa_id')
+        .select(
+          'id, email, display_name, role, department_id, commercial_email, marketing_sender_email, commercial_name, commercial_phone, commercial_country, commercial_empresa_id'
+        )
         .eq('active', true)
         .eq('department_id', COMMERCIAL_DEPARTMENT_ID)
         .order('display_name', { ascending: true });
@@ -135,13 +168,14 @@ export function useSalespeople() {
 
       const rows = (data || []) as Salesperson[];
       return rows.map(row => {
-        const profile = getCommercialProfileByUser({ id: row.id, email: row.email });
+        const profile = getCommercialProfileByUser({ id: row.id, email: row.email, display_name: row.display_name });
         return {
           ...row,
           ownerKey: profile?.ownerKey,
           commercial_country: row.commercial_country || profile?.country || 'ES',
           commercial_empresa_id: row.commercial_empresa_id || profile?.empresaId || null,
           commercial_email: row.commercial_email || profile?.commercialEmail,
+          marketing_sender_email: row.marketing_sender_email || profile?.marketingSenderEmail,
           empresaName: profile?.empresaName,
           empresaCode: profile?.empresaCode,
           flag: profile?.flag || (row.commercial_country === 'FR' ? '🇫🇷' : '🇪🇸'),
@@ -249,9 +283,13 @@ export function useCommercialScope() {
     isCommercialOperator,
     loggedCommercialProfile,
     activeCommercialProfile,
+    activeProfile: activeCommercialProfile,
     effectiveOwnerKey,
+    selectedCommercialKey: effectiveOwnerKey,
     setSelectedOwnerKey,
+    setSelectedCommercialKey: setSelectedOwnerKey,
     profiles: ACTIVE_COMMERCIAL_PROFILES,
+    allProfiles: ACTIVE_COMMERCIAL_PROFILES,
   };
 }
 

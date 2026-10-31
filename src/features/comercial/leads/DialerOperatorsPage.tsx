@@ -52,6 +52,7 @@ export function DialerOperatorsPage() {
   const [isM365ModalOpen, setIsM365ModalOpen] = useState(false);
   const [selectedOperator, setSelectedOperator] = useState<Salesperson | null>(null);
   const [operatorCommercialEmail, setOperatorCommercialEmail] = useState('');
+  const [operatorMarketingSenderEmail, setOperatorMarketingSenderEmail] = useState('');
   const [operatorCommercialName, setOperatorCommercialName] = useState('');
   const [operatorCommercialPhone, setOperatorCommercialPhone] = useState('');
   const [savingOperator, setSavingOperator] = useState(false);
@@ -59,6 +60,7 @@ export function DialerOperatorsPage() {
   const handleOpenM365Config = (sp: Salesperson) => {
     setSelectedOperator(sp);
     setOperatorCommercialEmail(sp.commercial_email || '');
+    setOperatorMarketingSenderEmail(sp.marketing_sender_email || '');
     setOperatorCommercialName(sp.commercial_name || sp.display_name || '');
     setOperatorCommercialPhone(sp.commercial_phone || '');
     setIsM365ModalOpen(true);
@@ -73,6 +75,7 @@ export function DialerOperatorsPage() {
         .from('mcs_users')
         .update({
           commercial_email: operatorCommercialEmail.trim() || null,
+          marketing_sender_email: operatorMarketingSenderEmail.trim() || null,
           commercial_name: operatorCommercialName.trim() || null,
           commercial_phone: operatorCommercialPhone.trim() || null,
         })
@@ -489,15 +492,15 @@ export function DialerOperatorsPage() {
                   </div>
                 </div>
 
-                {/* M365 Email Remetente Mapping */}
-                <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs space-y-1.5">
+                {/* Remetentes do Operador: Resend (Campanhas) & M365 Outlook (Propostas / Reply-To) */}
+                <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
-                      <Mail className="w-3.5 h-3.5 text-blue-500" />
+                      <Mail className="w-3.5 h-3.5 text-indigo-500" />
                       {tr(
-                        'Remetente M365 (Discador):',
-                        'Remitente M365 (Discador):',
-                        'Expéditeur M365 (Power Dialer) :'
+                        'E-mails de Disparo (Resend & Outlook):',
+                        'Correos de Envío (Resend y Outlook):',
+                        'E-mails d\'Envoi (Resend & Outlook) :'
                       )}
                     </span>
                     <Button
@@ -509,13 +512,27 @@ export function DialerOperatorsPage() {
                       {tr('Configurar', 'Configurar', 'Configurer')}
                     </Button>
                   </div>
-                  <p className="font-mono text-xs font-bold text-foreground truncate">
-                    {sp.commercial_email || (
-                      <span className="text-muted-foreground italic font-normal text-[11px]">
-                        {tr('E-mail padrão da empresa', 'Correo estándar de la empresa', 'E-mail par défaut de l\'entreprise')}
+
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <div className="p-2 rounded-lg bg-indigo-500/5 border border-indigo-500/20 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase shrink-0">
+                        {tr('Campanhas (Resend):', 'Campañas (Resend):', 'Campagnes (Resend) :')}
                       </span>
-                    )}
-                  </p>
+                      <span className="font-mono text-xs font-bold text-foreground truncate">
+                        {sp.marketing_sender_email || '-'}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-lg bg-blue-500/5 border border-blue-500/20 flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase shrink-0">
+                        {tr('Outlook / Reply-To:', 'Outlook / Reply-To:', 'Outlook / Reply-To :')}
+                      </span>
+                      <span className="font-mono text-xs font-bold text-foreground truncate">
+                        {sp.commercial_email || '-'}
+                      </span>
+                    </div>
+                  </div>
+
                   {sp.commercial_name && (
                     <p className="text-[11px] text-muted-foreground truncate">
                       {tr('Assinatura:', 'Firma:', 'Signature :')}{' '}
@@ -573,25 +590,49 @@ export function DialerOperatorsPage() {
 
               <form onSubmit={handleSaveOperatorM365} className="p-5 space-y-4">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-foreground">
+                  <Label className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
                     {tr(
-                      'E-mail Corporativo M365 (Saída para Clientes)',
-                      'Correo Corporativo M365 (Salida para Clientes)',
-                      'E-mail Corporatif M365 (Sortie Clients)'
+                      'E-mail Remetente de Campanhas (Subdomínio Resend)',
+                      'Correo Remitente de Campañas (Subdominio Resend)',
+                      'E-mail Expéditeur de Campagnes (Sous-domaine Resend)'
+                    )}
+                  </Label>
+                  <Input
+                    type="email"
+                    value={operatorMarketingSenderEmail}
+                    onChange={e => setOperatorMarketingSenderEmail(e.target.value)}
+                    placeholder="Ex: comercial3@es.wiseowe.com"
+                    className="h-9 text-xs bg-background font-mono border-indigo-500/30"
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    {tr(
+                      'Subdomínio verificado no Resend para disparos de e-mail marketing deste comercial (ex: @es.wiseowe.com para Espanha ou @fr.wiseowe.com para França).',
+                      'Subdominio verificado en Resend para envíos de campañas de este comercial (ej: @es.wiseowe.com para España o @fr.wiseowe.com para Francia).',
+                      'Sous-domaine vérifié dans Resend pour les campagnes e-mail de ce commercial (ex : @es.wiseowe.com pour l\'Espagne ou @fr.wiseowe.com pour la France).'
+                    )}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                    {tr(
+                      'E-mail Corporativo M365 / Outlook & Reply-To',
+                      'Correo Corporativo M365 / Outlook y Reply-To',
+                      'E-mail Corporatif M365 / Outlook & Reply-To'
                     )}
                   </Label>
                   <Input
                     type="email"
                     value={operatorCommercialEmail}
                     onChange={e => setOperatorCommercialEmail(e.target.value)}
-                    placeholder="Ex: comercial1@mail.luminousalley.com"
-                    className="h-9 text-xs bg-background font-mono"
+                    placeholder="Ex: comercial3@wiseowe.com"
+                    className="h-9 text-xs bg-background font-mono border-blue-500/30"
                   />
                   <p className="text-[11px] text-muted-foreground leading-tight">
                     {tr(
-                      'Caixa oficial do Microsoft 365 da qual sairão os catálogos e orçamentos enviados por este comercial.',
-                      'Buzón oficial de Microsoft 365 desde el cual saldrán los catálogos y presupuestos enviados por este comercial.',
-                      'Boîte officielle Microsoft 365 utilisée pour l\'envoi des catalogues et devis de ce commercial.'
+                      'Caixa oficial do Microsoft 365 usada no Discador, envio de propostas e para receber respostas (Reply-To) das campanhas.',
+                      'Buzón oficial de Microsoft 365 usado en el Marcador, envío de propuestas y recepción de respuestas (Reply-To).',
+                      'Boîte officielle Microsoft 365 utilisée dans le Dialer, l\'envoi de devis et la réception des réponses (Reply-To).'
                     )}
                   </p>
                 </div>

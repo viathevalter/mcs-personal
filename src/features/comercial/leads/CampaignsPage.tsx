@@ -378,8 +378,37 @@ export function CampaignsPage() {
     const email = user?.email?.toLowerCase() || '';
     return email.includes('mitch') || email.includes('michel') || user?.id === 'dbc361a1-e4af-446a-8079-39c0caab00d2';
   }, [user]);
-  const activeSenderEmail = currentEmpresa?.marketing_sender_email || (isTriangulo ? 'comercial2@es.triangulolda.com' : isWiseowe ? 'comercial3@fr.wiseowe.com' : 'comercial1@mail.luminousalley.com');
-  const activeSenderName = currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || 'Equipe Comercial';
+    const activeSenderEmail = useMemo(() => {
+    if (activeCommercialProfile?.marketingSenderEmail) {
+      return activeCommercialProfile.marketingSenderEmail;
+    }
+    if (isWiseowe) {
+      return activeCommercialProfile?.country === 'ES'
+        ? ((currentEmpresa as any)?.marketing_sender_email_es || 'comercial3@es.wiseowe.com')
+        : ((currentEmpresa as any)?.marketing_sender_email_fr || currentEmpresa?.marketing_sender_email || 'comercial3@fr.wiseowe.com');
+    }
+    if (isTriangulo) {
+      return (currentEmpresa as any)?.marketing_sender_email_es || currentEmpresa?.marketing_sender_email || 'comercial2@es.triangulolda.com';
+    }
+    return (currentEmpresa as any)?.marketing_sender_email_es || currentEmpresa?.marketing_sender_email || 'comercial1@mail.luminousalley.com';
+  }, [activeCommercialProfile, currentEmpresa, isWiseowe, isTriangulo]);
+
+  const activeReplyToEmail = useMemo(() => {
+    if (activeCommercialProfile?.commercialEmail) {
+      return activeCommercialProfile.commercialEmail;
+    }
+    return currentEmpresa?.proposal_sender_email || (isTriangulo ? 'comercial2@triangulolda.com' : isWiseowe ? 'comercial3@wiseowe.com' : 'comercial1@luminousalley.com');
+  }, [activeCommercialProfile, currentEmpresa, isWiseowe, isTriangulo]);
+
+  const activeSenderName = useMemo(() => {
+    if (activeCommercialProfile?.senderBrandName) {
+      return activeCommercialProfile.senderBrandName;
+    }
+    if (isWiseowe) {
+      return activeCommercialProfile?.country === 'ES' ? 'Wiseowe Servicios Industriales' : 'Wiseowe Industrie';
+    }
+    return currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || 'Equipe Comercial';
+  }, [activeCommercialProfile, currentEmpresa, isWiseowe]);
   const { data: templates = [], isLoading: loadingTemplates } = useMarketingTemplates();
   const { data: campaigns = [], isLoading: loadingCampaigns } = useMarketingCampaigns();
   
@@ -3024,7 +3053,7 @@ export function CampaignsPage() {
     }
 
     try {
-      const newCamp = await createCampaign(campaignForm);
+      const newCamp = await createCampaign({ ...campaignForm, sender_email: activeSenderEmail, reply_to_email: activeReplyToEmail });
 
       if (newCamp?.id && selectedAudienceIdsForCampaign.length > 0) {
         let currentLeads = allLeads;
@@ -3311,7 +3340,7 @@ export function CampaignsPage() {
       origin: '',
       intelligence: 'all',
       recencyDays: 'all',
-      selectedCountries: isWiseowe ? ['FR'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : [],
+      selectedCountries: activeCommercialProfile ? [activeCommercialProfile.country] : isWiseowe ? ['FR'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : [],
       selectedCompanySizes: [],
       selectedRegions: [],
       selectedProvinces: [],
@@ -3996,18 +4025,23 @@ export function CampaignsPage() {
           )}
         </div>
 
-        {activeCommercialProfile && (
-          <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-            <span>
-              {tr("Públicos do Comercial:", "Públicos del Comercial:", "Audiences du Commercial :")}{" "}
-              <strong className="text-foreground">{commercialIsolatedAudiences.length}</strong>
-            </span>
-            <span>•</span>
-            <span className="font-mono text-indigo-600 dark:text-indigo-400">
-              {activeCommercialProfile.commercialEmail}
-            </span>
-          </div>
-        )}
+                <div className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-2">
+          {activeCommercialProfile && (
+            <>
+              <span>
+                {tr("Públicos:", "Públicos:", "Audiences :")}{" "}
+                <strong className="text-foreground">{commercialIsolatedAudiences.length}</strong>
+              </span>
+              <span>•</span>
+            </>
+          )}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 font-mono font-semibold">
+            🚀 Resend: {activeSenderEmail}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-mono">
+            ↩ Reply-To: {activeReplyToEmail}
+          </span>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -5097,6 +5131,27 @@ export function CampaignsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSaveCampaign} className="space-y-4">
+            <div className="bg-slate-50 dark:bg-slate-900/80 border border-indigo-500/20 rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Send className="h-4 w-4 text-emerald-500 shrink-0" />
+                <div>
+                  <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground block">
+                    {tr("Subdomínio Remetente (Resend)", "Subdominio Remitente (Resend)", "Sous-domaine Expéditeur (Resend)")}
+                  </span>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    {activeSenderName} &lt;{activeSenderEmail}&gt;
+                  </span>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground block">
+                  {tr("Respostas dos Clientes (Outlook / Reply-To)", "Respuestas de Clientes (Outlook / Reply-To)", "Réponses Clients (Outlook / Reply-To)")}
+                </span>
+                <span className="font-mono font-semibold text-blue-600 dark:text-blue-400">
+                  {activeReplyToEmail}
+                </span>
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="campTitle" className="font-semibold text-xs">Título da Campanha</Label>
               <Input
@@ -5139,10 +5194,10 @@ export function CampaignsPage() {
 
               {/* Lista de Públicos com Checkboxes */}
               <div className="border border-slate-200 dark:border-slate-800 rounded-lg max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60 bg-card">
-                {savedAudiences.length === 0 ? (
+                {commercialIsolatedAudiences.length === 0 ? (
                   <p className="p-3 text-xs text-muted-foreground text-center">Nenhum público salvo disponível.</p>
                 ) : (
-                  savedAudiences.map(aud => {
+                  commercialIsolatedAudiences.map(aud => {
                     const isChecked = selectedAudienceIdsForCampaign.includes(aud.id);
                     return (
                       <label

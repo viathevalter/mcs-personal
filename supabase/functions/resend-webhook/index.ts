@@ -155,10 +155,6 @@ serve(async (req) => {
       eventType === "email.aberto" ||
       eventType === "email.clicado";
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     const rawEmail = recipientEmail.toLowerCase().trim();
     const cleanEmail = rawEmail.includes("<") && rawEmail.includes(">") 
       ? rawEmail.replace(/.*<([^>]+)>.*/, "$1").trim() 
@@ -187,7 +183,7 @@ serve(async (req) => {
     const TRIANGULO_ID = "a0000000-0000-0000-0000-000000000001";
     const LUMINOUS_ID = "847796c4-d1ee-4a87-ba86-25f08cb6fb3f";
 
-    if (fromHeader.includes("wiseowe") || fromHeader.includes("fr.wiseowe.com") || cleanEmail.endsWith(".fr")) {
+    if (fromHeader.includes("wiseowe") || fromHeader.includes("es.wiseowe.com") || fromHeader.includes("fr.wiseowe.com") || cleanEmail.endsWith(".fr")) {
       hintEmpresaId = WISEOWE_ID;
     } else if (fromHeader.includes("triangulolda") || fromHeader.includes("es.triangulolda.com") || fromHeader.includes("it.triangulolda.com")) {
       hintEmpresaId = TRIANGULO_ID;

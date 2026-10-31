@@ -109,7 +109,11 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
       billing_email: '',
       cobranca_email: '',
       proposal_sender_email: '',
+      proposal_sender_email_es: '',
+      proposal_sender_email_fr: '',
       marketing_sender_email: '',
+      marketing_sender_email_es: '',
+      marketing_sender_email_fr: '',
       iban: '',
       latitude: undefined,
       longitude: undefined,
@@ -154,7 +158,11 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
           billing_email: empresa.billing_email || '',
           cobranca_email: (empresa as any).cobranca_email || '',
           proposal_sender_email: empresa.proposal_sender_email || '',
+          proposal_sender_email_es: (empresa as any).proposal_sender_email_es || '',
+          proposal_sender_email_fr: (empresa as any).proposal_sender_email_fr || '',
           marketing_sender_email: (empresa as any).marketing_sender_email || '',
+          marketing_sender_email_es: (empresa as any).marketing_sender_email_es || '',
+          marketing_sender_email_fr: (empresa as any).marketing_sender_email_fr || '',
           iban: empresa.iban || '',
           latitude: empresa.latitude || undefined,
           longitude: empresa.longitude || undefined,
@@ -525,9 +533,9 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                   name="proposal_sender_email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>E-mail Remetente de Propostas (Outlook)</FormLabel>
+                      <FormLabel>E-mail Remetente de Propostas & Reply-To (Outlook)</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="Ex: vendas@stoco.es" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
+                        <Input type="email" placeholder="Ex: comercial3@wiseowe.com" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -539,9 +547,41 @@ export function EmpresaSheet({ open, onOpenChange, empresa }: EmpresaSheetProps)
                   name="marketing_sender_email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>E-mail Remetente de Campanhas / Marketing (Resend)</FormLabel>
+                      <FormLabel>E-mail Remetente Padrão / Geral (Resend)</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="Ex: mkt@gestaologinpro.com" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
+                        <Input type="email" placeholder="Ex: comercial3@fr.wiseowe.com" className="bg-white dark:bg-slate-955" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="marketing_sender_email_es"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <span>🇪🇸 Remetente Campanhas Espanha (Subdomínio ES)</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Ex: comercial3@es.wiseowe.com" className="bg-white dark:bg-slate-955 border-indigo-200 dark:border-indigo-800" {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="marketing_sender_email_fr"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-1.5">
+                        <span>🇫🇷 Remetente Campanhas França (Subdomínio FR)</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Ex: comercial3@fr.wiseowe.com" className="bg-white dark:bg-slate-955 border-blue-200 dark:border-blue-800" {...field} value={field.value || ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

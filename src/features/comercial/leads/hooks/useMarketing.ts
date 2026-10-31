@@ -21,6 +21,8 @@ export interface MarketingCampaign {
   status: 'draft' | 'scheduled' | 'sending' | 'completed' | 'paused';
   scheduled_at: string | null;
   assigned_to?: string | null;
+  sender_email?: string | null;
+  reply_to_email?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at: string;
@@ -144,13 +146,29 @@ export function useMutateMarketing() {
 
   // Campaign mutations
   const createCampaign = useMutation({
-    mutationFn: async (payload: { title: string; template_id: string; assigned_to?: string | null }) => {
+    mutationFn: async (payload: {
+      title: string;
+      template_id: string;
+      assigned_to?: string | null;
+      sender_email?: string | null;
+      reply_to_email?: string | null;
+    }) => {
       const targetEmpresaId = activeCommercialProfile?.empresaId || selectedEmpresaId;
       if (!targetEmpresaId) throw new Error('Empresa não selecionada');
       const targetAssignedTo =
         payload.assigned_to ||
         loggedCommercialProfile?.userId ||
         activeCommercialProfile?.userId ||
+        null;
+      const targetSenderEmail =
+        payload.sender_email ||
+        loggedCommercialProfile?.marketingSenderEmail ||
+        activeCommercialProfile?.marketingSenderEmail ||
+        null;
+      const targetReplyToEmail =
+        payload.reply_to_email ||
+        loggedCommercialProfile?.commercialEmail ||
+        activeCommercialProfile?.commercialEmail ||
         null;
 
       const { data, error } = await supabase
@@ -161,6 +179,8 @@ export function useMutateMarketing() {
           template_id: payload.template_id,
           empresa_id: targetEmpresaId,
           assigned_to: targetAssignedTo,
+          sender_email: targetSenderEmail,
+          reply_to_email: targetReplyToEmail,
           status: 'draft',
         })
         .select()

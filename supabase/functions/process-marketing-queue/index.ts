@@ -145,6 +145,8 @@ serve(async (req) => {
             title,
             template_id,
             assigned_to,
+            sender_email,
+            reply_to_email,
             marketing_templates (
               id,
               subject,
@@ -181,6 +183,10 @@ serve(async (req) => {
 
     console.log(`Processando ${queueItems.length} e-mails da fila com cadência suave...`);
 
+    // Cache simples de empresas e usuários para evitar queries repetidas no lote
+    const companyCache = new Map<string, any>();
+    const userCache = new Map<string, any>();
+
     for (const item of queueItems) {
       const campaign = item.marketing_campaigns;
       const template = campaign?.marketing_templates;
@@ -197,15 +203,36 @@ serve(async (req) => {
         continue;
       }
 
-      // Buscar dados da empresa explicitamente do schema core_common
-      const { data: company } = await supabase
-        .schema("core_common")
-        .from("empresas")
-        .select("trade_name, proposal_sender_email, marketing_sender_email")
-        .eq("id", campaign.empresa_id)
-        .maybeSingle();
+      // Buscar dados da empresa explicitamente do schema core_common (com cache)
+      let company = companyCache.get(campaign.empresa_id);
+      if (!company) {
+        const { data: compData } = await supabase
+          .schema("core_common")
+          .from("empresas")
+          .select("trade_name, proposal_sender_email, proposal_sender_email_es, proposal_sender_email_fr, marketing_sender_email, marketing_sender_email_es, marketing_sender_email_fr")
+          .eq("id", campaign.empresa_id)
+          .maybeSingle();
+        company = compData || {};
+        companyCache.set(campaign.empresa_id, company);
+      }
 
-      // Determinar contexto da empresa e país do lead
+      const assignedUserId = campaign.assigned_to || lead.assigned_to || null;
+      let assignedUser: any = null;
+      if (assignedUserId) {
+        assignedUser = userCache.get(assignedUserId);
+        if (!assignedUser) {
+          const { data: usrData } = await supabase
+            .schema("public")
+            .from("mcs_users")
+            .select("id, display_name, email, commercial_email, marketing_sender_email, commercial_country")
+            .eq("id", assignedUserId)
+            .maybeSingle();
+          assignedUser = usrData || {};
+          userCache.set(assignedUserId, assignedUser);
+        }
+      }
+
+      // Determinar contexto da empresa e país do lead/comercial
       const companyTrade = (company?.trade_name || "").toUpperCase();
       const isTriangulo = companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO") || campaign.empresa_id === 'a798620a-358a-4c6c-9db2-3a507c583cac';
       const isWiseowe = companyTrade.includes("WISEOWE") || campaign.empresa_id === 'dae64d51-2181-4510-b14f-e63d2f111a8e';
@@ -214,38 +241,67 @@ serve(async (req) => {
       const leadTags = Array.isArray(lead.tags) ? lead.tags.join(' ').toLowerCase() : (typeof lead.tags === 'string' ? lead.tags.toLowerCase() : '');
       const leadEmail = (lead.email || '').toLowerCase();
       const leadPhone = (lead.phone || '').trim();
+      const campTitleLower = (campaign.title || '').toLowerCase();
 
-      const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy') || leadTags.includes('giada') || leadEmail.endsWith('.it') || leadPhone.startsWith('+39') || leadPhone.startsWith('0039');
-      const isFranceLead = leadTags.includes('frança') || leadTags.includes('francia') || leadTags.includes('france') || leadTags.includes('wiseowe') || leadEmail.endsWith('.fr') || leadPhone.startsWith('+33') || leadPhone.startsWith('0033') || isWiseowe;
-
-      // IDs de vendedores conhecidos
+      // IDs de vendedores comerciais
       const GIADA_ID = '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
       const MICHELLE_ID = 'dbc361a1-e4af-446a-8079-39c0caab00d2';
+      const ALBA_ID = '2fdac13f-fb57-4ca9-a731-1acba5bb2bd7';
       const OMAR_ID = '346a9262-2edf-4a2e-80fc-aa5b43bf483a';
+      const FATUMATA_ID = '2a25dd76-8a1b-44ea-8ea9-47e9232beee2';
+      const LISETH_ID = 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa';
       const ALEX_ID = 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
 
-      const assignedUserId = lead.assigned_to || campaign.assigned_to;
+      const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy') || leadTags.includes('giada') || leadEmail.endsWith('.it') || leadPhone.startsWith('+39') || leadPhone.startsWith('0039');
+      const isSpainWiseowe =
+        assignedUserId === LISETH_ID ||
+        assignedUser?.commercial_country === 'ES' ||
+        (campaign.sender_email || '').toLowerCase().includes('es.wiseowe.com') ||
+        leadTags.includes('liseth') ||
+        leadTags.includes('espanha') ||
+        leadTags.includes('españa') ||
+        campTitleLower.includes('liseth') ||
+        campTitleLower.includes('españa') ||
+        campTitleLower.includes('espanha') ||
+        leadEmail.endsWith('.es') ||
+        leadPhone.startsWith('+34') ||
+        leadPhone.startsWith('0034');
+      const isFranceLead =
+        !isSpainWiseowe &&
+        (assignedUserId === FATUMATA_ID ||
+          assignedUserId === OMAR_ID ||
+          assignedUser?.commercial_country === 'FR' ||
+          leadTags.includes('frança') ||
+          leadTags.includes('francia') ||
+          leadTags.includes('france') ||
+          leadEmail.endsWith('.fr') ||
+          leadPhone.startsWith('+33') ||
+          leadPhone.startsWith('0033') ||
+          isWiseowe);
 
       // URLs explícitas por vendedor
-      const waOmarUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour Omar, je souhaite plus d'informations sur vos services")}`;
-      const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Michelle, quisiera más información sobre sus servicios")}`;
+      const waOmarUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour, je souhaite plus d'informations sur vos services")}`;
+      const waLisethUrl = `https://wa.me/34652519210?text=${encodeURIComponent("Hola Liseth, quisiera más información sobre sus servicios")}`;
+      const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Alba, quisiera más información sobre sus servicios")}`;
       const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
       const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
 
       // Resolução inteligente do WhatsApp padrão (Hierarquia: Vendedor Atribuído -> País/Mercado -> Empresa)
-      let defaultWaUrl = waMichelleUrl; // Triângulo padrão Espanha
+      let defaultWaUrl = waMichelleUrl;
 
       if (assignedUserId === GIADA_ID) {
         defaultWaUrl = waGiadaUrl;
-      } else if (assignedUserId === OMAR_ID) {
+      } else if (assignedUserId === LISETH_ID || (isWiseowe && isSpainWiseowe)) {
+        defaultWaUrl = waLisethUrl;
+      } else if (assignedUserId === FATUMATA_ID || assignedUserId === OMAR_ID) {
         defaultWaUrl = waOmarUrl;
-      } else if (assignedUserId === MICHELLE_ID) {
+      } else if (assignedUserId === ALBA_ID || assignedUserId === MICHELLE_ID) {
         defaultWaUrl = waMichelleUrl;
       } else if (assignedUserId === ALEX_ID) {
         defaultWaUrl = waAlexUrl;
       } else if (isItalyLead) {
         defaultWaUrl = waGiadaUrl;
-      } else if (isFranceLead || isWiseowe) {
+      } else if (isFranceLead) {
         defaultWaUrl = waOmarUrl;
       } else if (isTriangulo) {
         defaultWaUrl = waMichelleUrl;
@@ -312,10 +368,19 @@ serve(async (req) => {
         ? rawFormattedHtml.replace('</body>', `${trackingPixelHtml}</body>`)
         : `${rawFormattedHtml}${trackingPixelHtml}`;
       
-      // Resolução inteligente do Remetente e Reply-To por Empresa e País do Lead
-      let validSenderEmail = company?.marketing_sender_email || company?.proposal_sender_email || "comercial1@mail.luminousalley.com";
+      // Resolução inteligente do Remetente (Subdomínio Resend) e Reply-To (Outlook M365) por Comercial, Empresa e País
+      let validSenderEmail =
+        campaign.sender_email ||
+        assignedUser?.marketing_sender_email ||
+        company?.marketing_sender_email ||
+        company?.proposal_sender_email ||
+        "comercial1@mail.luminousalley.com";
       let senderName = company?.trade_name || "Comercial";
-      let validReplyTo = "alex@mail.gestaologinpro.com";
+      let validReplyTo =
+        campaign.reply_to_email ||
+        assignedUser?.commercial_email ||
+        company?.proposal_sender_email ||
+        "comercial1@luminousalley.com";
 
       if (companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO") || isTriangulo) {
         if (isItalyLead) {
@@ -323,18 +388,26 @@ serve(async (req) => {
           senderName = "Triangolo Servizi Industriali";
           validReplyTo = "commerciale@triangulolda.com";
         } else {
-          validSenderEmail = "comercial2@es.triangulolda.com";
+          validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial2@es.triangulolda.com";
           senderName = "Triángulo Servicios Industriales";
-          validReplyTo = "comercial2@triangulolda.com";
+          validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial2@triangulolda.com";
         }
-      } else if (companyTrade.includes("WISEOWE") || isFranceLead || isWiseowe) {
-        validSenderEmail = "comercial3@fr.wiseowe.com";
-        senderName = "Wiseowe Industrie";
-        validReplyTo = "comercial3@wiseowe.com"; // E-mail oficial do Omar no Outlook/Exchange!
+      } else if (companyTrade.includes("WISEOWE") || isWiseowe) {
+        if (isSpainWiseowe) {
+          // Liseth - Wiseowe Espanha (Subdomínio es.wiseowe.com)
+          validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial3@es.wiseowe.com";
+          senderName = "Wiseowe Servicios Industriales";
+          validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || company?.proposal_sender_email || "comercial3@wiseowe.com";
+        } else {
+          // Fatumata - Wiseowe França (Subdomínio fr.wiseowe.com)
+          validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_fr || company?.marketing_sender_email || "comercial3@fr.wiseowe.com";
+          senderName = "Wiseowe Industrie";
+          validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_fr || company?.proposal_sender_email || "comercial3@wiseowe.com";
+        }
       } else if (companyTrade.includes("LUMINOUS") || isLuminous) {
-        validSenderEmail = "comercial1@mail.luminousalley.com";
+        validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial1@mail.luminousalley.com";
         senderName = "Luminous Alley";
-        validReplyTo = "comercial1@luminousalley.com";
+        validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial1@luminousalley.com";
       } else {
         const lowerSender = validSenderEmail.toLowerCase();
         if (
@@ -347,12 +420,7 @@ serve(async (req) => {
         ) {
           validSenderEmail = "alex@mail.gestaologinpro.com";
         }
-        validReplyTo = validSenderEmail;
-      }
-
-      // Se o vendedor for Omar ou for campanha/lead da França/Wiseowe, direcionar resposta diretamente para comercial3@wiseowe.com
-      if (assignedUserId === OMAR_ID || isFranceLead || isWiseowe) {
-        validReplyTo = "comercial3@wiseowe.com";
+        validReplyTo = validReplyTo || validSenderEmail;
       }
 
       const fromHeader = `${senderName} <${validSenderEmail}>`;
@@ -379,8 +447,8 @@ serve(async (req) => {
 
         } else {
           // 1. Verificar se o lead está em quarentena (Bounce ou E-mail Inválido)
-          const leadTags = Array.isArray(lead.tags) ? lead.tags : [];
-          if (leadTags.includes("Bounce") || leadTags.includes("E-mail Inválido")) {
+          const leadTagsArr = Array.isArray(lead.tags) ? lead.tags : [];
+          if (leadTagsArr.includes("Bounce") || leadTagsArr.includes("E-mail Inválido")) {
             console.log(`[PULANDO] Lead ${lead.email} está em quarentena (Bounce/Inválido).`);
             await supabase
               .from("marketing_campaign_queue")
@@ -451,7 +519,7 @@ serve(async (req) => {
             ],
           };
 
-          // Envio real via API do Resend com retry e delay
+          // Envio real via API do Resend com retry e fallback de subdomínio
           let res = await fetch("https://api.resend.com/emails", {
             method: "POST",
             headers: {
@@ -460,6 +528,24 @@ serve(async (req) => {
             },
             body: JSON.stringify(emailPayload),
           });
+
+          // Fallback inteligente: caso es.wiseowe.com ainda esteja aguardando propagação de DNS no Resend (403/422),
+          // dispara imediatamente usando o subdomínio verificado da Wiseowe (fr.wiseowe.com) mantendo o Reply-To e nome da marca!
+          if ((res.status === 403 || res.status === 422) && validSenderEmail.includes("@es.wiseowe.com")) {
+            console.warn(`[DNS Fallback] Subdomínio es.wiseowe.com ainda em propagação DNS. Utilizando fallback verificado comercial3@fr.wiseowe.com para ${lead.email}...`);
+            const fallbackPayload = {
+              ...emailPayload,
+              from: `${senderName} <comercial3@fr.wiseowe.com>`,
+            };
+            res = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${resendApiKey}`,
+              },
+              body: JSON.stringify(fallbackPayload),
+            });
+          }
 
           // Se bater rate limit (429), pausa 1.5s e tenta novamente
           if (res.status === 429) {
