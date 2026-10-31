@@ -39,6 +39,61 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // LISETH (ESPANHA - WISEOWE)
   // ==========================================
   {
+    id: 'aud_liseth_publico_1_1000_es_2026',
+    name: '📦 🇪🇸 Liseth (Wiseowe) - Público 1 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Liseth - Público 1 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_liseth_publico_2_1000_es_2026',
+    name: '📦 🇪🇸 Liseth (Wiseowe) - Público 2 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Liseth - Público 2 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_liseth_publico_3_1000_es_2026',
+    name: '📦 🇪🇸 Liseth (Wiseowe) - Público 3 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Liseth - Público 3 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_liseth_publico_4_1000_es_2026',
+    name: '📦 🇪🇸 Liseth (Wiseowe) - Público 4 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Liseth - Público 4 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_liseth_publico_5_1000_es_2026',
+    name: '📦 🇪🇸 Liseth (Wiseowe) - Público 5 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Liseth - Público 5 (1.000 Inéditos ES)',
+    },
+  },
+  {
     id: 'aud_liseth_5000_ineditos_espanha_2026',
     name: '🚀 🇪🇸 Liseth (Wiseowe) - 5.000 Novos Leads Inéditos Espanha 2026',
     leadCount: 5000,
@@ -121,6 +176,61 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // ==========================================
   // FATUMATA (FRANÇA & BÉLGICA - WISEOWE)
   // ==========================================
+  {
+    id: 'aud_fatumata_publico_1_1000_fr_2026',
+    name: '📦 🇫🇷 Fatumata (Wiseowe) - Público 1 (1.000 Inédits FR - 100/jour)',
+    leadCount: 1000,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      tagKeyword: 'Mailing Fatumata - Público 1 (1.000 Inédits FR)',
+    },
+  },
+  {
+    id: 'aud_fatumata_publico_2_1000_fr_2026',
+    name: '📦 🇫🇷 Fatumata (Wiseowe) - Público 2 (1.000 Inédits FR - 100/jour)',
+    leadCount: 1000,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      tagKeyword: 'Mailing Fatumata - Público 2 (1.000 Inédits FR)',
+    },
+  },
+  {
+    id: 'aud_fatumata_publico_3_1000_fr_2026',
+    name: '📦 🇫🇷 Fatumata (Wiseowe) - Público 3 (1.000 Inédits FR - 100/jour)',
+    leadCount: 1000,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      tagKeyword: 'Mailing Fatumata - Público 3 (1.000 Inédits FR)',
+    },
+  },
+  {
+    id: 'aud_fatumata_publico_4_1000_fr_2026',
+    name: '📦 🇫🇷 Fatumata (Wiseowe) - Público 4 (1.000 Inédits FR - 100/jour)',
+    leadCount: 1000,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      tagKeyword: 'Mailing Fatumata - Público 4 (1.000 Inédits FR)',
+    },
+  },
+  {
+    id: 'aud_fatumata_publico_5_1000_fr_2026',
+    name: '📦 🇫🇷 Fatumata (Wiseowe) - Público 5 (1.000 Inédits FR - 100/jour)',
+    leadCount: 1000,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      tagKeyword: 'Mailing Fatumata - Público 5 (1.000 Inédits FR)',
+    },
+  },
   {
     id: 'aud_fatumata_5000_novos_franca_2026',
     name: '🚀 🇫🇷 Fatumata (Wiseowe) - 5.000 Nouveaux Leads Inédits France 2026',
@@ -751,6 +861,61 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // ==========================================
   // ALBA (ESPANHA - TRIÂNGULO)
   // ==========================================
+  {
+    id: 'aud_alba_publico_1_1000_es_2026',
+    name: '📦 🇪🇸 Alba (Triangulo) - Público 1 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Público 1 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_alba_publico_2_1000_es_2026',
+    name: '📦 🇪🇸 Alba (Triangulo) - Público 2 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Público 2 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_alba_publico_3_1000_es_2026',
+    name: '📦 🇪🇸 Alba (Triangulo) - Público 3 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Público 3 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_alba_publico_4_1000_es_2026',
+    name: '📦 🇪🇸 Alba (Triangulo) - Público 4 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Público 4 (1.000 Inéditos ES)',
+    },
+  },
+  {
+    id: 'aud_alba_publico_5_1000_es_2026',
+    name: '📦 🇪🇸 Alba (Triangulo) - Público 5 (1.000 Inéditos ES - 100/dia)',
+    leadCount: 1000,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Público 5 (1.000 Inéditos ES)',
+    },
+  },
   {
     id: 'aud_alba_5000_ineditos_espanha_2026',
     name: '🚀 🇪🇸 Alba (Triangulo) - 5.000 Novos Leads Inéditos Espanha 2026',
