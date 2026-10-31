@@ -709,10 +709,62 @@ MCS - Gestão Comercial`;
     }
   }, [loading]);
 
-  const handleSolicitarAprovacao = (clientId: string, workers: any[], cardId: string) => {
-    const selectedObraId = selectedObraByClient[cardId];
+  const fetchLiveNextInvoiceMeta = async (empresaId?: string | null, fallbackSeries?: string | null, fallbackNext?: number | null, fallbackAtcud?: string | null) => {
+    if (!empresaId) {
+      return {
+        series: fallbackSeries || "1",
+        nextNumber: fallbackNext || 1,
+        atcudPrefix: fallbackAtcud || "J6XBVVRV"
+      };
+    }
+    try {
+      const { data: empData } = await supabase
+        .schema("core_common")
+        .from("empresas")
+        .select("invoice_series, next_invoice_number, atcud_prefix")
+        .eq("id", empresaId)
+        .maybeSingle();
+
+      const series = empData?.invoice_series || fallbackSeries || "1";
+      let nextNumber = Number(empData?.next_invoice_number || fallbackNext || 1);
+      const atcudPrefix = empData?.atcud_prefix || fallbackAtcud || "J6XBVVRV";
+      const currentYear = new Date().getFullYear();
+
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const candidateNumero = `Factura nº${series} ${currentYear}/${nextNumber}`;
+        const { data: existingFat } = await supabase
+          .schema("core_finance")
+          .from("faturas")
+          .select("id")
+          .eq("empresa_id", empresaId)
+          .eq("fatura_numero", candidateNumero)
+          .limit(1);
+        if (!existingFat || existingFat.length === 0) break;
+        nextNumber++;
+      }
+
+      setFaturamentos(prev => prev.map(item =>
+        item.empresaId === empresaId
+          ? { ...item, empresaNextInvoiceNumber: nextNumber, empresaInvoiceSeries: series, empresaAtcudPrefix: atcudPrefix }
+          : item
+      ));
+
+      return { series, nextNumber, atcudPrefix };
+    } catch (e) {
+      console.warn("Failed to fetch live next invoice number:", e);
+      return {
+        series: fallbackSeries || "1",
+        nextNumber: fallbackNext || 1,
+        atcudPrefix: fallbackAtcud || "J6XBVVRV"
+      };
+    }
+  };
+
+  const handleSolicitarAprovacao = async (clientId: string, workers: any[], cardId?: string) => {
     const faturamento = faturamentos.find(f => f.clientId === clientId);
     if (!faturamento) return;
+    const resolvedCardId = cardId || (faturamento.magicLinkToken ? `${faturamento.clientId}-${faturamento.magicLinkToken}` : `${faturamento.clientId}-pending`);
+    const selectedObraId = selectedObraByClient[resolvedCardId];
 
     const selectedObra = selectedObraId !== undefined
       ? faturamento.obras.find(o => o.id === selectedObraId)
@@ -735,7 +787,7 @@ MCS - Gestão Comercial`;
       return;
     }
 
-    const adj = getClientAdj(faturamento, cardId, selectedObraId);
+    const adj = getClientAdj(faturamento, resolvedCardId, selectedObraId);
     const totalBase = workers.reduce((sum, w) => sum + w.totalValor, 0);
     const finalTotal = (totalBase + Number(adj.incrementos || 0) - Number(adj.reducoes || 0)) * (1 + Number(adj.ivaPct || 0)/100);
 
@@ -746,7 +798,17 @@ MCS - Gestão Comercial`;
     const previewToken = crypto.randomUUID(); 
     const link = `${window.location.origin}/aprovacao-cliente/${previewToken}`;
     const rawFaturaNum = selectedObra?.faturaNumero || faturamento.faturaNumero;
-    const seqDigits = rawFaturaNum ? (rawFaturaNum.match(/\/(\d+)$/)?.[1] || rawFaturaNum) : String(faturamento.empresaNextInvoiceNumber || '0001');
+    let liveNextNum = faturamento.empresaNextInvoiceNumber;
+    if (!rawFaturaNum) {
+      const liveMeta = await fetchLiveNextInvoiceMeta(
+        selectedEmpresaId || faturamento.empresaId,
+        faturamento.empresaInvoiceSeries,
+        faturamento.empresaNextInvoiceNumber,
+        faturamento.empresaAtcudPrefix
+      );
+      liveNextNum = liveMeta.nextNumber;
+    }
+    const seqDigits = rawFaturaNum ? (rawFaturaNum.match(/\/(\d+)$/)?.[1] || rawFaturaNum) : String(liveNextNum || '0001');
     const docNum = String(seqDigits).padStart(4, '0');
     
     const body = `Olá,
@@ -780,7 +842,7 @@ MCS - Gestão Comercial`;
     addEmails(faturamento.billingEmail);
     addEmails(faturamento.clientEmail);
 
-    const emailCacheKey = selectedObraId ? `${cardId}::${selectedObraId}` : cardId;
+    const emailCacheKey = selectedObraId ? `${resolvedCardId}::${selectedObraId}` : resolvedCardId;
     const cached = emailCache[emailCacheKey];
     if (cached && cached.body.includes(`IF-${faturamento.year}/${docNum}`)) {
       setSelectedEmails(cached.selectedEmails);
@@ -790,7 +852,7 @@ MCS - Gestão Comercial`;
 
       setEmailData({
         clientId,
-        cardId,
+        cardId: resolvedCardId,
         clientName: faturamento.clientName,
         recipientEmail: cached.selectedEmails.join(", "),
         subject: cached.subject,
@@ -807,7 +869,7 @@ MCS - Gestão Comercial`;
 
       setEmailData({
         clientId,
-        cardId,
+        cardId: resolvedCardId,
         clientName: faturamento.clientName,
         recipientEmail: defaultEmails.join(", "),
         subject,
@@ -2093,7 +2155,7 @@ MCS - Gestão Comercial`;
       });
     }
 
-    if (toEmails.length === 0) {
+    if (sendEmailCheckbox && toEmails.length === 0) {
       toast.error('Por favor, selecione ou digite pelo menos um destinatário de e-mail.');
       return;
     }
@@ -2168,34 +2230,46 @@ MCS - Gestão Comercial`;
         if (facturaAttachment) custom_attachments.push(facturaAttachment);
       }
 
-      // Detectar URL e converter em um link HTML clicável
-      const linkRegex = /(https?:\/\/[^\s]+)/g;
-      const htmlBody = emailData.body
-        .replace(linkRegex, (url) => `<a href="${url}" style="color: #2563eb; font-weight: bold; text-decoration: underline;">${url}</a>`)
-        .replace(/\n/g, '<br/>');
+      if (sendEmailCheckbox) {
+        // Ensure the email body references the exact persisted invoice number
+        const actualSeq = createdFaturaRow?.fatura_numero?.match(/\/(\d+)$/)?.[1];
+        const normalizedBody = actualSeq
+          ? emailData.body.replace(/IF-(\d{4})\/\d+/g, `IF-$1/${String(actualSeq).padStart(4, "0")}`)
+          : emailData.body;
 
-      // Disparar e-mail real utilizando a Edge Function de notificação existente
-      const { error: functionErr } = await supabase.functions.invoke('send-order-notification', {
-        body: {
-          empresa_id: selectedEmpresaId,
-          to_emails: toEmails,
-          email_subject: emailData.subject,
-          email_body: htmlBody,
-          is_faturamento: true,
-          fatura_code: "FAT-" + emailData.token.substring(0, 8).toUpperCase(),
-          client_name: emailData.clientName,
-          custom_attachments
-        }
-      });
+        // Detectar URL e converter em um link HTML clicável
+        const linkRegex = /(https?:\/\/[^\s]+)/g;
+        const htmlBody = normalizedBody
+          .replace(linkRegex, (url) => `<a href="${url}" style="color: #2563eb; font-weight: bold; text-decoration: underline;">${url}</a>`)
+          .replace(/\n/g, '<br/>');
 
-      if (functionErr) {
-        console.error('Error invoking send-order-notification for billing:', functionErr);
-        toast.warning('Ajustes salvos no faturamento, mas falhou ao enviar o e-mail de aprovação.', {
-          description: functionErr.message,
-          id: toastId
+        // Disparar e-mail real utilizando a Edge Function de notificação existente
+        const { error: functionErr } = await supabase.functions.invoke('send-order-notification', {
+          body: {
+            empresa_id: selectedEmpresaId,
+            to_emails: toEmails,
+            email_subject: emailData.subject,
+            email_body: htmlBody,
+            is_faturamento: true,
+            fatura_code: "FAT-" + emailData.token.substring(0, 8).toUpperCase(),
+            client_name: emailData.clientName,
+            custom_attachments
+          }
         });
+
+        if (functionErr) {
+          console.error('Error invoking send-order-notification for billing:', functionErr);
+          toast.warning('Ajustes salvos no faturamento, mas falhou ao enviar o e-mail de aprovação.', {
+            description: functionErr.message,
+            id: toastId
+          });
+        } else {
+          toast.success(`Fatura ${createdFaturaRow?.fatura_numero || ""} gerada e e-mail enviado para ${toEmails.join(', ')}!`, {
+            id: toastId
+          });
+        }
       } else {
-        toast.success(`E-mail com portal de aprovação enviado com sucesso para ${toEmails.join(', ')}!`, {
+        toast.success(`Fatura ${createdFaturaRow?.fatura_numero || ""} gerada com sucesso (sem envio de e-mail)!`, {
           id: toastId
         });
       }
@@ -2208,8 +2282,8 @@ MCS - Gestão Comercial`;
       });
 
       setEmailCache({});
-      setIsEmailModalOpen(false);
       await fetchHoras();
+      setIsEmailModalOpen(false);
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao solicitar aprovação: ' + err.message);
@@ -2603,7 +2677,22 @@ MCS - Gestão Comercial`;
       toast.info(`Aguarde, gerando PDF da Fatura Pró-forma...`);
       
       try {
-        const pdf = await generateFacturaPDFProgrammatically(f, cardId);
+        const selectedObraId = selectedObraByClient[cardId];
+        const selectedObra = selectedObraId !== undefined ? f.obras.find(o => o.id === selectedObraId) : null;
+        let overrideMeta: { faturaNumero?: string | null; atcud?: string | null } | undefined;
+        if (!selectedObra?.faturaNumero && !f.faturaNumero) {
+          const liveMeta = await fetchLiveNextInvoiceMeta(
+            selectedEmpresaId || f.empresaId,
+            f.empresaInvoiceSeries,
+            f.empresaNextInvoiceNumber,
+            f.empresaAtcudPrefix
+          );
+          overrideMeta = {
+            faturaNumero: `Factura nº${liveMeta.series} ${f.year || new Date().getFullYear()}/${liveMeta.nextNumber}`,
+            atcud: `${liveMeta.atcudPrefix}-${liveMeta.nextNumber}`
+          };
+        }
+        const pdf = await generateFacturaPDFProgrammatically(f, cardId, overrideMeta);
         if (pdf) {
           const filename = `${type}-${clientName.toLowerCase().replace(/\s+/g, '-')}.pdf`;
           pdf.save(filename);
@@ -2695,7 +2784,17 @@ MCS - Gestão Comercial`;
       : `<h3 style="font-size: 24px; font-weight: 800; margin: 0; color: #0f172a; tracking: -0.025em;">${f.empresaNome.toUpperCase()}</h3>`;
 
     const rawExportFaturaNum = selectedObra?.faturaNumero || f.faturaNumero;
-    const exportSeqDigits = rawExportFaturaNum ? (rawExportFaturaNum.match(/\/(\d+)$/)?.[1] || rawExportFaturaNum) : String(f.empresaNextInvoiceNumber || '0001');
+    let liveExportNextNum = f.empresaNextInvoiceNumber;
+    if (!rawExportFaturaNum) {
+      const liveMeta = await fetchLiveNextInvoiceMeta(
+        selectedEmpresaId || f.empresaId,
+        f.empresaInvoiceSeries,
+        f.empresaNextInvoiceNumber,
+        f.empresaAtcudPrefix
+      );
+      liveExportNextNum = liveMeta.nextNumber;
+    }
+    const exportSeqDigits = rawExportFaturaNum ? (rawExportFaturaNum.match(/\/(\d+)$/)?.[1] || rawExportFaturaNum) : String(liveExportNextNum || '0001');
     const docNumber = `IF-${f.year}/${String(exportSeqDigits).padStart(4, '0')}`;
     const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
     const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
@@ -3632,7 +3731,7 @@ MCS - Gestão Comercial`;
                               return;
                             }
                             const validatedUnbilledWorkers = unbilledWorkersList.filter(w => w.isValidated);
-                            handleSolicitarAprovacao(f.clientId, validatedUnbilledWorkers);
+                            handleSolicitarAprovacao(f.clientId, validatedUnbilledWorkers, cardId);
                           }}
                           disabled={isProcessing}
                           variant="outline"
@@ -5185,6 +5284,14 @@ MCS - Gestão Comercial`;
                           <span>Factura_Pró-forma.pdf</span>
                         </button>
                       </div>
+                      <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                        <span className="font-bold text-slate-800 dark:text-slate-200">
+                          Numeração prevista: Factura nº{currentFaturamento.empresaInvoiceSeries || "1"} {currentFaturamento.year}/{currentFaturamento.empresaNextInvoiceNumber || 1}
+                        </span>
+                        <span className="block text-[10px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+                          Nota: O número da fatura só é gravado e avança para o próximo cliente após clicar em &quot;{sendEmailCheckbox ? "Confirmar e Enviar E-mail" : "Confirmar e Gerar Fatura"}&quot;.
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -5311,7 +5418,7 @@ MCS - Gestão Comercial`;
                     </Button>
                     <Button onClick={handleSendEmail} disabled={sendingEmail} className="bg-blue-600 hover:bg-blue-700 text-white border-none">
                       {sendingEmail ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                      Confirmar e Enviar E-mail
+                      {sendEmailCheckbox ? "Confirmar e Enviar E-mail" : "Confirmar e Gerar Fatura"}
                     </Button>
                   </div>
                 </div>
