@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Central de Avaliação — Novos Templates Email Marketing B2B (Fatumata, Liseth & Alba)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background-color: #0B1120;
+      color: #F8FAFC;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: #0F172A;
+      border-bottom: 1px solid #1E293B;
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    .header-top {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-badge {
+      background: linear-gradient(135deg, #00BBA7, #0284C7);
+      color: #041016;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+    h1 {
+      font-size: 18px;
+      font-weight: 800;
+      color: #FFFFFF;
+    }
+    .controls-row {
+      max-width: 1400px;
+      margin: 14px auto 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #1E293B;
+    }
+    .operator-tabs, .model-tabs, .viewport-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    button {
+      cursor: pointer;
+      border: 1px solid #334155;
+      background: #1E293B;
+      color: #CBD5E1;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    button:hover {
+      background: #334155;
+      color: #FFFFFF;
+    }
+    button.active-op-fatumata {
+      background: #00BBA7;
+      color: #041016;
+      border-color: #5DE1CD;
+      box-shadow: 0 0 18px rgba(0, 187, 167, 0.35);
+    }
+    button.active-op-liseth {
+      background: #00BBA7;
+      color: #041016;
+      border-color: #5DE1CD;
+      box-shadow: 0 0 18px rgba(0, 187, 167, 0.35);
+    }
+    button.active-op-alba {
+      background: #FF5A36;
+      color: #FFFFFF;
+      border-color: #FF785A;
+      box-shadow: 0 0 18px rgba(255, 90, 54, 0.35);
+    }
+    button.active-model {
+      background: #38BDF8;
+      color: #082F49;
+      border-color: #7DD3FC;
+    }
+    button.active-vp {
+      background: #475569;
+      color: #FFFFFF;
+      border-color: #94A3B8;
+    }
+    .meta-bar {
+      max-width: 1400px;
+      width: 100%;
+      margin: 14px auto 0 auto;
+      background: #1E293B;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 10px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12.5px;
+      color: #CBD5E1;
+    }
+    .meta-bar strong { color: #FFFFFF; }
+    .meta-subject {
+      color: #38BDF8;
+      font-weight: 700;
+    }
+    main {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      padding: 24px 16px 40px 16px;
+    }
+    .iframe-wrapper {
+      width: 100%;
+      max-width: 720px;
+      background: #1E293B;
+      border-radius: 14px;
+      padding: 12px;
+      border: 1px solid #334155;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+      transition: max-width 0.25s ease;
+    }
+    .iframe-wrapper.mobile {
+      max-width: 400px;
+    }
+    iframe {
+      width: 100%;
+      height: 1550px;
+      border: none;
+      border-radius: 10px;
+      background: #FFFFFF;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-top">
+      <div class="brand-title">
+        <span class="brand-badge">9 Modelos HTML</span>
+        <h1>Avaliação de Templates Email Marketing — Fatumata (FR), Liseth (ES) &amp; Alba (ES)</h1>
+      </div>
+      <div class="viewport-tabs">
+        <button id="vp-desktop" class="active-vp" onclick="setViewport('desktop')">🖥️ Desktop (600px)</button>
+        <button id="vp-mobile" onclick="setViewport('mobile')">📱 Mobile (375px)</button>
+        <a id="open-raw" href="fatumata-wise-fr-modelo-01.html" target="_blank" style="text-decoration:none;">
+          <button type="button">↗ Abrir HTML Puro</button>
+        </a>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div class="operator-tabs">
+        <button id="op-fatumata" class="active-op-fatumata" onclick="selectOperator('fatumata')">
+          🇫🇷 Fatumata — Wiseowe França (3 Modelos)
+        </button>
+        <button id="op-liseth" onclick="selectOperator('liseth')">
+          🇪🇸 Liseth — Wiseowe Espanha (3 Modelos)
+        </button>
+        <button id="op-alba" onclick="selectOperator('alba')">
+          🇪🇸 Alba — Triángulo Espanha (3 Modelos)
+        </button>
+      </div>
+
+      <div class="model-tabs">
+        <button id="mod-1" class="active-model" onclick="selectModel(1)">
+          Modelo 01: Hero Fotográfico &amp; Impacto
+        </button>
+        <button id="mod-2" onclick="selectModel(2)">
+          Modelo 02: Dossier Executivo &amp; Comparativo
+        </button>
+        <button id="mod-3" onclick="selectModel(3)">
+          Modelo 03: Editorial 360° &amp; 3 Passos
+        </button>
+      </div>
+    </div>
+
+    <div class="meta-bar">
+      <div>
+        <strong>Operadora:</strong> <span id="meta-op">Fatumata (Wiseowe France 🇫🇷)</span> &nbsp;|&nbsp;
+        <strong>Remetente:</strong> <span id="meta-email">comercial3@wiseowe.com</span> &nbsp;|&nbsp;
+        <strong>Tel:</strong> <span id="meta-phone">+33 1 76 21 06 55</span>
+      </div>
+      <div>
+        <strong>Assunto Sugerido:</strong> <span id="meta-subject" class="meta-subject">Soudeurs, tuyauteurs et monteurs qualifiés disponibles pour {{company_name}}</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="frame-box" class="iframe-wrapper">
+      <iframe id="preview-frame" src="fatumata-wise-fr-modelo-01.html" title="Template Preview"></iframe>
+    </div>
+  </main>
+
+  <script>
+    const catalog = {
+      fatumata: {
+        label: 'Fatumata (Wiseowe France 🇫🇷)',
+        email: 'comercial3@wiseowe.com',
+        phone: '+33 1 76 21 06 55',
+        models: {
+          1: {
+            file: 'fatumata-wise-fr-modelo-01.html',
+            subject: 'Soudeurs, tuyauteurs et monteurs qualifiés disponibles pour {{company_name}}'
+          },
+          2: {
+            file: 'fatumata-wise-fr-modelo-02.html',
+            subject: 'Continuité de chantier : Brigades de soudure et tuyauterie pour {{company_name}}'
+          },
+          3: {
+            file: 'fatumata-wise-fr-modelo-03.html',
+            subject: 'Comment intégrer une équipe de soudeurs/tuyauteurs chez {{company_name}} en 3 étapes'
+          }
+        }
+      },
+      liseth: {
+        label: 'Liseth (Wiseowe España 🇪🇸)',
+        email: 'comercial3@wiseowe.com',
+        phone: '+34 652 51 92 10',
+        models: {
+          1: {
+            file: 'liseth-wise-es-modelo-01.html',
+            subject: 'Soldadores, tuberos y montadores cualificados disponibles para {{company_name}}'
+          },
+          2: {
+            file: 'liseth-wise-es-modelo-02.html',
+            subject: 'Continuidad operativa: Equipos de soldadura, tubería y montaje para {{company_name}}'
+          },
+          3: {
+            file: 'liseth-wise-es-modelo-03.html',
+            subject: 'Cómo incorporar un equipo de soldadores/tuberos en {{company_name}} en 3 pasos'
+          }
+        }
+      },
+      alba: {
+        label: 'Alba (Triángulo España 🇪🇸)',
+        email: 'comercial2@triangulolda.com',
+        phone: '+34 937 37 48 30',
+        models: {
+          1: {
+            file: 'alba-triangulo-es-modelo-01.html',
+            subject: 'Soldadores, tuberos y montadores cualificados disponibles para {{company_name}}'
+          },
+          2: {
+            file: 'alba-triangulo-es-modelo-02.html',
+            subject: 'Continuidad de planta y obra: Brigadas de soldadura y montaje para {{company_name}}'
+          },
+          3: {
+            file: 'alba-triangulo-es-modelo-03.html',
+            subject: 'Incorporación en 3 pasos de soldadores y montadores para {{company_name}}'
+          }
+        }
+      }
+    };
+
+    let currentOp = 'fatumata';
+    let currentModel = 1;
+
+    function updateView() {
+      const opData = catalog[currentOp];
+      const modData = opData.models[currentModel];
+
+      document.getElementById('preview-frame').src = modData.file;
+      document.getElementById('open-raw').href = modData.file;
+      document.getElementById('meta-op').textContent = opData.label;
+      document.getElementById('meta-email').textContent = opData.email;
+      document.getElementById('meta-phone').textContent = opData.phone;
+      document.getElementById('meta-subject').textContent = modData.subject;
+
+      ['fatumata', 'liseth', 'alba'].forEach(op => {
+        const btn = document.getElementById('op-' + op);
+        btn.className = (op === currentOp) ? ('active-op-' + op) : '';
+      });
+
+      [1, 2, 3].forEach(m => {
+        const btn = document.getElementById('mod-' + m);
+        btn.className = (m === currentModel) ? 'active-model' : '';
+      });
+    }
+
+    function selectOperator(op) {
+      currentOp = op;
+      updateView();
+    }
+
+    function selectModel(m) {
+      currentModel = m;
+      updateView();
+    }
+
+    function setViewport(mode) {
+      const box = document.getElementById('frame-box');
+      document.getElementById('vp-desktop').className = mode === 'desktop' ? 'active-vp' : '';
+      document.getElementById('vp-mobile').className = mode === 'mobile' ? 'active-vp' : '';
+      if (mode === 'mobile') {
+        box.classList.add('mobile');
+      } else {
+        box.classList.remove('mobile');
+      }
+    }
+  </script>
+</body>
+</html>

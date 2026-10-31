@@ -409,7 +409,33 @@ export function CampaignsPage() {
     }
     return currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || 'Equipe Comercial';
   }, [activeCommercialProfile, currentEmpresa, isWiseowe]);
-  const { data: templates = [], isLoading: loadingTemplates } = useMarketingTemplates();
+  const { data: rawTemplates = [], isLoading: loadingTemplates } = useMarketingTemplates();
+  const templates = useMemo(() => {
+    if (isWiseowe && effectiveOwnerKey !== 'all') {
+      if (effectiveOwnerKey === 'liseth') {
+        const lisethList = rawTemplates.filter(t => {
+          const title = (t.title || '').toLowerCase();
+          return title.includes('liseth') || title.includes('espanha') || title.includes('españa') || title.includes('wise-es');
+        });
+        return lisethList.length > 0 ? lisethList : rawTemplates;
+      }
+      if (effectiveOwnerKey === 'fatumata') {
+        const fatumataList = rawTemplates.filter(t => {
+          const title = (t.title || '').toLowerCase();
+          return !title.includes('liseth') && !title.includes('espanha') && !title.includes('españa') && !title.includes('wise-es');
+        });
+        return fatumataList.length > 0 ? fatumataList : rawTemplates;
+      }
+    }
+    if (isTriangulo && effectiveOwnerKey === 'alba') {
+      const albaList = rawTemplates.filter(t => {
+        const title = (t.title || '').toLowerCase();
+        return !title.includes('italia') && !title.includes('itália') && !title.includes('giada');
+      });
+      return albaList.length > 0 ? albaList : rawTemplates;
+    }
+    return rawTemplates;
+  }, [rawTemplates, isWiseowe, isTriangulo, effectiveOwnerKey]);
   const { data: campaigns = [], isLoading: loadingCampaigns } = useMarketingCampaigns();
   
   const { 
