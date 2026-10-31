@@ -1,10 +1,11 @@
 /**
- * MOTOR 100% GRATUITO (CUSTO € 0,00 - SEM GOOGLE MAPS E SEM IA PAGA)
- * CAPTURA DE 5.000 NOVOS LEADS B2B INDUSTRIAIS NA FRANÇA PARA FATUMATA (WISEOWE)
- * Fonte: API Oficial Governo Francês (INSEE / SIRENE recherche-entreprises.api.gouv.fr) + DNS MX + Web Scraper
+ * MOTOR 100% ESTRITO HTML REAL - FRANÇA (FATUMATA - WISEOWE -> 5.000)
+ * PROIBIDO CHUTAR contact@dominio.fr!
+ * Só salva o lead se o site abrir de verdade (/, /contact, /mentions-legales)
+ * e o endereço de e-mail estiver literalmente escrito dentro do código HTML!
  */
 const dns = require('dns').promises;
-const { Pool } = require('pg');
+const { Client } = require('pg');
 
 dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4', '9.9.9.9']);
 
@@ -13,64 +14,6 @@ const WISEOWE_ID = 'dae64d51-2181-4510-b14f-e63d2f111a8e';
 const FATUMATA_ID = '2a25dd76-8a1b-44ea-8ea9-47e9232beee2';
 const WISEOWE_STAGE_NOVO = '048f4587-f416-4fc2-b3c9-09c42347df95';
 const TARGET_NEW_LEADS = 5000;
-
-const NAF_CODES = [
-  { code: '25.11Z', label: 'Structures métalliques et parties de structures' },
-  { code: '25.12Z', label: 'Menuiserie métallique' },
-  { code: '25.29Z', label: 'Chaudronnerie, réservoirs et conteneurs métalliques' },
-  { code: '25.21Z', label: 'Chaudières et radiateurs industriels' },
-  { code: '25.50A', label: 'Forge, estampage, matriçage' },
-  { code: '25.50B', label: 'Découpage, emboutissage' },
-  { code: '25.61Z', label: 'Traitement et revêtement des métaux' },
-  { code: '25.62A', label: 'Décolletage' },
-  { code: '25.62B', label: 'Mécanique industrielle et usinage' },
-  { code: '33.11Z', label: 'Réparation d ouvrages en métaux' },
-  { code: '33.12Z', label: 'Maintenance et réparation de machines industrielles' },
-  { code: '33.14Z', label: 'Maintenance d équipements électriques industriels' },
-  { code: '33.15Z', label: 'Réparation et maintenance navale' },
-  { code: '33.20A', label: 'Installation de structures métalliques, chaudronnées et de tuyauterie' },
-  { code: '33.20B', label: 'Installation de machines et équipements mécaniques' },
-  { code: '33.20C', label: 'Installation d équipements de contrôle des processus industriels' },
-  { code: '33.20D', label: 'Maintenance d équipements industriels' },
-  { code: '28.11Z', label: 'Moteurs et turbines industriels' },
-  { code: '28.12Z', label: 'Équipements hydrauliques et pneumatiques' },
-  { code: '28.13Z', label: 'Pompes et compresseurs industriels' },
-  { code: '28.14Z', label: 'Robinetterie industrielle' },
-  { code: '28.21Z', label: 'Fours et brûleurs industriels' },
-  { code: '28.22Z', label: 'Matériel de levage et de manutention' },
-  { code: '28.25Z', label: 'Équipements aérauliques et frigorifiques industriels' },
-  { code: '28.29A', label: 'Équipements d emballage et de conditionnement' },
-  { code: '28.29B', label: 'Machines et équipements d usage général' },
-  { code: '28.41Z', label: 'Machines-outils pour le travail des métaux' },
-  { code: '28.91Z', label: 'Machines pour la métallurgie' },
-  { code: '28.92Z', label: 'Machines pour l extraction ou la construction' },
-  { code: '28.93Z', label: 'Machines pour l industrie agroalimentaire' },
-  { code: '28.99B', label: 'Machines spécialisées industrielles' },
-  { code: '30.11Z', label: 'Construction de navires et de structures flottantes' },
-  { code: '30.20Z', label: 'Construction ferroviaire' },
-  { code: '43.21A', label: 'Travaux d installation électrique industrielle' },
-  { code: '43.22A', label: 'Travaux d installation d eau et de gaz' },
-  { code: '43.22B', label: 'Installation d équipements thermiques et de climatisation' },
-  { code: '43.29A', label: 'Travaux d isolation industrielle' },
-  { code: '43.29B', label: 'Autres travaux d installation industrielle' },
-  { code: '43.99B', label: 'Montage de structures métalliques' },
-  { code: '43.99C', label: 'Travaux de maçonnerie générale et gros oeuvre industriel' },
-  { code: '24.10Z', label: 'Sidérurgie' },
-  { code: '24.20Z', label: 'Tubes, tuyaux, profilés creux en acier' },
-  { code: '24.33Z', label: 'Profilage à froid par formage ou pliage' },
-  { code: '24.51Z', label: 'Fonderie de fonte' },
-  { code: '24.52Z', label: 'Fonderie d acier' }
-];
-
-const DEPARTMENTS = [
-  '69', '59', '13', '31', '44', '33', '38', '67', '76', '42', '01', '74', '62', '35', '57',
-  '68', '49', '85', '77', '78', '91', '92', '93', '94', '95', '29', '56', '22', '14', '27',
-  '50', '61', '72', '53', '45', '37', '41', '28', '18', '36', '21', '71', '89', '58', '25',
-  '39', '70', '90', '51', '10', '52', '08', '54', '55', '88', '80', '60', '02', '63', '03',
-  '15', '43', '26', '07', '73', '34', '30', '66', '11', '81', '82', '12', '46', '32', '65',
-  '09', '83', '06', '84', '04', '05', '64', '40', '24', '47', '16', '17', '79', '86', '87',
-  '19', '23', '75'
-];
 
 const BLOCKED_DOMAINS = new Set([
   'exemple.com', 'exemple.fr', 'example.com', 'domaine.fr', 'domaine.com',
@@ -81,159 +24,359 @@ const BLOCKED_DOMAINS = new Set([
   'gmail.com', 'hotmail.fr', 'hotmail.com', 'outlook.fr', 'outlook.com',
   'yahoo.fr', 'yahoo.com', 'live.fr', 'live.com', 'icloud.com', 'msn.com', 'aol.com',
   'societe.com', 'pappers.fr', 'verif.com', 'infogreffe.fr', 'pagesjaunes.fr',
-  'kompass.com', 'europages.fr', 'linkedin.com', 'facebook.com'
+  'kompass.com', 'europages.fr', 'linkedin.com', 'facebook.com', 'wordpress.org', 'wordpress.com'
 ]);
 
-const PARKED_MX_PATTERNS = [
-  'sedoparking', 'parkingcrew', 'bodis', 'above.com', 'afternic', 'dan.com', 'eftydns', 'parklogic'
-];
+const PARKED_TITLE_REGEX = /sedoparking|parking|domain for sale|en vente|en construction|site en maintenance|page par d[eé]faut|ovhcloud|f[eé]licitations|index of \/|default web site|403 forbidden|404 not found|account suspended/i;
 
-const STOP_WORDS = new Set([
-  'sas', 'sarl', 'sa', 'eurl', 'snc', 'sci', 'sca', 'societe', 'entreprise', 'etablissements',
-  'etablissement', 'ets', 'groupe', 'holding', 'france', 'francaise', 'atelier', 'ateliers',
-  'compagnie', 'cie', 'nouvelle', 'exploitation', 'diffusion', 'services', 'service', 'le', 'la',
-  'les', 'de', 'du', 'des', 'et', 'en', 'au', 'aux', 'sur', 'sous', 'pour', 'par', 'avec', 'sans'
-]);
-
-function extractBrandSlugs(rawName, sigle) {
-  const candidates = new Set();
-  if (sigle && sigle.trim().length >= 3) {
-    const s = sigle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-    if (s.length >= 3 && s.length <= 20) candidates.add(s);
+function decodeCfEmail(encodedString) {
+  try {
+    let email = '';
+    const r = parseInt(encodedString.substr(0, 2), 16);
+    for (let n = 2; encodedString.length - n; n += 2) {
+      const i = parseInt(encodedString.substr(n, 2), 16) ^ r;
+      email += String.fromCharCode(i);
+    }
+    return email;
+  } catch {
+    return '';
   }
-
-  // Extract parenthetical acronym if present e.g. "ATELIER MECANIQUE (AMC)"
-  const parenMatch = rawName.match(/\(([A-Za-z0-9\-]{3,16})\)/);
-  if (parenMatch) {
-    const p = parenMatch[1].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9-]/g, '');
-    if (p.length >= 3 && !STOP_WORDS.has(p)) candidates.add(p);
-  }
-
-  const cleaned = rawName
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(w => w.length >= 2 && !STOP_WORDS.has(w));
-
-  if (cleaned.length === 0) return [];
-
-  // 1 word
-  if (cleaned[0].length >= 4 && cleaned[0].length <= 22) {
-    candidates.add(cleaned[0]);
-  }
-  // 2 words combined and hyphenated
-  if (cleaned.length >= 2) {
-    const c2 = `${cleaned[0]}${cleaned[1]}`;
-    const h2 = `${cleaned[0]}-${cleaned[1]}`;
-    if (c2.length >= 4 && c2.length <= 24) candidates.add(c2);
-    if (h2.length >= 5 && h2.length <= 26) candidates.add(h2);
-  }
-  // 3 words combined
-  if (cleaned.length >= 3) {
-    const c3 = `${cleaned[0]}${cleaned[1]}${cleaned[2]}`;
-    const h3 = `${cleaned[0]}-${cleaned[1]}-${cleaned[2]}`;
-    if (c3.length >= 5 && c3.length <= 24) candidates.add(c3);
-    if (h3.length >= 7 && h3.length <= 28) candidates.add(h3);
-  }
-
-  return Array.from(candidates).slice(0, 4);
 }
 
-const mxCache = new Map();
-async function verifyCorporateMx(domain) {
-  if (!domain || BLOCKED_DOMAINS.has(domain)) return false;
-  if (mxCache.has(domain)) return mxCache.get(domain);
+function extractRealEmailsFromHtml(rawHtml, targetDomain) {
+  if (!rawHtml) return [];
+  let html = rawHtml
+    .replace(/&#64;/g, '@')
+    .replace(/&#x40;/gi, '@')
+    .replace(/&#46;/g, '.')
+    .replace(/&#x2e;/gi, '.')
+    .replace(/\[at\]|\(at\)|\[arobase\]/gi, '@');
+
+  const cfMatches = html.match(/data-cfemail=["']([a-fA-F0-9]+)["']/g) || [];
+  for (const m of cfMatches) {
+    const hex = m.replace(/data-cfemail=["']|["']/g, '');
+    const decoded = decodeCfEmail(hex);
+    if (decoded && decoded.includes('@')) html += ` ${decoded} `;
+  }
+
+  const matches = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+  const validSame = [];
+  const validCorp = [];
+
+  for (const rawE of matches) {
+    const e = rawE.toLowerCase().trim().replace(/^[.,;:]+|[.,;:]+$/g, '');
+    if (e.length < 6 || e.length > 80) continue;
+    if (/\.(png|jpg|jpeg|gif|svg|webp|avif|css|js|woff|woff2|ttf|eot|ico|pdf|mp4|mp3|zip)$/i.test(e)) continue;
+    if (/^(2x|3x|100x|200x|300x|400x|500x)/i.test(e)) continue;
+    if (e.includes('sentry') || e.includes('wix') || e.includes('wordpress') || e.includes('prestashop') || e.includes('example') || e.includes('exemple') || e.includes('domaine') || e.includes('votre@') || e.includes('nom@') || e.includes('email@') || e.startsWith('webmaster@')) continue;
+
+    const [user, dom] = e.split('@');
+    if (!user || !dom || BLOCKED_DOMAINS.has(dom)) continue;
+    if (!/^[a-z0-9.-]+\.[a-z]{2,8}$/.test(dom)) continue;
+
+    if (dom === targetDomain || dom.endsWith(`.${targetDomain}`)) {
+      if (!validSame.includes(e)) validSame.push(e);
+    } else {
+      if (!validCorp.includes(e)) validCorp.push(e);
+    }
+  }
+
+  return validSame.length > 0 ? validSame : validCorp;
+}
+
+async function fetchHtml(url, timeoutMs = 2200) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml'
+      }
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('text/html') && !ct.includes('application/xhtml')) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+const visitedDomains = new Set();
+
+async function verifyAndScrapeRealFrenchSite(domain, fallbackName) {
+  if (visitedDomains.has(domain)) return null;
+  visitedDomains.add(domain);
+
   try {
     const mx = await Promise.race([
       dns.resolveMx(domain),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1800))
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1300))
     ]);
-    if (!Array.isArray(mx) || mx.length === 0) {
-      mxCache.set(domain, false);
-      return false;
-    }
-    const valid = mx.some(r => {
-      const ex = (r.exchange || '').toLowerCase().trim();
-      return ex.length > 3 && !PARKED_MX_PATTERNS.some(p => ex.includes(p));
-    });
-    mxCache.set(domain, valid);
-    return valid;
+    if (!Array.isArray(mx) || mx.length === 0) return null;
   } catch {
-    mxCache.set(domain, false);
-    return false;
+    return null;
   }
-}
 
-async function scrapeWebsiteForFrenchEmailAndPhone(domain) {
-  const urls = [`https://${domain}`, `https://www.${domain}`, `https://${domain}/contact`, `https://${domain}/mentions-legales`];
-  let foundEmail = null;
+  const baseUrls = [`https://${domain}`, `https://www.${domain}`];
+  let homeHtml = null;
+  let workingBase = null;
+  for (const b of baseUrls) {
+    const h = await fetchHtml(b, 2200);
+    if (h && h.length > 250) {
+      homeHtml = h;
+      workingBase = b;
+      break;
+    }
+  }
+  if (!homeHtml || !workingBase) return null;
+
+  let cleanTitle = fallbackName;
+  const tMatch = homeHtml.match(/<title[^>]*>([\s\S]{2,120}?)<\/title>/i);
+  if (tMatch) {
+    const t = tMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (PARKED_TITLE_REGEX.test(t)) return null;
+    const firstPart = t.split(/[|\-–—·•]/)[0].trim();
+    if (firstPart.length >= 3 && !/^(accueil|home|bienvenue|index)$/i.test(firstPart)) {
+      cleanTitle = firstPart.slice(0, 120);
+    }
+  }
+
+  if (PARKED_TITLE_REGEX.test(homeHtml.slice(0, 2500))) return null;
+
   let foundPhone = null;
+  const pm = homeHtml.match(/(?:\+33\s?[1-9]|0[1-9])(?:[\s.-]?\d{2}){4}/);
+  if (pm) foundPhone = pm[0].trim();
 
-  for (const url of urls.slice(0, 2)) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 2500);
-      const res = await fetch(url, {
-        signal: ctrl.signal,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36' }
-      });
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const html = await res.text();
-
-      // Phone regex (+33 or 01..09 XX XX XX XX)
-      if (!foundPhone) {
-        const pMatch = html.match(/(?:\+33\s?[1-9]|0[1-9])(?:[\s.-]?\d{2}){4}/);
-        if (pMatch) foundPhone = pMatch[0].trim();
-      }
-
-      // Email regex matching this domain or corporate domain
-      const emails = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
-      for (const rawE of emails) {
-        const e = rawE.toLowerCase().trim();
-        if (/\.(png|jpg|jpeg|gif|svg|webp|css|js|woff|ttf)$/i.test(e)) continue;
-        const d = e.split('@')[1];
-        if (!d || BLOCKED_DOMAINS.has(d)) continue;
-        if (d === domain || d.endsWith(`.${domain}`)) {
-          foundEmail = e;
+  let emails = extractRealEmailsFromHtml(homeHtml, domain);
+  if (emails.length === 0) {
+    const subPaths = ['/contact', '/mentions-legales', '/nous-contacter'];
+    const linkMatches = homeHtml.match(/href=["']([^"']*(?:contact|mention|legal)[^"']*)["']/gi) || [];
+    for (const lm of linkMatches.slice(0, 2)) {
+      const href = lm.replace(/^href=["']|["']$/gi, '').trim();
+      if (href.startsWith('/') && !subPaths.includes(href)) subPaths.unshift(href);
+    }
+    for (const sp of subPaths.slice(0, 2)) {
+      const subHtml = await fetchHtml(`${workingBase}${sp}`, 1900);
+      if (subHtml && subHtml.length > 200) {
+        if (!foundPhone) {
+          const pm2 = subHtml.match(/(?:\+33\s?[1-9]|0[1-9])(?:[\s.-]?\d{2}){4}/);
+          if (pm2) foundPhone = pm2[0].trim();
+        }
+        const subE = extractRealEmailsFromHtml(subHtml, domain);
+        if (subE.length > 0) {
+          emails = subE;
           break;
         }
       }
-      if (foundEmail) break;
-    } catch {
-      // ignore timeout
     }
   }
 
-  return { email: foundEmail || `contact@${domain}`, phone: foundPhone };
+  // REGRA DE OURO: NUNCA CHUTAR contact@! Só retorna se achou e-mail real escrito no HTML!
+  if (emails.length === 0) return null;
+
+  return {
+    email: emails[0],
+    phone: foundPhone,
+    companyName: cleanTitle || fallbackName
+  };
 }
 
-async function main() {
-  const pool = new Pool({ connectionString: DB_URL, max: 6 });
+// Novos setores industriais e B2B franceses ainda não varridos!
+const FR_SECTORS = [
+  { prefix: 'equipement', label: 'Équipement Industriel' },
+  { prefix: 'industrie', label: 'Industrie & Production' },
+  { prefix: 'technologies', label: 'Technologies Industrielles' },
+  { prefix: 'systemes', label: 'Systèmes Industriels' },
+  { prefix: 'solutions', label: 'Solutions Industrielles' },
+  { prefix: 'concept', label: 'Conception & Réalisation Industrielle' },
+  { prefix: 'ferronnerie', label: 'Ferronnerie & Métallerie' },
+  { prefix: 'miroiterie', label: 'Miroiterie & Fermetures Aluminium' },
+  { prefix: 'fermetures', label: 'Fermetures Industrielles & Portails' },
+  { prefix: 'portails', label: 'Portails & Automatismes' },
+  { prefix: 'ascenseurs', label: 'Ascenseurs & Monte-Charges' },
+  { prefix: 'froid', label: 'Froid Industriel & Commercial' },
+  { prefix: 'ventilation', label: 'Ventilation & Aéraulique Industrielle' },
+  { prefix: 'solaire', label: 'Énergie Solaire & Photovoltaïque' },
+  { prefix: 'energies', label: 'Énergies & Installations' },
+  { prefix: 'echafaudage', label: 'Échafaudage & Accès en Hauteur' },
+  { prefix: 'platrerie', label: 'Plâtrerie & Isolation' },
+  { prefix: 'menuisier', label: 'Menuiserie & Agencement' },
+  { prefix: 'plombier', label: 'Plomberie & Chauffage' },
+  { prefix: 'electricien', label: 'Électricité Générale & Industrielle' },
+  { prefix: 'chauffagiste', label: 'Chauffage & Génie Climatique' },
+  { prefix: 'couvreur', label: 'Couverture & Zinguerie' },
+  { prefix: 'macon', label: 'Maçonnerie & Bâtiment' },
+  { prefix: 'peintre', label: 'Peinture & Revêtements' },
+  { prefix: 'serrurier', label: 'Serrurerie & Métallerie' },
+  { prefix: 'charpentier', label: 'Charpente & Construction' },
+  { prefix: 'carreleur', label: 'Carrelage & Sols' },
+  { prefix: 'plaquiste', label: 'Plâtrerie & Isolation' },
+  { prefix: 'vitrier', label: 'Vitrerie & Miroiterie' },
+  { prefix: 'terrassier', label: 'Terrassement & VRD' },
+  { prefix: 'paysagiste', label: 'Aménagement Extérieur' },
+  { prefix: 'architecte', label: 'Architecture & Maîtrise d Oeuvre' },
+  { prefix: 'ingenierie', label: 'Ingénierie & Bureau d Études' },
+  { prefix: 'imprimerie', label: 'Imprimerie & Industries Graphiques' },
+  { prefix: 'signaletique', label: 'Signalétique & Enseignes' },
+  { prefix: 'enseignes', label: 'Enseignes & Structures' },
+  { prefix: 'nettoyage', label: 'Nettoyage Industriel & Propreté' },
+  { prefix: 'proprete', label: 'Propreté & Services aux Entreprises' },
+  { prefix: 'securite', label: 'Sécurité & Protection Incendie' },
+  { prefix: 'informatique', label: 'Informatique & Réseaux' },
+  { prefix: 'constructions', label: 'Constructions & Bâtiment' },
+  { prefix: 'renovations', label: 'Rénovation & Bâtiment' },
+  { prefix: 'clim', label: 'Climatisation & Pompe à Chaleur' },
+  { prefix: 'automatismes', label: 'Automatismes & Fermetures' },
+  { prefix: 'stores', label: 'Stores & Fermetures' },
+  { prefix: 'volets', label: 'Fermetures & Menuiseries' },
+  { prefix: 'fenetres', label: 'Menuiseries & Fenêtres' },
+  { prefix: 'verandas', label: 'Vérandas & Structures Aluminium' },
+  { prefix: 'clotures', label: 'Clôtures & Portail Industriel' },
+  { prefix: 'piscines', label: 'Construction & Équipement Piscines' },
+  { prefix: 'bois', label: 'Industrie du Bois & Scierie' },
+  { prefix: 'scierie', label: 'Scierie & Transformation du Bois' },
+  { prefix: 'toiture', label: 'Toiture & Couverture Industrielle' },
+  { prefix: 'facade', label: 'Façade & Isolation Extérieure' },
+  { prefix: 'facades', label: 'Façades & Ravalement' },
+  { prefix: 'sols', label: 'Sols Industriels & Résine' },
+  { prefix: 'parquet', label: 'Parquet & Revêtements' },
+  { prefix: 'marbrerie', label: 'Marbrerie & Taille de Pierre' },
+  { prefix: 'pierre', label: 'Pierre & Maçonnerie' },
+  { prefix: 'beton', label: 'Béton & Préfabrication' },
+  { prefix: 'granulats', label: 'Granulats & Carrières' },
+  { prefix: 'tp', label: 'Travaux Publics & Génie Civil' },
+  { prefix: 'assainissement', label: 'Assainissement & Environnement' },
+  { prefix: 'forage', label: 'Forage & Sondage' },
+  { prefix: 'topographie', label: 'Topographie & Géomètre' },
+  { prefix: 'geometre', label: 'Géomètre & Bureau d Études' },
+  { prefix: 'expertise', label: 'Expertise Technique & Bâtiment' },
+  { prefix: 'diagnostic', label: 'Diagnostic Immobilier & Technique' },
+  { prefix: 'controle', label: 'Contrôle Technique & Industriel' },
+  { prefix: 'formation', label: 'Formation Professionnelle' },
+  { prefix: 'conseil', label: 'Conseil & Ingénierie' },
+  { prefix: 'service', label: 'Services Industriels' },
+  { prefix: 'services', label: 'Services aux Entreprises' },
+  { prefix: 'diffusion', label: 'Diffusion & Distribution Industrielle' },
+  { prefix: 'distribution', label: 'Distribution & Négoce' },
+  { prefix: 'negoce', label: 'Négoce de Matériaux & Fournitures' },
+  { prefix: 'quincaillerie', label: 'Quincaillerie & Fournitures Industrielles' },
+  { prefix: 'machines', label: 'Machines & Équipements Industriels' },
+  { prefix: 'moteurs', label: 'Moteurs & Bobinage' },
+  { prefix: 'pompes', label: 'Pompes & Systèmes Hydrauliques' },
+  { prefix: 'electronique', label: 'Électronique Industrielle' },
+  { prefix: 'alu', label: 'Aluminium & Menuiserie Métallique' },
+  { prefix: 'aluminium', label: 'Construction Aluminium' },
+  { prefix: 'inox', label: 'Chaudronnerie & Tuyauterie Inox' },
+  { prefix: 'composites', label: 'Matériaux Composites' },
+  { prefix: 'vitrerie', label: 'Vitrerie & Miroiterie' },
+  { prefix: 'communication', label: 'Communication & Signalétique' },
+  { prefix: 'agence', label: 'Agence & Services' },
+  { prefix: 'ateliers', label: 'Ateliers Industriels' },
+  { prefix: 'maison', label: 'Construction & Habitat' },
+  { prefix: 'garage', label: 'Mécanique & Carrosserie' },
+  { prefix: 'carrosserie', label: 'Carrosserie Industrielle & Auto' },
+  { prefix: 'depannage', label: 'Dépannage & Maintenance' },
+  { prefix: 'auto', label: 'Automobile & Mécanique' },
+  { prefix: 'automobiles', label: 'Négoce & Réparation Automobile' },
+  { prefix: 'marine', label: 'Marine & Nautisme' },
+  { prefix: 'agricole', label: 'Matériel Agricole & Mécanique' },
+  { prefix: 'motoculture', label: 'Motoculture & Parcs' },
+  { prefix: 'environnement', label: 'Environnement & Recyclage' },
+  { prefix: 'recyclage', label: 'Recyclage & Valorisation' },
+  { prefix: 'transport', label: 'Transport Routier & Logistique' },
+  { prefix: 'taxi', label: 'Transport de Personnes' },
+  { prefix: 'ambulance', label: 'Transport Sanitaire' },
+  { prefix: 'autocars', label: 'Transport de Voyageurs' },
+  { prefix: 'immobilier', label: 'Immobilier d Entreprise & Commercial' },
+  { prefix: 'immo', label: 'Agence Immobilière' },
+  { prefix: 'habitat', label: 'Habitat & Rénovation' },
+  { prefix: 'cuisines', label: 'Cuisines & Agencement' },
+  { prefix: 'meubles', label: 'Meubles & Ébénisterie' },
+  { prefix: 'mobilier', label: 'Mobilier Professionnel' },
+  { prefix: 'agencement', label: 'Agencement & Menuiserie' },
+  { prefix: 'decoration', label: 'Décoration & Peinture' }
+];
 
-  const existingRes = await pool.query(`
-    SELECT lower(trim(email)) as email, lower(trim(company_name)) as cname
+const FR_CITIES_AND_NAMES = [
+  'lyon', 'paris', 'marseille', 'toulouse', 'nantes', 'bordeaux', 'lille', 'rennes', 'strasbourg',
+  'grenoble', 'rouen', 'toulon', 'montpellier', 'nice', 'angers', 'dijon', 'brest', 'lemans',
+  'clermont', 'amiens', 'limoges', 'annecy', 'perpignan', 'metz', 'besancon', 'orleans', 'mulhouse',
+  'caen', 'boulogne', 'nancy', 'saintetienne', 'argenteuil', 'montreuil', 'roubaix', 'tourcoing',
+  'dunkerque', 'avignon', 'poitiers', 'versailles', 'courbevoie', 'vitry', 'pau', 'larochelle',
+  'calais', 'cannes', 'antibes', 'lorient', 'saintnazaire', 'colmar', 'valence', 'quimper',
+  'bourges', 'troyes', 'cherbourg', 'chambery', 'niort', 'laval', 'beauvais', 'cholet', 'vannes',
+  'saintmalo', 'arras', 'albi', 'tarbes', 'bayonne', 'angouleme', 'brive', 'perigueux', 'agen',
+  'montauban', 'rodez', 'castres', 'narbonne', 'beziers', 'sete', 'ales', 'nimes', 'arles',
+  'salon', 'martigues', 'aubagne', 'frejus', 'gap', 'briancon', 'romans', 'montelimar',
+  'vienne', 'bourgoin', 'voiron', 'thonon', 'annemasse', 'cluses', 'sallanches', 'albertville',
+  'aix', 'bourg', 'oyonnax', 'macon', 'chalon', 'lecreusot', 'montceau', 'nevers', 'auxerre',
+  'sens', 'vesoul', 'belfort', 'montbeliard', 'pontarlier', 'lons', 'dole', 'epinal', 'saintdie',
+  'verdun', 'barleduc', 'thionville', 'forbach', 'sarreguemines', 'haguenau', 'selestat', 'saverne',
+  'reims', 'chalons', 'epernay', 'charleville', 'sedan', 'saintquentin', 'soissons', 'laon',
+  'compiegne', 'creil', 'senlis', 'abbeville', 'bethune', 'lens', 'lievin', 'henin', 'douai',
+  'valenciennes', 'maubeuge', 'cambrai', 'evreux', 'vernon', 'louviers', 'dieppe', 'lehavre',
+  'fecamp', 'lisieux', 'bayeux', 'vire', 'flers', 'alencon', 'argentan', 'chartres', 'dreux',
+  'chateaudun', 'blois', 'vendome', 'romorantin', 'tours', 'chinon', 'amboise', 'chateauroux',
+  'issoudun', 'vierzon', 'montlucon', 'moulins', 'vichy', 'riom', 'issoire', 'thiers', 'aurillac',
+  'lepuy', 'gueret', 'tulle', 'ussel', 'cognac', 'saintes', 'rochefort', 'royan', 'bressuire',
+  'parthenay', 'thouars', 'chatellerault', 'fontenay', 'laroche', 'lessables', 'challans',
+  'herbiers', 'saumur', 'mayenne', 'sable', 'lafleche', 'fougeres',
+  'vitre', 'redon', 'dinan', 'guingamp', 'lannion', 'lamballe', 'loudeac', 'pontivy', 'auray',
+  'ploermel', 'concarneau', 'morlaix', 'douarnenez', 'landerneau', 'carhaix',
+  'nord', 'sud', 'est', 'ouest', 'centre', 'atlantique', 'mediterranee', 'rhone', 'alpes',
+  'loire', 'bretagne', 'normandie', 'picardie', 'alsace', 'lorraine', 'champagne', 'bourgogne',
+  'auvergne', 'limousin', 'aquitaine', 'provence', 'languedoc', 'roussillon', 'savoie', 'jura',
+  'vendee', 'anjou', 'maine', 'touraine', 'berry', 'poitou', 'charente', 'perigord', 'gascogne',
+  'martin', 'bernard', 'thomas', 'petit', 'robert', 'richard', 'durand', 'dubois', 'moreau',
+  'laurent', 'simon', 'michel', 'lefebvre', 'leroy', 'roux', 'david', 'bertrand', 'morel',
+  'fournier', 'girard', 'bonnet', 'dupont', 'lambert', 'fontaine', 'rousseau', 'vincent',
+  'muller', 'lefevre', 'faure', 'andre', 'mercier', 'blanc', 'guerin', 'boyer', 'garnier',
+  'chevalier', 'francois', 'legrand', 'gauthier', 'garcia', 'perrin', 'robin', 'clement',
+  'morin', 'nicolas', 'henry', 'roussel', 'mathieu', 'gautier', 'masson', 'marchand', 'duval',
+  'denis', 'dumont', 'marie', 'lemaire', 'noel', 'meyer', 'dufour', 'meunier', 'brun', 'blanchard',
+  'giraud', 'joly', 'riviere', 'lucas', 'brunet', 'gaillard', 'barbier', 'arnaud', 'martinez',
+  'gerard', 'roche', 'renard', 'schmitt', 'roy', 'leroux', 'colin', 'vidal', 'caron', 'picard',
+  'roger', 'fabre', 'aubert', 'lemoine', 'renaud', 'dumas', 'lacroix', 'olivier', 'philippe',
+  'bourgeois', 'pierre', 'benoit', 'rey', 'leclerc', 'payet', 'rolland', 'leclercq', 'guillaume',
+  'lecomte', 'lopez', 'jean', 'dupuy', 'guillot', 'hubert', 'berger', 'carpentier', 'sanchez',
+  'dupuis', 'moulin', 'louis', 'deschamps', 'huet', 'vasseur', 'perez', 'boucher', 'fleury',
+  'royer', 'klein', 'jacquet', 'adam', 'poirier', 'marty', 'aubry', 'guyot', 'carre',
+  'charles', 'renault', 'menard', 'maillard', 'baron', 'bertin', 'bailly',
+  'herve', 'schneider', 'fernandez', 'legall', 'collet', 'leger', 'bouvier', 'julien', 'prevost',
+  'millet', 'perrot', 'daniel', 'cousin', 'germain', 'breton', 'besson', 'langlois',
+  'remy', 'legoff', 'pelletier', 'leveque', 'perrier', 'leblanc', 'barre', 'lebrun', 'marchal'
+];
+
+async function main() {
+  const client = new Client({ connectionString: DB_URL });
+  await client.connect();
+
+  const existingRes = await client.query(`
+    SELECT lower(trim(email)) as email
     FROM core_comercial.leads
     WHERE email IS NOT NULL
   `);
 
   const existingEmails = new Set();
   const existingDomains = new Set();
-  const existingNames = new Set();
 
   for (const r of existingRes.rows) {
     if (r.email) {
       existingEmails.add(r.email);
       const d = r.email.split('@')[1];
-      if (d) existingDomains.add(d);
+      if (d) {
+        existingDomains.add(d);
+        visitedDomains.add(d);
+      }
     }
-    if (r.cname) existingNames.add(r.cname);
   }
 
-  const countVirginRes = await pool.query(`
+  const countVirginRes = await client.query(`
     SELECT count(*) as cnt
     FROM core_comercial.leads l
     WHERE l.empresa_id = $1
@@ -247,119 +390,78 @@ async function main() {
   `, [WISEOWE_ID, FATUMATA_ID]);
 
   let currentNewCount = parseInt(countVirginRes.rows[0].cnt, 10) || 0;
-  console.log(`🇫🇷 [FRANÇA - FATUMATA] Leads inéditos atuais: ${currentNewCount} / Meta: ${TARGET_NEW_LEADS}`);
+  console.log(`🇫🇷 [FRANÇA ESTRITO HTML WAVE 2] Leads 100% reais atuais: ${currentNewCount} / Meta: ${TARGET_NEW_LEADS}`);
 
-  for (const dept of DEPARTMENTS) {
+  const candidates = [];
+  for (const sec of FR_SECTORS) {
+    for (const suf of FR_CITIES_AND_NAMES) {
+      const cleanSuf = suf.replace(/[^a-z0-9]/g, '');
+      const defaultName = `${sec.prefix.charAt(0).toUpperCase() + sec.prefix.slice(1)} ${suf.charAt(0).toUpperCase() + suf.slice(1)}`;
+      const d1 = `${sec.prefix}-${cleanSuf}.fr`;
+      const d2 = `${sec.prefix}${cleanSuf}.fr`;
+      const d3 = `${cleanSuf}-${sec.prefix}.fr`;
+      const d4 = `${cleanSuf}${sec.prefix}.fr`;
+      if (!existingDomains.has(d1)) candidates.push({ domain: d1, defaultName, sector: sec.label });
+      if (!existingDomains.has(d2)) candidates.push({ domain: d2, defaultName, sector: sec.label });
+      if (!existingDomains.has(d3)) candidates.push({ domain: d3, defaultName, sector: sec.label });
+      if (!existingDomains.has(d4)) candidates.push({ domain: d4, defaultName, sector: sec.label });
+    }
+  }
+
+  console.log(`Total novos candidatos industriais .fr para verificação estrita HTML: ${candidates.length}`);
+
+  const CHUNK_SIZE = 70;
+  for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
     if (currentNewCount >= TARGET_NEW_LEADS) break;
+    const chunk = candidates.slice(i, i + CHUNK_SIZE);
 
-    for (const naf of NAF_CODES) {
+    const verified = (await Promise.all(chunk.map(async c => {
+      if (existingDomains.has(c.domain)) return null;
+      const res = await verifyAndScrapeRealFrenchSite(c.domain, c.defaultName);
+      if (!res) return null;
+      return { ...c, ...res };
+    }))).filter(Boolean);
+
+    for (const item of verified) {
       if (currentNewCount >= TARGET_NEW_LEADS) break;
+      const emailDomain = item.email.split('@')[1];
+      if (existingEmails.has(item.email) || existingDomains.has(item.domain) || existingDomains.has(emailDomain)) continue;
 
-      for (let page = 1; page <= 8; page++) {
-        if (currentNewCount >= TARGET_NEW_LEADS) break;
+      existingEmails.add(item.email);
+      existingDomains.add(item.domain);
+      existingDomains.add(emailDomain);
 
-        const apiUrl = `https://recherche-entreprises.api.gouv.fr/search?activite_principale=${encodeURIComponent(naf.code)}&departement=${dept}&etat_administratif=A&per_page=25&page=${page}`;
-        let results = [];
-        try {
-          const res = await fetch(apiUrl, { headers: { 'Accept': 'application/json' } });
-          if (res.status === 429) {
-            await new Promise(r => setTimeout(r, 1200));
-            continue;
-          }
-          if (!res.ok) break;
-          const data = await res.json();
-          results = data.results || [];
-          if (results.length === 0) break;
-        } catch {
-          break;
+      try {
+        await client.query(`
+          INSERT INTO core_comercial.leads (
+            name, company_name, email, phone, empresa_id, assigned_to, stage_id, tags, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7,
+            ARRAY['França', 'B2B', $8, 'HTML Verificado 100% Real', 'Mailing Fatumata - Novos Capturados França 2026'],
+            NOW(), NOW()
+          )
+        `, [
+          item.companyName,
+          item.companyName,
+          item.email,
+          item.phone || null,
+          WISEOWE_ID,
+          FATUMATA_ID,
+          WISEOWE_STAGE_NOVO,
+          item.sector
+        ]);
+        currentNewCount++;
+        if (currentNewCount % 25 === 0 || currentNewCount >= TARGET_NEW_LEADS) {
+          console.log(`🇫🇷 [FATUMATA 100% HTML REAL] ${currentNewCount}/${TARGET_NEW_LEADS} | ${item.companyName} (${item.email})`);
         }
-
-        const batchPromises = results.map(async company => {
-          const rawName = (company.nom_raison_sociale || company.nom_complet || '').trim();
-          if (!rawName || rawName.length < 3) return null;
-          const normName = rawName.toLowerCase();
-          if (existingNames.has(normName)) return null;
-
-          const slugs = extractBrandSlugs(rawName, company.sigle);
-          if (slugs.length === 0) return null;
-
-          let validDomain = null;
-          for (const slug of slugs) {
-            const domFr = `${slug}.fr`;
-            if (!existingDomains.has(domFr) && !BLOCKED_DOMAINS.has(domFr)) {
-              const ok = await verifyCorporateMx(domFr);
-              if (ok) {
-                validDomain = domFr;
-                break;
-              }
-            }
-          }
-
-          if (!validDomain) return null;
-          if (existingDomains.has(validDomain)) return null;
-
-          const scraped = await scrapeWebsiteForFrenchEmailAndPhone(validDomain);
-          const email = scraped.email.toLowerCase().trim();
-          if (existingEmails.has(email) || existingDomains.has(validDomain)) return null;
-
-          const siege = company.siege || {};
-          const city = siege.libelle_commune || `Dept ${dept}`;
-
-          return {
-            companyName: rawName.slice(0, 140),
-            normName,
-            email,
-            domain: validDomain,
-            phone: scraped.phone || null,
-            city,
-            sector: naf.label
-          };
-        });
-
-        const resolved = (await Promise.all(batchPromises)).filter(Boolean);
-
-        for (const item of resolved) {
-          if (currentNewCount >= TARGET_NEW_LEADS) break;
-          if (existingDomains.has(item.domain) || existingEmails.has(item.email) || existingNames.has(item.normName)) continue;
-
-          existingDomains.add(item.domain);
-          existingEmails.add(item.email);
-          existingNames.add(item.normName);
-
-          try {
-            await pool.query(`
-              INSERT INTO core_comercial.leads (
-                name, company_name, email, phone, empresa_id, assigned_to, stage_id, tags, created_at, updated_at
-              ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7,
-                ARRAY['França', 'B2B', $8, $9, 'Mailing Fatumata - Novos Capturados França 2026'],
-                NOW(), NOW()
-              )
-            `, [
-              item.companyName,
-              item.companyName,
-              item.email,
-              item.phone,
-              WISEOWE_ID,
-              FATUMATA_ID,
-              WISEOWE_STAGE_NOVO,
-              item.sector,
-              item.city
-            ]);
-            currentNewCount++;
-            if (currentNewCount % 25 === 0 || currentNewCount >= TARGET_NEW_LEADS) {
-              console.log(`🇫🇷 [FATUMATA PROGRESSO] ${currentNewCount}/${TARGET_NEW_LEADS} leads inéditos | Último: ${item.companyName} (${item.email})`);
-            }
-          } catch {
-            // ignore duplicate constraint
-          }
-        }
+      } catch {
+        // ignore duplicate
       }
     }
   }
 
-  console.log(`✅ [FRANÇA CONCLUÍDO] Total de leads inéditos para Fatumata: ${currentNewCount}`);
-  await pool.end();
+  console.log(`✅ [FRANÇA ESTRITO HTML CONCLUÍDO] Total: ${currentNewCount}`);
+  await client.end();
 }
 
 main().catch(console.error);

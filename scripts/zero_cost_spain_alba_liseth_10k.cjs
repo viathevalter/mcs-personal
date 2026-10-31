@@ -1,8 +1,9 @@
 /**
- * MOTOR 100% GRATUITO (CUSTO € 0,00 - SEM GOOGLE MAPS E SEM IA PAGA) - WAVE 3 FINAL (5.000 ALBA + 5.000 LISETH)
+ * MOTOR 100% ESTRITO HTML REAL - ESPANHA FECHAMENTO FINAL (ALBA 4811->5000 & LISETH 4810->5000)
+ * PROIBIDO CHUTAR info@dominio.es!
  */
 const dns = require('dns').promises;
-const { Pool } = require('pg');
+const { Client } = require('pg');
 
 dns.setServers(['8.8.8.8', '1.1.1.1', '8.8.4.4', '9.9.9.9']);
 
@@ -22,52 +23,209 @@ const TARGET_PER_COMMERCIAL = 5000;
 const BLOCKED_DOMAINS = new Set([
   'exemple.com', 'example.com', 'dominio.es', 'tudominio.es', 'miempresa.es',
   'tuempresa.com', 'test.com', 'email.com', 'sentry.io', 'wixpress.com',
-  'gmail.com', 'hotmail.com', 'hotmail.es', 'outlook.com', 'outlook.es',
+  'gmail.com', 'gmail.co', 'hotmail.com', 'hotmail.es', 'outlook.com', 'outlook.es',
   'yahoo.es', 'yahoo.com', 'live.com', 'icloud.com', 'msn.com', 'telefonica.net',
   'terra.es', 'wanadoo.es', 'ya.com', 'ono.com', 'jazztel.es', 'movistar.es',
   'empresite.eleconomista.es', 'einforma.com', 'infocif.es', 'axesor.es',
-  'paginasamarillas.es', 'kompass.com', 'europages.es', 'linkedin.com', 'facebook.com'
+  'paginasamarillas.es', 'kompass.com', 'europages.es', 'linkedin.com', 'facebook.com',
+  'dream-theme.com', 'wordpress.org', 'wordpress.com', 'ionos.es', 'ionos.com', 'arsys.es', 'dinahosting.com'
 ]);
 
-const PARKED_MX_PATTERNS = [
-  'sedoparking', 'parkingcrew', 'bodis', 'above.com', 'afternic', 'dan.com', 'eftydns', 'parklogic'
-];
+const PARKED_TITLE_REGEX = /bienvenido a hostinet|pr[oó]ximamente|web en venta|dominio en venta|domain for sale|sedoparking|parking|index of \/|default web site|security check|coming soon|en construction|403 forbidden|404 not found|servicio listo para iniciar|account suspended|cuenta suspendida/i;
 
-const SECTORS = [
-  { prefix: 'carpinteria', label: 'Carpintería Metálica & Industrial' },
-  { prefix: 'cerrajerias', label: 'Cerrajería & Estructuras Metálicas' },
-  { prefix: 'ventanas', label: 'Cerramientos & Carpintería Metálica' },
-  { prefix: 'puertas', label: 'Puertas Industriales & Automatismos' },
-  { prefix: 'persianas', label: 'Cerramientos & Persianas Industriales' },
-  { prefix: 'toldos', label: 'Estructuras & Cubiertas' },
-  { prefix: 'cristaleria', label: 'Vidrio & Cerramientos Industriales' },
-  { prefix: 'marmoles', label: 'Piedra Natural & Maquinaria' },
-  { prefix: 'granitos', label: 'Piedra & Transformación Industrial' },
-  { prefix: 'pavimentos', label: 'Pavimentos Industriales' },
-  { prefix: 'impermeabilizaciones', label: 'Impermeabilización & Cubiertas' },
-  { prefix: 'fachadas', label: 'Fachadas & Estructuras' },
-  { prefix: 'demoliciones', label: 'Demoliciones & Obra Civil' },
-  { prefix: 'aridos', label: 'Áridos & Canteras' },
-  { prefix: 'carrocerias', label: 'Carrocerías & Calderería Pesada' },
-  { prefix: 'remolques', label: 'Fabricación de Remolques & Metalmecánica' },
-  { prefix: 'reformas', label: 'Construcción & Rehabilitación Industrial' },
-  { prefix: 'mudanzas', label: 'Logística & Transporte' },
-  { prefix: 'comercial', label: 'Suministro & Distribución Industrial' },
-  { prefix: 'grupo', label: 'Grupo Empresarial & Industrial' },
-  { prefix: 'industrial', label: 'Servicios Industriales' },
-  { prefix: 'sistemas', label: 'Sistemas & Ingeniería Industrial' },
-  { prefix: 'tecnologia', label: 'Tecnología & Automatización' },
-  { prefix: 'plasticos', label: 'Plásticos & Moldes Industriales' },
-  { prefix: 'envases', label: 'Envases & Embalajes Industriales' },
-  { prefix: 'embalajes', label: 'Embalaje Industrial' },
-  { prefix: 'moldes', label: 'Moldes & Matricería' },
-  { prefix: 'compresores', label: 'Compresores & Neumática' },
-  { prefix: 'bombas', label: 'Bombas & Fluidos Industriales' },
-  { prefix: 'calderas', label: 'Calderas & Térmica Industrial' },
-  { prefix: 'refrigeracion', label: 'Frío & Refrigeración Industrial' },
-  { prefix: 'ventilacion', label: 'Ventilación & Climatización' },
-  { prefix: 'solar', label: 'Energía Solar & Fotovoltaica' },
-  { prefix: 'electromecanica', label: 'Electromecánica Industrial' }
+const LATAM_REGEX = /yucat[aá]n|cdmx|m[eé]xico|colombia|bogot[aá]|medell[ií]n|argentina|buenos aires|chile|santiago de chile|per[uú]|lima|e\.i\.r\.l|s\.a\. de c\.v\.|\+52|\+57|\+54|\+56|\+51|honduras|guatemala|costa rica|ecuador|venezuela/i;
+
+function decodeCfEmail(encodedString) {
+  try {
+    let email = '';
+    const r = parseInt(encodedString.substr(0, 2), 16);
+    for (let n = 2; encodedString.length - n; n += 2) {
+      const i = parseInt(encodedString.substr(n, 2), 16) ^ r;
+      email += String.fromCharCode(i);
+    }
+    return email;
+  } catch {
+    return '';
+  }
+}
+
+function extractRealEmailsFromHtml(rawHtml, targetDomain) {
+  if (!rawHtml) return [];
+  let html = rawHtml
+    .replace(/&#64;/g, '@')
+    .replace(/&#x40;/gi, '@')
+    .replace(/&#46;/g, '.')
+    .replace(/&#x2e;/gi, '.')
+    .replace(/\[at\]|\(at\)|\[arroba\]|\(arroba\)/gi, '@');
+
+  const cfMatches = html.match(/data-cfemail=["']([a-fA-F0-9]+)["']/g) || [];
+  for (const m of cfMatches) {
+    const hex = m.replace(/data-cfemail=["']|["']/g, '');
+    const decoded = decodeCfEmail(hex);
+    if (decoded && decoded.includes('@')) html += ` ${decoded} `;
+  }
+
+  const matches = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+  const validSame = [];
+  const validCorp = [];
+
+  for (const rawE of matches) {
+    const e = rawE.toLowerCase().trim().replace(/^[.,;:]+|[.,;:]+$/g, '');
+    if (e.length < 6 || e.length > 80) continue;
+    if (/\.(png|jpg|jpeg|gif|svg|webp|avif|css|js|woff|woff2|ttf|eot|ico|pdf|mp4|mp3|zip)$/i.test(e)) continue;
+    if (/^(2x|3x|100x|200x|300x|400x|500x)/i.test(e)) continue;
+    if (e.includes('sentry') || e.includes('wix') || e.includes('wordpress') || e.includes('prestashop') || e.includes('example') || e.includes('exemple') || e.includes('dominio') || e.includes('tuempresa') || e.includes('usuario@') || e.includes('nombre@') || e.includes('email@') || e.includes('correo@') || e.startsWith('webmaster@')) continue;
+
+    const [user, dom] = e.split('@');
+    if (!user || !dom || BLOCKED_DOMAINS.has(dom)) continue;
+    if (!/^[a-z0-9.-]+\.[a-z]{2,8}$/.test(dom)) continue;
+
+    if (dom === targetDomain || dom.endsWith(`.${targetDomain}`)) {
+      if (!validSame.includes(e)) validSame.push(e);
+    } else {
+      if (!validCorp.includes(e)) validCorp.push(e);
+    }
+  }
+
+  return validSame.length > 0 ? validSame : validCorp;
+}
+
+async function fetchHtml(url, timeoutMs = 2200) {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml'
+      }
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (!ct.includes('text/html') && !ct.includes('application/xhtml')) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+const visitedDomains = new Set();
+
+async function verifyAndScrapeRealSpanishSite(domain, fallbackName) {
+  if (visitedDomains.has(domain)) return null;
+  visitedDomains.add(domain);
+
+  try {
+    const mx = await Promise.race([
+      dns.resolveMx(domain),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1300))
+    ]);
+    if (!Array.isArray(mx) || mx.length === 0) return null;
+  } catch {
+    return null;
+  }
+
+  const baseUrls = [`https://${domain}`, `https://www.${domain}`];
+  let homeHtml = null;
+  let workingBase = null;
+  for (const b of baseUrls) {
+    const h = await fetchHtml(b, 2200);
+    if (h && h.length > 250) {
+      homeHtml = h;
+      workingBase = b;
+      break;
+    }
+  }
+  if (!homeHtml || !workingBase) return null;
+
+  let cleanTitle = fallbackName;
+  const tMatch = homeHtml.match(/<title[^>]*>([\s\S]{2,120}?)<\/title>/i);
+  if (tMatch) {
+    const t = tMatch[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (PARKED_TITLE_REGEX.test(t)) return null;
+    const firstPart = t.split(/[|\-–—·•]/)[0].trim();
+    if (firstPart.length >= 3 && !/^(inicio|home|bienvenido|portada|index)$/i.test(firstPart)) {
+      cleanTitle = firstPart.slice(0, 120);
+    }
+  }
+
+  const bodySample = homeHtml.slice(0, 15000);
+  if (PARKED_TITLE_REGEX.test(bodySample.slice(0, 2500))) return null;
+  if (domain.endsWith('.com') && LATAM_REGEX.test(bodySample)) return null;
+
+  let foundPhone = null;
+  const pm = homeHtml.match(/(?:\+34\s?)?[689]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}/);
+  if (pm) foundPhone = pm[0].trim();
+
+  let emails = extractRealEmailsFromHtml(homeHtml, domain);
+  if (emails.length === 0) {
+    const subPaths = ['/contacto', '/aviso-legal', '/contact'];
+    const linkMatches = homeHtml.match(/href=["']([^"']*(?:contact|aviso|legal)[^"']*)["']/gi) || [];
+    for (const lm of linkMatches.slice(0, 2)) {
+      const href = lm.replace(/^href=["']|["']$/gi, '').trim();
+      if (href.startsWith('/') && !subPaths.includes(href)) subPaths.unshift(href);
+    }
+    for (const sp of subPaths.slice(0, 2)) {
+      const subHtml = await fetchHtml(`${workingBase}${sp}`, 1900);
+      if (subHtml && subHtml.length > 200) {
+        if (!foundPhone) {
+          const pm2 = subHtml.match(/(?:\+34\s?)?[689]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}/);
+          if (pm2) foundPhone = pm2[0].trim();
+        }
+        const subE = extractRealEmailsFromHtml(subHtml, domain);
+        if (subE.length > 0) {
+          emails = subE;
+          break;
+        }
+      }
+    }
+  }
+
+  if (emails.length === 0) return null;
+
+  return {
+    email: emails[0],
+    phone: foundPhone,
+    companyName: cleanTitle || fallbackName
+  };
+}
+
+const HIGH_HIT_SECTORS = [
+  { prefix: 'reformas', label: 'Construcción & Rehabilitación' },
+  { prefix: 'construcciones', label: 'Construcción & Obra Civil' },
+  { prefix: 'instalaciones', label: 'Instalaciones Industriales' },
+  { prefix: 'talleres', label: 'Mecanizado & Talleres' },
+  { prefix: 'carpinteria', label: 'Carpintería Metálica & Madera' },
+  { prefix: 'cerrajeria', label: 'Cerrajería & Estructuras Metálicas' },
+  { prefix: 'fontaneria', label: 'Fontanería & Tuberías' },
+  { prefix: 'electricidad', label: 'Instalaciones Eléctricas' },
+  { prefix: 'pinturas', label: 'Pintura Industrial & Decorativa' },
+  { prefix: 'transportes', label: 'Logística & Transporte' },
+  { prefix: 'mudanzas', label: 'Mudanzas & Logística' },
+  { prefix: 'aluminios', label: 'Carpintería de Aluminio & PVC' },
+  { prefix: 'cristaleria', label: 'Vidrio & Cerramientos' },
+  { prefix: 'toldos', label: 'Toldos & Estructuras' },
+  { prefix: 'persianas', label: 'Persianas & Cerramientos' },
+  { prefix: 'puertas', label: 'Puertas & Automatismos' },
+  { prefix: 'ventanas', label: 'Ventanas & Cerramientos' },
+  { prefix: 'muebles', label: 'Industria del Mueble' },
+  { prefix: 'maderas', label: 'Industria Maderera' },
+  { prefix: 'imprenta', label: 'Artes Gráficas & Packaging' },
+  { prefix: 'graficas', label: 'Artes Gráficas' },
+  { prefix: 'rotulos', label: 'Rotulación & Estructuras' },
+  { prefix: 'limpiezas', label: 'Limpieza Industrial' },
+  { prefix: 'desatascos', label: 'Saneamientos & Tuberías' },
+  { prefix: 'cerrajeros', label: 'Cerrajería 24h & Metálica' },
+  { prefix: 'fontaneros', label: 'Fontanería & Calefacción' },
+  { prefix: 'electricistas', label: 'Instalaciones Eléctricas' },
+  { prefix: 'pintores', label: 'Pintura & Revestimientos' },
+  { prefix: 'asesoria', label: 'Asesoría Empresarial' },
+  { prefix: 'gestoria', label: 'Gestión Empresarial' },
+  { prefix: 'inmobiliaria', label: 'Inmobiliaria & Naves' },
+  { prefix: 'abogados', label: 'Servicios Jurídicos' }
 ];
 
 const SUFFIXES_AND_CITIES = [
@@ -134,92 +292,11 @@ const SUFFIXES_AND_CITIES = [
   'murcia', 'andalucia', 'extremadura', 'mancha', 'leon', 'castilla', 'canarias', 'baleares'
 ];
 
-const mxCache = new Map();
-async function verifyCorporateMx(domain) {
-  if (!domain || BLOCKED_DOMAINS.has(domain)) return false;
-  if (mxCache.has(domain)) return mxCache.get(domain);
-  try {
-    const mx = await Promise.race([
-      dns.resolveMx(domain),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500))
-    ]);
-    if (!Array.isArray(mx) || mx.length === 0) {
-      mxCache.set(domain, false);
-      return false;
-    }
-    const valid = mx.some(r => {
-      const ex = (r.exchange || '').toLowerCase().trim();
-      return ex.length > 3 && !PARKED_MX_PATTERNS.some(p => ex.includes(p));
-    });
-    mxCache.set(domain, valid);
-    return valid;
-  } catch {
-    mxCache.set(domain, false);
-    return false;
-  }
-}
-
-async function scrapeSpanishWebsite(domain, defaultName) {
-  const urls = [`https://${domain}`, `https://www.${domain}`];
-  let foundEmail = null;
-  let foundPhone = null;
-  let foundTitle = null;
-
-  for (const url of urls) {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 1800);
-      const res = await fetch(url, {
-        signal: ctrl.signal,
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36' }
-      });
-      clearTimeout(timer);
-      if (!res.ok) continue;
-      const html = await res.text();
-
-      if (!foundTitle) {
-        const tMatch = html.match(/<title[^>]*>([^<]{3,90})<\/title>/i);
-        if (tMatch) {
-          const cleanT = tMatch[1].replace(/\s+/g, ' ').split(/[|\-–—]/)[0].trim();
-          if (cleanT.length >= 4 && !/403|404|error|index of|parking|domain/i.test(cleanT)) {
-            foundTitle = cleanT;
-          }
-        }
-      }
-
-      if (!foundPhone) {
-        const pMatch = html.match(/(?:\+34\s?)?[689]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}/);
-        if (pMatch) foundPhone = pMatch[0].trim();
-      }
-
-      const emails = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
-      for (const rawE of emails) {
-        const e = rawE.toLowerCase().trim();
-        if (/\.(png|jpg|jpeg|gif|svg|webp|css|js|woff|ttf)$/i.test(e)) continue;
-        const d = e.split('@')[1];
-        if (!d || BLOCKED_DOMAINS.has(d)) continue;
-        if (d === domain || d.endsWith(`.${domain}`)) {
-          foundEmail = e;
-          break;
-        }
-      }
-      if (foundEmail) break;
-    } catch {
-      // ignore timeout
-    }
-  }
-
-  return {
-    email: foundEmail || `info@${domain}`,
-    phone: foundPhone,
-    companyName: (foundTitle || defaultName).slice(0, 120)
-  };
-}
-
 async function main() {
-  const pool = new Pool({ connectionString: DB_URL, max: 6 });
+  const client = new Client({ connectionString: DB_URL });
+  await client.connect();
 
-  const existingRes = await pool.query(`
+  const existingRes = await client.query(`
     SELECT lower(trim(email)) as email
     FROM core_comercial.leads
     WHERE email IS NOT NULL
@@ -232,11 +309,14 @@ async function main() {
     if (r.email) {
       existingEmails.add(r.email);
       const d = r.email.split('@')[1];
-      if (d) existingDomains.add(d);
+      if (d) {
+        existingDomains.add(d);
+        visitedDomains.add(d);
+      }
     }
   }
 
-  const countRes = await pool.query(`
+  const countRes = await client.query(`
     SELECT
       assigned_to,
       count(*) FILTER (
@@ -259,51 +339,49 @@ async function main() {
     if (r.assigned_to === LISETH_ID) lisethCount = parseInt(r.virgin_cnt, 10) || 0;
   }
 
-  console.log(`🇪🇸 [ESPANHA WAVE 3 INÍCIO] Alba: ${albaCount}/${TARGET_PER_COMMERCIAL} | Liseth: ${lisethCount}/${TARGET_PER_COMMERCIAL}`);
+  console.log(`🇪🇸 [ESPANHA FECHAMENTO 5000] Alba: ${albaCount}/${TARGET_PER_COMMERCIAL} | Liseth: ${lisethCount}/${TARGET_PER_COMMERCIAL}`);
 
   const combinations = [];
-  for (const sec of SECTORS) {
+  for (const sec of HIGH_HIT_SECTORS) {
     for (const suf of SUFFIXES_AND_CITIES) {
       const cleanSuf = suf.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
       if (!cleanSuf) continue;
       const defaultName = `${sec.prefix.charAt(0).toUpperCase() + sec.prefix.slice(1)} ${suf.charAt(0).toUpperCase() + suf.slice(1)} S.L.`;
 
-      const domEs1 = `${sec.prefix}${cleanSuf}.es`;
-      if (!existingDomains.has(domEs1)) combinations.push({ domain: domEs1, defaultName, sector: sec.label });
+      // Reversed .com (never tested before!)
+      const domRevCom = `${cleanSuf}${sec.prefix}.com`;
+      if (!existingDomains.has(domRevCom)) combinations.push({ domain: domRevCom, defaultName, sector: sec.label });
 
-      const domEs2 = `${cleanSuf}${sec.prefix}.es`;
-      if (!existingDomains.has(domEs2)) combinations.push({ domain: domEs2, defaultName, sector: sec.label });
+      // Hyphenated .es & .com
+      const domHyphEs = `${sec.prefix}-${cleanSuf}.es`;
+      if (!existingDomains.has(domHyphEs)) combinations.push({ domain: domHyphEs, defaultName, sector: sec.label });
 
-      const domCom = `${sec.prefix}${cleanSuf}.com`;
-      if (!existingDomains.has(domCom)) combinations.push({ domain: domCom, defaultName, sector: sec.label });
+      const domHyphCom = `${sec.prefix}-${cleanSuf}.com`;
+      if (!existingDomains.has(domHyphCom)) combinations.push({ domain: domHyphCom, defaultName, sector: sec.label });
     }
   }
 
-  console.log(`Total de combinações industriais (Wave 3) para varredura DNS MX + Web: ${combinations.length}`);
+  console.log(`Total combinações inéditas (.com invertido + hifenizados): ${combinations.length}`);
 
-  const CHUNK_SIZE = 50;
+  const CHUNK_SIZE = 70;
   for (let i = 0; i < combinations.length; i += CHUNK_SIZE) {
     if (albaCount >= TARGET_PER_COMMERCIAL && lisethCount >= TARGET_PER_COMMERCIAL) break;
 
     const chunk = combinations.slice(i, i + CHUNK_SIZE);
     const verifiedChunk = (await Promise.all(chunk.map(async cand => {
       if (existingDomains.has(cand.domain)) return null;
-      const mxOk = await verifyCorporateMx(cand.domain);
-      if (!mxOk) return null;
-      const scraped = await scrapeSpanishWebsite(cand.domain, cand.defaultName);
-      return {
-        ...cand,
-        email: scraped.email.toLowerCase().trim(),
-        phone: scraped.phone,
-        companyName: scraped.companyName
-      };
+      const scraped = await verifyAndScrapeRealSpanishSite(cand.domain, cand.defaultName);
+      if (!scraped) return null;
+      return { ...cand, ...scraped };
     }))).filter(Boolean);
 
     for (const item of verifiedChunk) {
       if (albaCount >= TARGET_PER_COMMERCIAL && lisethCount >= TARGET_PER_COMMERCIAL) break;
-      if (existingDomains.has(item.domain) || existingEmails.has(item.email)) continue;
+      const emailDomain = item.email.split('@')[1];
+      if (existingDomains.has(item.domain) || existingDomains.has(emailDomain) || existingEmails.has(item.email)) continue;
 
       existingDomains.add(item.domain);
+      existingDomains.add(emailDomain);
       existingEmails.add(item.email);
 
       let assignAlba = false;
@@ -311,18 +389,16 @@ async function main() {
         assignAlba = (TARGET_PER_COMMERCIAL - albaCount) >= (TARGET_PER_COMMERCIAL - lisethCount);
       } else if (albaCount < TARGET_PER_COMMERCIAL) {
         assignAlba = true;
-      } else {
-        assignAlba = false;
       }
 
       try {
         if (assignAlba) {
-          await pool.query(`
+          await client.query(`
             INSERT INTO core_comercial.leads (
               name, company_name, email, phone, empresa_id, assigned_to, stage_id, tags, created_at, updated_at
             ) VALUES (
               $1, $2, $3, $4, $5, $6, $7,
-              ARRAY['Espanha', 'B2B', $8, 'Mailing Alba - Inéditos Espanha 2026'],
+              ARRAY['Espanha', 'B2B', $8, 'HTML Verificado 100% Real', 'Mailing Alba - Inéditos Espanha 2026'],
               NOW(), NOW()
             )
           `, [
@@ -337,12 +413,12 @@ async function main() {
           ]);
           albaCount++;
         } else {
-          await pool.query(`
+          await client.query(`
             INSERT INTO core_comercial.leads (
               name, company_name, email, phone, empresa_id, assigned_to, stage_id, tags, created_at, updated_at
             ) VALUES (
               $1, $2, $3, $4, $5, $6, $7,
-              ARRAY['Espanha', 'B2B', $8, 'Mailing Liseth - Inéditos Espanha 2026'],
+              ARRAY['Espanha', 'B2B', $8, 'HTML Verificado 100% Real', 'Mailing Liseth - Inéditos Espanha 2026'],
               NOW(), NOW()
             )
           `, [
@@ -359,17 +435,17 @@ async function main() {
         }
 
         const totalDone = albaCount + lisethCount;
-        if (totalDone % 50 === 0 || (albaCount >= TARGET_PER_COMMERCIAL && lisethCount >= TARGET_PER_COMMERCIAL)) {
-          console.log(`🇪🇸 [ESPANHA PROGRESSO] Alba: ${albaCount}/${TARGET_PER_COMMERCIAL} | Liseth: ${lisethCount}/${TARGET_PER_COMMERCIAL} | Último: ${item.companyName} (${item.email})`);
+        if (totalDone % 25 === 0 || (albaCount >= TARGET_PER_COMMERCIAL && lisethCount >= TARGET_PER_COMMERCIAL)) {
+          console.log(`🇪🇸 [ESPANHA 100% HTML REAL] Alba: ${albaCount}/${TARGET_PER_COMMERCIAL} | Liseth: ${lisethCount}/${TARGET_PER_COMMERCIAL} | Último: ${item.companyName} (${item.email})`);
         }
       } catch {
-        // ignore duplicate error
+        // ignore duplicate
       }
     }
   }
 
-  console.log(`✅ [ESPANHA WAVE 3 CONCLUÍDO] Alba: ${albaCount} | Liseth: ${lisethCount}`);
-  await pool.end();
+  console.log(`✅ [ESPANHA ESTRITO HTML CONCLUÍDO] Alba: ${albaCount} | Liseth: ${lisethCount}`);
+  await client.end();
 }
 
 main().catch(console.error);
