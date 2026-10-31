@@ -662,12 +662,13 @@ async function harvestItalyOfficial(client, job, existingNames, existingEmails) 
   return insertedCount;
 }
 
-const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || 'AIzaSyDCnuylEKT18xlS9Tk53fnA9XMnw1q9Y5s';
+const GOOGLE_PLACES_API_KEY = null; // BLOQUEADO DEFINITIVAMENTE CUSTO ZERO
 
 /**
  * Motor Google Places API Oficial + Web Scraper de E-mails
  */
 async function harvestViaGooglePlacesApi(client, job, existingNames, existingEmails) {
+  return 0; // TRAVA ABSOLUTA DE SEGURANCA - SEM GOOGLE MAPS API
   if (!GOOGLE_PLACES_API_KEY) return 0;
 
   const isFR = (job.location && job.location.toLowerCase().includes('fran')) || (job.title && job.title.includes('🇫🇷'));
@@ -704,7 +705,7 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
       const query = `${cleanKw} ${targetCity}`;
       console.log(`📍 [GOOGLE PLACES API] Buscando: "${query}" (${country})`);
       try {
-        const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_PLACES_API_KEY}`;
+        const searchUrl = `https://disabled-google-maps-zero-cost.invalid`;
         const searchRes = await fetch(searchUrl);
         const searchData = await searchRes.json();
         if (searchData.status === 'OK' && Array.isArray(searchData.results)) {
@@ -737,7 +738,7 @@ async function harvestViaGooglePlacesApi(client, job, existingNames, existingEma
 
         if (place.place_id) {
           try {
-            const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,international_phone_number,website&key=${GOOGLE_PLACES_API_KEY}`;
+            const detailUrl = `https://disabled-google-maps-zero-cost.invalid`;
             const detailRes = await fetch(detailUrl);
             const detailData = await detailRes.json();
             if (detailData.status === 'OK' && detailData.result) {

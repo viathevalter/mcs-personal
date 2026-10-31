@@ -39,6 +39,17 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // LISETH (ESPANHA - WISEOWE)
   // ==========================================
   {
+    id: 'aud_liseth_5000_ineditos_espanha_2026',
+    name: '🚀 🇪🇸 Liseth (Wiseowe) - 5.000 Novos Leads Inéditos Espanha 2026',
+    leadCount: 5000,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Liseth - Inéditos Espanha 2026',
+    },
+  },
+  {
     id: 'aud_liseth_base_total_2026',
     name: '🌟 🇪🇸 Liseth (Wiseowe) - Base Total Consolidada',
     leadCount: 33,
@@ -110,6 +121,17 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // ==========================================
   // FATUMATA (FRANÇA & BÉLGICA - WISEOWE)
   // ==========================================
+  {
+    id: 'aud_fatumata_5000_novos_franca_2026',
+    name: '🚀 🇫🇷 Fatumata (Wiseowe) - 5.000 Nouveaux Leads Inédits France 2026',
+    leadCount: 5000,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      tagKeyword: 'Mailing Fatumata - Novos Capturados França 2026',
+    },
+  },
   {
     id: 'aud_fr_base_total_france',
     name: '🌟 🇫🇷 Fatumata (Wiseowe) - France Base Totale Consolidée',
@@ -729,6 +751,17 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // ==========================================
   // ALBA (ESPANHA - TRIÂNGULO)
   // ==========================================
+  {
+    id: 'aud_alba_5000_ineditos_espanha_2026',
+    name: '🚀 🇪🇸 Alba (Triangulo) - 5.000 Novos Leads Inéditos Espanha 2026',
+    leadCount: 5000,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Inéditos Espanha 2026',
+    },
+  },
   {
     id: 'aud_triangulo_mitchelle_ineditos_metal',
     name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos Sector Metal Lote 2',

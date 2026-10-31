@@ -186,6 +186,7 @@ serve(async (req) => {
     // Cache simples de empresas e usuários para evitar queries repetidas no lote
     const companyCache = new Map<string, any>();
     const userCache = new Map<string, any>();
+    const sentDomainsInBatch = new Set<string>();
 
     for (const item of queueItems) {
       const campaign = item.marketing_campaigns;
@@ -246,7 +247,8 @@ serve(async (req) => {
       // IDs de vendedores comerciais
       const GIADA_ID = '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
       const MICHELLE_ID = 'dbc361a1-e4af-446a-8079-39c0caab00d2';
-      const ALBA_ID = '2fdac13f-fb57-4ca9-a731-1acba5bb2bd7';
+      const ALBA_ID = 'ca69863d-998b-4bad-865a-19720e7a1f67';
+      const ALBA_LEGACY_ID = '2fdac13f-fb57-4ca9-a731-1acba5bb2bd7';
       const OMAR_ID = '346a9262-2edf-4a2e-80fc-aa5b43bf483a';
       const FATUMATA_ID = '2a25dd76-8a1b-44ea-8ea9-47e9232beee2';
       const LISETH_ID = 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa';
@@ -295,7 +297,7 @@ serve(async (req) => {
         defaultWaUrl = waLisethUrl;
       } else if (assignedUserId === FATUMATA_ID || assignedUserId === OMAR_ID) {
         defaultWaUrl = waOmarUrl;
-      } else if (assignedUserId === ALBA_ID || assignedUserId === MICHELLE_ID) {
+      } else if (assignedUserId === ALBA_ID || assignedUserId === ALBA_LEGACY_ID || assignedUserId === MICHELLE_ID) {
         defaultWaUrl = waMichelleUrl;
       } else if (assignedUserId === ALEX_ID) {
         defaultWaUrl = waAlexUrl;
@@ -499,6 +501,74 @@ serve(async (req) => {
               })
               .eq("id", item.id);
             continue;
+          }
+
+          // 3. Blindagem Anti-Spam de Domínios Proibidos / Provedores Pessoais Franceses (Orange/Wanadoo/Free/SFR/Fake)
+          const emailDomain = cleanLeadEmail.split("@")[1] || "";
+          const blockedFakeOrFrenchIspDomains = new Set([
+            "exemple.com", "exemple.fr", "example.com", "domaine.fr", "domaine.com",
+            "votredomaine.fr", "monsite.fr", "test.com", "test.fr", "email.com",
+            "sentry.io", "wixpress.com", "orange.fr", "wanadoo.fr", "free.fr",
+            "sfr.fr", "laposte.net", "bbox.fr", "neuf.fr", "aliceadsl.fr",
+            "club-internet.fr", "numericable.fr", "noos.fr", "voila.fr", "cegetel.net"
+          ]);
+          const frenchPersonalWebmails = new Set([
+            "gmail.com", "hotmail.fr", "hotmail.com", "outlook.fr", "outlook.com",
+            "yahoo.fr", "yahoo.com", "live.fr", "live.com", "icloud.com", "msn.com", "aol.com"
+          ]);
+
+          if (blockedFakeOrFrenchIspDomains.has(emailDomain) || (isFranceLead && frenchPersonalWebmails.has(emailDomain))) {
+            console.warn(`[PROTEÇÃO ANTI-SPAM] Domínio pessoal/bloqueado descartado na fila: ${cleanLeadEmail}`);
+            await supabase
+              .from("marketing_campaign_queue")
+              .update({
+                status: "failed",
+                error_message: `Proteção Anti-Spam: Domínio não corporativo bloqueado (${emailDomain})`,
+              })
+              .eq("id", item.id);
+            continue;
+          }
+
+          // 4. Trava de 1 E-mail por Domínio Corporativo no Lote + Cooldown Anti-Repetição (21 dias)
+          const genericWebmailsEs = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.es", "yahoo.com", "hotmail.es", "outlook.es", "live.com", "icloud.com"]);
+          const isCorporateDomain = emailDomain && !genericWebmailsEs.has(emailDomain) && !frenchPersonalWebmails.has(emailDomain);
+
+          if (isCorporateDomain && sentDomainsInBatch.has(emailDomain)) {
+            console.warn(`[DEDUPLICAÇÃO DOMÍNIO] Empresa ${emailDomain} já recebeu e-mail neste lote. Pulando ${cleanLeadEmail}.`);
+            await supabase
+              .from("marketing_campaign_queue")
+              .update({
+                status: "failed",
+                error_message: `Proteção Anti-Spam: Outro contato do mesmo domínio (${emailDomain}) já recebeu envio`,
+              })
+              .eq("id", item.id);
+            continue;
+          }
+
+          if (targetLeadId) {
+            const cooldownDate = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString();
+            const { count: recentSentCount } = await supabase
+              .from("marketing_campaign_queue")
+              .select("*", { count: "exact", head: true })
+              .eq("lead_id", targetLeadId)
+              .eq("status", "sent")
+              .gte("sent_at", cooldownDate);
+
+            if (recentSentCount && recentSentCount > 0) {
+              console.warn(`[COOLDOWN 21 DIAS] Lead ${cleanLeadEmail} já recebeu campanha nos últimos 21 dias. Bloqueando reenvio.`);
+              await supabase
+                .from("marketing_campaign_queue")
+                .update({
+                  status: "failed",
+                  error_message: "Proteção Anti-Spam: Lead já recebeu e-mail nos últimos 21 dias (Bloqueio de repetição)",
+                })
+                .eq("id", item.id);
+              continue;
+            }
+          }
+
+          if (isCorporateDomain) {
+            sentDomainsInBatch.add(emailDomain);
           }
 
           const emailPayload = {
