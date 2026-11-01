@@ -97,8 +97,9 @@ export async function getHoursControlWorkers({ empresaId, periodYear, periodMont
 
         if (!data || data.length === 0) break;
         for (const w of data as Worker[]) {
-            if (w.id && seenIds.has(w.id)) continue;
-            if (w.id) seenIds.add(w.id);
+            const dedupKey = `${w.id || ''}::${((w as any).cliente_nombre || '').trim().toUpperCase()}`;
+            if (w.id && seenIds.has(dedupKey)) continue;
+            if (w.id) seenIds.add(dedupKey);
             allWorkers.push(w);
         }
         if (data.length < PAGE_SIZE) break;

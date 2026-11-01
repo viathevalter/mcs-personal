@@ -124,7 +124,7 @@ export function ExportPendingHoursDialog({
                 const { data: hours, error: hoursError } = await supabase
                     .schema('core_personal')
                     .from('worker_hours')
-                    .select('worker_id, status')
+                    .select('worker_id, status, cliente_nombre')
                     .in('worker_id', chunk)
                     .eq('period_year', periodYear)
                     .eq('period_month', periodMonth);
@@ -135,7 +135,10 @@ export function ExportPendingHoursDialog({
 
             // 4. Find those who are pending
             const pendingWorkers = filteredWorkers.filter(w => {
-                const hourRecord = hoursData.find(h => h.worker_id === w.id);
+                const wClient = (w.cliente_nombre || '').trim().toLowerCase();
+                const hourRecord =
+                    hoursData.find(h => h.worker_id === w.id && (h.cliente_nombre || '').trim().toLowerCase() === wClient) ||
+                    hoursData.find(h => h.worker_id === w.id && (!h.cliente_nombre || ['não definido', 'cliente geral'].includes((h.cliente_nombre || '').trim().toLowerCase())));
                 return !hourRecord || hourRecord.status === 'pendente';
             });
 

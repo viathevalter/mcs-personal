@@ -123,7 +123,8 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                     candidates.sort((a, b) => {
                         const score = (h: any) => {
                             let s = 0;
-                            if ((h.cliente_nombre || '').trim().toLowerCase() === wClient) s += 100;
+                            const hClient = (h.cliente_nombre || '').trim().toLowerCase();
+                            if (hClient && wClient && hClient === wClient) s += 2000;
                             if (Number(h.horas_totais || 0) > 0 || (Array.isArray(h.apontamentos_diarios) && h.apontamentos_diarios.length > 0)) s += 500;
                             if (h.file_url) s += 400;
                             if (h.status === 'validado') s += 60;

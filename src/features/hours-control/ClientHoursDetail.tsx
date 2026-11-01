@@ -178,7 +178,7 @@ export function ClientHoursDetail() {
                 let score = 0;
                 const hClient = (h.cliente_nombre || '').trim().toLowerCase();
                 const wClient = (w.cliente_nombre || '').trim().toLowerCase();
-                if (hClient && wClient && hClient === wClient) score += 100;
+                if (hClient && wClient && hClient === wClient) score += 2000;
                 if (hasFilledPortalHours(h)) score += 500;
                 if (h.file_url) score += 400;
                 if (h.status === 'validado') score += 60;
