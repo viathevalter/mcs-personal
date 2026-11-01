@@ -224,10 +224,17 @@ export function useWorkerTimesheet(workerAuth: any) {
         );
         if (candidates.length > 0) {
             const targetCli = (activeProfile.cliente || activeProfile.cliente_nombre || '').trim().toLowerCase();
+            const isCancelledObs = (obs?: string | null) => {
+                const s = (obs || '').toLowerCase();
+                return s.includes('no inici') || s.includes('desisti') || s.includes('no se present');
+            };
             candidates.sort((a, b) => {
                 const aHas = Number((a as any).horas_totais || 0) > 0 || (Array.isArray(a.apontamentos_diarios) && a.apontamentos_diarios.length > 0) ? 1 : 0;
                 const bHas = Number((b as any).horas_totais || 0) > 0 || (Array.isArray(b.apontamentos_diarios) && b.apontamentos_diarios.length > 0) ? 1 : 0;
                 if (aHas !== bHas) return bHas - aHas;
+                const aNotCancelled = isCancelledObs((a as any).observacoes) ? 0 : 1;
+                const bNotCancelled = isCancelledObs((b as any).observacoes) ? 0 : 1;
+                if (aNotCancelled !== bNotCancelled) return bNotCancelled - aNotCancelled;
                 const aCli = targetCli && (a.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
                 const bCli = targetCli && (b.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
                 return bCli - aCli;

@@ -1456,6 +1456,8 @@ export function ClientHoursDetail() {
                 periodMonth={month}
                 existingNote={notesDialogState.existingNote}
                 hourRecordId={notesDialogState.hourRecordId}
+                clientName={clientName || ''}
+                contratante={workers.find(w => w.worker_id === notesDialogState.workerId)?.contratante || contratante || ''}
                 onSuccess={fetchClientWorkers}
             />
 

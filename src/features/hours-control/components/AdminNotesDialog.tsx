@@ -17,6 +17,8 @@ interface AdminNotesDialogProps {
     periodMonth: number;
     existingNote: string | null;
     hourRecordId: string | null;
+    clientName?: string;
+    contratante?: string;
     onSuccess: () => void;
 }
 
@@ -29,6 +31,8 @@ export function AdminNotesDialog({
     periodMonth,
     existingNote,
     hourRecordId,
+    clientName,
+    contratante,
     onSuccess
 }: AdminNotesDialogProps) {
     const { t } = useTranslation();
@@ -49,16 +53,24 @@ export function AdminNotesDialog({
             setLoading(true);
 
             if (hourRecordId) {
-                // Update existing record
+                const updatePayload: Record<string, any> = {
+                    observacoes: note,
+                    updated_at: new Date().toISOString()
+                };
+                if (clientName && clientName.trim() !== '') {
+                    updatePayload.cliente_nombre = clientName.trim();
+                }
+                if (contratante && contratante.trim() !== '') {
+                    updatePayload.contratante = contratante.trim();
+                }
                 const { error } = await supabase
                     .schema('core_personal')
                     .from('worker_hours')
-                    .update({ observacoes: note, updated_at: new Date().toISOString() })
+                    .update(updatePayload)
                     .eq('id', hourRecordId);
 
                 if (error) throw error;
             } else {
-                // Insert new record since none exists for this period
                 const { error } = await supabase
                     .schema('core_personal')
                     .from('worker_hours')
@@ -68,7 +80,9 @@ export function AdminNotesDialog({
                         period_year: periodYear,
                         period_month: periodMonth,
                         status: 'pendente',
-                        observacoes: note
+                        observacoes: note,
+                        cliente_nombre: clientName && clientName.trim() !== '' ? clientName.trim() : 'NÃO DEFINIDO',
+                        contratante: contratante && contratante.trim() !== '' ? contratante.trim() : null
                     });
 
                 if (error) throw error;
