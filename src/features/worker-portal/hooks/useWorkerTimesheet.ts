@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '../../../shared/supabase/client';
 import type { WorkerHour } from '../../../shared/types/corePersonal';
 import type { TimesheetDayEntry } from '../services/timesheetPdfService';
@@ -36,6 +36,21 @@ export function useWorkerTimesheet(workerAuth: any) {
         return profiles[0] || workerAuth;
     }, [profiles, workerAuth]);
 
+    const hasAutoSelectedMonthRef = useRef(false);
+
+    const resolveEmpresaId = useCallback((contratanteStr?: string | null, fallbackRecords?: WorkerHour[]): string => {
+        const c = (contratanteStr || activeProfile?.contratante || activeProfile?.empresa_nome || '').trim().toLowerCase();
+        if (c.includes('luminous') || c.includes('luminus')) return '847796c4-b253-4e53-9e6b-34a127ec7d85';
+        if (c.includes('stocco')) return '441f1f5d-aed3-40e3-8c77-7b1217757251';
+        if (c.includes('wiseowe')) return 'dae64d51-2181-4510-b14f-e63d2f111a8e';
+        if (c.includes('triangulo') || c.includes('triângulo')) return 'a798620a-358a-4c6c-9db2-3a507c583cac';
+        if (c.includes('hexagon') || c === 'hex') return '2c944db5-f1d0-4789-a562-8cfa1c0155b7';
+        if (c.includes('rosas') || c.includes('kotrik')) return 'f5d32323-4d68-4a54-8fb8-0ba670dcaecf';
+        const prevWithHours = fallbackRecords?.find(r => r.empresa_id && r.empresa_id !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d');
+        if (prevWithHours?.empresa_id) return prevWithHours.empresa_id;
+        return activeProfile?.empresa_id || '847796c4-b253-4e53-9e6b-34a127ec7d85';
+    }, [activeProfile]);
+
     // Carregar registros do banco
     const loadPeriods = useCallback(async () => {
         if (!activeProfile?.id) return;
@@ -55,9 +70,41 @@ export function useWorkerTimesheet(workerAuth: any) {
 
             let records = data || [];
 
-            // Garantir que exista um registro para o mês corrente
             const thisYr = now.getFullYear();
             const thisMo = now.getMonth() + 1;
+            const prevMo = thisMo === 1 ? 12 : thisMo - 1;
+            const prevYr = thisMo === 1 ? thisYr - 1 : thisYr;
+
+            const resolvedEmpId = resolveEmpresaId(activeProfile.contratante, records);
+            const lastKnownClient = records.find(r => r.cliente_nombre && r.cliente_nombre !== 'CLIENTE GERAL' && r.cliente_nombre !== 'NÃO DEFINIDO')?.cliente_nombre;
+            const defaultClient = activeProfile.cliente || lastKnownClient || 'CLIENTE GERAL';
+            const defaultContratante = activeProfile.contratante || activeProfile.empresa_nome || 'MCS Personal';
+
+            const hasPrev = records.some(
+                r => r.period_year === prevYr && r.period_month === prevMo && r.worker_id === activeProfile.id
+            );
+
+            if (!hasPrev) {
+                const { data: createdPrev, error: prevErr } = await supabase
+                    .schema('core_personal')
+                    .from('worker_hours')
+                    .insert({
+                        worker_id: activeProfile.id,
+                        empresa_id: resolvedEmpId,
+                        period_year: prevYr,
+                        period_month: prevMo,
+                        cliente_nombre: defaultClient,
+                        contratante: defaultContratante,
+                        status: 'pendente',
+                        apontamentos_diarios: []
+                    })
+                    .select()
+                    .single();
+
+                if (!prevErr && createdPrev) {
+                    records = [createdPrev, ...records];
+                }
+            }
 
             const hasCurrent = records.some(
                 r => r.period_year === thisYr && r.period_month === thisMo && r.worker_id === activeProfile.id
@@ -69,11 +116,11 @@ export function useWorkerTimesheet(workerAuth: any) {
                     .from('worker_hours')
                     .insert({
                         worker_id: activeProfile.id,
-                        empresa_id: activeProfile.empresa_id,
+                        empresa_id: resolvedEmpId,
                         period_year: thisYr,
                         period_month: thisMo,
-                        cliente_nombre: activeProfile.cliente || 'CLIENTE GERAL',
-                        contratante: activeProfile.contratante || activeProfile.empresa_nome || 'MCS Personal',
+                        cliente_nombre: defaultClient,
+                        contratante: defaultContratante,
                         status: 'pendente',
                         apontamentos_diarios: []
                     })
@@ -85,6 +132,30 @@ export function useWorkerTimesheet(workerAuth: any) {
                 }
             }
 
+            if (!hasAutoSelectedMonthRef.current) {
+                hasAutoSelectedMonthRef.current = true;
+                const prevRecords = records.filter(r => r.period_year === prevYr && r.period_month === prevMo && r.worker_id === activeProfile.id);
+                const currRecords = records.filter(r => r.period_year === thisYr && r.period_month === thisMo && r.worker_id === activeProfile.id);
+
+                const prevSubmittedOrValidated = prevRecords.some(r =>
+                    r.status === 'validado' ||
+                    r.status === 'enviado' ||
+                    r.status === 'processado' ||
+                    r.status === 'assinado_encarregado' ||
+                    r.status === 'aguardando_assinatura' ||
+                    Boolean(r.file_url)
+                );
+                const currHasHours = currRecords.some(r =>
+                    Number(r.horas_totais || 0) > 0 ||
+                    (Array.isArray(r.apontamentos_diarios) && r.apontamentos_diarios.some((d: any) => Number(d.totalHoras ?? d.total_horas ?? 0) > 0))
+                );
+
+                if (now.getDate() <= 10 && !prevSubmittedOrValidated && !currHasHours) {
+                    setCurrentYear(prevYr);
+                    setCurrentMonth(prevMo);
+                }
+            }
+
             setAllPeriods(records);
         } catch (err: any) {
             console.error('Erro ao carregar apontamentos:', err);
@@ -92,7 +163,7 @@ export function useWorkerTimesheet(workerAuth: any) {
         } finally {
             setLoading(false);
         }
-    }, [activeProfile, profiles]);
+    }, [activeProfile, profiles, now, resolveEmpresaId]);
 
     useEffect(() => {
         loadPeriods();
@@ -418,16 +489,12 @@ export function useWorkerTimesheet(workerAuth: any) {
     // SALVAR APONTAMENTO DIÁRIO (permitido em todos os dias do mês corrente)
     const saveDayEntry = async (entry: TimesheetDayEntry) => {
         if (!selectedPeriod) {
-            toast.error('Só é permitido lançar horas no mês corrente.');
+            toast.error('Nenhum período selecionado.');
             return;
         }
 
-        const realNow = new Date();
-        const realYear = realNow.getFullYear();
-        const realMonth = realNow.getMonth() + 1;
-
-        if (selectedPeriod.period_year !== realYear || selectedPeriod.period_month !== realMonth || currentYear !== realYear || currentMonth !== realMonth) {
-            toast.error('Meses anteriores estão fechados apenas para consulta. Só é permitido lançar horas no mês corrente.');
+        if (selectedPeriod.status === 'validado') {
+            toast.error('Esta folha de horas já foi validada e está bloqueada para alterações.');
             return;
         }
 

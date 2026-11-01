@@ -15,6 +15,7 @@ interface MonthlyCalendarViewProps {
         daysWorked: number;
         pendingDays: number;
     };
+    periodStatus?: string;
     onSelectDay: (dayNumber: number) => void;
     onMonthChange: (month: number, year: number) => void;
     onViewWeekDetails?: () => void;
@@ -27,6 +28,7 @@ export function MonthlyCalendarView({
     month,
     days,
     monthlyStats,
+    periodStatus,
     onSelectDay,
     onMonthChange,
     onViewWeekDetails,
@@ -40,6 +42,7 @@ export function MonthlyCalendarView({
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === year && (today.getMonth() + 1) === month;
     const isPastMonth = year < today.getFullYear() || (year === today.getFullYear() && month < (today.getMonth() + 1));
+    const isValidated = periodStatus === 'validado';
     const canGoNextMonth = year < today.getFullYear() || (year === today.getFullYear() && month < (today.getMonth() + 1));
     const todayDay = isCurrentMonth ? today.getDate() : null;
 
@@ -120,11 +123,15 @@ export function MonthlyCalendarView({
                     <span className="text-xs font-semibold text-emerald-700">
                         {monthlyStats.totalHours.toFixed(1).replace('.', ',')}h &bull; {monthlyStats.daysWorked} {t('workerPortal.dashboard.daysUnit', 'dias')}
                     </span>
-                    {isPastMonth && (
-                        <span className="block mt-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                            {isSpanish ? 'Solo Consulta (Mes Cerrado)' : 'Apenas Consulta (Mês Fechado)'}
+                    {isValidated ? (
+                        <span className="block mt-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                            {isSpanish ? 'Hoja Validada (Cerrada)' : 'Folha Validada (Fechada)'}
                         </span>
-                    )}
+                    ) : isPastMonth ? (
+                        <span className="block mt-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">
+                            {isSpanish ? 'Abierto para Cierre / Envío' : 'Aberto para Fechamento / Envio'}
+                        </span>
+                    ) : null}
                 </div>
 
                 <button
@@ -170,7 +177,7 @@ export function MonthlyCalendarView({
                         const hasHours = Number(day.totalHoras || 0) > 0;
                         const isRest = day.obs === 'Descanso' || day.obs === 'Folga' || day.obs?.toLowerCase().includes('descanso');
                         const isPending = !hasHours && !isRest && dateObj <= today && !isWeekend;
-                        const isLocked = isPastMonth;
+                        const isLocked = isValidated;
 
                         return (
                             <button
@@ -179,7 +186,7 @@ export function MonthlyCalendarView({
                                 disabled={isLocked}
                                 onClick={() => !isLocked && onSelectDay(day.dia)}
                                 className={`h-12 rounded-2xl flex flex-col items-center justify-between p-1.5 transition-all select-none border ${
-                                    isPastMonth
+                                    isLocked
                                         ? 'border-slate-100 bg-slate-50/60 cursor-default'
                                         : isToday
                                         ? 'border-emerald-500 bg-emerald-50/50 shadow-xs ring-2 ring-emerald-500/20'

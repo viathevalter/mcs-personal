@@ -229,23 +229,52 @@ export function WorkerDashboardPage() {
         return `${prefix}, ${weekDay} · ${day} ${isSpanish ? 'de' : 'de'} ${monthName}`;
     }, [locale, isSpanish]);
 
-    // Nome do mês atual
+    // Nome do mês atual selecionado
     const currentMonthName = useMemo(() => {
         const d = new Date(currentYear, currentMonth - 1, 1);
         return d.toLocaleDateString(locale, { month: 'long' });
     }, [currentYear, currentMonth, locale]);
 
-    // Abertura do modal para um dia específico (permitido em qualquer dia do mês corrente; meses anteriores apenas consulta)
-    const handleOpenDailyModal = (day: number | any) => {
-        const realNow = new Date();
-        const realYear = realNow.getFullYear();
-        const realMonth = realNow.getMonth() + 1;
+    const realNow = new Date();
+    const realYear = realNow.getFullYear();
+    const realMonth = realNow.getMonth() + 1;
+    const prevCalendarMonth = realMonth === 1 ? 12 : realMonth - 1;
+    const prevCalendarYear = realMonth === 1 ? realYear - 1 : realYear;
+    const isViewingCurrentCalendarMonth = currentYear === realYear && currentMonth === realMonth;
 
-        if (currentYear !== realYear || currentMonth !== realMonth) {
+    const prevMonthName = useMemo(() => {
+        const d = new Date(prevCalendarYear, prevCalendarMonth - 1, 1);
+        return d.toLocaleDateString(locale, { month: 'long' });
+    }, [prevCalendarYear, prevCalendarMonth, locale]);
+
+    const realCurrentMonthName = useMemo(() => {
+        const d = new Date(realYear, realMonth - 1, 1);
+        return d.toLocaleDateString(locale, { month: 'long' });
+    }, [realYear, realMonth, locale]);
+
+    const prevMonthPeriod = useMemo(() => {
+        return allPeriods.find(p => p.period_year === prevCalendarYear && p.period_month === prevCalendarMonth);
+    }, [allPeriods, prevCalendarYear, prevCalendarMonth]);
+
+    const isPrevMonthPendingSubmission = useMemo(() => {
+        if (!prevMonthPeriod) return true;
+        return (
+            prevMonthPeriod.status !== 'validado' &&
+            prevMonthPeriod.status !== 'enviado' &&
+            prevMonthPeriod.status !== 'processado' &&
+            prevMonthPeriod.status !== 'assinado_encarregado' &&
+            prevMonthPeriod.status !== 'aguardando_assinatura' &&
+            !prevMonthPeriod.file_url
+        );
+    }, [prevMonthPeriod]);
+
+    // Abertura do modal para um dia específico (permitido no mês corrente e no mês anterior enquanto não validado)
+    const handleOpenDailyModal = (day: number | any) => {
+        if (selectedPeriod?.status === 'validado') {
             toast.warning(
                 isSpanish
-                    ? 'Los meses anteriores están cerrados solo para consulta.'
-                    : 'Os meses anteriores estão bloqueados apenas para consulta.'
+                    ? 'Esta hoja ya ha sido validada y está cerrada para edición.'
+                    : 'Esta folha já foi validada e está bloqueada para edição.'
             );
             return;
         }
@@ -253,7 +282,7 @@ export function WorkerDashboardPage() {
         const parsed = typeof day === 'object' && day !== null 
             ? Number(day.dia ?? day.day ?? 1) 
             : Number(day);
-        const targetDay = Number.isFinite(parsed) ? parsed : 1;
+        const targetDay = Number.isFinite(parsed) && parsed >= 1 ? parsed : (firstPendingDay || 1);
 
         setModalDay(targetDay);
     };
@@ -369,6 +398,7 @@ export function WorkerDashboardPage() {
                     month={currentMonth}
                     days={days}
                     monthlyStats={monthlyStats}
+                    periodStatus={selectedPeriod?.status}
                     onSelectDay={handleOpenDailyModal}
                     onMonthChange={setMonthYear}
                     onViewWeekDetails={() => setSubView('week')}
@@ -521,6 +551,7 @@ export function WorkerDashboardPage() {
                     >
                         {Array.from({ length: 6 }).map((_, i) => {
                             const d = new Date();
+                            d.setDate(1);
                             d.setMonth(d.getMonth() - i);
                             const yr = d.getFullYear();
                             const mo = d.getMonth() + 1;
@@ -533,6 +564,57 @@ export function WorkerDashboardPage() {
                         })}
                     </select>
                 </div>
+            </div>
+
+            {/* SELETOR RÁPIDO DE PERÍODO (MÊS ANTERIOR vs MÊS ATUAL) */}
+            <div className="bg-white rounded-2xl p-1.5 border border-slate-200/90 shadow-2xs grid grid-cols-2 gap-1.5">
+                <button
+                    type="button"
+                    onClick={() => setMonthYear(prevCalendarMonth, prevCalendarYear)}
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                        currentYear === prevCalendarYear && currentMonth === prevCalendarMonth
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : isPrevMonthPendingSubmission
+                            ? 'bg-amber-50 text-amber-900 border border-amber-200/80 hover:bg-amber-100/70'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                >
+                    <span className="capitalize truncate">
+                        {prevMonthName} {prevCalendarYear}
+                    </span>
+                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ml-1 shrink-0 ${
+                        currentYear === prevCalendarYear && currentMonth === prevCalendarMonth
+                            ? 'bg-white/20 text-white'
+                            : isPrevMonthPendingSubmission
+                            ? 'bg-amber-200/80 text-amber-900'
+                            : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                        {isPrevMonthPendingSubmission
+                            ? (isSpanish ? 'Cerrar mes' : 'Fechar mês')
+                            : (isSpanish ? 'Enviado' : 'Enviado')}
+                    </span>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setMonthYear(realMonth, realYear)}
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                        isViewingCurrentCalendarMonth
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                >
+                    <span className="capitalize truncate">
+                        {realCurrentMonthName} {realYear}
+                    </span>
+                    <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md ml-1 shrink-0 ${
+                        isViewingCurrentCalendarMonth
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-200/70 text-slate-700'
+                    }`}>
+                        {isSpanish ? 'Actual' : 'Atual'}
+                    </span>
+                </button>
             </div>
 
             {/* Banners PWA: Instalador e Ativação de Notificações Push */}
@@ -693,65 +775,114 @@ export function WorkerDashboardPage() {
                 </div>
             )}
 
-            {/* 2. CARD PRINCIPAL DE HOJE (AÇÃO RÁPIDA DE 5 SEGUNDOS) */}
-            <Card className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/30 shadow-md overflow-hidden">
-                <CardContent className="p-4 sm:p-5 space-y-3.5">
-                    <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-500 capitalize">
-                            {todayDateFormatted}
-                        </span>
-                        {todayIsFilled && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                                {t('workerPortal.dashboard.todayRecorded', 'Registado')}
+            {/* 2. CARD PRINCIPAL DE HOJE OU FECHAMENTO DO MÊS ANTERIOR */}
+            {isViewingCurrentCalendarMonth ? (
+                <Card className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/30 shadow-md overflow-hidden">
+                    <CardContent className="p-4 sm:p-5 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-slate-500 capitalize">
+                                {todayDateFormatted}
                             </span>
-                        )}
-                    </div>
+                            {todayIsFilled && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                    {t('workerPortal.dashboard.todayRecorded', 'Registado')}
+                                </span>
+                            )}
+                        </div>
 
-                    {/* Situação: Se já apontou hoje vs Se ainda falta apontar */}
-                    {todayIsFilled ? (
-                        <div className="space-y-3">
-                            <div className="flex items-center justify-between bg-white/90 p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
-                                <div>
-                                    <div className="text-2xl font-black text-emerald-900 flex items-center gap-1.5">
-                                        {Number(todayEntry?.totalHoras || 0).toFixed(1).replace('.', ',')}
-                                        <span className="text-sm font-bold text-emerald-700">
-                                            {t('workerPortal.dashboard.hours', 'horas')}
-                                        </span>
+                        {/* Situação: Se já apontou hoje vs Se ainda falta apontar */}
+                        {todayIsFilled ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between bg-white/90 p-3.5 rounded-2xl border border-emerald-100 shadow-2xs">
+                                    <div>
+                                        <div className="text-2xl font-black text-emerald-900 flex items-center gap-1.5">
+                                            {Number(todayEntry?.totalHoras || 0).toFixed(1).replace('.', ',')}
+                                            <span className="text-sm font-bold text-emerald-700">
+                                                {t('workerPortal.dashboard.hours', 'horas')}
+                                            </span>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500 font-medium">
+                                            {todayEntry?.horasNoturnas && todayEntry.horasNoturnas > 0
+                                                ? `${t('workerPortal.dashboard.nightShift', 'Nocturno')} (${todayEntry.horasNoturnas}h)`
+                                                : t('workerPortal.dashboard.dayShift', 'Turno Diurno')}
+                                            {todayEntry?.entrada && ` • ${todayEntry.entrada} - ${todayEntry.saida}`}
+                                        </p>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 font-medium">
-                                        {todayEntry?.horasNoturnas && todayEntry.horasNoturnas > 0
-                                            ? `${t('workerPortal.dashboard.nightShift', 'Nocturno')} (${todayEntry.horasNoturnas}h)`
-                                            : t('workerPortal.dashboard.dayShift', 'Turno Diurno')}
-                                        {todayEntry?.entrada && ` • ${todayEntry.entrada} - ${todayEntry.saida}`}
-                                    </p>
+                                    <Button
+                                        onClick={() => handleOpenDailyModal(todayDayNumber)}
+                                        variant="outline"
+                                        className="h-10 px-4 rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold text-xs gap-1.5 shadow-2xs"
+                                    >
+                                        <Edit3 className="h-3.5 w-3.5" />
+                                        {t('workerPortal.dashboard.editToday', 'Editar')}
+                                    </Button>
                                 </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2.5">
                                 <Button
                                     onClick={() => handleOpenDailyModal(todayDayNumber)}
-                                    variant="outline"
-                                    className="h-10 px-4 rounded-xl border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-bold text-xs gap-1.5 shadow-2xs"
+                                    className="w-full h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-black text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
                                 >
-                                    <Edit3 className="h-3.5 w-3.5" />
-                                    {t('workerPortal.dashboard.editToday', 'Editar')}
+                                    <Plus className="h-5 w-5 stroke-[2.5]" />
+                                    {t('workerPortal.dashboard.pointTodayHours', 'Apontar minhas horas de hoje')}
                                 </Button>
+                                <p className="text-center text-[11px] text-slate-500 font-medium">
+                                    {t('workerPortal.dashboard.quickTimeTip', 'Leva apenas 5 a 10 segundos no seu telemóvel')}
+                                </p>
                             </div>
+                        )}
+                    </CardContent>
+                </Card>
+            ) : (
+                <Card className="rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-white via-emerald-50/25 to-teal-50/40 shadow-md overflow-hidden">
+                    <CardContent className="p-4 sm:p-5 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">
+                                    {isSpanish ? 'Cierre y Envío del Mes' : 'Fechamento e Envio do Mês'}
+                                </span>
+                                <h3 className="text-base font-black text-slate-900 capitalize">
+                                    {currentMonthName} {currentYear}
+                                </h3>
+                            </div>
+                            {selectedPeriod && <StatusPill status={selectedPeriod.status} />}
                         </div>
-                    ) : (
-                        <div className="space-y-2.5">
+
+                        <div className="grid grid-cols-2 gap-2">
                             <Button
-                                onClick={() => handleOpenDailyModal(todayDayNumber)}
-                                className="w-full h-14 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-black text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 active:scale-[0.99]"
+                                type="button"
+                                onClick={() => handleOpenDailyModal(firstPendingDay || 1)}
+                                className="h-12 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl font-extrabold text-xs shadow-sm flex items-center justify-center gap-1.5"
                             >
-                                <Plus className="h-5 w-5 stroke-[2.5]" />
-                                {t('workerPortal.dashboard.pointTodayHours', 'Apontar minhas horas de hoje')}
+                                <Plus className="h-4 w-4 stroke-[2.5]" />
+                                {isSpanish ? `Apuntar Horas (${currentMonthName})` : `Apontar Horas (${currentMonthName})`}
                             </Button>
-                            <p className="text-center text-[11px] text-slate-500 font-medium">
-                                {t('workerPortal.dashboard.quickTimeTip', 'Leva apenas 5 a 10 segundos no seu telemóvel')}
-                            </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => setSubView('generate-pdf')}
+                                className="h-12 rounded-2xl border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs"
+                            >
+                                <FileText className="h-4 w-4 text-emerald-600" />
+                                {isSpanish ? 'Finalizar / Enviar PDF' : 'Finalizar / Enviar PDF'}
+                            </Button>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
+
+                        <button
+                            type="button"
+                            onClick={() => setSubView('upload')}
+                            className="w-full py-2 px-3 rounded-xl bg-white/80 hover:bg-white border border-slate-200 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                            <UploadCloud className="h-3.5 w-3.5 text-emerald-600" />
+                            {isSpanish
+                                ? `Subir foto o PDF de la hoja de ${currentMonthName}`
+                                : `Enviar foto ou PDF da folha de ${currentMonthName}`}
+                        </button>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* 3. ALERTA DE DIAS PENDENTES (Se houver dias passados sem registo) */}
             {monthlyStats.pendingDays > 0 && firstPendingDay && (
