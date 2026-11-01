@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../../components/ui/badge';
 import { useEmpresa } from '../../app/providers/EmpresaProvider';
 import { useClientHoursSummary } from './hooks/useClientHoursSummary';
-import { Loader2, FileText, ChevronRight, Users, Clock, Upload, CheckCircle, CheckCircle2, Search, X } from 'lucide-react';
+import { Loader2, Building2, ChevronRight, Users, Clock, Upload, CheckCircle, CheckCircle2, Search, X, Sparkles } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Input } from '../../components/ui/input';
 import { useUniqueContratantes } from '../workers/hooks/useUniqueContratantes';
@@ -115,7 +115,7 @@ export function HoursControlPage() {
     // Filter controls
     const years = [currentDate.getFullYear() - 1, currentDate.getFullYear(), currentDate.getFullYear() + 1];
     const months = Array.from({ length: 12 }, (_, i) => {
-        const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
+        const locale = i18n.language.startsWith('es') ? 'es-ES' : i18n.language.startsWith('fr') ? 'fr-FR' : 'pt-BR';
         return {
             value: i + 1,
             label: new Date(2000, i, 1).toLocaleString(locale, { month: 'long' }).toUpperCase()
@@ -148,6 +148,7 @@ export function HoursControlPage() {
         return 'completed'; // All validated
     };
 
+    const totalClientsCount = filteredClients.length;
     const clientsWithPending = filteredClients.filter(c => (c.pending_hours || 0) > 0).length;
     const clientsWithSubmitted = filteredClients.filter(c => (c.submitted_hours || 0) > 0).length;
     const clientsWithValidated = filteredClients.filter(c => (c.validated_hours || 0) > 0).length;
@@ -161,6 +162,20 @@ export function HoursControlPage() {
         finalizados: completedClients.length,
         finalizadosTrabalhadores: completedClients.reduce((acc, c) => acc + (c.total_workers || 0), 0),
     };
+
+    const calcPct = (val: number, total: number) => (total > 0 ? Math.round((val / total) * 100) : 0);
+
+    const pctPendentesWorkers = calcPct(kpis.pendentes, kpis.ativos);
+    const pctPendentesClients = calcPct(clientsWithPending, totalClientsCount);
+
+    const pctEnviadasWorkers = calcPct(kpis.enviadas, kpis.ativos);
+    const pctEnviadasClients = calcPct(clientsWithSubmitted, totalClientsCount);
+
+    const pctValidadasWorkers = calcPct(kpis.validadas, kpis.ativos);
+    const pctValidadasClients = calcPct(clientsWithValidated, totalClientsCount);
+
+    const pctFinalizadosClients = calcPct(kpis.finalizados, totalClientsCount);
+    const pctFinalizadosWorkers = calcPct(kpis.finalizadosTrabalhadores, kpis.ativos);
 
     const displayedClients = filteredClients.filter(c => {
         if (kpiFilter === 'pendentes') return (c.pending_hours || 0) > 0;
@@ -201,13 +216,15 @@ export function HoursControlPage() {
                 portalNode
             )}
 
-            {/* Fila superior com Seletores e Busca */}
-            <div className="flex flex-col xl:flex-row gap-4 items-start xl:items-center justify-between shrink-0 bg-card p-4 rounded-md border shadow-sm">
-                <div className="flex gap-4 items-center flex-wrap">
+            {/* Barra de Filtros Executiva */}
+            <div className="flex flex-col xl:flex-row gap-3.5 items-start xl:items-end justify-between shrink-0 bg-card/95 backdrop-blur-sm p-3.5 px-4 rounded-2xl border border-border/80 shadow-xs">
+                <div className="flex gap-3.5 items-end flex-wrap w-full xl:w-auto">
                     <div className="space-y-1">
-                        <label className="text-sm font-medium text-muted-foreground">{t('hoursControl.month')}</label>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                            {t('hoursControl.month')}
+                        </label>
                         <Select value={periodMonth.toString()} onValueChange={(v) => updateSearchParams({ month: v })}>
-                            <SelectTrigger className="w-[180px]">
+                            <SelectTrigger className="w-[165px] h-9 rounded-xl font-semibold text-xs bg-background">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -218,9 +235,11 @@ export function HoursControlPage() {
                         </Select>
                     </div>
                     <div className="space-y-1">
-                        <label className="text-sm font-medium text-muted-foreground">{t('hoursControl.year')}</label>
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                            {t('hoursControl.year')}
+                        </label>
                         <Select value={periodYear.toString()} onValueChange={(v) => updateSearchParams({ year: v })}>
-                            <SelectTrigger className="w-[120px]">
+                            <SelectTrigger className="w-[105px] h-9 rounded-xl font-semibold text-xs bg-background">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -232,39 +251,47 @@ export function HoursControlPage() {
                     </div>
                     
                     {/* Worker Search */}
-                    <div className="space-y-1 ml-0 xl:ml-4 w-full sm:w-80">
-                         <label className="text-sm font-medium text-muted-foreground">Pesquisar Trabalhador</label>
-                         <div className="relative">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <div className="space-y-1 flex-1 sm:flex-initial sm:w-72">
+                        <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                            {t('hoursControl.searchWorkerLabel')}
+                        </label>
+                        <div className="relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
-                                placeholder="Nome ou telemóvel..."
-                                className="pl-9 bg-background"
+                                placeholder={t('hoursControl.searchWorkerPlaceholder')}
+                                className="pl-9 pr-8 h-9 text-xs rounded-xl bg-background"
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                             />
+                            {searchQuery && (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2.5 top-2 h-5 w-5 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                <div className="flex gap-4 w-full lg:w-auto mt-2 xl:mt-0 items-center">
+                <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full xl:w-auto items-center">
+                    <Select 
+                        value={workerStatusFilter} 
+                        onValueChange={(v) => updateSearchParams({ workerStatus: v })}
+                    >
+                        <SelectTrigger className="w-full sm:w-[155px] h-9 rounded-xl text-xs font-medium bg-background">
+                            <SelectValue placeholder={t('hoursControl.filterStatus')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">{t('hoursControl.statusAll')}</SelectItem>
+                            <SelectItem value="active">{t('hoursControl.statusActive')}</SelectItem>
+                            <SelectItem value="inactive">{t('hoursControl.statusInactive')}</SelectItem>
+                        </SelectContent>
+                    </Select>
 
-                    <div className="space-y-1">
-                        <Select 
-                            value={workerStatusFilter} 
-                            onValueChange={(v) => updateSearchParams({ workerStatus: v })}
-                        >
-                            <SelectTrigger className="w-[160px]">
-                                <SelectValue placeholder={t('hoursControl.filterStatus')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">{t('hoursControl.statusAll')}</SelectItem>
-                                <SelectItem value="active">{t('hoursControl.statusActive')}</SelectItem>
-                                <SelectItem value="inactive">{t('hoursControl.statusInactive')}</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <div className="w-full sm:w-48">
+                    <div className="w-full sm:w-44">
                         <Combobox
                             options={contratantes?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
                             value={contratanteFilter}
@@ -274,7 +301,7 @@ export function HoursControlPage() {
                         />
                     </div>
 
-                    <div className="w-full sm:w-80">
+                    <div className="w-full sm:w-64">
                         <MultiSelect
                             options={clientsList?.filter(c => c && c.trim() !== '').map(c => ({ value: c, label: c })) || []}
                             selected={clientFilter}
@@ -286,29 +313,68 @@ export function HoursControlPage() {
                 </div>
             </div>
 
-            {/* KPIs Interativos com Filtro Direto */}
+            {/* Galeria de KPIs Executivos Interativos */}
             {selectedEmpresaId && !isError && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 shrink-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 shrink-0">
                     {/* 1. Ativos no Mês / Todos */}
                     <button
                         type="button"
                         onClick={() => handleKpiFilterToggle('all')}
-                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                        title={t('hoursControl.kpis.tooltipAll')}
+                        className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                             kpiFilter === 'all'
-                                ? 'border-l-slate-700 bg-slate-100/90 dark:bg-slate-800/80 shadow-md ring-2 ring-slate-400/50'
-                                : 'border-l-slate-400 bg-card hover:bg-muted/50 hover:shadow-sm'
+                                ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white border-slate-800 shadow-lg shadow-slate-900/15 ring-2 ring-slate-900/20 dark:from-slate-100 dark:to-slate-200 dark:text-slate-900'
+                                : 'bg-card hover:bg-slate-50/80 dark:hover:bg-slate-900/40 border-border/80 hover:border-slate-300 shadow-xs hover:shadow-md'
                         }`}
-                        title={kpiFilter === 'all' ? 'Exibindo todos os clientes' : 'Filtrar todos os clientes'}
                     >
-                        <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                                kpiFilter === 'all' ? 'text-slate-300 dark:text-slate-600' : 'text-muted-foreground'
+                            }`}>
                                 {t('hoursControl.kpis.active')}
                             </span>
-                            <Users className="h-4 w-4 text-slate-500" />
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                    kpiFilter === 'all'
+                                        ? 'bg-white/15 text-white dark:bg-slate-900/10 dark:text-slate-900'
+                                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                }`}>
+                                    100%
+                                </span>
+                                <div className={`p-1.5 rounded-xl ${
+                                    kpiFilter === 'all' ? 'bg-white/10 text-white dark:bg-slate-900/10 dark:text-slate-900' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                                }`}>
+                                    <Users className="h-3.5 w-3.5" />
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-baseline justify-between gap-1">
-                            <span className="text-2xl font-bold tracking-tight">{kpis.ativos}</span>
-                            <span className="text-xs text-muted-foreground font-medium">{filteredClients.length} clientes</span>
+
+                        <div className="my-2 flex items-baseline gap-2">
+                            <span className="text-3xl font-black tracking-tight leading-none">{kpis.ativos}</span>
+                            <span className={`text-xs font-semibold truncate ${
+                                kpiFilter === 'all' ? 'text-slate-300 dark:text-slate-600' : 'text-muted-foreground'
+                            }`}>
+                                {t('hoursControl.kpis.workers')}
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-1 border-t border-current/10">
+                            <div className="flex items-center justify-between text-[11px] font-semibold">
+                                <span className={kpiFilter === 'all' ? 'text-slate-200 dark:text-slate-700' : 'text-slate-600 dark:text-slate-400'}>
+                                    <Building2 className="h-3 w-3 inline mr-1 opacity-75" />
+                                    {totalClientsCount} {t('hoursControl.kpis.clients')}
+                                </span>
+                                <span className={`text-[10px] ${kpiFilter === 'all' ? 'text-slate-300 dark:text-slate-600' : 'text-muted-foreground'}`}>
+                                    100%
+                                </span>
+                            </div>
+                            <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                                kpiFilter === 'all' ? 'bg-white/20 dark:bg-slate-900/20' : 'bg-slate-100 dark:bg-slate-800'
+                            }`}>
+                                <div className={`h-full rounded-full transition-all duration-500 ${
+                                    kpiFilter === 'all' ? 'bg-emerald-400 dark:bg-slate-900' : 'bg-slate-600'
+                                }`} style={{ width: '100%' }} />
+                            </div>
                         </div>
                     </button>
 
@@ -316,24 +382,67 @@ export function HoursControlPage() {
                     <button
                         type="button"
                         onClick={() => handleKpiFilterToggle('pendentes')}
-                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                        title={t('hoursControl.kpis.tooltipPending')}
+                        className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                             kpiFilter === 'pendentes'
-                                ? 'border-l-amber-500 bg-amber-50 dark:bg-amber-950/40 shadow-md ring-2 ring-amber-500/50 border-amber-300 dark:border-amber-700'
-                                : 'border-l-amber-400 bg-card hover:bg-amber-50/40 dark:hover:bg-amber-950/20 hover:shadow-sm'
+                                ? 'bg-gradient-to-br from-amber-500 via-amber-500 to-orange-600 text-white border-amber-500 shadow-lg shadow-amber-500/25 ring-2 ring-amber-500/30'
+                                : 'bg-gradient-to-br from-amber-50/50 via-card to-card dark:from-amber-950/20 dark:to-card border-amber-200/80 dark:border-amber-800/50 hover:border-amber-400 shadow-xs hover:shadow-md'
                         }`}
-                        title="Filtrar clientes com horas a enviar"
                     >
-                        <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                                kpiFilter === 'pendentes' ? 'text-amber-50' : 'text-amber-800 dark:text-amber-300'
+                            }`}>
                                 {t('hoursControl.kpis.pending')}
                             </span>
-                            <Clock className="h-4 w-4 text-amber-500" />
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                    kpiFilter === 'pendentes'
+                                        ? 'bg-white/25 text-white'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                                }`}>
+                                    {pctPendentesWorkers}%
+                                </span>
+                                <div className={`p-1.5 rounded-xl ${
+                                    kpiFilter === 'pendentes' ? 'bg-white/20 text-white' : 'bg-amber-100/80 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                                }`}>
+                                    <Clock className="h-3.5 w-3.5" />
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-baseline justify-between gap-1">
-                            <span className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
+
+                        <div className="my-2 flex items-baseline gap-1.5">
+                            <span className={`text-3xl font-black tracking-tight leading-none ${
+                                kpiFilter === 'pendentes' ? 'text-white' : 'text-amber-600 dark:text-amber-400'
+                            }`}>
                                 {kpis.pendentes}
                             </span>
-                            <span className="text-xs text-muted-foreground font-medium">{clientsWithPending} clientes</span>
+                            <span className={`text-xs font-semibold truncate ${
+                                kpiFilter === 'pendentes' ? 'text-amber-100' : 'text-muted-foreground'
+                            }`}>
+                                {t('hoursControl.kpis.ofTotalWorkers', { total: kpis.ativos })}
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-1 border-t border-current/10">
+                            <div className="flex items-center justify-between text-[11px] font-semibold">
+                                <span className={kpiFilter === 'pendentes' ? 'text-white' : 'text-amber-900/80 dark:text-amber-200'}>
+                                    <Building2 className="h-3 w-3 inline mr-1 opacity-75" />
+                                    {clientsWithPending} {t('hoursControl.kpis.ofTotalClients', { total: totalClientsCount })}
+                                </span>
+                                <span className={`text-[10px] font-bold ${
+                                    kpiFilter === 'pendentes' ? 'text-amber-100' : 'text-amber-700 dark:text-amber-400'
+                                }`}>
+                                    {pctPendentesClients}% {t('hoursControl.kpis.clients')}
+                                </span>
+                            </div>
+                            <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                                kpiFilter === 'pendentes' ? 'bg-black/20' : 'bg-amber-100 dark:bg-amber-950'
+                            }`}>
+                                <div className={`h-full rounded-full transition-all duration-500 ${
+                                    kpiFilter === 'pendentes' ? 'bg-white' : 'bg-amber-500'
+                                }`} style={{ width: `${Math.max(pctPendentesWorkers, kpis.pendentes > 0 ? 4 : 0)}%` }} />
+                            </div>
                         </div>
                     </button>
 
@@ -341,24 +450,67 @@ export function HoursControlPage() {
                     <button
                         type="button"
                         onClick={() => handleKpiFilterToggle('enviadas')}
-                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                        title={t('hoursControl.kpis.tooltipToValidate')}
+                        className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                             kpiFilter === 'enviadas'
-                                ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-950/40 shadow-md ring-2 ring-blue-500/50 border-blue-300 dark:border-blue-700'
-                                : 'border-l-blue-400 bg-card hover:bg-blue-50/40 dark:hover:bg-blue-950/20 hover:shadow-sm'
+                                ? 'bg-gradient-to-br from-blue-600 via-blue-600 to-indigo-700 text-white border-blue-600 shadow-lg shadow-blue-600/25 ring-2 ring-blue-500/30'
+                                : 'bg-gradient-to-br from-blue-50/50 via-card to-card dark:from-blue-950/20 dark:to-card border-blue-200/80 dark:border-blue-800/50 hover:border-blue-400 shadow-xs hover:shadow-md'
                         }`}
-                        title="Filtrar clientes com horas para validar"
                     >
-                        <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                                kpiFilter === 'enviadas' ? 'text-blue-100' : 'text-blue-800 dark:text-blue-300'
+                            }`}>
                                 {t('hoursControl.kpis.toValidate')}
                             </span>
-                            <Upload className="h-4 w-4 text-blue-500" />
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                    kpiFilter === 'enviadas'
+                                        ? 'bg-white/25 text-white'
+                                        : 'bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300'
+                                }`}>
+                                    {pctEnviadasWorkers}%
+                                </span>
+                                <div className={`p-1.5 rounded-xl ${
+                                    kpiFilter === 'enviadas' ? 'bg-white/20 text-white' : 'bg-blue-100/80 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400'
+                                }`}>
+                                    <Upload className="h-3.5 w-3.5" />
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-baseline justify-between gap-1">
-                            <span className="text-2xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
+
+                        <div className="my-2 flex items-baseline gap-1.5">
+                            <span className={`text-3xl font-black tracking-tight leading-none ${
+                                kpiFilter === 'enviadas' ? 'text-white' : 'text-blue-600 dark:text-blue-400'
+                            }`}>
                                 {kpis.enviadas}
                             </span>
-                            <span className="text-xs text-muted-foreground font-medium">{clientsWithSubmitted} clientes</span>
+                            <span className={`text-xs font-semibold truncate ${
+                                kpiFilter === 'enviadas' ? 'text-blue-100' : 'text-muted-foreground'
+                            }`}>
+                                {t('hoursControl.kpis.ofTotalWorkers', { total: kpis.ativos })}
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-1 border-t border-current/10">
+                            <div className="flex items-center justify-between text-[11px] font-semibold">
+                                <span className={kpiFilter === 'enviadas' ? 'text-white' : 'text-blue-900/80 dark:text-blue-200'}>
+                                    <Building2 className="h-3 w-3 inline mr-1 opacity-75" />
+                                    {clientsWithSubmitted} {t('hoursControl.kpis.ofTotalClients', { total: totalClientsCount })}
+                                </span>
+                                <span className={`text-[10px] font-bold ${
+                                    kpiFilter === 'enviadas' ? 'text-blue-100' : 'text-blue-700 dark:text-blue-400'
+                                }`}>
+                                    {pctEnviadasClients}% {t('hoursControl.kpis.clients')}
+                                </span>
+                            </div>
+                            <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                                kpiFilter === 'enviadas' ? 'bg-black/20' : 'bg-blue-100 dark:bg-blue-950'
+                            }`}>
+                                <div className={`h-full rounded-full transition-all duration-500 ${
+                                    kpiFilter === 'enviadas' ? 'bg-white' : 'bg-blue-600'
+                                }`} style={{ width: `${Math.max(pctEnviadasWorkers, kpis.enviadas > 0 ? 4 : 0)}%` }} />
+                            </div>
                         </div>
                     </button>
 
@@ -366,49 +518,136 @@ export function HoursControlPage() {
                     <button
                         type="button"
                         onClick={() => handleKpiFilterToggle('validadas')}
-                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                        title={t('hoursControl.kpis.tooltipValidated')}
+                        className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                             kpiFilter === 'validadas'
-                                ? 'border-l-green-500 bg-green-50 dark:bg-green-950/40 shadow-md ring-2 ring-green-500/50 border-green-300 dark:border-green-700'
-                                : 'border-l-green-400 bg-card hover:bg-green-50/40 dark:hover:bg-green-950/20 hover:shadow-sm'
+                                ? 'bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 text-white border-emerald-600 shadow-lg shadow-emerald-600/25 ring-2 ring-emerald-500/30'
+                                : 'bg-gradient-to-br from-emerald-50/50 via-card to-card dark:from-emerald-950/20 dark:to-card border-emerald-200/80 dark:border-emerald-800/50 hover:border-emerald-400 shadow-xs hover:shadow-md'
                         }`}
-                        title="Filtrar clientes com horas validadas"
                     >
-                        <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                                kpiFilter === 'validadas' ? 'text-emerald-100' : 'text-emerald-800 dark:text-emerald-300'
+                            }`}>
                                 {t('hoursControl.kpis.validated')}
                             </span>
-                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                    kpiFilter === 'validadas'
+                                        ? 'bg-white/25 text-white'
+                                        : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                                }`}>
+                                    {pctValidadasWorkers}%
+                                </span>
+                                <div className={`p-1.5 rounded-xl ${
+                                    kpiFilter === 'validadas' ? 'bg-white/20 text-white' : 'bg-emerald-100/80 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                                }`}>
+                                    <CheckCircle className="h-3.5 w-3.5" />
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-baseline justify-between gap-1">
-                            <span className="text-2xl font-bold tracking-tight text-green-600 dark:text-green-400">
+
+                        <div className="my-2 flex items-baseline gap-1.5">
+                            <span className={`text-3xl font-black tracking-tight leading-none ${
+                                kpiFilter === 'validadas' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'
+                            }`}>
                                 {kpis.validadas}
                             </span>
-                            <span className="text-xs text-muted-foreground font-medium">{clientsWithValidated} clientes</span>
+                            <span className={`text-xs font-semibold truncate ${
+                                kpiFilter === 'validadas' ? 'text-emerald-100' : 'text-muted-foreground'
+                            }`}>
+                                {t('hoursControl.kpis.ofTotalWorkers', { total: kpis.ativos })}
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-1 border-t border-current/10">
+                            <div className="flex items-center justify-between text-[11px] font-semibold">
+                                <span className={kpiFilter === 'validadas' ? 'text-white' : 'text-emerald-900/80 dark:text-emerald-200'}>
+                                    <Building2 className="h-3 w-3 inline mr-1 opacity-75" />
+                                    {clientsWithValidated} {t('hoursControl.kpis.ofTotalClients', { total: totalClientsCount })}
+                                </span>
+                                <span className={`text-[10px] font-bold ${
+                                    kpiFilter === 'validadas' ? 'text-emerald-100' : 'text-emerald-700 dark:text-emerald-400'
+                                }`}>
+                                    {pctValidadasClients}% {t('hoursControl.kpis.clients')}
+                                </span>
+                            </div>
+                            <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                                kpiFilter === 'validadas' ? 'bg-black/20' : 'bg-emerald-100 dark:bg-emerald-950'
+                            }`}>
+                                <div className={`h-full rounded-full transition-all duration-500 ${
+                                    kpiFilter === 'validadas' ? 'bg-white' : 'bg-emerald-500'
+                                }`} style={{ width: `${Math.max(pctValidadasWorkers, kpis.validadas > 0 ? 4 : 0)}%` }} />
+                            </div>
                         </div>
                     </button>
 
-                    {/* 5. Finalizados */}
+                    {/* 5. Finalizados (100% Concluídos) */}
                     <button
                         type="button"
                         onClick={() => handleKpiFilterToggle('finalizados')}
-                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                        title={t('hoursControl.kpis.tooltipCompleted')}
+                        className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                             kpiFilter === 'finalizados'
-                                ? 'border-l-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 shadow-md ring-2 ring-indigo-500/50 border-indigo-300 dark:border-indigo-700'
-                                : 'border-l-indigo-500 bg-card hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 hover:shadow-sm'
+                                ? 'bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 text-white border-indigo-600 shadow-lg shadow-indigo-600/25 ring-2 ring-indigo-500/30'
+                                : 'bg-gradient-to-br from-indigo-50/60 via-violet-50/30 to-card dark:from-indigo-950/30 dark:to-card border-indigo-200/90 dark:border-indigo-800/60 hover:border-indigo-400 shadow-xs hover:shadow-md'
                         }`}
-                        title="Filtrar clientes 100% finalizados"
                     >
-                        <div className="flex justify-between items-center mb-1.5">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate flex items-center gap-1 ${
+                                kpiFilter === 'finalizados' ? 'text-indigo-100' : 'text-indigo-800 dark:text-indigo-300'
+                            }`}>
+                                <Sparkles className="h-3 w-3 shrink-0" />
                                 {t('hoursControl.kpis.completed')}
                             </span>
-                            <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                    kpiFilter === 'finalizados'
+                                        ? 'bg-white/25 text-white'
+                                        : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-200'
+                                }`}>
+                                    {pctFinalizadosClients}%
+                                </span>
+                                <div className={`p-1.5 rounded-xl ${
+                                    kpiFilter === 'finalizados' ? 'bg-white/20 text-white' : 'bg-indigo-100/80 text-indigo-600 dark:bg-indigo-900/40 dark:text-indigo-400'
+                                }`}>
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex items-baseline justify-between gap-1">
-                            <span className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
+
+                        <div className="my-2 flex items-baseline gap-1.5">
+                            <span className={`text-3xl font-black tracking-tight leading-none ${
+                                kpiFilter === 'finalizados' ? 'text-white' : 'text-indigo-600 dark:text-indigo-400'
+                            }`}>
                                 {kpis.finalizados}
                             </span>
-                            <span className="text-xs text-muted-foreground font-medium">{kpis.finalizadosTrabalhadores} trab.</span>
+                            <span className={`text-xs font-semibold truncate ${
+                                kpiFilter === 'finalizados' ? 'text-indigo-100' : 'text-muted-foreground'
+                            }`}>
+                                {t('hoursControl.kpis.ofTotalClients', { total: totalClientsCount })}
+                            </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-1 border-t border-current/10">
+                            <div className="flex items-center justify-between text-[11px] font-semibold">
+                                <span className={kpiFilter === 'finalizados' ? 'text-white' : 'text-indigo-950/80 dark:text-indigo-200'}>
+                                    <Users className="h-3 w-3 inline mr-1 opacity-75" />
+                                    {kpis.finalizadosTrabalhadores} / {kpis.ativos} {t('hoursControl.kpis.workersShort')}
+                                </span>
+                                <span className={`text-[10px] font-bold ${
+                                    kpiFilter === 'finalizados' ? 'text-indigo-100' : 'text-indigo-700 dark:text-indigo-300'
+                                }`}>
+                                    {pctFinalizadosWorkers}% {t('hoursControl.kpis.workersShort')}
+                                </span>
+                            </div>
+                            <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                                kpiFilter === 'finalizados' ? 'bg-black/20' : 'bg-indigo-100 dark:bg-indigo-950'
+                            }`}>
+                                <div className={`h-full rounded-full transition-all duration-500 ${
+                                    kpiFilter === 'finalizados' ? 'bg-white' : 'bg-gradient-to-r from-indigo-500 to-violet-600'
+                                }`} style={{ width: `${Math.max(pctFinalizadosClients, kpis.finalizados > 0 ? 4 : 0)}%` }} />
+                            </div>
                         </div>
                     </button>
                 </div>
@@ -416,55 +655,63 @@ export function HoursControlPage() {
 
             {/* Banner de Filtro Ativo */}
             {selectedEmpresaId && !isError && kpiFilter !== 'all' && (
-                <div className="flex items-center justify-between bg-muted/60 px-3.5 py-1.5 rounded-lg border text-xs font-medium shrink-0 animate-in fade-in duration-200">
-                    <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">Filtro de visualização ativo:</span>
-                        <Badge variant="secondary" className="font-semibold px-2 py-0.5">
+                <div className="flex items-center justify-between bg-gradient-to-r from-indigo-50/80 via-slate-50 to-indigo-50/50 dark:from-indigo-950/40 dark:to-slate-900/40 px-4 py-2 rounded-xl border border-indigo-200/70 dark:border-indigo-800/50 text-xs font-medium shrink-0 animate-in fade-in duration-200 shadow-2xs">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
+                        <span className="text-muted-foreground font-semibold">{t('hoursControl.filterBanner.activeLabel')}</span>
+                        <Badge variant="secondary" className="font-bold px-2.5 py-0.5 bg-white dark:bg-slate-800 border shadow-2xs text-foreground">
                             {kpiFilter === 'pendentes' && t('hoursControl.kpis.pending')}
                             {kpiFilter === 'enviadas' && t('hoursControl.kpis.toValidate')}
                             {kpiFilter === 'validadas' && t('hoursControl.kpis.validated')}
                             {kpiFilter === 'finalizados' && t('hoursControl.kpis.completed')}
                         </Badge>
-                        <span className="text-muted-foreground">({displayedClients.length} de {filteredClients.length} clientes exibidos)</span>
+                        <span className="text-muted-foreground font-medium">
+                            {t('hoursControl.filterBanner.showingCount', {
+                                shown: displayedClients.length,
+                                total: totalClientsCount,
+                                pct: calcPct(displayedClients.length, totalClientsCount)
+                            })}
+                        </span>
                     </div>
                     <Button 
                         variant="ghost" 
                         size="sm" 
-                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        className="h-7 px-2.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100/60 rounded-lg"
                         onClick={() => handleKpiFilterToggle('all')}
                     >
-                        <X className="h-3 w-3 mr-1" />
-                        Limpar filtro
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        {t('hoursControl.filterBanner.clearFilter')}
                     </Button>
                 </div>
             )}
 
-            {/* Listagem de Clientes */}
-            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border">
+            {/* Listagem Executiva de Clientes */}
+            <Card className="flex-1 flex flex-col min-h-0 overflow-hidden border border-border/80 rounded-2xl shadow-xs">
                 <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
                     <Table>
-                        <TableHeader className="sticky top-0 z-10 bg-muted/50 shadow-sm backdrop-blur-md">
-                            <TableRow className="border-b-0">
-                                <TableHead className="font-semibold text-foreground">{t('hoursControl.table.client')}</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.activeWorkers')}</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.pending')}</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.submitted')}</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.validated')}</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">{t('hoursControl.table.status')}</TableHead>
-                                <TableHead className="w-[100px]"></TableHead>
+                        <TableHeader className="sticky top-0 z-10 bg-slate-50/90 dark:bg-slate-900/90 shadow-2xs backdrop-blur-md">
+                            <TableRow className="border-b border-border/60">
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground pl-4">{t('hoursControl.table.client')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">{t('hoursControl.table.activeWorkers')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">{t('hoursControl.table.pending')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">{t('hoursControl.table.submitted')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">{t('hoursControl.table.validated')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center w-[150px]">{t('hoursControl.table.progress')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">{t('hoursControl.table.status')}</TableHead>
+                                <TableHead className="w-[60px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {!selectedEmpresaId && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                    <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
                                         {t('hoursControl.empty.selectCompany')}
                                     </TableCell>
                                 </TableRow>
                             )}
                             {selectedEmpresaId && isLoading && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center">
+                                    <TableCell colSpan={8} className="h-32 text-center">
                                         <div className="flex flex-col items-center justify-center text-muted-foreground gap-3">
                                             <Loader2 className="h-6 w-6 animate-spin text-primary" />
                                             <span>{t('hoursControl.empty.loading')}</span>
@@ -474,19 +721,29 @@ export function HoursControlPage() {
                             )}
                             {selectedEmpresaId && !isLoading && isError && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-destructive">
+                                    <TableCell colSpan={8} className="h-32 text-center text-destructive">
                                         {t('hoursControl.empty.error')} {error?.message}
                                     </TableCell>
                                 </TableRow>
                             )}
                             {selectedEmpresaId && !isLoading && !isError && displayedClients.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                                    <TableCell colSpan={8} className="h-36 text-center text-muted-foreground">
                                         {kpiFilter !== 'all' ? (
-                                            <div className="flex flex-col items-center justify-center gap-2">
-                                                <p>Nenhum cliente encontrado para o filtro "{kpiFilter === 'pendentes' ? t('hoursControl.kpis.pending') : kpiFilter === 'enviadas' ? t('hoursControl.kpis.toValidate') : kpiFilter === 'validadas' ? t('hoursControl.kpis.validated') : t('hoursControl.kpis.completed')}".</p>
-                                                <Button variant="outline" size="sm" onClick={() => handleKpiFilterToggle('all')}>
-                                                    Ver todos os clientes
+                                            <div className="flex flex-col items-center justify-center gap-2.5">
+                                                <p className="text-sm font-medium">
+                                                    {t('hoursControl.filterBanner.emptyFilter', {
+                                                        filter: kpiFilter === 'pendentes'
+                                                            ? t('hoursControl.kpis.pending')
+                                                            : kpiFilter === 'enviadas'
+                                                            ? t('hoursControl.kpis.toValidate')
+                                                            : kpiFilter === 'validadas'
+                                                            ? t('hoursControl.kpis.validated')
+                                                            : t('hoursControl.kpis.completed')
+                                                    })}
+                                                </p>
+                                                <Button variant="outline" size="sm" className="rounded-xl font-semibold" onClick={() => handleKpiFilterToggle('all')}>
+                                                    {t('hoursControl.filterBanner.viewAllClients')}
                                                 </Button>
                                             </div>
                                         ) : (
@@ -497,10 +754,11 @@ export function HoursControlPage() {
                             )}
                             {selectedEmpresaId && !isLoading && !isError && displayedClients.map((client) => {
                                 const status = calculateStatus(client);
+                                const clientPct = calcPct(client.validated_hours || 0, client.total_workers || 0);
                                 return (
                                     <TableRow
                                         key={client.cliente_nombre}
-                                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                        className="group cursor-pointer hover:bg-slate-50/90 dark:hover:bg-slate-900/40 transition-colors"
                                         onClick={() => {
                                             const params = new URLSearchParams(searchParams);
                                             params.set('year', periodYear.toString());
@@ -511,49 +769,95 @@ export function HoursControlPage() {
                                             navigate(`/hours-control/client/${encodeURIComponent(client.cliente_nombre)}?${params.toString()}`);
                                         }}
                                     >
-                                        <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1.5 bg-blue-100 rounded-md">
-                                                    <FileText className="h-4 w-4 text-blue-600" />
+                                        <TableCell className="font-semibold pl-4 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-xl border transition-colors ${
+                                                    status === 'completed'
+                                                        ? 'bg-emerald-50 border-emerald-200/80 text-emerald-600 dark:bg-emerald-950/40 dark:border-emerald-800'
+                                                        : status === 'review'
+                                                        ? 'bg-blue-50 border-blue-200/80 text-blue-600 dark:bg-blue-950/40 dark:border-blue-800'
+                                                        : 'bg-slate-100 border-slate-200/80 text-slate-600 dark:bg-slate-800 dark:border-slate-700'
+                                                }`}>
+                                                    <Building2 className="h-4 w-4" />
                                                 </div>
-                                                {client.cliente_nombre}
+                                                <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                                                    {client.cliente_nombre}
+                                                </span>
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-center font-medium">{client.total_workers}</TableCell>
+                                        <TableCell className="text-center">
+                                            <span className="inline-flex items-center justify-center min-w-[2rem] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 font-bold text-xs text-foreground">
+                                                {client.total_workers}
+                                            </span>
+                                        </TableCell>
                                         <TableCell className="text-center">
                                             {client.pending_hours > 0 ? (
-                                                <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">
+                                                <Badge variant="outline" className="text-amber-700 border-amber-200 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 font-semibold rounded-lg px-2.5 py-0.5">
                                                     {client.pending_hours} {t('hoursControl.badges.missing')}
                                                 </Badge>
                                             ) : (
-                                                <span className="text-muted-foreground">-</span>
+                                                <span className="text-muted-foreground/40 font-medium">—</span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             {client.submitted_hours > 0 ? (
-                                                <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
+                                                <Badge variant="outline" className="text-blue-700 border-blue-200 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300 font-semibold rounded-lg px-2.5 py-0.5">
                                                     {client.submitted_hours} {t('hoursControl.badges.toValidate')}
                                                 </Badge>
                                             ) : (
-                                                <span className="text-muted-foreground">-</span>
+                                                <span className="text-muted-foreground/40 font-medium">—</span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             {client.validated_hours > 0 ? (
-                                                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                                                <Badge variant="outline" className="text-emerald-700 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 font-semibold rounded-lg px-2.5 py-0.5">
                                                     {client.validated_hours} {t('hoursControl.badges.ready')}
                                                 </Badge>
                                             ) : (
-                                                <span className="text-muted-foreground">-</span>
+                                                <span className="text-muted-foreground/40 font-medium">—</span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">
-                                            {status === 'processing' && <Badge variant="secondary" className="bg-slate-100">{t('hoursControl.status.collecting')}</Badge>}
-                                            {status === 'review' && <Badge variant="default" className="bg-blue-500">{t('hoursControl.status.review')}</Badge>}
-                                            {status === 'completed' && <Badge variant="outline" className="border-green-500 text-green-600">{t('hoursControl.status.completed')}</Badge>}
+                                            <div className="flex items-center gap-2 justify-center px-2">
+                                                <div className="h-1.5 w-16 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all ${
+                                                            clientPct === 100
+                                                                ? 'bg-emerald-500'
+                                                                : clientPct >= 50
+                                                                ? 'bg-blue-500'
+                                                                : clientPct > 0
+                                                                ? 'bg-amber-500'
+                                                                : 'bg-slate-300'
+                                                        }`}
+                                                        style={{ width: `${clientPct}%` }}
+                                                    />
+                                                </div>
+                                                <span className="text-[11px] font-bold text-muted-foreground w-8 text-right">
+                                                    {clientPct}%
+                                                </span>
+                                            </div>
                                         </TableCell>
-                                        <TableCell className="text-right">
-                                            <Button variant="ghost" size="icon">
+                                        <TableCell className="text-center">
+                                            {status === 'processing' && (
+                                                <Badge variant="secondary" className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-semibold rounded-lg">
+                                                    {t('hoursControl.status.collecting')}
+                                                </Badge>
+                                            )}
+                                            {status === 'review' && (
+                                                <Badge variant="default" className="bg-blue-600 hover:bg-blue-700 font-semibold rounded-lg">
+                                                    {t('hoursControl.status.review')}
+                                                </Badge>
+                                            )}
+                                            {status === 'completed' && (
+                                                <Badge variant="outline" className="border-emerald-500/60 bg-emerald-50/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold rounded-lg gap-1">
+                                                    <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                                    {t('hoursControl.status.completed')}
+                                                </Badge>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right pr-3">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                                                 <ChevronRight className="h-4 w-4" />
                                             </Button>
                                         </TableCell>

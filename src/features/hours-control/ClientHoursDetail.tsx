@@ -526,15 +526,21 @@ export function ClientHoursDetail() {
         }
     };
 
+    const calcPct = (val: number, tot: number) => (tot > 0 ? Math.round((val / tot) * 100) : 0);
+
+    const handleKpiToggle = (filter: string) => {
+        setStatusFilter(prev => (prev === filter ? 'all' : filter));
+    };
+
     const handleSelectPendingOnly = () => {
         const pendingIds = workers
             .filter(w => w.status === 'pendente' || w.status === 'em_andamento')
             .map(w => w.worker_id);
         setSelectedWorkerIds(pendingIds);
         if (pendingIds.length > 0) {
-            toast.info(`${pendingIds.length} trabalhadores com horas pendentes selecionados.`);
+            toast.info(`${pendingIds.length} ${t('clientHoursDetail.kpis.workers')}`);
         } else {
-            toast.info('Não há trabalhadores com horas pendentes neste cliente.');
+            toast.info(t('clientHoursDetail.emptyFilteredWorkers'));
         }
     };
 
@@ -545,16 +551,21 @@ export function ClientHoursDetail() {
     };
 
     const getMonthName = (m: number) => {
-        const locale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-BR';
+        const locale = i18n.language.startsWith('es') ? 'es-ES' : i18n.language.startsWith('fr') ? 'fr-FR' : 'pt-BR';
         return new Date(2000, m - 1, 1).toLocaleString(locale, { month: 'long' }).toUpperCase();
     };
 
+    const pctPendentes = calcPct(kpis.pendentes, kpis.total);
+    const pctEmAndamento = calcPct(kpis.emAndamento, kpis.total);
+    const pctAssinaturas = calcPct(kpis.assinaturas, kpis.total);
+    const pctValidados = calcPct(kpis.validados, kpis.total);
+
     return (
-        <div className="h-[calc(100vh-115px)] w-full flex flex-col space-y-4 px-4 sm:px-6">
+        <div className="h-[calc(100vh-115px)] w-full flex flex-col space-y-3.5 px-4 sm:px-6">
             {portalNode && createPortal(
                 <div className="flex flex-col">
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => navigate(`/hours-control?${searchParams.toString()}`)} className="h-8 w-8 -ml-2">
+                        <Button variant="ghost" size="icon" onClick={() => navigate(`/hours-control?${searchParams.toString()}`)} className="h-8 w-8 -ml-2 rounded-xl">
                             <ArrowLeft className="h-4 w-4" />
                         </Button>
                         <h1 className="text-xl font-bold tracking-tight">{clientName}</h1>
@@ -563,130 +574,341 @@ export function ClientHoursDetail() {
                 portalNode
             )}
 
-            {/* PAINEL DE KPIS INTERATIVOS COM FILTRO DIRETO AO CLICAR */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-                {/* 1. Total */}
+            {/* GALERIA DE KPIS EXECUTIVOS INTERATIVOS COM FILTRO DIRETO */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 shrink-0">
+                {/* 1. Total Alocados */}
                 <button
                     type="button"
-                    onClick={() => setStatusFilter('all')}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
+                    onClick={() => handleKpiToggle('all')}
+                    className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                         statusFilter === 'all'
-                            ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20 dark:bg-slate-100 dark:text-slate-900'
-                            : 'bg-card text-card-foreground border-border hover:bg-muted/50'
+                            ? 'bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white border-slate-800 shadow-lg shadow-slate-900/15 ring-2 ring-slate-900/20 dark:from-slate-100 dark:to-slate-200 dark:text-slate-900'
+                            : 'bg-card text-card-foreground border-border/80 hover:border-slate-300 shadow-xs hover:shadow-md'
                     }`}
                 >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-70">
-                            Total Alocados
+                    <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                            statusFilter === 'all' ? 'text-slate-300 dark:text-slate-600' : 'text-muted-foreground'
+                        }`}>
+                            {t('clientHoursDetail.kpis.totalAllocated')}
                         </span>
-                        <Users className="h-4 w-4 opacity-70" />
-                    </div>
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black">{kpis.total}</span>
-                        <span className="text-xs opacity-60">trabalhadores</span>
-                    </div>
-                </button>
-
-                {/* 2. Pendentes / Falta Enviar (Destaque Vermelho/Rose) */}
-                <button
-                    type="button"
-                    onClick={() => setStatusFilter('pendente')}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
-                        statusFilter === 'pendente'
-                            ? 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-500/20'
-                            : 'bg-rose-50/70 dark:bg-rose-950/30 text-rose-900 dark:text-rose-200 border-rose-200 dark:border-rose-800/60 hover:bg-rose-100/70'
-                    }`}
-                >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
-                            Falta Enviar
-                        </span>
-                        <AlertCircle className="h-4 w-4 text-rose-500" />
-                    </div>
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black">{kpis.pendentes}</span>
-                        {kpis.pendentes > 0 && (
-                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full ${
-                                statusFilter === 'pendente' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-800'
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                statusFilter === 'all'
+                                    ? 'bg-white/15 text-white dark:bg-slate-900/10 dark:text-slate-900'
+                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                             }`}>
-                                Cobrar
+                                100%
                             </span>
-                        )}
+                            <div className={`p-1.5 rounded-xl ${
+                                statusFilter === 'all' ? 'bg-white/10 text-white dark:bg-slate-900/10 dark:text-slate-900' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                            }`}>
+                                <Users className="h-3.5 w-3.5" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="my-2 flex items-baseline gap-2">
+                        <span className="text-3xl font-black tracking-tight leading-none">{kpis.total}</span>
+                        <span className={`text-xs font-semibold truncate ${
+                            statusFilter === 'all' ? 'text-slate-300 dark:text-slate-600' : 'text-muted-foreground'
+                        }`}>
+                            {t('clientHoursDetail.kpis.workers')}
+                        </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1 border-t border-current/10">
+                        <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <span className={statusFilter === 'all' ? 'text-slate-200 dark:text-slate-700' : 'text-slate-600 dark:text-slate-400'}>
+                                {t('clientHoursDetail.kpis.teamComplete')}
+                            </span>
+                            <span className={`text-[10px] ${statusFilter === 'all' ? 'text-slate-300 dark:text-slate-600' : 'text-muted-foreground'}`}>
+                                100%
+                            </span>
+                        </div>
+                        <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                            statusFilter === 'all' ? 'bg-white/20 dark:bg-slate-900/20' : 'bg-slate-100 dark:bg-slate-800'
+                        }`}>
+                            <div className={`h-full rounded-full transition-all duration-500 ${
+                                statusFilter === 'all' ? 'bg-emerald-400 dark:bg-slate-900' : 'bg-slate-600'
+                            }`} style={{ width: '100%' }} />
+                        </div>
                     </div>
                 </button>
 
-                {/* 3. Portal Rascunho / Em Andamento */}
+                {/* 2. Pendentes / Falta Enviar */}
                 <button
                     type="button"
-                    onClick={() => setStatusFilter('em_andamento')}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
+                    onClick={() => handleKpiToggle('pendente')}
+                    className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
+                        statusFilter === 'pendente'
+                            ? 'bg-gradient-to-br from-rose-600 via-rose-600 to-red-700 text-white border-rose-600 shadow-lg shadow-rose-600/25 ring-2 ring-rose-500/30'
+                            : 'bg-gradient-to-br from-rose-50/60 via-card to-card dark:from-rose-950/20 dark:to-card text-rose-950 dark:text-rose-200 border-rose-200/80 dark:border-rose-800/50 hover:border-rose-400 shadow-xs hover:shadow-md'
+                    }`}
+                >
+                    <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                            statusFilter === 'pendente' ? 'text-rose-100' : 'text-rose-800 dark:text-rose-300'
+                        }`}>
+                            {t('clientHoursDetail.kpis.missingSend')}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                statusFilter === 'pendente'
+                                    ? 'bg-white/25 text-white'
+                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-900/50 dark:text-rose-300'
+                            }`}>
+                                {pctPendentes}%
+                            </span>
+                            <div className={`p-1.5 rounded-xl ${
+                                statusFilter === 'pendente' ? 'bg-white/20 text-white' : 'bg-rose-100/80 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400'
+                            }`}>
+                                <AlertCircle className="h-3.5 w-3.5" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="my-2 flex items-baseline gap-1.5">
+                        <span className={`text-3xl font-black tracking-tight leading-none ${
+                            statusFilter === 'pendente' ? 'text-white' : 'text-rose-600 dark:text-rose-400'
+                        }`}>
+                            {kpis.pendentes}
+                        </span>
+                        <span className={`text-xs font-semibold truncate ${
+                            statusFilter === 'pendente' ? 'text-rose-100' : 'text-muted-foreground'
+                        }`}>
+                            {t('clientHoursDetail.kpis.ofTotal', { total: kpis.total })}
+                        </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1 border-t border-current/10">
+                        <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <span className={statusFilter === 'pendente' ? 'text-white' : 'text-rose-900/80 dark:text-rose-200'}>
+                                {kpis.pendentes} / {kpis.total} {t('clientHoursDetail.kpis.workersShort')}
+                            </span>
+                            {kpis.pendentes > 0 ? (
+                                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full ${
+                                    statusFilter === 'pendente' ? 'bg-white/25 text-white' : 'bg-rose-200/80 text-rose-800 dark:bg-rose-900 dark:text-rose-200'
+                                }`}>
+                                    {t('clientHoursDetail.kpis.remindBadge')}
+                                </span>
+                            ) : (
+                                <span className={`text-[10px] font-bold ${statusFilter === 'pendente' ? 'text-rose-100' : 'text-rose-700'}`}>0%</span>
+                            )}
+                        </div>
+                        <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                            statusFilter === 'pendente' ? 'bg-black/20' : 'bg-rose-100 dark:bg-rose-950'
+                        }`}>
+                            <div className={`h-full rounded-full transition-all duration-500 ${
+                                statusFilter === 'pendente' ? 'bg-white' : 'bg-rose-500'
+                            }`} style={{ width: `${Math.max(pctPendentes, kpis.pendentes > 0 ? 4 : 0)}%` }} />
+                        </div>
+                    </div>
+                </button>
+
+                {/* 3. Em Andamento */}
+                <button
+                    type="button"
+                    onClick={() => handleKpiToggle('em_andamento')}
+                    className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                         statusFilter === 'em_andamento'
-                            ? 'bg-sky-600 text-white border-sky-600 shadow-md ring-2 ring-sky-500/20'
-                            : 'bg-sky-50/70 dark:bg-sky-950/30 text-sky-900 dark:text-sky-200 border-sky-200 dark:border-sky-800/60 hover:bg-sky-100/70'
+                            ? 'bg-gradient-to-br from-sky-600 via-sky-600 to-blue-700 text-white border-sky-600 shadow-lg shadow-sky-600/25 ring-2 ring-sky-500/30'
+                            : 'bg-gradient-to-br from-sky-50/60 via-card to-card dark:from-sky-950/20 dark:to-card text-sky-950 dark:text-sky-200 border-sky-200/80 dark:border-sky-800/50 hover:border-sky-400 shadow-xs hover:shadow-md'
                     }`}
                 >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
-                            Em Andamento
+                    <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                            statusFilter === 'em_andamento' ? 'text-sky-100' : 'text-sky-800 dark:text-sky-300'
+                        }`}>
+                            {t('clientHoursDetail.kpis.inProgress')}
                         </span>
-                        <Clock className="h-4 w-4 text-sky-500" />
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                statusFilter === 'em_andamento'
+                                    ? 'bg-white/25 text-white'
+                                    : 'bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-300'
+                            }`}>
+                                {pctEmAndamento}%
+                            </span>
+                            <div className={`p-1.5 rounded-xl ${
+                                statusFilter === 'em_andamento' ? 'bg-white/20 text-white' : 'bg-sky-100/80 text-sky-600 dark:bg-sky-900/40 dark:text-sky-400'
+                            }`}>
+                                <Clock className="h-3.5 w-3.5" />
+                            </div>
+                        </div>
                     </div>
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black">{kpis.emAndamento}</span>
-                        <span className="text-xs opacity-60">a preencher</span>
+
+                    <div className="my-2 flex items-baseline gap-1.5">
+                        <span className={`text-3xl font-black tracking-tight leading-none ${
+                            statusFilter === 'em_andamento' ? 'text-white' : 'text-sky-600 dark:text-sky-400'
+                        }`}>
+                            {kpis.emAndamento}
+                        </span>
+                        <span className={`text-xs font-semibold truncate ${
+                            statusFilter === 'em_andamento' ? 'text-sky-100' : 'text-muted-foreground'
+                        }`}>
+                            {t('clientHoursDetail.kpis.ofTotal', { total: kpis.total })}
+                        </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1 border-t border-current/10">
+                        <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <span className={statusFilter === 'em_andamento' ? 'text-white' : 'text-sky-900/80 dark:text-sky-200'}>
+                                {t('clientHoursDetail.kpis.filling')}
+                            </span>
+                            <span className={`text-[10px] font-bold ${statusFilter === 'em_andamento' ? 'text-sky-100' : 'text-sky-700 dark:text-sky-400'}`}>
+                                {pctEmAndamento}%
+                            </span>
+                        </div>
+                        <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                            statusFilter === 'em_andamento' ? 'bg-black/20' : 'bg-sky-100 dark:bg-sky-950'
+                        }`}>
+                            <div className={`h-full rounded-full transition-all duration-500 ${
+                                statusFilter === 'em_andamento' ? 'bg-white' : 'bg-sky-500'
+                            }`} style={{ width: `${Math.max(pctEmAndamento, kpis.emAndamento > 0 ? 4 : 0)}%` }} />
+                        </div>
                     </div>
                 </button>
 
-                {/* 4. Portal Aguardando Assinatura */}
+                {/* 4. Por Assinar */}
                 <button
                     type="button"
-                    onClick={() => setStatusFilter('aguardando_assinatura')}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
+                    onClick={() => handleKpiToggle('aguardando_assinatura')}
+                    className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                         statusFilter === 'aguardando_assinatura'
-                            ? 'bg-amber-600 text-white border-amber-600 shadow-md ring-2 ring-amber-500/20'
-                            : 'bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100/70'
+                            ? 'bg-gradient-to-br from-amber-500 via-amber-500 to-orange-600 text-white border-amber-500 shadow-lg shadow-amber-500/25 ring-2 ring-amber-500/30'
+                            : 'bg-gradient-to-br from-amber-50/60 via-card to-card dark:from-amber-950/20 dark:to-card text-amber-950 dark:text-amber-200 border-amber-200/80 dark:border-amber-800/50 hover:border-amber-400 shadow-xs hover:shadow-md'
                     }`}
                 >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
-                            Por Assinar
+                    <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                            statusFilter === 'aguardando_assinatura' ? 'text-amber-50' : 'text-amber-800 dark:text-amber-300'
+                        }`}>
+                            {t('clientHoursDetail.kpis.toSign')}
                         </span>
-                        <FileText className="h-4 w-4 text-amber-500" />
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                statusFilter === 'aguardando_assinatura'
+                                    ? 'bg-white/25 text-white'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                            }`}>
+                                {pctAssinaturas}%
+                            </span>
+                            <div className={`p-1.5 rounded-xl ${
+                                statusFilter === 'aguardando_assinatura' ? 'bg-white/20 text-white' : 'bg-amber-100/80 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400'
+                            }`}>
+                                <FileText className="h-3.5 w-3.5" />
+                            </div>
+                        </div>
                     </div>
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black">{kpis.assinaturas}</span>
-                        <span className="text-xs opacity-60">aguardando</span>
+
+                    <div className="my-2 flex items-baseline gap-1.5">
+                        <span className={`text-3xl font-black tracking-tight leading-none ${
+                            statusFilter === 'aguardando_assinatura' ? 'text-white' : 'text-amber-600 dark:text-amber-400'
+                        }`}>
+                            {kpis.assinaturas}
+                        </span>
+                        <span className={`text-xs font-semibold truncate ${
+                            statusFilter === 'aguardando_assinatura' ? 'text-amber-100' : 'text-muted-foreground'
+                        }`}>
+                            {t('clientHoursDetail.kpis.ofTotal', { total: kpis.total })}
+                        </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1 border-t border-current/10">
+                        <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <span className={statusFilter === 'aguardando_assinatura' ? 'text-white' : 'text-amber-900/80 dark:text-amber-200'}>
+                                {t('clientHoursDetail.kpis.waiting')}
+                            </span>
+                            <span className={`text-[10px] font-bold ${statusFilter === 'aguardando_assinatura' ? 'text-amber-100' : 'text-amber-700 dark:text-amber-400'}`}>
+                                {pctAssinaturas}%
+                            </span>
+                        </div>
+                        <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                            statusFilter === 'aguardando_assinatura' ? 'bg-black/20' : 'bg-amber-100 dark:bg-amber-950'
+                        }`}>
+                            <div className={`h-full rounded-full transition-all duration-500 ${
+                                statusFilter === 'aguardando_assinatura' ? 'bg-white' : 'bg-amber-500'
+                            }`} style={{ width: `${Math.max(pctAssinaturas, kpis.assinaturas > 0 ? 4 : 0)}%` }} />
+                        </div>
                     </div>
                 </button>
 
-                {/* 5. Validadas / Concluídas */}
+                {/* 5. Validados / Concluídos */}
                 <button
                     type="button"
-                    onClick={() => setStatusFilter('validado')}
-                    className={`p-3 rounded-2xl border text-left transition-all ${
+                    onClick={() => handleKpiToggle('validado')}
+                    className={`group relative overflow-hidden p-3.5 rounded-2xl border text-left transition-all duration-200 cursor-pointer select-none flex flex-col justify-between ${
                         statusFilter === 'validado'
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/20'
-                            : 'bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100/70'
+                            ? 'bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-700 text-white border-emerald-600 shadow-lg shadow-emerald-600/25 ring-2 ring-emerald-500/30'
+                            : 'bg-gradient-to-br from-emerald-50/60 via-card to-card dark:from-emerald-950/20 dark:to-card text-emerald-950 dark:text-emerald-200 border-emerald-200/80 dark:border-emerald-800/50 hover:border-emerald-400 shadow-xs hover:shadow-md'
                     }`}
                 >
-                    <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider">
-                            Validados
+                    <div className="flex items-center justify-between gap-2">
+                        <span className={`text-[11px] font-extrabold uppercase tracking-wider truncate ${
+                            statusFilter === 'validado' ? 'text-emerald-100' : 'text-emerald-800 dark:text-emerald-300'
+                        }`}>
+                            {t('clientHoursDetail.kpis.validated')}
                         </span>
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                        <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                                statusFilter === 'validado'
+                                    ? 'bg-white/25 text-white'
+                                    : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                            }`}>
+                                {pctValidados}%
+                            </span>
+                            <div className={`p-1.5 rounded-xl ${
+                                statusFilter === 'validado' ? 'bg-white/20 text-white' : 'bg-emerald-100/80 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400'
+                            }`}>
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                            </div>
+                        </div>
                     </div>
-                    <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className="text-2xl font-black">{kpis.validados}</span>
-                        <span className="text-xs opacity-60">concluídos</span>
+
+                    <div className="my-2 flex items-baseline gap-1.5">
+                        <span className={`text-3xl font-black tracking-tight leading-none ${
+                            statusFilter === 'validado' ? 'text-white' : 'text-emerald-600 dark:text-emerald-400'
+                        }`}>
+                            {kpis.validados}
+                        </span>
+                        <span className={`text-xs font-semibold truncate ${
+                            statusFilter === 'validado' ? 'text-emerald-100' : 'text-muted-foreground'
+                        }`}>
+                            {t('clientHoursDetail.kpis.ofTotal', { total: kpis.total })}
+                        </span>
+                    </div>
+
+                    <div className="space-y-1.5 pt-1 border-t border-current/10">
+                        <div className="flex items-center justify-between text-[11px] font-semibold">
+                            <span className={statusFilter === 'validado' ? 'text-white' : 'text-emerald-900/80 dark:text-emerald-200'}>
+                                {t('clientHoursDetail.kpis.completed')}
+                            </span>
+                            <span className={`text-[10px] font-bold ${statusFilter === 'validado' ? 'text-emerald-100' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                                {pctValidados}%
+                            </span>
+                        </div>
+                        <div className={`h-1.5 w-full rounded-full overflow-hidden ${
+                            statusFilter === 'validado' ? 'bg-black/20' : 'bg-emerald-100 dark:bg-emerald-950'
+                        }`}>
+                            <div className={`h-full rounded-full transition-all duration-500 ${
+                                statusFilter === 'validado' ? 'bg-white' : 'bg-emerald-500'
+                            }`} style={{ width: `${Math.max(pctValidados, kpis.validados > 0 ? 4 : 0)}%` }} />
+                        </div>
                     </div>
                 </button>
             </div>
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/30 p-3.5 rounded-2xl border">
+            {/* BARRA DE FERRAMENTAS E FILTROS */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card/95 backdrop-blur-sm p-3.5 px-4 rounded-2xl border border-border/80 shadow-xs shrink-0">
                 <div>
-                    <h2 className="text-base font-bold">{getMonthName(month)} {year}</h2>
-                    <p className="text-xs text-muted-foreground">
-                        {filteredWorkers.length} de {workers.length} {t('clientHoursDetail.activeWorkers')}
+                    <h2 className="text-base font-extrabold tracking-tight">{getMonthName(month)} {year}</h2>
+                    <p className="text-xs text-muted-foreground font-medium">
+                        {t('clientHoursDetail.toolbar.showingWorkers', {
+                            shown: filteredWorkers.length,
+                            total: workers.length,
+                            label: t('clientHoursDetail.activeWorkers')
+                        })}
                     </p>
                 </div>
                 <div className="flex flex-wrap sm:flex-nowrap items-center gap-2.5 w-full sm:w-auto">
@@ -697,9 +919,9 @@ export function ClientHoursDetail() {
                         onClick={handleSelectPendingOnly}
                         disabled={kpis.pendentes === 0 && kpis.emAndamento === 0}
                         className="h-9 px-3 rounded-xl text-xs font-semibold border-dashed border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-                        title="Marcar caixas de seleção de todos os trabalhadores com envio de horas pendente"
+                        title={t('clientHoursDetail.toolbar.selectPendingTooltip')}
                     >
-                        Selecionar Pendentes
+                        {t('clientHoursDetail.toolbar.selectPending')}
                     </Button>
 
                     {/* Botão de Cobrança / Notificação para Pendentes */}
@@ -707,23 +929,23 @@ export function ClientHoursDetail() {
                         type="button"
                         onClick={() => setBroadcastDialogOpen(true)}
                         disabled={kpis.pendentes === 0}
-                        className={`h-9 px-3 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all ${
+                        className={`h-9 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all ${
                             kpis.pendentes > 0 
                                 ? 'bg-rose-600 hover:bg-rose-700 text-white active:scale-95' 
                                 : 'bg-muted text-muted-foreground'
                         }`}
-                        title="Disparar notificação ou mensagem aos trabalhadores com horas pendentes"
+                        title={t('clientHoursDetail.toolbar.notifyPendingTooltip')}
                     >
                         <Bell className="h-3.5 w-3.5" />
-                        <span>Notificar Pendentes ({kpis.pendentes})</span>
+                        <span>{t('clientHoursDetail.toolbar.notifyPending', { count: kpis.pendentes })}</span>
                     </Button>
 
                     {/* Filtro de Busca */}
-                    <div className="relative w-full sm:w-[200px]">
+                    <div className="relative w-full sm:w-[210px]">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             type="text"
-                            placeholder="Buscar trabalhador..."
+                            placeholder={t('clientHoursDetail.toolbar.searchPlaceholder')}
                             value={localSearch}
                             onChange={(e) => setLocalSearch(e.target.value)}
                             className="pl-9 pr-8 h-9 text-xs rounded-xl dark:bg-slate-950 dark:border-slate-800"
@@ -731,7 +953,7 @@ export function ClientHoursDetail() {
                         {localSearch && (
                             <button
                                 onClick={() => setLocalSearch('')}
-                                className="absolute right-2.5 top-2 h-5 w-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-350"
+                                className="absolute right-2.5 top-2 h-5 w-5 flex items-center justify-center rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                             >
                                 <X className="h-3 w-3" />
                             </button>
@@ -740,16 +962,16 @@ export function ClientHoursDetail() {
 
                     {/* Filtro de Status */}
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-full sm:w-[170px] h-9 text-xs rounded-xl bg-background dark:bg-slate-950 dark:border-slate-800 font-semibold">
-                            <SelectValue placeholder="Filtrar por status" />
+                        <SelectTrigger className="w-full sm:w-[175px] h-9 text-xs rounded-xl bg-background dark:bg-slate-950 dark:border-slate-800 font-semibold">
+                            <SelectValue placeholder={t('clientHoursDetail.toolbar.filterByStatus')} />
                         </SelectTrigger>
                         <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
-                            <SelectItem value="all">Todos ({workers.length})</SelectItem>
-                            <SelectItem value="pendente">Falta Enviar ({kpis.pendentes})</SelectItem>
-                            <SelectItem value="em_andamento">Em Andamento ({kpis.emAndamento})</SelectItem>
-                            <SelectItem value="aguardando_assinatura">Por Assinar ({kpis.assinaturas})</SelectItem>
-                            <SelectItem value="enviado">Para Validar ({kpis.paraValidar})</SelectItem>
-                            <SelectItem value="validado">Validados ({kpis.validados})</SelectItem>
+                            <SelectItem value="all">{t('clientHoursDetail.toolbar.filterAll', { count: workers.length })}</SelectItem>
+                            <SelectItem value="pendente">{t('clientHoursDetail.toolbar.filterPending', { count: kpis.pendentes })}</SelectItem>
+                            <SelectItem value="em_andamento">{t('clientHoursDetail.toolbar.filterInProgress', { count: kpis.emAndamento })}</SelectItem>
+                            <SelectItem value="aguardando_assinatura">{t('clientHoursDetail.toolbar.filterToSign', { count: kpis.assinaturas })}</SelectItem>
+                            <SelectItem value="enviado">{t('clientHoursDetail.toolbar.filterToValidate', { count: kpis.paraValidar })}</SelectItem>
+                            <SelectItem value="validado">{t('clientHoursDetail.toolbar.filterValidated', { count: kpis.validados })}</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -757,17 +979,17 @@ export function ClientHoursDetail() {
 
             {/* Barra de Ação em Lote quando há Trabalhadores Selecionados */}
             {selectedWorkerIds.length > 0 && (
-                <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/60 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 p-3 px-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-950/60 dark:to-purple-950/40 border border-indigo-200 dark:border-indigo-800 p-3 px-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 duration-200 shrink-0">
                     <div className="flex items-center gap-2.5">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-600 text-white text-xs font-black shadow-xs">
                             {selectedWorkerIds.length}
                         </span>
                         <div className="text-xs">
                             <span className="font-bold text-indigo-950 dark:text-indigo-200">
-                                {selectedWorkerIds.length} {selectedWorkerIds.length === 1 ? 'colaborador selecionado' : 'colaboradores selecionados'}
+                                {selectedWorkerIds.length} {selectedWorkerIds.length === 1 ? t('clientHoursDetail.batch.selectedOne') : t('clientHoursDetail.batch.selectedMany')}
                             </span>
                             <span className="text-muted-foreground ml-1 hidden sm:inline">
-                                ({workers.length} no total deste cliente)
+                                {t('clientHoursDetail.batch.totalInClient', { total: workers.length })}
                             </span>
                         </div>
                     </div>
@@ -779,7 +1001,7 @@ export function ClientHoursDetail() {
                             className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 rounded-xl shadow-xs active:scale-95"
                         >
                             <MessageSquare className="h-3.5 w-3.5" />
-                            <span>Notificar Selecionados ({selectedWorkerIds.length})</span>
+                            <span>{t('clientHoursDetail.batch.notifySelected', { count: selectedWorkerIds.length })}</span>
                         </Button>
                         <Button
                             type="button"
@@ -788,33 +1010,33 @@ export function ClientHoursDetail() {
                             onClick={() => setSelectedWorkerIds([])}
                             className="h-8 text-xs text-muted-foreground hover:text-foreground rounded-xl"
                         >
-                            Limpar seleção
+                            {t('clientHoursDetail.batch.clearSelection')}
                         </Button>
                     </div>
                 </div>
             )}
 
-            <Card className="flex-1 overflow-hidden border">
+            <Card className="flex-1 overflow-hidden border border-border/80 rounded-2xl shadow-xs">
                 <div className="h-full relative overflow-auto">
                     <Table>
-                        <TableHeader className="sticky top-0 bg-muted/50 shadow-sm backdrop-blur-md z-10">
-                            <TableRow>
+                        <TableHeader className="sticky top-0 bg-slate-50/90 dark:bg-slate-900/90 shadow-2xs backdrop-blur-md z-10">
+                            <TableRow className="border-b border-border/60">
                                 <TableHead className="w-12 text-center px-3">
                                     <Checkbox
                                         checked={filteredWorkers.length > 0 && filteredWorkers.every(w => selectedWorkerIds.includes(w.worker_id))}
                                         onCheckedChange={handleSelectAllFiltered}
-                                        title="Selecionar todos os listados"
-                                        aria-label="Selecionar todos os trabalhadores listados"
+                                        title={t('clientHoursDetail.table.selectAllTooltip')}
+                                        aria-label={t('clientHoursDetail.table.selectAllTooltip')}
                                     />
                                 </TableHead>
-                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.worker')}</TableHead>
-                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.passport')}</TableHead>
-                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.phone')}</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">{t('clientHoursDetail.table.status')}</TableHead>
-                                <TableHead className="font-semibold text-foreground text-center">Chat / Notificações</TableHead>
-                                <TableHead className="font-semibold text-foreground">Anotações Internas</TableHead>
-                                <TableHead className="font-semibold text-foreground">{t('clientHoursDetail.table.file')}</TableHead>
-                                <TableHead className="w-[180px] text-right">{t('clientHoursDetail.table.actions')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">{t('clientHoursDetail.table.worker')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">{t('clientHoursDetail.table.passport')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">{t('clientHoursDetail.table.phone')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">{t('clientHoursDetail.table.status')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground text-center">{t('clientHoursDetail.table.chatNotifications')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">{t('clientHoursDetail.table.internalNotes')}</TableHead>
+                                <TableHead className="font-bold text-[11px] uppercase tracking-wider text-muted-foreground">{t('clientHoursDetail.table.file')}</TableHead>
+                                <TableHead className="w-[180px] text-right font-bold text-[11px] uppercase tracking-wider text-muted-foreground pr-4">{t('clientHoursDetail.table.actions')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -835,7 +1057,7 @@ export function ClientHoursDetail() {
                             {!loading && workers.length > 0 && filteredWorkers.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={9} className="h-32 text-center text-muted-foreground">
-                                        Nenhum trabalhador corresponde aos filtros aplicados.
+                                        {t('clientHoursDetail.emptyFilteredWorkers')}
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -854,23 +1076,24 @@ export function ClientHoursDetail() {
 
                                 const msgCount = workerMessageCounts[worker.worker_id] || { total: 0, unreadByGestor: 0 };
                                 const isSelected = selectedWorkerIds.includes(worker.worker_id);
+                                const dateLocale = i18n.language.startsWith('es') ? 'es-ES' : 'pt-PT';
 
                                 return (
                                 <TableRow 
                                     key={`${worker.worker_id}-${worker.contratante}`} 
-                                    className={`hover:bg-muted/50 transition-colors ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : ''}`}
+                                    className={`hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors ${isSelected ? 'bg-indigo-50/60 dark:bg-indigo-950/25' : ''}`}
                                 >
                                     <TableCell className="w-12 text-center align-top pt-4 px-3">
                                         <Checkbox
                                             checked={isSelected}
                                             onCheckedChange={() => toggleWorkerSelection(worker.worker_id)}
-                                            aria-label={`Selecionar ${worker.worker_name}`}
+                                            aria-label={worker.worker_name}
                                         />
                                     </TableCell>
                                     <TableCell className="font-medium align-top pt-4">
                                         <div className="flex flex-col gap-1.5">
                                             <div className="flex items-center gap-2">
-                                                <span>{worker.worker_name}</span>
+                                                <span className="font-bold text-foreground">{worker.worker_name}</span>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
@@ -886,17 +1109,17 @@ export function ClientHoursDetail() {
                                                 </Button>
                                             </div>
                                             {displayStatus === 'INATIVO' || displayStatus === 'BAIXA' ? (
-                                                <Badge variant="destructive" className="w-fit text-[10px] px-1.5 py-0 h-5">
-                                                    {worker.worker_status} {worker.data_baixa ? `em ${new Date(worker.data_baixa + 'T00:00:00').toLocaleDateString('pt-PT')}` : ''}
+                                                <Badge variant="destructive" className="w-fit text-[10px] px-2 py-0 h-5 rounded-md font-semibold">
+                                                    {worker.worker_status} {worker.data_baixa ? t('clientHoursDetail.badges.inactiveOn', { date: new Date(worker.data_baixa + 'T00:00:00').toLocaleDateString(dateLocale) }) : ''}
                                                 </Badge>
                                             ) : displayStatus === 'ATIVO' ? (
-                                                <Badge variant="outline" className="w-fit text-[10px] px-1.5 py-0 h-5 text-green-600 border-green-200 bg-green-50" title={isHistoricalActive ? "Trabalhador inativado posteriormente" : undefined}>
-                                                    {isHistoricalActive ? 'Ativo' : worker.worker_status || 'Ativo'}
+                                                <Badge variant="outline" className="w-fit text-[10px] px-2 py-0 h-5 rounded-md font-semibold text-emerald-700 border-emerald-200 bg-emerald-50" title={isHistoricalActive ? t('clientHoursDetail.badges.active') : undefined}>
+                                                    {t('clientHoursDetail.badges.active')}
                                                 </Badge>
                                             ) : null}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground align-top pt-4">
+                                    <TableCell className="text-muted-foreground align-top pt-4 font-mono text-xs">
                                         <div className="flex items-center gap-2">
                                             <span>{worker.pasaporte || t('clientHoursDetail.notInformed')}</span>
                                             {worker.pasaporte && (
@@ -916,7 +1139,7 @@ export function ClientHoursDetail() {
                                             )}
                                         </div>
                                     </TableCell>
-                                    <TableCell className="text-muted-foreground align-top pt-4">
+                                    <TableCell className="text-muted-foreground align-top pt-4 font-mono text-xs">
                                         <div className="flex items-center gap-2">
                                             <span>{worker.movil || t('clientHoursDetail.notInformed')}</span>
                                             {worker.movil && (
@@ -942,43 +1165,51 @@ export function ClientHoursDetail() {
                                                     }}
                                                     title={t('clientHoursDetail.tooltips.copyPhoneWhatsApp')}
                                                 >
-                                                    <Copy className="h-4 w-4" />
+                                                    <Copy className="h-3.5 w-3.5" />
                                                 </Button>
                                             )}
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center align-top pt-4">
-                                        {worker.status === 'pendente' && <Badge variant="outline" className="bg-yellow-100/50 text-yellow-700 border-yellow-200">{t('clientHoursDetail.badges.pending')}</Badge>}
+                                        {worker.status === 'pendente' && (
+                                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 font-semibold rounded-lg">
+                                                {t('clientHoursDetail.badges.pending')}
+                                            </Badge>
+                                        )}
                                         {worker.status === 'em_andamento' && (
-                                            <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-300 font-semibold flex items-center justify-center gap-1 shadow-2xs">
+                                            <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-300 font-semibold flex items-center justify-center gap-1 shadow-2xs rounded-lg">
                                                 <Clock className="h-3 w-3 text-sky-500" />
-                                                <span>Portal: Rascunho</span>
+                                                <span>{t('clientHoursDetail.badges.portalDraft')}</span>
                                             </Badge>
                                         )}
                                         {worker.status === 'aguardando_assinatura' && (
-                                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-semibold flex items-center justify-center gap-1 shadow-2xs">
+                                            <Badge variant="outline" className="bg-amber-50 text-amber-800 border-amber-300 font-semibold flex items-center justify-center gap-1 shadow-2xs rounded-lg">
                                                 <Clock className="h-3 w-3 text-amber-500 animate-pulse" />
-                                                <span>Portal: Assinatura</span>
+                                                <span>{t('clientHoursDetail.badges.portalSign')}</span>
                                             </Badge>
                                         )}
                                         {worker.status === 'assinado_encarregado' && (
-                                            <Badge variant="default" className="bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold flex items-center justify-center gap-1 shadow-2xs">
+                                            <Badge variant="default" className="bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold flex items-center justify-center gap-1 shadow-2xs rounded-lg">
                                                 <Check className="h-3 w-3 text-emerald-600" />
-                                                <span>Portal: Assinado</span>
+                                                <span>{t('clientHoursDetail.badges.portalSigned')}</span>
                                             </Badge>
                                         )}
                                         {worker.status === 'enviado' && (
-                                            <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 animate-pulse flex items-center justify-center gap-1">
+                                            <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 animate-pulse flex items-center justify-center gap-1 rounded-lg">
                                                 <Loader2 className="h-3 w-3 animate-spin text-blue-500" />
-                                                <span>{t('clientHoursDetail.badges.processing', 'Processando IA')}</span>
+                                                <span>{t('clientHoursDetail.badges.processing')}</span>
                                             </Badge>
                                         )}
                                         {worker.status === 'processado' && (
-                                            <Badge variant="default" className="bg-blue-100 text-blue-700 hover:bg-blue-100 border border-blue-200 shadow-xs font-semibold">
-                                                {t('clientHoursDetail.badges.processed', 'Lido pela IA')}
+                                            <Badge variant="default" className="bg-blue-100 text-blue-700 hover:bg-blue-100 border border-blue-200 shadow-xs font-semibold rounded-lg">
+                                                {t('clientHoursDetail.badges.processed')}
                                             </Badge>
                                         )}
-                                        {worker.status === 'validado' && <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">{t('clientHoursDetail.badges.validated')}</Badge>}
+                                        {worker.status === 'validado' && (
+                                            <Badge variant="default" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold rounded-lg">
+                                                {t('clientHoursDetail.badges.validated')}
+                                            </Badge>
+                                        )}
                                     </TableCell>
                                     {/* Coluna 1: Chat e Notificações ao Trabalhador */}
                                     <TableCell className="text-center align-top pt-4">
@@ -987,14 +1218,14 @@ export function ClientHoursDetail() {
                                             variant="outline"
                                             size="sm"
                                             onClick={() => setWorkerNotificationDialogState({ open: true, worker })}
-                                            className={`h-8 px-2.5 rounded-lg flex items-center justify-center gap-1.5 mx-auto transition-all ${
+                                            className={`h-8 px-2.5 rounded-xl flex items-center justify-center gap-1.5 mx-auto transition-all ${
                                                 msgCount.unreadByGestor > 0
                                                     ? 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100 ring-2 ring-rose-500/20 font-bold'
                                                     : msgCount.total > 0
                                                     ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-medium'
                                                     : 'text-slate-600 hover:text-slate-900 border-slate-200 hover:bg-slate-100'
                                             }`}
-                                            title="Abrir chat e histórico de notificações com o trabalhador"
+                                            title={t('clientHoursDetail.tooltips.openChat')}
                                         >
                                             <MessageSquare className="h-3.5 w-3.5" />
                                             <span className="text-xs">
@@ -1008,7 +1239,7 @@ export function ClientHoursDetail() {
                                                 ) : msgCount.total > 0 ? (
                                                     <span>Chat ({msgCount.total})</span>
                                                 ) : (
-                                                    <span>Notificar</span>
+                                                    <span>{t('clientHoursDetail.buttons.notify')}</span>
                                                 )}
                                             </span>
                                         </Button>
@@ -1018,8 +1249,8 @@ export function ClientHoursDetail() {
                                         {worker.observacoes ? (
                                             <div className="flex items-start gap-2">
                                                 <div 
-                                                    className="text-xs text-amber-900 bg-amber-50/90 border border-amber-200 p-2 rounded-lg max-w-[200px] whitespace-pre-wrap break-words cursor-pointer hover:bg-amber-100 transition-colors shadow-2xs"
-                                                    title="Anotação interna do escritório (privada). Clique para editar."
+                                                    className="text-xs text-amber-900 bg-amber-50/90 border border-amber-200 p-2 rounded-xl max-w-[200px] whitespace-pre-wrap break-words cursor-pointer hover:bg-amber-100 transition-colors shadow-2xs"
+                                                    title={t('clientHoursDetail.tooltips.editNote')}
                                                     onClick={() => setNotesDialogState({
                                                         open: true,
                                                         workerId: worker.worker_id,
@@ -1030,7 +1261,7 @@ export function ClientHoursDetail() {
                                                 >
                                                     <div className="text-[9px] uppercase font-bold text-amber-700 mb-0.5 tracking-wider flex items-center gap-1">
                                                         <StickyNote className="h-2.5 w-2.5" />
-                                                        <span>Interno</span>
+                                                        <span>{t('clientHoursDetail.badges.internal')}</span>
                                                     </div>
                                                     {worker.observacoes}
                                                 </div>
@@ -1040,7 +1271,7 @@ export function ClientHoursDetail() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                                    className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
                                                     onClick={() => setNotesDialogState({
                                                         open: true,
                                                         workerId: worker.worker_id,
@@ -1048,7 +1279,7 @@ export function ClientHoursDetail() {
                                                         hourRecordId: worker.hour_record_id || null,
                                                         existingNote: worker.observacoes || null
                                                     })}
-                                                    title="Adicionar anotação interna do escritório (privada)"
+                                                    title={t('clientHoursDetail.tooltips.addNote')}
                                                 >
                                                     <StickyNote className="h-4 w-4" />
                                                 </Button>
@@ -1058,34 +1289,34 @@ export function ClientHoursDetail() {
                                     <TableCell className="align-top pt-4">
                                         {worker.file_name && worker.file_url ? (
                                             <div
-                                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 cursor-pointer max-w-[200px]"
+                                                className="flex items-center gap-2 text-xs text-blue-600 hover:text-blue-800 cursor-pointer max-w-[200px] bg-blue-50/60 border border-blue-200/70 px-2.5 py-1 rounded-lg"
                                                 onClick={() => handleViewFile(worker.file_url!)}
                                             >
-                                                <FileText className="h-4 w-4 shrink-0" />
-                                                <span className="truncate underline font-medium" title={worker.file_name}>{worker.file_name}</span>
+                                                <FileText className="h-3.5 w-3.5 shrink-0" />
+                                                <span className="truncate font-semibold" title={worker.file_name}>{worker.file_name}</span>
                                             </div>
                                         ) : (['em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) || worker.has_portal_hours || (worker.status === 'validado' && !worker.file_url)) ? (
                                             <div
-                                                className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-md font-semibold w-fit cursor-pointer hover:bg-indigo-100 transition-colors"
+                                                className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg font-semibold w-fit cursor-pointer hover:bg-indigo-100 transition-colors"
                                                 onClick={() => handleOpenValidation(worker)}
-                                                title="Clique para abrir e validar os apontamentos do portal"
+                                                title={t('clientHoursDetail.tooltips.openPortalValidation')}
                                             >
                                                 <Smartphone className="h-3.5 w-3.5 text-indigo-600" />
                                                 <span>
-                                                    Portal Digital{worker.horas_totais && worker.horas_totais > 0 ? ` (${worker.horas_totais}h)` : ''}
+                                                    {t('clientHoursDetail.badges.digitalPortal')}{worker.horas_totais && worker.horas_totais > 0 ? ` (${worker.horas_totais}h)` : ''}
                                                 </span>
                                             </div>
                                         ) : (
-                                            <span className="text-muted-foreground text-sm">-</span>
+                                            <span className="text-muted-foreground/40 text-sm">—</span>
                                         )}
                                     </TableCell>
-                                    <TableCell className="text-right align-top pt-4">
-                                        <div className="flex justify-end gap-2">
+                                    <TableCell className="text-right align-top pt-4 pr-4">
+                                        <div className="flex justify-end gap-1.5">
                                             {(worker.status === 'pendente' || (!worker.file_url && ['em_andamento', 'aguardando_assinatura'].includes(worker.status))) && (role === 'super_admin' || role === 'admin_rh') && (
                                                 <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    className="h-8 text-blue-600 border-blue-200 hover:bg-blue-50"
+                                                    className="h-8 rounded-xl text-blue-600 border-blue-200 hover:bg-blue-50"
                                                     onClick={() => setUploadDialogState({
                                                         open: true,
                                                         workerId: worker.worker_id,
@@ -1105,9 +1336,10 @@ export function ClientHoursDetail() {
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
+                                                            className="h-8 rounded-xl"
                                                             disabled={actionLoading === worker.hour_record_id + '-dl' || actionLoading === worker.hour_record_id + '-ap' || actionLoading === worker.hour_record_id + '-rj'}
                                                             onClick={() => handleDownloadFile(worker.file_url, worker.file_name, worker.hour_record_id!)}
-                                                            title="Baixar folha anexada"
+                                                            title={t('clientHoursDetail.tooltips.downloadSheet')}
                                                         >
                                                             {actionLoading === worker.hour_record_id + '-dl' ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
                                                         </Button>
@@ -1118,39 +1350,39 @@ export function ClientHoursDetail() {
                                                             size="sm"
                                                             disabled={actionLoading === worker.hour_record_id + '-ocr'}
                                                             onClick={() => handleReprocessOcr(worker)}
-                                                            className="h-8 text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"
-                                                            title="Re-executar leitura com IA ou forçar reprocessamento"
+                                                            className="h-8 rounded-xl text-blue-700 bg-blue-50 border-blue-200 hover:bg-blue-100 flex items-center gap-1.5"
+                                                            title={t('clientHoursDetail.tooltips.reprocessAi')}
                                                         >
                                                             {actionLoading === worker.hour_record_id + '-ocr' ? (
                                                                 <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
                                                             ) : (
                                                                 <RefreshCw className="h-3.5 w-3.5 text-blue-600" />
                                                             )}
-                                                            <span>{actionLoading === worker.hour_record_id + '-ocr' ? 'Lendo...' : 'Reprocessar IA'}</span>
+                                                            <span>{actionLoading === worker.hour_record_id + '-ocr' ? t('clientHoursDetail.buttons.readingAi') : t('clientHoursDetail.buttons.reprocessAi')}</span>
                                                         </Button>
                                                     )}
                                                     {['enviado', 'processado', 'validado', 'em_andamento', 'aguardando_assinatura', 'assinado_encarregado'].includes(worker.status) && (role === 'super_admin' || role === 'admin_rh' || role === 'operador') && (
                                                         <Button
                                                             variant="default"
                                                             size="sm"
-                                                            className={`h-8 text-white font-semibold px-3 flex items-center gap-1.5 shadow-sm transition-colors ${
+                                                            className={`h-8 rounded-xl text-white font-semibold px-3 flex items-center gap-1.5 shadow-xs transition-colors ${
                                                                 worker.status === 'validado'
-                                                                    ? 'bg-green-600 hover:bg-green-700'
-                                                                    : worker.status === 'assinado_encarregado'
                                                                     ? 'bg-emerald-600 hover:bg-emerald-700'
+                                                                    : worker.status === 'assinado_encarregado'
+                                                                    ? 'bg-teal-600 hover:bg-teal-700'
                                                                     : worker.status === 'em_andamento' || worker.status === 'aguardando_assinatura'
                                                                     ? 'bg-indigo-600 hover:bg-indigo-700'
-                                                                    : 'bg-slate-600 hover:bg-slate-700'
+                                                                    : 'bg-slate-700 hover:bg-slate-800'
                                                             }`}
                                                             onClick={() => handleOpenValidation(worker)}
                                                             disabled={actionLoading === worker.hour_record_id + '-ap'}
                                                             title={
                                                                 worker.status === 'validado'
-                                                                    ? t('clientHoursDetail.tooltips.revalidate', 'Revalidar Lançamentos')
+                                                                    ? t('clientHoursDetail.tooltips.revalidate')
                                                                     : worker.status === 'assinado_encarregado'
-                                                                    ? 'Validar Apontamento Assinado'
+                                                                    ? t('clientHoursDetail.tooltips.validateSigned')
                                                                     : worker.status === 'em_andamento'
-                                                                    ? 'Validar Apontamento do Portal'
+                                                                    ? t('clientHoursDetail.tooltips.validatePortal')
                                                                     : t('clientHoursDetail.tooltips.validate')
                                                             }
                                                         >
@@ -1161,14 +1393,14 @@ export function ClientHoursDetail() {
                                                             )}
                                                             <span>
                                                                 {worker.status === 'validado'
-                                                                    ? t('clientHoursDetail.buttons.validated', 'Validado')
+                                                                    ? t('clientHoursDetail.buttons.validated')
                                                                     : worker.status === 'assinado_encarregado'
-                                                                    ? 'Validar Assinado'
+                                                                    ? t('clientHoursDetail.buttons.validateSigned')
                                                                     : worker.status === 'em_andamento'
-                                                                    ? 'Validar Portal'
+                                                                    ? t('clientHoursDetail.buttons.validatePortal')
                                                                     : worker.status === 'aguardando_assinatura'
-                                                                    ? 'Ver / Validar'
-                                                                    : t('clientHoursDetail.buttons.validate', 'Validar')}
+                                                                    ? t('clientHoursDetail.buttons.viewValidate')
+                                                                    : t('clientHoursDetail.buttons.validate')}
                                                             </span>
                                                         </Button>
                                                     )}
@@ -1176,10 +1408,10 @@ export function ClientHoursDetail() {
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                                                            className="h-8 rounded-xl text-rose-600 border-rose-200 hover:bg-rose-50"
                                                             onClick={() => handleRejectFile(worker.hour_record_id!, worker.file_url, worker.worker_id)}
                                                             disabled={actionLoading === worker.hour_record_id + '-rj'}
-                                                            title={worker.file_url ? t('clientHoursDetail.tooltips.reject') : 'Eliminar rascunho / horas do portal e voltar para Pendente'}
+                                                            title={worker.file_url ? t('clientHoursDetail.tooltips.reject') : t('clientHoursDetail.tooltips.rejectPortal')}
                                                         >
                                                             {actionLoading === worker.hour_record_id + '-rj' ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                                                         </Button>

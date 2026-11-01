@@ -13,6 +13,7 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { toast } from 'sonner';
 import { Upload, File as FileIcon, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface AdminUploadDialogProps {
     open: boolean;
@@ -43,12 +44,14 @@ export function AdminUploadDialog({
     workerFunction,
     onSuccess
 }: AdminUploadDialogProps) {
+    const { t, i18n } = useTranslation();
     const [file, setFile] = useState<File | null>(null);
     const [loading, setLoading] = useState(false);
 
     const getMonthName = (month: number) => {
         const date = new Date(2000, month - 1, 1);
-        return date.toLocaleString('pt-BR', { month: 'long' }).toUpperCase();
+        const locale = i18n.language.startsWith('es') ? 'es-ES' : i18n.language.startsWith('fr') ? 'fr-FR' : 'pt-BR';
+        return date.toLocaleString(locale, { month: 'long' }).toUpperCase();
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -180,13 +183,13 @@ export function AdminUploadDialog({
 
             resolveAndTriggerOcr();
 
-            toast.success('Folha enviada com sucesso em nome do trabalhador!');
+            toast.success(t('clientHoursDetail.uploadDialog.success'));
             onSuccess();
             onOpenChange(false);
             setFile(null); // Reset
 
         } catch (error: any) {
-            toast.error(error.message || 'Erro inesperado ao enviar arquivo');
+            toast.error(error.message || t('clientHoursDetail.uploadDialog.error'));
         } finally {
             setLoading(false);
         }
@@ -196,14 +199,19 @@ export function AdminUploadDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Enviar Folha pelo Trabalhador</DialogTitle>
+                    <DialogTitle>{t('clientHoursDetail.uploadDialog.title')}</DialogTitle>
                     <DialogDescription className="pt-2">
-                        Você está enviando o arquivo de horas de <strong className="text-primary">{workerName}</strong> para {clientXName} referente a {getMonthName(periodMonth)} {periodYear}.
+                        {t('clientHoursDetail.uploadDialog.desc', {
+                            name: workerName,
+                            client: clientXName,
+                            month: getMonthName(periodMonth),
+                            year: periodYear
+                        })}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <div className="grid w-full max-w-sm items-center gap-1.5">
-                        <Label htmlFor="arquivo">Selecione o PDF ou Foto da folha</Label>
+                        <Label htmlFor="arquivo">{t('clientHoursDetail.uploadDialog.selectFile')}</Label>
                         <Input
                             id="arquivo"
                             type="file"
@@ -225,11 +233,11 @@ export function AdminUploadDialog({
                 </div>
                 <DialogFooter className="sm:justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-                        Cancelar
+                        {t('common.cancel', 'Cancelar')}
                     </Button>
                     <Button type="button" onClick={handleUpload} disabled={!file || loading} className="gap-2">
                         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                        Confirmar Submissão
+                        {t('clientHoursDetail.uploadDialog.confirm')}
                     </Button>
                 </DialogFooter>
             </DialogContent>
