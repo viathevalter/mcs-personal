@@ -395,9 +395,9 @@ async function main() {
         if (assignAlba) {
           await client.query(`
             INSERT INTO core_comercial.leads (
-              name, company_name, email, phone, empresa_id, assigned_to, stage_id, tags, created_at, updated_at
+              name, company_name, email, phone, empresa_id, assigned_to, stage_id, sector, website, origen_lead, tags, created_at, updated_at
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7,
+              $1, $2, $3, $4, $5, $6, $7, $8, 'https://www.' || split_part($3, '@', 2), 'Web Scraping HTML Real 2026',
               ARRAY['Espanha', 'B2B', $8, 'HTML Verificado 100% Real', 'Mailing Alba - Inéditos Espanha 2026'],
               NOW(), NOW()
             )
@@ -415,9 +415,9 @@ async function main() {
         } else {
           await client.query(`
             INSERT INTO core_comercial.leads (
-              name, company_name, email, phone, empresa_id, assigned_to, stage_id, tags, created_at, updated_at
+              name, company_name, email, phone, empresa_id, assigned_to, stage_id, sector, website, origen_lead, tags, created_at, updated_at
             ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7,
+              $1, $2, $3, $4, $5, $6, $7, $8, 'https://www.' || split_part($3, '@', 2), 'Web Scraping HTML Real 2026',
               ARRAY['Espanha', 'B2B', $8, 'HTML Verificado 100% Real', 'Mailing Liseth - Inéditos Espanha 2026'],
               NOW(), NOW()
             )

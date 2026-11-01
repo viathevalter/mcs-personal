@@ -434,9 +434,9 @@ async function main() {
       try {
         await client.query(`
           INSERT INTO core_comercial.leads (
-            name, company_name, email, phone, empresa_id, assigned_to, stage_id, tags, created_at, updated_at
+            name, company_name, email, phone, empresa_id, assigned_to, stage_id, sector, website, origen_lead, tags, created_at, updated_at
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7,
+            $1, $2, $3, $4, $5, $6, $7, $8, 'https://www.' || split_part($3, '@', 2), 'Web Scraping HTML Real 2026',
             ARRAY['França', 'B2B', $8, 'HTML Verificado 100% Real', 'Mailing Fatumata - Novos Capturados França 2026'],
             NOW(), NOW()
           )
