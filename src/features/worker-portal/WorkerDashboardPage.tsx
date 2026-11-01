@@ -170,7 +170,7 @@ export function WorkerDashboardPage() {
 
     // Notificação proativa para trabalhadores (com suporte especial a iPhone / Safari)
     useEffect(() => {
-        if (loading || !selectedPeriod) return;
+        if (loading || !selectedPeriod || selectedPeriod.status === 'validado') return;
 
         const checkPendingReminder = () => {
             const now = new Date();
@@ -268,13 +268,15 @@ export function WorkerDashboardPage() {
         );
     }, [prevMonthPeriod]);
 
+    const isPeriodValidated = selectedPeriod?.status === 'validado';
+
     // Abertura do modal para um dia específico (permitido no mês corrente e no mês anterior enquanto não validado)
     const handleOpenDailyModal = (day: number | any) => {
-        if (selectedPeriod?.status === 'validado') {
+        if (isPeriodValidated) {
             toast.warning(
                 isSpanish
-                    ? 'Esta hoja ya ha sido validada y está cerrada para edición.'
-                    : 'Esta folha já foi validada e está bloqueada para edição.'
+                    ? `Las horas del mes de ${currentMonthName} ya están validadas y cerradas para edición.`
+                    : `As suas horas do mês de ${currentMonthName} já estão validadas e bloqueadas para edição.`
             );
             return;
         }
@@ -285,6 +287,30 @@ export function WorkerDashboardPage() {
         const targetDay = Number.isFinite(parsed) && parsed >= 1 ? parsed : (firstPendingDay || 1);
 
         setModalDay(targetDay);
+    };
+
+    const handleOpenGeneratePdf = () => {
+        if (isPeriodValidated) {
+            toast.info(
+                isSpanish
+                    ? `Las horas del mes de ${currentMonthName} ya están validadas. No es necesario volver a enviar la hoja.`
+                    : `As suas horas do mês de ${currentMonthName} já estão validadas. Não é necessário reenviar a folha.`
+            );
+            return;
+        }
+        setSubView('generate-pdf');
+    };
+
+    const handleOpenUpload = () => {
+        if (isPeriodValidated) {
+            toast.info(
+                isSpanish
+                    ? `Las horas del mes de ${currentMonthName} ya están validadas. No es necesario volver a subir el PDF.`
+                    : `As suas horas do mês de ${currentMonthName} já estão validadas. Não é necessário reenviar o PDF.`
+            );
+            return;
+        }
+        setSubView('upload');
     };
 
     // Download rápido direto do PDF
@@ -456,7 +482,7 @@ export function WorkerDashboardPage() {
                 {/* Botão de ação direta para gerar PDF */}
                 <div className="pt-2">
                     <Button
-                        onClick={() => setSubView('generate-pdf')}
+                        onClick={handleOpenGeneratePdf}
                         className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-md gap-2"
                     >
                         <FileText className="h-5 w-5" />
@@ -589,7 +615,9 @@ export function WorkerDashboardPage() {
                             ? 'bg-amber-200/80 text-amber-900'
                             : 'bg-emerald-100 text-emerald-800'
                     }`}>
-                        {isPrevMonthPendingSubmission
+                        {prevMonthPeriod?.status === 'validado'
+                            ? (isSpanish ? 'Validado ✓' : 'Validado ✓')
+                            : isPrevMonthPendingSubmission
                             ? (isSpanish ? 'Cerrar mes' : 'Fechar mês')
                             : (isSpanish ? 'Enviado' : 'Enviado')}
                     </span>
@@ -776,7 +804,51 @@ export function WorkerDashboardPage() {
             )}
 
             {/* 2. CARD PRINCIPAL DE HOJE OU FECHAMENTO DO MÊS ANTERIOR */}
-            {isViewingCurrentCalendarMonth ? (
+            {isPeriodValidated ? (
+                <Card className="rounded-3xl border-2 border-emerald-500/40 bg-gradient-to-br from-emerald-50/70 via-white to-teal-50/50 shadow-md overflow-hidden">
+                    <CardContent className="p-4 sm:p-5 space-y-3.5">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                                <div className="h-10 w-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                                    <CheckCircle2 className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 block">
+                                        {isSpanish ? 'Período Validado y Cerrado' : 'Período Validado e Fechado'}
+                                    </span>
+                                    <h3 className="text-base font-black text-slate-900 capitalize">
+                                        {currentMonthName} {currentYear}
+                                    </h3>
+                                </div>
+                            </div>
+                            <StatusPill status="validado" />
+                        </div>
+
+                        <div className="bg-white/95 rounded-2xl p-3.5 border border-emerald-200/80 space-y-1.5 shadow-2xs">
+                            <p className="text-xs font-extrabold text-emerald-950">
+                                {isSpanish
+                                    ? `¡Tus horas del mes de ${currentMonthName} ya están validadas!`
+                                    : `As suas horas do mês de ${currentMonthName} já estão validadas!`}
+                            </p>
+                            <p className="text-[11px] text-slate-600 leading-relaxed">
+                                {isSpanish
+                                    ? `La hoja de horas de ${currentMonthName} (${Number(monthlyStats.totalHours || 0).toFixed(1).replace('.', ',')}h en ${monthlyStats.daysWorked} días) ya fue revisada y validada por RRHH. No es necesario apuntar ni subir más archivos en este mes.`
+                                    : `A folha de horas de ${currentMonthName} (${Number(monthlyStats.totalHours || 0).toFixed(1).replace('.', ',')}h em ${monthlyStats.daysWorked} dias) já foi conferida e validada pelo RH. Não é necessário apontar nem enviar mais arquivos neste mês.`}
+                            </p>
+                        </div>
+
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleQuickDownloadPdf}
+                            className="w-full h-11 rounded-2xl border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50 font-bold text-xs flex items-center justify-center gap-2 shadow-2xs"
+                        >
+                            <Download className="h-4 w-4 text-emerald-600" />
+                            {isSpanish ? `Descargar Comprobante PDF (${currentMonthName})` : `Baixar Comprovante PDF (${currentMonthName})`}
+                        </Button>
+                    </CardContent>
+                </Card>
+            ) : isViewingCurrentCalendarMonth ? (
                 <Card className="rounded-3xl border-2 border-emerald-500/30 bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/30 shadow-md overflow-hidden">
                     <CardContent className="p-4 sm:p-5 space-y-3.5">
                         <div className="flex items-center justify-between">
@@ -862,7 +934,7 @@ export function WorkerDashboardPage() {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => setSubView('generate-pdf')}
+                                onClick={handleOpenGeneratePdf}
                                 className="h-12 rounded-2xl border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-2xs"
                             >
                                 <FileText className="h-4 w-4 text-emerald-600" />
@@ -872,7 +944,7 @@ export function WorkerDashboardPage() {
 
                         <button
                             type="button"
-                            onClick={() => setSubView('upload')}
+                            onClick={handleOpenUpload}
                             className="w-full py-2 px-3 rounded-xl bg-white/80 hover:bg-white border border-slate-200 text-xs font-bold text-slate-700 flex items-center justify-center gap-1.5 transition-colors"
                         >
                             <UploadCloud className="h-3.5 w-3.5 text-emerald-600" />
@@ -884,8 +956,8 @@ export function WorkerDashboardPage() {
                 </Card>
             )}
 
-            {/* 3. ALERTA DE DIAS PENDENTES (Se houver dias passados sem registo) */}
-            {monthlyStats.pendingDays > 0 && firstPendingDay && (
+            {/* 3. ALERTA DE DIAS PENDENTES (Se houver dias passados sem registo e a folha ainda não estiver validada) */}
+            {!isPeriodValidated && monthlyStats.pendingDays > 0 && firstPendingDay && (
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-300">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="h-8 w-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0">
@@ -944,12 +1016,14 @@ export function WorkerDashboardPage() {
                         {t('workerPortal.dashboard.kpiPending', 'Pendentes')}
                     </span>
                     <span className={`text-lg font-black block mt-0.5 ${
-                        monthlyStats.pendingDays > 0 ? 'text-amber-600' : 'text-slate-400'
+                        isPeriodValidated ? 'text-emerald-600' : monthlyStats.pendingDays > 0 ? 'text-amber-600' : 'text-slate-400'
                     }`}>
-                        {monthlyStats.pendingDays}
+                        {isPeriodValidated ? '0' : monthlyStats.pendingDays}
                     </span>
                     <span className="text-[10px] text-slate-500 font-medium">
-                        {monthlyStats.pendingDays === 0 
+                        {isPeriodValidated
+                            ? (isSpanish ? 'Validado' : 'Validado')
+                            : monthlyStats.pendingDays === 0 
                             ? t('workerPortal.dashboard.upToDate', 'Em dia') 
                             : t('workerPortal.dashboard.toFill', 'a lançar')}
                     </span>
@@ -1032,11 +1106,17 @@ export function WorkerDashboardPage() {
                     {/* CARD: Gerar PDF para assinatura */}
                     <button
                         type="button"
-                        onClick={() => setSubView('generate-pdf')}
-                        className="w-full bg-gradient-to-r from-emerald-50 to-teal-50/60 p-3.5 rounded-2xl border border-emerald-200 hover:border-emerald-300 transition-all flex items-center justify-between text-left shadow-2xs group"
+                        onClick={handleOpenGeneratePdf}
+                        className={`w-full p-3.5 rounded-2xl border transition-all flex items-center justify-between text-left shadow-2xs group ${
+                            isPeriodValidated
+                                ? 'bg-slate-50 border-slate-200 opacity-75'
+                                : 'bg-gradient-to-r from-emerald-50 to-teal-50/60 border-emerald-200 hover:border-emerald-300'
+                        }`}
                     >
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
+                            <div className={`h-10 w-10 rounded-xl text-white flex items-center justify-center shadow-xs transition-transform ${
+                                isPeriodValidated ? 'bg-slate-400' : 'bg-emerald-600 group-hover:scale-105'
+                            }`}>
                                 <FileText className="h-5 w-5" />
                             </div>
                             <div>
@@ -1044,12 +1124,16 @@ export function WorkerDashboardPage() {
                                     <h4 className="text-sm font-bold text-emerald-950 leading-tight">
                                         {t('workerPortal.dashboard.actionPdfTitle', 'Gerar PDF para assinatura')}
                                     </h4>
-                                    <span className="text-[10px] font-black bg-emerald-600 text-white px-1.5 py-0.2 rounded-full">
-                                        {t('workerPortal.dashboard.officialBadge', 'Oficial')}
+                                    <span className={`text-[10px] font-black text-white px-1.5 py-0.2 rounded-full ${
+                                        isPeriodValidated ? 'bg-emerald-700' : 'bg-emerald-600'
+                                    }`}>
+                                        {isPeriodValidated ? (isSpanish ? 'Validado' : 'Validado') : t('workerPortal.dashboard.officialBadge', 'Oficial')}
                                     </span>
                                 </div>
                                 <p className="text-[11px] text-emerald-800/80 font-medium">
-                                    {t('workerPortal.dashboard.actionPdfDesc', 'Enviar para o encarregado validar digitalmente')}
+                                    {isPeriodValidated
+                                        ? (isSpanish ? `Tus horas de ${currentMonthName} ya están validadas` : `Suas horas de ${currentMonthName} já estão validadas`)
+                                        : t('workerPortal.dashboard.actionPdfDesc', 'Enviar para o encarregado validar digitalmente')}
                                 </p>
                             </div>
                         </div>
@@ -1059,8 +1143,12 @@ export function WorkerDashboardPage() {
                     {/* CARD: Enviar folha em papel (Plano B) */}
                     <button
                         type="button"
-                        onClick={() => setSubView('upload')}
-                        className="w-full bg-white p-3 rounded-2xl border border-dashed border-slate-300 hover:border-slate-400 hover:bg-slate-50/50 transition-all flex items-center justify-between text-left group"
+                        onClick={handleOpenUpload}
+                        className={`w-full bg-white p-3 rounded-2xl border border-dashed transition-all flex items-center justify-between text-left group ${
+                            isPeriodValidated
+                                ? 'border-slate-200 opacity-65'
+                                : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50/50'
+                        }`}
                     >
                         <div className="flex items-center gap-2.5">
                             <div className="h-8 w-8 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center">
@@ -1071,7 +1159,9 @@ export function WorkerDashboardPage() {
                                     {t('workerPortal.dashboard.actionPaperTitle', 'Enviar foto da folha em papel (Plano B)')}
                                 </h4>
                                 <p className="text-[10px] text-slate-400">
-                                    {t('workerPortal.dashboard.actionPaperDesc', 'Caso tenha preenchido o modelo físico impresso')}
+                                    {isPeriodValidated
+                                        ? (isSpanish ? `Mes de ${currentMonthName} ya validado y cerrado` : `Mês de ${currentMonthName} já validado e fechado`)
+                                        : t('workerPortal.dashboard.actionPaperDesc', 'Caso tenha preenchido o modelo físico impresso')}
                                 </p>
                             </div>
                         </div>

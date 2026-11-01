@@ -110,6 +110,15 @@ export function GeneratePdfView({
     const handleSendToSupervisor = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        if (period.status === 'validado') {
+            toast.warning(
+                isSpanish
+                    ? `Las horas del mes de ${monthName} ya están validadas y cerradas.`
+                    : `As suas horas do mês de ${monthName} já estão validadas e fechadas.`
+            );
+            return;
+        }
+
         if (!encarregadoNome.trim()) {
             toast.error(isSpanish ? 'Por favor, introduce el nombre del encargado.' : 'Por favor, informe o nome do encarregado de obra.');
             return;

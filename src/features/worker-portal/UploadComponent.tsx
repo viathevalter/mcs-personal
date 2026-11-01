@@ -34,6 +34,15 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
     };
 
     const handleUpload = async () => {
+        if (period.status === 'validado') {
+            toast.warning(
+                i18n.language.startsWith('es')
+                    ? `Las horas del mes de ${getMonthName(period.period_month)} ya están validadas y cerradas.`
+                    : `As suas horas do mês de ${getMonthName(period.period_month)} já estão validadas e fechadas.`
+            );
+            return;
+        }
+
         if (!file) {
             toast.error(t('workerPortal.upload.error.noFile'));
             return;
