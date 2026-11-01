@@ -729,9 +729,11 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
           }
         }
 
-        // Atualizar o status da folha de horas para 'processado' e gravar apontamentos
-        console.log(`[DB Sync] Atualizando status de worker_hours para 'processado' (Total: ${sumTotais}h, Normais: ${sumNormais}h, Noturnas: ${sumNoturnas}h)...`);
-        const { error: updateStatusError } = await supabase
+        // Atualizar o status da folha de horas específica (evitando sobrescrever outra empresa do mesmo mês)
+        const targetRecordId = body.record_id;
+        const targetClientName = body.client_name;
+        console.log(`[DB Sync] Atualizando status de worker_hours para 'processado' (record_id=${targetRecordId || 'auto'}, Total: ${sumTotais}h, Normais: ${sumNormais}h, Noturnas: ${sumNoturnas}h)...`);
+        let updateQuery = supabase
           .schema('core_personal')
           .from('worker_hours')
           .update({ 
@@ -742,10 +744,17 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
             total_horas_noturnas: sumNoturnas,
             horas_totais: sumTotais,
             updated_at: new Date().toISOString() 
-          })
-          .eq('worker_id', worker_id)
-          .eq('period_year', year)
-          .eq('period_month', month);
+          });
+        if (targetRecordId) {
+          updateQuery = updateQuery.eq('id', targetRecordId);
+        } else if (file_path) {
+          updateQuery = updateQuery.eq('worker_id', worker_id).eq('period_year', year).eq('period_month', month).eq('file_url', file_path);
+        } else if (targetClientName) {
+          updateQuery = updateQuery.eq('worker_id', worker_id).eq('period_year', year).eq('period_month', month).eq('cliente_nombre', targetClientName);
+        } else {
+          updateQuery = updateQuery.eq('worker_id', worker_id).eq('period_year', year).eq('period_month', month).neq('status', 'validado');
+        }
+        const { error: updateStatusError } = await updateQuery;
 
         if (updateStatusError) {
           console.error("[DB Sync] Erro ao atualizar status de worker_hours:", updateStatusError);

@@ -73,7 +73,8 @@ export function AdminUploadDialog({
             const extension = file.name.split('.').pop() || 'pdf';
 
             const monthStr = periodMonth.toString().padStart(2, '0');
-            const fileName = `${workerId}_${monthStr}_${periodYear}.${extension}`;
+            const safeClientSlug = (clientXName || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').toUpperCase();
+            const fileName = safeClientSlug ? `${workerId}_${monthStr}_${periodYear}_${safeClientSlug}.${extension}` : `${workerId}_${monthStr}_${periodYear}.${extension}`;
             const filePath = fileName;
 
             // Upload to Supabase Storage
@@ -163,6 +164,8 @@ export function AdminUploadDialog({
                                 bucket_id: "extracao-horas",
                                 mime_type: mimeType,
                                 worker_id: workerId,
+                                record_id: hourRecordId || null,
+                                client_name: clientXName || null,
                                 client_id: matched.id,
                                 worker_function: workerFunction || null,
                                 year: periodYear,

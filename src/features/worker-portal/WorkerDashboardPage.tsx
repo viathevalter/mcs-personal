@@ -161,12 +161,19 @@ export function WorkerDashboardPage() {
         return 'Obra Principal';
     }, [selectedObraName, availableObras]);
 
-    // Todos os períodos disponíveis no mês atual para troca de cliente/contrato
+    const isCancelledPeriod = useCallback((p: any) => {
+        const s = (p?.observacoes || '').toLowerCase();
+        return s.includes('no inici') || s.includes('desisti') || s.includes('no se present');
+    }, []);
+
+    // Todos os períodos disponíveis no mês atual para troca de cliente/contrato (excluindo alocações onde não iniciou)
     const currentMonthPeriods = useMemo(() => {
-        return allPeriods.filter(
+        const raw = allPeriods.filter(
             p => p.period_year === currentYear && p.period_month === currentMonth
         );
-    }, [allPeriods, currentYear, currentMonth]);
+        const nonCancelled = raw.filter(p => !isCancelledPeriod(p));
+        return nonCancelled.length > 0 ? nonCancelled : raw;
+    }, [allPeriods, currentYear, currentMonth, isCancelledPeriod]);
 
     // Notificação proativa para trabalhadores (com suporte especial a iPhone / Safari)
     useEffect(() => {
@@ -252,21 +259,27 @@ export function WorkerDashboardPage() {
         return d.toLocaleDateString(locale, { month: 'long' });
     }, [realYear, realMonth, locale]);
 
+    const prevMonthPeriods = useMemo(() => {
+        const raw = allPeriods.filter(p => p.period_year === prevCalendarYear && p.period_month === prevCalendarMonth);
+        const nonCancelled = raw.filter(p => !isCancelledPeriod(p));
+        return nonCancelled.length > 0 ? nonCancelled : raw;
+    }, [allPeriods, prevCalendarYear, prevCalendarMonth, isCancelledPeriod]);
+
     const prevMonthPeriod = useMemo(() => {
-        return allPeriods.find(p => p.period_year === prevCalendarYear && p.period_month === prevCalendarMonth);
-    }, [allPeriods, prevCalendarYear, prevCalendarMonth]);
+        return prevMonthPeriods.find(p => p.status !== 'validado') || prevMonthPeriods[0];
+    }, [prevMonthPeriods]);
 
     const isPrevMonthPendingSubmission = useMemo(() => {
-        if (!prevMonthPeriod) return true;
-        return (
-            prevMonthPeriod.status !== 'validado' &&
-            prevMonthPeriod.status !== 'enviado' &&
-            prevMonthPeriod.status !== 'processado' &&
-            prevMonthPeriod.status !== 'assinado_encarregado' &&
-            prevMonthPeriod.status !== 'aguardando_assinatura' &&
-            !prevMonthPeriod.file_url
+        if (prevMonthPeriods.length === 0) return true;
+        return prevMonthPeriods.some(p =>
+            p.status !== 'validado' &&
+            p.status !== 'enviado' &&
+            p.status !== 'processado' &&
+            p.status !== 'assinado_encarregado' &&
+            p.status !== 'aguardando_assinatura' &&
+            !p.file_url
         );
-    }, [prevMonthPeriod]);
+    }, [prevMonthPeriods]);
 
     const isPeriodValidated = selectedPeriod?.status === 'validado';
 
@@ -648,6 +661,73 @@ export function WorkerDashboardPage() {
             {/* Banners PWA: Instalador e Ativação de Notificações Push */}
             <InstallAppPrompt />
             <PushNotificationPrompt workerId={workerAuth?.id} />
+
+            {/* SELETOR DESTACADO QUANDO O TRABALHADOR TEM 2+ EMPRESAS / CLIENTES NO MESMO MÊS */}
+            {currentMonthPeriods.length > 1 && (
+                <div className="bg-gradient-to-br from-indigo-50/90 via-white to-blue-50/60 rounded-2xl p-3.5 border-2 border-indigo-200/80 shadow-xs space-y-2.5">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-indigo-600 shrink-0" />
+                            <span className="text-xs font-extrabold text-indigo-950 uppercase tracking-wide">
+                                {isSpanish ? `Tus Empresas en ${currentMonthName} (${currentMonthPeriods.length})` : `Suas Empresas em ${currentMonthName} (${currentMonthPeriods.length})`}
+                            </span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                            {isSpanish ? 'Toque para cambiar' : 'Toque para alternar'}
+                        </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-snug">
+                        {isSpanish
+                            ? 'Trabajaste en más de una empresa este mes. Selecciona cada empresa para apuntar tus horas o subir su hoja firmada:'
+                            : 'Você trabalhou em mais de uma empresa neste mês. Selecione cada empresa para apontar as horas ou enviar a folha assinada:'}
+                    </p>
+                    <div className="grid grid-cols-1 gap-1.5">
+                        {currentMonthPeriods.map((period) => {
+                            const isSel = selectedPeriod?.id === period.id;
+                            const hrs = Number((period as any).horas_totais || 0);
+                            const st = period.status;
+                            const badgeText = st === 'validado'
+                                ? (isSpanish ? 'Validado ✓' : 'Validado ✓')
+                                : (st === 'enviado' || st === 'processado' || st === 'assinado_encarregado' || period.file_url)
+                                ? (isSpanish ? 'Enviado' : 'Enviado')
+                                : (st === 'em_andamento' || hrs > 0)
+                                ? (isSpanish ? 'En curso' : 'Em andamento')
+                                : (isSpanish ? 'Pendiente' : 'Pendente');
+                            const badgeClass = st === 'validado'
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                : (st === 'enviado' || st === 'processado' || st === 'assinado_encarregado' || period.file_url)
+                                ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                : 'bg-amber-100 text-amber-900 border-amber-300';
+                            return (
+                                <button
+                                    key={period.id}
+                                    type="button"
+                                    onClick={() => setSelectedPeriodId(period.id)}
+                                    className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                                        isSel
+                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm ring-2 ring-indigo-500/25'
+                                            : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200'
+                                    }`}
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <div className="font-extrabold text-xs truncate">
+                                            {period.cliente_nombre || 'Empresa'}
+                                        </div>
+                                        <div className={`text-[10px] font-medium truncate ${isSel ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                            {period.contratante || 'MCS'} {hrs > 0 ? `• ${hrs}h` : ''}
+                                        </div>
+                                    </div>
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border shrink-0 ${
+                                        isSel ? 'bg-white text-indigo-900 border-white' : badgeClass
+                                    }`}>
+                                        {badgeText}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* TAG DA OBRA REAL / CLIENTE ATUAL + TROCA CASO TENHA MAIS DE UMA */}
             <div className="bg-slate-100/80 rounded-2xl px-3.5 py-2 flex items-center justify-between text-xs border border-slate-200/60">

@@ -57,6 +57,18 @@ export function useWorkerTimesheet(workerAuth: any) {
         try {
             setLoading(true);
             const workerIds = profiles.map((p: any) => p.id);
+            const thisYr = now.getFullYear();
+            const thisMo = now.getMonth() + 1;
+            const prevMo = thisMo === 1 ? 12 : thisMo - 1;
+            const prevYr = thisMo === 1 ? thisYr - 1 : thisYr;
+
+            // Garantir que todas as alocações/clientes do trabalhador no mês anterior e atual tenham sua folha individual
+            try {
+                await Promise.all([
+                    supabase.rpc('ensure_worker_month_hours', { p_worker_id: activeProfile.id, p_year: prevYr, p_month: prevMo }),
+                    supabase.rpc('ensure_worker_month_hours', { p_worker_id: activeProfile.id, p_year: thisYr, p_month: thisMo })
+                ]);
+            } catch (_) {}
 
             const { data, error } = await supabase
                 .schema('core_personal')
@@ -69,11 +81,6 @@ export function useWorkerTimesheet(workerAuth: any) {
             if (error) throw error;
 
             let records = data || [];
-
-            const thisYr = now.getFullYear();
-            const thisMo = now.getMonth() + 1;
-            const prevMo = thisMo === 1 ? 12 : thisMo - 1;
-            const prevYr = thisMo === 1 ? thisYr - 1 : thisYr;
 
             const resolvedEmpId = resolveEmpresaId(activeProfile.contratante, records);
             const lastKnownClient = records.find(r => r.cliente_nombre && r.cliente_nombre !== 'CLIENTE GERAL' && r.cliente_nombre !== 'NÃO DEFINIDO')?.cliente_nombre;
@@ -137,7 +144,11 @@ export function useWorkerTimesheet(workerAuth: any) {
                 const prevRecords = records.filter(r => r.period_year === prevYr && r.period_month === prevMo && r.worker_id === activeProfile.id);
                 const currRecords = records.filter(r => r.period_year === thisYr && r.period_month === thisMo && r.worker_id === activeProfile.id);
 
-                const prevSubmittedOrValidated = prevRecords.some(r =>
+                const activePrevRecords = prevRecords.filter(r => {
+                    const obs = ((r as any).observacoes || '').toLowerCase();
+                    return !obs.includes('no inici') && !obs.includes('desisti') && !obs.includes('no se present');
+                });
+                const prevSubmittedOrValidated = activePrevRecords.length > 0 && activePrevRecords.every(r =>
                     r.status === 'validado' ||
                     r.status === 'enviado' ||
                     r.status === 'processado' ||
@@ -229,12 +240,16 @@ export function useWorkerTimesheet(workerAuth: any) {
                 return s.includes('no inici') || s.includes('desisti') || s.includes('no se present');
             };
             candidates.sort((a, b) => {
-                const aHas = Number((a as any).horas_totais || 0) > 0 || (Array.isArray(a.apontamentos_diarios) && a.apontamentos_diarios.length > 0) ? 1 : 0;
-                const bHas = Number((b as any).horas_totais || 0) > 0 || (Array.isArray(b.apontamentos_diarios) && b.apontamentos_diarios.length > 0) ? 1 : 0;
-                if (aHas !== bHas) return bHas - aHas;
                 const aNotCancelled = isCancelledObs((a as any).observacoes) ? 0 : 1;
                 const bNotCancelled = isCancelledObs((b as any).observacoes) ? 0 : 1;
                 if (aNotCancelled !== bNotCancelled) return bNotCancelled - aNotCancelled;
+                // Se houver mais de uma empresa no mês, priorizar a que ainda não foi validada para o trabalhador preencher
+                const aPending = a.status !== 'validado' ? 1 : 0;
+                const bPending = b.status !== 'validado' ? 1 : 0;
+                if (aPending !== bPending) return bPending - aPending;
+                const aHas = Number((a as any).horas_totais || 0) > 0 || (Array.isArray(a.apontamentos_diarios) && a.apontamentos_diarios.length > 0) ? 1 : 0;
+                const bHas = Number((b as any).horas_totais || 0) > 0 || (Array.isArray(b.apontamentos_diarios) && b.apontamentos_diarios.length > 0) ? 1 : 0;
+                if (aHas !== bHas) return bHas - aHas;
                 const aCli = targetCli && (a.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
                 const bCli = targetCli && (b.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
                 return bCli - aCli;

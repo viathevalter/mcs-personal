@@ -108,6 +108,8 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
                         bucket_id: "horas_trabalhadores",
                         mime_type: mimeType,
                         worker_id: worker.id,
+                        record_id: period.id,
+                        client_name: period.cliente_nombre || null,
                         year: period.period_year,
                         month: period.period_month
                     }

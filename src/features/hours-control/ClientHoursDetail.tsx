@@ -316,6 +316,8 @@ export function ClientHoursDetail() {
                     bucket_id: bucketName,
                     mime_type: mimeType,
                     worker_id: worker.worker_id,
+                    record_id: worker.hour_record_id,
+                    client_name: clientName || null,
                     year: year,
                     month: month
                 }
