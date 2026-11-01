@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../../components/ui/badge';
 import { useEmpresa } from '../../app/providers/EmpresaProvider';
 import { useClientHoursSummary } from './hooks/useClientHoursSummary';
-import { Loader2, FileText, ChevronRight, Users, Clock, Upload, CheckCircle, Search } from 'lucide-react';
+import { Loader2, FileText, ChevronRight, Users, Clock, Upload, CheckCircle, CheckCircle2, Search, X } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Input } from '../../components/ui/input';
 import { useUniqueContratantes } from '../workers/hooks/useUniqueContratantes';
@@ -135,25 +135,40 @@ export function HoursControlPage() {
         return true;
     });
 
+    type KpiFilterType = 'all' | 'pendentes' | 'enviadas' | 'validadas' | 'finalizados';
+    const kpiFilter = (searchParams.get('kpi') as KpiFilterType) || 'all';
+
+    const handleKpiFilterToggle = (filter: KpiFilterType) => {
+        updateSearchParams({ kpi: filter === kpiFilter ? 'all' : filter });
+    };
+
+    const calculateStatus = (summary: any) => {
+        if (summary.pending_hours > 0) return 'processing'; // Still waiting for some workers
+        if (summary.submitted_hours > 0) return 'review'; // Waiting for admin validation
+        return 'completed'; // All validated
+    };
+
+    const clientsWithPending = filteredClients.filter(c => (c.pending_hours || 0) > 0).length;
+    const clientsWithSubmitted = filteredClients.filter(c => (c.submitted_hours || 0) > 0).length;
+    const clientsWithValidated = filteredClients.filter(c => (c.validated_hours || 0) > 0).length;
+    const completedClients = filteredClients.filter(c => calculateStatus(c) === 'completed' && (c.total_workers || 0) > 0);
+
     const kpis = {
         ativos: filteredClients.reduce((acc, c) => acc + (c.total_workers || 0), 0),
         pendentes: filteredClients.reduce((acc, c) => acc + (c.pending_hours || 0), 0),
         enviadas: filteredClients.reduce((acc, c) => acc + (c.submitted_hours || 0), 0),
         validadas: filteredClients.reduce((acc, c) => acc + (c.validated_hours || 0), 0),
+        finalizados: completedClients.length,
+        finalizadosTrabalhadores: completedClients.reduce((acc, c) => acc + (c.total_workers || 0), 0),
     };
 
-    const calculateStatus = (summary: any) => {
-        if (summary.pending_hours === 0 && summary.submitted_hours === 0 && summary.validated_hours === 0) {
-            // Implicit "no missing" if there are workers? Actually all active workers are initially marked as pending 
-            // by our logic if they don't have a record or if it's explicitly 'pendente'
-            // Oh right, in useClientHoursSummary, missing record = pendente
-            // So total_workers = pending + submitted + validated usually.
-        }
-
-        if (summary.pending_hours > 0) return 'processing'; // Still waiting for some workers
-        if (summary.submitted_hours > 0) return 'review'; // Waiting for admin validation
-        return 'completed'; // All validated
-    };
+    const displayedClients = filteredClients.filter(c => {
+        if (kpiFilter === 'pendentes') return (c.pending_hours || 0) > 0;
+        if (kpiFilter === 'enviadas') return (c.submitted_hours || 0) > 0;
+        if (kpiFilter === 'validadas') return (c.validated_hours || 0) > 0;
+        if (kpiFilter === 'finalizados') return calculateStatus(c) === 'completed' && (c.total_workers || 0) > 0;
+        return true;
+    });
 
     return (
         <div className="h-[calc(100vh-115px)] w-full flex flex-col space-y-3">
@@ -271,37 +286,156 @@ export function HoursControlPage() {
                 </div>
             </div>
 
-            {/* KPIs */}
+            {/* KPIs Interativos com Filtro Direto */}
             {selectedEmpresaId && !isError && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
-                    <Card className="p-4 flex flex-col justify-center border-l-4 border-l-slate-400 border-t border-r border-b">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.active')}</span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 shrink-0">
+                    {/* 1. Ativos no Mês / Todos */}
+                    <button
+                        type="button"
+                        onClick={() => handleKpiFilterToggle('all')}
+                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                            kpiFilter === 'all'
+                                ? 'border-l-slate-700 bg-slate-100/90 dark:bg-slate-800/80 shadow-md ring-2 ring-slate-400/50'
+                                : 'border-l-slate-400 bg-card hover:bg-muted/50 hover:shadow-sm'
+                        }`}
+                        title={kpiFilter === 'all' ? 'Exibindo todos os clientes' : 'Filtrar todos os clientes'}
+                    >
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                {t('hoursControl.kpis.active')}
+                            </span>
                             <Users className="h-4 w-4 text-slate-500" />
                         </div>
-                        <span className="text-2xl font-bold">{kpis.ativos}</span>
-                    </Card>
-                    <Card className="p-4 flex flex-col justify-center border-l-4 border-l-amber-400 border-t border-r border-b">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.pending')}</span>
+                        <div className="flex items-baseline justify-between gap-1">
+                            <span className="text-2xl font-bold tracking-tight">{kpis.ativos}</span>
+                            <span className="text-xs text-muted-foreground font-medium">{filteredClients.length} clientes</span>
+                        </div>
+                    </button>
+
+                    {/* 2. Faltam Enviar */}
+                    <button
+                        type="button"
+                        onClick={() => handleKpiFilterToggle('pendentes')}
+                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                            kpiFilter === 'pendentes'
+                                ? 'border-l-amber-500 bg-amber-50 dark:bg-amber-950/40 shadow-md ring-2 ring-amber-500/50 border-amber-300 dark:border-amber-700'
+                                : 'border-l-amber-400 bg-card hover:bg-amber-50/40 dark:hover:bg-amber-950/20 hover:shadow-sm'
+                        }`}
+                        title="Filtrar clientes com horas a enviar"
+                    >
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                                {t('hoursControl.kpis.pending')}
+                            </span>
                             <Clock className="h-4 w-4 text-amber-500" />
                         </div>
-                        <span className="text-2xl font-bold text-amber-600">{kpis.pendentes}</span>
-                    </Card>
-                    <Card className="p-4 flex flex-col justify-center border-l-4 border-l-blue-400 border-t border-r border-b">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.toValidate')}</span>
+                        <div className="flex items-baseline justify-between gap-1">
+                            <span className="text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
+                                {kpis.pendentes}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-medium">{clientsWithPending} clientes</span>
+                        </div>
+                    </button>
+
+                    {/* 3. Para Validar */}
+                    <button
+                        type="button"
+                        onClick={() => handleKpiFilterToggle('enviadas')}
+                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                            kpiFilter === 'enviadas'
+                                ? 'border-l-blue-500 bg-blue-50 dark:bg-blue-950/40 shadow-md ring-2 ring-blue-500/50 border-blue-300 dark:border-blue-700'
+                                : 'border-l-blue-400 bg-card hover:bg-blue-50/40 dark:hover:bg-blue-950/20 hover:shadow-sm'
+                        }`}
+                        title="Filtrar clientes com horas para validar"
+                    >
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                                {t('hoursControl.kpis.toValidate')}
+                            </span>
                             <Upload className="h-4 w-4 text-blue-500" />
                         </div>
-                        <span className="text-2xl font-bold text-blue-600">{kpis.enviadas}</span>
-                    </Card>
-                    <Card className="p-4 flex flex-col justify-center border-l-4 border-l-green-400 border-t border-r border-b">
-                        <div className="flex justify-between items-center mb-2">
-                            <span className="text-sm font-medium text-muted-foreground">{t('hoursControl.kpis.validated')}</span>
+                        <div className="flex items-baseline justify-between gap-1">
+                            <span className="text-2xl font-bold tracking-tight text-blue-600 dark:text-blue-400">
+                                {kpis.enviadas}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-medium">{clientsWithSubmitted} clientes</span>
+                        </div>
+                    </button>
+
+                    {/* 4. Validadas */}
+                    <button
+                        type="button"
+                        onClick={() => handleKpiFilterToggle('validadas')}
+                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                            kpiFilter === 'validadas'
+                                ? 'border-l-green-500 bg-green-50 dark:bg-green-950/40 shadow-md ring-2 ring-green-500/50 border-green-300 dark:border-green-700'
+                                : 'border-l-green-400 bg-card hover:bg-green-50/40 dark:hover:bg-green-950/20 hover:shadow-sm'
+                        }`}
+                        title="Filtrar clientes com horas validadas"
+                    >
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-green-700 dark:text-green-400">
+                                {t('hoursControl.kpis.validated')}
+                            </span>
                             <CheckCircle className="h-4 w-4 text-green-500" />
                         </div>
-                        <span className="text-2xl font-bold text-green-600">{kpis.validadas}</span>
-                    </Card>
+                        <div className="flex items-baseline justify-between gap-1">
+                            <span className="text-2xl font-bold tracking-tight text-green-600 dark:text-green-400">
+                                {kpis.validadas}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-medium">{clientsWithValidated} clientes</span>
+                        </div>
+                    </button>
+
+                    {/* 5. Finalizados */}
+                    <button
+                        type="button"
+                        onClick={() => handleKpiFilterToggle('finalizados')}
+                        className={`p-4 rounded-xl border border-l-4 text-left transition-all duration-150 cursor-pointer select-none flex flex-col justify-between ${
+                            kpiFilter === 'finalizados'
+                                ? 'border-l-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 shadow-md ring-2 ring-indigo-500/50 border-indigo-300 dark:border-indigo-700'
+                                : 'border-l-indigo-500 bg-card hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 hover:shadow-sm'
+                        }`}
+                        title="Filtrar clientes 100% finalizados"
+                    >
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                                {t('hoursControl.kpis.completed')}
+                            </span>
+                            <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <div className="flex items-baseline justify-between gap-1">
+                            <span className="text-2xl font-bold tracking-tight text-indigo-600 dark:text-indigo-400">
+                                {kpis.finalizados}
+                            </span>
+                            <span className="text-xs text-muted-foreground font-medium">{kpis.finalizadosTrabalhadores} trab.</span>
+                        </div>
+                    </button>
+                </div>
+            )}
+
+            {/* Banner de Filtro Ativo */}
+            {selectedEmpresaId && !isError && kpiFilter !== 'all' && (
+                <div className="flex items-center justify-between bg-muted/60 px-3.5 py-1.5 rounded-lg border text-xs font-medium shrink-0 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">Filtro de visualização ativo:</span>
+                        <Badge variant="secondary" className="font-semibold px-2 py-0.5">
+                            {kpiFilter === 'pendentes' && t('hoursControl.kpis.pending')}
+                            {kpiFilter === 'enviadas' && t('hoursControl.kpis.toValidate')}
+                            {kpiFilter === 'validadas' && t('hoursControl.kpis.validated')}
+                            {kpiFilter === 'finalizados' && t('hoursControl.kpis.completed')}
+                        </Badge>
+                        <span className="text-muted-foreground">({displayedClients.length} de {filteredClients.length} clientes exibidos)</span>
+                    </div>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => handleKpiFilterToggle('all')}
+                    >
+                        <X className="h-3 w-3 mr-1" />
+                        Limpar filtro
+                    </Button>
                 </div>
             )}
 
@@ -345,14 +479,23 @@ export function HoursControlPage() {
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {selectedEmpresaId && !isLoading && !isError && filteredClients.length === 0 && (
+                            {selectedEmpresaId && !isLoading && !isError && displayedClients.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                                        {t('hoursControl.empty.noClients')}
+                                        {kpiFilter !== 'all' ? (
+                                            <div className="flex flex-col items-center justify-center gap-2">
+                                                <p>Nenhum cliente encontrado para o filtro "{kpiFilter === 'pendentes' ? t('hoursControl.kpis.pending') : kpiFilter === 'enviadas' ? t('hoursControl.kpis.toValidate') : kpiFilter === 'validadas' ? t('hoursControl.kpis.validated') : t('hoursControl.kpis.completed')}".</p>
+                                                <Button variant="outline" size="sm" onClick={() => handleKpiFilterToggle('all')}>
+                                                    Ver todos os clientes
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            t('hoursControl.empty.noClients')
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             )}
-                            {selectedEmpresaId && !isLoading && !isError && filteredClients.map((client) => {
+                            {selectedEmpresaId && !isLoading && !isError && displayedClients.map((client) => {
                                 const status = calculateStatus(client);
                                 return (
                                     <TableRow

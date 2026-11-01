@@ -292,7 +292,8 @@
       "active": "Activos en el Mes",
       "pending": "Faltan Enviar",
       "toValidate": "Para Validar",
-      "validated": "Validadas"
+      "validated": "Validadas",
+      "completed": "Finalizados"
     },
     "table": {
       "client": "Cliente",
