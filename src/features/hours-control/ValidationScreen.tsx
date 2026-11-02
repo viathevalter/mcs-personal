@@ -411,7 +411,8 @@ export function ValidationScreen({
                 const dbRec = existingHours?.find(h => h.data_trabalho === dayStr);
 
                 // Fallback to worker portal draft entry if not yet inserted into horas_trabalhadas
-                const draftRec = draftsList.find((d: any) => Number(d.day ?? d.dia) === dayNum);
+                const hasValidatedDbHours = Boolean((existingHours && existingHours.length > 0) || workerHourRec?.status === 'validado');
+                const draftRec = hasValidatedDbHours ? undefined : draftsList.find((d: any) => Number(d.day ?? d.dia) === dayNum);
 
                 // Apply pre-selection logic for obra: match existing db record, draftRec obra_id, or match obra name
                 let initialObra = '';
@@ -805,7 +806,7 @@ export function ValidationScreen({
 
         setRecords(prev => prev.map(r => {
             const draftRec = portalDrafts.find((d: any) => Number(d.day ?? d.dia) === r.day);
-            if (!draftRec) return r;
+            if (!draftRec) return { ...r, inicio: '', fim: '', horasNormais: '', horasNoturnas: '0', totalHoras: '', obra: '' };
 
             const rawNormais = draftRec?.horasNormais ?? draftRec?.horas_normais;
             const rawNoturnas = draftRec?.horasNoturnas ?? draftRec?.horas_noturnas;
