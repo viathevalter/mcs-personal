@@ -139,8 +139,83 @@ serve(async (req) => {
     const body = await req.json();
     console.log("Resend Webhook received:", JSON.stringify(body));
 
-    const eventType = body.type; // e.g. "email.opened", "email.clicked", "email.bounced"
+    const eventType = body.type; // e.g. "email.opened", "email.clicked", "email.bounced", "email.received"
     const recipientEmail = body.data?.to?.[0];
+
+    // --- ENCAMINHAMENTO AUTOMÁTICO DE E-MAILS RECEBIDOS NOS SUBDOMÍNIOS (PROVA DE VIDA / MAILINBLACK / RESPOSTAS) ---
+    if (eventType === "email.received") {
+      try {
+        const resendApiKey = Deno.env.get("RESEND_API_KEY");
+        const toAddr = String(recipientEmail || "").toLowerCase();
+        const fromSender = String(body.data?.from || "Remetente Externo");
+        const inboundSubject = String(body.data?.subject || "Mensagem Recebida");
+        const inboundEmailId = body.data?.email_id;
+
+        let forwardTarget = "comercial3@wiseowe.com";
+        let relayFrom = "Wiseowe Industrie <comercial3@fr.wiseowe.com>";
+
+        if (toAddr.includes("es.wiseowe.com") || toAddr.includes("comercial2@")) {
+          forwardTarget = "comercial2@wiseowe.com";
+          relayFrom = "Wiseowe Servicios Industriales <comercial2@es.wiseowe.com>";
+        } else if (toAddr.includes("fr.wiseowe.com") || toAddr.includes("comercial3@")) {
+          forwardTarget = "comercial3@wiseowe.com";
+          relayFrom = "Wiseowe Industrie <comercial3@fr.wiseowe.com>";
+        } else if (toAddr.includes("triangulolda.com") || toAddr.includes("comercial4@")) {
+          forwardTarget = "comercial4@triangulolda.com";
+          relayFrom = "Triángulo Servicios Industriales <comercial4@es.triangulolda.com>";
+        } else if (toAddr.includes("luminousalley.com") || toAddr.includes("comercial1@")) {
+          forwardTarget = "comercial1@luminousalley.com";
+          relayFrom = "Luminous Alley <comercial1@mail.luminousalley.com>";
+        }
+
+        let htmlContent = body.data?.html || "";
+        let textContent = body.data?.text || "";
+
+        // Se o payload do webhook trouxer apenas o email_id, buscar o corpo completo na API de Inbound do Resend
+        if ((!htmlContent && !textContent) && inboundEmailId && resendApiKey) {
+          const getRes = await fetch(`https://api.resend.com/emails/receiving/${inboundEmailId}`, {
+            headers: { "Authorization": `Bearer ${resendApiKey}` },
+          });
+          if (getRes.ok) {
+            const fullEmail = await getRes.json();
+            htmlContent = fullEmail.html || "";
+            textContent = fullEmail.text || "";
+          }
+        }
+
+        if (resendApiKey) {
+          const bannerHtml = `<div style="background:#0f172a;color:#f8fafc;padding:12px 16px;border-radius:8px;margin-bottom:16px;font-family:Arial,sans-serif;font-size:13px;">
+            <strong>📩 Mensagem / Verificação Anti-Spam Recebida no Subdomínio (${toAddr})</strong><br/>
+            <strong>De:</strong> ${fromSender}<br/>
+            <strong>Assunto Original:</strong> ${inboundSubject}
+          </div>`;
+
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${resendApiKey}`,
+            },
+            body: JSON.stringify({
+              from: relayFrom,
+              to: [forwardTarget],
+              reply_to: fromSender,
+              subject: `[Encaminhado / Verificação] ${inboundSubject}`,
+              html: htmlContent ? `${bannerHtml}${htmlContent}` : `${bannerHtml}<pre style="font-family:sans-serif;white-space:pre-wrap;">${textContent || "(Sem conteúdo textual)"}</pre>`,
+              text: `De: ${fromSender}\nPara: ${toAddr}\n\n${textContent || ""}`,
+            }),
+          });
+          console.log(`[INBOUND FORWARD] E-mail de ${fromSender} para ${toAddr} encaminhado para ${forwardTarget}`);
+        }
+      } catch (fwdErr: any) {
+        console.error("Erro ao encaminhar email.received:", fwdErr.message);
+      }
+
+      return new Response(JSON.stringify({ forwarded: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!eventType || !recipientEmail) {
       return new Response(JSON.stringify({ message: "Payload sem tipo ou destinatário." }), {
@@ -180,8 +255,8 @@ serve(async (req) => {
     const fromHeader = String(body.data?.from || "").toLowerCase();
     let hintEmpresaId: string | null = null;
     const WISEOWE_ID = "dae64d51-2181-4510-b14f-e63d2f111a8e";
-    const TRIANGULO_ID = "a0000000-0000-0000-0000-000000000001";
-    const LUMINOUS_ID = "847796c4-d1ee-4a87-ba86-25f08cb6fb3f";
+    const TRIANGULO_ID = "a798620a-358a-4c6c-9db2-3a507c583cac";
+    const LUMINOUS_ID = "847796c4-b253-4e53-9e6b-34a127ec7d85";
 
     if (fromHeader.includes("wiseowe") || fromHeader.includes("es.wiseowe.com") || fromHeader.includes("fr.wiseowe.com") || cleanEmail.endsWith(".fr")) {
       hintEmpresaId = WISEOWE_ID;
