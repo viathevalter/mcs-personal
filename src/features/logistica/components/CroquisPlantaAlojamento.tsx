@@ -14,14 +14,18 @@ import {
   RotateCw,
   RefreshCw,
   MousePointerClick,
-  Square,
-  Columns
+  Columns,
+  Tv,
+  Armchair,
+  Utensils,
+  Sparkles,
+  Eye
 } from 'lucide-react';
 import { uploadDocumentoVistoria } from '../services/storageService';
 
 export interface BlocoRect {
   x: number; // 0..480 (unidades lógicas do canvas)
-  y: number; // 0..400 (unidades lógicas do canvas)
+  y: number; // 0..430 (unidades lógicas do canvas)
   w: number;
   h: number;
   semBordaTopo?: boolean;
@@ -30,6 +34,25 @@ export interface BlocoRect {
   semBordaDir?: boolean;
   layoutTexto?: 'inline' | 'stacked';
   zIndex?: number;
+}
+
+export interface MueblesHabitacion {
+  armario?: boolean;
+  escritorio?: boolean;
+  mesita?: boolean;
+  tv?: boolean;
+  cama_matrimonio?: boolean; // Desenha cama de casal (2 travesseiros), mantendo regra 1 cama = 1 praça
+}
+
+export interface MuebleLibreCroquis {
+  id: string;
+  tipo: 'sofa' | 'mesa_comedor' | 'armario' | 'escritorio' | 'tv' | 'lavadora' | 'nevera' | 'puerta';
+  label: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotacao?: number;
 }
 
 export interface HabitacionCroquis {
@@ -41,6 +64,7 @@ export interface HabitacionCroquis {
   posicao?: 'top' | 'right' | 'left' | 'bottom';
   observacao?: string;
   rect?: BlocoRect;
+  muebles?: MueblesHabitacion;
 }
 
 export interface AreaExtraCroquis {
@@ -53,6 +77,7 @@ export interface AreaExtraCroquis {
 
 export interface CroquisPlantaData {
   ativo?: boolean;
+  mostrar_muebles?: boolean;
   habitaciones: HabitacionCroquis[];
   areas_comunes: {
     bano_completo: number;
@@ -63,6 +88,7 @@ export interface CroquisPlantaData {
     terraza?: boolean;
   };
   layout_blocos?: Record<string, BlocoRect>;
+  muebles_libres?: MuebleLibreCroquis[];
   areas_extras?: AreaExtraCroquis[];
   canvas_height?: number;
   imagem_croquis_url?: string;
@@ -70,7 +96,7 @@ export interface CroquisPlantaData {
 }
 
 const CANVAS_W = 480;
-const DEFAULT_CANVAS_H = 400;
+const DEFAULT_CANVAS_H = 430;
 const SNAP_STEP = 5;
 
 function snap(val: number, step: number = SNAP_STEP): number {
@@ -81,32 +107,291 @@ function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
 }
 
-export function getDefaultRoomRect(index: number, totalRooms: number): BlocoRect {
+// ============================================================================
+// COMPONENTES SVG ARQUITETÔNICOS (VISTA SUPERIOR / PLANTA BAIXA)
+// ============================================================================
+
+/** Desenho arquitetônico visto de cima de 1 Cama (Solteiro ou Casal/Matrimônio) */
+const TopDownBedSvg: React.FC<{ isMatrimonio?: boolean; horizontal?: boolean }> = ({
+  isMatrimonio = false,
+  horizontal = false
+}) => {
+  if (horizontal) {
+    const h = isMatrimonio ? 28 : 20;
+    return (
+      <svg
+        width="34"
+        height={h}
+        viewBox={`0 0 34 ${h}`}
+        className="shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.08)]"
+      >
+        {/* Colchão */}
+        <rect
+          x="1"
+          y="1"
+          width="32"
+          height={h - 2}
+          rx="2.5"
+          fill="#f8fafc"
+          stroke="#1e293b"
+          strokeWidth="1.4"
+        />
+        {/* Cabeceira (esquerda) */}
+        <rect x="1" y="1" width="3.5" height={h - 2} fill="#334155" />
+        {/* Cobertor / Edredom (direita) */}
+        <rect
+          x="14"
+          y="2"
+          width="18"
+          height={h - 4}
+          rx="1.5"
+          fill="#dbeafe"
+          stroke="#3b82f6"
+          strokeWidth="0.9"
+        />
+        <line x1="16" y1="2" x2="16" y2={h - 2} stroke="#2563eb" strokeWidth="0.9" />
+        {/* Travesseiros */}
+        {isMatrimonio ? (
+          <>
+            <rect
+              x="5.5"
+              y="3"
+              width="6.5"
+              height={(h - 8) / 2}
+              rx="1.5"
+              fill="#ffffff"
+              stroke="#475569"
+              strokeWidth="1"
+            />
+            <rect
+              x="5.5"
+              y={4 + (h - 8) / 2}
+              width="6.5"
+              height={(h - 8) / 2}
+              rx="1.5"
+              fill="#ffffff"
+              stroke="#475569"
+              strokeWidth="1"
+            />
+          </>
+        ) : (
+          <rect
+            x="5.5"
+            y="3.5"
+            width="6.5"
+            height={h - 7}
+            rx="1.5"
+            fill="#ffffff"
+            stroke="#475569"
+            strokeWidth="1"
+          />
+        )}
+      </svg>
+    );
+  }
+
+  const w = isMatrimonio ? 30 : 21;
+  return (
+    <svg
+      width={w}
+      height="32"
+      viewBox={`0 0 ${w} 32`}
+      className="shrink-0 drop-shadow-[0_1px_1px_rgba(0,0,0,0.08)]"
+    >
+      {/* Colchão */}
+      <rect
+        x="1"
+        y="1"
+        width={w - 2}
+        height="30"
+        rx="2.5"
+        fill="#f8fafc"
+        stroke="#1e293b"
+        strokeWidth="1.4"
+      />
+      {/* Cabeceira no topo */}
+      <rect x="1" y="1" width={w - 2} height="3.5" fill="#334155" />
+      {/* Lençol / Edredom na metade inferior */}
+      <rect
+        x="2"
+        y="13"
+        width={w - 4}
+        height="17"
+        rx="1.5"
+        fill="#dbeafe"
+        stroke="#3b82f6"
+        strokeWidth="0.9"
+      />
+      <line x1="2" y1="15.5" x2={w - 2} y2="15.5" stroke="#2563eb" strokeWidth="0.9" />
+      {/* Travesseiro(s) */}
+      {isMatrimonio ? (
+        <>
+          <rect
+            x="3"
+            y="5.5"
+            width={(w - 8) / 2}
+            height="5.5"
+            rx="1.5"
+            fill="#ffffff"
+            stroke="#475569"
+            strokeWidth="1"
+          />
+          <rect
+            x={4 + (w - 8) / 2}
+            y="5.5"
+            width={(w - 8) / 2}
+            height="5.5"
+            rx="1.5"
+            fill="#ffffff"
+            stroke="#475569"
+            strokeWidth="1"
+          />
+        </>
+      ) : (
+        <rect
+          x="3.5"
+          y="5.5"
+          width={w - 7}
+          height="5.5"
+          rx="1.5"
+          fill="#ffffff"
+          stroke="#475569"
+          strokeWidth="1"
+        />
+      )}
+    </svg>
+  );
+};
+
+/** Armário / Roupeiro visto de cima */
+const TopDownWardrobeSvg: React.FC = () => (
+  <svg width="24" height="13" viewBox="0 0 24 13" className="shrink-0">
+    <rect x="1" y="1" width="22" height="11" rx="1" fill="#fef3c7" stroke="#78350f" strokeWidth="1.2" />
+    <line x1="12" y1="1" x2="12" y2="12" stroke="#78350f" strokeWidth="1" />
+    <line x1="3" y1="6.5" x2="21" y2="6.5" stroke="#b45309" strokeWidth="0.8" strokeDasharray="2 1" />
+  </svg>
+);
+
+/** Escrivaninha + Cadeira vista de cima */
+const TopDownDeskSvg: React.FC = () => (
+  <svg width="22" height="18" viewBox="0 0 22 18" className="shrink-0">
+    {/* Cadeira */}
+    <circle cx="11" cy="13.5" r="3.5" fill="#e2e8f0" stroke="#334155" strokeWidth="1.1" />
+    {/* Mesa */}
+    <rect x="2" y="1" width="18" height="9" rx="1" fill="#f1f5f9" stroke="#334155" strokeWidth="1.2" />
+  </svg>
+);
+
+/** Criado-mudo / Mesita */
+const TopDownNightstandSvg: React.FC = () => (
+  <svg width="11" height="11" viewBox="0 0 11 11" className="shrink-0">
+    <rect x="1" y="1" width="9" height="9" rx="1" fill="#fef3c7" stroke="#78350f" strokeWidth="1.1" />
+    <circle cx="5.5" cy="5.5" r="1.2" fill="#78350f" />
+  </svg>
+);
+
+/** TV vista de cima */
+const TopDownTvSvg: React.FC = () => (
+  <svg width="22" height="8" viewBox="0 0 22 8" className="shrink-0">
+    <rect x="4" y="4" width="14" height="3" rx="1" fill="#cbd5e1" stroke="#475569" strokeWidth="0.9" />
+    <rect x="1" y="1.5" width="20" height="3" rx="1" fill="#0f172a" />
+  </svg>
+);
+
+/** Móveis da Sala (Sofá em L + Mesa de Centro + Mesa de Jantar) */
+const TopDownSalaFurnitureSvg: React.FC = () => (
+  <svg width="128" height="58" viewBox="0 0 128 58" className="opacity-90 mt-1">
+    {/* Sofá de 3 lugares em L */}
+    <rect x="4" y="6" width="56" height="18" rx="3" fill="#e2e8f0" stroke="#334155" strokeWidth="1.3" />
+    <rect x="4" y="6" width="18" height="42" rx="3" fill="#e2e8f0" stroke="#334155" strokeWidth="1.3" />
+    {/* Encosto do sofá */}
+    <rect x="4" y="6" width="56" height="5" rx="1.5" fill="#94a3b8" stroke="#334155" strokeWidth="1" />
+    <rect x="4" y="6" width="5" height="42" rx="1.5" fill="#94a3b8" stroke="#334155" strokeWidth="1" />
+    <line x1="22" y1="11" x2="22" y2="24" stroke="#475569" strokeWidth="0.9" />
+    <line x1="41" y1="11" x2="41" y2="24" stroke="#475569" strokeWidth="0.9" />
+    {/* Mesa de Centro */}
+    <rect x="28" y="30" width="26" height="14" rx="2" fill="#fef3c7" stroke="#78350f" strokeWidth="1.1" />
+    {/* Mesa de Jantar com 4 cadeiras à direita */}
+    <circle cx="96" cy="10" r="4" fill="#f1f5f9" stroke="#475569" strokeWidth="1" />
+    <circle cx="112" cy="10" r="4" fill="#f1f5f9" stroke="#475569" strokeWidth="1" />
+    <circle cx="96" cy="46" r="4" fill="#f1f5f9" stroke="#475569" strokeWidth="1" />
+    <circle cx="112" cy="46" r="4" fill="#f1f5f9" stroke="#475569" strokeWidth="1" />
+    <rect x="86" y="13" width="36" height="30" rx="3" fill="#f8fafc" stroke="#334155" strokeWidth="1.3" />
+  </svg>
+);
+
+/** Bancada da Cozinha (Fogão 4 bocas + Pia/Cuba + Geladeira) */
+const TopDownCocinaFurnitureSvg: React.FC = () => (
+  <svg width="116" height="24" viewBox="0 0 116 24" className="opacity-90 mt-0.5">
+    {/* Bancada geral */}
+    <rect x="2" y="2" width="90" height="20" rx="1.5" fill="#f8fafc" stroke="#334155" strokeWidth="1.2" />
+    {/* Fogão 4 bocas */}
+    <rect x="8" y="4" width="28" height="16" rx="1.5" fill="#e2e8f0" stroke="#1e293b" strokeWidth="1" />
+    <circle cx="15" cy="8.5" r="2.5" fill="none" stroke="#dc2626" strokeWidth="1.1" />
+    <circle cx="29" cy="8.5" r="2.5" fill="none" stroke="#1e293b" strokeWidth="1.1" />
+    <circle cx="15" cy="15.5" r="2.5" fill="none" stroke="#1e293b" strokeWidth="1.1" />
+    <circle cx="29" cy="15.5" r="2.5" fill="none" stroke="#dc2626" strokeWidth="1.1" />
+    {/* Pia / Fregadero */}
+    <rect x="48" y="4" width="22" height="16" rx="2" fill="#e0f2fe" stroke="#0284c7" strokeWidth="1" />
+    <circle cx="59" cy="12" r="1.5" fill="#0284c7" />
+    <line x1="59" y1="4" x2="59" y2="9" stroke="#0369a1" strokeWidth="1.3" />
+    {/* Geladeira / Nevera */}
+    <rect x="94" y="1" width="20" height="22" rx="2" fill="#f1f5f9" stroke="#1e293b" strokeWidth="1.3" />
+    <line x1="94" y1="20" x2="114" y2="20" stroke="#475569" strokeWidth="1" />
+  </svg>
+);
+
+/** Louças do Banheiro (Vaso Sanitário + Pia + Box de Chuveiro) */
+const TopDownBanoFurnitureSvg: React.FC<{ completo?: boolean }> = ({ completo = true }) => (
+  <svg
+    width={completo ? '68' : '44'}
+    height="22"
+    viewBox={`0 0 ${completo ? 68 : 44} 22`}
+    className="opacity-90 mt-0.5"
+  >
+    {/* Vaso sanitário */}
+    <rect x="2" y="2" width="11" height="5" rx="1" fill="#f8fafc" stroke="#334155" strokeWidth="1.1" />
+    <ellipse cx="7.5" cy="13" rx="5" ry="6.5" fill="#ffffff" stroke="#334155" strokeWidth="1.1" />
+    {/* Lavabo / Pia */}
+    <rect x="20" y="2" width="16" height="12" rx="3" fill="#e0f2fe" stroke="#0284c7" strokeWidth="1.1" />
+    <circle cx="28" cy="8" r="1.3" fill="#0284c7" />
+    {/* Box de Ducha (apenas no Baño completo) */}
+    {completo && (
+      <>
+        <rect x="44" y="2" width="21" height="18" rx="1.5" fill="#f0f9ff" stroke="#0369a1" strokeWidth="1.1" />
+        <line x1="44" y1="2" x2="65" y2="20" stroke="#bae6fd" strokeWidth="0.9" />
+        <line x1="65" y1="2" x2="44" y2="20" stroke="#bae6fd" strokeWidth="0.9" />
+        <circle cx="54.5" cy="11" r="2" fill="#ffffff" stroke="#0284c7" strokeWidth="1" />
+      </>
+    )}
+  </svg>
+);
+
+export function getDefaultRoomRect(index: number, _totalRooms: number): BlocoRect {
   if (index === 0) {
-    // Hab Nº 1 no topo (como no croqui de referência)
-    return { x: 10, y: 10, w: 230, h: 50, layoutTexto: 'inline', zIndex: 2 };
+    // Hab Nº 1 no topo (com altura confortável para 2 camas desenhadas + título)
+    return { x: 10, y: 10, w: 230, h: 70, layoutTexto: 'inline', zIndex: 2 };
   }
   if (index === 1) {
     // Hab Nº 2 na direita superior
-    return { x: 240, y: 60, w: 120, h: 55, layoutTexto: 'stacked', zIndex: 2 };
+    return { x: 240, y: 60, w: 135, h: 72, layoutTexto: 'stacked', zIndex: 2 };
   }
   if (index === 2) {
     // Hab Nº 3 logo abaixo da Hab Nº 2
-    return { x: 240, y: 115, w: 120, h: 55, layoutTexto: 'stacked', zIndex: 2 };
+    return { x: 240, y: 132, w: 135, h: 72, layoutTexto: 'stacked', zIndex: 2 };
   }
   if (index === 3) {
     // Hab Nº 4 na direita inferior (abaixo da Cocina)
-    return { x: 240, y: 295, w: 120, h: 70, layoutTexto: 'stacked', zIndex: 2 };
+    return { x: 240, y: 310, w: 135, h: 80, layoutTexto: 'stacked', zIndex: 2 };
   }
-  // Para 5º quarto em diante: posiciona de forma organizada
   const extraIdx = index - 4;
   const col = extraIdx % 2;
   const row = Math.floor(extraIdx / 2);
   return {
-    x: col === 0 ? 360 : 240,
-    y: clamp(60 + row * 60, 10, 330),
-    w: 110,
-    h: 55,
+    x: col === 0 ? 375 : 240,
+    y: clamp(60 + row * 72, 10, 340),
+    w: 100,
+    h: 68,
     layoutTexto: 'stacked',
     zIndex: 2
   };
@@ -119,29 +404,29 @@ export function getDefaultCommonRects(
   const map: Record<string, BlocoRect> = {
     pasillo: {
       x: 120,
-      y: 60,
+      y: 80,
       w: 120,
-      h: 170,
+      h: 165,
       semBordaBase: true, // Une com a Sala em formato "L"
       zIndex: 3
     },
     sala: {
       x: 10,
-      y: 230,
+      y: 245,
       w: 230,
-      h: 150,
+      h: 165,
       zIndex: 1
     },
     cocina: {
       x: 240,
-      y: 220,
+      y: 225,
       w: 230,
-      h: 55,
+      h: 65,
       zIndex: 2
     },
     terraza: {
       x: 10,
-      y: 380,
+      y: 385,
       w: 230,
       h: 40,
       zIndex: 2
@@ -151,9 +436,9 @@ export function getDefaultCommonRects(
   for (let i = 0; i < Math.max(1, banoCompleto); i++) {
     map[`bano_completo_${i}`] = {
       x: 10,
-      y: 90 + i * 65,
+      y: 95 + i * 70,
       w: 110,
-      h: 60,
+      h: 65,
       zIndex: 2
     };
   }
@@ -161,9 +446,9 @@ export function getDefaultCommonRects(
   for (let i = 0; i < Math.max(1, medioBano); i++) {
     map[`medio_bano_${i}`] = {
       x: 10,
-      y: 165 + i * 45,
+      y: 175 + i * 50,
       w: 110,
-      h: 35,
+      h: 45,
       zIndex: 2
     };
   }
@@ -183,6 +468,7 @@ export function buildDefaultCroquis(
   if (rawRooms === 0 && rawBeds === 0) {
     return {
       ativo: false,
+      mostrar_muebles: true,
       habitaciones: [],
       areas_comunes: {
         bano_completo: banoComp,
@@ -193,6 +479,7 @@ export function buildDefaultCroquis(
         terraza: false
       },
       layout_blocos: getDefaultCommonRects(banoComp, 0),
+      muebles_libres: [],
       canvas_height: DEFAULT_CANVAS_H,
       imagem_croquis_url: '',
       observacoes_planta: ''
@@ -221,12 +508,20 @@ export function buildDefaultCroquis(
       camas_matrimonio: 0,
       posicao: i === 1 ? 'top' : 'right',
       observacao: '',
-      rect: getDefaultRoomRect(i - 1, numRooms)
+      rect: getDefaultRoomRect(i - 1, numRooms),
+      muebles: {
+        armario: true,
+        escritorio: false,
+        mesita: false,
+        tv: false,
+        cama_matrimonio: false
+      }
     });
   }
 
   return {
     ativo: true,
+    mostrar_muebles: true,
     habitaciones,
     areas_comunes: {
       bano_completo: banoComp,
@@ -237,6 +532,7 @@ export function buildDefaultCroquis(
       terraza: false
     },
     layout_blocos: getDefaultCommonRects(banoComp, 0),
+    muebles_libres: [],
     canvas_height: DEFAULT_CANVAS_H,
     imagem_croquis_url: '',
     observacoes_planta: ''
@@ -246,7 +542,7 @@ export function buildDefaultCroquis(
 type ResizeHandle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
 
 interface InteractionState {
-  blockKey: string; // ex: "hab_0", "pasillo", "sala", "cocina", "bano_completo_0"
+  blockKey: string; // ex: "hab_0", "pasillo", "sala", "cocina", "bano_completo_0", "mueble_xyz"
   mode: 'move' | 'resize';
   handle?: ResizeHandle;
   startClientX: number;
@@ -278,15 +574,17 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
   const modalCanvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const mostrarMuebles = value?.mostrar_muebles !== false;
   const habitaciones = Array.isArray(value?.habitaciones) ? value.habitaciones : [];
   const areas = value?.areas_comunes || {
-    bano_completo: 1,
+    bano_completo: 0,
     medio_bano: 0,
     pasillo: true,
     cocina: true,
     sala: true,
     terraza: false
   };
+  const mueblesLibres = Array.isArray(value?.muebles_libres) ? value.muebles_libres : [];
   const canvasH = value?.canvas_height || DEFAULT_CANVAS_H;
 
   const defaultCommons = getDefaultCommonRects(areas.bano_completo, areas.medio_bano);
@@ -305,7 +603,7 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
     [onChange]
   );
 
-  // Obter o BlocoRect de qualquer item pela chave ("hab_0", "sala", "pasillo", etc.)
+  // Obter o BlocoRect de qualquer item pela chave ("hab_0", "sala", "pasillo", "mueble_id", etc.)
   const getRectForKey = useCallback(
     (key: string): BlocoRect => {
       if (key.startsWith('hab_')) {
@@ -313,9 +611,14 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
         const hab = habitaciones[idx];
         return hab?.rect || getDefaultRoomRect(idx, habitaciones.length);
       }
-      return layoutBlocos[key] || { x: 20, y: 20, w: 120, h: 60, zIndex: 2 };
+      if (key.startsWith('mueble_')) {
+        const id = key.replace('mueble_', '');
+        const m = mueblesLibres.find(item => item.id === id);
+        if (m) return { x: m.x, y: m.y, w: m.w, h: m.h, zIndex: 15 };
+      }
+      return layoutBlocos[key] || { x: 20, y: 20, w: 120, h: 65, zIndex: 2 };
     },
-    [habitaciones, layoutBlocos]
+    [habitaciones, layoutBlocos, mueblesLibres]
   );
 
   // Atualizar o BlocoRect de qualquer item pela chave
@@ -330,6 +633,16 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
           ativo: true,
           habitaciones: nextHabs
         });
+      } else if (key.startsWith('mueble_')) {
+        const id = key.replace('mueble_', '');
+        const nextMuebles = mueblesLibres.map(m =>
+          m.id === id ? { ...m, x: nextRect.x, y: nextRect.y, w: nextRect.w, h: nextRect.h } : m
+        );
+        emitChange({
+          ...value,
+          ativo: true,
+          muebles_libres: nextMuebles
+        });
       } else {
         emitChange({
           ...value,
@@ -341,7 +654,7 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
         });
       }
     },
-    [readOnly, habitaciones, value, layoutBlocos, emitChange]
+    [readOnly, habitaciones, mueblesLibres, value, layoutBlocos, emitChange]
   );
 
   // Listener global de MouseMove / MouseUp durante o arraste ou redimensionamento
@@ -361,8 +674,9 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
       let nextW = init.w;
       let nextH = init.h;
 
-      const minW = 50;
-      const minH = 30;
+      const isMueble = interaction.blockKey.startsWith('mueble_');
+      const minW = isMueble ? 20 : 50;
+      const minH = isMueble ? 15 : 35;
 
       if (interaction.mode === 'move') {
         nextX = clamp(snap(init.x + dxLogic), 0, CANVAS_W - init.w);
@@ -427,7 +741,7 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
     const container = isModalCanvas ? modalCanvasRef.current : inlineCanvasRef.current;
     const rectPx = container?.getBoundingClientRect();
     const widthPx = rectPx?.width || 480;
-    const heightPx = rectPx?.height || 400;
+    const heightPx = rectPx?.height || 430;
 
     setInteraction({
       blockKey,
@@ -452,7 +766,14 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
       camas_matrimonio: 0,
       posicao: nextNum === 1 ? 'top' : 'right',
       observacao: '',
-      rect: getDefaultRoomRect(nextNum - 1, nextNum)
+      rect: getDefaultRoomRect(nextNum - 1, nextNum),
+      muebles: {
+        armario: true,
+        escritorio: false,
+        mesita: false,
+        tv: false,
+        cama_matrimonio: false
+      }
     };
     emitChange({
       ...value,
@@ -460,23 +781,6 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
       habitaciones: [...habitaciones, novaHab]
     });
     setSelectedKey(`hab_${habitaciones.length}`);
-  };
-
-  const handleRemoveHabitacion = (index: number) => {
-    if (readOnly || habitaciones.length <= 1) return;
-    const filtered = habitaciones
-      .filter((_, idx) => idx !== index)
-      .map((h, idx) => ({
-        ...h,
-        numero: idx + 1,
-        nome: `Hab Nº ${idx + 1}`
-      }));
-    emitChange({
-      ...value,
-      ativo: true,
-      habitaciones: filtered
-    });
-    setSelectedKey(null);
   };
 
   const handleUpdateHabitacion = (index: number, patch: Partial<HabitacionCroquis>) => {
@@ -492,6 +796,52 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
       ativo: true,
       habitaciones: nextList
     });
+  };
+
+  const handleToggleMuebleHabitacion = (index: number, key: keyof MueblesHabitacion) => {
+    if (readOnly) return;
+    const hab = habitaciones[index];
+    if (!hab) return;
+    const currentMuebles = hab.muebles || { armario: true };
+    handleUpdateHabitacion(index, {
+      muebles: {
+        ...currentMuebles,
+        [key]: !currentMuebles[key]
+      }
+    });
+  };
+
+  const handleAddMuebleLibre = (
+    tipo: MuebleLibreCroquis['tipo'],
+    label: string,
+    w: number = 45,
+    h: number = 30
+  ) => {
+    if (readOnly) return;
+    const novo: MuebleLibreCroquis = {
+      id: `${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      tipo,
+      label,
+      x: 150,
+      y: 180,
+      w,
+      h
+    };
+    emitChange({
+      ...value,
+      ativo: true,
+      muebles_libres: [...mueblesLibres, novo]
+    });
+    setSelectedKey(`mueble_${novo.id}`);
+  };
+
+  const handleRemoveMuebleLibre = (id: string) => {
+    if (readOnly) return;
+    emitChange({
+      ...value,
+      muebles_libres: mueblesLibres.filter(m => m.id !== id)
+    });
+    setSelectedKey(null);
   };
 
   const handleUpdateAreas = (patch: Partial<CroquisPlantaData['areas_comunes']>) => {
@@ -525,8 +875,8 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
   const handleRotateSelected = () => {
     if (!selectedKey || readOnly) return;
     const r = getRectForKey(selectedKey);
-    const nextW = clamp(r.h, 50, CANVAS_W);
-    const nextH = clamp(r.w, 30, canvasH);
+    const nextW = clamp(r.h, 20, CANVAS_W);
+    const nextH = clamp(r.w, 20, canvasH);
     const nextX = clamp(r.x, 0, CANVAS_W - nextW);
     const nextY = clamp(r.y, 0, canvasH - nextH);
     updateRectForKey(selectedKey, {
@@ -631,7 +981,7 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
           borderLeftWidth: rect.semBordaEsq ? 0 : 2,
           borderRightWidth: rect.semBordaDir ? 0 : 2
         }}
-        className={`absolute bg-white dark:bg-slate-900 border-slate-900 dark:border-slate-100 flex flex-col items-center justify-center text-center p-1.5 select-none transition-shadow ${
+        className={`absolute bg-white dark:bg-slate-900 border-slate-900 dark:border-slate-100 flex flex-col items-center justify-center text-center p-1 select-none transition-shadow ${
           !readOnly ? 'cursor-move hover:bg-indigo-50/40 dark:hover:bg-indigo-950/30' : ''
         } ${
           isSelected
@@ -645,14 +995,17 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
     );
   };
 
-  // Barra de ferramentas contextual do cômodo selecionado no canvas
+  // Barra de ferramentas contextual do cômodo ou móvel selecionado no canvas
   const renderSelectedToolbar = () => {
     if (readOnly || !selectedKey) return null;
 
     const rect = getRectForKey(selectedKey);
     const isHab = selectedKey.startsWith('hab_');
+    const isMuebleLibre = selectedKey.startsWith('mueble_');
     const habIdx = isHab ? parseInt(selectedKey.replace('hab_', ''), 10) : -1;
     const hab = isHab ? habitaciones[habIdx] : null;
+    const muebleId = isMuebleLibre ? selectedKey.replace('mueble_', '') : '';
+    const muebleLibre = isMuebleLibre ? mueblesLibres.find(m => m.id === muebleId) : null;
 
     const labelMap: Record<string, string> = {
       pasillo: 'Pasillo / Distribuidor',
@@ -662,151 +1015,246 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
     };
     const itemLabel = isHab
       ? hab?.nome || `Hab Nº ${habIdx + 1}`
-      : selectedKey.startsWith('bano_completo_')
-        ? `Baño Completo`
-        : selectedKey.startsWith('medio_bano_')
-          ? `1/2 Baño`
-          : labelMap[selectedKey] || selectedKey;
+      : isMuebleLibre
+        ? `Mueble: ${muebleLibre?.label || 'Elemento'}`
+        : selectedKey.startsWith('bano_completo_')
+          ? `Baño Completo`
+          : selectedKey.startsWith('medio_bano_')
+            ? `1/2 Baño`
+            : labelMap[selectedKey] || selectedKey;
+
+    const habMuebles = hab?.muebles || { armario: true };
 
     return (
-      <div className="p-2.5 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 flex flex-wrap items-center justify-between gap-2 text-[11px] animate-in fade-in duration-150">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md font-black text-[10px] flex items-center gap-1">
-            <Move size={11} />
-            {itemLabel}
-          </span>
+      <div className="p-2.5 rounded-xl bg-indigo-50/90 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 space-y-2 text-[11px] animate-in fade-in duration-150">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md font-black text-[10px] flex items-center gap-1">
+              <Move size={11} />
+              {itemLabel}
+            </span>
 
-          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-            {Math.round(rect.w)}×{Math.round(rect.h)}
-          </span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+              {Math.round(rect.w)}×{Math.round(rect.h)}
+            </span>
 
-          {/* Se for quarto, permite ajustar camas direto na barra do elemento selecionado */}
-          {isHab && hab && (
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
-              <Bed size={12} className="text-indigo-600" />
-              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">Camas:</span>
+            {/* Se for quarto, permite ajustar camas direto na barra do elemento selecionado */}
+            {isHab && hab && (
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                <Bed size={12} className="text-indigo-600" />
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">Camas:</span>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateHabitacion(habIdx, { camas: Math.max(1, hab.camas - 1) })}
+                  className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-800 font-black text-xs hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center"
+                >
+                  -
+                </button>
+                <span className="font-black text-indigo-700 dark:text-indigo-300 px-1">{hab.camas}</span>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateHabitacion(habIdx, { camas: hab.camas + 1 })}
+                  className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-800 font-black text-xs hover:bg-emerald-100 hover:text-emerald-700 flex items-center justify-center"
+                >
+                  +
+                </button>
+              </div>
+            )}
+
+            {/* Alternar texto 1 linha vs 2 linhas */}
+            {isHab && (
               <button
                 type="button"
-                onClick={() => handleUpdateHabitacion(habIdx, { camas: Math.max(1, hab.camas - 1) })}
-                className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-800 font-black text-xs hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center"
+                onClick={() =>
+                  updateRectForKey(selectedKey, {
+                    ...rect,
+                    layoutTexto: rect.layoutTexto === 'inline' ? 'stacked' : 'inline'
+                  })
+                }
+                className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1"
+                title="Cambiar disposición del texto (1 línea o 2 líneas)"
               >
-                -
+                <Columns size={11} />
+                Texto: {rect.layoutTexto === 'inline' ? '1 Línea' : '2 Líneas'}
               </button>
-              <span className="font-black text-indigo-700 dark:text-indigo-300 px-1">{hab.camas}</span>
-              <button
-                type="button"
-                onClick={() => handleUpdateHabitacion(habIdx, { camas: hab.camas + 1 })}
-                className="w-4 h-4 rounded bg-slate-100 dark:bg-slate-800 font-black text-xs hover:bg-emerald-100 hover:text-emerald-700 flex items-center justify-center"
-              >
-                +
-              </button>
-            </div>
-          )}
+            )}
+          </div>
 
-          {/* Alternar texto 1 linha vs 2 linhas */}
-          {isHab && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Girar 90 graus */}
             <button
               type="button"
-              onClick={() =>
-                updateRectForKey(selectedKey, {
-                  ...rect,
-                  layoutTexto: rect.layoutTexto === 'inline' ? 'stacked' : 'inline'
-                })
-              }
-              className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center gap-1"
-              title="Cambiar disposición del texto (1 línea o 2 líneas)"
+              onClick={handleRotateSelected}
+              className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-100 hover:text-indigo-700 flex items-center gap-1"
+              title="Girar forma 90° (intercambiar ancho y alto)"
             >
-              <Columns size={11} />
-              Texto: {rect.layoutTexto === 'inline' ? '1 Línea' : '2 Líneas'}
+              <RotateCw size={11} />
+              Girar 90°
             </button>
-          )}
+
+            {isMuebleLibre && muebleLibre && (
+              <button
+                type="button"
+                onClick={() => handleRemoveMuebleLibre(muebleLibre.id)}
+                className="px-2 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 rounded-lg text-[10px] font-bold flex items-center gap-1"
+              >
+                <Trash2 size={11} />
+                Quitar Mueble
+              </button>
+            )}
+
+            {/* Ocultar/Exibir bordas para unir cômodos em formato L */}
+            {!isMuebleLibre && (
+              <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span className="text-[9px] font-bold text-slate-400 mr-1" title="Ocultar pared para unir con otro espacio (ej: Pasillo + Sala en L)">
+                  Unir pared:
+                </span>
+                {[
+                  { key: 'semBordaTopo', label: 'Arr' },
+                  { key: 'semBordaBase', label: 'Aba' },
+                  { key: 'semBordaEsq', label: 'Izq' },
+                  { key: 'semBordaDir', label: 'Der' }
+                ].map(b => {
+                  const isHidden = Boolean((rect as any)[b.key]);
+                  return (
+                    <button
+                      key={b.key}
+                      type="button"
+                      onClick={() =>
+                        updateRectForKey(selectedKey, {
+                          ...rect,
+                          [b.key]: !isHidden
+                        })
+                      }
+                      className={`px-1.5 py-0.2 rounded text-[9px] font-bold transition-colors ${
+                        isHidden
+                          ? 'bg-amber-500 text-white'
+                          : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                      }`}
+                      title={isHidden ? `Mostrar pared (${b.label})` : `Ocultar pared (${b.label}) para unir forma en L`}
+                    >
+                      {b.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setSelectedKey(null)}
+              className="p-1 text-slate-400 hover:text-slate-600 rounded"
+              title="Deseleccionar"
+            >
+              <X size={13} />
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          {/* Girar 90 graus */}
-          <button
-            type="button"
-            onClick={handleRotateSelected}
-            className="px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-100 hover:text-indigo-700 flex items-center gap-1"
-            title="Girar forma 90° (intercambiar ancho y alto)"
-          >
-            <RotateCw size={11} />
-            Girar 90°
-          </button>
-
-          {/* Ocultar/Exibir bordas para unir cômodos em formato L */}
-          <div className="flex items-center gap-0.5 bg-white dark:bg-slate-900 px-1.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <span className="text-[9px] font-bold text-slate-400 mr-1" title="Ocultar pared para unir con otro espacio (ej: Pasillo + Sala en L)">
-              Unir pared:
+        {/* Se for um Quarto (Hab Nº X), permite escolher os móveis desenhados dentro do quarto */}
+        {isHab && hab && (
+          <div className="pt-1.5 border-t border-indigo-200/60 dark:border-indigo-800/60 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 mr-1">
+              Muebles en {hab.nome || `Hab Nº ${hab.numero}`}:
             </span>
             {[
-              { key: 'semBordaTopo', label: 'Arr' },
-              { key: 'semBordaBase', label: 'Aba' },
-              { key: 'semBordaEsq', label: 'Izq' },
-              { key: 'semBordaDir', label: 'Der' }
-            ].map(b => {
-              const isHidden = Boolean((rect as any)[b.key]);
+              { key: 'armario', label: '🗄️ Armario' },
+              { key: 'escritorio', label: '🪑 Escritorio' },
+              { key: 'mesita', label: '🛏️ Mesita' },
+              { key: 'tv', label: '📺 TV' },
+              { key: 'cama_matrimonio', label: '👑 Cama Matrimonio (1 plaza)' }
+            ].map(item => {
+              const active = Boolean((habMuebles as any)[item.key]);
               return (
                 <button
-                  key={b.key}
+                  key={item.key}
                   type="button"
-                  onClick={() =>
-                    updateRectForKey(selectedKey, {
-                      ...rect,
-                      [b.key]: !isHidden
-                    })
-                  }
-                  className={`px-1.5 py-0.2 rounded text-[9px] font-bold transition-colors ${
-                    isHidden
-                      ? 'bg-amber-500 text-white'
-                      : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  onClick={() => handleToggleMuebleHabitacion(habIdx, item.key as keyof MueblesHabitacion)}
+                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all ${
+                    active
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
                   }`}
-                  title={isHidden ? `Mostrar pared (${b.label})` : `Ocultar pared (${b.label}) para unir forma en L`}
                 >
-                  {b.label}
+                  {active ? '✓ ' : '+ '}
+                  {item.label}
                 </button>
               );
             })}
           </div>
-
-          <button
-            type="button"
-            onClick={() => setSelectedKey(null)}
-            className="p-1 text-slate-400 hover:text-slate-600 rounded"
-            title="Deseleccionar"
-          >
-            <X size={13} />
-          </button>
-        </div>
+        )}
       </div>
     );
   };
 
-  // Renderiza o Canvas Interativo de Planta Baixa (com suporte a arrastar e redimensionar com o mouse)
+  // Renderiza o Canvas Interativo de Planta Baixa (com desenhos de camas, móveis e arraste com mouse)
   const renderInteractiveFloorPlanCanvas = (isModalCanvas: boolean = false) => {
     const refToUse = isModalCanvas ? modalCanvasRef : inlineCanvasRef;
 
     return (
       <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-300 dark:border-slate-800 p-3 sm:p-5 flex flex-col items-center shadow-inner">
         {!readOnly && (
-          <div className="w-full max-w-[520px] flex items-center justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-2 px-1">
-            <span className="flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400">
-              <MousePointerClick size={12} />
-              Arraste cualquier habitación con el ratón para moverla o estire sus bordes/esquinas para cambiar el tamaño.
-            </span>
-            <button
-              type="button"
-              onClick={handleResetLayout}
-              className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-indigo-600 shrink-0 ml-2 cursor-pointer"
-              title="Restaurar diseño estándar del croquis"
-            >
-              <RefreshCw size={11} />
-              Restaurar Diseño
-            </button>
+          <div className="w-full max-w-[540px] space-y-2 mb-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500 dark:text-slate-400 px-1">
+              <span className="flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400">
+                <MousePointerClick size={12} />
+                Haga clic en cualquier cuarto o mueble para moverlo, estirarlo o agregar muebles.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => emitChange({ ...value, mostrar_muebles: !mostrarMuebles })}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md font-bold border transition-colors cursor-pointer ${
+                    mostrarMuebles
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
+                  }`}
+                  title="Mostrar u ocultar el dibujo de las camas y muebles dentro de la planta"
+                >
+                  <Eye size={11} />
+                  {mostrarMuebles ? 'Dibujo Camas/Muebles: Sí' : 'Solo Texto'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetLayout}
+                  className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-indigo-600 shrink-0 cursor-pointer"
+                  title="Restaurar diseño estándar del croquis"
+                >
+                  <RefreshCw size={11} />
+                  Restaurar
+                </button>
+              </div>
+            </div>
+
+            {/* Paleta rápida para soltar móveis avulsos arrastáveis em qualquer lugar da planta */}
+            <div className="flex flex-wrap items-center gap-1 bg-slate-50 dark:bg-slate-900 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-[10px]">
+              <span className="font-bold text-slate-500 dark:text-slate-400 mr-1">
+                + Soltar mueble libre:
+              </span>
+              {[
+                { tipo: 'sofa', label: '🛋️ Sofá', w: 50, h: 24 },
+                { tipo: 'mesa_comedor', label: '🍽️ Mesa', w: 42, h: 30 },
+                { tipo: 'armario', label: '🗄️ Armario', w: 38, h: 18 },
+                { tipo: 'escritorio', label: '🪑 Escritorio', w: 36, h: 24 },
+                { tipo: 'lavadora', label: '🧺 Lavadora', w: 26, h: 24 },
+                { tipo: 'nevera', label: '❄️ Nevera', w: 26, h: 24 },
+                { tipo: 'tv', label: '📺 TV', w: 34, h: 14 }
+              ].map(m => (
+                <button
+                  key={m.tipo}
+                  type="button"
+                  onClick={() => handleAddMuebleLibre(m.tipo as any, m.label, m.w, m.h)}
+                  className="px-1.5 py-0.5 bg-white dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded font-semibold transition-colors cursor-pointer"
+                  title={`Agregar ${m.label} arrastrable al plano`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Área do Canvas proporcional 480x400 com grade pontilhada suave no modo edição */}
+        {/* Área do Canvas proporcional 480x430 com grade pontilhada suave no modo edição */}
         <div
           ref={refToUse}
           onPointerDown={() => {
@@ -820,7 +1268,7 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
             backgroundSize: '16px 16px'
           }}
           className={`relative w-full ${
-            isModalCanvas ? 'max-w-[620px]' : 'max-w-[480px]'
+            isModalCanvas ? 'max-w-[640px]' : 'max-w-[490px]'
           } bg-white dark:bg-slate-950 rounded-lg overflow-hidden border border-dashed ${
             !readOnly ? 'border-slate-300 dark:border-slate-800' : 'border-transparent'
           }`}
@@ -830,10 +1278,11 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
             renderInteractiveBlock(
               'sala',
               getRectForKey('sala'),
-              <div className="flex flex-col items-center justify-center pointer-events-none">
-                <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-lg">
+              <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full overflow-hidden">
+                <span className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">
                   Sala
                 </span>
+                {mostrarMuebles && <TopDownSalaFurnitureSvg />}
               </div>,
               isModalCanvas
             )}
@@ -855,9 +1304,11 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
             return renderInteractiveBlock(
               key,
               getRectForKey(key),
-              <div className="font-bold text-slate-900 dark:text-white text-[11px] sm:text-xs leading-tight pointer-events-none">
-                <div>Baño</div>
-                <div>completo{areas.bano_completo > 1 ? ` ${idx + 1}` : ''}</div>
+              <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full overflow-hidden">
+                <div className="font-bold text-slate-900 dark:text-white text-[10px] sm:text-xs leading-tight">
+                  Baño completo{areas.bano_completo > 1 ? ` ${idx + 1}` : ''}
+                </div>
+                {mostrarMuebles && <TopDownBanoFurnitureSvg completo />}
               </div>,
               isModalCanvas
             );
@@ -869,8 +1320,11 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
             return renderInteractiveBlock(
               key,
               getRectForKey(key),
-              <div className="font-bold text-slate-900 dark:text-white text-[11px] sm:text-xs leading-tight pointer-events-none">
-                1/2 Baño{areas.medio_bano > 1 ? ` ${idx + 1}` : ''}
+              <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full overflow-hidden">
+                <div className="font-bold text-slate-900 dark:text-white text-[10px] sm:text-xs leading-tight">
+                  1/2 Baño{areas.medio_bano > 1 ? ` ${idx + 1}` : ''}
+                </div>
+                {mostrarMuebles && <TopDownBanoFurnitureSvg completo={false} />}
               </div>,
               isModalCanvas
             );
@@ -881,9 +1335,12 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
             renderInteractiveBlock(
               'cocina',
               getRectForKey('cocina'),
-              <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-base underline decoration-2 underline-offset-2 pointer-events-none">
-                Cocina
-              </span>,
+              <div className="flex flex-col items-center justify-center pointer-events-none w-full h-full overflow-hidden">
+                <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm underline decoration-2 underline-offset-2 leading-tight">
+                  Cocina
+                </span>
+                {mostrarMuebles && <TopDownCocinaFurnitureSvg />}
+              </div>,
               isModalCanvas
             )}
 
@@ -893,25 +1350,28 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
               'terraza',
               getRectForKey('terraza'),
               <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm pointer-events-none">
-                Terraza
+                Terraza / Lavandería
               </span>,
               isModalCanvas
             )}
 
-          {/* 7. HABITACIONES (Hab Nº 1, Hab Nº 2, Hab Nº 3, Hab Nº 4...) */}
+          {/* 7. HABITACIONES (Hab Nº 1, Hab Nº 2, Hab Nº 3, Hab Nº 4... COM DESENHO DAS CAMAS E MÓVEIS) */}
           {habitaciones.map((hab, idx) => {
             const key = `hab_${idx}`;
             const rect = getRectForKey(key);
-            const camasLabel = `${hab.camas} ${hab.camas === 1 ? 'Cama' : 'Camas'}`;
+            const qtdCamas = Math.max(1, Number(hab.camas) || 1);
+            const camasLabel = `${qtdCamas} ${qtdCamas === 1 ? 'Cama' : 'Camas'}`;
             const habTitle = hab.nome || `Hab Nº ${hab.numero}`;
             const isInline =
-              rect.layoutTexto === 'inline' || (!rect.layoutTexto && rect.w >= rect.h * 2.2);
+              rect.layoutTexto === 'inline' || (!rect.layoutTexto && rect.w >= rect.h * 2.1);
+            const habMuebles = hab.muebles || { armario: true };
 
             return renderInteractiveBlock(
               key,
               rect,
-              <div className="flex flex-col items-center justify-center w-full h-full overflow-hidden pointer-events-none">
-                <div className="font-bold text-slate-900 dark:text-white text-[11px] sm:text-sm leading-tight">
+              <div className="flex flex-col items-center justify-between w-full h-full overflow-hidden pointer-events-none py-0.5">
+                {/* Título do Quarto + Quantidade de Camas */}
+                <div className="font-bold text-slate-900 dark:text-white text-[10px] sm:text-xs leading-tight shrink-0">
                   {isInline ? (
                     <span>
                       {camasLabel},{' '}
@@ -920,14 +1380,29 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
                   ) : (
                     <>
                       <div>{camasLabel}</div>
-                      <div className="underline decoration-2 underline-offset-2 mt-0.5">
-                        {habTitle}
-                      </div>
+                      <div className="underline decoration-2 underline-offset-2">{habTitle}</div>
                     </>
                   )}
                 </div>
+
+                {/* Desenho Arquitetônico das Camas (se tem 1 cama desenha 1, se tem 2 camas desenha 2, etc.) + Móveis do Quarto */}
+                {mostrarMuebles && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 my-auto px-0.5 max-w-full">
+                    {Array.from({ length: Math.min(qtdCamas, 6) }).map((_, bedIdx) => (
+                      <TopDownBedSvg
+                        key={bedIdx}
+                        isMatrimonio={Boolean(habMuebles.cama_matrimonio && bedIdx === 0)}
+                      />
+                    ))}
+                    {habMuebles.mesita && <TopDownNightstandSvg />}
+                    {habMuebles.armario && <TopDownWardrobeSvg />}
+                    {habMuebles.escritorio && <TopDownDeskSvg />}
+                    {habMuebles.tv && <TopDownTvSvg />}
+                  </div>
+                )}
+
                 {hab.observacao && (
-                  <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-full px-1">
+                  <span className="text-[8px] text-slate-500 dark:text-slate-400 font-medium truncate max-w-full px-1 shrink-0">
                     ({hab.observacao})
                   </span>
                 )}
@@ -935,12 +1410,29 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
               isModalCanvas
             );
           })}
+
+          {/* 8. MÓVEIS LIVRES ARRASTÁVEIS (Sofás, Mesas, Armários, Lavadoras adicionados avulsamente) */}
+          {mueblesLibres.map(m => {
+            const key = `mueble_${m.id}`;
+            const rect = getRectForKey(key);
+            return renderInteractiveBlock(
+              key,
+              rect,
+              <div className="flex flex-col items-center justify-center w-full h-full pointer-events-none overflow-hidden bg-amber-50/70 dark:bg-slate-800/80">
+                <span className="text-[9px] font-bold text-slate-800 dark:text-slate-100 leading-none truncate px-0.5">
+                  {m.label}
+                </span>
+              </div>,
+              isModalCanvas,
+              'rounded border-dashed border-slate-600'
+            );
+          })}
         </div>
 
         {/* RODAPÉ AMARELO DE CAPACIDADE TOTAL DO PISO (idêntico ao modelo enviado) */}
         <div
           className={`mt-3 w-full ${
-            isModalCanvas ? 'max-w-[620px]' : 'max-w-[480px]'
+            isModalCanvas ? 'max-w-[640px]' : 'max-w-[490px]'
           } bg-[#ffff00] text-slate-950 px-3 py-1.5 font-extrabold text-xs sm:text-sm text-left border border-amber-400 shadow-2xs`}
         >
           <span className="underline decoration-2 underline-offset-2">
@@ -971,7 +1463,7 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
               </span>
             </h4>
             <p className="text-[10px] text-slate-500 dark:text-slate-400">
-              Arrastre y ajuste el tamaño de cada habitación con el ratón para dibujar el croquis real del alojamiento.
+              Arrastre habitaciones, vea el dibujo de las camas en cada cuarto y agregue muebles al croquis.
             </p>
           </div>
         </div>
@@ -987,15 +1479,17 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
               + Habitación (Hab Nº {habitaciones.length + 1})
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setIsExpandedModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
-            title="Abrir Editor de Croquis en Pantalla Grande"
-          >
-            <Maximize2 size={11} />
-            {readOnly ? 'Ampliar Croquis' : 'Editor Pantalla Completa'}
-          </button>
+          {habitaciones.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsExpandedModal(true)}
+              className="flex items-center gap-1 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+              title="Abrir Editor de Croquis en Pantalla Grande"
+            >
+              <Maximize2 size={11} />
+              {readOnly ? 'Ampliar Croquis' : 'Editor Pantalla Completa'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -1006,7 +1500,7 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
             Croquis en blanco (0 habitaciones configuradas)
           </p>
           <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-            Complete arriba la cantidad de <strong>Dormitorios</strong>, <strong>Individuales / Dobles</strong> y <strong>Baños</strong> (o haga clic en <strong>+ Habitación</strong>) para que el croquis se monte automáticamente aquí abajo y pueda ajustar las formas y tamaños con el ratón.
+            Complete arriba la cantidad de <strong>Dormitorios</strong>, <strong>Individuales / Dobles</strong> y <strong>Baños</strong> (o haga clic en <strong>+ Habitación</strong>) para que el croquis se monte automáticamente aquí abajo con el dibujo de las camas y muebles.
           </p>
         </div>
       ) : (
@@ -1016,18 +1510,19 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
             <div className="p-2 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/50 rounded-xl flex items-start gap-2 text-[10px] text-blue-900 dark:text-blue-200">
               <Info size={13} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
               <div>
-                <strong>Diseño libre con el ratón + Regla 1 Cama = 1 Plaza:</strong> Haga clic sobre cualquier habitación o área en el dibujo de abajo para <strong>moverla arrastrando</strong> o <strong>cambiar su forma y tamaño</strong> estirando los puntos azules de sus bordes y esquinas.
+                <strong>Camas y Muebles en Planta:</strong> Si una habitación tiene <strong>2 camas</strong>, aparecen <strong>2 camas dibujadas</strong> dentro del cuarto (y puede activar <em>Armario, Escritorio, Mesita o TV</em> en cada cuarto).
               </div>
             </div>
           )}
 
-          {/* Lista Editável de Quartos (Hab Nº 1, Hab Nº 2, ...) */}
+          {/* Lista Editável de Quartos (Hab Nº 1, Hab Nº 2, ...) com seletor de camas e móveis */}
           {!readOnly && (
             <div className="space-y-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {habitaciones.map((hab, idx) => {
                   const key = `hab_${idx}`;
                   const isSel = selectedKey === key;
+                  const habMuebles = hab.muebles || { armario: true };
                   return (
                     <div
                       key={hab.numero}
@@ -1103,10 +1598,32 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
                           </div>
                         </div>
 
-                        <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
-                          <Move size={10} />
-                          Arrastrable en planta
-                        </span>
+                        {/* Chips rápidos de móveis dentro do card do quarto */}
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          {[
+                            { k: 'armario', icon: '🗄️', title: 'Armario / Ropero' },
+                            { k: 'escritorio', icon: '🪑', title: 'Escritorio + Silla' },
+                            { k: 'mesita', icon: '🛏️', title: 'Mesita de noche' },
+                            { k: 'tv', icon: '📺', title: 'Televisión en habitación' }
+                          ].map(m => {
+                            const active = Boolean((habMuebles as any)[m.k]);
+                            return (
+                              <button
+                                key={m.k}
+                                type="button"
+                                onClick={() => handleToggleMuebleHabitacion(idx, m.k as keyof MueblesHabitacion)}
+                                title={`${active ? 'Quitar' : 'Agregar'} ${m.title}`}
+                                className={`w-6 h-6 rounded flex items-center justify-center text-[11px] border transition-all ${
+                                  active
+                                    ? 'bg-indigo-100 border-indigo-400 dark:bg-indigo-950/80 dark:border-indigo-500 shadow-2xs'
+                                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 opacity-45 hover:opacity-100'
+                                }`}
+                              >
+                                {m.icon}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   );
