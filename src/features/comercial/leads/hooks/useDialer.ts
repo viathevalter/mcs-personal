@@ -94,7 +94,7 @@ export function useDialerAgenda() {
         if (!matchesCompany) return false;
         if (targetUserId) {
           const itemOwner = it.assigned_to || it.campaign?.assigned_to;
-          if (itemOwner && itemOwner !== targetUserId) return false;
+          if (itemOwner !== targetUserId) return false;
         }
         return true;
       });
@@ -364,19 +364,29 @@ export function useLeadCallLogs(leadId?: string | null) {
 
 export function useDialerSupervisorKPIs() {
   const { selectedEmpresaId } = useEmpresa();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
+  const targetUserId = isCommercialOperator
+    ? loggedCommercialProfile?.userId || null
+    : activeCommercialProfile?.userId || null;
 
   return useQuery({
-    queryKey: ['dialer_supervisor_kpis', selectedEmpresaId],
+    queryKey: ['dialer_supervisor_kpis', selectedEmpresaId, targetUserId || 'all'],
     queryFn: async () => {
       if (!selectedEmpresaId) return null;
 
-      // 1. Fetch all call logs for company
-      const { data: logs, error: logError } = await supabase
+      // 1. Fetch call logs for company (and scoped commercial user if applicable)
+      let logQuery = supabase
         .schema('core_comercial')
         .from('lead_call_logs')
         .select('*')
         .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false });
+
+      if (targetUserId) {
+        logQuery = logQuery.eq('user_id', targetUserId);
+      }
+
+      const { data: logs, error: logError } = await logQuery;
 
       if (logError) throw logError;
 

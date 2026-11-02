@@ -14,6 +14,175 @@ export interface KanbanStage {
   updated_at: string;
 }
 
+export interface CommercialKanbanCampaignItem {
+  id: string;
+  kind: 'marketing' | 'dialer';
+  title: string;
+  status: string;
+  total_leads: number;
+  sent_count: number;
+  created_at: string;
+}
+
+export function useCommercialCampaignLeadScope(options: {
+  empresaId?: string | null;
+  assignedTo?: string | null;
+  selectedCampaignKey?: string;
+}) {
+  const { selectedEmpresaId } = useEmpresa();
+  const targetEmpresaId = options.empresaId !== undefined ? options.empresaId : selectedEmpresaId;
+  const targetAssignedTo = options.assignedTo || null;
+  const selectedKey = options.selectedCampaignKey || 'all_campaigns';
+
+  const campaignsQuery = useQuery({
+    queryKey: ['kanban_commercial_campaigns', targetEmpresaId, targetAssignedTo],
+    queryFn: async () => {
+      if (!targetEmpresaId) return { campaigns: [] as CommercialKanbanCampaignItem[], activeStage1LeadIds: [] as string[] };
+
+      let mktQuery = supabase
+        .schema('core_comercial')
+        .from('marketing_campaigns')
+        .select('id, title, status, total_leads, sent_count, created_at, assigned_to')
+        .eq('empresa_id', targetEmpresaId)
+        .order('created_at', { ascending: false });
+
+      if (targetAssignedTo) {
+        mktQuery = mktQuery.eq('assigned_to', targetAssignedTo);
+      }
+
+      let dialerQuery = supabase
+        .schema('core_comercial')
+        .from('dialer_campaigns')
+        .select('id, title, status, total_leads, completed_leads, created_at, assigned_to')
+        .eq('empresa_id', targetEmpresaId)
+        .order('created_at', { ascending: false });
+
+      if (targetAssignedTo) {
+        dialerQuery = dialerQuery.eq('assigned_to', targetAssignedTo);
+      }
+
+      const [mktRes, dialerRes] = await Promise.all([mktQuery, dialerQuery]);
+      if (mktRes.error) throw mktRes.error;
+      if (dialerRes.error) throw dialerRes.error;
+
+      const mktList: CommercialKanbanCampaignItem[] = (mktRes.data || []).map((c: any) => ({
+        id: c.id,
+        kind: 'marketing',
+        title: c.title,
+        status: c.status,
+        total_leads: c.total_leads || 0,
+        sent_count: c.sent_count || 0,
+        created_at: c.created_at,
+      }));
+
+      const dialerList: CommercialKanbanCampaignItem[] = (dialerRes.data || []).map((d: any) => ({
+        id: d.id,
+        kind: 'dialer',
+        title: d.title,
+        status: d.status,
+        total_leads: d.total_leads || 0,
+        sent_count: d.completed_leads || 0,
+        created_at: d.created_at,
+      }));
+
+      const dialerIds = dialerList.map(d => d.id);
+      const recentMktIds = mktList.slice(0, 8).map(m => m.id);
+
+      const stage1Set = new Set<string>();
+
+      if (dialerIds.length > 0) {
+        const { data: dItems } = await supabase
+          .schema('core_comercial')
+          .from('dialer_queue_items')
+          .select('lead_id')
+          .in('campaign_id', dialerIds)
+          .limit(5000);
+        (dItems || []).forEach((row: any) => {
+          if (row.lead_id) stage1Set.add(row.lead_id);
+        });
+      }
+
+      if (recentMktIds.length > 0) {
+        const { data: mItems } = await supabase
+          .schema('core_comercial')
+          .from('marketing_campaign_queue')
+          .select('lead_id')
+          .in('campaign_id', recentMktIds)
+          .limit(5000);
+        (mItems || []).forEach((row: any) => {
+          if (row.lead_id) stage1Set.add(row.lead_id);
+        });
+      }
+
+      return {
+        campaigns: [...mktList, ...dialerList],
+        activeStage1LeadIds: Array.from(stage1Set),
+      };
+    },
+    enabled: !!targetEmpresaId,
+  });
+
+  const specificCampaignLeadsQuery = useQuery({
+    queryKey: ['kanban_specific_campaign_leads', selectedKey],
+    queryFn: async () => {
+      if (!selectedKey || selectedKey === 'all_campaigns' || selectedKey === 'all_including_cold') {
+        return null;
+      }
+
+      const [kind, campaignId] = selectedKey.split(':');
+      if (!campaignId) return null;
+
+      const leadIds: string[] = [];
+      const pageSize = 1000;
+      let from = 0;
+
+      if (kind === 'dialer') {
+        while (true) {
+          const { data, error } = await supabase
+            .schema('core_comercial')
+            .from('dialer_queue_items')
+            .select('lead_id')
+            .eq('campaign_id', campaignId)
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          data.forEach((r: any) => {
+            if (r.lead_id) leadIds.push(r.lead_id);
+          });
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+      } else {
+        while (true) {
+          const { data, error } = await supabase
+            .schema('core_comercial')
+            .from('marketing_campaign_queue')
+            .select('lead_id')
+            .eq('campaign_id', campaignId)
+            .range(from, from + pageSize - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          data.forEach((r: any) => {
+            if (r.lead_id) leadIds.push(r.lead_id);
+          });
+          if (data.length < pageSize) break;
+          from += pageSize;
+        }
+      }
+
+      return leadIds;
+    },
+    enabled: !!selectedKey && selectedKey !== 'all_campaigns' && selectedKey !== 'all_including_cold',
+  });
+
+  return {
+    campaigns: campaignsQuery.data?.campaigns || [],
+    activeStage1LeadIds: campaignsQuery.data?.activeStage1LeadIds || [],
+    specificCampaignLeadIds: specificCampaignLeadsQuery.data || null,
+    isLoadingScope: campaignsQuery.isLoading || specificCampaignLeadsQuery.isLoading,
+  };
+}
+
 export function useKanbanStages() {
   const { selectedEmpresaId } = useEmpresa();
 

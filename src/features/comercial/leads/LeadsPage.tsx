@@ -1296,97 +1296,105 @@ export function LeadsPage() {
       <div className="flex flex-wrap items-center justify-between gap-2 bg-card/80 px-3 py-2 rounded-xl border shadow-2xs">
         {/* Country Pills */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAudienceId('all');
-              setSelectedCountry('ES');
-            }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              selectedCountry === 'ES' && !activeAudience
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
-                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🇪🇸</span>
-            <span>{tr('Espanha', 'España', 'Espagne')}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-              {countryCounts.ES}
-            </span>
-          </button>
+          {(!activeCommercialProfile || activeCommercialProfile.country === 'ES') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedAudienceId('all');
+                setSelectedCountry('ES');
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedCountry === 'ES' && !activeAudience
+                  ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
+                  : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>🇪🇸</span>
+              <span>{tr('Espanha', 'España', 'Espagne')}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                {countryCounts.ES}
+              </span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAudienceId('all');
-              setSelectedCountry('FR');
-            }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              selectedCountry === 'FR' && !activeAudience
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
-                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🇫🇷</span>
-            <span>{tr('França', 'Francia', 'France')}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-              {countryCounts.FR}
-            </span>
-          </button>
+          {(!activeCommercialProfile || activeCommercialProfile.country === 'FR') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedAudienceId('all');
+                setSelectedCountry('FR');
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedCountry === 'FR' && !activeAudience
+                  ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
+                  : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>🇫🇷</span>
+              <span>{tr('França', 'Francia', 'France')}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                {countryCounts.FR}
+              </span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAudienceId('all');
-              setSelectedCountry('PT');
-            }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              selectedCountry === 'PT' && !activeAudience
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
-                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🇵🇹</span>
-            <span>Portugal</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-              {countryCounts.PT}
-            </span>
-          </button>
+          {!activeCommercialProfile && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAudienceId('all');
+                  setSelectedCountry('PT');
+                }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCountry === 'PT' && !activeAudience
+                    ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
+                    : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <span>🇵🇹</span>
+                <span>Portugal</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                  {countryCounts.PT}
+                </span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAudienceId('all');
-              setSelectedCountry('IT');
-            }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              selectedCountry === 'IT' && !activeAudience
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
-                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🇮🇹</span>
-            <span>{tr('Itália', 'Italia', 'Italie')}</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-              {countryCounts.IT}
-            </span>
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAudienceId('all');
+                  setSelectedCountry('IT');
+                }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCountry === 'IT' && !activeAudience
+                    ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
+                    : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <span>🇮🇹</span>
+                <span>{tr('Itália', 'Italia', 'Italie')}</span>
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                  {countryCounts.IT}
+                </span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedAudienceId('all');
-              setSelectedCountry('all');
-            }}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              selectedCountry === 'all' && !activeAudience
-                ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
-                : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <span>🌐</span>
-            <span>{tr('Todos', 'Todos', 'Tous')} ({countryCounts.total})</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedAudienceId('all');
+                  setSelectedCountry('all');
+                }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                  selectedCountry === 'all' && !activeAudience
+                    ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
+                    : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                <span>🌐</span>
+                <span>{tr('Todos', 'Todos', 'Tous')} ({countryCounts.total})</span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Right Corner: Quick Selection + Searchable Público Filter + Generate Queue */}

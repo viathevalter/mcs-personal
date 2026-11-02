@@ -27,7 +27,6 @@ import {
   Phone,
   Calendar,
   Sparkles,
-  FileText,
   Trash2,
   ChevronLeft,
   ChevronRight,
@@ -38,11 +37,8 @@ import {
   UserCheck,
   ExternalLink,
   MessageCircle,
-  Clock,
   Briefcase,
   Users,
-  MapPin,
-  Send,
   Globe,
   User,
   LayoutGrid,
@@ -54,17 +50,28 @@ import {
   Filter,
   Copy,
   Headphones,
-  CheckCircle2
+  CheckCircle2,
+  Send,
 } from 'lucide-react';
-import { useKanbanStages, useAllKanbanStages, useMutateKanban, type KanbanStage } from './hooks/useKanban';
-import { useLeads, useMutateLead, useSalespeople } from './hooks/useLeads';
+import {
+  useKanbanStages,
+  useAllKanbanStages,
+  useMutateKanban,
+  useCommercialCampaignLeadScope,
+  type KanbanStage,
+} from './hooks/useKanban';
+import {
+  useLeads,
+  useMutateLead,
+  useSalespeople,
+  useCommercialScope,
+} from './hooks/useLeads';
 import { useSalesScripts, useMutateDialer } from './hooks/useDialer';
 import { Checkbox } from '@/components/ui/checkbox';
 import { EmpresaSelector } from '@/features/operacoes/components/EmpresaSelector';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
-import { useAuth } from '@/app/providers/AuthProvider';
-import { detectLeadCountry, COUNTRY_LABELS } from './utils/leadCountryUtils';
-import { useTranslation } from 'react-i18next';
+import { detectLeadCountry } from './utils/leadCountryUtils';
+import { useComercialLanguage } from './utils/comercialI18n';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import type { Lead } from '../estimaciones/types';
@@ -72,8 +79,12 @@ import type { Lead } from '../estimaciones/types';
 // Helper to parse lead notes string into key-value budget request details
 function parseBudgetNotes(notes?: string | null) {
   if (!notes) return null;
-  const isBudgetForm = notes.includes('SOLICITAÇÃO DE ORÇAMENTO') || notes.includes('Orçamento') || notes.includes('Presupuesto');
-  
+  const isBudgetForm =
+    notes.includes('SOLICITAÇÃO DE ORÇAMENTO') ||
+    notes.includes('Orçamento') ||
+    notes.includes('Presupuesto') ||
+    notes.includes('Devis');
+
   const parsed: Record<string, string> = {};
   const lines = notes.split('\n');
 
@@ -92,49 +103,62 @@ function parseBudgetNotes(notes?: string | null) {
   return {
     isBudgetForm,
     raw: notes,
-    parsed: Object.keys(parsed).length > 0 ? parsed : null
+    parsed: Object.keys(parsed).length > 0 ? parsed : null,
   };
 }
 
 export function KanbanPage() {
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
-  const isSpanish = (i18n.language || i18n.resolvedLanguage || '').toLowerCase().startsWith('es');
-
+  const { tr, isSpanish, isFrench } = useComercialLanguage();
   const { selectedEmpresaId, currentEmpresa } = useEmpresa();
-  const { user } = useAuth();
-  const [selectedSalesperson, setSelectedSalesperson] = useState<string>('all');
-  const [selectedCountry, setSelectedCountry] = useState<string>('all');
 
-  const isGiada = useMemo(() => {
-    const email = user?.email?.toLowerCase() || '';
-    return email.includes('giada') || user?.id === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
-  }, [user]);
+  const {
+    isCommercialOperator,
+    loggedCommercialProfile,
+    activeCommercialProfile,
+    selectedCommercialKey,
+    selectCommercialOperator,
+    allProfiles,
+  } = useCommercialScope();
 
-  const isMichelle = useMemo(() => {
-    const email = user?.email?.toLowerCase() || '';
-    return email.includes('mitch') || email.includes('michel') || user?.id === 'dbc361a1-e4af-446a-8079-39c0caab00d2';
-  }, [user]);
+  const effectiveProfile = isCommercialOperator ? loggedCommercialProfile : activeCommercialProfile;
+  const effectiveEmpresaId = effectiveProfile?.empresaId || selectedEmpresaId;
+  const effectiveAssignedTo = effectiveProfile?.userId || null;
+  const effectiveCountry = effectiveProfile?.country || null;
 
-  // Initial user-based filtering setup for team isolation
+  const [selectedCampaignFilter, setSelectedCampaignFilter] = useState<string>('all_campaigns');
+
+  // Reset campaign filter when active commercial or company changes
   useEffect(() => {
-    if (isGiada) {
-      setSelectedCountry('IT');
-      setSelectedSalesperson('76f9a2f5-116a-456e-a7d9-9a6a0401ac65');
-    } else if (isMichelle) {
-      setSelectedCountry('ES');
-      setSelectedSalesperson('dbc361a1-e4af-446a-8079-39c0caab00d2');
-    }
-  }, [isGiada, isMichelle]);
+    setSelectedCampaignFilter('all_campaigns');
+  }, [effectiveEmpresaId, effectiveAssignedTo]);
 
   // Queries & Mutations
   const { data: salespeople = [] } = useSalespeople();
   const { data: stages = [], isLoading: loadingStages } = useKanbanStages();
   const { data: allStages = [] } = useAllKanbanStages();
   const { data: leads = [], isLoading: loadingLeads } = useLeads({
-    empresaId: selectedEmpresaId,
-    assignedTo: selectedSalesperson === 'all' ? null : selectedSalesperson
+    empresaId: effectiveEmpresaId,
+    assignedTo: effectiveAssignedTo,
   });
+
+  const {
+    campaigns: commercialCampaigns,
+    activeStage1LeadIds,
+    specificCampaignLeadIds,
+    isLoadingScope,
+  } = useCommercialCampaignLeadScope({
+    empresaId: effectiveEmpresaId,
+    assignedTo: effectiveAssignedTo,
+    selectedCampaignKey: selectedCampaignFilter,
+  });
+
+  const activeStage1Set = useMemo(() => new Set(activeStage1LeadIds), [activeStage1LeadIds]);
+  const specificCampaignSet = useMemo(
+    () => (specificCampaignLeadIds ? new Set(specificCampaignLeadIds) : null),
+    [specificCampaignLeadIds]
+  );
+
   const { createStage, updateStage, deleteStage, reorderStages, moveLead } = useMutateKanban();
   const { createLead, updateLead } = useMutateLead();
   const { data: salesScripts = [] } = useSalesScripts();
@@ -142,11 +166,14 @@ export function KanbanPage() {
 
   const salespersonMap = useMemo(() => {
     const map = new Map<string, string>();
+    allProfiles.forEach(p => map.set(p.userId, p.displayName));
     salespeople.forEach(u => {
-      map.set(u.id, u.display_name || u.email);
+      if (!map.has(u.id)) {
+        map.set(u.id, u.display_name || u.email);
+      }
     });
     return map;
-  }, [salespeople]);
+  }, [salespeople, allProfiles]);
 
   const stageIdToOrderMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -174,7 +201,7 @@ export function KanbanPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
-  
+
   // Selected Lead Details Modal State
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -201,14 +228,26 @@ export function KanbanPage() {
     assigned_to: '',
   });
 
-  // Dynamic Stage Name Translation Helper
+  // Dynamic Stage Name Translation Helper (PT / ES / FR)
   const getStageTitle = (stage: KanbanStage) => {
+    const lower = stage.name.toLowerCase();
+    if (isFrench) {
+      if (lower.includes('novo') || lower.includes('sem contato')) return 'Nouveau / En File';
+      if (lower.includes('e-mail enviado') || lower.includes('email enviado')) return 'E-mail Envoyé';
+      if (lower.includes('lido') || lower.includes('clicado')) return 'E-mail Lu / Cliqué';
+      if (lower.includes('liga') || lower.includes('llamada')) return 'Appel Téléphonique';
+      if (lower.includes('whatsapp')) return 'Contact par WhatsApp';
+      if (lower.includes('orçamento') || lower.includes('presupuesto')) return 'Devis Demandé';
+      if (lower.includes('negociação') || lower.includes('negociacion')) return 'En Négociation';
+      if (lower.includes('convertido')) return 'Converti';
+      if (lower.includes('perdido') || lower.includes('desvinculado')) return 'Perdu / Désabonné';
+    }
     if (isSpanish) {
       if (stage.name_es) return stage.name_es;
-      const lower = stage.name.toLowerCase();
-      if (lower.includes('novo') || lower.includes('sem contato')) return 'Nuevo / Sin Contacto';
+      if (lower.includes('novo') || lower.includes('sem contato')) return 'Nuevo / En Cola';
       if (lower.includes('e-mail enviado') || lower.includes('email enviado')) return 'Correo Enviado';
       if (lower.includes('lido') || lower.includes('clicado')) return 'Correo Leído / Clicado';
+      if (lower.includes('liga') || lower.includes('llamada')) return 'Llamada';
       if (lower.includes('whatsapp')) return 'Contacto por WhatsApp';
       if (lower.includes('orçamento') || lower.includes('presupuesto')) return 'Presupuesto Solicitado';
       if (lower.includes('negociação') || lower.includes('negociacion')) return 'En Negociación';
@@ -236,9 +275,21 @@ export function KanbanPage() {
 
     try {
       await moveLead({ leadId, stageId: targetStageId });
-      toast.success(t('comercialKanban.moveSuccess', 'Etapa do lead atualizada!'));
-    } catch (err: any) {
-      toast.error(t('comercialKanban.moveError', 'Erro ao mover lead'));
+      toast.success(
+        tr(
+          'Etapa do lead atualizada!',
+          '¡Etapa del prospecto actualizada!',
+          'Étape du prospect mise à jour !'
+        )
+      );
+    } catch {
+      toast.error(
+        tr(
+          'Erro ao mover lead',
+          'Error al mover el prospecto',
+          'Erreur lors du déplacement du prospect'
+        )
+      );
     }
   };
 
@@ -246,7 +297,13 @@ export function KanbanPage() {
   const handleCreateStage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStageName.trim()) {
-      toast.error('O nome do estágio é obrigatório');
+      toast.error(
+        tr(
+          'O nome do estágio é obrigatório',
+          'El nombre de la etapa es obligatorio',
+          'Le nom de l’étape est obligatoire'
+        )
+      );
       return;
     }
 
@@ -258,7 +315,13 @@ export function KanbanPage() {
         color: newStageColor,
         order_index: nextIndex,
       });
-      toast.success(t('comercialKanban.stageCreated', 'Novo estágio criado com sucesso!'));
+      toast.success(
+        tr(
+          'Novo estágio criado com sucesso!',
+          '¡Nueva etapa creada con éxito!',
+          'Nouvelle étape créée avec succès !'
+        )
+      );
       setNewStageName('');
       setNewStageNameEs('');
       setNewStageColor('#3b82f6');
@@ -276,7 +339,13 @@ export function KanbanPage() {
 
   const handleSaveEditStage = async (stageId: string) => {
     if (!editingStageName.trim()) {
-      toast.error('O nome do estágio não pode ser vazio.');
+      toast.error(
+        tr(
+          'O nome do estágio não pode ser vazio.',
+          'El nombre de la etapa no puede estar vacío.',
+          'Le nom de l’étape ne peut pas être vide.'
+        )
+      );
       return;
     }
 
@@ -287,9 +356,15 @@ export function KanbanPage() {
           name: editingStageName.trim(),
           name_es: editingStageNameEs.trim() || undefined,
           color: editingStageColor,
-        }
+        },
       });
-      toast.success(t('comercialKanban.stageUpdated', 'Estágio atualizado com sucesso!'));
+      toast.success(
+        tr(
+          'Estágio atualizado com sucesso!',
+          '¡Etapa actualizada con éxito!',
+          'Étape mise à jour avec succès !'
+        )
+      );
       setEditingStageId(null);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao atualizar estágio');
@@ -307,21 +382,41 @@ export function KanbanPage() {
 
     const payload = newStages.map((s, idx) => ({
       id: s.id,
-      order_index: idx + 1
+      order_index: idx + 1,
     }));
 
     try {
       await reorderStages(payload);
-    } catch (err: any) {
-      toast.error('Erro ao reordenar estágios');
+    } catch {
+      toast.error(
+        tr(
+          'Erro ao reordenar estágios',
+          'Error al reordenar las etapas',
+          'Erreur lors de la réorganisation des étapes'
+        )
+      );
     }
   };
 
   const handleDeleteStage = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este estágio? Leads associados ficarão sem estágio definido.')) {
+    if (
+      confirm(
+        tr(
+          'Tem certeza que deseja excluir este estágio?',
+          '¿Está seguro de que desea eliminar esta etapa?',
+          'Êtes-vous sûr de vouloir supprimer cette étape ?'
+        )
+      )
+    ) {
       try {
         await deleteStage(id);
-        toast.success(t('comercialKanban.stageDeleted', 'Estágio excluído com sucesso.'));
+        toast.success(
+          tr(
+            'Estágio excluído com sucesso.',
+            'Etapa eliminada con éxito.',
+            'Étape supprimée avec succès.'
+          )
+        );
       } catch (err: any) {
         toast.error(err.message || 'Erro ao excluir estágio');
       }
@@ -331,12 +426,25 @@ export function KanbanPage() {
   const handleCreateNewLeadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newLeadData.name || !newLeadData.company_name) {
-      toast.error('Nome e Empresa são obrigatórios.');
+      toast.error(
+        tr(
+          'Nome e Empresa são obrigatórios.',
+          'Nombre y Empresa son obligatorios.',
+          'Le nom et l’entreprise sont obligatoires.'
+        )
+      );
       return;
     }
 
     try {
-      const defaultStage = newLeadData.stage_id || (stages[0]?.id ?? '');
+      // Default to stage 2 or stage 1 if manually adding in Kanban
+      const defaultStage = newLeadData.stage_id || (stages[1]?.id ?? stages[0]?.id ?? '');
+      const ownerId =
+        effectiveAssignedTo ||
+        (newLeadData.assigned_to && newLeadData.assigned_to !== 'unassigned'
+          ? newLeadData.assigned_to
+          : null);
+
       await createLead({
         name: newLeadData.name,
         company_name: newLeadData.company_name,
@@ -344,12 +452,26 @@ export function KanbanPage() {
         phone: newLeadData.phone || undefined,
         notes: newLeadData.notes || undefined,
         stage_id: defaultStage,
-        assigned_to: newLeadData.assigned_to && newLeadData.assigned_to !== 'unassigned' ? newLeadData.assigned_to : null,
-        empresa_id: selectedEmpresaId || undefined,
+        assigned_to: ownerId,
+        empresa_id: effectiveEmpresaId || undefined,
       });
-      toast.success('Lead criado com sucesso no pipeline!');
+      toast.success(
+        tr(
+          'Lead criado com sucesso no funil!',
+          '¡Prospecto creado con éxito en el embudo!',
+          'Prospect créé avec succès dans l’entonnoir !'
+        )
+      );
       setIsNewLeadOpen(false);
-      setNewLeadData({ name: '', email: '', phone: '', company_name: '', notes: '', stage_id: '', assigned_to: '' });
+      setNewLeadData({
+        name: '',
+        email: '',
+        phone: '',
+        company_name: '',
+        notes: '',
+        stage_id: '',
+        assigned_to: '',
+      });
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar lead');
     }
@@ -358,60 +480,97 @@ export function KanbanPage() {
   const handleLeadStageChange = async (leadId: string, stageId: string) => {
     try {
       await moveLead({ leadId, stageId });
-      toast.success(t('comercialKanban.moveSuccess', 'Etapa do lead atualizada!'));
+      toast.success(
+        tr(
+          'Etapa do lead atualizada!',
+          '¡Etapa del prospecto actualizada!',
+          'Étape du prospect mise à jour !'
+        )
+      );
       if (selectedLead && selectedLead.id === leadId) {
-        setSelectedLead(prev => prev ? { ...prev, stage_id: stageId } : null);
+        setSelectedLead(prev => (prev ? { ...prev, stage_id: stageId } : null));
       }
-    } catch (err: any) {
-      toast.error(t('comercialKanban.moveError', 'Erro ao alterar estágio'));
+    } catch {
+      toast.error(
+        tr(
+          'Erro ao alterar estágio',
+          'Error al cambiar la etapa',
+          'Erreur lors du changement d’étape'
+        )
+      );
     }
   };
 
   const handleLeadAssignedChange = async (leadId: string, newAssignedTo: string) => {
+    if (isCommercialOperator) return;
     try {
       const targetVal = newAssignedTo === 'unassigned' ? null : newAssignedTo;
       await updateLead({
         id: leadId,
-        payload: { assigned_to: targetVal }
+        payload: { assigned_to: targetVal },
       });
-      toast.success('Responsável comercial atualizado!');
+      toast.success(
+        tr(
+          'Responsável comercial atualizado!',
+          '¡Responsable comercial actualizado!',
+          'Responsable commercial mis à jour !'
+        )
+      );
       if (selectedLead && selectedLead.id === leadId) {
-        setSelectedLead(prev => prev ? { ...prev, assigned_to: targetVal } : null);
+        setSelectedLead(prev => (prev ? { ...prev, assigned_to: targetVal } : null));
       }
     } catch (err: any) {
       toast.error(err.message || 'Erro ao atribuir vendedor');
     }
   };
 
-  // Country distribution counts for active company
-  const countryCounts = useMemo(() => {
-    const counts: Record<string, number> = { ES: 0, FR: 0, IT: 0, PT: 0, total: 0 };
-    leads.forEach(l => {
-      counts.total++;
-      const c = detectLeadCountry(l);
-      if (counts[c] !== undefined) {
-        counts[c]++;
-      }
-    });
-    return counts;
-  }, [leads]);
-
-  // Filtered Leads (strictly for selected company and optional search/salesperson/country)
-  const filteredLeads = useMemo(() => {
+  // Base leads strictly scoped to the commercial operator's company, userId, and country
+  const scopedCommercialLeads = useMemo(() => {
     return leads.filter(lead => {
-      // Must match active company
-      if (lead.empresa_id && selectedEmpresaId && lead.empresa_id !== selectedEmpresaId) {
+      if (lead.empresa_id && effectiveEmpresaId && lead.empresa_id !== effectiveEmpresaId) {
         return false;
       }
-      // Salesperson filter
-      if (selectedSalesperson !== 'all' && lead.assigned_to !== selectedSalesperson) {
+      if (effectiveAssignedTo && lead.assigned_to !== effectiveAssignedTo) {
         return false;
       }
-      // Country filter
-      if (selectedCountry !== 'all') {
+      if (effectiveCountry) {
         const c = detectLeadCountry(lead);
-        if (c !== selectedCountry) return false;
+        const matchesCountry =
+          effectiveCountry === 'FR' ? c === 'FR' || c === 'BE' : c === effectiveCountry;
+        if (!matchesCountry) return false;
       }
+      return true;
+    });
+  }, [leads, effectiveEmpresaId, effectiveAssignedTo, effectiveCountry]);
+
+  // Count how many cold uncontacted leads exist (for optional toggle info)
+  const coldUncontactedCount = useMemo(() => {
+    return scopedCommercialLeads.filter(lead => {
+      const orderIdx = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) ?? 1 : 1;
+      return orderIdx === 1 && !activeStage1Set.has(lead.id);
+    }).length;
+  }, [scopedCommercialLeads, stageIdToOrderMap, activeStage1Set]);
+
+  // Filtered Leads for the Kanban (strictly campaign/funnel scoped by default)
+  const filteredLeads = useMemo(() => {
+    return scopedCommercialLeads.filter(lead => {
+      // 1. Campaign scope filter
+      if (selectedCampaignFilter === 'all_campaigns') {
+        const orderIdx = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) ?? 1 : 1;
+        const isEngagedOrSent = orderIdx >= 2;
+        const isInActiveQueue = activeStage1Set.has(lead.id);
+        const hasBudgetRequest = parseBudgetNotes(lead.notes)?.isBudgetForm;
+        if (!isEngagedOrSent && !isInActiveQueue && !hasBudgetRequest) {
+          return false;
+        }
+      } else if (selectedCampaignFilter !== 'all_including_cold') {
+        if (!specificCampaignSet || !specificCampaignSet.has(lead.id)) {
+          return false;
+        }
+      }
+
+      // 2. Search filter
+      if (!searchTerm.trim()) return true;
       const search = searchTerm.toLowerCase();
       return (
         lead.name.toLowerCase().includes(search) ||
@@ -421,7 +580,14 @@ export function KanbanPage() {
         (lead.notes && lead.notes.toLowerCase().includes(search))
       );
     });
-  }, [leads, searchTerm, selectedEmpresaId, selectedSalesperson, selectedCountry]);
+  }, [
+    scopedCommercialLeads,
+    selectedCampaignFilter,
+    stageIdToOrderMap,
+    activeStage1Set,
+    specificCampaignSet,
+    searchTerm,
+  ]);
 
   const getLeadsInStage = (stage: KanbanStage) => {
     return filteredLeads
@@ -442,7 +608,7 @@ export function KanbanPage() {
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '';
-    const locale = isSpanish ? 'es-ES' : 'pt-PT';
+    const locale = isFrench ? 'fr-FR' : isSpanish ? 'es-ES' : 'pt-PT';
     return new Date(dateString).toLocaleDateString(locale, {
       day: '2-digit',
       month: '2-digit',
@@ -452,7 +618,12 @@ export function KanbanPage() {
 
   // Lido / Clicado Stage detection & lead count
   const lidoStage = useMemo(() => {
-    return stages.find(s => s.order_index === 3 || s.name.toLowerCase().includes('lido') || s.name.toLowerCase().includes('clicad'));
+    return stages.find(
+      s =>
+        s.order_index === 3 ||
+        s.name.toLowerCase().includes('lido') ||
+        s.name.toLowerCase().includes('clicad')
+    );
   }, [stages]);
 
   const countLidoLeads = useMemo(() => {
@@ -507,8 +678,10 @@ export function KanbanPage() {
   };
 
   // Selection handlers
-  const isAllCurrentPageSelected = paginatedLeads.length > 0 && paginatedLeads.every(l => selectedLeadIds.includes(l.id));
-  const isAllFilteredSelected = listFilteredLeads.length > 0 && listFilteredLeads.every(l => selectedLeadIds.includes(l.id));
+  const isAllCurrentPageSelected =
+    paginatedLeads.length > 0 && paginatedLeads.every(l => selectedLeadIds.includes(l.id));
+  const isAllFilteredSelected =
+    listFilteredLeads.length > 0 && listFilteredLeads.every(l => selectedLeadIds.includes(l.id));
 
   const handleSelectCurrentPage = (checked: boolean) => {
     if (checked) {
@@ -540,15 +713,32 @@ export function KanbanPage() {
   // Open Dialer Modal
   const handleOpenCreateDialer = () => {
     if (selectedLeadIds.length === 0) {
-      toast.error('Selecione ao menos um lead para gerar a fila de ligação.');
+      toast.error(
+        tr(
+          'Selecione ao menos um lead para gerar a fila de ligação.',
+          'Seleccione al menos un prospecto para generar la cola de llamadas.',
+          'Sélectionnez au moins un prospect pour générer la file d’appels.'
+        )
+      );
       return;
     }
     const currentFilterStage = stages.find(s => s.id === selectedStageFilter);
-    const stageLabel = currentFilterStage ? currentFilterStage.name : (lidoStage && selectedStageFilter === lidoStage.id ? 'Leads Clicados' : 'Prospectos');
-    const defaultTitle = `Fila Telemarketing - ${stageLabel} (${currentEmpresa?.name || 'Comercial'} - ${new Date().toLocaleDateString('pt-BR')})`;
+    const stageLabel = currentFilterStage
+      ? getStageTitle(currentFilterStage)
+      : lidoStage && selectedStageFilter === lidoStage.id
+      ? tr('Leads Clicados', 'Prospectos Clicados', 'Prospects Cliqués')
+      : tr('Prospectos', 'Prospectos', 'Prospects');
+    const operatorLabel = effectiveProfile?.displayName || currentEmpresa?.name || 'Comercial';
+    const defaultTitle = `${tr('Fila Telemarketing', 'Cola Telemarketing', 'File Télémarketing')} - ${stageLabel} (${operatorLabel} - ${new Date().toLocaleDateString('pt-PT')})`;
     setDialerTitle(defaultTitle);
-    setDialerDesc(`${selectedLeadIds.length} prospectos selecionados a partir do Funil de Vendas.`);
-    setDialerAssignedTo(selectedSalesperson !== 'all' ? selectedSalesperson : 'unassigned');
+    setDialerDesc(
+      tr(
+        `${selectedLeadIds.length} prospectos selecionados a partir do Funil de Vendas.`,
+        `${selectedLeadIds.length} prospectos seleccionados desde el Embudo de Ventas.`,
+        `${selectedLeadIds.length} prospects sélectionnés depuis l’Entonnoir de Ventes.`
+      )
+    );
+    setDialerAssignedTo(effectiveAssignedTo || 'unassigned');
     setIsCreateDialerOpen(true);
   };
 
@@ -556,30 +746,52 @@ export function KanbanPage() {
   const handleCreateDialerQueue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!dialerTitle.trim()) {
-      toast.error('Por favor, informe o título da campanha de discagem.');
+      toast.error(
+        tr(
+          'Por favor, informe o título da campanha de discagem.',
+          'Por favor, indique el título de la cola de llamadas.',
+          'Veuillez saisir le titre de la file d’appels.'
+        )
+      );
       return;
     }
     if (selectedLeadIds.length === 0) {
-      toast.error('Nenhum lead selecionado.');
+      toast.error(
+        tr(
+          'Nenhum lead selecionado.',
+          'Ningún prospecto seleccionado.',
+          'Aucun prospect sélectionné.'
+        )
+      );
       return;
     }
 
     setIsSubmittingDialer(true);
     try {
+      const assignedOperatorId =
+        effectiveAssignedTo || (dialerAssignedTo === 'unassigned' ? null : dialerAssignedTo);
+
       const campaign = await createCampaign({
         title: dialerTitle.trim(),
         description: dialerDesc.trim() || undefined,
-        assigned_to: dialerAssignedTo === 'unassigned' ? null : dialerAssignedTo,
+        assigned_to: assignedOperatorId,
         script_id: dialerScriptId === 'none' ? null : dialerScriptId,
         lead_ids: selectedLeadIds,
       });
 
-      toast.success(`Fila de ligação "${campaign.title}" criada com sucesso no Discador!`, {
-        action: {
-          label: 'Ir para Discador',
-          onClick: () => navigate(`/comercial/discador?campaignId=${campaign.id}`),
-        },
-      });
+      toast.success(
+        tr(
+          `Fila de ligação "${campaign.title}" criada com sucesso no Discador!`,
+          `¡Cola de llamadas "${campaign.title}" creada con éxito en el Marcador!`,
+          `File d’appels "${campaign.title}" créée avec succès dans le Composeur !`
+        ),
+        {
+          action: {
+            label: tr('Ir para Discador', 'Ir al Marcador', 'Aller au Composeur'),
+            onClick: () => navigate(`/comercial/discador?campaignId=${campaign.id}`),
+          },
+        }
+      );
 
       setIsCreateDialerOpen(false);
       setSelectedLeadIds([]);
@@ -592,7 +804,7 @@ export function KanbanPage() {
   };
 
   return (
-    <div className="flex flex-col space-y-6 p-4 sm:p-6 max-w-[1700px] mx-auto">
+    <div className="flex flex-col space-y-5 p-4 sm:p-6 max-w-[1700px] mx-auto">
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
         <div>
@@ -601,153 +813,156 @@ export function KanbanPage() {
               <Layers className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                {t('comercialKanban.title', 'Funil de Vendas')}
-                <Badge variant="outline" className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-bold text-xs">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap">
+                <span>
+                  {tr('Funil de Vendas', 'Embudo de Ventas', 'Entonnoir de Ventes')}
+                </span>
+                <Badge
+                  variant="outline"
+                  className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-bold text-xs"
+                >
                   {filteredLeads.length} Leads
                 </Badge>
+                {effectiveProfile && (
+                  <Badge className="bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 text-xs font-bold px-2.5 py-0.5">
+                    {effectiveProfile.flag} {effectiveProfile.displayName} • {effectiveProfile.empresaNome} ({effectiveProfile.country})
+                  </Badge>
+                )}
               </h1>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {t('comercialKanban.subtitle', 'Acompanhe o engajamento e a negociação dos seus leads em tempo real')}
+                {tr(
+                  'Acompanhe em tempo real apenas os prospectos enviados nas suas campanhas e filas de atendimento',
+                  'Siga en tiempo real únicamente los prospectos enviados en sus campañas y colas de atención',
+                  'Suivez en temps réel uniquement les prospects envoyés dans vos campagnes et files d’appels'
+                )}
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-          {/* Seletor de Empresa (Multitenant) */}
-          <EmpresaSelector />
+          {/* Seletor de Empresa apenas para Admin */}
+          {!isCommercialOperator && <EmpresaSelector />}
 
-          {/* Seletor de Comercial / Vendedor */}
-          <Select value={selectedSalesperson} onValueChange={setSelectedSalesperson}>
-            <SelectTrigger className="w-[210px] h-10 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 font-medium text-xs rounded-xl">
-              <User className="h-3.5 w-3.5 mr-1.5 text-amber-500 shrink-0" />
-              <SelectValue placeholder="Vendedor" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs font-semibold">
-                👤 Todos os Comerciais
-              </SelectItem>
-              {salespeople.map(u => (
-                <SelectItem key={u.id} value={u.id} className="text-xs">
-                  👤 {u.display_name || u.email}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Button 
+          <Button
             onClick={() => setIsNewLeadOpen(true)}
             className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold shadow-sm gap-2"
           >
             <Plus className="h-4 w-4" />
-            {isSpanish ? '+ Nuevo Lead' : '+ Novo Lead'}
+            {tr('+ Novo Lead', '+ Nuevo Lead', '+ Nouveau Prospect')}
           </Button>
-          <Button 
-            onClick={() => setIsConfigOpen(true)} 
-            variant="outline" 
-            className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 gap-2"
-          >
-            <Settings className="h-4 w-4" />
-            {t('comercialKanban.configStages', 'Configurar Etapas')}
-          </Button>
+          {!isCommercialOperator && (
+            <Button
+              onClick={() => setIsConfigOpen(true)}
+              variant="outline"
+              className="border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              {tr('Configurar Etapas', 'Configurar Etapas', 'Configurer les Étapes')}
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Country Selection & Regional Pipeline Division */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-xl shadow-sm">
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-          <Globe className="w-4 h-4 text-amber-500" />
-          <span>{isSpanish ? 'Mercado / País:' : 'Mercado / País:'}</span>
-        </div>
-
-        {isGiada ? (
-          <div className="flex items-center gap-2">
-            <Badge className="bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 text-xs px-3 py-1 font-bold flex items-center gap-1.5">
-              <span>🇮🇹</span>
-              <span>Operação Itália - Giada Galdonase ({countryCounts.IT} leads)</span>
-            </Badge>
-          </div>
-        ) : isMichelle ? (
-          <div className="flex items-center gap-2">
-            <Badge className="bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/40 text-xs px-3 py-1 font-bold flex items-center gap-1.5">
-              <span>🇪🇸</span>
-              <span>Operação Espanha - Michelle ({countryCounts.ES} leads)</span>
+      {/* Commercial Scope & Campaign Isolation Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-3 rounded-xl shadow-sm">
+        {isCommercialOperator && loggedCommercialProfile ? (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge className="bg-amber-500/20 text-amber-900 dark:text-amber-200 border border-amber-500/40 text-xs px-3 py-1.5 font-bold flex items-center gap-2">
+              <span>{loggedCommercialProfile.flag}</span>
+              <span>
+                {tr('Operação Exclusiva:', 'Operación Exclusiva:', 'Opération Exclusive :')}{' '}
+                {loggedCommercialProfile.displayName} • {loggedCommercialProfile.empresaNome} (
+                {loggedCommercialProfile.countryLabel})
+              </span>
             </Badge>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setSelectedCountry('all')}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-                selectedCountry === 'all'
-                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
-                  : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-              }`}
-            >
-              <span>🌐</span>
-              <span>Todos</span>
-              <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-                {countryCounts.total}
-              </span>
-            </button>
-
-            {countryCounts.ES > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedCountry('ES')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-                  selectedCountry === 'ES'
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
-                    : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <span>🇪🇸</span>
-                <span>Espanha (Michelle)</span>
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-                  {countryCounts.ES}
-                </span>
-              </button>
-            )}
-
-            {countryCounts.IT > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedCountry('IT')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-                  selectedCountry === 'IT'
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
-                    : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <span>🇮🇹</span>
-                <span>Itália (Giada)</span>
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-                  {countryCounts.IT}
-                </span>
-              </button>
-            )}
-
-            {countryCounts.FR > 0 && (
-              <button
-                type="button"
-                onClick={() => setSelectedCountry('FR')}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm ${
-                  selectedCountry === 'FR'
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-500/40 shadow-amber-500/20 font-bold'
-                    : 'bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400'
-                }`}
-              >
-                <span>🇫🇷</span>
-                <span>França</span>
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-                  {countryCounts.FR}
-                </span>
-              </button>
-            )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mr-1 flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-amber-500" />
+              {tr('Operador Comercial:', 'Operador Comercial:', 'Opérateur Commercial :')}
+            </span>
+            {allProfiles.map(prof => {
+              const isActive = selectedCommercialKey === prof.key;
+              return (
+                <button
+                  key={prof.key}
+                  type="button"
+                  onClick={() => selectCommercialOperator(prof.key)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                    isActive
+                      ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm font-bold ring-2 ring-amber-500/30'
+                      : 'bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <span>{prof.flag}</span>
+                  <span>{prof.displayName}</span>
+                  <span className="text-[10px] opacity-75">
+                    ({prof.empresaCodigo} • {prof.country})
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
+
+        {/* Campaign Filter Selector */}
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <span className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+            <Send className="h-3.5 w-3.5 text-amber-500" />
+            {tr('Campanha / Origem:', 'Campaña / Origen:', 'Campagne / Origine :')}
+          </span>
+          <Select
+            value={selectedCampaignFilter}
+            onValueChange={val => {
+              setSelectedCampaignFilter(val);
+              setCurrentPage(1);
+            }}
+          >
+            <SelectTrigger className="w-full sm:w-[360px] h-9 text-xs bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 font-semibold rounded-xl">
+              <SelectValue
+                placeholder={tr(
+                  'Filtrar por campanha enviada...',
+                  'Filtrar por campaña enviada...',
+                  'Filtrer par campagne envoyée...'
+                )}
+              />
+            </SelectTrigger>
+            <SelectContent className="max-h-[360px]">
+              <SelectItem value="all_campaigns" className="text-xs font-bold">
+                📬{' '}
+                {tr(
+                  'Todas as Minhas Campanhas & Atendimentos',
+                  'Todas Mis Campañas y Atenciones',
+                  'Toutes Mes Campagnes et Suivis'
+                )}
+              </SelectItem>
+
+              {commercialCampaigns.map(camp => (
+                <SelectItem
+                  key={`${camp.kind}:${camp.id}`}
+                  value={`${camp.kind}:${camp.id}`}
+                  className="text-xs"
+                >
+                  {camp.kind === 'dialer' ? '📞 ' : '📧 '}
+                  {camp.title} ({camp.total_leads} leads)
+                </SelectItem>
+              ))}
+
+              {coldUncontactedCount > 0 && (
+                <SelectItem value="all_including_cold" className="text-xs text-slate-500">
+                  📂{' '}
+                  {tr(
+                    `Incluir Base Fria Não Enviada (+${coldUncontactedCount} em Novo)`,
+                    `Incluir Base Fría No Enviada (+${coldUncontactedCount} en Nuevo)`,
+                    `Inclure la Base Froide Non Envoyée (+${coldUncontactedCount} en Nouveau)`
+                  )}
+                </SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Filter Toolbar & View Switcher */}
@@ -756,25 +971,29 @@ export function KanbanPage() {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
             <Input
-              placeholder={t('comercialKanban.searchPlaceholder', 'Buscar lead por nome, empresa, e-mail...')}
+              placeholder={tr(
+                'Buscar lead por nome, empresa, e-mail...',
+                'Buscar prospecto por nombre, empresa, correo...',
+                'Rechercher un prospect par nom, entreprise, e-mail...'
+              )}
               className="pl-10 bg-slate-50 dark:bg-slate-950 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-slate-100 focus-visible:ring-amber-500 focus-visible:border-amber-500 h-10 rounded-xl text-xs sm:text-sm"
               value={searchTerm}
-              onChange={(e) => {
+              onChange={e => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
             />
           </div>
           {searchTerm && (
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => {
                 setSearchTerm('');
                 setCurrentPage(1);
               }}
               className="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
             >
-              Limpar busca
+              {tr('Limpar busca', 'Limpiar búsqueda', 'Effacer la recherche')}
             </Button>
           )}
         </div>
@@ -801,10 +1020,20 @@ export function KanbanPage() {
                   ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold border-none shadow-sm gap-2 h-10 px-3.5'
                   : 'border-amber-400/60 hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold gap-2 h-10 px-3.5'
               }
-              title="Filtrar prospectos que abriram ou clicaram nos e-mails"
+              title={tr(
+                'Filtrar prospectos que abriram ou clicaram nos e-mails',
+                'Filtrar prospectos que abrieron o hicieron clic en los correos',
+                'Filtrer les prospects ayant ouvert ou cliqué sur les e-mails'
+              )}
             >
               <Flame className="h-4 w-4 fill-amber-500 text-amber-500" />
-              <span>E-mail Clicado / Lido</span>
+              <span>
+                {tr(
+                  'E-mail Clicado / Lido',
+                  'Correo Leído / Clicado',
+                  'E-mail Lu / Cliqué'
+                )}
+              </span>
               <Badge className="ml-1 bg-amber-600 text-white dark:bg-amber-500 dark:text-slate-950 text-xs px-2 py-0.5 font-bold">
                 {countLidoLeads}
               </Badge>
@@ -835,7 +1064,13 @@ export function KanbanPage() {
               }`}
             >
               <List className="h-4 w-4" />
-              <span>Lista & Telemarketing</span>
+              <span>
+                {tr(
+                  'Lista & Telemarketing',
+                  'Lista y Telemarketing',
+                  'Liste & Télémarketing'
+                )}
+              </span>
             </button>
           </div>
         </div>
@@ -850,28 +1085,38 @@ export function KanbanPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                   <Filter className="h-3.5 w-3.5" />
-                  Filtrar Etapa:
+                  {tr('Filtrar Etapa:', 'Filtrar Etapa:', 'Filtrer l’Étape :')}
                 </span>
                 <Select
                   value={selectedStageFilter}
-                  onValueChange={(val) => {
+                  onValueChange={val => {
                     setSelectedStageFilter(val);
                     setCurrentPage(1);
                   }}
                 >
                   <SelectTrigger className="w-[230px] h-9 text-xs bg-slate-50 dark:bg-slate-950 font-medium">
-                    <SelectValue placeholder="Todas as etapas" />
+                    <SelectValue
+                      placeholder={tr(
+                        'Todas as etapas',
+                        'Todas las etapas',
+                        'Toutes les étapes'
+                      )}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all" className="text-xs font-semibold">
-                      Todas as Etapas ({filteredLeads.length})
+                      {tr('Todas as Etapas', 'Todas las Etapas', 'Toutes les Étapes')} (
+                      {filteredLeads.length})
                     </SelectItem>
                     {stages.map(st => {
                       const count = getLeadsInStage(st).length;
                       return (
                         <SelectItem key={st.id} value={st.id} className="text-xs">
                           <div className="flex items-center gap-2">
-                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: st.color }} />
+                            <span
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: st.color }}
+                            />
                             <span className="truncate">{getStageTitle(st)}</span>
                             <span className="text-slate-400 text-[11px] font-mono">({count})</span>
                           </div>
@@ -896,7 +1141,11 @@ export function KanbanPage() {
                   ) : (
                     <Square className="h-3.5 w-3.5 text-slate-400" />
                   )}
-                  <span>{isAllCurrentPageSelected ? 'Desmarcar Página' : 'Selecionar Página'}</span>
+                  <span>
+                    {isAllCurrentPageSelected
+                      ? tr('Desmarcar Página', 'Desmarcar Página', 'Désélectionner la Page')
+                      : tr('Selecionar Página', 'Seleccionar Página', 'Sélectionner la Page')}
+                  </span>
                 </Button>
 
                 {listFilteredLeads.length > paginatedLeads.length && (
@@ -907,7 +1156,11 @@ export function KanbanPage() {
                     onClick={isAllFilteredSelected ? handleClearSelection : handleSelectAllFiltered}
                     className="h-8 text-xs gap-1.5 font-medium"
                   >
-                    <span>{isAllFilteredSelected ? 'Desmarcar Todos' : `Selecionar Todos (${listFilteredLeads.length})`}</span>
+                    <span>
+                      {isAllFilteredSelected
+                        ? tr('Desmarcar Todos', 'Desmarcar Todos', 'Tout Désélectionner')
+                        : `${tr('Selecionar Todos', 'Seleccionar Todos', 'Tout Sélectionner')} (${listFilteredLeads.length})`}
+                    </span>
                   </Button>
                 )}
               </div>
@@ -919,14 +1172,15 @@ export function KanbanPage() {
                 <div className="flex items-center gap-2 bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800/80 px-3 py-1.5 rounded-xl text-xs">
                   <CheckCircle2 className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
                   <span className="font-bold text-amber-900 dark:text-amber-200">
-                    {selectedLeadIds.length} selecionados
+                    {selectedLeadIds.length}{' '}
+                    {tr('selecionados', 'seleccionados', 'sélectionnés')}
                   </span>
                   <button
                     type="button"
                     onClick={handleClearSelection}
                     className="text-amber-600 hover:text-amber-800 dark:hover:text-amber-200 text-[11px] underline ml-1 font-medium"
                   >
-                    Limpar
+                    {tr('Limpar', 'Limpiar', 'Effacer')}
                   </button>
                 </div>
               )}
@@ -942,7 +1196,14 @@ export function KanbanPage() {
                 }`}
               >
                 <PhoneCall className="h-3.5 w-3.5" />
-                <span>Gerar Fila no Discador ({selectedLeadIds.length})</span>
+                <span>
+                  {tr(
+                    'Gerar Fila no Discador',
+                    'Generar Cola en el Marcador',
+                    'Générer une File d’Appels'
+                  )}{' '}
+                  ({selectedLeadIds.length})
+                </span>
               </Button>
             </div>
           </div>
@@ -957,36 +1218,53 @@ export function KanbanPage() {
                       <Checkbox
                         checked={isAllCurrentPageSelected}
                         onCheckedChange={handleSelectCurrentPage}
-                        aria-label="Selecionar todos da página"
+                        aria-label="Select page"
                       />
                     </th>
-                    <th className="p-3.5">Empresa / Lead</th>
-                    <th className="p-3.5">Contato</th>
-                    <th className="p-3.5">Telefone</th>
-                    <th className="p-3.5">E-mail</th>
-                    <th className="p-3.5">Etapa Funil</th>
-                    <th className="p-3.5">Responsável</th>
-                    <th className="p-3.5 text-right">Ações</th>
+                    <th className="p-3.5">
+                      {tr('Empresa / Lead', 'Empresa / Prospecto', 'Entreprise / Prospect')}
+                    </th>
+                    <th className="p-3.5">{tr('Contato', 'Contacto', 'Contact')}</th>
+                    <th className="p-3.5">{tr('Telefone', 'Teléfono', 'Téléphone')}</th>
+                    <th className="p-3.5">{tr('E-mail', 'Correo', 'E-mail')}</th>
+                    <th className="p-3.5">
+                      {tr('Etapa Funil', 'Etapa del Embudo', 'Étape Entonnoir')}
+                    </th>
+                    <th className="p-3.5">
+                      {tr('Responsável', 'Responsable', 'Responsable')}
+                    </th>
+                    <th className="p-3.5 text-right">{tr('Ações', 'Acciones', 'Actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {loadingLeads ? (
+                  {loadingLeads || isLoadingScope ? (
                     <tr>
                       <td colSpan={8} className="text-center py-12 text-slate-400">
-                        Carregando prospectos...
+                        {tr(
+                          'Carregando prospectos das suas campanhas...',
+                          'Cargando prospectos de sus campañas...',
+                          'Chargement des prospects de vos campagnes...'
+                        )}
                       </td>
                     </tr>
                   ) : paginatedLeads.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="text-center py-12 text-slate-400">
-                        Nenhum prospecto encontrado para os filtros selecionados.
+                        {tr(
+                          'Nenhum prospecto encontrado nas campanhas selecionadas.',
+                          'No se encontraron prospectos en las campañas seleccionadas.',
+                          'Aucun prospect trouvé dans les campagnes sélectionnées.'
+                        )}
                       </td>
                     </tr>
                   ) : (
-                    paginatedLeads.map((lead) => {
+                    paginatedLeads.map(lead => {
                       const isSelected = selectedLeadIds.includes(lead.id);
                       const stage = getStageForLead(lead);
                       const isBudget = parseBudgetNotes(lead.notes)?.isBudgetForm;
+                      const assignedName = lead.assigned_to
+                        ? salespersonMap.get(lead.assigned_to)
+                        : null;
 
                       return (
                         <tr
@@ -999,11 +1277,11 @@ export function KanbanPage() {
                             isSelected ? 'bg-amber-50/60 dark:bg-amber-950/30' : ''
                           }`}
                         >
-                          <td className="p-3.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="p-3.5 text-center" onClick={e => e.stopPropagation()}>
                             <Checkbox
                               checked={isSelected}
-                              onCheckedChange={(checked) => handleToggleLead(lead.id, !!checked)}
-                              aria-label={`Selecionar ${lead.company_name || lead.name}`}
+                              onCheckedChange={checked => handleToggleLead(lead.id, !!checked)}
+                              aria-label={`Select ${lead.company_name || lead.name}`}
                             />
                           </td>
                           <td className="p-3.5 font-medium">
@@ -1014,20 +1292,28 @@ export function KanbanPage() {
                                 </span>
                                 {isBudget && (
                                   <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0">
-                                    Orçamento
+                                    {tr('Orçamento', 'Presupuesto', 'Devis')}
                                   </Badge>
                                 )}
                               </div>
                               {lead.website && (
                                 <a
-                                  href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
+                                  href={
+                                    lead.website.startsWith('http')
+                                      ? lead.website
+                                      : `https://${lead.website}`
+                                  }
                                   target="_blank"
                                   rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
+                                  onClick={e => e.stopPropagation()}
                                   className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 mt-0.5"
                                 >
                                   <Globe className="h-3 w-3" />
-                                  <span>{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
+                                  <span>
+                                    {lead.website
+                                      .replace(/^https?:\/\/(www\.)?/, '')
+                                      .replace(/\/$/, '')}
+                                  </span>
                                 </a>
                               )}
                             </div>
@@ -1038,13 +1324,12 @@ export function KanbanPage() {
                               <span>{lead.name}</span>
                             </div>
                           </td>
-                          <td className="p-3.5 text-xs" onClick={(e) => e.stopPropagation()}>
+                          <td className="p-3.5 text-xs" onClick={e => e.stopPropagation()}>
                             {lead.phone ? (
                               <div className="flex items-center gap-2">
                                 <a
                                   href={`tel:${lead.phone}`}
                                   className="flex items-center gap-1 text-amber-600 dark:text-amber-400 hover:underline font-semibold"
-                                  title="Ligar para o lead"
                                 >
                                   <PhoneCall className="h-3.5 w-3.5" />
                                   <span>{lead.phone}</span>
@@ -1053,26 +1338,37 @@ export function KanbanPage() {
                                   type="button"
                                   onClick={() => {
                                     navigator.clipboard.writeText(lead.phone || '');
-                                    toast.success('Telefone copiado!');
+                                    toast.success(
+                                      tr(
+                                        'Telefone copiado!',
+                                        '¡Teléfono copiado!',
+                                        'Téléphone copié !'
+                                      )
+                                    );
                                   }}
                                   className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                                  title="Copiar telefone"
                                 >
                                   <Copy className="h-3 w-3" />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-slate-400 italic text-[11px]">Sem telefone</span>
+                              <span className="text-slate-400 italic text-[11px]">
+                                {tr('Sem telefone', 'Sin teléfono', 'Sans téléphone')}
+                              </span>
                             )}
                           </td>
                           <td className="p-3.5 text-xs text-slate-600 dark:text-slate-400">
                             {lead.email ? (
                               <div className="flex items-center gap-1.5 max-w-[220px] truncate">
                                 <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                                <span className="truncate" title={lead.email}>{lead.email}</span>
+                                <span className="truncate" title={lead.email}>
+                                  {lead.email}
+                                </span>
                               </div>
                             ) : (
-                              <span className="text-slate-400 italic text-[11px]">Sem e-mail</span>
+                              <span className="text-slate-400 italic text-[11px]">
+                                {tr('Sem e-mail', 'Sin correo', 'Sans e-mail')}
+                              </span>
                             )}
                           </td>
                           <td className="p-3.5 text-xs">
@@ -1086,34 +1382,27 @@ export function KanbanPage() {
                                   backgroundColor: `${stage.color}15`,
                                 }}
                               >
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: stage.color }} />
+                                <span
+                                  className="w-1.5 h-1.5 rounded-full"
+                                  style={{ backgroundColor: stage.color }}
+                                />
                                 {getStageTitle(stage)}
                               </Badge>
                             ) : (
-                              <Badge variant="outline" className="text-slate-400">Não definido</Badge>
+                              <Badge variant="outline" className="text-slate-400">
+                                -
+                              </Badge>
                             )}
                           </td>
-                          <td className="p-3.5 text-xs text-slate-600 dark:text-slate-400" onClick={(e) => e.stopPropagation()}>
-                            <Select
-                              value={lead.assigned_to || 'unassigned'}
-                              onValueChange={(val) => handleLeadAssignedChange(lead.id, val)}
+                          <td className="p-3.5 text-xs text-slate-600 dark:text-slate-400">
+                            <Badge
+                              variant="outline"
+                              className="text-[11px] bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800"
                             >
-                              <SelectTrigger className="h-7 w-[160px] text-xs bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800">
-                                <SelectValue placeholder="Atribuir" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="unassigned" className="text-xs">
-                                  Sem Atribuição
-                                </SelectItem>
-                                {salespeople.map(u => (
-                                  <SelectItem key={u.id} value={u.id} className="text-xs">
-                                    {u.display_name || u.email}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              👤 {assignedName || effectiveProfile?.displayName || '-'}
+                            </Badge>
                           </td>
-                          <td className="p-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="p-3.5 text-right" onClick={e => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1">
                               <Button
                                 type="button"
@@ -1125,7 +1414,7 @@ export function KanbanPage() {
                                 }}
                                 className="h-7 px-2 text-xs text-slate-500 hover:text-amber-600"
                               >
-                                Detalhes
+                                {tr('Detalhes', 'Detalles', 'Détails')}
                               </Button>
                             </div>
                           </td>
@@ -1140,12 +1429,21 @@ export function KanbanPage() {
             {/* Pagination footer */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500">
               <div className="flex items-center gap-2">
-                <span>Exibindo <strong>{paginatedLeads.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</strong> a <strong>{Math.min(currentPage * pageSize, listFilteredLeads.length)}</strong> de <strong>{listFilteredLeads.length}</strong> prospectos</span>
+                <span>
+                  {tr('Exibindo', 'Mostrando', 'Affichage de')}{' '}
+                  <strong>
+                    {paginatedLeads.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}
+                  </strong>{' '}
+                  {tr('a', 'a', 'à')}{' '}
+                  <strong>{Math.min(currentPage * pageSize, listFilteredLeads.length)}</strong>{' '}
+                  {tr('de', 'de', 'sur')} <strong>{listFilteredLeads.length}</strong>{' '}
+                  {tr('prospectos', 'prospectos', 'prospects')}
+                </span>
                 <span className="text-slate-300 dark:text-slate-700">|</span>
-                <span>Itens por página:</span>
+                <span>{tr('Por página:', 'Por página:', 'Par page :')}</span>
                 <Select
                   value={String(pageSize)}
-                  onValueChange={(val) => {
+                  onValueChange={val => {
                     setPageSize(Number(val));
                     setCurrentPage(1);
                   }}
@@ -1154,10 +1452,18 @@ export function KanbanPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="25" className="text-xs">25</SelectItem>
-                    <SelectItem value="50" className="text-xs">50</SelectItem>
-                    <SelectItem value="100" className="text-xs">100</SelectItem>
-                    <SelectItem value="250" className="text-xs">250</SelectItem>
+                    <SelectItem value="25" className="text-xs">
+                      25
+                    </SelectItem>
+                    <SelectItem value="50" className="text-xs">
+                      50
+                    </SelectItem>
+                    <SelectItem value="100" className="text-xs">
+                      100
+                    </SelectItem>
+                    <SelectItem value="250" className="text-xs">
+                      250
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1174,7 +1480,8 @@ export function KanbanPage() {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="px-2 font-medium">
-                  Página {currentPage} de {totalPages}
+                  {tr('Página', 'Página', 'Page')} {currentPage} {tr('de', 'de', 'sur')}{' '}
+                  {totalPages}
                 </span>
                 <Button
                   type="button"
@@ -1191,186 +1498,220 @@ export function KanbanPage() {
           </div>
         </div>
       ) : (
-      /* Kanban Board Horizontal Scrolling Area */
-      <div className="flex gap-4 overflow-x-auto pb-6 items-start min-h-[650px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
-        {loadingStages || loadingLeads ? (
-          <div className="flex justify-center items-center w-full py-24 text-slate-500 dark:text-slate-400">
-            {t('comercialKanban.loading', 'Carregando funil de vendas...')}
-          </div>
-        ) : stages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center w-full py-24 text-center">
-            <Layers className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-3" />
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">
-              {t('comercialKanban.noStages', 'Nenhuma etapa do funil configurada')}
-            </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-sm">
-              {t('comercialKanban.noStagesDesc', 'Clique em "Configurar Etapas" para começar.')}
-            </p>
-            <Button onClick={() => setIsConfigOpen(true)} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
-              {t('comercialKanban.configStages', 'Configurar Etapas')}
-            </Button>
-          </div>
-        ) : (
-          stages.map(stage => {
-            const stageLeads = getLeadsInStage(stage);
-            const stageTitle = getStageTitle(stage);
+        /* Kanban Board Horizontal Scrolling Area */
+        <div className="flex gap-4 overflow-x-auto pb-6 items-start min-h-[650px] scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+          {loadingStages || loadingLeads || isLoadingScope ? (
+            <div className="flex justify-center items-center w-full py-24 text-slate-500 dark:text-slate-400">
+              {tr(
+                'Carregando funil de vendas das suas campanhas...',
+                'Cargando embudo de ventas de sus campañas...',
+                'Chargement de l’entonnoir de ventes de vos campagnes...'
+              )}
+            </div>
+          ) : stages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center w-full py-24 text-center">
+              <Layers className="h-12 w-12 text-slate-300 dark:text-slate-700 mb-3" />
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                {tr(
+                  'Nenhuma etapa do funil configurada',
+                  'Ninguna etapa del embudo configurada',
+                  'Aucune étape de l’entonnoir configurée'
+                )}
+              </h3>
+            </div>
+          ) : (
+            stages.map(stage => {
+              const stageLeads = getLeadsInStage(stage);
+              const stageTitle = getStageTitle(stage);
 
-            return (
-              <div
-                key={stage.id}
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, stage.id)}
-                className="flex flex-col w-80 shrink-0 bg-slate-100/90 dark:bg-slate-900/90 rounded-2xl p-3.5 border border-slate-200/90 dark:border-slate-800 shadow-sm"
-              >
-                {/* Column Header */}
-                <div className="flex items-center justify-between mb-3.5 px-1 pt-0.5">
-                  <div className="flex items-center gap-2.5">
-                    <span 
-                      className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm ring-2 ring-white dark:ring-slate-900" 
-                      style={{ backgroundColor: stage.color }}
-                    />
-                    <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate max-w-[190px]">
-                      {stageTitle}
-                    </h3>
-                  </div>
-                  <span className="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-full text-slate-700 dark:text-slate-300 shadow-2xs">
-                    {stageLeads.length}
-                  </span>
-                </div>
-
-                {/* Column Body (Leads List) */}
-                <div className="flex flex-col gap-3 overflow-y-auto max-h-[620px] min-h-[450px] pr-0.5">
-                  {stageLeads.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-xs text-slate-400 dark:text-slate-500 border border-dashed border-slate-300 dark:border-slate-800 rounded-xl bg-white/40 dark:bg-slate-950/20">
-                      <Sparkles className="h-5 w-5 mb-1.5 opacity-40 text-amber-500" />
-                      {t('comercialKanban.emptyStage', 'Arraste leads para cá')}
+              return (
+                <div
+                  key={stage.id}
+                  onDragOver={handleDragOver}
+                  onDrop={e => handleDrop(e, stage.id)}
+                  className="flex flex-col w-80 shrink-0 bg-slate-100/90 dark:bg-slate-900/90 rounded-2xl p-3.5 border border-slate-200/90 dark:border-slate-800 shadow-sm"
+                >
+                  {/* Column Header */}
+                  <div className="flex items-center justify-between mb-3.5 px-1 pt-0.5">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm ring-2 ring-white dark:ring-slate-900"
+                        style={{ backgroundColor: stage.color }}
+                      />
+                      <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm truncate max-w-[190px]">
+                        {stageTitle}
+                      </h3>
                     </div>
-                  ) : (
-                    <>
-                      {stageLeads.slice(0, 80).map(lead => {
-                        const budgetInfo = parseBudgetNotes(lead.notes);
-                        const assignedName = lead.assigned_to ? salespersonMap.get(lead.assigned_to) : null;
+                    <span className="text-xs font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2.5 py-0.5 rounded-full text-slate-700 dark:text-slate-300 shadow-2xs">
+                      {stageLeads.length}
+                    </span>
+                  </div>
 
-                        return (
-                          <div
-                            key={lead.id}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, lead.id)}
-                            onClick={() => {
-                              setSelectedLead(lead);
-                              setIsDetailsOpen(true);
-                            }}
-                            className="group relative bg-white dark:bg-slate-950 hover:border-amber-500/80 dark:hover:border-amber-500/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all duration-200 space-y-2.5"
-                          >
-                            {/* Top Card Bar: Company & Budget Badge */}
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate max-w-[160px]">
-                                <Building className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                                <span className="truncate">{lead.company_name || 'Sem Empresa'}</span>
-                              </span>
-                              {budgetInfo?.isBudgetForm && (
-                                <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0">
-                                  Orçamento
-                                </Badge>
-                              )}
-                            </div>
+                  {/* Column Body (Leads List) */}
+                  <div className="flex flex-col gap-3 overflow-y-auto max-h-[620px] min-h-[450px] pr-0.5">
+                    {stageLeads.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-xs text-slate-400 dark:text-slate-500 border border-dashed border-slate-300 dark:border-slate-800 rounded-xl bg-white/40 dark:bg-slate-950/20 text-center px-3">
+                        <Sparkles className="h-5 w-5 mb-1.5 opacity-40 text-amber-500" />
+                        <span>
+                          {tr(
+                            'Nenhum prospecto nesta etapa',
+                            'Ningún prospecto en esta etapa',
+                            'Aucun prospect à cette étape'
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        {stageLeads.slice(0, 80).map(lead => {
+                          const budgetInfo = parseBudgetNotes(lead.notes);
+                          const assignedName = lead.assigned_to
+                            ? salespersonMap.get(lead.assigned_to)
+                            : effectiveProfile?.displayName;
 
-                            {/* Lead Name */}
-                            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
-                              {lead.name}
-                            </h4>
-
-                            {/* Salesperson Assigned Badge */}
-                            {assignedName && (
-                              <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md w-fit">
-                                <User className="h-3 w-3 shrink-0" />
-                                <span className="truncate max-w-[170px]">{assignedName}</span>
-                              </div>
-                            )}
-
-                            {/* Budget Form Snippet if present */}
-                            {budgetInfo?.parsed && (
-                              <div className="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 rounded-lg p-2 text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
-                                {budgetInfo.parsed['Perfis Profissionais Requeridos'] && (
-                                  <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1 truncate">
-                                    <Briefcase className="h-3 w-3 shrink-0" />
-                                    <span className="truncate">{budgetInfo.parsed['Perfis Profissionais Requeridos']}</span>
-                                  </div>
-                                )}
-                                {budgetInfo.parsed['Quantidade de Operários'] && (
-                                  <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
-                                    <Users className="h-3 w-3 shrink-0" />
-                                    <span>{budgetInfo.parsed['Quantidade de Operários']} Operários</span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Contact Info Footer */}
-                            <div className="pt-2 border-t border-slate-100 dark:border-slate-900 flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-                              {lead.website && (
-                                <a
-                                  href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline font-medium"
-                                  title={`Abrir site: ${lead.website}`}
-                                >
-                                  <Globe className="h-3 w-3 shrink-0 text-blue-500" />
-                                  <span className="truncate">{lead.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')}</span>
-                                  <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
-                                </a>
-                              )}
-                              {lead.email && (
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <Mail className="h-3 w-3 shrink-0 text-slate-400" />
-                                  <span className="truncate">{lead.email}</span>
-                                </div>
-                              )}
-                              {lead.phone && (
-                                <div className="flex items-center gap-1.5 truncate">
-                                  <Phone className="h-3 w-3 shrink-0 text-slate-400" />
-                                  <span>{lead.phone}</span>
-                                </div>
-                              )}
-                              <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
-                                <span className="flex items-center gap-1" title={lead.updated_at ? `Última atualização: ${formatDate(lead.updated_at)}` : `Criado em: ${formatDate(lead.created_at)}`}>
-                                  <Calendar className="h-3 w-3" />
-                                  {formatDate(lead.updated_at || lead.created_at)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {stageLeads.length > 80 && (
-                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center space-y-1 mt-1">
-                          <p className="text-xs text-amber-700 dark:text-amber-300 font-bold">
-                            Mostrando os 80 primeiros de {stageLeads.length} leads nesta etapa.
-                          </p>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                            Use a busca acima ou clique em{' '}
-                            <button 
-                              type="button" 
-                              onClick={() => setViewMode('list')} 
-                              className="text-amber-600 dark:text-amber-400 underline font-semibold hover:text-amber-700"
+                          return (
+                            <div
+                              key={lead.id}
+                              draggable
+                              onDragStart={e => handleDragStart(e, lead.id)}
+                              onClick={() => {
+                                setSelectedLead(lead);
+                                setIsDetailsOpen(true);
+                              }}
+                              className="group relative bg-white dark:bg-slate-950 hover:border-amber-500/80 dark:hover:border-amber-500/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all duration-200 space-y-2.5"
                             >
-                              Modo Lista
-                            </button>{' '}
-                            para ver e exportar toda a base.
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
+                              {/* Top Card Bar: Company & Budget Badge */}
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5 truncate max-w-[160px]">
+                                  <Building className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                  <span className="truncate">
+                                    {lead.company_name ||
+                                      tr('Sem Empresa', 'Sin Empresa', 'Sans Entreprise')}
+                                  </span>
+                                </span>
+                                {budgetInfo?.isBudgetForm && (
+                                  <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[10px] px-1.5 py-0">
+                                    {tr('Orçamento', 'Presupuesto', 'Devis')}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Lead Name */}
+                              <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm leading-tight group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                                {lead.name}
+                              </h4>
+
+                              {/* Salesperson Assigned Badge */}
+                              {assignedName && (
+                                <div className="flex items-center gap-1 text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md w-fit">
+                                  <User className="h-3 w-3 shrink-0" />
+                                  <span className="truncate max-w-[170px]">{assignedName}</span>
+                                </div>
+                              )}
+
+                              {/* Budget Form Snippet if present */}
+                              {budgetInfo?.parsed && (
+                                <div className="bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/80 rounded-lg p-2 text-[11px] space-y-1 text-slate-600 dark:text-slate-300">
+                                  {budgetInfo.parsed['Perfis Profissionais Requeridos'] && (
+                                    <div className="font-semibold text-amber-700 dark:text-amber-300 flex items-center gap-1 truncate">
+                                      <Briefcase className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">
+                                        {budgetInfo.parsed['Perfis Profissionais Requeridos']}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {budgetInfo.parsed['Quantidade de Operários'] && (
+                                    <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                                      <Users className="h-3 w-3 shrink-0" />
+                                      <span>
+                                        {budgetInfo.parsed['Quantidade de Operários']}{' '}
+                                        {tr('Operários', 'Operarios', 'Ouvriers')}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Contact Info Footer */}
+                              <div className="pt-2 border-t border-slate-100 dark:border-slate-900 flex flex-col gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                {lead.website && (
+                                  <a
+                                    href={
+                                      lead.website.startsWith('http')
+                                        ? lead.website
+                                        : `https://${lead.website}`
+                                    }
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    className="flex items-center gap-1.5 truncate text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline font-medium"
+                                  >
+                                    <Globe className="h-3 w-3 shrink-0 text-blue-500" />
+                                    <span className="truncate">
+                                      {lead.website
+                                        .replace(/^https?:\/\/(www\.)?/, '')
+                                        .replace(/\/$/, '')}
+                                    </span>
+                                    <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-70" />
+                                  </a>
+                                )}
+                                {lead.email && (
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <Mail className="h-3 w-3 shrink-0 text-slate-400" />
+                                    <span className="truncate">{lead.email}</span>
+                                  </div>
+                                )}
+                                {lead.phone && (
+                                  <div className="flex items-center gap-1.5 truncate">
+                                    <Phone className="h-3 w-3 shrink-0 text-slate-400" />
+                                    <span>{lead.phone}</span>
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    {formatDate(lead.updated_at || lead.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {stageLeads.length > 80 && (
+                          <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center space-y-1 mt-1">
+                            <p className="text-xs text-amber-700 dark:text-amber-300 font-bold">
+                              {tr(
+                                `Mostrando os 80 primeiros de ${stageLeads.length} leads nesta etapa.`,
+                                `Mostrando los 80 primeros de ${stageLeads.length} prospectos en esta etapa.`,
+                                `Affichage des 80 premiers sur ${stageLeads.length} prospects à cette étape.`
+                              )}
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedStageFilter(stage.id);
+                                  setViewMode('list');
+                                }}
+                                className="text-amber-600 dark:text-amber-400 underline font-semibold hover:text-amber-700"
+                              >
+                                {tr(
+                                  'Ver todos em Modo Lista',
+                                  'Ver todos en Modo Lista',
+                                  'Voir tout en Mode Liste'
+                                )}
+                              </button>
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+              );
+            })
+          )}
+        </div>
       )}
 
       {/* Create Dialer Queue Dialog */}
@@ -1379,10 +1720,20 @@ export function KanbanPage() {
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Headphones className="h-5 w-5 text-amber-500" />
-              <span>Gerar Fila no Discador de Telemarketing</span>
+              <span>
+                {tr(
+                  'Gerar Fila no Discador de Telemarketing',
+                  'Generar Cola en el Marcador de Telemarketing',
+                  'Générer une File d’Appels dans le Composeur'
+                )}
+              </span>
             </DialogTitle>
             <DialogDescription className="text-slate-500 dark:text-slate-400 text-xs">
-              Configure a nova campanha/fila de ligação para disparar o telemarketing dos leads selecionados no Cockpit de Prospecção.
+              {tr(
+                'Configure a nova fila de ligação para iniciar os atendimentos no Cockpit de Prospecção.',
+                'Configure la nueva cola de llamadas para iniciar las atenciones en el Cockpit de Prospección.',
+                'Configurez la nouvelle file d’appels pour démarrer la prospection dans le Cockpit.'
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -1391,7 +1742,11 @@ export function KanbanPage() {
               <div className="flex items-center gap-2">
                 <PhoneCall className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 <span className="font-semibold text-amber-900 dark:text-amber-300">
-                  Total de contatos na fila:
+                  {tr(
+                    'Total de contatos na fila:',
+                    'Total de contactos en la cola:',
+                    'Total des contacts dans la file :'
+                  )}
                 </span>
               </div>
               <Badge className="bg-amber-500 text-slate-950 font-extrabold text-sm px-2.5 py-0.5">
@@ -1401,13 +1756,17 @@ export function KanbanPage() {
 
             <div className="space-y-1.5">
               <Label htmlFor="dialer_title" className="text-xs font-semibold">
-                Nome da Fila / Campanha <span className="text-red-500">*</span>
+                {tr(
+                  'Nome da Fila / Campanha',
+                  'Nombre de la Cola / Campaña',
+                  'Nom de la File / Campagne'
+                )}{' '}
+                <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="dialer_title"
                 value={dialerTitle}
-                onChange={(e) => setDialerTitle(e.target.value)}
-                placeholder="Ex: Prospecção Telefônica - Leads Clicados"
+                onChange={e => setDialerTitle(e.target.value)}
                 required
                 className="bg-slate-50 dark:bg-slate-950 text-xs h-9"
               />
@@ -1415,27 +1774,36 @@ export function KanbanPage() {
 
             <div className="space-y-1.5">
               <Label htmlFor="dialer_desc" className="text-xs font-semibold">
-                Descrição ou Instruções
+                {tr(
+                  'Descrição ou Instruções',
+                  'Descripción o Instrucciones',
+                  'Description ou Instructions'
+                )}
               </Label>
               <Input
                 id="dialer_desc"
                 value={dialerDesc}
-                onChange={(e) => setDialerDesc(e.target.value)}
-                placeholder="Ex: Ligar e confirmar interesse no serviço de terceirização..."
+                onChange={e => setDialerDesc(e.target.value)}
                 className="bg-slate-50 dark:bg-slate-950 text-xs h-9"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Script de Vendas</Label>
+                <Label className="text-xs font-semibold">
+                  {tr('Script de Vendas', 'Guion de Ventas', 'Script de Vente')}
+                </Label>
                 <Select value={dialerScriptId} onValueChange={setDialerScriptId}>
                   <SelectTrigger className="bg-slate-50 dark:bg-slate-950 text-xs h-9">
-                    <SelectValue placeholder="Selecione um roteiro" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none" className="text-xs">
-                      Sem Script Pré-definido
+                      {tr(
+                        'Sem Script Pré-definido',
+                        'Sin Guion Predefinido',
+                        'Sans Script Prédéfini'
+                      )}
                     </SelectItem>
                     {salesScripts.map(sc => (
                       <SelectItem key={sc.id} value={sc.id} className="text-xs">
@@ -1447,22 +1815,14 @@ export function KanbanPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Operador / Vendedor</Label>
-                <Select value={dialerAssignedTo} onValueChange={setDialerAssignedTo}>
-                  <SelectTrigger className="bg-slate-50 dark:bg-slate-950 text-xs h-9">
-                    <SelectValue placeholder="Atribuir operador" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned" className="text-xs">
-                      Distribuir / Qualquer Operador
-                    </SelectItem>
-                    {salespeople.map(u => (
-                      <SelectItem key={u.id} value={u.id} className="text-xs">
-                        👤 {u.display_name || u.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs font-semibold">
+                  {tr('Operador Comercial', 'Operador Comercial', 'Opérateur Commercial')}
+                </Label>
+                <div className="h-9 px-3 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 flex items-center text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {effectiveProfile
+                    ? `${effectiveProfile.flag} ${effectiveProfile.displayName}`
+                    : tr('Operador Ativo', 'Operador Activo', 'Opérateur Actif')}
+                </div>
               </div>
             </div>
 
@@ -1474,21 +1834,21 @@ export function KanbanPage() {
                 disabled={isSubmittingDialer}
                 className="text-xs"
               >
-                Cancelar
+                {tr('Cancelar', 'Cancelar', 'Annuler')}
               </Button>
               <Button
                 type="submit"
                 disabled={isSubmittingDialer}
                 className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold gap-2 text-xs"
               >
-                {isSubmittingDialer ? (
-                  <>Carregando...</>
-                ) : (
-                  <>
-                    <PhoneCall className="h-4 w-4" />
-                    Criar Fila e Iniciar
-                  </>
-                )}
+                <PhoneCall className="h-4 w-4" />
+                {isSubmittingDialer
+                  ? tr('Criando...', 'Creando...', 'Création...')
+                  : tr(
+                      'Criar Fila e Iniciar',
+                      'Crear Cola e Iniciar',
+                      'Créer la File et Démarrer'
+                    )}
               </Button>
             </DialogFooter>
           </form>
@@ -1500,67 +1860,81 @@ export function KanbanPage() {
         <DialogContent className="sm:max-w-[480px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">
-              {isSpanish ? 'Nuevo Lead' : 'Novo Lead'}
+              {tr('Novo Lead', 'Nuevo Prospecto', 'Nouveau Prospect')}
             </DialogTitle>
             <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
-              Cadastre um novo prospecto manualmente no pipeline da empresa ativa.
+              {tr(
+                'Cadastre um novo prospecto manualmente no seu funil comercial.',
+                'Registre un nuevo prospecto manualmente en su embudo comercial.',
+                'Enregistrez manuellement un nouveau prospect dans votre entonnoir commercial.'
+              )}
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handleCreateNewLeadSubmit} className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label htmlFor="company_name">Empresa / Razão Social <span className="text-red-500">*</span></Label>
+              <Label htmlFor="company_name">
+                {tr(
+                  'Empresa / Razão Social',
+                  'Empresa / Razón Social',
+                  'Entreprise / Raison Sociale'
+                )}{' '}
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="company_name"
-                placeholder="Ex: Construções Silva Ltda"
                 value={newLeadData.company_name}
-                onChange={(e) => setNewLeadData(prev => ({ ...prev, company_name: e.target.value }))}
+                onChange={e => setNewLeadData(prev => ({ ...prev, company_name: e.target.value }))}
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="lead_name">Nome do Contato <span className="text-red-500">*</span></Label>
+              <Label htmlFor="lead_name">
+                {tr('Nome do Contato', 'Nombre del Contacto', 'Nom du Contact')}{' '}
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 id="lead_name"
-                placeholder="Ex: João da Silva"
                 value={newLeadData.name}
-                onChange={(e) => setNewLeadData(prev => ({ ...prev, name: e.target.value }))}
+                onChange={e => setNewLeadData(prev => ({ ...prev, name: e.target.value }))}
                 required
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="email">E-mail</Label>
+                <Label htmlFor="email">{tr('E-mail', 'Correo', 'E-mail')}</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="contato@empresa.com"
                   value={newLeadData.email}
-                  onChange={(e) => setNewLeadData(prev => ({ ...prev, email: e.target.value }))}
+                  onChange={e => setNewLeadData(prev => ({ ...prev, email: e.target.value }))}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="phone">Telefone / WhatsApp</Label>
+                <Label htmlFor="phone">
+                  {tr('Telefone / WhatsApp', 'Teléfono / WhatsApp', 'Téléphone / WhatsApp')}
+                </Label>
                 <Input
                   id="phone"
-                  placeholder="+34 9xx xxx xxx"
                   value={newLeadData.phone}
-                  onChange={(e) => setNewLeadData(prev => ({ ...prev, phone: e.target.value }))}
+                  onChange={e => setNewLeadData(prev => ({ ...prev, phone: e.target.value }))}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="stage_id">Estágio Inicial</Label>
+                <Label htmlFor="stage_id">
+                  {tr('Estágio Inicial', 'Etapa Inicial', 'Étape Initiale')}
+                </Label>
                 <Select
-                  value={newLeadData.stage_id || (stages[0]?.id ?? '')}
-                  onValueChange={(val) => setNewLeadData(prev => ({ ...prev, stage_id: val }))}
+                  value={newLeadData.stage_id || (stages[1]?.id ?? stages[0]?.id ?? '')}
+                  onValueChange={val => setNewLeadData(prev => ({ ...prev, stage_id: val }))}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione o estágio" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     {stages.map(s => (
@@ -1573,42 +1947,37 @@ export function KanbanPage() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="assigned_to">Responsável Comercial</Label>
-                <Select
-                  value={newLeadData.assigned_to || 'unassigned'}
-                  onValueChange={(val) => setNewLeadData(prev => ({ ...prev, assigned_to: val }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Atribuir vendedor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Sem Atribuição</SelectItem>
-                    {salespeople.map(u => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.display_name || u.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>
+                  {tr('Responsável Comercial', 'Responsable Comercial', 'Responsable Commercial')}
+                </Label>
+                <div className="h-10 px-3 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 flex items-center text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  {effectiveProfile
+                    ? `${effectiveProfile.flag} ${effectiveProfile.displayName}`
+                    : '-'}
+                </div>
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="notes">Observações</Label>
+              <Label htmlFor="notes">
+                {tr('Observações', 'Observaciones', 'Observations')}
+              </Label>
               <Input
                 id="notes"
-                placeholder="Detalhes adicionais sobre o contato..."
                 value={newLeadData.notes}
-                onChange={(e) => setNewLeadData(prev => ({ ...prev, notes: e.target.value }))}
+                onChange={e => setNewLeadData(prev => ({ ...prev, notes: e.target.value }))}
               />
             </div>
 
             <DialogFooter className="pt-3">
               <Button type="button" variant="outline" onClick={() => setIsNewLeadOpen(false)}>
-                Cancelar
+                {tr('Cancelar', 'Cancelar', 'Annuler')}
               </Button>
-              <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
-                Salvar Lead
+              <Button
+                type="submit"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+              >
+                {tr('Salvar Lead', 'Guardar Prospecto', 'Enregistrer le Prospect')}
               </Button>
             </DialogFooter>
           </form>
@@ -1623,16 +1992,28 @@ export function KanbanPage() {
               <DialogTitle className="text-xl font-bold flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2">
                   <UserCheck className="h-5 w-5 text-amber-500" />
-                  {t('comercialKanban.leadDetailsTitle', 'Detalles del Lead y Presupuesto')}
+                  {tr(
+                    'Detalhes do Lead e Orçamento',
+                    'Detalles del Prospecto y Presupuesto',
+                    'Détails du Prospect et Devis'
+                  )}
                 </span>
                 {parseBudgetNotes(selectedLead.notes)?.isBudgetForm && (
                   <Badge className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                    Formulário de Orçamento
+                    {tr(
+                      'Formulário de Orçamento',
+                      'Formulario de Presupuesto',
+                      'Formulaire de Devis'
+                    )}
                   </Badge>
                 )}
               </DialogTitle>
               <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
-                {t('comercialKanban.leadDetailsDesc', 'Información completa del contacto y propuesta/presupuesto solicitado')}
+                {tr(
+                  'Informações completas do contato e histórico comercial',
+                  'Información completa del contacto e historial comercial',
+                  'Informations complètes du contact et historique commercial'
+                )}
               </DialogDescription>
             </DialogHeader>
 
@@ -1641,14 +2022,14 @@ export function KanbanPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
                 <div className="space-y-1">
                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                    {t('comercialKanban.moveLeadTo', 'Etapa do Funil:')}
+                    {tr('Etapa do Funil:', 'Etapa del Embudo:', 'Étape de l’Entonnoir :')}
                   </span>
                   <Select
                     value={selectedLead.stage_id || ''}
-                    onValueChange={(val) => handleLeadStageChange(selectedLead.id, val)}
+                    onValueChange={val => handleLeadStageChange(selectedLead.id, val)}
                   >
                     <SelectTrigger className="w-full h-8 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                      <SelectValue placeholder="Selecione a etapa" />
+                      <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {stages.map(s => (
@@ -1662,31 +2043,51 @@ export function KanbanPage() {
 
                 <div className="space-y-1">
                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                    Responsável Comercial:
+                    {tr(
+                      'Responsável Comercial:',
+                      'Responsable Comercial:',
+                      'Responsable Commercial :'
+                    )}
                   </span>
-                  <Select
-                    value={selectedLead.assigned_to || 'unassigned'}
-                    onValueChange={(val) => handleLeadAssignedChange(selectedLead.id, val)}
-                  >
-                    <SelectTrigger className="w-full h-8 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                      <SelectValue placeholder="Atribuir vendedor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned" className="text-xs">Sem Atribuição</SelectItem>
-                      {salespeople.map(u => (
-                        <SelectItem key={u.id} value={u.id} className="text-xs">
-                          👤 {u.display_name || u.email}
+                  {isCommercialOperator ? (
+                    <div className="h-8 px-3 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center text-xs font-semibold">
+                      👤{' '}
+                      {(selectedLead.assigned_to && salespersonMap.get(selectedLead.assigned_to)) ||
+                        effectiveProfile?.displayName}
+                    </div>
+                  ) : (
+                    <Select
+                      value={selectedLead.assigned_to || 'unassigned'}
+                      onValueChange={val => handleLeadAssignedChange(selectedLead.id, val)}
+                    >
+                      <SelectTrigger className="w-full h-8 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned" className="text-xs">
+                          {tr('Sem Atribuição', 'Sin Asignación', 'Non Assigné')}
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        {salespeople.map(u => (
+                          <SelectItem key={u.id} value={u.id} className="text-xs">
+                            👤 {u.display_name || u.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
               </div>
 
               {/* Contact Main Summary Card */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <Label className="text-xs text-slate-500 dark:text-slate-400">Empresa / Razão Social</Label>
+                  <Label className="text-xs text-slate-500 dark:text-slate-400">
+                    {tr(
+                      'Empresa / Razão Social',
+                      'Empresa / Razón Social',
+                      'Entreprise / Raison Sociale'
+                    )}
+                  </Label>
                   <p className="font-semibold text-sm flex items-center gap-2 text-slate-900 dark:text-slate-100">
                     <Building className="h-4 w-4 text-amber-500 shrink-0" />
                     {selectedLead.company_name || 'N/A'}
@@ -1694,7 +2095,9 @@ export function KanbanPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-slate-500 dark:text-slate-400">Pessoa de Contato</Label>
+                  <Label className="text-xs text-slate-500 dark:text-slate-400">
+                    {tr('Pessoa de Contato', 'Persona de Contacto', 'Personne de Contact')}
+                  </Label>
                   <p className="font-semibold text-sm flex items-center gap-2 text-slate-900 dark:text-slate-100">
                     <UserCheck className="h-4 w-4 text-amber-500 shrink-0" />
                     {selectedLead.name}
@@ -1702,9 +2105,11 @@ export function KanbanPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-slate-500 dark:text-slate-400">E-mail</Label>
+                  <Label className="text-xs text-slate-500 dark:text-slate-400">
+                    {tr('E-mail', 'Correo', 'E-mail')}
+                  </Label>
                   {selectedLead.email ? (
-                    <a 
+                    <a
                       href={`mailto:${selectedLead.email}`}
                       className="font-medium text-sm text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1.5 truncate"
                     >
@@ -1712,14 +2117,18 @@ export function KanbanPage() {
                       <span className="truncate">{selectedLead.email}</span>
                     </a>
                   ) : (
-                    <p className="text-sm text-slate-400">Não informado</p>
+                    <p className="text-sm text-slate-400">
+                      {tr('Não informado', 'No informado', 'Non renseigné')}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-slate-500 dark:text-slate-400">Telefone / WhatsApp</Label>
+                  <Label className="text-xs text-slate-500 dark:text-slate-400">
+                    {tr('Telefone / WhatsApp', 'Teléfono / WhatsApp', 'Téléphone / WhatsApp')}
+                  </Label>
                   {selectedLead.phone ? (
-                    <a 
+                    <a
                       href={`https://wa.me/${selectedLead.phone.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noreferrer"
@@ -1729,15 +2138,27 @@ export function KanbanPage() {
                       <span>{selectedLead.phone}</span>
                     </a>
                   ) : (
-                    <p className="text-sm text-slate-400">Não informado</p>
+                    <p className="text-sm text-slate-400">
+                      {tr('Não informado', 'No informado', 'Non renseigné')}
+                    </p>
                   )}
                 </div>
 
                 {selectedLead.website && (
                   <div className="space-y-1 sm:col-span-2">
-                    <Label className="text-xs text-slate-500 dark:text-slate-400">Site Oficial da Empresa</Label>
-                    <a 
-                      href={selectedLead.website.startsWith('http') ? selectedLead.website : `https://${selectedLead.website}`}
+                    <Label className="text-xs text-slate-500 dark:text-slate-400">
+                      {tr(
+                        'Site Oficial da Empresa',
+                        'Sitio Web Oficial',
+                        'Site Web Officiel'
+                      )}
+                    </Label>
+                    <a
+                      href={
+                        selectedLead.website.startsWith('http')
+                          ? selectedLead.website
+                          : `https://${selectedLead.website}`
+                      }
                       target="_blank"
                       rel="noreferrer"
                       className="font-medium text-sm text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 truncate"
@@ -1756,17 +2177,27 @@ export function KanbanPage() {
                   <div className="flex items-center gap-2 border-b border-amber-200/80 dark:border-amber-800/60 pb-2">
                     <Briefcase className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                     <h4 className="font-bold text-sm text-amber-900 dark:text-amber-200">
-                      Especificações da Demanda / Obra
+                      {tr(
+                        'Especificações da Demanda / Obra',
+                        'Especificaciones de la Demanda / Obra',
+                        'Spécifications de la Demande / Chantier'
+                      )}
                     </h4>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    {Object.entries(parseBudgetNotes(selectedLead.notes)!.parsed!).map(([key, val]) => (
-                      <div key={key} className="space-y-0.5">
-                        <span className="text-slate-500 dark:text-slate-400 font-medium block">{key}:</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 block">{val}</span>
-                      </div>
-                    ))}
+                    {Object.entries(parseBudgetNotes(selectedLead.notes)!.parsed!).map(
+                      ([key, val]) => (
+                        <div key={key} className="space-y-0.5">
+                          <span className="text-slate-500 dark:text-slate-400 font-medium block">
+                            {key}:
+                          </span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                            {val}
+                          </span>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -1775,7 +2206,11 @@ export function KanbanPage() {
               {selectedLead.notes && !parseBudgetNotes(selectedLead.notes)?.parsed && (
                 <div className="space-y-1 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
                   <Label className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider text-[10px]">
-                    Observações do Contato
+                    {tr(
+                      'Observações do Contato',
+                      'Observaciones del Contacto',
+                      'Observations du Contact'
+                    )}
                   </Label>
                   <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
                     {selectedLead.notes}
@@ -1793,10 +2228,10 @@ export function KanbanPage() {
                 }}
               >
                 <Sparkles className="h-4 w-4" />
-                {t('comercialKanban.createEstimate', 'Generar Estimación')}
+                {tr('Gerar Estimativa', 'Generar Estimación', 'Générer un Devis')}
               </Button>
               <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>
-                Fechar
+                {tr('Fechar', 'Cerrar', 'Fermer')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -1809,202 +2244,179 @@ export function KanbanPage() {
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Globe className="h-5 w-5 text-amber-500" />
-              {t('comercialKanban.configStages', 'Configuração dos Estágios do Funil')}
+              {tr(
+                'Configuração dos Estágios do Funil',
+                'Configuración de las Etapas del Embudo',
+                'Configuration des Étapes de l’Entonnoir'
+              )}
             </DialogTitle>
-            <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
-              Defina os nomes em Português e Espanhol, cores e a ordem das colunas do seu funil comercial.
-            </DialogDescription>
           </DialogHeader>
 
-          {/* Add New Stage Form */}
-          <form onSubmit={handleCreateStage} className="space-y-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 my-2">
-            <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              {t('comercialKanban.addStage', 'Adicionar Novo Estágio')}
-            </h4>
+          <form
+            onSubmit={handleCreateStage}
+            className="space-y-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 my-2"
+          >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label htmlFor="stageName" className="text-xs font-semibold">Nome (Português) <span className="text-red-500">*</span></Label>
+                <Label htmlFor="stageName" className="text-xs font-semibold">
+                  Nome (PT) <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   id="stageName"
-                  placeholder="Ex: Em Negociação"
                   className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-xs h-9"
                   value={newStageName}
-                  onChange={(e) => setNewStageName(e.target.value)}
+                  onChange={e => setNewStageName(e.target.value)}
                 />
               </div>
               <div className="space-y-1">
-                <Label htmlFor="stageNameEs" className="text-xs font-semibold">Nombre (Español)</Label>
+                <Label htmlFor="stageNameEs" className="text-xs font-semibold">
+                  Nombre (ES)
+                </Label>
                 <Input
                   id="stageNameEs"
-                  placeholder="Ej: En Negociación"
                   className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-xs h-9"
                   value={newStageNameEs}
-                  onChange={(e) => setNewStageNameEs(e.target.value)}
+                  onChange={e => setNewStageNameEs(e.target.value)}
                 />
               </div>
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-1">
               <div className="flex items-center gap-2">
-                <Label htmlFor="stageColor" className="text-xs font-semibold">Cor da Coluna:</Label>
+                <Label htmlFor="stageColor" className="text-xs font-semibold">
+                  {tr('Cor:', 'Color:', 'Couleur :')}
+                </Label>
                 <Input
                   id="stageColor"
                   type="color"
                   className="w-8 h-8 p-0 border rounded-lg cursor-pointer shrink-0"
                   value={newStageColor}
-                  onChange={(e) => setNewStageColor(e.target.value)}
+                  onChange={e => setNewStageColor(e.target.value)}
                 />
               </div>
-              <Button type="submit" className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-9 px-4">
+              <Button
+                type="submit"
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs h-9 px-4"
+              >
                 <Plus className="h-4 w-4 mr-1" />
-                {t('comercialKanban.addStage', 'Adicionar Estágio')}
+                {tr('Adicionar Estágio', 'Añadir Etapa', 'Ajouter une Étape')}
               </Button>
             </div>
           </form>
 
-          {/* Existing Stages List with Reordering & Inline Editing */}
-          <div className="space-y-3 pt-2">
-            <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              {t('comercialKanban.activeStages', 'Estágios Ativos')}
-            </h4>
-            
-            <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
-              {stages.map((stage, idx) => {
-                const isEditing = editingStageId === stage.id;
-
-                return (
-                  <div 
-                    key={stage.id} 
-                    className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm gap-3"
-                  >
-                    {isEditing ? (
-                      <div className="flex flex-col space-y-2 w-full">
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-[10px] text-slate-400">Nome (PT)</Label>
-                            <Input
-                              className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
-                              value={editingStageName}
-                              onChange={(e) => setEditingStageName(e.target.value)}
-                            />
-                          </div>
-                          <div>
-                            <Label className="text-[10px] text-slate-400">Nombre (ES)</Label>
-                            <Input
-                              className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
-                              value={editingStageNameEs}
-                              onChange={(e) => setEditingStageNameEs(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-1">
-                          <div className="flex items-center gap-2">
-                            <Label className="text-[10px] text-slate-400">Cor:</Label>
-                            <Input
-                              type="color"
-                              className="w-7 h-7 p-0 border rounded cursor-pointer shrink-0"
-                              value={editingStageColor}
-                              onChange={(e) => setEditingStageColor(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex gap-1">
-                            <Button 
-                              type="button" 
-                              size="sm"
-                              className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2"
-                              onClick={() => handleSaveEditStage(stage.id)}
-                            >
-                              <Check className="h-3.5 w-3.5 mr-1" /> Salvar
-                            </Button>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="sm"
-                              className="h-7 text-xs px-2"
-                              onClick={() => setEditingStageId(null)}
-                            >
-                              <X className="h-3.5 w-3.5 mr-1" /> Cancelar
-                            </Button>
-                          </div>
+          <div className="space-y-2.5 max-h-[350px] overflow-y-auto pr-1">
+            {stages.map((stage, idx) => {
+              const isEditing = editingStageId === stage.id;
+              return (
+                <div
+                  key={stage.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 rounded-xl text-sm gap-3"
+                >
+                  {isEditing ? (
+                    <div className="flex flex-col space-y-2 w-full">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          className="h-8 text-xs bg-white dark:bg-slate-900"
+                          value={editingStageName}
+                          onChange={e => setEditingStageName(e.target.value)}
+                        />
+                        <Input
+                          className="h-8 text-xs bg-white dark:bg-slate-900"
+                          value={editingStageNameEs}
+                          onChange={e => setEditingStageNameEs(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <Input
+                          type="color"
+                          className="w-7 h-7 p-0 border rounded cursor-pointer"
+                          value={editingStageColor}
+                          onChange={e => setEditingStageColor(e.target.value)}
+                        />
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2"
+                            onClick={() => handleSaveEditStage(stage.id)}
+                          >
+                            <Check className="h-3.5 w-3.5 mr-1" />
+                            {tr('Salvar', 'Guardar', 'Enregistrer')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs px-2"
+                            onClick={() => setEditingStageId(null)}
+                          >
+                            <X className="h-3.5 w-3.5 mr-1" />
+                            {tr('Cancelar', 'Cancelar', 'Annuler')}
+                          </Button>
                         </div>
                       </div>
-                    ) : (
-                      <>
-                        <div className="flex items-center gap-3">
-                          {/* Reorder Buttons */}
-                          <div className="flex flex-col gap-0.5">
-                            <button
-                              type="button"
-                              disabled={idx === 0}
-                              onClick={() => handleMoveStageOrder(idx, 'left')}
-                              className="text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-20"
-                              title="Mover para esquerda"
-                            >
-                              <ChevronLeft className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={idx === stages.length - 1}
-                              onClick={() => handleMoveStageOrder(idx, 'right')}
-                              className="text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 disabled:opacity-20"
-                              title="Mover para direita"
-                            >
-                              <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-
-                          <span 
-                            className="w-3.5 h-3.5 rounded-full shrink-0" 
-                            style={{ backgroundColor: stage.color }}
-                          />
-
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
-                              {stage.name}
-                            </span>
-                            {stage.name_es && (
-                              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                                ES: {stage.name_es}
-                              </span>
-                            )}
-                          </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => handleMoveStageOrder(idx, 'left')}
+                            className="text-slate-400 hover:text-slate-900 disabled:opacity-20"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === stages.length - 1}
+                            onClick={() => handleMoveStageOrder(idx, 'right')}
+                            className="text-slate-400 hover:text-slate-900 disabled:opacity-20"
+                          >
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-
-                        <div className="flex items-center gap-1.5 self-end sm:self-center">
+                        <span
+                          className="w-3.5 h-3.5 rounded-full shrink-0"
+                          style={{ backgroundColor: stage.color }}
+                        />
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs">
+                          {getStageTitle(stage)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-slate-500 hover:text-amber-600"
+                          onClick={() => handleStartEditStage(stage)}
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        {!stage.is_system && (
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-slate-500 hover:text-amber-600"
-                            onClick={() => handleStartEditStage(stage)}
+                            className="h-7 w-7 text-slate-400 hover:text-red-600"
+                            onClick={() => handleDeleteStage(stage.id)}
                           >
-                            <Edit2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
-
-                          {!stage.is_system && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-slate-400 hover:text-red-600"
-                              onClick={() => handleDeleteStage(stage.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <DialogFooter className="pt-3">
             <Button variant="outline" onClick={() => setIsConfigOpen(false)}>
-              Fechar
+              {tr('Fechar', 'Cerrar', 'Fermer')}
             </Button>
           </DialogFooter>
         </DialogContent>
