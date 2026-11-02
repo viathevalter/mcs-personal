@@ -50,7 +50,7 @@ import { CountrySelector, RegionSelector } from '@/features/master-data/location
 import { FotosAlojamentoManager } from '../../components/FotosAlojamentoManager';
 import { ObservacionesMantenimientoManager } from '../../components/ObservacionesMantenimientoManager';
 import { ProvedorSearchCombobox } from '../../components/ProvedorSearchCombobox';
-import { CroquisPlantaAlojamento, buildDefaultCroquis, type CroquisPlantaData } from '../../components/CroquisPlantaAlojamento';
+import { CroquisPlantaAlojamento, buildDefaultCroquis, getDefaultRoomRect, type CroquisPlantaData } from '../../components/CroquisPlantaAlojamento';
 
 const alojamentoSchema = z.object({
   nome: z.string().min(1, 'El nombre / título del alojamiento es obligatorio'),
@@ -470,7 +470,8 @@ export const AlojamentoForm: React.FC = () => {
             nome: `Hab Nº ${i}`,
             camas: 1,
             posicao: i === 1 ? 'top' : 'right',
-            observacao: ''
+            observacao: '',
+            rect: getDefaultRoomRect(i - 1, targetRooms)
           });
         }
       } else if (nextHabs.length > targetRooms) {
