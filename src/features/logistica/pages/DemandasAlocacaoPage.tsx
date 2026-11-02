@@ -744,14 +744,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
   // Totais do Mês para Alojamento Próprio
   const propiosMonthTotals = useMemo(() => {
-    const totalRegistrados = propioAlojadosRaw.length;
+    const allWithMonthCalc = propioAlojadosRaw.map(a => ({
+      ...a,
+      calc: calculateProporcionalPropio(
+        a.data_checkin,
+        a.data_checkout_prevista,
+        propioYear,
+        propioMonth,
+        a.status,
+        a.motivo_checkout
+      )
+    }));
+    const totalRegistrados = allWithMonthCalc.filter(p => p.calc.isAtivoNoMes || p.status !== 'Checkout').length;
     const activosNoMes = filteredPropriosCalculated.filter(p => p.calc.isAtivoNoMes).length;
     const totalAPagar = filteredPropriosCalculated.reduce((acc, p) => acc + p.calc.valorProporcional, 0);
     return { totalRegistrados, activosNoMes, totalAPagar };
-  }, [propioAlojadosRaw, filteredPropriosCalculated]);
+  }, [propioAlojadosRaw, filteredPropriosCalculated, propioYear, propioMonth]);
 
   const inactivosRHPropio = useMemo(() => {
-    return filteredPropriosCalculated.filter(a => a.is_inativo_rh && a.calc.isAtivoNoMes);
+    return filteredPropriosCalculated.filter(a => a.is_inativo_rh && a.calc.isAtivoNoMes && a.status !== 'Checkout');
   }, [filteredPropriosCalculated]);
 
   // Trabalhadores em Alojamento por Cliente Filtrados (Aba 4)
@@ -1742,7 +1753,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 ? 'bg-white/20 text-white'
                 : 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300'
             }`}>
-              {propioAlojadosRaw.length} por cuenta propia
+              {propiosMonthTotals.activosNoMes} por cuenta propia
             </span>
             {inactivosRHPropio.length > 0 && (
               <span
@@ -3881,7 +3892,9 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <tr 
                           key={a.id} 
                           className={`transition-colors ${
-                            a.is_inativo_rh 
+                            a.status === 'Checkout'
+                              ? 'bg-amber-50/30 dark:bg-amber-950/15 border-l-4 border-l-amber-400 hover:bg-amber-50/60'
+                              : a.is_inativo_rh 
                               ? 'bg-rose-50/60 dark:bg-rose-950/25 border-l-4 border-l-rose-500 hover:bg-rose-100/50' 
                               : 'hover:bg-purple-50/20 dark:hover:bg-slate-800/40'
                           }`}
@@ -3897,7 +3910,15 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                   🏥 Licencia Salud / Afastado (Sigue Alojado)
                                 </span>
                               )}
-                              {a.is_inativo_rh && (
+                              {a.status === 'Checkout' && (
+                                <span
+                                  title={`Período finalizado el ${a.data_checkout_prevista || a.data_fim}. Cálculo proporcional aplicado.`}
+                                  className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border border-amber-300 dark:border-amber-800"
+                                >
+                                  ✓ Finalizado ({a.data_checkout_prevista || a.data_fim})
+                                </span>
+                              )}
+                              {a.is_inativo_rh && a.status !== 'Checkout' && (
                                 <>
                                   <span
                                     title={`⚠️ ATENCIÓN: Trabajador inactivo o con baja en Personal/Seguridad Social (${a.alerta_inativo_rh}). Compruebe si corresponde finalizar el registro de moradía propia.`}
@@ -4027,7 +4048,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                               className="px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors inline-flex items-center gap-1 cursor-pointer"
                             >
                               <LogOut size={13} />
-                              Finalizar
+                              {a.status === 'Checkout' ? 'Editar Salida' : 'Finalizar'}
                             </button>
                           </td>
                         </tr>

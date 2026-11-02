@@ -328,7 +328,9 @@ export interface TrabalhadorAlojado {
   longitude?: number | string | null;
   data_checkin: string;
   data_checkout_prevista?: string;
-  status: 'Ativo' | 'Baixa Notificada' | 'Reemplazo em Andamento' | 'Checkout Pendente' | 'Alojamiento Propio' | 'Alojamiento Cliente';
+  status: 'Ativo' | 'Baixa Notificada' | 'Reemplazo em Andamento' | 'Checkout Pendente' | 'Alojamiento Propio' | 'Alojamiento Cliente' | 'Checkout';
+  data_fim?: string;
+  motivo_checkout?: string;
   tipo_alojamento?: string;
   custo_alojamento?: number;
   contacto_hospedaje?: string;
@@ -1889,12 +1891,11 @@ export const logisticsService = {
     const alojMap = new Map(alojamentos.map(a => [a.id, a]));
 
     return alocacoes
-      .filter(a => a.status !== 'Checkout')
       .map(a => {
         const aloj = alojMap.get(a.alojamento_id || '') || a.alojamento;
         const nomeAloj = (aloj?.nome || a.alojamento?.nome || '').toUpperCase();
         const tipoOrig = (a.tipo_alojamento || '').toUpperCase().trim();
-        const obs = ((a.observacoes || '') + ' ' + (a.endereco_completo || '')).toUpperCase();
+        const obs = ((a.observacoes || '') + ' ' + (a.endereco || '')).toUpperCase();
 
         const isCliente = a.tipo_alojamento === 'Cliente' || 
                           tipoOrig === 'CLIENTE' || 
@@ -1910,6 +1911,12 @@ export const logisticsService = {
           nomeAloj.includes('CUENTA PROPIA') ||
           obs.includes('CUENTA PROPIA')
         );
+
+        // Para alojamentos da empresa ou cliente, ignora os que já realizaram check-out.
+        // Para Alojamiento Propio, mantém os finalizados (Checkout) para cálculo proporcional no mês de saída!
+        if (!isPropio && a.status === 'Checkout') {
+          return null;
+        }
 
         let resolvedTipo: 'Empresa' | 'Propio' | 'Cliente' = 'Empresa';
         if (isPropio) resolvedTipo = 'Propio';
@@ -1945,8 +1952,10 @@ export const logisticsService = {
           longitude: aloj?.longitude,
           data_checkin: a.data_inicio,
           data_checkout_prevista: a.data_fim,
+          data_fim: a.data_fim,
+          motivo_checkout: a.motivo_checkout,
           status: isPropio 
-            ? 'Alojamiento Propio' 
+            ? (a.status === 'Checkout' ? 'Checkout' : 'Alojamiento Propio')
             : isCliente 
             ? 'Alojamiento Cliente' 
             : (a.status === 'Baixa Notificada' ? 'Baixa Notificada' : 'Ativo'),
@@ -1960,7 +1969,8 @@ export const logisticsService = {
           is_afastado_rh: a.is_afastado_rh,
           alerta_inativo_rh: a.alerta_inativo_rh,
           data_baixa: a.data_baixa
-        };
-      });
+        } as TrabalhadorAlojado;
+      })
+      .filter((item): item is TrabalhadorAlojado => item !== null);
   }
 };
