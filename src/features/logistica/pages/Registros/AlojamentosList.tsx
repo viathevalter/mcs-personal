@@ -65,6 +65,7 @@ import {
   type TermoResponsabilidadeAlojamento
 } from '../../services/termoResponsabilidadeService';
 import { TermoResponsabilidadeModal } from '../../components/TermoResponsabilidadeModal';
+import { CroquisPlantaAlojamento, buildDefaultCroquis } from '../../components/CroquisPlantaAlojamento';
 
 export const AlojamentosList: React.FC = () => {
   const { t } = useLanguage();
@@ -2893,6 +2894,23 @@ export const AlojamentosList: React.FC = () => {
                   <span className="text-[10px] text-slate-400 block font-bold uppercase">Modalidad</span>
                   <span className="text-base font-black text-blue-600">{viewingAlojamento.tipo_alojamento || 'Fijo'}</span>
                 </div>
+              </div>
+
+              {/* Croquis / Planta del Piso en la Ficha */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <CroquisPlantaAlojamento
+                  readOnly
+                  compact
+                  value={
+                    (viewingAlojamento as any).croquis_planta ||
+                    viewingAlojamento.comodidades?.__croquis_planta ||
+                    buildDefaultCroquis(
+                      viewingAlojamento.dormitorios || 3,
+                      viewingAlojamento.total_camas || viewingAlojamento.capacidade_pessoas || 4,
+                      viewingAlojamento.banheiros || 1
+                    )
+                  }
+                />
               </div>
 
               {/* Localização & GPS */}

@@ -95,6 +95,7 @@ export interface Alojamento {
   status?: string;
   contrato?: any;
   fotos?: string[];
+  croquis_planta?: any;
   provedor?: {
     nome_razao_social: string;
     telefone?: string;
@@ -542,7 +543,34 @@ export const logisticsService = {
     const result: Cama[] = [];
 
     alojamentos.forEach(aloj => {
-      const cap = aloj.capacidade_pessoas || (aloj.camas_individuais || 0) + ((aloj.camas_duplas || 0) * 2) || 4;
+      const cap = aloj.capacidade_pessoas || (aloj.camas_individuais || 0) + (aloj.camas_duplas || 0) || 4;
+      const croquis = aloj.croquis_planta || aloj.comodidades?.__croquis_planta;
+      const habitaciones = Array.isArray(croquis?.habitaciones) ? croquis.habitaciones : [];
+
+      if (habitaciones.length > 0) {
+        let bedCounter = 0;
+        habitaciones.forEach((hab: any, idx: number) => {
+          const numHab = hab.numero || idx + 1;
+          const habLabel = hab.nome || `Hab Nº ${numHab}`;
+          const qtdCamas = Math.max(1, Number(hab.camas) || 1);
+          for (let c = 1; c <= qtdCamas; c++) {
+            bedCounter++;
+            const camaId = `${aloj.id}-cama-ind-${bedCounter}`;
+            const aloc = alocacoesAtivas.find(a => a.cama_id === camaId && a.status !== 'Checkout');
+            result.push({
+              id: camaId,
+              alojamento_id: aloj.id,
+              alojamento_nome: aloj.nome,
+              identificador: `${habLabel} • Cama #${c}${hab.observacao ? ` (${hab.observacao})` : ''}`,
+              tipo: 'individual',
+              status: aloc ? 'ocupada' : 'livre',
+              alocacao_atual: aloc
+            });
+          }
+        });
+        return;
+      }
+
       const ind = aloj.camas_individuais || cap;
       const dup = aloj.camas_duplas || 0;
 
@@ -553,7 +581,7 @@ export const logisticsService = {
           id: camaId,
           alojamento_id: aloj.id,
           alojamento_nome: aloj.nome,
-          identificador: `Quarto 1 • Cama Individual #${i}`,
+          identificador: `Hab Nº 1 • Cama Individual #${i}`,
           tipo: 'individual',
           status: aloc ? 'ocupada' : 'livre',
           alocacao_atual: aloc
@@ -567,7 +595,7 @@ export const logisticsService = {
           id: camaId,
           alojamento_id: aloj.id,
           alojamento_nome: aloj.nome,
-          identificador: `Quarto Principal • Cama Dupla #${d}`,
+          identificador: `Hab Principal • Cama Matrimonio/Doble #${d} (1 plaza)`,
           tipo: 'dupla',
           status: aloc ? 'ocupada' : 'livre',
           alocacao_atual: aloc

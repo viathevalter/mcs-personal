@@ -1,4 +1,7 @@
 import { supabase } from '@/shared/supabase/client';
+import type { CroquisPlantaData } from '../components/CroquisPlantaAlojamento';
+
+export type { CroquisPlantaData };
 
 export interface Provedor {
   id: string;
@@ -154,6 +157,7 @@ export interface Alojamento {
   observacoes?: string;
   observacoes_html?: string;
   historico_manutencao?: RegistroObservacaoHistorico[];
+  croquis_planta?: CroquisPlantaData | null;
   status?: string;
   ativo: boolean;
   created_at?: string;
@@ -269,6 +273,8 @@ const buildAlojamentoPayload = (input: any) => {
       ? input.contrato.documentos_contrato
       : (Array.isArray(input.comodidades?.__documentos_contrato) ? input.comodidades.__documentos_contrato : []));
 
+  const croquisPlanta = input.croquis_planta ?? input.comodidades?.__croquis_planta ?? null;
+
   const comodidadesMeta = {
     ...(input.comodidades || {}),
     __fotos: input.fotos || [],
@@ -279,6 +285,7 @@ const buildAlojamentoPayload = (input: any) => {
     __documentos_contrato: documentosContrato,
     __historico_observacoes: historicoManutencao,
     __observacoes_html: observacoesHtml,
+    __croquis_planta: croquisPlanta,
     __created_at: input.created_at || new Date().toISOString()
   };
 
@@ -372,6 +379,7 @@ const hydrateAlojamento = (a: any): Alojamento => {
     observacoes: a.observacoes || '',
     observacoes_html: observacoesHtml,
     historico_manutencao: rawHistorico,
+    croquis_planta: a.croquis_planta || comodidades.__croquis_planta || null,
     status: a.status === 'inativo' || a.status === 'Inactivo' ? 'Inactivo' : 'Activo',
     provedor: a.provedores || a.provedor,
     ativo: a.status !== 'inativo' && a.status !== 'Inactivo' && a.ativo !== false,

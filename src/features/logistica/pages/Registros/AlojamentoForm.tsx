@@ -50,6 +50,7 @@ import { CountrySelector, RegionSelector } from '@/features/master-data/location
 import { FotosAlojamentoManager } from '../../components/FotosAlojamentoManager';
 import { ObservacionesMantenimientoManager } from '../../components/ObservacionesMantenimientoManager';
 import { ProvedorSearchCombobox } from '../../components/ProvedorSearchCombobox';
+import { CroquisPlantaAlojamento, buildDefaultCroquis, type CroquisPlantaData } from '../../components/CroquisPlantaAlojamento';
 
 const alojamentoSchema = z.object({
   nome: z.string().min(1, 'El nombre / título del alojamiento es obligatorio'),
@@ -139,6 +140,7 @@ export const AlojamentoForm: React.FC = () => {
   const [historicoManutencao, setHistoricoManutencao] = useState<RegistroObservacaoHistorico[]>([]);
   const [observacoesHtml, setObservacoesHtml] = useState<string>('');
   const [documentosContrato, setDocumentosContrato] = useState<AnexoContratoAlojamento[]>([]);
+  const [croquisPlanta, setCroquisPlanta] = useState<CroquisPlantaData>(() => buildDefaultCroquis(3, 4, 1));
   const [tipoDocContrato, setTipoDocContrato] = useState<AnexoContratoAlojamento['tipo_documento']>('Contrato Firmado');
   const [isUploadingContrato, setIsUploadingContrato] = useState<boolean>(false);
   const contratoFileInputRef = useRef<HTMLInputElement>(null);
@@ -219,6 +221,9 @@ export const AlojamentoForm: React.FC = () => {
   const watchedRenovacao = useWatch({ control, name: 'renovacao_automatica' });
   const watchedCamasIndividuais = useWatch({ control, name: 'camas_individuais' });
   const watchedCamasDuplas = useWatch({ control, name: 'camas_duplas' });
+  const watchedDormitorios = useWatch({ control, name: 'dormitorios' });
+  const watchedTotalCamas = useWatch({ control, name: 'total_camas' });
+  const watchedBanheiros = useWatch({ control, name: 'banheiros' });
   const watchedTipoContrato = useWatch({ control, name: 'tipo_contrato' });
   const watchedValorPorPessoa = useWatch({ control, name: 'valor_por_pessoa' });
   const watchedTemFianza = useWatch({ control, name: 'tem_fianza' });
@@ -270,6 +275,9 @@ export const AlojamentoForm: React.FC = () => {
             }
             if (parsed.__savedDocumentosContrato && Array.isArray(parsed.__savedDocumentosContrato)) {
               setDocumentosContrato(parsed.__savedDocumentosContrato);
+            }
+            if (parsed.__savedCroquisPlanta) {
+              setCroquisPlanta(parsed.__savedCroquisPlanta);
             }
             setIsDraftRestored(true);
           }
@@ -342,6 +350,7 @@ export const AlojamentoForm: React.FC = () => {
               __savedHistoricoManutencao: historicoManutencao,
               __savedObservacoesHtml: observacoesHtml,
               __savedDocumentosContrato: documentosContrato,
+              __savedCroquisPlanta: croquisPlanta,
               __draftSavedAt: new Date().toISOString()
             };
             localStorage.setItem('mcs_alojamento_draft_novo', JSON.stringify(draftPayload));
@@ -423,18 +432,72 @@ export const AlojamentoForm: React.FC = () => {
   const currentProvedor = provedores.find(p => p.id === selectedProvedorId);
   const provAlojamentosCount = existingAlojamentos.filter(a => a.provedor_id === selectedProvedorId).length;
 
-  // SMART CALC 1: Sincronização Inteligente de Camas e Capacidade
+  // SMART CALC 1: Sincronização Inteligente de Camas e Capacidade (1 Cama = 1 Plaza Individual, sea simple o doble/matrimonio)
   useEffect(() => {
     const ind = Number(watchedCamasIndividuais) || 0;
     const dup = Number(watchedCamasDuplas) || 0;
     const totalCamasCalculado = ind + dup;
-    const capacidadeCalculada = (ind * 1) + (dup * 2);
+    const capacidadeCalculada = ind + dup;
 
     if (ind > 0 || dup > 0) {
       setValue('total_camas', totalCamasCalculado, { shouldDirty: true });
       setValue('capacidade_pessoas', capacidadeCalculada, { shouldDirty: true });
     }
   }, [watchedCamasIndividuais, watchedCamasDuplas, setValue]);
+
+  // Sincronização quando o usuário digita Dormitorios ou Total Camas diretamente nos cards superiores
+  useEffect(() => {
+    const numRooms = Number(watchedDormitorios) || 0;
+    const totalBeds = Number(watchedTotalCamas) || 0;
+    if (numRooms <= 0 && totalBeds <= 0) return;
+
+    setCroquisPlanta(prev => {
+      const currentHabs = Array.isArray(prev?.habitaciones) ? prev.habitaciones : [];
+      const currentBedsSum = currentHabs.reduce((acc, h) => acc + (Number(h.camas) || 0), 0);
+      const targetRooms = numRooms > 0 ? numRooms : Math.max(1, currentHabs.length);
+      const targetBeds = totalBeds > 0 ? totalBeds : Math.max(targetRooms, currentBedsSum);
+
+      if (currentHabs.length === targetRooms && currentBedsSum === targetBeds) {
+        return prev;
+      }
+
+      // Ajustar lista de quartos preservando os existentes quando possível
+      const nextHabs = [...currentHabs];
+      if (nextHabs.length < targetRooms) {
+        for (let i = nextHabs.length + 1; i <= targetRooms; i++) {
+          nextHabs.push({
+            numero: i,
+            nome: `Hab Nº ${i}`,
+            camas: 1,
+            posicao: i === 1 ? 'top' : 'right',
+            observacao: ''
+          });
+        }
+      } else if (nextHabs.length > targetRooms) {
+        nextHabs.splice(targetRooms);
+      }
+
+      // Ajustar soma de camas no primeiro quarto para bater com targetBeds
+      const sumAfterResize = nextHabs.reduce((acc, h) => acc + (Number(h.camas) || 0), 0);
+      const diff = targetBeds - sumAfterResize;
+      if (diff !== 0 && nextHabs.length > 0) {
+        nextHabs[0] = {
+          ...nextHabs[0],
+          camas: Math.max(1, (Number(nextHabs[0].camas) || 1) + diff)
+        };
+      }
+
+      return {
+        ...prev,
+        ativo: true,
+        habitaciones: nextHabs.map((h, idx) => ({
+          ...h,
+          numero: idx + 1,
+          nome: `Hab Nº ${idx + 1}`
+        }))
+      };
+    });
+  }, [watchedDormitorios, watchedTotalCamas]);
 
   // SMART CALC 2: Cálculo Dinâmico de Aluguel por Pessoa / Habitação
   useEffect(() => {
@@ -528,6 +591,19 @@ export const AlojamentoForm: React.FC = () => {
                 : (Array.isArray(comod.__documentos_contrato) ? comod.__documentos_contrato : []);
           if (loadedDocsContrato.length > 0) {
             setDocumentosContrato(loadedDocsContrato);
+          }
+
+          const loadedCroquis = (a as any).croquis_planta || comod.__croquis_planta;
+          if (loadedCroquis && Array.isArray(loadedCroquis.habitaciones) && loadedCroquis.habitaciones.length > 0) {
+            setCroquisPlanta(loadedCroquis);
+          } else {
+            setCroquisPlanta(
+              buildDefaultCroquis(
+                a.dormitorios || 3,
+                a.total_camas || a.capacidade_pessoas || 4,
+                a.banheiros || 1
+              )
+            );
           }
 
           reset({
@@ -660,6 +736,7 @@ export const AlojamentoForm: React.FC = () => {
         historico_manutencao: historicoManutencao,
         observacoes_html: observacoesHtml,
         documentos_contrato: documentosContrato,
+        croquis_planta: croquisPlanta,
         contrato,
         valor_mensal: data.valor_mensal,
         status: data.status,
@@ -980,8 +1057,11 @@ export const AlojamentoForm: React.FC = () => {
                     />
                   </div>
 
-                  <div className="p-2 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center">
-                    <span className="text-[10px] font-bold text-emerald-600 block mb-0.5">2x</span>
+                  <div
+                    className="p-2 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl text-center"
+                    title="Cada cama doble o de matrimonio cuenta como 1 plaza individual (1 trabajador)"
+                  >
+                    <span className="text-[10px] font-bold text-emerald-600 block mb-0.5">1x</span>
                     <span className="text-[9px] font-bold text-emerald-800 dark:text-emerald-200 block">Dobles</span>
                     <input
                       type="number"
@@ -1000,6 +1080,28 @@ export const AlojamentoForm: React.FC = () => {
                     />
                   </div>
                 </div>
+
+                {/* Construtor & Desenho Interativo de Croquis / Planta del Piso (Hab Nº 1, Hab Nº 2, Camas...) */}
+                <CroquisPlantaAlojamento
+                  value={croquisPlanta}
+                  onChange={(novoCroquis) => {
+                    setCroquisPlanta(novoCroquis);
+                    const habs = Array.isArray(novoCroquis.habitaciones) ? novoCroquis.habitaciones : [];
+                    const numQuartos = habs.length;
+                    const somaCamas = habs.reduce((acc, h) => acc + (Number(h.camas) || 0), 0);
+                    const currentDup = Number(getValues('camas_duplas')) || 0;
+                    const novoInd = Math.max(0, somaCamas - currentDup);
+                    const somaBanos =
+                      (Number(novoCroquis.areas_comunes?.bano_completo) || 0) +
+                      (Number(novoCroquis.areas_comunes?.medio_bano) || 0);
+
+                    setValue('dormitorios', numQuartos, { shouldDirty: true });
+                    setValue('total_camas', somaCamas, { shouldDirty: true });
+                    setValue('capacidade_pessoas', somaCamas, { shouldDirty: true });
+                    setValue('camas_individuais', novoInd, { shouldDirty: true });
+                    setValue('banheiros', somaBanos, { shouldDirty: true });
+                  }}
+                />
               </div>
             </div>
           </div>
