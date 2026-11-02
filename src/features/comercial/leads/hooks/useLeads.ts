@@ -350,6 +350,22 @@ export function useLeads(options?: UseLeadsOptions) {
           hasMore = false;
         }
       }
+      if (!isGlobal && targetEmpresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
+        const { data: albaCross } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('*')
+          .contains('tags', ['Mailing Alba']);
+        if (albaCross && albaCross.length > 0) {
+          const existingIds = new Set(allLeads.map(l => l.id));
+          for (const row of albaCross) {
+            if (!existingIds.has(row.id)) {
+              allLeads.push(row as Lead);
+              existingIds.add(row.id);
+            }
+          }
+        }
+      }
       return allLeads;
     },
     staleTime: 5 * 60 * 1000,

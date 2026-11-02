@@ -751,6 +751,106 @@ export function CampaignsPage() {
     if (isTriangulo) {
       return [
         {
+          id: 'aud_triangulo_alba_ineditos_andalucia_aragon_2026',
+          name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Andalucía & Aragón (88 leads)',
+          leadCount: 88,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Alba Inéditos - Andalucía & Aragón 2026',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-02T08:30:00.000Z'
+        },
+        {
+          id: 'aud_triangulo_alba_andalucia_aragon_completo_2026',
+          name: '🎯 🇪🇸 Alba (Triangulo) - PDF Andalucía & Aragón Completo (198 leads)',
+          leadCount: 198,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Alba - Andalucía & Aragón 2026',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-02T08:30:00.000Z'
+        },
+        {
+          id: 'aud_triangulo_alba_andalucia_2026',
+          name: '🎯 🇪🇸 Alba (Triangulo) - PDF Andalucía (159 leads)',
+          leadCount: 159,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Alba - Andalucía 2026',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-02T08:30:00.000Z'
+        },
+        {
+          id: 'aud_triangulo_alba_aragon_2026',
+          name: '🎯 🇪🇸 Alba (Triangulo) - PDF Aragón (39 leads)',
+          leadCount: 39,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Alba - Aragón 2026',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-02T08:30:00.000Z'
+        },
+        {
           id: 'aud_triangulo_giada_ineditos_pdf',
           name: '🚀 🇮🇹 Giada - Inéditos PDF Itália (92 leads)',
           leadCount: 92,
@@ -3332,6 +3432,25 @@ export function CampaignsPage() {
         if (lisethData && lisethData.length > 0) {
           const existingIds = new Set(allFetchedLeads.map(l => l.id));
           for (const row of lisethData) {
+            if (!existingIds.has(row.id)) {
+              allFetchedLeads.push(row);
+              existingIds.add(row.id);
+            }
+          }
+        }
+      }
+
+      // Also include Alba's tagged leads when viewing Triangulo so cross-company leads resolve
+      if (isTriangulo) {
+        const { data: albaData } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes')
+          .contains('tags', ['Mailing Alba']);
+
+        if (albaData && albaData.length > 0) {
+          const existingIds = new Set(allFetchedLeads.map(l => l.id));
+          for (const row of albaData) {
             if (!existingIds.has(row.id)) {
               allFetchedLeads.push(row);
               existingIds.add(row.id);

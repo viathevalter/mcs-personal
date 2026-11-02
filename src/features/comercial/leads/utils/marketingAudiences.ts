@@ -862,6 +862,58 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // ALBA (ESPANHA - TRIÂNGULO)
   // ==========================================
   {
+    id: 'aud_triangulo_alba_ineditos_andalucia_aragon_2026',
+    name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Andalucía & Aragón (88 leads)',
+    leadCount: 88,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba Inéditos - Andalucía & Aragón 2026',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
+    id: 'aud_triangulo_alba_andalucia_aragon_completo_2026',
+    name: '🎯 🇪🇸 Alba (Triangulo) - PDF Andalucía & Aragón Completo (198 leads)',
+    leadCount: 198,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Andalucía & Aragón 2026',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
+    id: 'aud_triangulo_alba_andalucia_2026',
+    name: '🎯 🇪🇸 Alba (Triangulo) - PDF Andalucía (159 leads)',
+    leadCount: 159,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Andalucía 2026',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
+    id: 'aud_triangulo_alba_aragon_2026',
+    name: '🎯 🇪🇸 Alba (Triangulo) - PDF Aragón (39 leads)',
+    leadCount: 39,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba - Aragón 2026',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
     id: 'aud_alba_publico_1_1000_es_2026',
     name: '📦 🇪🇸 Alba (Triangulo) - Público 1 (1.000 Inéditos ES - 100/dia)',
     leadCount: 1000,
@@ -1088,6 +1140,7 @@ export function classifyAudienceOwner(aud: Partial<MarketingAudiencePreset>): Co
     nameLower.includes('triangulo') ||
     nameLower.includes('michelle') ||
     nameLower.includes('mitchelle') ||
+    tagLower.includes('alba') ||
     tagLower.includes('triangulo') ||
     tagLower.includes('michelle') ||
     tagLower.includes('mitchelle')
