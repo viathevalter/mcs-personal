@@ -601,7 +601,7 @@ export function DialerOperatorsPage() {
                     type="email"
                     value={operatorMarketingSenderEmail}
                     onChange={e => setOperatorMarketingSenderEmail(e.target.value)}
-                    placeholder="Ex: comercial3@es.wiseowe.com"
+                    placeholder="Ex: comercial2@es.wiseowe.com"
                     className="h-9 text-xs bg-background font-mono border-indigo-500/30"
                   />
                   <p className="text-[11px] text-muted-foreground leading-tight">

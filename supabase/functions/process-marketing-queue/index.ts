@@ -282,8 +282,8 @@ serve(async (req) => {
           isWiseowe);
 
       // URLs explícitas por vendedor
-      const waOmarUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour, je souhaite plus d'informations sur vos services")}`;
-      const waLisethUrl = `https://wa.me/34652519210?text=${encodeURIComponent("Hola Liseth, quisiera más información sobre sus servicios")}`;
+      const waOmarUrl = `https://wa.me/33176210655?text=${encodeURIComponent("Bonjour Fatumata, je souhaite plus d'informations sur vos services")}`;
+      const waLisethUrl = `https://wa.me/34937371540?text=${encodeURIComponent("Hola Liseth, quisiera más información sobre sus servicios")}`;
       const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Alba, quisiera más información sobre sus servicios")}`;
       const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
       const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
@@ -390,16 +390,16 @@ serve(async (req) => {
           senderName = "Triangolo Servizi Industriali";
           validReplyTo = "commerciale@triangulolda.com";
         } else {
-          validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial2@es.triangulolda.com";
+          validSenderEmail = (campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial4@es.triangulolda.com").replace(/^comercial2@/i, "comercial4@");
           senderName = "Triángulo Servicios Industriales";
-          validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial2@triangulolda.com";
+          validReplyTo = (campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial4@triangulolda.com").replace(/^comercial2@/i, "comercial4@");
         }
       } else if (companyTrade.includes("WISEOWE") || isWiseowe) {
         if (isSpainWiseowe) {
           // Liseth - Wiseowe Espanha (Subdomínio es.wiseowe.com)
-          validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial3@es.wiseowe.com";
+          validSenderEmail = (campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial2@es.wiseowe.com").replace(/^comercial3@/i, "comercial2@");
           senderName = "Wiseowe Servicios Industriales";
-          validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || company?.proposal_sender_email || "comercial3@wiseowe.com";
+          validReplyTo = (campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial2@wiseowe.com").replace(/^comercial3@/i, "comercial2@");
         } else {
           // Fatumata - Wiseowe França (Subdomínio fr.wiseowe.com)
           validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_fr || company?.marketing_sender_email || "comercial3@fr.wiseowe.com";

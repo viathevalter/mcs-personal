@@ -23,7 +23,7 @@ export function WhatsAppRedirectPage() {
     return 'https://wa.me/34937374830';
   });
   const [targetStageId, setTargetStageId] = useState<string | null>(null);
-  const [currentOrderIndex, setCurrentOrderIndex] = useState(0);
+  const [, setCurrentOrderIndex] = useState(0);
   const [isOptedOut, setIsOptedOut] = useState(false);
 
   // Informações de apresentação visual
@@ -33,19 +33,20 @@ export function WhatsAppRedirectPage() {
 
   useEffect(() => {
     async function resolveContext() {
-      // 1. URLs padrão por vendedor
-      const waOmarDefault = 'https://wa.me/351936447734?text=Bonjour%20Omar,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
-      const waMichelleDefault = 'https://wa.me/34937374830?text=Hola%20Michelle,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      // 1. URLs oficiais por comercial
+      const waFatumataDefault = 'https://wa.me/33176210655?text=Bonjour%20Fatumata,%20je%20souhaite%20plus%20d%27informations%20sur%20vos%20services';
+      const waLisethDefault = 'https://wa.me/34937371540?text=Hola%20Liseth,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
+      const waAlbaDefault = 'https://wa.me/34937374830?text=Hola%20Alba,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
       const waAlexDefault = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
       const waGiadaDefault = 'https://wa.me/393000000000?text=Ciao%20Giada,%20vorrei%20maggiori%20informazioni%20sui%20vostri%20servizi';
 
-      let currentWaUrl = waMichelleDefault;
+      let currentWaUrl = waAlbaDefault;
       let currentLang: 'fr' | 'es' | 'it' = 'es';
-      let currentSalesperson = 'Michelle';
-      let currentCompany = 'Triângulo Servicios Industriales';
+      let currentSalesperson = 'Alba';
+      let currentCompany = 'Triángulo Servicios Industriales';
       let hasExplicitSeller = false;
 
-      // 2. Análise Imediata do Destino Explicito (dest) se informado
+      // 2. Análise Imediata do Destino Explícito (dest) se informado
       let explicitDest = '';
       if (destParam) {
         try {
@@ -53,27 +54,68 @@ export function WhatsAppRedirectPage() {
         } catch {
           explicitDest = destParam;
         }
-        currentWaUrl = explicitDest;
 
-        if (explicitDest.includes('351936447734') || explicitDest.toLowerCase().includes('wiseowe') || explicitDest.toLowerCase().includes('omar')) {
-          currentLang = 'fr';
-          currentSalesperson = 'Omar';
-          currentCompany = 'Wiseowe Industrie';
+        // Migração automática de links antigos (Omar -> Fatumata, Michelle -> Alba, Liseth antigo -> novo)
+        explicitDest = explicitDest
+          .replace(/351936447734/g, '33176210655')
+          .replace(/34652519210/g, '34937371540')
+          .replace(/Bonjour(%20|\s+)Omar/gi, 'Bonjour%20Fatumata')
+          .replace(/Hola(%20|\s+)Mit?chelle/gi, 'Hola%20Alba');
+
+        currentWaUrl = explicitDest;
+        const lowerDest = explicitDest.toLowerCase();
+
+        if (
+          explicitDest.includes('34937371540') ||
+          lowerDest.includes('liseth') ||
+          lowerDest.includes('es.wiseowe')
+        ) {
+          currentLang = 'es';
+          currentSalesperson = 'Liseth';
+          currentCompany = 'Wiseowe Servicios Industriales';
           hasExplicitSeller = true;
-        } else if (explicitDest.includes('34937374180') || explicitDest.toLowerCase().includes('luminous') || explicitDest.toLowerCase().includes('alex')) {
+        } else if (
+          explicitDest.includes('33176210655') ||
+          lowerDest.includes('fatumata') ||
+          lowerDest.includes('omar') ||
+          lowerDest.includes('wiseowe')
+        ) {
+          currentLang = 'fr';
+          currentSalesperson = 'Fatumata';
+          currentCompany = 'Wiseowe Industrie';
+          if (!explicitDest.includes('33176210655')) {
+            currentWaUrl = waFatumataDefault;
+          }
+          hasExplicitSeller = true;
+        } else if (
+          explicitDest.includes('34937374180') ||
+          lowerDest.includes('luminous') ||
+          lowerDest.includes('alex')
+        ) {
           currentLang = 'es';
           currentSalesperson = 'Alex';
           currentCompany = 'Luminous Alley';
           hasExplicitSeller = true;
-        } else if (explicitDest.includes('393000000000') || explicitDest.includes('+39') || explicitDest.includes('it.triangulolda') || explicitDest.toLowerCase().includes('giada')) {
+        } else if (
+          explicitDest.includes('393000000000') ||
+          explicitDest.includes('+39') ||
+          lowerDest.includes('it.triangulolda') ||
+          lowerDest.includes('giada')
+        ) {
           currentLang = 'it';
           currentSalesperson = 'Giada';
           currentCompany = 'Triangolo Servizi Industriali';
           hasExplicitSeller = true;
-        } else if (explicitDest.includes('34937374830') || explicitDest.toLowerCase().includes('triangulo') || explicitDest.toLowerCase().includes('michelle')) {
+        } else if (
+          explicitDest.includes('34937374830') ||
+          lowerDest.includes('triangulo') ||
+          lowerDest.includes('alba') ||
+          lowerDest.includes('michelle') ||
+          lowerDest.includes('mitchelle')
+        ) {
           currentLang = 'es';
-          currentSalesperson = 'Michelle';
-          currentCompany = 'Triângulo Servicios Industriales';
+          currentSalesperson = 'Alba';
+          currentCompany = 'Triángulo Servicios Industriales';
           hasExplicitSeller = true;
         }
       }
@@ -82,25 +124,25 @@ export function WhatsAppRedirectPage() {
       if (!hasExplicitSeller && empresaParam) {
         const emp = empresaParam.toLowerCase();
         if (emp === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
-          // Wiseowe
+          // Wiseowe (default FR Fatumata, pode ser sobrescrito pelo lead abaixo se for ES Liseth)
           currentLang = 'fr';
-          currentSalesperson = 'Omar';
+          currentSalesperson = 'Fatumata';
           currentCompany = 'Wiseowe Industrie';
-          if (!destParam) currentWaUrl = waOmarDefault;
+          if (!destParam) currentWaUrl = waFatumataDefault;
           hasExplicitSeller = true;
         } else if (emp === '847796c4-b253-4e53-9e6b-34a127ec7d85') {
-          // Luminous
+          // Luminous (Alex)
           currentLang = 'es';
           currentSalesperson = 'Alex';
           currentCompany = 'Luminous Alley';
           if (!destParam) currentWaUrl = waAlexDefault;
           hasExplicitSeller = true;
         } else if (emp === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
-          // Triângulo
+          // Triángulo (Alba)
           currentLang = 'es';
-          currentSalesperson = 'Michelle';
-          currentCompany = 'Triângulo Servicios Industriales';
-          if (!destParam) currentWaUrl = waMichelleDefault;
+          currentSalesperson = 'Alba';
+          currentCompany = 'Triángulo Servicios Industriales';
+          if (!destParam) currentWaUrl = waAlbaDefault;
           hasExplicitSeller = true;
         }
       }
@@ -128,6 +170,7 @@ export function WhatsAppRedirectPage() {
               : typeof lead.tags === 'string'
               ? lead.tags.toLowerCase()
               : '';
+            const leadNotes = (lead.notes || '').toLowerCase();
             const leadEmail = (lead.email || '').toLowerCase();
             const leadPhone = (lead.phone || '').trim();
 
@@ -140,15 +183,27 @@ export function WhatsAppRedirectPage() {
               leadPhone.startsWith('+39') ||
               leadPhone.startsWith('0039');
 
+            const isSpainWiseoweLead =
+              isWiseowe &&
+              (leadTags.includes('liseth') ||
+                leadTags.includes('espanha') ||
+                leadTags.includes('españa') ||
+                leadNotes.includes('liseth') ||
+                leadEmail.endsWith('.es') ||
+                leadPhone.startsWith('+34') ||
+                leadPhone.startsWith('0034'));
+
             const isFranceLead =
-              leadTags.includes('frança') ||
-              leadTags.includes('francia') ||
-              leadTags.includes('france') ||
-              leadTags.includes('wiseowe') ||
-              leadEmail.endsWith('.fr') ||
-              leadPhone.startsWith('+33') ||
-              leadPhone.startsWith('0033') ||
-              isWiseowe;
+              !isSpainWiseoweLead &&
+              (leadTags.includes('frança') ||
+                leadTags.includes('francia') ||
+                leadTags.includes('france') ||
+                leadTags.includes('fatumata') ||
+                leadTags.includes('omar') ||
+                leadEmail.endsWith('.fr') ||
+                leadPhone.startsWith('+33') ||
+                leadPhone.startsWith('0033') ||
+                isWiseowe);
 
             // Verificar se o lead está descadastrado / opt-out
             const optedOut =
@@ -159,33 +214,45 @@ export function WhatsAppRedirectPage() {
 
             // Configurar contexto de vendedor e idioma
             const GIADA_ID = '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
-            const MICHELLE_ID = 'dbc361a1-e4af-446a-8079-39c0caab00d2';
+            const ALBA_ID = 'ca69863d-998b-4bad-865a-19720e7a1f67';
+            const LISETH_ID = 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa';
+            const FATUMATA_ID = '2a25dd76-8a1b-44ea-8ea9-47e9232beee2';
             const OMAR_ID = '346a9262-2edf-4a2e-80fc-aa5b43bf483a';
             const ALEX_ID = 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
 
             const assignedUserId = lead.assigned_to;
 
-            if (!hasExplicitSeller) {
+            if (assignedUserId === LISETH_ID || isSpainWiseoweLead) {
+              currentLang = 'es';
+              currentSalesperson = 'Liseth';
+              currentCompany = 'Wiseowe Servicios Industriales';
+              if (!destParam || currentWaUrl === waFatumataDefault) currentWaUrl = waLisethDefault;
+            } else if (!hasExplicitSeller) {
               if (assignedUserId === GIADA_ID || isItalyLead) {
                 currentLang = 'it';
                 currentSalesperson = 'Giada';
                 currentCompany = 'Triangolo Servizi Industriali';
                 if (!destParam) currentWaUrl = waGiadaDefault;
-              } else if (assignedUserId === OMAR_ID || isFranceLead || isWiseowe) {
+              } else if (assignedUserId === FATUMATA_ID || assignedUserId === OMAR_ID || isFranceLead) {
                 currentLang = 'fr';
-                currentSalesperson = 'Omar';
+                currentSalesperson = 'Fatumata';
                 currentCompany = 'Wiseowe Industrie';
-                if (!destParam) currentWaUrl = waOmarDefault;
+                if (!destParam) currentWaUrl = waFatumataDefault;
               } else if (assignedUserId === ALEX_ID || isLuminous) {
                 currentLang = 'es';
                 currentSalesperson = 'Alex';
                 currentCompany = 'Luminous Alley';
                 if (!destParam) currentWaUrl = waAlexDefault;
+              } else if (assignedUserId === ALBA_ID || isTriangulo) {
+                currentLang = 'es';
+                currentSalesperson = 'Alba';
+                currentCompany = 'Triángulo Servicios Industriales';
+                if (!destParam) currentWaUrl = waAlbaDefault;
               } else {
                 currentLang = 'es';
-                currentSalesperson = 'Michelle';
-                currentCompany = isTriangulo ? 'Triângulo Servicios Industriales' : 'Atención Comercial';
-                if (!destParam) currentWaUrl = waMichelleDefault;
+                currentSalesperson = 'Alba';
+                currentCompany = 'Triángulo Servicios Industriales';
+                if (!destParam) currentWaUrl = waAlbaDefault;
               }
             }
 
@@ -261,7 +328,7 @@ export function WhatsAppRedirectPage() {
   const copy = {
     fr: {
       title: `Contacter ${salespersonName} sur WhatsApp`,
-      subtitle: `Discutez en direct avec votre conseiller commercial chez ${companyName}.`,
+      subtitle: `Discutez en direct avec votre conseillère commerciale chez ${companyName}.`,
       btn: 'Démarrer la conversation sur WhatsApp',
       connecting: 'Connexion à WhatsApp en cours...',
       security: 'Lien direct et sécurisé vérifié',

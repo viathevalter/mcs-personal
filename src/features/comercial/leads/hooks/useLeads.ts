@@ -62,8 +62,8 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     country: 'ES',
     flag: '🇪🇸',
     language: 'es',
-    commercialEmail: 'comercial2@triangulolda.com',
-    marketingSenderEmail: 'comercial2@es.triangulolda.com',
+    commercialEmail: 'comercial4@triangulolda.com',
+    marketingSenderEmail: 'comercial4@es.triangulolda.com',
     senderBrandName: 'Triángulo Servicios Industriales',
   },
   {
@@ -80,8 +80,8 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     country: 'ES',
     flag: '🇪🇸',
     language: 'es',
-    commercialEmail: 'comercial3@wiseowe.com',
-    marketingSenderEmail: 'comercial3@es.wiseowe.com',
+    commercialEmail: 'comercial2@wiseowe.com',
+    marketingSenderEmail: 'comercial2@es.wiseowe.com',
     senderBrandName: 'Wiseowe Servicios Industriales',
   },
   {

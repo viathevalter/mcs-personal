@@ -384,11 +384,11 @@ export function CampaignsPage() {
     }
     if (isWiseowe) {
       return activeCommercialProfile?.country === 'ES'
-        ? ((currentEmpresa as any)?.marketing_sender_email_es || 'comercial3@es.wiseowe.com')
+        ? ((currentEmpresa as any)?.marketing_sender_email_es || 'comercial2@es.wiseowe.com')
         : ((currentEmpresa as any)?.marketing_sender_email_fr || currentEmpresa?.marketing_sender_email || 'comercial3@fr.wiseowe.com');
     }
     if (isTriangulo) {
-      return (currentEmpresa as any)?.marketing_sender_email_es || currentEmpresa?.marketing_sender_email || 'comercial2@es.triangulolda.com';
+      return (currentEmpresa as any)?.marketing_sender_email_es || currentEmpresa?.marketing_sender_email || 'comercial4@es.triangulolda.com';
     }
     return (currentEmpresa as any)?.marketing_sender_email_es || currentEmpresa?.marketing_sender_email || 'comercial1@mail.luminousalley.com';
   }, [activeCommercialProfile, currentEmpresa, isWiseowe, isTriangulo]);
@@ -397,7 +397,9 @@ export function CampaignsPage() {
     if (activeCommercialProfile?.commercialEmail) {
       return activeCommercialProfile.commercialEmail;
     }
-    return currentEmpresa?.proposal_sender_email || (isTriangulo ? 'comercial2@triangulolda.com' : isWiseowe ? 'comercial3@wiseowe.com' : 'comercial1@luminousalley.com');
+    if (isWiseowe) return activeCommercialProfile?.country === 'ES' ? ((currentEmpresa as any)?.proposal_sender_email_es || 'comercial2@wiseowe.com') : ((currentEmpresa as any)?.proposal_sender_email_fr || currentEmpresa?.proposal_sender_email || 'comercial3@wiseowe.com');
+    if (isTriangulo) return (currentEmpresa as any)?.proposal_sender_email_es || currentEmpresa?.proposal_sender_email || 'comercial4@triangulolda.com';
+    return currentEmpresa?.proposal_sender_email || 'comercial1@luminousalley.com';
   }, [activeCommercialProfile, currentEmpresa, isWiseowe, isTriangulo]);
 
   const activeSenderName = useMemo(() => {
@@ -1013,7 +1015,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_mitchelle_ineditos_metal',
-          name: '🚀 Triângulo (Mitchelle) - Inéditos Metal Lote 2 (48 leads)',
+          name: '🚀 Triângulo (Alba) - Inéditos Metal Lote 2 (48 leads)',
           leadCount: 48,
           filters: {
             stageId: '',
@@ -1036,7 +1038,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_mitchelle_metal',
-          name: '🎯 Triângulo (Mitchelle) - Listado Empresas Metal (153 leads)',
+          name: '🎯 Triângulo (Alba) - Listado Empresas Metal (153 leads)',
           leadCount: 153,
           filters: {
             stageId: '',
@@ -1059,7 +1061,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_mitchelle_geral',
-          name: '🎯 Triângulo (Mitchelle) - Mailing Geral Empresas Espanha (308 leads)',
+          name: '🎯 Triângulo (Alba) - Mailing Geral Empresas Espanha (308 leads)',
           leadCount: 308,
           filters: {
             stageId: '',
@@ -1082,7 +1084,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_mitchelle_ineditos_total',
-          name: '🚀 Triângulo (Mitchelle) - Inéditos Totais Espanha (122 leads)',
+          name: '🚀 Triângulo (Alba) - Inéditos Totais Espanha (122 leads)',
           leadCount: 122,
           filters: {
             stageId: '',
@@ -1105,7 +1107,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_michelle_es_geral',
-          name: '🎯 Triângulo (Michelle) - Geral Espanha Sem Alex (6.546 leads)',
+          name: '🎯 Triângulo (Alba) - Geral Espanha Sem Alex (6.546 leads)',
           leadCount: 6546,
           filters: {
             stageId: '',
@@ -1130,7 +1132,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_michelle_caldereria',
-          name: '🎯 Triângulo (Michelle) - Calderería, Tubería & Piping (1.200 leads)',
+          name: '🎯 Triângulo (Alba) - Calderería, Tubería & Piping (1.200 leads)',
           leadCount: 1200,
           filters: {
             stageId: '',
@@ -1155,7 +1157,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_michelle_estructuras',
-          name: '🎯 Triângulo (Michelle) - Estructuras Metálicas & Montajes (1.100 leads)',
+          name: '🎯 Triângulo (Alba) - Estructuras Metálicas & Montajes (1.100 leads)',
           leadCount: 1100,
           filters: {
             stageId: '',
@@ -1180,7 +1182,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_michelle_mecanizado',
-          name: '🎯 Triângulo (Michelle) - Mecanizado CNC & Tornería (850 leads)',
+          name: '🎯 Triângulo (Alba) - Mecanizado CNC & Tornería (850 leads)',
           leadCount: 850,
           filters: {
             stageId: '',
@@ -1205,7 +1207,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_michelle_catalunha',
-          name: '🎯 Triângulo (Michelle) - Catalunha & Barcelona (1.350 leads)',
+          name: '🎯 Triângulo (Alba) - Catalunha & Barcelona (1.350 leads)',
           leadCount: 1350,
           filters: {
             stageId: '',
@@ -1230,7 +1232,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_triangulo_michelle_madrid',
-          name: '🎯 Triângulo (Michelle) - Madrid & Zona Centro (1.100 leads)',
+          name: '🎯 Triângulo (Alba) - Madrid & Zona Centro (1.100 leads)',
           leadCount: 1100,
           filters: {
             stageId: '',
@@ -1380,7 +1382,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_scraping_inedits',
-          name: '🚀 🇫🇷 Omar - Inédits Portais França / SCMF & Sous-Traiter (228 leads)',
+          name: '🚀 🇫🇷 Fatumata - Inédits Portais França / SCMF & Sous-Traiter (228 leads)',
           leadCount: 228,
           filters: {
             stageId: '',
@@ -1403,7 +1405,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_scraping_total',
-          name: '🎯 🇫🇷 Omar - Mailing Completo Portais França (354 leads)',
+          name: '🎯 🇫🇷 Fatumata - Mailing Completo Portais França (354 leads)',
           leadCount: 354,
           filters: {
             stageId: '',
@@ -1541,7 +1543,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_mailing_france',
-          name: '🎯 🇫🇷 Omar - Mailing France (2.362 leads)',
+          name: '🎯 🇫🇷 Fatumata - Mailing France (2.362 leads)',
           leadCount: 2362,
           filters: {
             stageId: '',
@@ -1564,7 +1566,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_inedits_france',
-          name: '🚀 🇫🇷 Omar - Inédits France (1.309 leads)',
+          name: '🚀 🇫🇷 Fatumata - Inédits France (1.309 leads)',
           leadCount: 1309,
           filters: {
             stageId: '',
@@ -1587,7 +1589,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_be_omar_mailing_belgique',
-          name: '🎯 🇧🇪 Omar - Mailing Belgique (208 leads)',
+          name: '🎯 🇧🇪 Fatumata - Mailing Belgique (208 leads)',
           leadCount: 208,
           filters: {
             stageId: '',
@@ -1610,7 +1612,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_be_omar_inedits_belgique',
-          name: '🚀 🇧🇪 Omar - Inédits Belgique (199 leads)',
+          name: '🚀 🇧🇪 Fatumata - Inédits Belgique (199 leads)',
           leadCount: 199,
           filters: {
             stageId: '',
@@ -1633,7 +1635,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_be_omar_mailing_total',
-          name: '🌟 🇪🇺 Omar - Mailing Total FR & BE (2.570 leads)',
+          name: '🌟 🇪🇺 Fatumata - Mailing Total FR & BE (2.570 leads)',
           leadCount: 2570,
           filters: {
             stageId: '',
@@ -1656,7 +1658,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_planilha_total',
-          name: '🚀 🇫🇷 Omar Planilha (1.147 leads)',
+          name: '🚀 🇫🇷 Fatumata Planilha (1.147 leads)',
           leadCount: 1147,
           filters: {
             stageId: '',
@@ -1679,7 +1681,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_tuyauterie',
-          name: '🎯 🇫🇷 Omar Planilha - Tuyauterie & Chaudronnerie (735 leads)',
+          name: '🎯 🇫🇷 Fatumata Planilha - Tuyauterie & Chaudronnerie (735 leads)',
           leadCount: 735,
           filters: {
             stageId: '',
@@ -1702,7 +1704,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_naval',
-          name: '🎯 🇫🇷 Omar Planilha - Chantiers Navals & Marine (239 leads)',
+          name: '🎯 🇫🇷 Fatumata Planilha - Chantiers Navals & Marine (239 leads)',
           leadCount: 239,
           filters: {
             stageId: '',
@@ -1725,7 +1727,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_inox',
-          name: '🎯 🇫🇷 Omar Planilha - Tubería Inox & Agroalimentaire (69 leads)',
+          name: '🎯 🇫🇷 Fatumata Planilha - Tubería Inox & Agroalimentaire (69 leads)',
           leadCount: 69,
           filters: {
             stageId: '',
@@ -1748,7 +1750,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_estructuras',
-          name: '🎯 🇫🇷 Omar Planilha - Charpente Métallique & Serrurerie (42 leads)',
+          name: '🎯 🇫🇷 Fatumata Planilha - Charpente Métallique & Serrurerie (42 leads)',
           leadCount: 42,
           filters: {
             stageId: '',
@@ -1771,7 +1773,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_piping',
-          name: '🎯 🇫🇷 Omar Planilha - Tuyauterie Industrielle & Piping (26 leads)',
+          name: '🎯 🇫🇷 Fatumata Planilha - Tuyauterie Industrielle & Piping (26 leads)',
           leadCount: 26,
           filters: {
             stageId: '',
@@ -1794,7 +1796,7 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_fr_omar_usinage',
-          name: '🎯 🇫🇷 Omar Planilha - Usinage CNC & Mécanique (12 leads)',
+          name: '🎯 🇫🇷 Fatumata Planilha - Usinage CNC & Mécanique (12 leads)',
           leadCount: 12,
           filters: {
             stageId: '',
@@ -3049,7 +3051,7 @@ export function CampaignsPage() {
     bannerUrl: '',
     sellerName: 'Alex Archiles',
     sellerTitle: 'Comercial',
-    sellerPhone: '645 56 74 01',
+    sellerPhone: '+34 937 37 41 80',
   });
   const [hasVisualConfig, setHasVisualConfig] = useState(false);
   const [activeEditorTab, setActiveEditorTab] = useState('visual');
@@ -3090,7 +3092,7 @@ export function CampaignsPage() {
         bannerUrl: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
         sellerName: 'Alex Archiles',
         sellerTitle: 'Comercial',
-        sellerPhone: '645 56 74 01'
+        sellerPhone: '+34 937 37 41 80'
       };
       // Append config to HTML so it's tracked
       html = html + `\n<!-- TEMPLATE_CONFIG: ${JSON.stringify(config)} -->`;
@@ -5547,7 +5549,26 @@ export function CampaignsPage() {
                 {/* Simulated email header */}
                 <div className="bg-slate-50 border-b p-3 text-xs text-slate-500 space-y-1">
                   <div><strong>Assunto:</strong> <span className="text-slate-800">{previewTemplate.subject}</span></div>
-                  <div><strong>De:</strong> <span className="text-slate-800">{activeSenderName} &lt;{activeSenderEmail}&gt;</span></div>
+                  <div><strong>De (Envio Resend):</strong> <span className="text-slate-800">{(() => {
+                    const tplTitle = (previewTemplate?.title || "").toLowerCase();
+                    if (isWiseowe && (tplTitle.includes("liseth") || tplTitle.includes("espanha") || tplTitle.includes("españa"))) {
+                      return "Wiseowe Servicios Industriales <comercial2@es.wiseowe.com>";
+                    }
+                    if (isWiseowe) {
+                      return "Wiseowe Industrie <comercial3@fr.wiseowe.com>";
+                    }
+                    return `${activeSenderName} <${activeSenderEmail}>`;
+                  })()}</span></div>
+                  <div><strong>Responder a (Reply-To):</strong> <span className="text-blue-700 font-semibold">{(() => {
+                    const tplTitle = (previewTemplate?.title || "").toLowerCase();
+                    if (isWiseowe && (tplTitle.includes("liseth") || tplTitle.includes("espanha") || tplTitle.includes("españa"))) {
+                      return "comercial2@wiseowe.com (Caixa da Liseth)";
+                    }
+                    if (isWiseowe) {
+                      return "comercial3@wiseowe.com (Caixa da Fatumata)";
+                    }
+                    return activeReplyToEmail;
+                  })()}</span></div>
                 </div>
                 <iframe 
                   srcDoc={(() => {
@@ -5567,15 +5588,22 @@ export function CampaignsPage() {
                       .replace(/\{\{\{\s*RESEND_UNSUBSCRIBE_URL\s*\}\}\}/gi, testOptOutUrl)
                       .replace(/\{\{\s*RESEND_UNSUBSCRIBE_URL\s*\}\}/gi, testOptOutUrl)
                       .replace(/\*\|UNSUB\|\*/gi, testOptOutUrl)
-                    const waOmarUrl = `https://wa.me/351936447734?text=${encodeURIComponent("Bonjour Omar, je souhaite plus d'informations sur vos services")}`;
-                    const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Michelle, quisiera más información sobre sus servicios")}`;
+                    const waFatumataUrl = `https://wa.me/33176210655?text=${encodeURIComponent("Bonjour Fatumata, je souhaite plus d'informations sur vos services")}`;
+                    const waLisethUrl = `https://wa.me/34937371540?text=${encodeURIComponent("Hola Liseth, quisiera más información sobre sus servicios")}`;
+                    const waAlbaUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Alba, quisiera más información sobre sus servicios")}`;
                     const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
                     const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
+                    const waOmarUrl = waFatumataUrl;
+                    const waMichelleUrl = waAlbaUrl;
 
-                    let defaultWaUrl = waMichelleUrl;
-                    if (isWiseowe) defaultWaUrl = waOmarUrl;
+                    const tplTitleLower = (previewTemplate?.title || "").toLowerCase();
+                    const isPreviewWiseoweEs = isWiseowe && (tplTitleLower.includes("liseth") || tplTitleLower.includes("espanha") || tplTitleLower.includes("españa") || activeCommercialProfile?.key === "liseth");
+
+                    let defaultWaUrl = waAlbaUrl;
+                    if (isPreviewWiseoweEs) defaultWaUrl = waLisethUrl;
+                    else if (isWiseowe) defaultWaUrl = waFatumataUrl;
                     else if (isLuminous) defaultWaUrl = waAlexUrl;
-                    else if (isTriangulo) defaultWaUrl = waMichelleUrl;
+                    else if (isTriangulo) defaultWaUrl = waAlbaUrl;
 
                     html = html
                       .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${selectedEmpresaId || ''}`)
