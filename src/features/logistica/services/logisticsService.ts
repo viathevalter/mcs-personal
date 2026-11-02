@@ -1,4 +1,16 @@
 import { supabase } from '@/shared/supabase/client';
+import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+
+function normalizeLogisticaEmpresa(raw?: string | null, workerContratante?: string | null): string {
+  const candidate = workerContratante || raw || 'LUMINOUS';
+  const norm = normalizeEmpresaName(candidate);
+  if (!norm || norm.includes('KOTRIK')) {
+    const fallbackWorker = normalizeEmpresaName(workerContratante);
+    if (fallbackWorker && !fallbackWorker.includes('KOTRIK')) return fallbackWorker;
+    return 'TRIANGULO';
+  }
+  return norm;
+}
 import { registrosService, fetchAllTableRows } from './registrosService';
 import importedAllocations from '../data/imported_allocations.json';
 
@@ -435,8 +447,8 @@ export const logisticsService = {
           nombre: w.nome,
           status_trabajador: w.status_trabajador,
           status_seguridad: w.status_seguridad,
-          contratante: w.contratante || 'LUMINOUS',
-          empresa_interna: w.contratante || 'LUMINOUS',
+          contratante: normalizeLogisticaEmpresa(w.contratante),
+          empresa_interna: normalizeLogisticaEmpresa(w.contratante),
           ubicacion: w.location || 'Espanha',
           cliente: w.cliente || 'Cliente Principal',
           funcion: w.funcion || 'Operador Especialista',
@@ -621,7 +633,7 @@ export const logisticsService = {
               supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad')
+                .select('id, cod_colab, nome, movil, nif, contratante, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad')
                 .in('id', allWorkerIds)
             )
           : Promise.resolve({ data: [] }),
@@ -630,7 +642,7 @@ export const logisticsService = {
               supabase
                 .schema('core_personal')
                 .from('workers')
-                .select('id, cod_colab, nome, movil, nif, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad')
+                .select('id, cod_colab, nome, movil, nif, contratante, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad')
                 .in('cod_colab', allCodColabs)
             )
           : Promise.resolve({ data: [] }),
@@ -812,7 +824,7 @@ export const logisticsService = {
           worker_nome: workerNome,
           codigo_colab: codColab,
           worker_movil: workerInfo.movil || workerBase.worker_movil || '',
-          empresa_contratante: row.empresa_id || workerBase.empresa_contratante || 'LUMINOUS',
+          empresa_contratante: normalizeLogisticaEmpresa(row.empresa_id || workerBase.empresa_contratante, workerInfo.contratante),
           cliente_nome: row.cliente_obra_nome || row.project_name || base.cliente_nome || 'Cliente Obra',
           obra_nome: row.project_name || row.cliente_obra_nome || base.obra_nome || 'Obra Principal',
           municipio: alojInfo.cidade || alojInfo.municipio || base.municipio || 'España',
@@ -947,7 +959,7 @@ export const logisticsService = {
       observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
       status: 'Alojamiento Propio',
       tipo_alojamento: 'Propio',
-      empresa_contratante: payload.empresa_contratante || 'LUMINOUS',
+      empresa_contratante: normalizeLogisticaEmpresa(payload.empresa_contratante),
       custo_alojamento: payload.custo_alojamento || 0,
       alojamento: {
         id: 'propio',
@@ -1053,7 +1065,7 @@ export const logisticsService = {
       observacoes: payload.observacoes || 'Alojamiento por cuenta del cliente (Sin coste MCS)',
       status: 'Alojamiento Cliente',
       tipo_alojamento: 'Cliente',
-      empresa_contratante: payload.empresa_contratante || 'LUMINOUS',
+      empresa_contratante: normalizeLogisticaEmpresa(payload.empresa_contratante),
       custo_alojamento: 0,
       alojamento: {
         id: 'cliente',
@@ -1506,7 +1518,7 @@ export const logisticsService = {
 
         const clienteNome = client?.trade_name || client?.legal_name || 'Cliente';
         const clienteTelefone = client?.phone || client?.mobile || '';
-        const empresaNome = empresa?.trade_name || empresa?.name || ped.empresa_nome || 'LUMINOUS';
+        const empresaNome = normalizeLogisticaEmpresa(empresa?.trade_name || empresa?.name || ped.empresa_nome || 'LUMINOUS');
         const obraNome = site?.name?.trim() || 'Obra Principal';
         const enderecoCompleto = site?.address_line?.trim() || 'Dirección no informada';
         const cidade = site?.city?.trim() || '';
@@ -1913,7 +1925,7 @@ export const logisticsService = {
           cliente_nome: a.cliente_nome || 'Cliente Obra',
           obra_nome: a.obra_nome || 'Obra',
           pedido_codigo: a.pedido_codigo,
-          empresa_contratante: a.empresa_contratante || 'LUMINOUS',
+          empresa_contratante: normalizeLogisticaEmpresa(a.empresa_contratante),
           alojamento_id: isPropio ? 'propio' : isCliente ? 'cliente' : (a.alojamento_id || ''),
           alojamento_nome: isPropio 
             ? 'Alojamiento Propio / Por Cuenta Propia' 

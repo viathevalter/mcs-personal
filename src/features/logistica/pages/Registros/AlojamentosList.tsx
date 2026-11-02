@@ -1521,7 +1521,7 @@ export const AlojamentosList: React.FC = () => {
 
                                         <td className="px-4 py-3">
                                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                            {oc.empresa_contratante || 'STOCCO, LDA'}
+                                            {oc.empresa_contratante || 'STOCCO'}
                                           </span>
                                         </td>
 

@@ -61,6 +61,7 @@ import {
   type TermoResponsabilidadeAlojamento
 } from '../services/termoResponsabilidadeService';
 import { TermoResponsabilidadeModal } from '../components/TermoResponsabilidadeModal';
+import { normalizeEmpresaName, matchesEmpresaFilter } from '@/shared/utils/empresaNormalizer';
 import { downloadTermoAlojamentoPdf } from '../utils/termoAlojamentoPdfGenerator';
 
 const MESES_NOMES = [
@@ -78,7 +79,25 @@ const formatBaixaDate = (dateStr?: string) => {
 
 export const DemandasAlocacaoPage: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio' | 'cliente' | 'termos'>('demandas');
+  const getSavedFilter = <T,>(key: string, fallback: T): T => {
+    try {
+      const raw = sessionStorage.getItem('mcs_logistica_demandas_filters_v1');
+      if (!raw) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed[key] !== undefined ? parsed[key] : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const normalizeSavedEmpresaFilter = (val: string): string => {
+    if (!val || val === 'todas') return 'todas';
+    const norm = normalizeEmpresaName(val);
+    if (!norm || norm.includes('KOTRIK')) return 'TRIANGULO';
+    return norm;
+  };
+
+  const [activeTab, setActiveTab] = useState<'demandas' | 'alojados' | 'propio' | 'cliente' | 'termos'>(() => getSavedFilter('activeTab', 'demandas'));
   const [termosList, setTermosList] = useState<TermoResponsabilidadeAlojamento[]>([]);
   const [selectedTermoModal, setSelectedTermoModal] = useState<TermoResponsabilidadeAlojamento | null>(null);
   const [termosSearch, setTermosSearch] = useState('');
@@ -104,7 +123,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
   // Filtros Avançados e Ordenação de Alojamientos de la Empresa (Aba 2)
   const [alojadosSearch, setAlojadosSearch] = useState('');
-  const [alojadosEmpresaFilter, setAlojadosEmpresaFilter] = useState('todas');
+  const [alojadosEmpresaFilter, setAlojadosEmpresaFilter] = useState(() => normalizeSavedEmpresaFilter(getSavedFilter('alojadosEmpresaFilter', 'todas')));
   const [alojadosAlojamentoFilter, setAlojadosAlojamentoFilter] = useState('todos');
   const [alojadosClienteFilter, setAlojadosClienteFilter] = useState('todos');
   const [alojadosObraFilter, setAlojadosObraFilter] = useState('todos');
@@ -147,17 +166,28 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }
   };
   const [propioSearch, setPropioSearch] = useState('');
-  const [propioEmpresaFilter, setPropioEmpresaFilter] = useState('todas');
+  const [propioEmpresaFilter, setPropioEmpresaFilter] = useState(() => normalizeSavedEmpresaFilter(getSavedFilter('propioEmpresaFilter', 'todas')));
   const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos' | 'inactivos_rh'>('activos');
   const [propioSortField, setPropioSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'municipio' | 'periodo' | 'dias' | 'valor'>('cliente');
   const [propioSortOrder, setPropioSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Filtros e Ordenação para Alojamiento por Cliente (Aba 4)
   const [clienteSearch, setClienteSearch] = useState('');
-  const [clienteEmpresaFilter, setClienteEmpresaFilter] = useState('todas');
+  const [clienteEmpresaFilter, setClienteEmpresaFilter] = useState(() => normalizeSavedEmpresaFilter(getSavedFilter('clienteEmpresaFilter', 'todas')));
   const [clienteStatusFilter, setClienteStatusFilter] = useState<'todos' | 'inactivos_rh'>('todos');
   const [clienteSortField, setClienteSortField] = useState<'worker' | 'codigo' | 'empresa' | 'cliente' | 'obra' | 'alojamento' | 'municipio' | 'periodo'>('cliente');
   const [clienteSortOrder, setClienteSortOrder] = useState<'asc' | 'desc'>('asc');
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('mcs_logistica_demandas_filters_v1', JSON.stringify({
+        activeTab,
+        alojadosEmpresaFilter,
+        propioEmpresaFilter,
+        clienteEmpresaFilter
+      }));
+    } catch {}
+  }, [activeTab, alojadosEmpresaFilter, propioEmpresaFilter, clienteEmpresaFilter]);
 
   // Seleção Múltipla para Alocação em Lote (Aba 1)
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
@@ -485,12 +515,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
     return clienteAlojadosRaw.filter(a => a.is_inativo_rh);
   }, [clienteAlojadosRaw]);
 
-  // Listas Únicas para Filtros Avançados da Aba 2 (Alojamientos Empresa)
+  // Lista Unificada de Empresas Contratantes (sem duplicações de razão social ou Kotrik)
   const empresasList = useMemo(() => {
-    const set = new Set<string>();
-    empresaAlojadosRaw.forEach(a => { if (a.empresa_contratante) set.add(a.empresa_contratante); });
+    const set = new Set<string>(['LUMINOUS', 'STOCCO', 'TRIANGULO', 'WISEOWE']);
+    alojados.forEach(a => {
+      if (a.empresa_contratante) {
+        const norm = normalizeEmpresaName(a.empresa_contratante);
+        if (norm && !norm.includes('KOTRIK')) {
+          set.add(norm);
+        }
+      }
+    });
     return Array.from(set).sort();
-  }, [empresaAlojadosRaw]);
+  }, [alojados]);
 
   const alojamentosListAba2 = useMemo(() => {
     const map = new Map<string, string>();
@@ -542,7 +579,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (alojadosEmpresaFilter !== 'todas' && a.empresa_contratante?.toLowerCase() !== alojadosEmpresaFilter.toLowerCase()) {
+      if (alojadosEmpresaFilter !== 'todas' && !matchesEmpresaFilter(a.empresa_contratante, alojadosEmpresaFilter)) {
         return false;
       }
 
@@ -693,7 +730,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (propioEmpresaFilter !== 'todas' && a.empresa_contratante?.toLowerCase() !== propioEmpresaFilter.toLowerCase()) {
+      if (propioEmpresaFilter !== 'todas' && !matchesEmpresaFilter(a.empresa_contratante, propioEmpresaFilter)) {
         return false;
       }
 
@@ -733,7 +770,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
 
       if (!matchesSearch) return false;
 
-      if (clienteEmpresaFilter !== 'todas' && a.empresa_contratante?.toLowerCase() !== clienteEmpresaFilter.toLowerCase()) {
+      if (clienteEmpresaFilter !== 'todas' && !matchesEmpresaFilter(a.empresa_contratante, clienteEmpresaFilter)) {
         return false;
       }
 
@@ -4885,7 +4922,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <option value="WISEOWE">WISEOWE</option>
                         <option value="TRIANGULO">TRIANGULO</option>
                         <option value="HEXAGON">HEXAGON</option>
-                        <option value="KOTRIK">KOTRIK</option>
                       </select>
                     </div>
 
@@ -5078,7 +5114,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         <option value="WISEOWE">WISEOWE</option>
                         <option value="TRIANGULO">TRIANGULO</option>
                         <option value="HEXAGON">HEXAGON</option>
-                        <option value="KOTRIK">KOTRIK</option>
                       </select>
                     </div>
 
