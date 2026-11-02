@@ -242,7 +242,7 @@ export function EstimacionDetailPage() {
                 <ExternalLink className="ml-2 h-4 w-4" />
               </Button>
             )}
-            {estimacion.status === 'draft' && !estimacion.pedido?.id && estimacion.proposal_signature?.status !== 'signed' && (
+            {((estimacion.status === 'draft' && !estimacion.pedido?.id && estimacion.proposal_signature?.status !== 'signed') || role === 'admin' || role === 'super_admin') && (
               <Button 
                 variant="outline" 
                 onClick={() => navigate(`/comercial/estimaciones/${estimacion.id}/editar`)}

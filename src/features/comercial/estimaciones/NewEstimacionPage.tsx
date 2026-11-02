@@ -92,7 +92,8 @@ export function NewEstimacionPage() {
   const urlLeadId = searchParams.get('lead_id');
 
   const { t } = useTranslation();
-  const { selectedEmpresaId, empresas = [] } = useEmpresa();
+  const { selectedEmpresaId, empresas = [], role } = useEmpresa();
+  const isAdmin = role === 'admin' || role === 'super_admin';
   const { user } = useAuth();
   const { criarEstimacion, atualizarEstimacion } = useEstimacionMutations();
   
@@ -594,7 +595,7 @@ export function NewEstimacionPage() {
     );
   }
 
-  if (estimacion && estimacion.status !== 'draft') {
+  if (estimacion && estimacion.status !== 'draft' && !isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center h-[500px] space-y-4 max-w-md mx-auto text-center p-4">
         <div className="h-12 w-12 rounded-full bg-red-100 dark:bg-red-950/20 text-red-650 flex items-center justify-center text-xl font-bold">!</div>
