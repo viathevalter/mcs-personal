@@ -117,8 +117,35 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [selectedAlojadosIds, setSelectedAlojadosIds] = useState<string[]>([]);
 
   // Filtros, Mês de Referência e Ordenação para Alojamiento Propio (Aba 3)
-  const [propioYear, setPropioYear] = useState<number>(new Date().getFullYear());
-  const [propioMonth, setPropioMonth] = useState<number>(new Date().getMonth() + 1);
+  // Nos primeiros 15 dias do mês (período de fechamento do mês anterior), inicia por padrão no mês anterior
+  const [propioYear, setPropioYear] = useState<number>(() => {
+    const now = new Date();
+    if (now.getDate() <= 15) {
+      return now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    }
+    return now.getFullYear();
+  });
+  const [propioMonth, setPropioMonth] = useState<number>(() => {
+    const now = new Date();
+    if (now.getDate() <= 15) {
+      return now.getMonth() === 0 ? 12 : now.getMonth();
+    }
+    return now.getMonth() + 1;
+  });
+
+  const syncPropioMonthFromDate = (dateStr?: string) => {
+    if (!dateStr) return;
+    const clean = String(dateStr).trim().split("T")[0];
+    const parts = clean.split("-");
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+        setPropioYear(y);
+        setPropioMonth(m);
+      }
+    }
+  };
   const [propioSearch, setPropioSearch] = useState('');
   const [propioEmpresaFilter, setPropioEmpresaFilter] = useState('todas');
   const [propioStatusFilter, setPropioStatusFilter] = useState<'todos' | 'activos' | 'inactivos' | 'inactivos_rh'>('activos');
@@ -560,18 +587,35 @@ export const DemandasAlocacaoPage: React.FC = () => {
     status?: string,
     motivoCheckout?: string
   ) => {
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const mStart = new Date(year, month - 1, 1);
-    const mEnd = new Date(year, month - 1, daysInMonth, 23, 59, 59);
+    const parseYMD = (str?: string): { y: number; m: number; d: number } | null => {
+      if (!str) return null;
+      const clean = String(str).trim().split('T')[0];
+      const parts = clean.split('-');
+      if (parts.length === 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        const d = parseInt(parts[2], 10);
+        if (!isNaN(y) && !isNaN(m) && !isNaN(d)) return { y, m, d };
+      }
+      const dt = new Date(str);
+      if (isNaN(dt.getTime())) return null;
+      return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate() };
+    };
 
-    const wStart = checkinStr ? new Date(checkinStr + 'T00:00:00') : new Date('2025-01-01T00:00:00');
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const mStartInt = year * 10000 + month * 100 + 1;
+    const mEndInt = year * 10000 + month * 100 + daysInMonth;
+
+    const wStartParsed = parseYMD(checkinStr) || { y: 2025, m: 1, d: 1 };
+    const wStartInt = wStartParsed.y * 10000 + wStartParsed.m * 100 + wStartParsed.d;
 
     // Considera saída efetiva apenas se o status for Checkout ou houver motivo registrado
     const isCheckedOut = status === 'Checkout' || Boolean(motivoCheckout);
-    const wEnd = isCheckedOut && checkoutStr ? new Date(checkoutStr + 'T23:59:59') : null;
+    const wEndParsed = isCheckedOut && checkoutStr ? parseYMD(checkoutStr) : null;
+    const wEndInt = wEndParsed ? (wEndParsed.y * 10000 + wEndParsed.m * 100 + wEndParsed.d) : null;
 
     // Se trabalhador começou depois do fim do mês ou terminou antes do início do mês
-    if (wStart > mEnd || (wEnd && wEnd < mStart)) {
+    if (wStartInt > mEndInt || (wEndInt !== null && wEndInt < mStartInt)) {
       return {
         diasAtivos: 0,
         totalDiasMes: 30,
@@ -582,15 +626,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
       };
     }
 
-    const effStart = wStart < mStart ? mStart : wStart;
-    const effEnd = (!wEnd || wEnd > mEnd) ? mEnd : wEnd;
-
-    // Se esteve ativo durante todo o mês civil (desde o dia 1 ou antes até o último dia do mês ou em curso)
-    const isFullMonth = wStart <= mStart && (!wEnd || wEnd >= mEnd);
+    // Mês Completo (30 d / € 300,00): EXCLUSIVAMENTE quando o trabalhador iniciou no dia 1 do mês ou antes (wStartInt <= mStartInt)
+    // e permaneceu até o final do mês (sem check-out antes do fim do mês)
+    const isFullMonth = wStartInt <= mStartInt && (wEndInt === null || wEndInt >= mEndInt);
 
     if (isFullMonth) {
       return {
-        diasAtivos: 30, // Sempre 30 dias comerciais para mês completo (€ 300 base, nunca 310)
+        diasAtivos: 30, // Base comercial fixa de 30 dias para mês completo (€ 300,00)
         totalDiasMes: 30,
         valorBase: 300,
         valorProporcional: 300,
@@ -599,13 +641,22 @@ export const DemandasAlocacaoPage: React.FC = () => {
       };
     }
 
-    // Caso proporcional (início após o 1º dia ou saída antes do fim do mês)
-    const diffMs = effEnd.getTime() - effStart.getTime();
-    const diasReais = Math.max(1, Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1);
+    // Cálculo Proporcional (qualquer ingresso após o dia 1 do mês ou saída antes do fim do mês)
+    // Na base comercial de 30 dias (€ 10,00/dia):
+    const startDayInMonth = wStartInt <= mStartInt ? 1 : wStartParsed.d;
+    let diasAtivos: number;
 
-    // Regra comercial: € 10,00 por dia com teto de 30 dias (€ 300,00)
-    const diasAtivos = Math.min(30, diasReais);
-    const valorProporcional = Math.min(300, Math.round(diasAtivos * 10 * 100) / 100);
+    if (wEndInt === null || wEndInt >= mEndInt) {
+      // Ingressou no mês após o dia 1 (ex: dia 15/10 -> 30 - 15 + 1 = 16 dias = € 160,00)
+      diasAtivos = Math.min(29, Math.max(1, 30 - startDayInMonth + 1));
+    } else {
+      // Teve saída antes do fim do mês
+      const endDayInMonth = Math.min(30, wEndParsed!.d);
+      const effStartDay = Math.min(30, startDayInMonth);
+      diasAtivos = Math.min(29, Math.max(1, endDayInMonth - effStartDay + 1));
+    }
+
+    const valorProporcional = Math.min(290, Math.round(diasAtivos * 10 * 100) / 100);
 
     return {
       diasAtivos,
@@ -972,6 +1023,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
           empresa_contratante: allocatingWorker.pedido.empresa_contratante,
           observacoes: singleObservacoes || 'Alojamiento Propio / Por cuenta propia'
         });
+        syncPropioMonthFromDate(singleDataInicio);
         setAllocatingWorker(null);
         await loadData();
       } catch (err: any) {
@@ -1204,6 +1256,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
           observacoes: directObservacoes || 'Alojamiento Propio'
         });
 
+        syncPropioMonthFromDate(directDataInicio);
         setIsDirectModalOpen(false);
         setSelectedRealWorker(null);
         await loadData();
@@ -1285,6 +1338,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
         observacoes: propioObservacoes
       });
 
+      syncPropioMonthFromDate(propioDataInicio);
       setIsPropioModalOpen(false);
       setSelectedPropioWorker(null);
       await loadData();

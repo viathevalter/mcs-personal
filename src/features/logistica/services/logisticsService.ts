@@ -334,6 +334,9 @@ const ALOCACOES_STORAGE_KEY = 'mcs_logistica_alocacoes_v5';
 
 function formatToLocalDate(val?: string | Date | null): string {
   if (!val) return '';
+  if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(val.trim())) {
+    return val.trim();
+  }
   const d = new Date(val);
   if (isNaN(d.getTime())) return String(val).split('T')[0];
   try {
@@ -816,10 +819,10 @@ export const logisticsService = {
           endereco: alojInfo.endereco_completo || alojInfo.endereco || base.endereco || '',
           pedido_id: row.pedido_id || base.pedido_id,
           pedido_codigo: base.pedido_codigo,
-          data_inicio: row.data_inicio ? (String(row.data_inicio).split('T')[0]) : (base.data_inicio || new Date().toISOString().split('T')[0]),
-          data_fim: row.data_fim ? (String(row.data_fim).split('T')[0]) : base.data_fim,
-          data_checkin: row.data_inicio ? (String(row.data_inicio).split('T')[0]) : base.data_checkin,
-          data_checkout_prevista: row.data_fim ? (String(row.data_fim).split('T')[0]) : base.data_checkout_prevista,
+          data_inicio: row.data_inicio ? formatToLocalDate(row.data_inicio) : (base.data_inicio || formatToLocalDate(new Date())),
+          data_fim: row.data_fim ? formatToLocalDate(row.data_fim) : base.data_fim,
+          data_checkin: row.data_inicio ? formatToLocalDate(row.data_inicio) : base.data_checkin,
+          data_checkout_prevista: row.data_fim ? formatToLocalDate(row.data_fim) : base.data_checkout_prevista,
           status: statusNormalized,
           motivo_checkout: row.motivo_checkout || base.motivo_checkout,
           observacoes: row.observacoes || base.observacoes || '',
