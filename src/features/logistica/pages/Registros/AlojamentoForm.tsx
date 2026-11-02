@@ -140,7 +140,7 @@ export const AlojamentoForm: React.FC = () => {
   const [historicoManutencao, setHistoricoManutencao] = useState<RegistroObservacaoHistorico[]>([]);
   const [observacoesHtml, setObservacoesHtml] = useState<string>('');
   const [documentosContrato, setDocumentosContrato] = useState<AnexoContratoAlojamento[]>([]);
-  const [croquisPlanta, setCroquisPlanta] = useState<CroquisPlantaData>(() => buildDefaultCroquis(3, 4, 1));
+  const [croquisPlanta, setCroquisPlanta] = useState<CroquisPlantaData>(() => buildDefaultCroquis(0, 0, 0));
   const [tipoDocContrato, setTipoDocContrato] = useState<AnexoContratoAlojamento['tipo_documento']>('Contrato Firmado');
   const [isUploadingContrato, setIsUploadingContrato] = useState<boolean>(false);
   const contratoFileInputRef = useRef<HTMLInputElement>(null);
@@ -276,8 +276,15 @@ export const AlojamentoForm: React.FC = () => {
             if (parsed.__savedDocumentosContrato && Array.isArray(parsed.__savedDocumentosContrato)) {
               setDocumentosContrato(parsed.__savedDocumentosContrato);
             }
-            if (parsed.__savedCroquisPlanta) {
+            const hasSavedCap =
+              (Number(parsed.dormitorios) || 0) > 0 ||
+              (Number(parsed.total_camas) || 0) > 0 ||
+              (Number(parsed.camas_individuais) || 0) > 0 ||
+              (Number(parsed.camas_duplas) || 0) > 0;
+            if (parsed.__savedCroquisPlanta && hasSavedCap) {
               setCroquisPlanta(parsed.__savedCroquisPlanta);
+            } else {
+              setCroquisPlanta(buildDefaultCroquis(0, 0, 0));
             }
             setIsDraftRestored(true);
           }
@@ -401,6 +408,7 @@ export const AlojamentoForm: React.FC = () => {
     setHistoricoManutencao([]);
     setObservacoesHtml('');
     setDocumentosContrato([]);
+    setCroquisPlanta(buildDefaultCroquis(0, 0, 0));
     setIsDraftRestored(false);
   };
 
@@ -442,26 +450,52 @@ export const AlojamentoForm: React.FC = () => {
     if (ind > 0 || dup > 0) {
       setValue('total_camas', totalCamasCalculado, { shouldDirty: true });
       setValue('capacidade_pessoas', capacidadeCalculada, { shouldDirty: true });
+    } else if (ind === 0 && dup === 0 && (Number(getValues('total_camas')) || 0) > 0 && (Number(getValues('dormitorios')) || 0) === 0) {
+      setValue('total_camas', 0, { shouldDirty: true });
+      setValue('capacidade_pessoas', 0, { shouldDirty: true });
     }
-  }, [watchedCamasIndividuais, watchedCamasDuplas, setValue]);
+  }, [watchedCamasIndividuais, watchedCamasDuplas, setValue, getValues]);
 
-  // Sincronização quando o usuário digita Dormitorios ou Total Camas diretamente nos cards superiores
+  // Sincronização quando o usuário digita Dormitorios, Total Camas ou Baños diretamente nos cards superiores
   useEffect(() => {
-    const numRooms = Number(watchedDormitorios) || 0;
-    const totalBeds = Number(watchedTotalCamas) || 0;
-    if (numRooms <= 0 && totalBeds <= 0) return;
+    const numRooms = Math.max(0, Number(watchedDormitorios) || 0);
+    const totalBeds = Math.max(0, Number(watchedTotalCamas) || 0);
+    const numBanos = Math.max(0, Number(watchedBanheiros) || 0);
 
     setCroquisPlanta(prev => {
       const currentHabs = Array.isArray(prev?.habitaciones) ? prev.habitaciones : [];
       const currentBedsSum = currentHabs.reduce((acc, h) => acc + (Number(h.camas) || 0), 0);
+      const currentMedioBano = Number(prev?.areas_comunes?.medio_bano) || 0;
+      const targetBanoCompleto = Math.max(0, numBanos - currentMedioBano);
+
+      // Se tanto Dormitorios quanto Total Camas estão zerados, mantém o croqui zerado
+      if (numRooms === 0 && totalBeds === 0) {
+        if (currentHabs.length === 0 && prev?.areas_comunes?.bano_completo === targetBanoCompleto) {
+          return prev;
+        }
+        return {
+          ...prev,
+          ativo: false,
+          habitaciones: [],
+          areas_comunes: {
+            ...(prev?.areas_comunes || { pasillo: true, cocina: true, sala: true, medio_bano: 0 }),
+            bano_completo: targetBanoCompleto
+          }
+        };
+      }
+
       const targetRooms = numRooms > 0 ? numRooms : Math.max(1, currentHabs.length);
       const targetBeds = totalBeds > 0 ? totalBeds : Math.max(targetRooms, currentBedsSum);
 
-      if (currentHabs.length === targetRooms && currentBedsSum === targetBeds) {
+      if (
+        currentHabs.length === targetRooms &&
+        currentBedsSum === targetBeds &&
+        prev?.areas_comunes?.bano_completo === targetBanoCompleto
+      ) {
         return prev;
       }
 
-      // Ajustar lista de quartos preservando os existentes quando possível
+      // Ajustar lista de quartos preservando os existentes e suas posições no croqui quando possível
       const nextHabs = [...currentHabs];
       if (nextHabs.length < targetRooms) {
         for (let i = nextHabs.length + 1; i <= targetRooms; i++) {
@@ -491,6 +525,10 @@ export const AlojamentoForm: React.FC = () => {
       return {
         ...prev,
         ativo: true,
+        areas_comunes: {
+          ...(prev?.areas_comunes || { pasillo: true, cocina: true, sala: true, medio_bano: 0 }),
+          bano_completo: targetBanoCompleto
+        },
         habitaciones: nextHabs.map((h, idx) => ({
           ...h,
           numero: idx + 1,
@@ -498,7 +536,7 @@ export const AlojamentoForm: React.FC = () => {
         }))
       };
     });
-  }, [watchedDormitorios, watchedTotalCamas]);
+  }, [watchedDormitorios, watchedTotalCamas, watchedBanheiros]);
 
   // SMART CALC 2: Cálculo Dinâmico de Aluguel por Pessoa / Habitação
   useEffect(() => {
@@ -600,9 +638,9 @@ export const AlojamentoForm: React.FC = () => {
           } else {
             setCroquisPlanta(
               buildDefaultCroquis(
-                a.dormitorios || 3,
-                a.total_camas || a.capacidade_pessoas || 4,
-                a.banheiros || 1
+                a.dormitorios || 0,
+                a.total_camas || a.capacidade_pessoas || 0,
+                a.banheiros || 0
               )
             );
           }
@@ -786,6 +824,7 @@ export const AlojamentoForm: React.FC = () => {
         setHistoricoManutencao([]);
         setObservacoesHtml('');
         setDocumentosContrato([]);
+        setCroquisPlanta(buildDefaultCroquis(0, 0, 0));
         setTimeout(() => setSaveSuccess(false), 2500);
       }
     } catch (error: any) {

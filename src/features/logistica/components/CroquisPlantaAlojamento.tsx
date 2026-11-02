@@ -172,12 +172,35 @@ export function getDefaultCommonRects(
 }
 
 export function buildDefaultCroquis(
-  dormitorios: number = 3,
-  totalCamas: number = 4,
-  banheiros: number = 1
+  dormitorios: number = 0,
+  totalCamas: number = 0,
+  banheiros: number = 0
 ): CroquisPlantaData {
-  const numRooms = Math.max(1, Number(dormitorios) || 1);
-  const bedsTotal = Math.max(numRooms, Number(totalCamas) || numRooms);
+  const rawRooms = Math.max(0, Number(dormitorios) || 0);
+  const rawBeds = Math.max(0, Number(totalCamas) || 0);
+  const banoComp = Math.max(0, Number(banheiros) || 0);
+
+  if (rawRooms === 0 && rawBeds === 0) {
+    return {
+      ativo: false,
+      habitaciones: [],
+      areas_comunes: {
+        bano_completo: banoComp,
+        medio_bano: 0,
+        pasillo: true,
+        cocina: true,
+        sala: true,
+        terraza: false
+      },
+      layout_blocos: getDefaultCommonRects(banoComp, 0),
+      canvas_height: DEFAULT_CANVAS_H,
+      imagem_croquis_url: '',
+      observacoes_planta: ''
+    };
+  }
+
+  const numRooms = rawRooms > 0 ? rawRooms : 1;
+  const bedsTotal = Math.max(numRooms, rawBeds);
 
   const habitaciones: HabitacionCroquis[] = [];
   let remainingBeds = bedsTotal;
@@ -201,8 +224,6 @@ export function buildDefaultCroquis(
       rect: getDefaultRoomRect(i - 1, numRooms)
     });
   }
-
-  const banoComp = Math.max(1, Number(banheiros) || 1);
 
   return {
     ativo: true,
@@ -978,161 +999,185 @@ export const CroquisPlantaAlojamento: React.FC<CroquisPlantaAlojamentoProps> = (
         </div>
       </div>
 
-      {/* Regra explicativa rápida */}
-      {!readOnly && !compact && (
-        <div className="p-2 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/50 rounded-xl flex items-start gap-2 text-[10px] text-blue-900 dark:text-blue-200">
-          <Info size={13} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-          <div>
-            <strong>Diseño libre con el ratón + Regla 1 Cama = 1 Plaza:</strong> Haga clic sobre cualquier habitación o área en el dibujo de abajo para <strong>moverla arrastrando</strong> o <strong>cambiar su forma y tamaño</strong> estirando los puntos azules de sus bordes y esquinas.
-          </div>
+      {/* Estado Zerado quando ainda não há quartos configurados */}
+      {habitaciones.length === 0 ? (
+        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-1.5">
+          <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+            Croquis en blanco (0 habitaciones configuradas)
+          </p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
+            Complete arriba la cantidad de <strong>Dormitorios</strong>, <strong>Individuales / Dobles</strong> y <strong>Baños</strong> (o haga clic en <strong>+ Habitación</strong>) para que el croquis se monte automáticamente aquí abajo y pueda ajustar las formas y tamaños con el ratón.
+          </p>
         </div>
-      )}
+      ) : (
+        <>
+          {/* Regra explicativa rápida */}
+          {!readOnly && !compact && (
+            <div className="p-2 bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/70 dark:border-blue-900/50 rounded-xl flex items-start gap-2 text-[10px] text-blue-900 dark:text-blue-200">
+              <Info size={13} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <strong>Diseño libre con el ratón + Regla 1 Cama = 1 Plaza:</strong> Haga clic sobre cualquier habitación o área en el dibujo de abajo para <strong>moverla arrastrando</strong> o <strong>cambiar su forma y tamaño</strong> estirando los puntos azules de sus bordes y esquinas.
+              </div>
+            </div>
+          )}
 
-      {/* Lista Editável de Quartos (Hab Nº 1, Hab Nº 2, ...) */}
-      {!readOnly && (
-        <div className="space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {habitaciones.map((hab, idx) => {
-              const key = `hab_${idx}`;
-              const isSel = selectedKey === key;
-              return (
-                <div
-                  key={hab.numero}
-                  onClick={() => setSelectedKey(key)}
-                  className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 transition-all cursor-pointer ${
-                    isSel
-                      ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 shadow-xs'
-                      : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[10px] font-black">
-                        Hab Nº {hab.numero}
-                      </span>
-                      <input
-                        type="text"
-                        value={hab.observacao || ''}
-                        onClick={e => e.stopPropagation()}
-                        onChange={e => handleUpdateHabitacion(idx, { observacao: e.target.value })}
-                        placeholder="Nota (ej: Exterior, Suite...)"
-                        className="w-28 sm:w-36 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-[10px] text-slate-700 dark:text-slate-200"
-                      />
-                    </div>
+          {/* Lista Editável de Quartos (Hab Nº 1, Hab Nº 2, ...) */}
+          {!readOnly && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {habitaciones.map((hab, idx) => {
+                  const key = `hab_${idx}`;
+                  const isSel = selectedKey === key;
+                  return (
+                    <div
+                      key={hab.numero}
+                      onClick={() => setSelectedKey(key)}
+                      className={`p-2.5 rounded-xl border flex flex-col justify-between gap-2 transition-all cursor-pointer ${
+                        isSel
+                          ? 'bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-400 dark:border-indigo-600 shadow-xs'
+                          : 'bg-slate-50 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-md text-[10px] font-black">
+                            Hab Nº {hab.numero}
+                          </span>
+                          <input
+                            type="text"
+                            value={hab.observacao || ''}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => handleUpdateHabitacion(idx, { observacao: e.target.value })}
+                            placeholder="Nota (ej: Exterior, Suite...)"
+                            className="w-28 sm:w-36 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-[10px] text-slate-700 dark:text-slate-200"
+                          />
+                        </div>
 
-                    {habitaciones.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={e => {
-                          e.stopPropagation();
-                          handleRemoveHabitacion(idx);
-                        }}
-                        className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
-                        title="Eliminar habitación"
-                      >
-                        <Trash2 size={12} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
-                    {/* Seletor de Quantidade de Camas no Quarto */}
-                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
-                      <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">Camas:</span>
-                      <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
                         <button
                           type="button"
-                          onClick={() => handleUpdateHabitacion(idx, { camas: Math.max(1, hab.camas - 1) })}
-                          className="px-2 py-0.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
+                          onClick={e => {
+                            e.stopPropagation();
+                            const filtered = habitaciones
+                              .filter((_, i) => i !== idx)
+                              .map((h, i) => ({
+                                ...h,
+                                numero: i + 1,
+                                nome: `Hab Nº ${i + 1}`
+                              }));
+                            emitChange({
+                              ...value,
+                              ativo: filtered.length > 0,
+                              habitaciones: filtered
+                            });
+                            setSelectedKey(null);
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                          title="Eliminar habitación"
                         >
-                          -
-                        </button>
-                        <span className="px-2 py-0.5 text-xs font-black text-indigo-700 dark:text-indigo-300 min-w-[24px] text-center">
-                          {hab.camas}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateHabitacion(idx, { camas: hab.camas + 1 })}
-                          className="px-2 py-0.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
-                        >
-                          +
+                          <Trash2 size={12} />
                         </button>
                       </div>
-                    </div>
 
-                    <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
-                      <Move size={10} />
-                      Arrastrable en planta
-                    </span>
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                        {/* Seletor de Quantidade de Camas no Quarto */}
+                        <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                          <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">Camas:</span>
+                          <div className="flex items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateHabitacion(idx, { camas: Math.max(1, hab.camas - 1) })}
+                              className="px-2 py-0.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
+                            >
+                              -
+                            </button>
+                            <span className="px-2 py-0.5 text-xs font-black text-indigo-700 dark:text-indigo-300 min-w-[24px] text-center">
+                              {hab.camas}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateHabitacion(idx, { camas: hab.camas + 1 })}
+                              className="px-2 py-0.5 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-semibold flex items-center gap-1">
+                          <Move size={10} />
+                          Arrastrable en planta
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Configuração rápida das Áreas Comuns da Planta */}
+              <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <Bath size={12} className="text-slate-500" />
+                    <span className="font-bold text-slate-600 dark:text-slate-300">Baño completo:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={6}
+                      value={areas.bano_completo}
+                      onChange={e => handleUpdateAreas({ bano_completo: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-11 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-center font-bold"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span className="font-bold text-slate-600 dark:text-slate-300">1/2 Baño:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={4}
+                      value={areas.medio_bano}
+                      onChange={e => handleUpdateAreas({ medio_bano: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-11 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-center font-bold"
+                    />
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Configuração rápida das Áreas Comuns da Planta */}
-          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-2 text-[10px]">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-1">
-                <Bath size={12} className="text-slate-500" />
-                <span className="font-bold text-slate-600 dark:text-slate-300">Baño completo:</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={6}
-                  value={areas.bano_completo}
-                  onChange={e => handleUpdateAreas({ bano_completo: Math.max(0, parseInt(e.target.value) || 0) })}
-                  className="w-11 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-center font-bold"
-                />
-              </div>
-
-              <div className="flex items-center gap-1">
-                <span className="font-bold text-slate-600 dark:text-slate-300">1/2 Baño:</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={4}
-                  value={areas.medio_bano}
-                  onChange={e => handleUpdateAreas({ medio_bano: Math.max(0, parseInt(e.target.value) || 0) })}
-                  className="w-11 px-1.5 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-center font-bold"
-                />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { key: 'cocina', label: 'Cocina' },
+                    { key: 'sala', label: 'Sala' },
+                    { key: 'pasillo', label: 'Pasillo' },
+                    { key: 'terraza', label: 'Terraza' }
+                  ].map(item => {
+                    const isActive = Boolean((areas as any)[item.key]);
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => handleUpdateAreas({ [item.key]: !isActive } as any)}
+                        className={`px-2 py-0.5 rounded-md font-bold transition-colors border ${
+                          isActive
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
+                            : 'bg-white text-slate-400 border-slate-200 dark:bg-slate-900 dark:border-slate-700'
+                        }`}
+                      >
+                        {isActive ? '✓ ' : '+ '}
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
+          )}
 
-            <div className="flex flex-wrap items-center gap-1.5">
-              {[
-                { key: 'cocina', label: 'Cocina' },
-                { key: 'sala', label: 'Sala' },
-                { key: 'pasillo', label: 'Pasillo' },
-                { key: 'terraza', label: 'Terraza' }
-              ].map(item => {
-                const isActive = Boolean((areas as any)[item.key]);
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => handleUpdateAreas({ [item.key]: !isActive } as any)}
-                    className={`px-2 py-0.5 rounded-md font-bold transition-colors border ${
-                      isActive
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
-                        : 'bg-white text-slate-400 border-slate-200 dark:bg-slate-900 dark:border-slate-700'
-                    }`}
-                  >
-                    {isActive ? '✓ ' : '+ '}
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+          {/* Barra de Ferramentas do Cômodo Selecionado */}
+          {renderSelectedToolbar()}
+
+          {/* CANVAS INTERATIVO DO CROQUI / PLANTA */}
+          {renderInteractiveFloorPlanCanvas(false)}
+        </>
       )}
-
-      {/* Barra de Ferramentas do Cômodo Selecionado */}
-      {renderSelectedToolbar()}
-
-      {/* CANVAS INTERATIVO DO CROQUI / PLANTA */}
-      {renderInteractiveFloorPlanCanvas(false)}
 
       {/* Opção adicional: Anexar imagem externa de planta se desejado */}
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
