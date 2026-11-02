@@ -106,7 +106,7 @@ export function LeadsPage() {
   const queryClient = useQueryClient();
   const { empresas, selectedEmpresaId } = useEmpresa();
   const { data: leads = [], isLoading, error } = useLeads({ global: true });
-  const { createLead, updateLead, deleteLead, isCreating, isUpdating, isDeleting, createLeadsBatch, isCreatingBatch } = useMutateLead();
+  const { createLead, updateLead, deleteLead, deleteLeadsBatch, isCreating, isUpdating, isDeleting, isDeletingBatch, createLeadsBatch, isCreatingBatch } = useMutateLead();
   const { createClient } = useMutateClient();
   const { data: paymentTerms = [] } = usePaymentTerms();
   const { data: stages = [] } = useKanbanStages();
@@ -115,6 +115,7 @@ export function LeadsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isBatchDeleteOpen, setIsBatchDeleteOpen] = useState(false);
   const [isConvertOpen, setIsConvertOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
@@ -369,8 +370,29 @@ export function LeadsPage() {
     if (!selectedLead) return;
     try {
       await deleteLead(selectedLead.id);
+      setSelectedLeadIds((prev) => prev.filter((id) => id !== selectedLead.id));
       toast.success(t('comercial.leads.delete.toastSuccess'));
       setIsDeleteOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || t('comercial.leads.delete.toastError'));
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedLeadIds.length === 0) return;
+    try {
+      const count = selectedLeadIds.length;
+      await deleteLeadsBatch(selectedLeadIds);
+      toast.success(
+        tr(
+          `${count} leads excluídos com sucesso!`,
+          `¡${count} leads eliminados con éxito!`,
+          `${count} leads supprimés avec succès !`
+        )
+      );
+      setSelectedLeadIds([]);
+      setIsBatchDeleteOpen(false);
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || t('comercial.leads.delete.toastError'));
@@ -855,16 +877,18 @@ export function LeadsPage() {
       const hasFatumataTag = tagsLower.some((tg: string) => tg.includes("omar") || tg.includes("fatumata") || tg.includes("frança") || tg.includes("france"));
 
       if (effectiveOwnerKey === "fatumata") {
+        if (c === "IT" || c === "ES" || c === "PT") return false;
         return c === "FR" || c === "BE" || hasFatumataTag;
       }
+      if (c !== "ES") return false;
       if (effectiveOwnerKey === "alex") {
-        return hasAlexTag || (c === "ES" && l.empresa_id === "847796c4-b253-4e53-9e6b-34a127ec7d85" && !hasLisethTag);
+        return hasAlexTag || (l.empresa_id === "847796c4-b253-4e53-9e6b-34a127ec7d85" && !hasLisethTag);
       }
       if (effectiveOwnerKey === "alba") {
-        return hasAlbaTag || (c === "ES" && !hasAlexTag && !hasLisethTag);
+        return hasAlbaTag || (!hasAlexTag && !hasLisethTag);
       }
       if (effectiveOwnerKey === "liseth") {
-        return hasLisethTag || (c === "ES" && !hasAlexTag && !hasAlbaTag);
+        return hasLisethTag || (!hasAlexTag && !hasAlbaTag);
       }
       return true;
     });
@@ -1192,14 +1216,25 @@ export function LeadsPage() {
           </Button>
 
           {selectedLeadIds.length > 0 && (
-            <Button 
-              size="sm"
-              onClick={() => setIsDialerModalOpen(true)}
-              className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md gap-1.5 animate-pulse"
-            >
-              <Zap className="h-3.5 w-3.5" />
-              {tr('Criar Fila de Discagem', 'Crear Cola de Llamadas', 'Créer File d\x27Appels')} ({selectedLeadIds.length})
-            </Button>
+            <>
+              <Button 
+                size="sm"
+                onClick={() => setIsDialerModalOpen(true)}
+                className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md gap-1.5 animate-pulse"
+              >
+                <Zap className="h-3.5 w-3.5" />
+                {tr('Criar Fila de Discagem', 'Crear Cola de Llamadas', 'Créer File d\x27Appels')} ({selectedLeadIds.length})
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setIsBatchDeleteOpen(true)}
+                className="h-8 text-xs bg-red-600 hover:bg-red-700 text-white font-bold shadow-sm gap-1.5"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {tr('Excluir Selecionados', 'Eliminar Seleccionados', 'Supprimer Sélectionnés')} ({selectedLeadIds.length})
+              </Button>
+            </>
           )}
 
           <Button size="sm" onClick={handleExportExcel} variant="outline" className="h-8 text-xs border-emerald-500/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold">
@@ -1434,13 +1469,25 @@ export function LeadsPage() {
               {tr('Sel. Todos', 'Sel. Todos', 'Sél. Tous')} ({filteredLeads.length})
             </Button>
             {selectedLeadIds.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleClearSelection}
-                className="h-7 px-2 text-[11px] text-muted-foreground hover:text-red-500"
-              >{tr('Limpar', 'Limpiar', 'Effacer')}</Button>
+              <>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setIsBatchDeleteOpen(true)}
+                  className="h-7 px-2.5 text-[11px] bg-red-600 hover:bg-red-700 text-white font-semibold gap-1"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  {tr('Excluir', 'Eliminar', 'Supprimer')} ({selectedLeadIds.length})
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearSelection}
+                  className="h-7 px-2 text-[11px] text-muted-foreground hover:text-red-500"
+                >{tr('Limpar', 'Limpiar', 'Effacer')}</Button>
+              </>
             )}
           </div>
 
@@ -2649,6 +2696,44 @@ export function LeadsPage() {
             </Button>
             <Button onClick={handleDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white font-semibold">
               {isDeleting ? t('comercial.leads.delete.btnConfirming') : t('comercial.leads.delete.btnConfirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Delete Confirmation Modal */}
+      <Dialog open={isBatchDeleteOpen} onOpenChange={setIsBatchDeleteOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-red-500">
+              <Trash2 className="h-5 w-5" />
+              {tr('Excluir Leads Selecionados', 'Eliminar Leads Seleccionados', 'Supprimer les Leads Sélectionnés')} ({selectedLeadIds.length})
+            </DialogTitle>
+            <DialogDescription>
+              {tr(
+                `Tem certeza que deseja excluir permanentemente os ${selectedLeadIds.length} leads selecionados? Esta ação não pode ser desfeita.`,
+                `¿Está seguro de que desea eliminar permanentemente los ${selectedLeadIds.length} leads seleccionados? Esta acción no se puede deshacer.`,
+                `Êtes-vous sûr de vouloir supprimer définitivement les ${selectedLeadIds.length} leads sélectionnés ? Cette action est irréversible.`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter className="pt-4 border-t flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsBatchDeleteOpen(false)} disabled={isDeletingBatch}>
+              {t('comercial.leads.form.btnCancel')}
+            </Button>
+            <Button onClick={handleBatchDelete} disabled={isDeletingBatch} className="bg-red-600 hover:bg-red-700 text-white font-semibold gap-1.5">
+              {isDeletingBatch ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>{tr('Excluindo...', 'Eliminando...', 'Suppression...')}</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  <span>{tr(`Excluir ${selectedLeadIds.length} Leads`, `Eliminar ${selectedLeadIds.length} Leads`, `Supprimer ${selectedLeadIds.length} Leads`)}</span>
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

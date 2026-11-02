@@ -422,6 +422,12 @@ export function useMutateLead() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      await supabase
+        .schema('core_comercial')
+        .from('estimaciones')
+        .update({ lead_id: null })
+        .eq('lead_id', id);
+
       const { error } = await supabase
         .schema('core_comercial')
         .from('leads')
@@ -432,6 +438,34 @@ export function useMutateLead() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_leads'] });
+    },
+  });
+
+  const deleteBatchMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (!ids || ids.length === 0) return;
+      const chunkSize = 100;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        await supabase
+          .schema('core_comercial')
+          .from('estimaciones')
+          .update({ lead_id: null })
+          .in('lead_id', chunk);
+
+        const { error } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .delete()
+          .in('id', chunk);
+
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_leads'] });
     },
   });
 
@@ -451,7 +485,12 @@ export function useMutateLead() {
     createLead: createMutation.mutateAsync,
     updateLead: updateMutation.mutateAsync,
     deleteLead: deleteMutation.mutateAsync,
+    deleteLeadsBatch: deleteBatchMutation.mutateAsync,
     createLeadsBatch,
-    isPending: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending,
+    isCreating: createMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
+    isDeletingBatch: deleteBatchMutation.isPending,
+    isPending: createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || deleteBatchMutation.isPending,
   };
 }
