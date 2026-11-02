@@ -591,7 +591,12 @@ export function ValidationScreen({
                     bucket_id: filePath.includes('/') ? 'horas_trabalhadores' : 'extracao-horas',
                     mime_type: mimeType,
                     worker_id: workerId,
-                    client_id: clientId
+                    client_id: clientId,
+                    record_id: recordId || null,
+                    client_name: clienteNome || null,
+                    year: year,
+                    month: month,
+                    preview_only: true
                 }
             });
 
@@ -1047,6 +1052,32 @@ export function ValidationScreen({
             const totalNoturnasH = rowsToInsert.reduce((sum, r) => sum + (Number(r.horas_noturnas) || 0), 0);
             const totalGeralH = totalNormaisH + totalNoturnasH;
 
+            const syncedApontamentos = records.map(r => {
+                const totalH = parseFloat(r.totalHoras) || 0;
+                const noturnasH = parseFloat(r.horasNoturnas) || 0;
+                const parsedNorm = parseFloat(r.horasNormais);
+                const normaisH = (!isNaN(parsedNorm) && parsedNorm > 0) ? parsedNorm : Math.max(0, totalH - noturnasH);
+                const siteObj = clientSites.find(s => s.id === r.obra);
+                return {
+                    day: r.day,
+                    dia: r.day,
+                    inicio: totalH > 0 ? (r.inicio || '') : '',
+                    entrada: totalH > 0 ? (r.inicio || '') : '',
+                    fim: totalH > 0 ? (r.fim || '') : '',
+                    saida: totalH > 0 ? (r.fim || '') : '',
+                    normais: totalH > 0 ? normaisH : 0,
+                    horasNormais: totalH > 0 ? normaisH : 0,
+                    horas_normais: totalH > 0 ? normaisH : 0,
+                    nocturnas: totalH > 0 ? noturnasH : 0,
+                    horasNoturnas: totalH > 0 ? noturnasH : 0,
+                    horas_noturnas: totalH > 0 ? noturnasH : 0,
+                    totalHoras: totalH > 0 ? totalH : 0,
+                    total_horas: totalH > 0 ? totalH : 0,
+                    obra: totalH > 0 ? (siteObj?.name || '') : '',
+                    obra_id: totalH > 0 ? (r.obra || null) : null
+                };
+            });
+
             const { error: updateError } = await supabase
                 .schema('core_personal')
                 .from('worker_hours')
@@ -1054,7 +1085,8 @@ export function ValidationScreen({
                     status: 'validado',
                     total_horas_normais: totalNormaisH,
                     total_horas_noturnas: totalNoturnasH,
-                    horas_totais: totalGeralH
+                    horas_totais: totalGeralH,
+                    apontamentos_diarios: syncedApontamentos
                 })
                 .eq('id', recordId);
 

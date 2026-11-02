@@ -92,6 +92,7 @@ export function AdminUploadDialog({
 
             const fileUrl = uploadData.path;
 
+            let effectiveRecordId = hourRecordId || null;
             if (hourRecordId) {
                 // Update Database Record
                 const { error: dbError } = await supabase
@@ -113,7 +114,7 @@ export function AdminUploadDialog({
             } else {
                 if (!empresaId) throw new Error('ID da empresa não encontrado');
                 // Insert New Record
-                const { error: insertError } = await supabase
+                const { data: insertedRec, error: insertError } = await supabase
                     .schema('core_personal')
                     .from('worker_hours')
                     .insert({
@@ -126,11 +127,16 @@ export function AdminUploadDialog({
                         file_name: file.name,
                         contratante: contratante,
                         cliente_nombre: clientXName
-                    });
+                    })
+                    .select('id')
+                    .single();
 
                 if (insertError) {
                     console.error('DB Insert error:', insertError);
                     throw new Error('Falha ao criar e registrar arquivo no banco de dados');
+                }
+                if (insertedRec?.id) {
+                    effectiveRecordId = insertedRec.id;
                 }
             }
 
@@ -146,12 +152,12 @@ export function AdminUploadDialog({
                     const clientTarget = clientXName.trim().toLowerCase();
                     const matched = allClients?.find(c => c.trade_name?.trim().toLowerCase() === clientTarget) ||
                                     allClients?.find(c => c.legal_name?.trim().toLowerCase() === clientTarget) ||
-                                    allClients?.find(c => 
-                                        c.trade_name?.toLowerCase().includes(clientTarget) || 
-                                        c.legal_name?.toLowerCase().includes(clientTarget) ||
-                                        clientTarget.includes(c.trade_name?.toLowerCase() || '') ||
-                                        clientTarget.includes(c.legal_name?.toLowerCase() || '')
-                                    );
+                                    (clientTarget.length >= 4 ? allClients?.find(c => {
+                                        const tn = (c.trade_name || '').trim().toLowerCase();
+                                        const ln = (c.legal_name || '').trim().toLowerCase();
+                                        return (tn.length >= 4 && (tn.includes(clientTarget) || clientTarget.includes(tn))) ||
+                                               (ln.length >= 4 && (ln.includes(clientTarget) || clientTarget.includes(ln)));
+                                    }) : undefined);
 
                     if (matched) {
                         const extension = file.name.split('.').pop() || 'pdf';
@@ -164,7 +170,7 @@ export function AdminUploadDialog({
                                 bucket_id: "extracao-horas",
                                 mime_type: mimeType,
                                 worker_id: workerId,
-                                record_id: hourRecordId || null,
+                                record_id: effectiveRecordId,
                                 client_name: clientXName || null,
                                 client_id: matched.id,
                                 worker_function: workerFunction || null,

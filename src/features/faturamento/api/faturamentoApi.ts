@@ -441,7 +441,7 @@ export async function getHorasPendentesFaturamento(
         const { data: whData, error: whError } = await supabase
           .schema('core_personal')
           .from('worker_hours')
-          .select('worker_id, status, observacoes, cliente_nombre')
+          .select('worker_id, status, observacoes, cliente_nombre, contratante, empresa_id')
           .in('worker_id', chunk)
           .eq('period_year', periodYear)
           .eq('period_month', periodMonth);
@@ -449,7 +449,7 @@ export async function getHorasPendentesFaturamento(
         return whData || [];
       });
     }
-    const workerHoursMap = new Map<string, { status: string; observacoes: string | null }>();
+    const workerHoursMap = new Map<string, { status: string; observacoes: string | null; contratante?: string | null; empresa_id?: string | null }>();
     const getStatusPriority = (s?: string | null) => {
       if (s === 'validado' || s === 'validated') return 3;
       if (s === 'enviado' || s === 'processado') return 2;
@@ -459,7 +459,7 @@ export async function getHorasPendentesFaturamento(
       const key = `${wh.worker_id}-${wh.cliente_nombre?.trim().toLowerCase()}`;
       const existing = workerHoursMap.get(key);
       if (!existing || getStatusPriority(wh.status) >= getStatusPriority(existing.status)) {
-        const val = { status: wh.status, observacoes: wh.observacoes };
+        const val = { status: wh.status, observacoes: wh.observacoes, contratante: wh.contratante, empresa_id: wh.empresa_id };
         workerHoursMap.set(key, val);
         if (!wh.cliente_nombre || wh.cliente_nombre === 'NÃO DEFINIDO') {
           workerHoursMap.set(wh.worker_id, val);
@@ -582,7 +582,7 @@ export async function getHorasPendentesFaturamento(
         const { data: whData } = await supabase
           .schema('core_personal')
           .from('worker_hours')
-          .select('worker_id, status, observacoes, cliente_nombre')
+          .select('worker_id, status, observacoes, cliente_nombre, contratante, empresa_id')
           .in('worker_id', chunk)
           .eq('period_year', periodYear)
           .eq('period_month', periodMonth);
@@ -592,7 +592,7 @@ export async function getHorasPendentesFaturamento(
         const key = `${wh.worker_id}-${wh.cliente_nombre?.trim().toLowerCase()}`;
         const existing = workerHoursMap.get(key);
         if (!existing || getStatusPriority(wh.status) >= getStatusPriority(existing.status)) {
-          const val = { status: wh.status, observacoes: wh.observacoes };
+          const val = { status: wh.status, observacoes: wh.observacoes, contratante: wh.contratante, empresa_id: wh.empresa_id };
           workerHoursMap.set(key, val);
           if (!wh.cliente_nombre || wh.cliente_nombre === 'NÃO DEFINIDO') {
             workerHoursMap.set(wh.worker_id, val);
@@ -621,7 +621,7 @@ export async function getHorasPendentesFaturamento(
         const { data: alData, error: alError } = await supabase
           .schema('core_personal')
           .from('vw_worker_allocations')
-          .select('cod_colab, cliente_nombre, fechainiciopedido')
+          .select('cod_colab, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador')
           .in('cod_colab', chunk);
         if (alError) console.error('Error fetching worker allocations in billing:', alError);
         return alData || [];
@@ -633,22 +633,52 @@ export async function getHorasPendentesFaturamento(
       const client = clientsList.find(c => c.id === h.client_id);
       if (!client) return false;
 
+      const normClientTrade = normalizeName(client.trade_name);
+      const normClientLegal = normalizeName(client.legal_name);
+      const matchesThisClient = (cName?: string | null) => {
+        const n = normalizeName(cName);
+        if (!n) return false;
+        return n === normClientTrade || n === normClientLegal ||
+               (normClientTrade.length > 3 && (n.includes(normClientTrade) || normClientTrade.includes(n))) ||
+               (normClientLegal.length > 3 && (n.includes(normClientLegal) || normClientLegal.includes(n)));
+      };
+
       // 1. If the hour is already linked to a fatura, it belongs to this company ONLY if the fatura belongs to this company
       if (h.fatura_id) {
         const fat = faturasMap.get(h.fatura_id);
         if (fat?.empresa_id) {
           if (fat.empresa_id !== empresaId) return false;
         } else {
-          const isOurActiveWorker = activeWorkers.some(w => w.id === h.worker_id);
+          const isOurActiveWorkerForClient = activeWorkers.some(w => w.id === h.worker_id && matchesThisClient(w.cliente_nombre));
           const uw = unknownWorkersMap.get(h.worker_id);
-          if (!isOurActiveWorker && uw?.empresa_id !== empresaId) return false;
+          if (!isOurActiveWorkerForClient && uw?.empresa_id !== empresaId) return false;
         }
       } else {
-        // 2. For unbilled hours, the worker MUST belong to this company (never leak workers from Luminous/Wiseowe into Stocco, etc.)
-        const isOurActiveWorker = activeWorkers.some(w => w.id === h.worker_id);
-        const uw = unknownWorkersMap.get(h.worker_id);
-        const workerBelongsToCompany = isOurActiveWorker || (uw?.empresa_id === empresaId);
-        if (!workerBelongsToCompany) return false;
+        // 2. For unbilled hours, verify company ownership for THIS specific (worker, client) pair so multi-company workers never mix hours across companies
+        const isOurActiveWorkerForClient = activeWorkers.some(w => w.id === h.worker_id && matchesThisClient(w.cliente_nombre));
+        if (!isOurActiveWorkerForClient) {
+          const clientKey = `${h.worker_id}-${client.trade_name?.trim().toLowerCase()}`;
+          const whForClient = workerHoursMap.get(clientKey);
+          if (whForClient && (whForClient.empresa_id || whForClient.contratante)) {
+            const whMatchesCompany = whForClient.empresa_id === empresaId ||
+              (whForClient.contratante && normTargetEmpresa && normalizeEmpresaName(whForClient.contratante) === normTargetEmpresa);
+            if (!whMatchesCompany) return false;
+          } else {
+            const wCod = activeWorkers.find(w => w.id === h.worker_id)?.cod_colab ||
+                         unknownWorkersMap.get(h.worker_id)?.cod_colab ||
+                         workersDetailsMap.get(h.worker_id)?.cod_colab;
+            if (wCod) {
+              const clientAllocs = allocationsList.filter(a => a.cod_colab === wCod && matchesThisClient(a.cliente_nombre) && a.contratante);
+              if (clientAllocs.length > 0) {
+                const allocMatchesCompany = clientAllocs.some(a => normalizeEmpresaName(a.contratante) === normTargetEmpresa);
+                if (!allocMatchesCompany) return false;
+              }
+            }
+            const isOurActiveWorkerAny = activeWorkers.some(w => w.id === h.worker_id);
+            const uw = unknownWorkersMap.get(h.worker_id);
+            if (!isOurActiveWorkerAny && uw?.empresa_id !== empresaId) return false;
+          }
+        }
       }
 
       const cycleStartDay = client.billing_cycle_start_day || 1;

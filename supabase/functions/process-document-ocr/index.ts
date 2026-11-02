@@ -7,6 +7,26 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+function matchClientByName(allClients: any[] | null | undefined, rawName: string | null | undefined): any | null {
+  if (!allClients || !rawName) return null;
+  const target = rawName.trim().toLowerCase();
+  if (!target || target === 'não definido' || target === 'nao definido' || target === 'cliente geral') return null;
+
+  const exact = allClients.find((c: any) =>
+    (c.trade_name || '').trim().toLowerCase() === target ||
+    (c.legal_name || '').trim().toLowerCase() === target
+  );
+  if (exact) return exact;
+
+  if (target.length < 4) return null;
+  return allClients.find((c: any) => {
+    const tn = (c.trade_name || '').trim().toLowerCase();
+    const ln = (c.legal_name || '').trim().toLowerCase();
+    return (tn.length >= 4 && (tn.includes(target) || target.includes(tn))) ||
+           (ln.length >= 4 && (ln.includes(target) || target.includes(ln)));
+  }) || null;
+}
+
 // Função utilitária para converter ArrayBuffer em Base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = "";
@@ -80,12 +100,7 @@ serve(async (req) => {
             .from('clients')
             .select('id, legal_name, trade_name');
 
-          const matchedClient = allClients?.find((c: any) => 
-            c.legal_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) || 
-            c.trade_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) ||
-            dbRecord.cliente_nombre.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
-            dbRecord.cliente_nombre.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
-          );
+          const matchedClient = matchClientByName(allClients, dbRecord.cliente_nombre);
           if (matchedClient) {
             client_id = matchedClient.id;
             console.log(`[Storage Webhook] resolved client_id: ${client_id} para o cliente: ${dbRecord.cliente_nombre}`);
@@ -145,12 +160,7 @@ serve(async (req) => {
               .from('clients')
               .select('id, legal_name, trade_name');
 
-            const matchedClient = allClients?.find((c: any) => 
-              c.legal_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) || 
-              c.trade_name?.toLowerCase().includes(dbRecord.cliente_nombre.toLowerCase()) ||
-              dbRecord.cliente_nombre.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
-              dbRecord.cliente_nombre.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
-            );
+            const matchedClient = matchClientByName(allClients, dbRecord.cliente_nombre);
             if (matchedClient) {
               client_id = matchedClient.id;
               console.log(`[OCR Function] resolved client_id: ${client_id} para o cliente: ${dbRecord.cliente_nombre}`);
@@ -173,12 +183,7 @@ serve(async (req) => {
               .from('clients')
               .select('id, legal_name, trade_name');
 
-            const matchedClient = allClients?.find((c: any) => 
-              c.legal_name?.toLowerCase().includes(workerData.cliente.toLowerCase()) || 
-              c.trade_name?.toLowerCase().includes(workerData.cliente.toLowerCase()) ||
-              workerData.cliente.toLowerCase().includes(c.legal_name?.toLowerCase() || '') ||
-              workerData.cliente.toLowerCase().includes(c.trade_name?.toLowerCase() || '')
-            );
+            const matchedClient = matchClientByName(allClients, workerData.cliente);
             if (matchedClient) {
               client_id = matchedClient.id;
               console.log(`[OCR Function] resolved client_id: ${client_id} pelo cliente do trabalhador: ${workerData.cliente}`);
@@ -511,8 +516,8 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
       return Math.round((diffMin / 60) * 100) / 100;
     }
 
-    year = body.year;
-    month = body.month;
+    year = body.year || year;
+    month = body.month || month;
     if (!year || !month) {
       try {
         const filename = file_path.split('/').pop() || "";
@@ -527,8 +532,8 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
       }
     }
 
-    // Se for folha de horas e tivermos os dados necessários, salvamos os lançamentos diários como rascunho no banco
-    if (!isWorkerDoc && worker_id && year && month) {
+    // Se for folha de horas e tivermos os dados necessários (e não for apenas preview_only na tela de validação), salvamos os lançamentos diários como rascunho no banco
+    if (!isWorkerDoc && worker_id && year && month && !body.preview_only) {
       try {
         console.log(`[DB Sync] Iniciando gravação de rascunhos para worker_id=${worker_id}, client_id=${client_id || 'indefinido'}, periodo=${month}/${year}...`);
 
@@ -614,7 +619,30 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
         const numDays = new Date(year, month, 0).getDate();
         const endDateStr = `${year}-${String(month).padStart(2, '0')}-${numDays}`;
 
-        if (client_id) {
+        // Verificar se a folha alvo já está validada; se estiver validada, não sobrescrever horas_trabalhadas nem rebaixar status
+        let isAlreadyValidated = false;
+        if (body.record_id) {
+          const { data: existingWh } = await supabase
+            .schema('core_personal')
+            .from('worker_hours')
+            .select('status')
+            .eq('id', body.record_id)
+            .maybeSingle();
+          if (existingWh?.status === 'validado') isAlreadyValidated = true;
+        } else if (file_path) {
+          const { data: existingWh } = await supabase
+            .schema('core_personal')
+            .from('worker_hours')
+            .select('status')
+            .eq('worker_id', worker_id)
+            .eq('period_year', year)
+            .eq('period_month', month)
+            .eq('file_url', file_path)
+            .maybeSingle();
+          if (existingWh?.status === 'validado') isAlreadyValidated = true;
+        }
+
+        if (client_id && !isAlreadyValidated) {
           console.log(`[DB Sync] Limpando rascunhos antigos entre ${startDateStr} e ${endDateStr}...`);
           const { error: deleteError } = await supabase
             .schema('core_finance')
@@ -622,6 +650,7 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
             .delete()
             .eq('worker_id', worker_id)
             .eq('client_id', client_id)
+            .is('fatura_id', null)
             .gte('data_trabalho', startDateStr)
             .lte('data_trabalho', endDateStr);
 
@@ -715,7 +744,7 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
           }
         }
 
-        if (rowsToInsert.length > 0 && client_id) {
+        if (rowsToInsert.length > 0 && client_id && !isAlreadyValidated) {
           console.log(`[DB Sync] Inserindo ${rowsToInsert.length} lançamentos diários...`);
           const { error: insertError } = await supabase
             .schema('core_finance')
@@ -729,22 +758,23 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
           }
         }
 
-        // Atualizar o status da folha de horas específica (evitando sobrescrever outra empresa do mesmo mês)
-        const targetRecordId = body.record_id;
-        const targetClientName = body.client_name;
-        console.log(`[DB Sync] Atualizando status de worker_hours para 'processado' (record_id=${targetRecordId || 'auto'}, Total: ${sumTotais}h, Normais: ${sumNormais}h, Noturnas: ${sumNoturnas}h)...`);
-        let updateQuery = supabase
-          .schema('core_personal')
-          .from('worker_hours')
-          .update({ 
-            status: 'processado', 
-            observacoes: null,
-            apontamentos_diarios: apontamentosPayload,
-            total_horas_normais: sumNormais,
-            total_horas_noturnas: sumNoturnas,
-            horas_totais: sumTotais,
-            updated_at: new Date().toISOString() 
-          });
+        // Atualizar o status da folha de horas específica (evitando sobrescrever outra empresa do mesmo mês ou rebaixar validado)
+        if (!isAlreadyValidated) {
+          const targetRecordId = body.record_id;
+          const targetClientName = body.client_name;
+          console.log(`[DB Sync] Atualizando status de worker_hours para 'processado' (record_id=${targetRecordId || 'auto'}, Total: ${sumTotais}h, Normais: ${sumNormais}h, Noturnas: ${sumNoturnas}h)...`);
+          let updateQuery = supabase
+            .schema('core_personal')
+            .from('worker_hours')
+            .update({ 
+              status: 'processado', 
+              observacoes: null,
+              apontamentos_diarios: apontamentosPayload,
+              total_horas_normais: sumNormais,
+              total_horas_noturnas: sumNoturnas,
+              horas_totais: sumTotais,
+              updated_at: new Date().toISOString() 
+            });
         if (targetRecordId) {
           updateQuery = updateQuery.eq('id', targetRecordId);
         } else if (file_path) {
@@ -756,10 +786,11 @@ Retorne um objeto JSON exatamente conforme o schema solicitado.`;
         }
         const { error: updateStatusError } = await updateQuery;
 
-        if (updateStatusError) {
-          console.error("[DB Sync] Erro ao atualizar status de worker_hours:", updateStatusError);
-        } else {
-          console.log("[DB Sync] Status de worker_hours atualizado com sucesso.");
+          if (updateStatusError) {
+            console.error("[DB Sync] Erro ao atualizar status de worker_hours:", updateStatusError);
+          } else {
+            console.log("[DB Sync] Status de worker_hours atualizado com sucesso.");
+          }
         }
       } catch (dbErr) {
         console.error("[DB Sync] Falha geral ao gravar rascunhos de horas no banco:", dbErr);

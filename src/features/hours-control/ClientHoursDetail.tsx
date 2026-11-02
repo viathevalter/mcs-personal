@@ -195,10 +195,16 @@ export function ClientHoursDetail() {
             // Merge details
             const merged: WorkerDetail[] = workersData?.map((w: any) => {
                 const wClient = (w.cliente_nombre || '').trim().toLowerCase();
+                const wContr = (w.contratante || '').trim().toLowerCase();
                 const candidates = hoursData.filter(h => {
                     if (h.worker_id !== w.id) return false;
                     const hClient = (h.cliente_nombre || '').trim().toLowerCase();
-                    return hClient === wClient || !hClient || hClient === 'não definido' || hClient === 'cliente geral';
+                    if (hClient === wClient) return true;
+                    if (!hClient || hClient === 'não definido' || hClient === 'cliente geral') {
+                        const hContr = (h.contratante || '').trim().toLowerCase();
+                        return !hContr || !wContr || hContr === wContr;
+                    }
+                    return false;
                 });
 
                 candidates.sort((a, b) => scoreHourRecord(b, w) - scoreHourRecord(a, w));
@@ -395,8 +401,8 @@ export function ClientHoursDetail() {
                 const { data: clientData } = await supabase
                     .schema('core_common')
                     .from('clients')
-                    .select('id')
-                    .ilike('trade_name', clientName.trim())
+                    .select('id, trade_name, legal_name')
+                    .or(`trade_name.ilike.${clientName.trim()},legal_name.ilike.${clientName.trim()}`)
                     .limit(1)
                     .maybeSingle();
                 if (clientData) {
@@ -404,26 +410,24 @@ export function ClientHoursDetail() {
                 }
             }
 
-            // Delete daily hours from core_finance.horas_trabalhadas (specifically for this client)
+            // Delete unbilled daily hours from core_finance.horas_trabalhadas ONLY when targetClientId is resolved
             const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
             const endDateStr = `${year}-${String(month).padStart(2, '0')}-${new Date(year, month, 0).getDate()}`;
             
-            let deleteQuery = supabase
-                .schema('core_finance')
-                .from('horas_trabalhadas')
-                .delete()
-                .eq('worker_id', workerId)
-                .gte('data_trabalho', startDateStr)
-                .lte('data_trabalho', endDateStr);
-                
             if (targetClientId) {
-                deleteQuery = deleteQuery.eq('client_id', targetClientId);
-            }
-            
-            const { error: deleteHoursError } = await deleteQuery;
+                const { error: deleteHoursError } = await supabase
+                    .schema('core_finance')
+                    .from('horas_trabalhadas')
+                    .delete()
+                    .eq('worker_id', workerId)
+                    .eq('client_id', targetClientId)
+                    .is('fatura_id', null)
+                    .gte('data_trabalho', startDateStr)
+                    .lte('data_trabalho', endDateStr);
 
-            if (deleteHoursError) {
-                console.error('Error deleting daily hours on reject:', deleteHoursError);
+                if (deleteHoursError) {
+                    console.error('Error deleting daily hours on reject:', deleteHoursError);
+                }
             }
 
             // Update DB Status

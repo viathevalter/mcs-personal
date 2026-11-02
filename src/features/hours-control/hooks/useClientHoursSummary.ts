@@ -58,7 +58,7 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                         const { data: hours, error: hoursError } = await supabase
                             .schema('core_personal')
                             .from('worker_hours')
-                            .select('worker_id, status, cliente_nombre, horas_totais, file_url, apontamentos_diarios')
+                            .select('worker_id, status, cliente_nombre, contratante, horas_totais, file_url, apontamentos_diarios')
                             .in('worker_id', chunk)
                             .eq('period_year', periodYear)
                             .eq('period_month', periodMonth);
@@ -114,10 +114,16 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
 
                     // Check hours status (prioritizing records with hours/files/active status)
                     const wClient = (w.cliente_nombre || '').trim().toLowerCase();
+                    const wContr = ((w as any).contratante || '').trim().toLowerCase();
                     const candidates = hoursData.filter(h => {
                         if (h.worker_id !== w.id) return false;
                         const hClient = (h.cliente_nombre || '').trim().toLowerCase();
-                        return hClient === wClient || !hClient || hClient === 'não definido' || hClient === 'cliente geral';
+                        if (hClient === wClient) return true;
+                        if (!hClient || hClient === 'não definido' || hClient === 'cliente geral') {
+                            const hContr = (h.contratante || '').trim().toLowerCase();
+                            return !hContr || !wContr || hContr === wContr;
+                        }
+                        return false;
                     });
 
                     candidates.sort((a, b) => {

@@ -463,7 +463,7 @@ export function HoleritesPage() {
                 const { data, error } = await supabase
                     .schema('core_finance')
                     .from('horas_trabalhadas')
-                    .select('id, worker_id, data_trabalho, horas_totais, fatura_id, client_id')
+                    .select('id, worker_id, data_trabalho, horas_totais, fatura_id, client_id, obra_id')
                     .gte('data_trabalho', startDateStr)
                     .lte('data_trabalho', endDateStr)
                     .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
@@ -562,6 +562,37 @@ export function HoleritesPage() {
                 });
             }
 
+            // Fetch client_sites to resolve obra_id -> empresa_id accurately
+            const { data: allClientSites } = await supabase
+                .schema('core_common')
+                .from('client_sites')
+                .select('id, empresa_id');
+
+            const siteEmpresaMap = new Map<string, string>();
+            (allClientSites || []).forEach((cs: any) => {
+                const empName = empresaNameMap.get(cs.empresa_id);
+                if (empName && cs.id) {
+                    siteEmpresaMap.set(cs.id, empName);
+                }
+            });
+
+            // Fetch worker_hours for the competence month to map (worker_id, cliente_nombre) -> contratante
+            const { data: monthWorkerHours } = await supabase
+                .schema('core_personal')
+                .from('worker_hours')
+                .select('worker_id, cliente_nombre, contratante, empresa_id')
+                .eq('period_year', year)
+                .eq('period_month', month);
+
+            const whByWorkerAndClient = new Map<string, string>();
+            (monthWorkerHours || []).forEach((wh: any) => {
+                const cName = (wh.cliente_nombre || '').trim().toUpperCase();
+                const empName = (wh.contratante || empresaNameMap.get(wh.empresa_id) || '').trim();
+                if (wh.worker_id && cName && cName !== 'NÃO DEFINIDO' && empName) {
+                    whByWorkerAndClient.set(`${wh.worker_id}_${cName}`, empName);
+                }
+            });
+
             // Fetch allocations active during mesReferencia as secondary source
             const monthEndIso = `${endDateStr}T23:59:59.999Z`;
             const monthStartIso = `${startDateStr}T00:00:00.000Z`;
@@ -569,8 +600,9 @@ export function HoleritesPage() {
                 .schema('core_personal')
                 .from('vw_worker_allocations')
                 .select('cod_colab, cliente_nombre, contratante, fechainiciopedido, fechasalidatrabajador')
-                .lte('fechainiciopedido', monthEndIso)
-                .order('fechainiciopedido', { ascending: false });
+                .or(`fechasalidatrabajador.is.null,fechasalidatrabajador.gte.${startDateStr}`)
+                .order('fechainiciopedido', { ascending: false })
+                .limit(5000);
 
             const allocsActiveInMonthByCod = new Map<string, any>();
             const allocsByCodAndClient = new Map<string, string>();
@@ -609,6 +641,7 @@ export function HoleritesPage() {
             const groupedHours = new Map<string, {
                 worker_id: string;
                 client_id?: string;
+                obra_id?: string;
                 fatura_id?: string;
                 dateKey: string;
                 rawHours: number;
@@ -629,10 +662,13 @@ export function HoleritesPage() {
                         groupedHours.set(groupKey, {
                             worker_id: row.worker_id,
                             client_id: row.client_id,
+                            obra_id: row.obra_id,
                             fatura_id: row.fatura_id,
                             dateKey,
                             rawHours: 0
                         });
+                    } else if (!groupedHours.get(groupKey)!.obra_id && row.obra_id) {
+                        groupedHours.get(groupKey)!.obra_id = row.obra_id;
                     }
                     groupedHours.get(groupKey)!.rawHours += Number(row.horas_totais || 0);
                 }
@@ -708,9 +744,11 @@ export function HoleritesPage() {
                     clientName = allocClient;
                 }
                 
+                const whEmp = clientName ? whByWorkerAndClient.get(`${worker_id}_${clientName.toUpperCase()}`) : null;
                 const allocEmp = (cod && clientName) ? allocsByCodAndClient.get(`${cod.toUpperCase()}_${clientName.toUpperCase()}`) : null;
+                const siteEmp = g.obra_id ? siteEmpresaMap.get(g.obra_id) : null;
                 const defWorkerEmp = workerContratanteMap.get(worker_id) || '';
-                const rawContratante = fInfo?.contratante || allocEmp || alloc?.contratante || clientEmpresaMap.get(client_id || '') || defWorkerEmp;
+                const rawContratante = fInfo?.contratante || whEmp || allocEmp || siteEmp || alloc?.contratante || defWorkerEmp;
                 const normContratante = normalizeEmpresaName(rawContratante);
 
                 if (clientName) {
@@ -1033,7 +1071,7 @@ export function HoleritesPage() {
                     });
                 }
             }
-            if (clientBreakdown.length === 0 && clientHoursMap) {
+            if (clientBreakdown.length === 0 && matchedHours > 0 && clientHoursMap) {
                 clientHoursMap.forEach((hrs, clName) => {
                     clientBreakdown.push({ clientName: clName, hours: hrs });
                 });
@@ -1045,8 +1083,20 @@ export function HoleritesPage() {
                     matchedHours += hrs;
                 }
             });
-            totalHoras = matchedHours > 0 ? matchedHours : (dbHoursSummary?.sumMap?.get(worker.id) || 0);
-            if (clientHoursMap) {
+            totalHoras = matchedHours;
+            if (dbHoursSummary?.workerCompanyClientsMap) {
+                const compClientsMap = dbHoursSummary.workerCompanyClientsMap.get(worker.id);
+                if (compClientsMap) {
+                    compClientsMap.forEach((clMap, comp) => {
+                        if (matchesEmpresaFilter(comp, contratanteFilter)) {
+                            clMap.forEach((hrs, clName) => {
+                                clientBreakdown.push({ clientName: clName, hours: hrs });
+                            });
+                        }
+                    });
+                }
+            }
+            if (clientBreakdown.length === 0 && matchedHours > 0 && clientHoursMap) {
                 clientHoursMap.forEach((hrs, clName) => {
                     clientBreakdown.push({ clientName: clName, hours: hrs });
                 });
@@ -1089,6 +1139,15 @@ export function HoleritesPage() {
             }
             return true;
         });
+
+        if (clienteFilter !== 'all' && clientBreakdown.length > 0) {
+            const targetCliLower = clienteFilter.trim().toLowerCase();
+            const filteredBreakdown = clientBreakdown.filter(cb => cb.clientName.trim().toLowerCase() === targetCliLower);
+            if (filteredBreakdown.length > 0) {
+                clientBreakdown = filteredBreakdown;
+                totalHoras = filteredBreakdown.reduce((sum, cb) => sum + cb.hours, 0);
+            }
+        }
 
         const faturamentoHoras = totalHoras;
         const manualHoursEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_horas');
