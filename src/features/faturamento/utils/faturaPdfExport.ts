@@ -268,7 +268,10 @@ export async function generateFacturaPDF(
   const ivaVal = subtotal * (ivaPct / 100);
   const finalTotal = subtotal + ivaVal;
 
-  const iban = adj.iban || targetEmpresa?.iban || targetEmpresa?.bank_details || '';
+  const defaultEmpresaIban = targetEmpresa?.bank_details || targetEmpresa?.iban || '';
+  const iban = (targetEmpresa?.iban && adj.iban && !adj.iban.replace(/\s+/g, '').includes(targetEmpresa.iban.replace(/\s+/g, '')))
+    ? defaultEmpresaIban
+    : (adj.iban || defaultEmpresaIban);
   const descricaoServico = adj.descricao_servico || adj.descricaoServico || 'Prestação de Serviços';
 
   const clientLegalName = fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName;
@@ -313,7 +316,7 @@ export async function generateFacturaPDF(
         <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; font-size: 11px; line-height: 1.45; border-top: 1px solid #f1f5f9; padding-top: 16px;">
           <div>
             <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">De</p>
-            <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.nome || 'MCS'}</p>
+            <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.legal_name || targetEmpresa?.legalName || targetEmpresa?.nome || 'MCS'}</p>
             <p style="color: #475569; margin: 0;">${targetEmpresa?.address_line || 'N/A'}</p>
             <p style="color: #475569; margin: 0;">${[targetEmpresa?.postal_code, targetEmpresa?.city].filter(Boolean).join(' ')}</p>
             <p style="color: #475569; margin: 0;">${targetEmpresa?.province || 'Portugal'}</p>
@@ -520,7 +523,10 @@ export async function generateInformePDF(
   const red = Number(adj.reducoes || 0);
   const redDesc = adj.reducoes_desc || adj.reducoesDesc || 'Desconto';
   const iva = Number(adj.iva_pct ?? adj.ivaPct ?? 0);
-  const iban = adj.iban || targetEmpresa?.iban || '';
+  const defaultEmpresaIban = targetEmpresa?.bank_details || targetEmpresa?.iban || '';
+  const iban = (targetEmpresa?.iban && adj.iban && !adj.iban.replace(/\s+/g, '').includes(targetEmpresa.iban.replace(/\s+/g, '')))
+    ? defaultEmpresaIban
+    : (adj.iban || defaultEmpresaIban);
   const obraName = adj.obra || 'TODAS AS OBRAS';
 
   const finalTotal = (totalBase + inc - red) * (1 + iva/100);
@@ -587,7 +593,7 @@ export async function generateInformePDF(
         <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px;">
           <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
             <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Emissor</p>
-            <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.nome || 'STOCCO LDA'}</p>
+            <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.legal_name || targetEmpresa?.legalName || targetEmpresa?.nome || 'STOCCO LDA'}</p>
             <p style="color: #64748b; margin: 0;">NIF: ${targetEmpresa?.tax_id || 'PT517834747'}</p>
             <p style="color: #64748b; margin: 0;">${targetEmpresa?.address_line || 'N/A'}</p>
             <p style="color: #64748b; margin: 0;">${[targetEmpresa?.postal_code, targetEmpresa?.city].filter(Boolean).join(' ')}</p>

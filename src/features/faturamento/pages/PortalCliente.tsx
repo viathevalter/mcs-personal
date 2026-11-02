@@ -888,6 +888,9 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
     if (!ibanVal || (fatura?.empresa?.bankDetails && (!ibanVal.includes('\n') || ibanVal.startsWith('IBAN:')))) {
       ibanVal = fatura?.empresa?.bankDetails || defaultIban;
     }
+    if (fatura?.empresa?.iban && ibanVal && !ibanVal.replace(/\s+/g, '').includes(fatura.empresa.iban.replace(/\s+/g, ''))) {
+      ibanVal = defaultIban;
+    }
 
     const defaultObraTitle = fatura?.ajustes_json?.obra || (groupedObras.length === 1 ? groupedObras[0].obraName : (groupedObras.length > 1 ? 'Múltiplas Obras' : 'Sin Obra'));
 
@@ -1556,7 +1559,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                   <div className="grid grid-cols-2 gap-8 mb-8">
                     <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
                       <p className="font-bold text-slate-400 uppercase text-[8px] mb-0.5">Emissor</p>
-                      <p className="font-bold text-slate-955">{fatura.empresa?.nome || 'STOCCO LDA'}</p>
+                      <p className="font-bold text-slate-955">{fatura.empresa?.legalName || fatura.empresa?.legal_name || fatura.empresa?.nome || 'STOCCO LDA'}</p>
                       <p className="text-slate-600">CIF/NIF: {fatura.empresa?.taxId || 'PT517834747'}</p>
                       <p className="text-slate-600">{fatura.empresa?.addressLine || 'Rua Padre António Maria Pinho, n.º 353'}</p>
                       <p className="text-slate-600">
@@ -1766,7 +1769,7 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
                       {/* Coluna 1: De */}
                       <div>
                         <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
-                        <p className="font-bold text-slate-900">{fatura.empresa?.nome || 'STOCCO LDA'}</p>
+                        <p className="font-bold text-slate-900">{fatura.empresa?.legalName || fatura.empresa?.legal_name || fatura.empresa?.nome || 'STOCCO LDA'}</p>
                         <p className="text-slate-600">{fatura.empresa?.addressLine || 'Rua Padre António Maria Pinho, n.º 353'}</p>
                         <p className="text-slate-600">
                           {[fatura.empresa?.postalCode || '4460-853', fatura.empresa?.city || 'Vila Nova de Gaia'].filter(Boolean).join(' ')}

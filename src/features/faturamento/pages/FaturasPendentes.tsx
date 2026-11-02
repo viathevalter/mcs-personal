@@ -508,6 +508,9 @@ MCS - Gestão Comercial`;
     if (f.empresaBankDetails && ibanVal && (!ibanVal.includes('\n') || ibanVal.startsWith('IBAN:'))) {
       ibanVal = f.empresaBankDetails;
     }
+    if (f.empresaIban && ibanVal && !ibanVal.replace(/\s+/g, '').includes(f.empresaIban.replace(/\s+/g, ''))) {
+      ibanVal = defaultIban;
+    }
     
     let defaultDesc = `Prestação de Serviços - ${getMonthName(f.month)} ${f.year}`;
     if (selectedObra && selectedObra.name) {
@@ -673,13 +676,20 @@ MCS - Gestão Comercial`;
       const mergedAdjustments: Record<string, ClientAdjustments> = { ...savedAdjustments, ...clientAdjustments };
       
       data.forEach(f => {
-        const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.clientId}-pending`;
+        const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.empresaId || selectedEmpresaId}-${f.clientId}-pending`;
         const freshAdj = initAdjustments(f, null);
         const existingAdj = mergedAdjustments[cardId];
         const expectedMonthPrefix = `${f.year}-${String(f.month + 1).padStart(2, '0')}`;
         const isStaleMonth = !f.magicLinkToken && existingAdj?.dataEmissao && !existingAdj.dataEmissao.startsWith(expectedMonthPrefix);
+        const hasWrongCompanyIban = Boolean(
+          f.empresaIban &&
+          existingAdj?.iban &&
+          !existingAdj.iban.replace(/\s+/g, '').includes(f.empresaIban.replace(/\s+/g, ''))
+        );
         if (!existingAdj || isStaleMonth) {
           mergedAdjustments[cardId] = freshAdj;
+        } else if (hasWrongCompanyIban) {
+          mergedAdjustments[cardId] = { ...existingAdj, iban: freshAdj.iban };
         }
       });
       setClientAdjustments(mergedAdjustments);
@@ -763,7 +773,7 @@ MCS - Gestão Comercial`;
   const handleSolicitarAprovacao = async (clientId: string, workers: any[], cardId?: string) => {
     const faturamento = faturamentos.find(f => f.clientId === clientId);
     if (!faturamento) return;
-    const resolvedCardId = cardId || (faturamento.magicLinkToken ? `${faturamento.clientId}-${faturamento.magicLinkToken}` : `${faturamento.clientId}-pending`);
+    const resolvedCardId = cardId || (faturamento.magicLinkToken ? `${faturamento.clientId}-${faturamento.magicLinkToken}` : `${faturamento.empresaId || selectedEmpresaId}-${faturamento.clientId}-pending`);
     const selectedObraId = selectedObraByClient[resolvedCardId];
 
     const selectedObra = selectedObraId !== undefined
@@ -1340,7 +1350,7 @@ MCS - Gestão Comercial`;
           <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; font-size: 11px; line-height: 1.45; border-top: 1px solid #f1f5f9; padding-top: 16px;">
             <div>
               <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">De</p>
-              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.empresaNome}</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.empresaLegalName || f.empresaNome}</p>
               <p style="color: #475569; margin: 0;">${f.empresaAddressLine || 'N/A'}</p>
               <p style="color: #475569; margin: 0;">${[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
               <p style="color: #475569; margin: 0;">${f.empresaProvince || 'Portugal'}</p>
@@ -1512,8 +1522,9 @@ MCS - Gestão Comercial`;
       const f = faturamentos.find(item => {
         const expectedCardId = item.magicLinkToken 
           ? `${item.clientId}-${item.magicLinkToken}` 
-          : `${item.clientId}-pending`;
-        return expectedCardId === cardId || item.clientId === cardId.split('-')[0];
+          : `${item.empresaId || selectedEmpresaId}-${item.clientId}-pending`;
+        const legacyCardId = `${item.clientId}-pending`;
+        return expectedCardId === cardId || legacyCardId === cardId || item.clientId === cardId || (item as any).id === cardId;
       });
       if (!f) {
         console.warn(`Client billing summary not found: ${cardId}`);
@@ -1539,8 +1550,9 @@ MCS - Gestão Comercial`;
     const f = faturamentos.find(item => {
       const expectedCardId = item.magicLinkToken 
         ? `${item.clientId}-${item.magicLinkToken}` 
-        : `${item.clientId}-pending`;
-      return expectedCardId === cardId;
+        : `${item.empresaId || selectedEmpresaId}-${item.clientId}-pending`;
+      const legacyCardId = `${item.clientId}-pending`;
+      return expectedCardId === cardId || legacyCardId === cardId || item.clientId === cardId || (item as any).id === cardId;
     });
     if (!f) {
       console.warn(`Client billing summary not found: ${cardId}`);
@@ -1665,7 +1677,7 @@ MCS - Gestão Comercial`;
           <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; gap: 20px; margin-bottom: 20px;">
             <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
               <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Emissor</p>
-              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.empresaNome}</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${f.empresaLegalName || f.empresaNome}</p>
               <p style="color: #64748b; margin: 0;">NIF: ${f.empresaTaxId || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${f.empresaAddressLine || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
@@ -2278,6 +2290,9 @@ MCS - Gestão Comercial`;
       setClientAdjustments(prev => {
         const next = { ...prev };
         delete next[emailData.clientId];
+        if (emailData.cardId) {
+          delete next[emailData.cardId];
+        }
         return next;
       });
 
@@ -2666,8 +2681,9 @@ MCS - Gestão Comercial`;
       const f = faturamentos.find(item => {
         const expectedCardId = item.magicLinkToken 
           ? `${item.clientId}-${item.magicLinkToken}` 
-          : `${item.clientId}-pending`;
-        return expectedCardId === cardId || item.clientId === cardId.split('-')[0];
+          : `${item.empresaId || selectedEmpresaId}-${item.clientId}-pending`;
+        const legacyCardId = `${item.clientId}-pending`;
+        return expectedCardId === cardId || legacyCardId === cardId || item.clientId === cardId || (item as any).id === cardId;
       });
       if (!f) {
         toast.error('Não foi possível localizar o resumo do cliente.');
@@ -2710,8 +2726,9 @@ MCS - Gestão Comercial`;
     const f = faturamentos.find(item => {
       const expectedCardId = item.magicLinkToken 
         ? `${item.clientId}-${item.magicLinkToken}` 
-        : `${item.clientId}-pending`;
-      return expectedCardId === cardId;
+        : `${item.empresaId || selectedEmpresaId}-${item.clientId}-pending`;
+      const legacyCardId = `${item.clientId}-pending`;
+      return expectedCardId === cardId || legacyCardId === cardId || item.clientId === cardId || (item as any).id === cardId;
     });
     if (!f) {
       toast.error('Não foi possível localizar o resumo do cliente.');
@@ -3505,7 +3522,7 @@ MCS - Gestão Comercial`;
           {/* Galeria Rolável */}
           <div className="space-y-4 overflow-y-auto max-h-[calc(100vh-430px)] pr-2 scrollbar-thin overscroll-contain w-full">
             {filteredFaturamentos.map(f => {
-            const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.clientId}-pending`;
+            const cardId = f.magicLinkToken ? `${f.clientId}-${f.magicLinkToken}` : `${f.empresaId || selectedEmpresaId}-${f.clientId}-pending`;
             const isProcessing = processingClient === f.clientId;
             const isExpanded = expandedClients[cardId];
             
@@ -4682,7 +4699,7 @@ MCS - Gestão Comercial`;
                             <div className="grid grid-cols-2 gap-8 mb-8 text-xs">
                               <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-lg border border-slate-100 dark:border-slate-900 space-y-1">
                                 <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Emissor</p>
-                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.empresaNome}</p>
+                                <p className="font-bold text-slate-900 dark:text-slate-100">{f.empresaLegalName || f.empresaNome}</p>
                                 <p className="text-muted-foreground">NIF: {f.empresaTaxId || 'N/A'}</p>
                                 <p className="text-muted-foreground">{f.empresaAddressLine || 'N/A'}</p>
                                 <p className="text-muted-foreground">{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
@@ -4905,7 +4922,7 @@ MCS - Gestão Comercial`;
                                 {/* Coluna 1: De */}
                                 <div>
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
-                                  <p className="font-bold text-slate-900">{f.empresaNome}</p>
+                                  <p className="font-bold text-slate-900">{f.empresaLegalName || f.empresaNome}</p>
                                   <p className="text-slate-600">{f.empresaAddressLine || 'N/A'}</p>
                                   <p className="text-slate-600">{[f.empresaPostalCode, f.empresaCity].filter(Boolean).join(' ')}</p>
                                   <p className="text-slate-600">{f.empresaProvince || 'Portugal'}</p>
@@ -5443,8 +5460,12 @@ MCS - Gestão Comercial`;
             const dataVencimentoStr = dueDate.toISOString().split('T')[0];
             const year = new Date(dataEmissaoStr).getFullYear();
 
+            const defaultFaturaIban = selectedFatura.empresaBankDetails || (selectedFatura.empresaIban ? `IBAN: ${selectedFatura.empresaIban}` : '');
             const adjustments = selectedFatura.ajustes_json ? {
               ...selectedFatura.ajustes_json,
+              iban: (selectedFatura.empresaIban && selectedFatura.ajustes_json.iban && !selectedFatura.ajustes_json.iban.replace(/\s+/g, '').includes(selectedFatura.empresaIban.replace(/\s+/g, '')))
+                ? defaultFaturaIban
+                : (selectedFatura.ajustes_json.iban || defaultFaturaIban),
               descricaoServico: selectedFatura.ajustes_json.descricao_servico || selectedFatura.ajustes_json.descricaoServico || 'Prestação de Serviços'
             } : {
               incrementos: 0,
@@ -5452,7 +5473,7 @@ MCS - Gestão Comercial`;
               reducoes: 0,
               reducoesDesc: '',
               ivaPct: 0,
-              iban: 'Qonto\nIBAN: FR76 1695 8000 0156 2947 6179 052\nBIC: QNTOFRP1XXX',
+              iban: defaultFaturaIban,
               descricaoServico: 'Prestação de Serviços'
             };
 
@@ -5764,7 +5785,7 @@ MCS - Gestão Comercial`;
                         <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
                           <div className="bg-slate-50 dark:bg-slate-900/60 p-3 rounded-lg border border-slate-100 dark:border-slate-800 space-y-0.5">
                             <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
-                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.empresaNome}</p>
+                            <p className="font-bold text-slate-900 dark:text-slate-150">{selectedFatura.empresaLegalName || selectedFatura.empresa?.legal_name || selectedFatura.empresaNome}</p>
                             <p className="text-muted-foreground">CIF/NIF: {selectedFatura.empresaTaxId || 'N/A'}</p>
                             <p className="text-muted-foreground">{selectedFatura.empresaAddressLine || 'N/A'}</p>
                             <p className="text-muted-foreground">{[selectedFatura.empresaPostalCode, selectedFatura.empresaCity].filter(Boolean).join(' ')}</p>
@@ -5920,7 +5941,7 @@ MCS - Gestão Comercial`;
                               {/* Coluna 1: De */}
                               <div>
                                 <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
-                                <p className="font-bold text-slate-900">{selectedFatura.empresaNome}</p>
+                                <p className="font-bold text-slate-900">{selectedFatura.empresaLegalName || selectedFatura.empresa?.legal_name || selectedFatura.empresaNome}</p>
                                 <p className="text-slate-600">{selectedFatura.empresaAddressLine || 'N/A'}</p>
                                 <p className="text-slate-600">{[selectedFatura.empresaPostalCode, selectedFatura.empresaCity].filter(Boolean).join(' ')}</p>
                                 <p className="text-slate-600">{selectedFatura.empresaProvince || 'Portugal'}</p>

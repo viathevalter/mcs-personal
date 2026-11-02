@@ -594,7 +594,10 @@ export function FaturasTracking() {
     const red = (selectedDispute && selectedDispute.id === fat.id && disputeReductions !== undefined) ? Number(disputeReductions) : Number(adj.reducoes || 0);
     const redDesc = (selectedDispute && selectedDispute.id === fat.id && disputeReductionsDesc !== undefined) ? disputeReductionsDesc : (adj.reducoes_desc || adj.reducoesDesc || 'Desconto');
     const iva = (selectedDispute && selectedDispute.id === fat.id && disputeIvaPct !== undefined) ? Number(disputeIvaPct) : Number(adj.iva_pct ?? adj.ivaPct ?? 0);
-    const iban = adj.iban || targetEmpresa?.iban || '';
+    const defaultEmpresaIban = targetEmpresa?.bank_details || targetEmpresa?.iban || '';
+    const iban = (targetEmpresa?.iban && adj.iban && !adj.iban.replace(/\s+/g, '').includes(targetEmpresa.iban.replace(/\s+/g, '')))
+      ? defaultEmpresaIban
+      : (adj.iban || defaultEmpresaIban);
     const obraName = adj.obra || 'TODAS AS OBRAS';
 
     const finalTotal = (totalBase + inc - red) * (1 + iva/100);
@@ -661,7 +664,7 @@ export function FaturasTracking() {
           <div style="display: grid; grid-template-cols: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; gap: 20px; margin-bottom: 20px;">
             <div style="background-color: #f8fafc; padding: 12px; border-radius: 6px; border: 1px solid #f1f5f9; font-size: 11px; line-height: 1.4;">
               <p style="font-weight: 700; color: #94a3b8; text-transform: uppercase; font-size: 8px; margin: 0 0 4px 0;">Emissor</p>
-              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.nome || 'STOCCO LDA'}</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.legal_name || targetEmpresa?.nome || 'STOCCO LDA'}</p>
               <p style="color: #64748b; margin: 0;">NIF: ${targetEmpresa?.tax_id || 'PT517834747'}</p>
               <p style="color: #64748b; margin: 0;">${targetEmpresa?.address_line || 'N/A'}</p>
               <p style="color: #64748b; margin: 0;">${[targetEmpresa?.postal_code, targetEmpresa?.city].filter(Boolean).join(' ')}</p>
@@ -947,7 +950,10 @@ export function FaturasTracking() {
     const ivaVal = subtotal * (ivaPct / 100);
     const finalTotal = subtotal + ivaVal;
 
-    const iban = adj.iban || targetEmpresa?.iban || targetEmpresa?.bank_details || '';
+    const defaultEmpresaIban = targetEmpresa?.bank_details || targetEmpresa?.iban || '';
+    const iban = (targetEmpresa?.iban && adj.iban && !adj.iban.replace(/\s+/g, '').includes(targetEmpresa.iban.replace(/\s+/g, '')))
+      ? defaultEmpresaIban
+      : (adj.iban || defaultEmpresaIban);
     const descricaoServico = adj.descricao_servico || adj.descricaoServico || 'Prestação de Serviços';
 
     const clientLegalName = fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName;
@@ -992,7 +998,7 @@ export function FaturasTracking() {
           <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 28px; font-size: 11px; line-height: 1.45; border-top: 1px solid #f1f5f9; padding-top: 16px;">
             <div>
               <p style="font-weight: 700; font-size: 9px; color: #ec8a5e; text-transform: uppercase; margin: 0 0 4px 0;">De</p>
-              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.nome || 'MCS'}</p>
+              <p style="font-weight: 700; color: #0f172a; margin: 0 0 2px 0;">${targetEmpresa?.legal_name || targetEmpresa?.nome || 'MCS'}</p>
               <p style="color: #475569; margin: 0;">${targetEmpresa?.address_line || 'N/A'}</p>
               <p style="color: #475569; margin: 0;">${[targetEmpresa?.postal_code, targetEmpresa?.city].filter(Boolean).join(' ')}</p>
               <p style="color: #475569; margin: 0;">${targetEmpresa?.province || 'Portugal'}</p>
@@ -4066,7 +4072,7 @@ MCS - Gestão Comercial`;
                               <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
                                 <div className="bg-slate-50 p-3 rounded-lg border border-slate-150 space-y-0.5">
                                   <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
-                                  <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
+                                  <p className="font-bold text-slate-900">{disputeEmpresa?.legal_name || disputeEmpresa?.nome || 'MCS'}</p>
                                   <p className="text-muted-foreground">CIF/NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
                                   <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
                                   <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
@@ -4270,7 +4276,7 @@ MCS - Gestão Comercial`;
                                 {/* Coluna 1: De */}
                                 <div>
                                   <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
-                                  <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
+                                  <p className="font-bold text-slate-900">{disputeEmpresa?.legal_name || disputeEmpresa?.nome || 'MCS'}</p>
                                   <p className="text-slate-600">{disputeEmpresa?.address_line || 'N/A'}</p>
                                   <p className="text-slate-600">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
                                   <p className="text-slate-600">{disputeEmpresa?.province || 'Portugal'}</p>
@@ -4841,7 +4847,7 @@ MCS - Gestão Comercial`;
                     <div className="grid grid-cols-2 gap-8 mb-8 text-xs">
                       <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 space-y-1">
                         <p className="font-bold text-slate-400 uppercase text-[9px] mb-1">Emissor</p>
-                        <p className="font-bold text-slate-900">{currentEmpresa?.nome || 'STOCCO LDA'}</p>
+                        <p className="font-bold text-slate-900">{currentEmpresa?.legal_name || currentEmpresa?.nome || 'STOCCO LDA'}</p>
                         <p className="text-muted-foreground">NIF: {currentEmpresa?.tax_id || 'PT517834747'}</p>
                         <p className="text-muted-foreground">{currentEmpresa?.address_line || 'R. São Tomé e Príncipe, 287'}</p>
                         <p className="text-muted-foreground">{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
@@ -5010,7 +5016,7 @@ MCS - Gestão Comercial`;
                         {/* Coluna 1: De */}
                         <div>
                           <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
-                          <p className="font-bold text-slate-900">{currentEmpresa?.nome || 'MCS'}</p>
+                          <p className="font-bold text-slate-900">{currentEmpresa?.legal_name || currentEmpresa?.nome || 'MCS'}</p>
                           <p className="text-slate-600">{currentEmpresa?.address_line || 'N/A'}</p>
                           <p className="text-slate-600">{[currentEmpresa?.postal_code, currentEmpresa?.city].filter(Boolean).join(' ')}</p>
                           <p className="text-slate-600">{currentEmpresa?.province || 'Portugal'}</p>
@@ -5515,7 +5521,7 @@ MCS - Gestão Comercial`;
                   <div className="grid grid-cols-2 gap-4 mb-4 text-[10px]">
                     <div className="bg-slate-50 p-3 rounded-lg border border-slate-150 space-y-0.5">
                       <p className="font-bold text-slate-400 uppercase text-[7px] mb-0.5">Emissor</p>
-                      <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
+                      <p className="font-bold text-slate-900">{disputeEmpresa?.legal_name || disputeEmpresa?.nome || 'MCS'}</p>
                       <p className="text-muted-foreground">CIF/NIF: {disputeEmpresa?.tax_id || 'N/A'}</p>
                       <p className="text-muted-foreground">{disputeEmpresa?.address_line || 'N/A'}</p>
                       <p className="text-muted-foreground">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
@@ -5684,7 +5690,7 @@ MCS - Gestão Comercial`;
                     {/* Coluna 1: De */}
                     <div>
                       <p className="font-bold text-[9px] text-[#ec8a5e] uppercase mb-1">De</p>
-                      <p className="font-bold text-slate-900">{disputeEmpresa?.nome || 'MCS'}</p>
+                      <p className="font-bold text-slate-900">{disputeEmpresa?.legal_name || disputeEmpresa?.nome || 'MCS'}</p>
                       <p className="text-slate-600">{disputeEmpresa?.address_line || 'N/A'}</p>
                       <p className="text-slate-600">{[disputeEmpresa?.postal_code, disputeEmpresa?.city].filter(Boolean).join(' ')}</p>
                       <p className="text-slate-600">{disputeEmpresa?.province || 'Portugal'}</p>

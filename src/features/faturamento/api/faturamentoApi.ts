@@ -119,6 +119,8 @@ export interface Fatura {
   };
   empresa?: {
     nome: string;
+    legalName?: string | null;
+    legal_name?: string | null;
     taxId: string;
     addressLine?: string | null;
     postalCode?: string | null;
@@ -127,6 +129,7 @@ export interface Fatura {
     email?: string | null;
     phone?: string | null;
     iban?: string | null;
+    bankDetails?: string | null;
     invoiceSeries?: string | null;
     nextInvoiceNumber?: number | null;
     atcudPrefix?: string | null;
@@ -144,6 +147,7 @@ export interface ClientBillingSummary {
   clientLegalName?: string | null;
   clientCodigo?: string | null;
   empresaNome: string;
+  empresaLegalName?: string | null;
   empresaId: string;
   empresaInvoiceSeries?: string | null;
   empresaNextInvoiceNumber?: number | null;
@@ -325,13 +329,14 @@ export async function getHorasPendentesFaturamento(
       .schema('core_common')
       .from('empresas')
       .select(`
-        nome, address_line, postal_code, city, province, tax_id, email, phone, iban, bank_details,
+        nome, legal_name, trade_name, address_line, postal_code, city, province, tax_id, email, phone, iban, bank_details,
         invoice_series, next_invoice_number, atcud_prefix, capital_social, conservatoria, matricula, certified_software_text, invoice_logo_url
       `)
       .eq('id', empresaId)
       .single();
     
     const empresaNome = empresaData?.nome || 'Não Informada';
+    const empresaLegalName = empresaData?.legal_name || empresaData?.nome || 'Não Informada';
     const empresaAddressLine = empresaData?.address_line || null;
     const empresaPostalCode = empresaData?.postal_code || null;
     const empresaCity = empresaData?.city || null;
@@ -1174,6 +1179,7 @@ export async function getHorasPendentesFaturamento(
         clientLegalName: client.legal_name || client.trade_name || 'Cliente Desconhecido',
         clientCodigo: client.codigo || null,
         empresaNome,
+        empresaLegalName,
         empresaId: empresaId || '',
         empresaInvoiceSeries,
         empresaNextInvoiceNumber,
