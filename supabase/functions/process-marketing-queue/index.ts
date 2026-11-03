@@ -312,25 +312,35 @@ serve(async (req) => {
 
       // Resolução inteligente do WhatsApp padrão (Hierarquia: Vendedor Atribuído -> País/Mercado -> Empresa)
       let defaultWaUrl = waMichelleUrl;
+      let effectiveAssignedTo: string | null = campaign.assigned_to || lead.assigned_to || null;
 
       if (assignedUserId === GIADA_ID) {
         defaultWaUrl = waGiadaUrl;
+        effectiveAssignedTo = GIADA_ID;
       } else if (assignedUserId === LISETH_ID || (isWiseowe && isSpainWiseowe)) {
         defaultWaUrl = waLisethUrl;
+        effectiveAssignedTo = LISETH_ID;
       } else if (assignedUserId === FATUMATA_ID || assignedUserId === OMAR_ID) {
         defaultWaUrl = waOmarUrl;
+        effectiveAssignedTo = FATUMATA_ID;
       } else if (assignedUserId === ALBA_ID || assignedUserId === ALBA_LEGACY_ID || assignedUserId === MICHELLE_ID) {
         defaultWaUrl = waMichelleUrl;
+        effectiveAssignedTo = ALBA_ID;
       } else if (assignedUserId === ALEX_ID) {
         defaultWaUrl = waAlexUrl;
+        effectiveAssignedTo = ALEX_ID;
       } else if (isItalyLead) {
         defaultWaUrl = waGiadaUrl;
+        effectiveAssignedTo = GIADA_ID;
       } else if (isFranceLead) {
         defaultWaUrl = waOmarUrl;
+        effectiveAssignedTo = FATUMATA_ID;
       } else if (isTriangulo) {
         defaultWaUrl = waMichelleUrl;
+        effectiveAssignedTo = ALBA_ID;
       } else if (isLuminous) {
         defaultWaUrl = waAlexUrl;
+        effectiveAssignedTo = ALEX_ID;
       }
 
       // Substituição de placeholders dinâmicos
@@ -470,7 +480,7 @@ serve(async (req) => {
             .eq("id", item.id);
             
           // Atualizar o estágio do lead para 'E-mail Enviado' se ele estiver no estágio padrão
-          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
+          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id, effectiveAssignedTo);
 
         } else {
           // 1. Verificar se o lead está em quarentena (Bounce ou E-mail Inválido)
@@ -679,7 +689,7 @@ serve(async (req) => {
             })
             .eq("id", item.id);
 
-          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id);
+          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id, effectiveAssignedTo);
 
           // Delay de cadência controlado (~1350ms) entre cada disparo para evitar Greylisting/Transient Bounces
           await new Promise((resolve) => setTimeout(resolve, 1350));
@@ -736,12 +746,12 @@ serve(async (req) => {
 });
 
 // Helper para mover o lead para a coluna 'E-mail Enviado' da empresa da campanha
-async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId: string) {
+async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId: string, effectiveAssignedTo?: string | null) {
   try {
     // 1. Buscar o lead pelo e-mail
     const { data: currentLead } = await supabase
       .from("leads")
-      .select("id, empresa_id, stage_id")
+      .select("id, empresa_id, stage_id, assigned_to")
       .eq("email", leadEmail)
       .maybeSingle();
 
@@ -761,9 +771,6 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
     const TRIANGULO_ID = "a798620a-358a-4c6c-9db2-3a507c583cac";
     const WISEOWE_ID = "dae64d51-2181-4510-b14f-e63d2f111a8e";
 
-    // Regra de proteção de titularidade:
-    // Se a campanha for da Triângulo ou Wiseowe, o lead pertence a ela.
-    // Se o lead já pertence à Triângulo ou Wiseowe, uma campanha de terceiros (ex: Luminous) NUNCA pode roubar a posse!
     let targetEmpresaId = currentLead.empresa_id;
     if (!targetEmpresaId) {
       targetEmpresaId = empresaId;
@@ -771,13 +778,22 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
       targetEmpresaId = empresaId;
     }
 
+    const shouldUpdateOwner = Boolean(effectiveAssignedTo && targetEmpresaId === empresaId);
+
     // Regra de avanço seguro: NUNCA regredir lead que já avançou (order_index >= 2)
-    // Se já está em 'E-mail Enviado' (2), 'E-mail Lido/Clicado' (3), 'Orçamento Solicitado' (4), etc., mantém o estágio!
     if (currentOrderIndex >= 2) {
+      const ownerPayload: any = {};
       if (targetEmpresaId && targetEmpresaId !== currentLead.empresa_id) {
+        ownerPayload.empresa_id = targetEmpresaId;
+      }
+      if (shouldUpdateOwner && effectiveAssignedTo !== currentLead.assigned_to) {
+        ownerPayload.assigned_to = effectiveAssignedTo;
+      }
+      if (Object.keys(ownerPayload).length > 0) {
+        ownerPayload.updated_at = new Date().toISOString();
         await supabase
           .from("leads")
-          .update({ empresa_id: targetEmpresaId, updated_at: new Date().toISOString() })
+          .update(ownerPayload)
           .eq("id", currentLead.id);
       }
       return;
@@ -799,7 +815,6 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
       }
     }
 
-    // Fallback caso não ache por order_index, buscar por nome dentro da MESMA empresa
     if (!stageId && targetEmpresaId) {
       const { data: fallbackStage } = await supabase
         .from("kanban_stages")
@@ -816,6 +831,9 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
     };
     if (targetEmpresaId) {
       updatePayload.empresa_id = targetEmpresaId;
+    }
+    if (shouldUpdateOwner && effectiveAssignedTo) {
+      updatePayload.assigned_to = effectiveAssignedTo;
     }
     if (stageId) {
       updatePayload.stage_id = stageId;
