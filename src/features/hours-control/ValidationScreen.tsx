@@ -495,26 +495,35 @@ export function ValidationScreen({
         }
     };
 
+    const parseHoursNum = (val: string | number | undefined | null): number => {
+        if (val === undefined || val === null || val === '') return 0;
+        const parsed = parseFloat(String(val).replace(',', '.'));
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
     const handleRecordChange = (day: number, field: keyof DayRecord, value: string) => {
         setRecords(prev => prev.map(r => {
             if (r.day === day) {
-                const updated = { ...r, [field]: value };
+                const normalizedVal = (field === 'horasNormais' || field === 'horasNoturnas' || field === 'totalHoras')
+                    ? value.replace(',', '.')
+                    : value;
+                const updated = { ...r, [field]: normalizedVal };
                 if (field === 'inicio' || field === 'fim') {
                     const duration = calculateDuration(updated.inicio, updated.fim);
                     if (duration > 0) {
-                        const noturnas = parseFloat(updated.horasNoturnas) || 0;
+                        const noturnas = parseHoursNum(updated.horasNoturnas);
                         const normais = Math.max(0, Math.round((duration - noturnas) * 100) / 100);
                         updated.horasNormais = String(normais);
                         updated.totalHoras = String(duration);
                     }
                 } else if (field === 'horasNormais' || field === 'horasNoturnas') {
-                    const normais = parseFloat(field === 'horasNormais' ? value : updated.horasNormais) || 0;
-                    const noturnas = parseFloat(field === 'horasNoturnas' ? value : updated.horasNoturnas) || 0;
+                    const normais = parseHoursNum(field === 'horasNormais' ? normalizedVal : updated.horasNormais);
+                    const noturnas = parseHoursNum(field === 'horasNoturnas' ? normalizedVal : updated.horasNoturnas);
                     const total = Math.round((normais + noturnas) * 100) / 100;
                     updated.totalHoras = total > 0 ? String(total) : '';
                 } else if (field === 'totalHoras') {
-                    const total = parseFloat(value) || 0;
-                    const noturnas = parseFloat(updated.horasNoturnas) || 0;
+                    const total = parseHoursNum(normalizedVal);
+                    const noturnas = parseHoursNum(updated.horasNoturnas);
                     const normais = Math.max(0, Math.round((total - noturnas) * 100) / 100);
                     updated.horasNormais = String(normais);
                 }
@@ -980,14 +989,18 @@ export function ValidationScreen({
             const { data: billedRows } = await supabase
                 .schema('core_finance')
                 .from('horas_trabalhadas')
-                .select('data_trabalho')
+                .select('id, data_trabalho, fatura_id, status')
                 .eq('worker_id', workerId)
                 .eq('client_id', clientId)
                 .not('fatura_id', 'is', null)
                 .gte('data_trabalho', startDateStr)
                 .lte('data_trabalho', endDateStr);
 
-            const billedDateSet = new Set((billedRows || []).map((b: any) => b.data_trabalho));
+            const billedByDate = new Map<string, any>();
+            (billedRows || []).forEach((b: any) => {
+                if (b.data_trabalho) billedByDate.set(b.data_trabalho, b);
+            });
+            const defaultBilledFatura = (billedRows && billedRows.length > 0) ? billedRows[0] : null;
 
             const { error: deleteError } = await supabase
                 .schema('core_finance')
@@ -1006,17 +1019,17 @@ export function ValidationScreen({
 
             const rowsToInsert = records
                 .filter(r => {
-                    const hrs = parseFloat(r.totalHoras);
-                    return !isNaN(hrs) && hrs > 0;
+                    const hrs = parseHoursNum(r.totalHoras);
+                    return hrs > 0;
                 })
                 .map(r => {
                     const dayStr = resolveSaveDateStr(r.day);
                     const siteId = r.obra || (clientSites.length === 1 ? clientSites[0].id : null);
                     const tariffPair = resolveTariff(workerId, workerFuncId, siteId);
-                    const totalH = parseFloat(r.totalHoras) || 0;
-                    const noturnasH = parseFloat(r.horasNoturnas) || 0;
-                    const parsedNorm = parseFloat(r.horasNormais);
-                    const normaisH = (!isNaN(parsedNorm) && parsedNorm > 0) ? parsedNorm : Math.max(0, totalH - noturnasH);
+                    const totalH = parseHoursNum(r.totalHoras);
+                    const noturnasH = parseHoursNum(r.horasNoturnas);
+                    const parsedNorm = parseHoursNum(r.horasNormais);
+                    const normaisH = (r.horasNormais !== undefined && r.horasNormais !== '') ? parsedNorm : Math.max(0, totalH - noturnasH);
                     
                     return {
                         worker_id: workerId,
@@ -1027,7 +1040,8 @@ export function ValidationScreen({
                         horas_normais: normaisH,
                         horas_noturnas: noturnasH,
                         horas_totais: totalH,
-                        status: 'pending_review',
+                        status: defaultBilledFatura?.status || 'pending_review',
+                         ...(defaultBilledFatura?.fatura_id ? { fatura_id: defaultBilledFatura.fatura_id } : {}),
                         funcao_id: workerFuncId,
                         obra_id: siteId,
                         tarifa_faturada: tariffPair.normal,
@@ -1035,7 +1049,51 @@ export function ValidationScreen({
                     };
                 });
 
-            const unbilledRowsToInsert = rowsToInsert.filter(r => !billedDateSet.has(r.data_trabalho));
+            // 1. Update existing billed rows in place so edits to normal/night hours, obra, or tariff are persisted without breaking fatura_id
+            const activeDatesSet = new Set(rowsToInsert.map(r => r.data_trabalho));
+            for (const r of rowsToInsert) {
+                const existingBilled = billedByDate.get(r.data_trabalho);
+                if (existingBilled?.id) {
+                    const { error: updBilledErr } = await supabase
+                        .schema('core_finance')
+                        .from('horas_trabalhadas')
+                        .update({
+                            hora_inicio: r.hora_inicio,
+                            hora_fim: r.hora_fim,
+                            horas_normais: r.horas_normais,
+                            horas_noturnas: r.horas_noturnas,
+                            horas_totais: r.horas_totais,
+                            funcao_id: r.funcao_id,
+                            obra_id: r.obra_id,
+                            tarifa_faturada: r.tarifa_faturada,
+                            tarifa_faturada_noturna: r.tarifa_faturada_noturna
+                        })
+                        .eq('id', existingBilled.id);
+                    if (updBilledErr) {
+                        console.error("Erro ao atualizar lançamento vinculado à fatura:", updBilledErr);
+                        throw updBilledErr;
+                    }
+                }
+            }
+
+            // 2. Delete billed rows for dates that were zeroed out by the admin
+            const zeroedBilledIds = (billedRows || [])
+                .filter((b: any) => b.id && !activeDatesSet.has(b.data_trabalho))
+                .map((b: any) => b.id);
+            if (zeroedBilledIds.length > 0) {
+                const { error: delZeroedErr } = await supabase
+                    .schema('core_finance')
+                    .from('horas_trabalhadas')
+                    .delete()
+                    .in('id', zeroedBilledIds);
+                if (delZeroedErr) {
+                    console.error("Erro ao remover dias zerados vinculados à fatura:", delZeroedErr);
+                    throw delZeroedErr;
+                }
+            }
+
+            // 3. Insert any dates not already present in billedByDate
+            const unbilledRowsToInsert = rowsToInsert.filter(r => !billedByDate.has(r.data_trabalho));
             if (unbilledRowsToInsert.length > 0) {
                 const { error: insertError } = await supabase
                     .schema('core_finance')
@@ -1053,10 +1111,10 @@ export function ValidationScreen({
             const totalGeralH = totalNormaisH + totalNoturnasH;
 
             const syncedApontamentos = records.map(r => {
-                const totalH = parseFloat(r.totalHoras) || 0;
-                const noturnasH = parseFloat(r.horasNoturnas) || 0;
-                const parsedNorm = parseFloat(r.horasNormais);
-                const normaisH = (!isNaN(parsedNorm) && parsedNorm > 0) ? parsedNorm : Math.max(0, totalH - noturnasH);
+                const totalH = parseHoursNum(r.totalHoras);
+                const noturnasH = parseHoursNum(r.horasNoturnas);
+                const parsedNorm = parseHoursNum(r.horasNormais);
+                const normaisH = (r.horasNormais !== undefined && r.horasNormais !== '') ? parsedNorm : Math.max(0, totalH - noturnasH);
                 const siteObj = clientSites.find(s => s.id === r.obra);
                 return {
                     day: r.day,
