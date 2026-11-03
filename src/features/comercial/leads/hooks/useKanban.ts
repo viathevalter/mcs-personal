@@ -42,7 +42,7 @@ export function useCommercialCampaignLeadScope(options: {
       let mktQuery = supabase
         .schema('core_comercial')
         .from('marketing_campaigns')
-        .select('id, title, status, total_leads, sent_count, created_at, assigned_to')
+        .select('id, title, status, scheduled_at, created_at, assigned_to')
         .eq('empresa_id', targetEmpresaId)
         .order('created_at', { ascending: false });
 
@@ -86,7 +86,7 @@ export function useCommercialCampaignLeadScope(options: {
       }));
 
       const dialerIds = dialerList.map(d => d.id);
-      const recentMktIds = mktList.slice(0, 8).map(m => m.id);
+      const recentMktIds = mktList.filter(m => m.status === 'sending').map(m => m.id);
 
       const stage1Set = new Set<string>();
 
