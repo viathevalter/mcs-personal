@@ -1356,6 +1356,52 @@ export function CampaignsPage() {
       );
       return mergeUniqueById(wiseoweStrategic, [
         {
+          id: 'aud_liseth_ineditos_barcelona_2026',
+          name: '🚀 🇪🇸 Liseth (Wiseowe) - Inéditos Barcelona (11 leads)',
+          leadCount: 11,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Liseth Inéditos - Barcelona 2026',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-03T14:50:00.000Z'
+        },
+        {
+          id: 'aud_liseth_barcelona_completo_2026',
+          name: '🎯 🇪🇸 Liseth (Wiseowe) - Barcelona Completo (20 leads)',
+          leadCount: 20,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Liseth - Barcelona 2026',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-03T14:50:00.000Z'
+        },
+        {
           id: 'aud_liseth_ineditos_3010_2026',
           name: '🚀 Mailing Liseth - Inéditos Lote 30/10 (10 leads)',
           leadCount: 10,
@@ -1403,8 +1449,8 @@ export function CampaignsPage() {
         },
         {
           id: 'aud_liseth_base_total_2026',
-          name: '🌟 Mailing Liseth - Base Total Consolidada (33 leads)',
-          leadCount: 33,
+          name: '🌟 Mailing Liseth - Base Total Consolidada (309 leads)',
+          leadCount: 309,
           filters: {
             stageId: '',
             origin: '',
