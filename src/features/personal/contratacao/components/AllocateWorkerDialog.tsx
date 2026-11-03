@@ -208,7 +208,7 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       const { data, error } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, cod_colab, nif, dni, nie, pasaporte')
+        .select('id, nome, cod_colab, nif, dni, nie, pasaporte, status_trabajador, cliente, contratante')
         .or(`nif.eq.${cleanDoc},dni.eq.${cleanDoc},nie.eq.${cleanDoc},pasaporte.eq.${cleanDoc}`)
         .limit(1);
         
@@ -219,6 +219,17 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       
       if (data && data.length > 0) {
         const found = data[0];
+        const statusLower = (found.status_trabajador || '').toLowerCase();
+        const isAlreadyActive = !statusLower.includes('inativ') && !statusLower.includes('inactiv') && (statusLower.includes('ativo') || statusLower.includes('activo'));
+
+        if (isAlreadyActive) {
+          toast.error(
+            `Atenção: O trabalhador ${found.nome} (${found.cod_colab || 'Sem código'}) já está ATIVO (${found.contratante || 'Sem contratante'} / ${found.cliente || 'Sem cliente'}). Dê baixa na alocação atual antes de contratá-lo em outra vaga.`,
+            { duration: 9000 }
+          );
+          return;
+        }
+
         toast.warning(
           `Trabalhador já cadastrado com este documento: ${found.nome} (${found.cod_colab || 'Sem código'}). O sistema selecionará ele automaticamente.`,
           { duration: 7000 }
@@ -243,13 +254,24 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
       const { data, error } = await supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, nome, cod_colab, nif, dni, nie, pasaporte, status_trabajador')
+        .select('id, nome, cod_colab, nif, dni, nie, pasaporte, status_trabajador, cliente, contratante')
         .ilike('nome', cleanName)
         .limit(1);
 
       if (error) return;
       if (data && data.length > 0) {
         const found = data[0];
+        const statusLower = (found.status_trabajador || '').toLowerCase();
+        const isAlreadyActive = !statusLower.includes('inativ') && !statusLower.includes('inactiv') && (statusLower.includes('ativo') || statusLower.includes('activo'));
+
+        if (isAlreadyActive) {
+          toast.error(
+            `Atenção: Já existe um trabalhador ATIVO com o nome "${found.nome}" (${found.cod_colab || 'Sem código'} - ${found.contratante || 'Sem contratante'} / ${found.cliente || 'Sem cliente'}). Dê baixa na alocação atual antes de contratá-lo novamente.`,
+            { duration: 9000 }
+          );
+          return;
+        }
+
         toast.warning(
           `Já existe um trabalhador cadastrado com o nome "${found.nome}" (${found.cod_colab || 'Sem código'} - ${found.status_trabajador || 'Sem status'}). O sistema selecionará ele automaticamente.`,
           { duration: 8000 }

@@ -473,10 +473,10 @@ export function WorkersPage() {
                                     <TableCell>
                                         {(() => {
                                             const s = (worker.status_trabajador || '').toLowerCase();
-                                            const isAtivo = s.includes('ativo') || s.includes('activo');
+                                            const isDesligado = s.includes('inativ') || s.includes('inactiv') || s.includes('desligad') || s.includes('desist') || s.includes('baixa') || s.includes('baja');
+                                            const isAtivo = !isDesligado && (s.includes('ativo') || s.includes('activo'));
                                             const isPendente = s.includes('pendente') || s.includes('pendiente');
                                             const isAfastado = s.includes('afast') || s.includes('licen') || s.includes('invalidez') || s.includes('baja medica') || s.includes('baja médica');
-                                            const isDesligado = s.includes('inativ') || s.includes('desligad') || s.includes('desist');
                                             
                                             const label = worker.status_trabajador ? t(`workersPage.statusValues.trabajador.${worker.status_trabajador.toLowerCase().replace(/ /g, '_')}`, worker.status_trabajador) : '-';
 

@@ -579,34 +579,14 @@ export async function updateWorkerAlocacao(params: UpdateWorkerAlocacaoParams): 
         if (allocError) throw mapSupabaseError(allocError);
     }
 
-    // Sincronizar dados principais do trabalhador no perfil
-    const workerUpdates: any = {};
-    if (updates.cliente_nombre) workerUpdates.cliente = updates.cliente_nombre;
-    if (updates.contratante) workerUpdates.contratante = updates.contratante;
-    if (updates.funcion) workerUpdates.funcion = updates.funcion;
+    // Sincronizar dados principais do trabalhador no perfil a partir da alocação ATIVA mais recente
+    // (evita que a edição de uma alocação antiga/encerrada sobrescreva o cliente/função/contratante atual)
+    await supabase
+        .schema('core_personal')
+        .rpc('fn_sync_worker_active_fields_by_cod', { p_cod_colab: workerCodColab });
 
-    if (Object.keys(workerUpdates).length > 0) {
-        await supabase
-            .schema('core_personal')
-            .from('workers')
-            .update(workerUpdates)
-            .eq('cod_colab', workerCodColab);
-
-        const colabUpdates: any = {};
-        if (updates.contratante) colabUpdates.contratante = updates.contratante;
-        if (updates.funcion) colabUpdates.funcion = updates.funcion;
-
-        if (Object.keys(colabUpdates).length > 0) {
-            await supabase
-                .schema('public')
-                .from('colaboradores')
-                .update(colabUpdates)
-                .eq('cod_colab', workerCodColab);
-        }
-    }
-
-    // If we updated the contractor, sync the tickets too
-    if (companyId) {
+    // Se a alocação editada continua aberta (sem data de saída), sincronizar tickets pendentes
+    if (companyId && !updates.fechasalidatrabajador) {
         const { data: worker } = await supabase
             .schema('core_personal')
             .from('workers')
