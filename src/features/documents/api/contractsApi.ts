@@ -521,7 +521,61 @@ export interface DocumentRequest {
     } | null;
 }
 
+export const HEXAGON_EMPRESA_ID = '2c944db5-f1d0-4789-a562-8cfa1c0155b7';
+
 export async function listDocumentRequests(empresaId: string): Promise<DocumentRequest[]> {
+    // Se a empresa selecionada for a Hexagon (Espanha), garante que todos os trabalhadores alocados ou vinculados à Hexagon
+    // tenham uma solicitação de documentos no processo da Hexagon (trazendo os documentos existentes e liberando envio)
+    if (empresaId === HEXAGON_EMPRESA_ID) {
+        try {
+            const [{ data: existingHexReqs }, { data: hexAssignments }, { data: hexWorkers }] = await Promise.all([
+                supabase
+                    .schema('core_personal')
+                    .from('document_requests')
+                    .select('worker_id')
+                    .eq('empresa_id', HEXAGON_EMPRESA_ID),
+                supabase
+                    .schema('core_personal')
+                    .from('worker_assignments')
+                    .select('worker_id, client_id, start_date, planned_start_date')
+                    .eq('empresa_id', HEXAGON_EMPRESA_ID)
+                    .in('status', ['planned', 'active']),
+                supabase
+                    .schema('core_personal')
+                    .from('workers')
+                    .select('id')
+                    .ilike('contratante', '%HEXAGON%')
+            ]);
+
+            const existingWorkerIds = new Set((existingHexReqs || []).map((r: any) => r.worker_id).filter(Boolean));
+            const assignmentByWorker = new Map<string, any>();
+            (hexAssignments || []).forEach((a: any) => {
+                if (a.worker_id && !assignmentByWorker.has(a.worker_id)) {
+                    assignmentByWorker.set(a.worker_id, a);
+                }
+            });
+
+            const candidateWorkerIds = new Set<string>([
+                ...Array.from(assignmentByWorker.keys()),
+                ...(hexWorkers || []).map((w: any) => w.id).filter(Boolean)
+            ]);
+
+            for (const wId of candidateWorkerIds) {
+                if (!existingWorkerIds.has(wId)) {
+                    const assign = assignmentByWorker.get(wId);
+                    const startIso = assign?.planned_start_date || assign?.start_date || undefined;
+                    await createDocumentRequest(
+                        HEXAGON_EMPRESA_ID,
+                        wId,
+                        assign?.client_id || undefined,
+                        startIso ? String(startIso).substring(0, 10) : undefined
+                    );
+                }
+            }
+        } catch (syncErr) {
+            console.warn('Aviso ao sincronizar solicitações de documentos da Hexagon:', syncErr);
+        }
+    }
     let query = supabase
         .schema('core_personal')
         .from('document_requests')
@@ -612,34 +666,53 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
 }
 
 export async function createDocumentRequest(empresaId: string, workerId: string, clientId?: string, startDate?: string): Promise<DocumentRequest> {
-    // Buscar dados pré-existentes do trabalhador (cadastrados na contratação inicial)
-    const { data: worker } = await supabase
-        .schema('core_personal')
-        .from('workers')
-        .select('*')
-        .eq('id', workerId)
-        .maybeSingle();
+    // Buscar dados pré-existentes do trabalhador e solicitações anteriores (ex: de outras empresas do grupo)
+    const [{ data: worker }, { data: prevReq }] = await Promise.all([
+        supabase
+            .schema('core_personal')
+            .from('workers')
+            .select('*')
+            .eq('id', workerId)
+            .maybeSingle(),
+        supabase
+            .schema('core_personal')
+            .from('document_requests')
+            .select('*')
+            .eq('worker_id', workerId)
+            .order('updated_at', { ascending: false })
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+    ]);
+
+    const prevExt = (prevReq?.extracted_data || {}) as Record<string, any>;
+    const prevIbanUrl = prevReq?.iban_url || prevExt.iban_url || null;
+    const prevResidenceUrl = prevReq?.residence_url || prevExt.residence_url || null;
 
     const extractedData: any = {
-        nome: worker?.nome || '',
-        pasaporte: worker?.pasaporte || '',
-        dni: worker?.dni || '',
-        nie: worker?.nie || '',
-        nif: worker?.nif || '',
-        niss: worker?.niss || '',
-        movil: worker?.movil || '',
-        email: worker?.email || '',
-        talla_camisa: worker?.camiseta || '',
-        talla_pantalon: worker?.pantalones || '',
-        licencia_conducir: worker?.licencia_conducir || '',
-        nacionalidade: worker?.nacionalidade || '',
-        fecha_nacimiento: worker?.fecha_nacimiento || '',
-        direccion_actual: worker?.address_line || '',
-        ubicacion_actual: worker?.location || '',
-        morada_contrato: worker?.morada_contrato || '',
-        iban: worker?.iban || '',
-        client_id: clientId || null,
-        start_date: startDate || null
+        ...prevExt,
+        nome: worker?.nome || prevExt.nome || '',
+        pasaporte: worker?.pasaporte || prevExt.pasaporte || '',
+        dni: worker?.dni || prevExt.dni || '',
+        nie: worker?.nie || prevExt.nie || '',
+        nif: worker?.nif || prevExt.nif || '',
+        niss: worker?.niss || prevExt.niss || '',
+        movil: worker?.movil || prevExt.movil || '',
+        email: worker?.email || prevExt.email || '',
+        talla_camisa: worker?.camiseta || prevExt.talla_camisa || '',
+        talla_pantalon: worker?.pantalones || prevExt.talla_pantalon || '',
+        licencia_conducir: worker?.licencia_conducir || prevExt.licencia_conducir || '',
+        nacionalidade: worker?.nacionalidade || prevExt.nacionalidade || '',
+        fecha_nacimiento: worker?.fecha_nacimiento || prevExt.fecha_nacimiento || '',
+        direccion_actual: worker?.address_line || prevExt.direccion_actual || '',
+        ubicacion_actual: worker?.location || prevExt.ubicacion_actual || '',
+        morada_contrato: worker?.morada_contrato || prevExt.morada_contrato || '',
+        iban: worker?.iban || prevExt.iban || '',
+        banco: prevExt.banco || '',
+        iban_url: prevIbanUrl,
+        residence_url: prevResidenceUrl,
+        client_id: clientId || prevExt.client_id || null,
+        start_date: startDate || prevExt.start_date || null
     };
 
     const { data, error } = await supabase
@@ -649,10 +722,38 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
             empresa_id: empresaId,
             worker_id: workerId,
             status: 'pending_upload',
+            passport_url: prevReq?.passport_url || null,
+            residence_url: prevResidenceUrl,
+            tiene_residencia_ue: prevReq?.tiene_residencia_ue ?? true,
+            nif_url: prevReq?.nif_url || null,
+            niss_url: prevReq?.niss_url || null,
+            license_url: prevReq?.license_url || null,
+            iban_url: prevIbanUrl,
+            selfie_url: prevReq?.selfie_url || null,
             extracted_data: extractedData,
-            expires_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() // 48h
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 dias
         })
-        .select()
+        .select('*, worker:workers(id, nome, email, movil, cod_colab)')
+        .single();
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
+    return data as unknown as DocumentRequest;
+}
+
+export async function reopenDocumentRequest(requestId: string): Promise<DocumentRequest> {
+    const { data, error } = await supabase
+        .schema('core_personal')
+        .from('document_requests')
+        .update({
+            status: 'pending_upload',
+            expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', requestId)
+        .select('*, worker:workers(id, nome, email, movil, cod_colab)')
         .single();
 
     if (error) {

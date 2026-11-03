@@ -407,6 +407,14 @@ export function WorkerDocCapturePage() {
                         Você já pode fechar esta página. O link do seu contrato será enviado assim que os dados forem verificados.
                     </p>
                 </div>
+                <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 mt-4"
+                    onClick={() => setSuccess(false)}
+                >
+                    Enviar Novos Documentos / Atualizar Cadastro
+                </Button>
             </div>
         );
     }

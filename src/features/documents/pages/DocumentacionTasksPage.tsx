@@ -5,7 +5,7 @@ import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
     listContracts, generateContract, deleteContract, updateContractNoticeMetadata, createManualNoticeEntry, type Contract,
-    listDocumentRequests, createDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, type DocumentRequest
+    listDocumentRequests, createDocumentRequest, reopenDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, HEXAGON_EMPRESA_ID, type DocumentRequest
 } from '../api/contractsApi';
 import { listWorkers } from '@/features/workers/api/workersApi';
 import { Combobox } from '@/components/ui/combobox';
@@ -1030,13 +1030,54 @@ export function DocumentacionTasksPage() {
             if (displayItems.length > 0) {
                 const workerIds = displayItems.map(item => item.worker?.id).filter(Boolean);
                 if (workerIds.length > 0) {
-                    const { data: requests } = await supabase
+                    const targetEmpresaId = empresaId || selectedEmpresaId;
+                    let reqQuery = supabase
                         .schema('core_personal')
                         .from('document_requests')
                         .select('*, worker:workers(id, nome, email, movil, cod_colab)')
-                        .in('worker_id', workerIds);
+                        .in('worker_id', workerIds)
+                        .order('created_at', { ascending: false });
 
-                    const requestsMap = new Map(requests?.map(r => [r.worker_id, r]) || []);
+                    if (targetEmpresaId === HEXAGON_EMPRESA_ID) {
+                        reqQuery = reqQuery.eq('empresa_id', HEXAGON_EMPRESA_ID);
+                    }
+
+                    const { data: requests } = await reqQuery;
+
+                    const requestsMap = new Map<string, any>();
+                    for (const r of (requests || [])) {
+                        if (!requestsMap.has(r.worker_id)) {
+                            requestsMap.set(r.worker_id, r);
+                        } else if (targetEmpresaId && r.empresa_id === targetEmpresaId && requestsMap.get(r.worker_id)?.empresa_id !== targetEmpresaId) {
+                            requestsMap.set(r.worker_id, r);
+                        }
+                    }
+
+                    // For Hexagon, automatically ensure every worker in the solicitation has a Hexagon document_request
+                    // pre-populated with any previously uploaded documents so they can re-submit/update for Hexagon
+                    if (targetEmpresaId === HEXAGON_EMPRESA_ID) {
+                        let createdAny = false;
+                        for (const item of displayItems) {
+                            if (item.worker?.id && !requestsMap.has(item.worker.id)) {
+                                try {
+                                    const createdReq = await createDocumentRequest(
+                                        HEXAGON_EMPRESA_ID,
+                                        item.worker.id,
+                                        clientId,
+                                        expectedStartDate ? expectedStartDate.substring(0, 10) : undefined
+                                    );
+                                    requestsMap.set(item.worker.id, { ...createdReq, worker: item.worker });
+                                    createdAny = true;
+                                } catch (e) {
+                                    console.warn("Erro ao provisionar document_request da Hexagon:", e);
+                                }
+                            }
+                        }
+                        if (createdAny) {
+                            loadDocRequests();
+                        }
+                    }
+
                     displayItems = displayItems.map(item => ({
                         ...item,
                         docRequest: item.worker ? requestsMap.get(item.worker.id) : null
@@ -1065,8 +1106,19 @@ export function DocumentacionTasksPage() {
         
         let inviteLink = '';
         
-        // Se já existe uma solicitação de documentos, usa o token existente
+        // Se já existe uma solicitação de documentos, usa o token existente (e renova/reabre se expirado ou já finalizado na Hexagon)
         if (item.docRequest) {
+            const isExpired = item.docRequest.expires_at && new Date(item.docRequest.expires_at) < new Date();
+            const isHexagon = (taskMetadata?.empresaId || item.docRequest.empresa_id || selectedEmpresaId) === HEXAGON_EMPRESA_ID;
+            if (isExpired || (isHexagon && item.docRequest.status !== 'pending_upload')) {
+                try {
+                    const reopened = await reopenDocumentRequest(item.docRequest.id);
+                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: { ...item.docRequest, ...reopened } } : w));
+                    loadDocRequests();
+                } catch (e) {
+                    console.warn("Aviso ao renovar link de envio:", e);
+                }
+            }
             inviteLink = `${window.location.origin}/enviar-documentos/${item.docRequest.token}`;
         } else {
             // Caso contrário, cria uma nova solicitação silenciosamente na hora!
@@ -1277,6 +1329,9 @@ Muchas gracias.`;
 
     useEffect(() => {
         if (requestDialogOpen && selectedEmpresaId) {
+            if (selectedEmpresaId !== 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d') {
+                setRequestEmpresaId(selectedEmpresaId);
+            }
             loadWorkers();
         }
     }, [requestDialogOpen, selectedEmpresaId]);
@@ -3869,16 +3924,58 @@ Muchas gracias.`;
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
 
-                                                            {req.status === 'pending_upload' && !isExpired && (
+                                                            {(req.status === 'pending_upload' && (req.passport_url || req.selfie_url || req.iban_url || req.residence_url || req.nif_url || req.niss_url || req.license_url)) && (
                                                                 <Button 
                                                                     size="sm" 
-                                                                    variant="outline" 
-                                                                    onClick={() => handleCopyInviteLink(inviteLink, req.worker?.nome)}
-                                                                    title="Copiar Link de Envio"
+                                                                    variant="outline"
+                                                                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold text-xs gap-1"
+                                                                    onClick={() => handleOpenVerify(req)}
+                                                                    title="Visualizar Documentos Anteriores / Atuais"
                                                                 >
-                                                                    <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Link
+                                                                    <Eye className="h-3.5 w-3.5" /> Ver Docs
                                                                 </Button>
                                                             )}
+
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="outline" 
+                                                                onClick={async () => {
+                                                                    if (isExpired) {
+                                                                        try {
+                                                                            await reopenDocumentRequest(req.id);
+                                                                            loadDocRequests();
+                                                                        } catch (e) {
+                                                                            console.warn("Erro ao renovar link:", e);
+                                                                        }
+                                                                    }
+                                                                    handleCopyInviteLink(inviteLink, req.worker?.nome);
+                                                                }}
+                                                                title="Copiar Link de Envio"
+                                                            >
+                                                                <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Link
+                                                            </Button>
+
+                                                            {(req.status === 'verified' || req.status === 'submitted' || isExpired) && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 text-xs gap-1"
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            await reopenDocumentRequest(req.id);
+                                                                            loadDocRequests();
+                                                                            handleCopyInviteLink(inviteLink, req.worker?.nome);
+                                                                            toast.success(`Solicitação de ${req.worker?.nome || 'trabalhador'} reaberta para novo envio e link copiado!`);
+                                                                        } catch (err) {
+                                                                            toast.error("Erro ao reabrir solicitação.");
+                                                                        }
+                                                                    }}
+                                                                    title="Reabrir solicitação para permitir novo envio de documentos e copiar link"
+                                                                >
+                                                                    <RefreshCw className="h-3.5 w-3.5" /> Novo Envio
+                                                                </Button>
+                                                            )}
+
                                                             {req.status === 'submitted' && (
                                                                 <Button 
                                                                     size="sm" 
@@ -5752,16 +5849,54 @@ Muchas gracias.`;
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right space-x-1.5 whitespace-nowrap">
-                                                    {/* Analisar Button */}
-                                                    {docStatus === 'submitted' && item.worker && (
+                                                    {/* Analisar / Ver Docs Button */}
+                                                    {item.docRequest && item.worker && (
+                                                        docStatus === 'submitted' ||
+                                                        docStatus === 'verified' ||
+                                                        item.docRequest.passport_url ||
+                                                        item.docRequest.selfie_url ||
+                                                        item.docRequest.iban_url ||
+                                                        item.docRequest.residence_url ||
+                                                        item.docRequest.nif_url ||
+                                                        item.docRequest.niss_url ||
+                                                        item.docRequest.license_url
+                                                    ) && (
                                                         <Button
                                                             size="sm"
-                                                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
+                                                            variant={docStatus === 'submitted' ? 'default' : 'outline'}
+                                                            className={docStatus === 'submitted' 
+                                                                ? "bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
+                                                                : "border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-medium text-xs gap-1.5"
+                                                            }
                                                             onClick={() => handleOpenVerify(item.docRequest)}
-                                                            title="Analisar documentos enviados"
+                                                            title="Visualizar ou analisar documentos do trabalhador"
                                                         >
                                                             <Eye className="h-3 w-3" />
-                                                            Analisar
+                                                            {docStatus === 'submitted' ? 'Analisar' : 'Ver Docs'}
+                                                        </Button>
+                                                    )}
+
+                                                    {/* Reabrir para Novo Envio Button */}
+                                                    {item.docRequest && (docStatus === 'verified' || docStatus === 'submitted') && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 text-xs gap-1"
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const reopened = await reopenDocumentRequest(item.docRequest.id);
+                                                                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: { ...item.docRequest, ...reopened } } : w));
+                                                                    loadDocRequests();
+                                                                    handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`, item.worker?.nome);
+                                                                    toast.success(`Solicitação reaberta para novo envio de ${item.worker?.nome || 'trabalhador'}!`);
+                                                                } catch (err) {
+                                                                    toast.error("Erro ao reabrir solicitação.");
+                                                                }
+                                                            }}
+                                                            title="Solicitar novo envio de documentos (reabre o link)"
+                                                        >
+                                                            <RefreshCw className="h-3 w-3" />
+                                                            Novo Envio
                                                         </Button>
                                                     )}
 
@@ -5783,7 +5918,20 @@ Muchas gracias.`;
                                                              size="sm"
                                                              variant="outline"
                                                              className="text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
-                                                             onClick={() => handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`, item.worker?.nome)}
+                                                             onClick={async () => {
+                                                                 const isExpired = item.docRequest.expires_at && new Date(item.docRequest.expires_at) < new Date();
+                                                                 const isHexagon = (taskMetadata?.empresaId || item.docRequest.empresa_id || selectedEmpresaId) === HEXAGON_EMPRESA_ID;
+                                                                 if (isExpired || (isHexagon && item.docRequest.status !== 'pending_upload')) {
+                                                                     try {
+                                                                         const reopened = await reopenDocumentRequest(item.docRequest.id);
+                                                                         setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: { ...item.docRequest, ...reopened } } : w));
+                                                                         loadDocRequests();
+                                                                     } catch (e) {
+                                                                         console.warn("Aviso ao renovar link:", e);
+                                                                     }
+                                                                 }
+                                                                 handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`, item.worker?.nome);
+                                                             }}
                                                              title="Copiar mensagem com link formatado"
                                                              disabled={isVacantReplacement}
                                                          >
