@@ -480,7 +480,7 @@ serve(async (req) => {
             .eq("id", item.id);
             
           // Atualizar o estágio do lead para 'E-mail Enviado' se ele estiver no estágio padrão
-          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id, effectiveAssignedTo);
+          await updateLeadStageToSent(supabase, targetLeadId, lead.email, campaign.empresa_id, effectiveAssignedTo);
 
         } else {
           // 1. Verificar se o lead está em quarentena (Bounce ou E-mail Inválido)
@@ -689,7 +689,7 @@ serve(async (req) => {
             })
             .eq("id", item.id);
 
-          await updateLeadStageToSent(supabase, lead.email, campaign.empresa_id, effectiveAssignedTo);
+          await updateLeadStageToSent(supabase, targetLeadId, lead.email, campaign.empresa_id, effectiveAssignedTo);
 
           // Delay de cadência controlado (~1350ms) entre cada disparo para evitar Greylisting/Transient Bounces
           await new Promise((resolve) => setTimeout(resolve, 1350));
@@ -746,14 +746,27 @@ serve(async (req) => {
 });
 
 // Helper para mover o lead para a coluna 'E-mail Enviado' da empresa da campanha
-async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId: string, effectiveAssignedTo?: string | null) {
+async function updateLeadStageToSent(supabase: any, leadId: string | null, leadEmail: string, empresaId: string, effectiveAssignedTo?: string | null) {
   try {
-    // 1. Buscar o lead pelo e-mail
-    const { data: currentLead } = await supabase
-      .from("leads")
-      .select("id, empresa_id, stage_id, assigned_to")
-      .eq("email", leadEmail)
-      .maybeSingle();
+    // 1. Buscar o lead prioritariamente pelo ID exato da fila (evita colisão de e-mail entre empresas)
+    let currentLead: any = null;
+    if (leadId) {
+      const { data } = await supabase
+        .from("leads")
+        .select("id, empresa_id, stage_id, assigned_to")
+        .eq("id", leadId)
+        .maybeSingle();
+      currentLead = data;
+    }
+    if (!currentLead && leadEmail) {
+      const { data } = await supabase
+        .from("leads")
+        .select("id, empresa_id, stage_id, assigned_to")
+        .eq("email", leadEmail)
+        .eq("empresa_id", empresaId)
+        .maybeSingle();
+      currentLead = data;
+    }
 
     if (!currentLead) return;
 
@@ -771,12 +784,8 @@ async function updateLeadStageToSent(supabase: any, leadEmail: string, empresaId
     const TRIANGULO_ID = "a798620a-358a-4c6c-9db2-3a507c583cac";
     const WISEOWE_ID = "dae64d51-2181-4510-b14f-e63d2f111a8e";
 
-    let targetEmpresaId = currentLead.empresa_id;
-    if (!targetEmpresaId) {
-      targetEmpresaId = empresaId;
-    } else if (empresaId === TRIANGULO_ID || empresaId === WISEOWE_ID) {
-      targetEmpresaId = empresaId;
-    }
+    // NUNCA roubar empresa_id de outra empresa se o lead já pertence a uma empresa!
+    const targetEmpresaId = currentLead.empresa_id || empresaId;
 
     const shouldUpdateOwner = Boolean(effectiveAssignedTo && targetEmpresaId === empresaId);
 

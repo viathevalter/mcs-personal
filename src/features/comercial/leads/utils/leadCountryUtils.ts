@@ -21,6 +21,14 @@ export const COUNTRY_LABELS: Record<string, { name: string; flag: string; lang: 
 export function detectLeadCountry(lead: any): string {
   if (!lead) return 'ES';
 
+  // Prioridade máxima para o comercial exclusivo atribuído ao lead
+  if (lead.assigned_to) {
+    const owner = String(lead.assigned_to).toLowerCase();
+    if (owner === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2' || owner === '346a9262-2edf-4a2e-80fc-aa5b43bf483a') return 'FR';
+    if (owner === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa' || owner === 'ca69863d-998b-4bad-865a-19720e7a1f67' || owner === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7') return 'ES';
+    if (owner === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65') return 'IT';
+  }
+
   if (lead.region && typeof lead.region === 'string') {
     const r = lead.region.toLowerCase();
     if (r.includes('frança') || r.includes('france')) return 'FR';

@@ -23,22 +23,8 @@ async function markLeadAsRead(supabase: any, leadId: string, campaignId?: string
 
     if (!lead) return;
 
-    let targetEmpresaId = hintEmpresaId || lead.empresa_id;
-
-    if (campaignId) {
-      const { data: campaign } = await supabase
-        .schema("core_comercial")
-        .from("marketing_campaigns")
-        .select("empresa_id")
-        .eq("id", campaignId)
-        .maybeSingle();
-
-      if (campaign?.empresa_id) {
-        targetEmpresaId = campaign.empresa_id;
-      }
-    }
-
-    if (!targetEmpresaId) targetEmpresaId = lead.empresa_id;
+    // NUNCA alterar o empresa_id de um lead que já possui empresa atribuída!
+    const targetEmpresaId = lead.empresa_id || hintEmpresaId;
     if (!targetEmpresaId) return;
 
     const { data: stages3 } = await supabase
@@ -80,7 +66,7 @@ async function markLeadAsRead(supabase: any, leadId: string, campaignId?: string
       updated_at: new Date().toISOString(),
     };
 
-    if (targetEmpresaId && targetEmpresaId !== lead.empresa_id) {
+    if (!lead.empresa_id && targetEmpresaId) {
       updatePayload.empresa_id = targetEmpresaId;
     }
 

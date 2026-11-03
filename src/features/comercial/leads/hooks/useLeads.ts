@@ -350,7 +350,7 @@ export function useLeads(options?: UseLeadsOptions) {
           hasMore = false;
         }
       }
-      if (!isGlobal && targetEmpresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
+      if (!isGlobal && targetEmpresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e' && (!assignedTo || assignedTo === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa')) {
         const { data: lisethCross } = await supabase
           .schema('core_comercial')
           .from('leads')
@@ -366,7 +366,7 @@ export function useLeads(options?: UseLeadsOptions) {
           }
         }
       }
-      if (!isGlobal && targetEmpresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac') {
+      if (!isGlobal && targetEmpresaId === 'a798620a-358a-4c6c-9db2-3a507c583cac' && (!assignedTo || assignedTo === 'ca69863d-998b-4bad-865a-19720e7a1f67')) {
         const { data: albaCross } = await supabase
           .schema('core_comercial')
           .from('leads')
