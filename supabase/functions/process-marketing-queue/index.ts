@@ -149,6 +149,7 @@ serve(async (req) => {
             reply_to_email,
             marketing_templates (
               id,
+              title,
               subject,
               html_content
             )
@@ -255,31 +256,52 @@ serve(async (req) => {
       const ALEX_ID = 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
 
       const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy') || leadTags.includes('giada') || leadEmail.endsWith('.it') || leadPhone.startsWith('+39') || leadPhone.startsWith('0039');
+      const tplTitleLower = (template.title || '').toLowerCase();
+      const tplSubjectLower = (template.subject || '').toLowerCase();
+      const tplHtmlLower = (template.html_content || '').toLowerCase();
+
+      const isExplicitFatumataTemplate =
+        tplTitleLower.includes('fatumata') ||
+        tplTitleLower.includes('frança') ||
+        tplTitleLower.includes('france') ||
+        tplTitleLower === 'mkt01 - wise' ||
+        tplTitleLower === 'mkt02 - wise' ||
+        tplHtmlLower.includes('whatsapp_url_fatumata') ||
+        tplHtmlLower.includes('whatsapp_url_omar') ||
+        tplSubjectLower.includes('soudeurs') ||
+        tplSubjectLower.includes('besoin de personnel');
+
+      const isExplicitLisethTemplate =
+        tplTitleLower.includes('liseth') ||
+        tplTitleLower.includes('espanha') ||
+        tplTitleLower.includes('españa') ||
+        tplHtmlLower.includes('whatsapp_url_liseth');
+
       const isSpainWiseowe =
-        assignedUserId === LISETH_ID ||
-        assignedUser?.commercial_country === 'ES' ||
-        (campaign.sender_email || '').toLowerCase().includes('es.wiseowe.com') ||
-        leadTags.includes('liseth') ||
-        leadTags.includes('espanha') ||
-        leadTags.includes('españa') ||
-        campTitleLower.includes('liseth') ||
-        campTitleLower.includes('españa') ||
-        campTitleLower.includes('espanha') ||
-        leadEmail.endsWith('.es') ||
-        leadPhone.startsWith('+34') ||
-        leadPhone.startsWith('0034');
+        !isExplicitFatumataTemplate &&
+        (isExplicitLisethTemplate ||
+          assignedUserId === LISETH_ID ||
+          assignedUser?.commercial_country === 'ES' ||
+          (campaign.sender_email || '').toLowerCase().includes('es.wiseowe.com') ||
+          leadTags.includes('liseth') ||
+          leadTags.includes('espanha') ||
+          leadTags.includes('españa') ||
+          campTitleLower.includes('liseth') ||
+          campTitleLower.includes('españa') ||
+          campTitleLower.includes('espanha'));
       const isFranceLead =
-        !isSpainWiseowe &&
-        (assignedUserId === FATUMATA_ID ||
-          assignedUserId === OMAR_ID ||
-          assignedUser?.commercial_country === 'FR' ||
-          leadTags.includes('frança') ||
-          leadTags.includes('francia') ||
-          leadTags.includes('france') ||
-          leadEmail.endsWith('.fr') ||
-          leadPhone.startsWith('+33') ||
-          leadPhone.startsWith('0033') ||
-          isWiseowe);
+        isExplicitFatumataTemplate ||
+        (!isSpainWiseowe &&
+          (assignedUserId === FATUMATA_ID ||
+            assignedUserId === OMAR_ID ||
+            assignedUser?.commercial_country === 'FR' ||
+            leadTags.includes('frança') ||
+            leadTags.includes('francia') ||
+            leadTags.includes('france') ||
+            leadEmail.endsWith('.fr') ||
+            leadPhone.startsWith('+33') ||
+            leadPhone.startsWith('0033') ||
+            isWiseowe));
 
       // URLs explícitas por vendedor
       const waOmarUrl = `https://wa.me/33176210655?text=${encodeURIComponent("Bonjour Fatumata, je souhaite plus d'informations sur vos services")}`;
@@ -343,12 +365,15 @@ serve(async (req) => {
           .replace(/https:\/\/iili\.io\/nwMkkSn\.png/gi, `${appUrl}/assets/images/luminous-mkt06-logo.png`)
           .replace(/https:\/\/iili\.io\/nhyf4R9\.png/gi, `${appUrl}/assets/images/luminous-mkt05-logo.png`)
           .replace(/src=["']data:image\/[a-zA-Z]+;base64,[^"']{500,}["']/gi, `src="${appUrl}/assets/images/wiseowe-logo.png"`)
-          // Variáveis explícitas por vendedor (garantia 100% de direcionamento)
-          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${campaign.empresa_id}`)
-          // Variável genérica inteligente (respeita vendedor atribuído, país do lead e empresa)
+          // Variáveis explícitas por vendedor (garantia 100% de direcionamento separado por comercial)
+          .replace(/\{\{\s*whatsapp_url_fatumata\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=fatumata&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=fatumata&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_liseth\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=liseth&dest=${encodeURIComponent(waLisethUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_alba\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=alba&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=alba&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=giada&dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${campaign.empresa_id}`)
+          .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=alex&dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${campaign.empresa_id}`)
+          // Variável genérica inteligente (respeita template/vendedor atribuído, país do lead e empresa)
           .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(defaultWaUrl)}&empresa_id=${campaign.empresa_id}`);
 
         // Preservar links wa.me explicitamente definidos no HTML do template, mantendo o número e texto exatos
@@ -396,15 +421,15 @@ serve(async (req) => {
         }
       } else if (companyTrade.includes("WISEOWE") || isWiseowe) {
         if (isSpainWiseowe) {
-          // Liseth - Wiseowe Espanha (Subdomínio es.wiseowe.com)
-          validSenderEmail = (campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial2@es.wiseowe.com").replace(/^comercial3@/i, "comercial2@");
+          // Liseth - Wiseowe Espanha (SEMPRE comercial2@es.wiseowe.com e Reply-To comercial2@wiseowe.com)
+          validSenderEmail = "comercial2@es.wiseowe.com";
           senderName = "Wiseowe Servicios Industriales";
-          validReplyTo = (campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial2@wiseowe.com").replace(/^comercial3@/i, "comercial2@");
+          validReplyTo = "comercial2@wiseowe.com";
         } else {
-          // Fatumata - Wiseowe França (Subdomínio fr.wiseowe.com)
-          validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_fr || company?.marketing_sender_email || "comercial3@fr.wiseowe.com";
+          // Fatumata - Wiseowe França (SEMPRE comercial3@fr.wiseowe.com e Reply-To comercial3@wiseowe.com)
+          validSenderEmail = "comercial3@fr.wiseowe.com";
           senderName = "Wiseowe Industrie";
-          validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_fr || company?.proposal_sender_email || "comercial3@wiseowe.com";
+          validReplyTo = "comercial3@wiseowe.com";
         }
       } else if (companyTrade.includes("LUMINOUS") || isLuminous) {
         validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial1@mail.luminousalley.com";

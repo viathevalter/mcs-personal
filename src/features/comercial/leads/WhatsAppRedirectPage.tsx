@@ -8,6 +8,7 @@ export function WhatsAppRedirectPage() {
   const rawLeadId = searchParams.get('lead_id');
   const leadId = (rawLeadId && rawLeadId !== 'undefined' && rawLeadId !== 'null') ? rawLeadId : null;
   const destParam = searchParams.get('dest');
+  const sellerParam = (searchParams.get('seller') || '').toLowerCase();
   const empresaParam = searchParams.get('empresa_id');
 
   const [isLoadingLead, setIsLoadingLead] = useState(true);
@@ -45,6 +46,39 @@ export function WhatsAppRedirectPage() {
       let currentSalesperson = 'Alba';
       let currentCompany = 'Triángulo Servicios Industriales';
       let hasExplicitSeller = false;
+
+      // 1.5 Análise Imediata do Parâmetro Explícito de Comercial (seller)
+      if (sellerParam === 'fatumata' || sellerParam === 'omar') {
+        currentLang = 'fr';
+        currentSalesperson = 'Fatumata';
+        currentCompany = 'Wiseowe Industrie';
+        currentWaUrl = waFatumataDefault;
+        hasExplicitSeller = true;
+      } else if (sellerParam === 'liseth') {
+        currentLang = 'es';
+        currentSalesperson = 'Liseth';
+        currentCompany = 'Wiseowe Servicios Industriales';
+        currentWaUrl = waLisethDefault;
+        hasExplicitSeller = true;
+      } else if (sellerParam === 'alba' || sellerParam === 'michelle') {
+        currentLang = 'es';
+        currentSalesperson = 'Alba';
+        currentCompany = 'Triángulo Servicios Industriales';
+        currentWaUrl = waAlbaDefault;
+        hasExplicitSeller = true;
+      } else if (sellerParam === 'alex') {
+        currentLang = 'es';
+        currentSalesperson = 'Alex';
+        currentCompany = 'Luminous Alley';
+        currentWaUrl = waAlexDefault;
+        hasExplicitSeller = true;
+      } else if (sellerParam === 'giada') {
+        currentLang = 'it';
+        currentSalesperson = 'Giada';
+        currentCompany = 'Triangolo Servizi Industriali';
+        currentWaUrl = waGiadaDefault;
+        hasExplicitSeller = true;
+      }
 
       // 2. Análise Imediata do Destino Explícito (dest) se informado
       let explicitDest = '';
@@ -222,7 +256,7 @@ export function WhatsAppRedirectPage() {
 
             const assignedUserId = lead.assigned_to;
 
-            if (assignedUserId === LISETH_ID || isSpainWiseoweLead) {
+            if (!hasExplicitSeller && (assignedUserId === LISETH_ID || isSpainWiseoweLead)) {
               currentLang = 'es';
               currentSalesperson = 'Liseth';
               currentCompany = 'Wiseowe Servicios Industriales';
@@ -298,7 +332,7 @@ export function WhatsAppRedirectPage() {
     }
 
     resolveContext();
-  }, [leadId, destParam, empresaParam]);
+  }, [leadId, destParam, empresaParam, sellerParam]);
 
   // Executado APENAS quando o usuário humano clica no botão
   const handleOpenWhatsApp = async () => {

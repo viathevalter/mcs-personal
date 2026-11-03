@@ -155,21 +155,51 @@ export function useMutateMarketing() {
     }) => {
       const targetEmpresaId = activeCommercialProfile?.empresaId || selectedEmpresaId;
       if (!targetEmpresaId) throw new Error('Empresa não selecionada');
-      const targetAssignedTo =
+      let targetAssignedTo =
         payload.assigned_to ||
         loggedCommercialProfile?.userId ||
         activeCommercialProfile?.userId ||
         null;
-      const targetSenderEmail =
+      let targetSenderEmail =
         payload.sender_email ||
         loggedCommercialProfile?.marketingSenderEmail ||
         activeCommercialProfile?.marketingSenderEmail ||
         null;
-      const targetReplyToEmail =
+      let targetReplyToEmail =
         payload.reply_to_email ||
         loggedCommercialProfile?.commercialEmail ||
         activeCommercialProfile?.commercialEmail ||
         null;
+
+      // Na Wiseowe, garantir separação total entre Fatumata (França) e Liseth (Espanha) com base no template selecionado
+      if (targetEmpresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e' && payload.template_id) {
+        const { data: tplData } = await supabase
+          .schema('core_comercial')
+          .from('marketing_templates')
+          .select('title, subject, html_content')
+          .eq('id', payload.template_id)
+          .maybeSingle();
+
+        if (tplData) {
+          const tTitle = (tplData.title || '').toLowerCase();
+          const tHtml = (tplData.html_content || '').toLowerCase();
+          const isLisethTemplate =
+            tTitle.includes('liseth') ||
+            tTitle.includes('espanha') ||
+            tTitle.includes('españa') ||
+            tHtml.includes('whatsapp_url_liseth');
+
+          if (isLisethTemplate) {
+            targetAssignedTo = 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa';
+            targetSenderEmail = 'comercial2@es.wiseowe.com';
+            targetReplyToEmail = 'comercial2@wiseowe.com';
+          } else {
+            targetAssignedTo = '2a25dd76-8a1b-44ea-8ea9-47e9232beee2';
+            targetSenderEmail = 'comercial3@fr.wiseowe.com';
+            targetReplyToEmail = 'comercial3@wiseowe.com';
+          }
+        }
+      }
 
       const { data, error } = await supabase
         .schema('core_comercial')

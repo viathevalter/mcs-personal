@@ -5606,7 +5606,10 @@ export function CampaignsPage() {
                     else if (isTriangulo) defaultWaUrl = waAlbaUrl;
 
                     html = html
-                      .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/\{\{\s*whatsapp_url_fatumata\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=fatumata&dest=${encodeURIComponent(waFatumataUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                          .replace(/\{\{\s*whatsapp_url_liseth\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=liseth&dest=${encodeURIComponent(waLisethUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                          .replace(/\{\{\s*whatsapp_url_alba\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=alba&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=fatumata&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${selectedEmpresaId || ''}`)
                       .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${selectedEmpresaId || ''}`)
                       .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${selectedEmpresaId || ''}`)
                       .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${selectedEmpresaId || ''}`)
