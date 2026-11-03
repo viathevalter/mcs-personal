@@ -12,6 +12,7 @@ export interface MarketingAudienceFilters {
   selectedProvinces?: string[];
   selectedSectors?: string[];
   selectedServices?: string[];
+  selectedTags?: string[];
   sectorKeyword?: string;
   cargoKeyword?: string;
   provinceKeyword?: string;
@@ -58,6 +59,42 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
     filters: {
       selectedCountries: ['ES'],
       tagKeyword: 'Mailing Liseth - Barcelona 2026',
+    },
+  },
+  {
+    id: 'aud_liseth_bcn_tag_ett_2026',
+    name: '🏷️ 🇪🇸 Liseth (Wiseowe) - Tag Planilha: ETT & Captación Activa (10 empresas)',
+    leadCount: 10,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['ETT'],
+      tagKeyword: 'Liseth - ETT',
+    },
+  },
+  {
+    id: 'aud_liseth_bcn_tag_captacion_2026',
+    name: '🏷️ 🇪🇸 Liseth (Wiseowe) - Tag Planilha: Captación Activa Barcelona (20 empresas)',
+    leadCount: 20,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['captacion activa'],
+      tagKeyword: 'Liseth - captacion activa',
+    },
+  },
+  {
+    id: 'aud_liseth_bcn_tag_catalan_2026',
+    name: '🏷️ 🇪🇸 Liseth (Wiseowe) - Tag Planilha: Catalán & Captación Activa (1 empresa)',
+    leadCount: 1,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['catalan'],
+      tagKeyword: 'Liseth - catalan',
     },
   },
   {
@@ -1216,6 +1253,15 @@ export function doesLeadMatchAudience(lead: any, audience: MarketingAudiencePres
   // 3. Origin filter
   if (filters.origin && lead.origen_lead !== filters.origin) {
     return false;
+  }
+
+  // 3b. Selected Tags (Multi-select from spreadsheet / CRM tags)
+  if (filters.selectedTags && filters.selectedTags.length > 0) {
+    const leadTagsLower = Array.isArray(lead.tags) ? lead.tags.map((t: any) => String(t).toLowerCase().trim()) : [];
+    const matchesAnySelectedTag = filters.selectedTags.some(st => leadTagsLower.includes(st.toLowerCase().trim()));
+    if (!matchesAnySelectedTag) {
+      return false;
+    }
   }
 
   // 4. Tag Keyword / Strategic Audience Tag

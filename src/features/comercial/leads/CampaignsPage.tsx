@@ -596,6 +596,7 @@ export function CampaignsPage() {
     selectedProvinces: string[];
     selectedSectors: string[];
     selectedServices: string[];
+    selectedTags?: string[];
     sectorKeyword: string;
     cargoKeyword: string;
     provinceKeyword: string;
@@ -615,6 +616,7 @@ export function CampaignsPage() {
     selectedProvinces: [],
     selectedSectors: [],
     selectedServices: [],
+    selectedTags: [],
     sectorKeyword: '',
     cargoKeyword: '',
     provinceKeyword: '',
@@ -745,6 +747,45 @@ export function CampaignsPage() {
       label: srv,
       value: srv
     }));
+  }, [leadsInCountryScope]);
+
+  const dynamicTagOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    leadsInCountryScope.forEach(l => {
+      if (Array.isArray(l.tags)) {
+        l.tags.forEach((t: any) => {
+          const clean = String(t || '').trim();
+          if (clean) {
+            counts[clean] = (counts[clean] || 0) + 1;
+          }
+        });
+      }
+    });
+    const priorityTags = [
+      'captacion activa',
+      'ETT',
+      'catalan',
+      'Liseth - captacion activa',
+      'Liseth - ETT',
+      'Liseth - catalan',
+      'Mailing Liseth - Barcelona 2026',
+      'Mailing Liseth Inéditos - Barcelona 2026',
+      'Mailing Liseth - Lote 30-10 2026',
+      'Mailing Liseth',
+    ];
+    return Object.keys(counts)
+      .sort((a, b) => {
+        const idxA = priorityTags.indexOf(a);
+        const idxB = priorityTags.indexOf(b);
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b);
+      })
+      .map(tg => ({
+        label: `🏷️ ${tg} (${counts[tg]} empresas)`,
+        value: tg,
+      }));
   }, [leadsInCountryScope]);
 
   const defaultStrategicAudiences = useMemo(() => {
@@ -1400,6 +1441,78 @@ export function CampaignsPage() {
             offset: '',
           },
           created_at: '2026-11-03T14:50:00.000Z'
+        },
+        {
+          id: 'aud_liseth_bcn_tag_ett_2026',
+          name: '🏷️ 🇪🇸 Liseth (Wiseowe) - Tag Planilha: ETT & Captación Activa (10 empresas)',
+          leadCount: 10,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            selectedTags: ['ETT'],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Liseth - ETT',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-03T15:35:00.000Z'
+        },
+        {
+          id: 'aud_liseth_bcn_tag_captacion_2026',
+          name: '🏷️ 🇪🇸 Liseth (Wiseowe) - Tag Planilha: Captación Activa Barcelona (20 empresas)',
+          leadCount: 20,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            selectedTags: ['captacion activa'],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Liseth - captacion activa',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-03T15:35:00.000Z'
+        },
+        {
+          id: 'aud_liseth_bcn_tag_catalan_2026',
+          name: '🏷️ 🇪🇸 Liseth (Wiseowe) - Tag Planilha: Catalán & Captación Activa (1 empresa)',
+          leadCount: 1,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            selectedTags: ['catalan'],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Liseth - catalan',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-03T15:35:00.000Z'
         },
         {
           id: 'aud_liseth_ineditos_3010_2026',
@@ -3578,6 +3691,7 @@ export function CampaignsPage() {
       selectedProvinces: [],
       selectedSectors: [],
       selectedServices: [],
+      selectedTags: [],
       sectorKeyword: '',
       cargoKeyword: '',
       provinceKeyword: '',
@@ -3606,10 +3720,19 @@ export function CampaignsPage() {
         return false;
       }
 
-      // 3. Filter by Country (Multi-select) when no explicit tagKeyword is provided
-      if (!filters.tagKeyword && filters.selectedCountries && filters.selectedCountries.length > 0) {
+      // 3. Filter by Country (Multi-select) when no explicit tagKeyword or selectedTags is provided
+      if (!filters.tagKeyword && (!filters.selectedTags || filters.selectedTags.length === 0) && filters.selectedCountries && filters.selectedCountries.length > 0) {
         const leadCountry = detectLeadCountry(l);
         if (!filters.selectedCountries.includes(leadCountry)) {
+          return false;
+        }
+      }
+
+      // 3b. Filter by Selected Tags (Multi-select from spreadsheet / CRM tags)
+      if (filters.selectedTags && filters.selectedTags.length > 0) {
+        const leadTagsLower = Array.isArray(l.tags) ? l.tags.map((t: any) => String(t).toLowerCase().trim()) : [];
+        const hasAnySelectedTag = filters.selectedTags.some((st: string) => leadTagsLower.includes(st.toLowerCase().trim()));
+        if (!hasAnySelectedTag) {
           return false;
         }
       }
@@ -3811,7 +3934,9 @@ export function CampaignsPage() {
     return filtered.filter(l => 
       (l.name || '').toLowerCase().includes(term) ||
       (l.email || '').toLowerCase().includes(term) ||
-      (l.company_name || '').toLowerCase().includes(term)
+      (l.company_name || '').toLowerCase().includes(term) ||
+      (l.notes || '').toLowerCase().includes(term) ||
+      (Array.isArray(l.tags) && l.tags.some((t: any) => String(t).toLowerCase().includes(term)))
     );
   };
 
@@ -3877,6 +4002,7 @@ export function CampaignsPage() {
     audienceFilters.selectedProvinces,
     audienceFilters.selectedSectors,
     audienceFilters.selectedServices,
+    audienceFilters.selectedTags,
     audienceFilters.sectorKeyword,
     audienceFilters.cargoKeyword,
     audienceFilters.provinceKeyword,
@@ -3986,6 +4112,7 @@ export function CampaignsPage() {
         const newPreset = {
           id: crypto.randomUUID(),
           name: audienceSaveName.trim(),
+          ownerKey: effectiveOwnerKey !== 'all' ? effectiveOwnerKey : (isWiseowe ? 'liseth' : isTriangulo ? 'alba' : 'alex'),
           filters: { ...audienceFilters },
           leadCount: filteredLeads.length,
           leadIds: filteredLeads.map(l => l.id),
@@ -4075,6 +4202,7 @@ export function CampaignsPage() {
     const newPreset = {
       id: crypto.randomUUID(),
       name: audienceSaveName.trim(),
+      ownerKey: effectiveOwnerKey !== 'all' ? effectiveOwnerKey : (isWiseowe ? 'liseth' : isTriangulo ? 'alba' : 'alex'),
       filters: { ...audienceFilters },
       leadCount: count,
       leadIds: leadIdsArray,
@@ -4846,12 +4974,14 @@ export function CampaignsPage() {
                   stageId: '',
                   origin: '',
                   intelligence: 'all',
-                  selectedCountries: isWiseowe ? ['FR'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : [],
+                  recencyDays: 'all',
+                  selectedCountries: activeCommercialProfile ? [activeCommercialProfile.country] : isWiseowe ? ['ES', 'FR'] : (isTriangulo && isGiada) ? ['IT'] : isTriangulo ? ['ES'] : [],
                   selectedCompanySizes: [],
                   selectedRegions: [],
                   selectedProvinces: [],
                   selectedSectors: [],
                   selectedServices: [],
+                  selectedTags: [],
                   sectorKeyword: '',
                   cargoKeyword: '',
                   provinceKeyword: '',
@@ -5941,6 +6071,33 @@ export function CampaignsPage() {
                   />
                 </div>
 
+                {/* Multi-Select Combobox para Tags da Planilha e de Segmentação */}
+                <div className="space-y-3 border-t pt-3 bg-amber-500/5 p-3 rounded-xl border border-amber-500/20">
+                  <MultiSelectCombobox
+                    label="🏷️ Tags / Etiquetas da Planilha (Multiseleção)"
+                    options={dynamicTagOptions}
+                    selectedValues={audienceFilters.selectedTags || []}
+                    onChange={(vals) => {
+                      userModifiedSelection.current = false;
+                      setAudienceFilters({ ...audienceFilters, selectedTags: vals });
+                    }}
+                    placeholder="Selecione tags (ex: captacion activa, ETT, catalan)..."
+                  />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="audTagKeyword" className="text-xs font-semibold">🏷️ Filtrar por Tag / Lote Específico (Texto Livre)</Label>
+                    <Input
+                      id="audTagKeyword"
+                      placeholder="Ex: ETT, captacion activa, catalan, Barcelona..."
+                      className="h-8 text-xs bg-white dark:bg-slate-900"
+                      value={audienceFilters.tagKeyword}
+                      onChange={(e) => {
+                        userModifiedSelection.current = false;
+                        setAudienceFilters({ ...audienceFilters, tagKeyword: e.target.value });
+                      }}
+                    />
+                  </div>
+                </div>
+
                 {/* Multi-Select Comboboxes para Setor e Serviço */}
                 <div className="space-y-3 border-t pt-3">
                   <MultiSelectCombobox
@@ -6183,6 +6340,18 @@ export function CampaignsPage() {
                                 <Mail className="h-3 w-3 text-slate-400 shrink-0" />
                                 <span className="text-blue-600 dark:text-blue-400 font-medium truncate">{l.email}</span>
                               </p>
+                              {Array.isArray(l.tags) && l.tags.length > 0 && (
+                                <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                  {l.tags.slice(0, 5).map((tg: string, tIdx: number) => (
+                                    <span
+                                      key={tIdx}
+                                      className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/25"
+                                    >
+                                      🏷️ {tg}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {(() => {
                                 const info = leadsLastSentMap.get(l.id);
                                 return info?.lastSentAt ? (
@@ -6469,6 +6638,33 @@ export function CampaignsPage() {
                   />
                 </div>
 
+                {/* Multi-Select Combobox para Tags da Planilha em Novo Público Salvo */}
+                <div className="space-y-3 border-t pt-3 bg-amber-500/5 p-3 rounded-xl border border-amber-500/20">
+                  <MultiSelectCombobox
+                    label="🏷️ Tags / Etiquetas da Planilha (Multiseleção)"
+                    options={dynamicTagOptions}
+                    selectedValues={audienceFilters.selectedTags || []}
+                    onChange={(vals) => {
+                      userModifiedSelection.current = false;
+                      setAudienceFilters({ ...audienceFilters, selectedTags: vals });
+                    }}
+                    placeholder="Selecione tags (ex: captacion activa, ETT, catalan)..."
+                  />
+                  <div className="space-y-1.5">
+                    <Label htmlFor="newAudTagKeyword" className="text-xs font-semibold">🏷️ Filtrar por Tag / Lote Específico (Texto Livre)</Label>
+                    <Input
+                      id="newAudTagKeyword"
+                      placeholder="Ex: ETT, captacion activa, catalan, Barcelona..."
+                      className="h-8 text-xs bg-white dark:bg-slate-900"
+                      value={audienceFilters.tagKeyword}
+                      onChange={(e) => {
+                        userModifiedSelection.current = false;
+                        setAudienceFilters({ ...audienceFilters, tagKeyword: e.target.value });
+                      }}
+                    />
+                  </div>
+                </div>
+
                 {/* Multi-Select Comboboxes para Setor e Serviço em Novo Público Salvo */}
                 <div className="space-y-3 border-t pt-3">
                   <MultiSelectCombobox
@@ -6685,6 +6881,18 @@ export function CampaignsPage() {
                                 <Mail className="h-3 w-3 text-slate-400 shrink-0" />
                                 <span className="text-blue-600 dark:text-blue-400 font-medium truncate">{l.email}</span>
                               </p>
+                              {Array.isArray(l.tags) && l.tags.length > 0 && (
+                                <div className="flex items-center gap-1 flex-wrap pt-0.5">
+                                  {l.tags.slice(0, 5).map((tg: string, tIdx: number) => (
+                                    <span
+                                      key={tIdx}
+                                      className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/25"
+                                    >
+                                      🏷️ {tg}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                               {(() => {
                                 const info = leadsLastSentMap.get(l.id);
                                 return info?.lastSentAt ? (

@@ -138,6 +138,7 @@ export function LeadsPage() {
     cargoCol: '',
     serviceCol: '',
     originCol: '',
+    tagsCol: '',
   });
   const [updateExisting, setUpdateExisting] = useState(false);
 
@@ -553,7 +554,8 @@ export function LeadsPage() {
           sectorCol: '',
           cargoCol: '',
           serviceCol: '',
-          originCol: ''
+          originCol: '',
+          tagsCol: ''
         };
         headers.forEach(h => {
           const normalized = h.toLowerCase();
@@ -584,6 +586,9 @@ export function LeadsPage() {
           if (normalized.includes('origen') || normalized.includes('origem') || normalized.includes('source') || normalized.includes('origem do lead')) {
             if (!mapObj.originCol) mapObj.originCol = h;
           }
+          if (normalized.includes('tag') || normalized.includes('etiqueta') || normalized.includes('grupo')) {
+            if (!mapObj.tagsCol) mapObj.tagsCol = h;
+          }
         });
         setMappings(mapObj);
 
@@ -612,6 +617,7 @@ export function LeadsPage() {
     const cargoIdx = mappings.cargoCol ? fileHeaders.indexOf(mappings.cargoCol) : -1;
     const serviceIdx = mappings.serviceCol ? fileHeaders.indexOf(mappings.serviceCol) : -1;
     const originIdx = mappings.originCol ? fileHeaders.indexOf(mappings.originCol) : -1;
+    const tagsIdx = (mappings as any).tagsCol ? fileHeaders.indexOf((mappings as any).tagsCol) : -1;
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
@@ -699,6 +705,8 @@ export function LeadsPage() {
       const cargo = cargoIdx !== -1 ? String(row[cargoIdx] || '').trim() : '';
       const service = serviceIdx !== -1 ? String(row[serviceIdx] || '').trim() : '';
       const origin = originIdx !== -1 ? String(row[originIdx] || '').trim() : '';
+      const rawTagsCell = tagsIdx !== -1 ? String(row[tagsIdx] || '').trim() : '';
+      const parsedTags = rawTagsCell ? rawTagsCell.split(/[,;]+/).map(t => t.trim()).filter(Boolean) : [];
 
       // Validação de dados mínimos
       const hasCompany = !!companyName;
@@ -748,6 +756,9 @@ export function LeadsPage() {
         cargo: cargo || (existingLead ? existingLead.cargo : null),
         servicio_producto: service || (existingLead ? existingLead.servicio_producto : null),
         origen_lead: origin || (existingLead ? existingLead.origen_lead : null),
+        ...(parsedTags.length > 0 || (existingLead && Array.isArray(existingLead.tags))
+          ? { tags: Array.from(new Set([...parsedTags, ...(existingLead && Array.isArray(existingLead.tags) ? existingLead.tags : [])])) }
+          : {}),
       });
     });
 
@@ -860,6 +871,7 @@ export function LeadsPage() {
   const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [selectedProvince, setSelectedProvince] = useState<string>('all');
   const [selectedWebsiteFilter, setSelectedWebsiteFilter] = useState<'all' | 'with_web' | 'no_web'>('all');
+  const [selectedTag, setSelectedTag] = useState<string>('all');
 
   // Audience / Público de Campanha Filter
   const [selectedAudienceId, setSelectedAudienceId] = useState<string>('all');
@@ -1021,6 +1033,29 @@ export function LeadsPage() {
     ).sort() as string[];
   }, [countryFilteredBaseLeads]);
 
+  const availableTags = useMemo(() => {
+    const counts: Record<string, number> = {};
+    countryFilteredBaseLeads.forEach((l: any) => {
+      if (Array.isArray(l.tags)) {
+        l.tags.forEach((t: any) => {
+          const clean = String(t || '').trim();
+          if (clean) counts[clean] = (counts[clean] || 0) + 1;
+        });
+      }
+    });
+    const priority = ['captacion activa', 'ETT', 'catalan', 'Liseth - captacion activa', 'Liseth - ETT', 'Liseth - catalan', 'Mailing Liseth - Barcelona 2026'];
+    return Object.keys(counts)
+      .sort((a, b) => {
+        const ia = priority.indexOf(a);
+        const ib = priority.indexOf(b);
+        if (ia !== -1 && ib !== -1) return ia - ib;
+        if (ia !== -1) return -1;
+        if (ib !== -1) return 1;
+        return a.localeCompare(b);
+      })
+      .map(tg => ({ value: tg, count: counts[tg] }));
+  }, [countryFilteredBaseLeads]);
+
   const handleExportExcel = () => {
     if (filteredLeads.length === 0) {
       toast.error('Nenhum lead disponível para exportação com os filtros atuais.');
@@ -1080,6 +1115,10 @@ export function LeadsPage() {
       if (selectedProvince !== 'all' && lead.province !== selectedProvince) return false;
       if (selectedWebsiteFilter === 'with_web' && (!lead.website || lead.website === '#' || lead.website.trim() === '')) return false;
       if (selectedWebsiteFilter === 'no_web' && (lead.website && lead.website !== '#' && lead.website.trim() !== '')) return false;
+      if (selectedTag !== 'all') {
+        const hasSelectedTag = Array.isArray(lead.tags) && lead.tags.some((t: any) => String(t).toLowerCase().trim() === selectedTag.toLowerCase().trim());
+        if (!hasSelectedTag) return false;
+      }
 
       if (!searchTerm) return true;
       const search = searchTerm.toLowerCase().trim();
@@ -1097,7 +1136,7 @@ export function LeadsPage() {
         (Array.isArray(lead.tags) && lead.tags.some((t: string) => t.toLowerCase().includes(search)))
       );
     });
-  }, [commercialScopedLeads, activeAudience, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, searchTerm]);
+  }, [commercialScopedLeads, activeAudience, selectedSector, selectedCountry, selectedCompanySize, selectedRegion, selectedProvince, selectedWebsiteFilter, selectedTag, searchTerm]);
 
   const sortedLeads = useMemo(() => {
     return [...filteredLeads].sort((a, b) => {
@@ -1730,6 +1769,25 @@ export function LeadsPage() {
             </div>
           )}
 
+          {/* Tag Filter Dropdown */}
+          {availableTags.length > 0 && (
+            <div className="flex items-center gap-1 w-full sm:w-auto">
+              <Select value={selectedTag} onValueChange={setSelectedTag}>
+                <SelectTrigger className="w-full sm:w-44 h-8 text-xs font-semibold border-amber-500/40 bg-amber-500/5">
+                  <SelectValue placeholder="Filtrar por Tag" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">🏷️ {tr('Todas as Tags', 'Todas las Etiquetas', 'Tous les Tags')}</SelectItem>
+                  {availableTags.map((tg, idx) => (
+                    <SelectItem key={idx} value={tg.value}>
+                      🏷️ {tg.value} ({tg.count})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Website Filter Dropdown */}
           <div className="flex items-center gap-1 w-full sm:w-auto">
             <Select value={selectedWebsiteFilter} onValueChange={(val: any) => setSelectedWebsiteFilter(val)}>
@@ -1898,11 +1956,17 @@ export function LeadsPage() {
                               </div>
                             )}
                             {lead.tags && lead.tags.length > 0 && (
-                              <div className="flex items-center gap-1 flex-wrap pl-5 pt-0.5">
-                                {lead.tags.slice(0, 3).map((tg, idx) => (
-                                  <span key={idx} className="bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-[10px] font-medium px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/40">
-                                    {tg}
-                                  </span>
+                              <div className="flex items-center gap-1 flex-wrap pl-5 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                                {lead.tags.slice(0, 6).map((tg, idx) => (
+                                  <button
+                                    type="button"
+                                    key={idx}
+                                    onClick={() => setSelectedTag(tg)}
+                                    title={`Filtrar pela tag: ${tg}`}
+                                    className="bg-blue-50 hover:bg-amber-500/20 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-[10px] font-medium px-2 py-0.5 rounded border border-blue-200/60 dark:border-blue-800/40 cursor-pointer transition-colors"
+                                  >
+                                    🏷️ {tg}
+                                  </button>
                                 ))}
                               </div>
                             )}
@@ -3078,6 +3142,18 @@ export function LeadsPage() {
                           {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
                         </select>
                       </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">🏷️ Tags / Etiquetas da Planilha (Coluna TAGS)</Label>
+                      <select
+                        className="w-full border border-amber-500/40 rounded p-1.5 text-xs bg-amber-500/5 font-medium"
+                        value={(mappings as any).tagsCol || ''}
+                        onChange={(e) => setMappings({ ...mappings, tagsCol: e.target.value } as any)}
+                      >
+                        <option value="">Nenhum</option>
+                        {fileHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
                     </div>
 
                     <div className="space-y-1">
