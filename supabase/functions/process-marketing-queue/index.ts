@@ -408,7 +408,7 @@ serve(async (req) => {
         }
       } else if (companyTrade.includes("LUMINOUS") || isLuminous) {
         validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial1@mail.luminousalley.com";
-        senderName = "Luminous Alley";
+        senderName = "Alex - Luminous Alley";
         validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial1@luminousalley.com";
       } else {
         const lowerSender = validSenderEmail.toLowerCase();
