@@ -505,9 +505,11 @@ export interface DocumentRequest {
         assignments?: Array<{
             id: string;
             status: string;
+            empresa_id?: string;
             client_id: string;
             start_date?: string;
             planned_start_date?: string;
+            created_at?: string;
             client?: {
                 id: string;
                 legal_name: string;
@@ -584,7 +586,7 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
             worker:workers (
                 id, nome, email, movil, cod_colab, address_line, morada_contrato, location, pasaporte, nif, niss, nie, dni, licencia_conducir, nacionalidade, fecha_nacimiento, cliente, cod_cliente,
                 assignments:worker_assignments (
-                    id, status, client_id, start_date, planned_start_date
+                    id, status, empresa_id, client_id, start_date, planned_start_date, created_at
                 )
             )
         `);
@@ -649,17 +651,32 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
             solMap
         );
 
+        const sortedAssignments = (r.worker?.assignments || [])
+            .map((a: any) => ({
+                ...a,
+                client: clientsMap.get(a.client_id) || null
+            }))
+            .sort((a: any, b: any) => {
+                const aSameEmp = a.empresa_id === r.empresa_id ? 1 : 0;
+                const bSameEmp = b.empresa_id === r.empresa_id ? 1 : 0;
+                const aActiveOrPlanned = (a.status === 'active' || a.status === 'planned') ? 1 : 0;
+                const bActiveOrPlanned = (b.status === 'active' || b.status === 'planned') ? 1 : 0;
+
+                const scoreA = aSameEmp * 4 + aActiveOrPlanned * 2 + (a.status === 'active' ? 1 : 0);
+                const scoreB = bSameEmp * 4 + bActiveOrPlanned * 2 + (b.status === 'active' ? 1 : 0);
+                if (scoreA !== scoreB) return scoreB - scoreA;
+
+                return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+            });
+
         return {
             ...r,
             ...resolvedOrder,
             empresa: emp ? { id: emp.id, name: emp.nome } : null,
-            client: explicitClient || r.worker?.assignments?.[0]?.client || null,
+            client: explicitClient || sortedAssignments[0]?.client || null,
             worker: r.worker ? {
                 ...r.worker,
-                assignments: r.worker.assignments?.map((a: any) => ({
-                    ...a,
-                    client: clientsMap.get(a.client_id) || null
-                })) || []
+                assignments: sortedAssignments
             } : null
         };
     }) as unknown as DocumentRequest[];
@@ -944,11 +961,26 @@ export async function processDocumentOcr(payload: { file_path: string; mime_type
 }
 
 export async function submitDocumentRequest(token: string, payload: Partial<DocumentRequest>): Promise<void> {
+    const { data: existing } = await supabase
+        .schema('core_personal')
+        .from('document_requests')
+        .select('extracted_data')
+        .eq('token', token)
+        .maybeSingle();
+
+    const mergedExtractedData = payload.extracted_data
+        ? {
+            ...(existing?.extracted_data || {}),
+            ...payload.extracted_data
+        }
+        : existing?.extracted_data;
+
     const { error } = await supabase
         .schema('core_personal')
         .from('document_requests')
         .update({
             ...payload,
+            ...(mergedExtractedData ? { extracted_data: mergedExtractedData } : {}),
             status: 'submitted',
             updated_at: new Date().toISOString()
         })

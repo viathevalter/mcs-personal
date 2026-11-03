@@ -499,7 +499,8 @@ export function DocumentacionTasksPage() {
     const uniqueClientsRequests = useMemo(() => {
         const set = new Set<string>();
         docRequests.forEach(req => {
-            const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+            const activeAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
+                                     req.worker?.assignments?.find((a: any) => a.status === 'active' || a.status === 'planned');
             const latestAssignment = req.worker?.assignments?.[0];
             const clientName = req.client?.trade_name || req.client?.legal_name ||
                                activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
@@ -543,7 +544,8 @@ export function DocumentacionTasksPage() {
     // Filtrar solicitações localmente
     const filteredRequests = useMemo(() => {
         const filtered = docRequests.filter(req => {
-            const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+            const activeAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
+                                     req.worker?.assignments?.find((a: any) => a.status === 'active' || a.status === 'planned');
             const latestAssignment = req.worker?.assignments?.[0];
             const clientName = req.client?.trade_name || req.client?.legal_name ||
                                activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
@@ -606,27 +608,31 @@ export function DocumentacionTasksPage() {
                 valA = a.empresa?.name || 'Stocco';
                 valB = b.empresa?.name || 'Stocco';
             } else if (sortFieldRequests === 'client') {
-                const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
+                const activeAssA = a.worker?.assignments?.find((as: any) => as.empresa_id === a.empresa_id && (as.status === 'active' || as.status === 'planned')) ||
+                                   a.worker?.assignments?.find((as: any) => as.status === 'active' || as.status === 'planned');
                 const latestAssA = a.worker?.assignments?.[0];
                 valA = a.client?.trade_name || a.client?.legal_name ||
                        activeAssA?.client?.trade_name || activeAssA?.client?.legal_name ||
                        latestAssA?.client?.trade_name || latestAssA?.client?.legal_name ||
                        a.worker?.cliente || 'Sem Alocação';
 
-                const activeAssB = b.worker?.assignments?.find(as => as.status === 'active');
+                const activeAssB = b.worker?.assignments?.find((as: any) => as.empresa_id === b.empresa_id && (as.status === 'active' || as.status === 'planned')) ||
+                                   b.worker?.assignments?.find((as: any) => as.status === 'active' || as.status === 'planned');
                 const latestAssB = b.worker?.assignments?.[0];
                 valB = b.client?.trade_name || b.client?.legal_name ||
                        activeAssB?.client?.trade_name || activeAssB?.client?.legal_name ||
                        latestAssB?.client?.trade_name || latestAssB?.client?.legal_name ||
                        b.worker?.cliente || 'Sem Alocação';
             } else if (sortFieldRequests === 'planned_start_date') {
-                const activeAssA = a.worker?.assignments?.find(as => as.status === 'active');
+                const activeAssA = a.worker?.assignments?.find((as: any) => as.empresa_id === a.empresa_id && (as.status === 'active' || as.status === 'planned')) ||
+                                   a.worker?.assignments?.find((as: any) => as.status === 'active' || as.status === 'planned');
                 const latestAssA = a.worker?.assignments?.[0];
                 valA = (a as any).extracted_data?.start_date ||
                        activeAssA?.planned_start_date || activeAssA?.start_date ||
                        latestAssA?.planned_start_date || latestAssA?.start_date || '9999-12-31';
 
-                const activeAssB = b.worker?.assignments?.find(as => as.status === 'active');
+                const activeAssB = b.worker?.assignments?.find((as: any) => as.empresa_id === b.empresa_id && (as.status === 'active' || as.status === 'planned')) ||
+                                   b.worker?.assignments?.find((as: any) => as.status === 'active' || as.status === 'planned');
                 const latestAssB = b.worker?.assignments?.[0];
                 valB = (b as any).extracted_data?.start_date ||
                        activeAssB?.planned_start_date || activeAssB?.start_date ||
@@ -1834,7 +1840,8 @@ Muchas gracias.`;
         setEditingRequest(req);
         setEditEmpresaId(req.empresa_id);
 
-        const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+        const activeAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
+                                 req.worker?.assignments?.find((a: any) => a.status === 'active' || a.status === 'planned');
         const latestAssignment = req.worker?.assignments?.[0];
 
         let explicitClientId = (req as any).extracted_data?.client_id || 
@@ -3806,7 +3813,8 @@ Muchas gracias.`;
                                                 const inviteLink = `${window.location.origin}/enviar-documentos/${req.token}`;
                                                 const isExpired = new Date(req.expires_at) < new Date();
                                                 
-                                                const activeAssignment = req.worker?.assignments?.find(a => a.status === 'active');
+                                                const activeAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
+                                                                         req.worker?.assignments?.find((a: any) => a.status === 'active' || a.status === 'planned');
                                                 const latestAssignment = req.worker?.assignments?.[0];
                                                 const clientName = req.client?.trade_name || req.client?.legal_name ||
                                                                    activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||

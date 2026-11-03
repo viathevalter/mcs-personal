@@ -354,6 +354,7 @@ export function WorkerDocCapturePage() {
                 iban_url: ibanUrl,
                 selfie_url: selfieUrl,
                 extracted_data: {
+                    ...((request?.extracted_data as any) || {}),
                     ...formData,
                     iban_url: ibanUrl,
                     residence_url: residenceUrl,
