@@ -73,6 +73,7 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
     // Regras para Status do Trabalhador
     if (['INATIVO', 'INACTIVO', 'BAIXA', 'DESLIGADO', 'DESISTIU'].includes(statusTrabUpper)) {
         updateData.data_baixa = effectiveDate;
+        updateData.cliente = null;
     } else if (['ATIVO', 'ACTIVO'].includes(statusTrabUpper)) {
         updateData.data_ingresso = effectiveDate;
         updateData.data_baixa = null;
@@ -127,17 +128,17 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
         }
     }
 
-    // 3.5 Se o trabalhador foi inativado/desligado/baixa, atualizar data de saída efetiva nas alocações ativas
+    // 3.5 Se o trabalhador foi inativado/desligado/baixa/desistiu, atualizar data de saída efetiva nas alocações ativas/planejadas
     if (['INATIVO', 'INACTIVO', 'BAIXA', 'DESLIGADO', 'DESISTIU'].includes(statusTrabUpper)) {
         await supabase
             .schema('core_personal')
             .from('worker_assignments')
             .update({
                 end_date: effectiveDate,
-                status: 'completed'
+                status: statusTrabUpper === 'DESISTIU' ? 'cancelled' : 'completed'
             })
             .eq('worker_id', workerId)
-            .eq('status', 'active');
+            .in('status', ['active', 'planned', 'paused']);
 
         if (worker.cod_colab) {
             await supabase

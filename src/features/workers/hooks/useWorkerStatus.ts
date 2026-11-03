@@ -20,10 +20,11 @@ export const useUpdateWorkerStatusUnified = () => {
     return useMutation({
         mutationFn: (payload: UnifiedStatusPayload) => updateWorkerStatusUnified(payload),
         onSuccess: async (_, variables) => {
-            // Força a invalidação e o re-fetch ativo imediato de todas as queries relacionadas ao trabalhador
+            // Força a invalidação e o re-fetch ativo imediato de todas as queries relacionadas ao trabalhador e KPIs/alertas
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['worker', variables.workerId], refetchType: 'active' }),
                 queryClient.invalidateQueries({ queryKey: ['workers'], refetchType: 'active' }),
+                queryClient.invalidateQueries({ queryKey: ['worker_kpis'], refetchType: 'active' }),
                 queryClient.invalidateQueries({ queryKey: ['workerStatusHistory', variables.workerId], refetchType: 'active' }),
                 queryClient.invalidateQueries({ queryKey: ['workerAllocations', variables.workerId], refetchType: 'active' }),
                 queryClient.invalidateQueries({ queryKey: ['seguridade'], refetchType: 'active' }),

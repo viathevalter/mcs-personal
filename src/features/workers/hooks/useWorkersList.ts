@@ -15,10 +15,11 @@ export function useWorkersList(params: {
     pageSize: number;
     periodMonth?: number;
     periodYear?: number;
+    alertaFilter?: string | null;
 }) {
     return useQuery<ListWorkersResponse, Error>({
         // Include all params in the query key to avoid cache collisions
-        queryKey: ['workers', params.empresaId, params.page, params.pageSize, params.search, params.clienteNombre, params.statusTrabajador, params.statusSeguridad, params.contratante, params.funcion, params.sortColumn, params.sortDirection, params.periodMonth, params.periodYear],
+        queryKey: ['workers', params.empresaId, params.page, params.pageSize, params.search, params.clienteNombre, params.statusTrabajador, params.statusSeguridad, params.contratante, params.funcion, params.sortColumn, params.sortDirection, params.periodMonth, params.periodYear, params.alertaFilter],
         queryFn: () => listWorkers(params as any),
         enabled: Boolean(params.empresaId),
         staleTime: 60 * 1000,

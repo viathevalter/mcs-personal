@@ -6,11 +6,12 @@ export function useClientWorkerKpis(
     search: string | null,
     clienteNombre: string[] | null,
     contratante: string | null,
-    funcion: string | null
+    funcion: string | null,
+    statusTrabajador?: string[] | null
 ) {
     return useQuery<ClientWorkerKpi, Error>({
-        queryKey: ['worker_kpis', empresaId, search, clienteNombre, contratante, funcion],
-        queryFn: () => getClientWorkerKpis(empresaId, search, clienteNombre, contratante, funcion),
+        queryKey: ['worker_kpis', empresaId, search, clienteNombre, contratante, funcion, statusTrabajador],
+        queryFn: () => getClientWorkerKpis(empresaId, search, clienteNombre, contratante, funcion, statusTrabajador),
         enabled: Boolean(empresaId),
         staleTime: 60 * 1000, // 1 minute
     });

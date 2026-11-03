@@ -16,6 +16,7 @@ export interface ListWorkersParams {
     pageSize: number;
     periodMonth?: number;
     periodYear?: number;
+    alertaFilter?: string | null;
 }
 
 export interface ListWorkersResponse {
@@ -23,7 +24,7 @@ export interface ListWorkersResponse {
     count: number;
 }
 
-export async function listWorkers({ empresaId, search, clienteNombre, statusTrabajador, statusSeguridad, contratante, funcion, sortColumn, sortDirection, page, pageSize, periodMonth, periodYear }: ListWorkersParams): Promise<ListWorkersResponse> {
+export async function listWorkers({ empresaId, search, clienteNombre, statusTrabajador, statusSeguridad, contratante, funcion, sortColumn, sortDirection, page, pageSize, periodMonth, periodYear, alertaFilter }: ListWorkersParams): Promise<ListWorkersResponse> {
     const rpcArgs: any = {
         p_empresa_id: empresaId,
         p_search: search || null,
@@ -35,7 +36,8 @@ export async function listWorkers({ empresaId, search, clienteNombre, statusTrab
         p_sort_column: sortColumn || 'nome',
         p_sort_direction: sortDirection || 'asc',
         p_page: page,
-        p_page_size: pageSize
+        p_page_size: pageSize,
+        p_alerta_filter: alertaFilter || null
     };
 
     if (periodMonth != null) rpcArgs.p_period_month = periodMonth;
@@ -248,6 +250,11 @@ export interface ClientWorkerKpi {
     seguridade_em_regularizacao: number;
     seguridade_baixa: number;
     seguridade_pendente_baixa: number;
+    alertas_total?: number;
+    alertas_baixa?: number;
+    alertas_reemplazo?: number;
+    alertas_desistiu?: number;
+    alertas_logistica?: number;
 }
 
 export async function getClientWorkerKpis(
@@ -255,14 +262,16 @@ export async function getClientWorkerKpis(
     search: string | null,
     clienteNombre: string[] | null,
     contratante: string | null,
-    funcion: string | null
+    funcion: string | null,
+    statusTrabajador?: string[] | null
 ): Promise<ClientWorkerKpi> {
     const { data, error } = await supabase.schema('core_personal').rpc('get_client_worker_kpis', {
         p_empresa_id: empresaId,
         p_search: search || null,
         p_cliente_nombre: clienteNombre && clienteNombre.length > 0 ? clienteNombre : null,
         p_contratante: contratante || null,
-        p_funcion: funcion || null
+        p_funcion: funcion || null,
+        p_status_trabajador_filter: statusTrabajador && statusTrabajador.length > 0 ? statusTrabajador : null
     });
 
     if (error) {
@@ -278,7 +287,12 @@ export async function getClientWorkerKpis(
             seguridade_pendente_alta: 0,
             seguridade_em_regularizacao: 0,
             seguridade_baixa: 0,
-            seguridade_pendente_baixa: 0
+            seguridade_pendente_baixa: 0,
+            alertas_total: 0,
+            alertas_baixa: 0,
+            alertas_reemplazo: 0,
+            alertas_desistiu: 0,
+            alertas_logistica: 0
         };
     }
 

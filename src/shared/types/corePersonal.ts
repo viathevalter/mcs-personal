@@ -28,6 +28,14 @@ export interface Worker {
     camiseta?: string | null;
     pantalones?: string | null;
     created_at: string;
+    alerta_tipo?: 'baixa' | 'reemplazo' | 'desistiu' | 'logistica' | null;
+    alerta_logistica?: boolean;
+    alerta_label?: string | null;
+    alerta_codigo?: string | null;
+    alerta_cliente?: string | null;
+    alerta_data?: string | null;
+    alerta_pendencia?: string | null;
+    alerta_alojamento?: string | null;
 }
 
 export interface WorkerWithHousing extends Worker {
