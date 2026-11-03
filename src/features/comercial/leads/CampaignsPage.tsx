@@ -4,7 +4,7 @@ import { supabase } from '@/shared/supabase/client';
 import { cn } from '@/lib/utils';
 import { useMarketingTemplates, useMarketingCampaigns, useMutateMarketing } from './hooks/useMarketing';
 import { useCommercialScope } from './hooks/useLeads';
-import { classifyAudienceOwner, normalizeAudienceDisplayName } from './utils/marketingAudiences';
+import { ALL_STRATEGIC_AUDIENCES, classifyAudienceOwner, normalizeAudienceDisplayName } from './utils/marketingAudiences';
 import { useComercialLanguage } from './utils/comercialI18n';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
@@ -748,10 +748,51 @@ export function CampaignsPage() {
   }, [leadsInCountryScope]);
 
   const defaultStrategicAudiences = useMemo(() => {
-    // 1. EMPRESA: TRIÂNGULO (Michelle / Espanha & Itália)
-    // Mostra estritamente públicos de Triângulo e gerais sem contato / sem Alex
+    const normalizePreset = (p: any) => ({
+      ...p,
+      created_at: p.created_at || '2026-11-03T08:00:00.000Z',
+      filters: {
+        stageId: '',
+        origin: '',
+        intelligence: 'all',
+        selectedCountries: [],
+        selectedCompanySizes: [],
+        selectedRegions: [],
+        selectedProvinces: [],
+        selectedSectors: [],
+        selectedServices: [],
+        sectorKeyword: '',
+        cargoKeyword: '',
+        provinceKeyword: '',
+        tagKeyword: '',
+        excludeTagKeyword: '',
+        excludeProposals: false,
+        limit: '',
+        offset: '',
+        ...(p.filters || {}),
+      },
+    });
+    const mergeUniqueById = (primary: any[], secondary: any[]) => {
+      const seen = new Set<string>();
+      const result: any[] = [];
+      for (const item of [...primary, ...secondary]) {
+        if (!item?.id || seen.has(item.id)) continue;
+        seen.add(item.id);
+        result.push(normalizePreset(item));
+      }
+      return result;
+    };
+
+    // 1. EMPRESA: TRIÂNGULO (Alba / Espanha)
+    // Mostra estritamente públicos de Triângulo (incluindo os 5 públicos de 1.000 da Alba) e gerais sem contato / sem Alex
     if (isTriangulo) {
-      return [
+      const albaTopBatches = ALL_STRATEGIC_AUDIENCES.filter(
+        a => a.ownerKey === 'alba' && (a.id.startsWith('aud_alba_publico_') || a.id === 'aud_alba_5000_ineditos_espanha_2026')
+      );
+      const albaOtherStrategic = ALL_STRATEGIC_AUDIENCES.filter(
+        a => a.ownerKey === 'alba' && !a.id.startsWith('aud_alba_publico_') && a.id !== 'aud_alba_5000_ineditos_espanha_2026'
+      );
+      return mergeUniqueById([...albaTopBatches, ...albaOtherStrategic], [
         {
           id: 'aud_triangulo_alba_ineditos_andalucia_aragon_2026',
           name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Andalucía & Aragón (88 leads)',
@@ -1305,12 +1346,15 @@ export function CampaignsPage() {
           },
           created_at: new Date().toISOString()
         }
-      ];
+      ]);
     }
 
-    // 2. EMPRESA: WISEOWE (França & Liseth)
+    // 2. EMPRESA: WISEOWE (França / Fatumata & Espanha / Liseth)
     if (isWiseowe) {
-      return [
+      const wiseoweStrategic = ALL_STRATEGIC_AUDIENCES.filter(
+        a => a.ownerKey === 'liseth' || a.ownerKey === 'fatumata'
+      );
+      return mergeUniqueById(wiseoweStrategic, [
         {
           id: 'aud_liseth_ineditos_3010_2026',
           name: '🚀 Mailing Liseth - Inéditos Lote 30/10 (10 leads)',
@@ -1840,11 +1884,14 @@ export function CampaignsPage() {
           },
           created_at: new Date().toISOString()
         }
-      ];
+      ]);
     }
 
     // 3. EMPRESA: LUMINOUS / STOCCO / OUTRAS (Alex & Equipe Luminous)
-    return [
+    const luminousStrategic = ALL_STRATEGIC_AUDIENCES.filter(
+      a => a.ownerKey === 'alex' || a.ownerKey === 'liseth'
+    );
+    return mergeUniqueById(luminousStrategic, [
       {
         id: 'aud_liseth_ineditos_3010_2026_lum',
         name: '🚀 Mailing Liseth - Inéditos Lote 30/10 (10 leads)',
@@ -2903,7 +2950,7 @@ export function CampaignsPage() {
         },
         created_at: new Date().toISOString()
       }
-    ];
+    ]);
   }, [isTriangulo, isWiseowe, isLuminous, isStocco, isKotrik]);
 
   useEffect(() => {
@@ -2926,7 +2973,7 @@ export function CampaignsPage() {
           const defaultIds = new Set(defaultStrategicAudiences.map(d => d.id));
           let customOnly = userPresets.filter((up: any) => !defaultIds.has(up.id) && !legacyIds.has(up.id));
 
-          // Strict isolation: Triangulo / Michelle must NEVER see any Alex presets
+          // Strict isolation: Triangulo / Alba must NEVER see any Alex presets
           if (isTriangulo) {
             customOnly = customOnly.filter((p: any) => {
               const nameLower = (p.name || '').toLowerCase();
@@ -2935,27 +2982,19 @@ export function CampaignsPage() {
             });
           }
 
-          // Strict isolation: Wiseowe must ONLY have French audiences or Liseth audiences, NEVER Alex, Luminous, Triangulo, or other Spanish presets
+          // Strict isolation: Wiseowe must ONLY have Fatumata (French/Belgian) audiences or Liseth audiences
           if (isWiseowe) {
             customOnly = customOnly.filter((p: any) => {
               const nameLower = (p.name || '').toLowerCase();
               const tagLower = (p.filters?.tagKeyword || '').toLowerCase();
-              const isFrench = nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('FR'));
+              const isFrenchOrFatumata = nameLower.includes('fatumata') || tagLower.includes('fatumata') || nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && (p.filters.selectedCountries.includes('FR') || p.filters.selectedCountries.includes('BE')));
               const isLiseth = nameLower.includes('liseth') || nameLower.includes('lizeth') || tagLower.includes('liseth') || tagLower.includes('lizeth');
-              const isAlexOrSpain = nameLower.includes('alex') || tagLower.includes('alex') || nameLower.includes('asturias') || nameLower.includes('álava') || nameLower.includes('comercial 3') || nameLower.includes('stocco') || nameLower.includes('captación') || nameLower.includes('rosa') || nameLower.includes('vip') || nameLower.includes('médias');
-              return (isFrench || isLiseth) && !isAlexOrSpain;
+              const isAlexOrOther = nameLower.includes('alex') || tagLower.includes('alex') || nameLower.includes('asturias') || nameLower.includes('álava') || nameLower.includes('stocco') || nameLower.includes('rosa');
+              return (isFrenchOrFatumata || isLiseth) && !isAlexOrOther;
             });
           }
 
-          let merged = [...defaultStrategicAudiences, ...customOnly];
-          if (isWiseowe) {
-            merged = merged.filter((p: any) => {
-              const nameLower = (p.name || '').toLowerCase();
-              const tagLower = (p.filters?.tagKeyword || '').toLowerCase();
-              const isLiseth = nameLower.includes('liseth') || nameLower.includes('lizeth') || tagLower.includes('liseth') || tagLower.includes('lizeth');
-              return (isLiseth || nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('FR'))) && !nameLower.includes('alex');
-            });
-          }
+          const merged = [...defaultStrategicAudiences, ...customOnly];
 
           setSavedAudiences(merged);
           localStorage.setItem(`mcs_marketing_audiences_${selectedEmpresaId}`, JSON.stringify(merged));
@@ -3521,8 +3560,8 @@ export function CampaignsPage() {
         return false;
       }
 
-      // 3. Filter by Country (Multi-select)
-      if (filters.selectedCountries && filters.selectedCountries.length > 0) {
+      // 3. Filter by Country (Multi-select) when no explicit tagKeyword is provided
+      if (!filters.tagKeyword && filters.selectedCountries && filters.selectedCountries.length > 0) {
         const leadCountry = detectLeadCountry(l);
         if (!filters.selectedCountries.includes(leadCountry)) {
           return false;
