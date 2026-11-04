@@ -1343,6 +1343,87 @@ export const logisticsService = {
     return newAllocations;
   },
 
+  async atualizarDatasAlocacao(
+    alocacaoIds: string[],
+    params: {
+      data_inicio: string;
+      data_fim?: string;
+      observacoes?: string;
+      workerIds?: string[];
+    }
+  ): Promise<void> {
+    const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
+    const idsSet = new Set(alocacaoIds);
+    const workerIdsSet = new Set(params.workerIds || []);
+
+    let cachedLocalAlocs: Alocacao[] = [];
+    try {
+      const rawLocal = localStorage.getItem(ALOCACOES_STORAGE_KEY);
+      if (rawLocal) cachedLocalAlocs = JSON.parse(rawLocal) || [];
+    } catch (e) {}
+
+    const alocacoes = await this.fetchAlocacoesAtivas();
+    const combinedAlocs = [...alocacoes, ...cachedLocalAlocs];
+    const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
+
+    try {
+      const validAlocUuids = alocacaoIds.filter(isUuid);
+      const validWorkerUuids = [
+        ...(params.workerIds || []),
+        ...combinedAlocs
+          .filter(a => idsSet.has(a.id) || workerIdsSet.has(a.worker_id))
+          .map(a => a.worker_id)
+      ].filter(isUuid);
+
+      const updatePayload: any = {
+        data_inicio: params.data_inicio,
+        data_fim: params.data_fim ? params.data_fim : null,
+        updated_at: new Date().toISOString()
+      };
+      if (params.observacoes !== undefined) {
+        updatePayload.observacoes = params.observacoes || null;
+      }
+
+      if (validAlocUuids.length > 0) {
+        await client
+          .from('alocacoes')
+          .update(updatePayload)
+          .in('id', validAlocUuids);
+      } else if (validWorkerUuids.length > 0) {
+        await client
+          .from('alocacoes')
+          .update(updatePayload)
+          .in('worker_id', validWorkerUuids)
+          .neq('status', 'Checkout');
+      }
+
+      if (validAlocUuids.length > 0) {
+        await client
+          .from('termos_responsabilidade_alojamento')
+          .update({ data_checkin: params.data_inicio, updated_at: new Date().toISOString() })
+          .in('alocacao_id', validAlocUuids);
+      }
+    } catch (e) {
+      console.warn('Erro ao atualizar datas da alocação no Supabase:', e);
+    }
+
+    const updated = alocacoes.map(a => {
+      if (idsSet.has(a.id) || (a.worker_id && workerIdsSet.has(a.worker_id) && a.status !== 'Checkout')) {
+        return {
+          ...a,
+          data_inicio: params.data_inicio,
+          data_fim: params.data_fim !== undefined ? (params.data_fim || undefined) : a.data_fim,
+          observacoes: params.observacoes !== undefined ? params.observacoes : a.observacoes
+        };
+      }
+      return a;
+    });
+
+    try {
+      localStorage.setItem(ALOCACOES_STORAGE_KEY, JSON.stringify(updated));
+    } catch (e) {}
+  },
+
   async checkoutTrabalhador(alocacaoId: string, motivo?: string, dataSaida?: string, desativarAlojamentoId?: string): Promise<void> {
     return this.checkoutGrupoTrabalhadores([alocacaoId], motivo, dataSaida, desativarAlojamentoId);
   },

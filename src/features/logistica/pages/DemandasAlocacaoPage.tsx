@@ -193,7 +193,24 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchAlojamentoId, setBatchAlojamentoId] = useState('');
+  const [batchDataInicio, setBatchDataInicio] = useState('');
+  const [batchDataFim, setBatchDataFim] = useState('');
   const [isAllocatingBatch, setIsAllocatingBatch] = useState(false);
+
+  // Modal de Edição de Período / Data de Início no Alojamento
+  const [editingAlocacaoPeriodo, setEditingAlocacaoPeriodo] = useState<{
+    alocacaoId: string;
+    workerId: string;
+    workerNome: string;
+    codigoColab?: string;
+    alojamentoNome: string;
+    clienteNome?: string;
+    dataInicio: string;
+    dataFim: string;
+    companheiros: Array<{ alocacaoId: string; workerId: string; nome: string }>;
+    applyToCompanheiros: boolean;
+  } | null>(null);
+  const [isSavingPeriodoAloc, setIsSavingPeriodoAloc] = useState(false);
 
   // Modal Alocação Individual
   const [allocatingWorker, setAllocatingWorker] = useState<{
@@ -1169,6 +1186,33 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }
   };
 
+  // Salvar edição de data de início / período de uma alocação
+  const handleSaveEditedPeriodo = async () => {
+    if (!editingAlocacaoPeriodo || !editingAlocacaoPeriodo.dataInicio) return;
+    try {
+      setIsSavingPeriodoAloc(true);
+      const targetAlocIds = editingAlocacaoPeriodo.applyToCompanheiros
+        ? editingAlocacaoPeriodo.companheiros.map(c => c.alocacaoId)
+        : [editingAlocacaoPeriodo.alocacaoId];
+      const targetWorkerIds = editingAlocacaoPeriodo.applyToCompanheiros
+        ? editingAlocacaoPeriodo.companheiros.map(c => c.workerId)
+        : [editingAlocacaoPeriodo.workerId];
+
+      await logisticsService.atualizarDatasAlocacao(targetAlocIds, {
+        data_inicio: editingAlocacaoPeriodo.dataInicio,
+        data_fim: editingAlocacaoPeriodo.dataFim || undefined,
+        workerIds: targetWorkerIds
+      });
+      setEditingAlocacaoPeriodo(null);
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al actualizar la fecha de inicio: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsSavingPeriodoAloc(false);
+    }
+  };
+
   // Abrir Modal de Alocação em Lote
   const handleOpenBatchAlloc = () => {
     if (selectedWorkerIds.length === 0) {
@@ -1176,12 +1220,16 @@ export const DemandasAlocacaoPage: React.FC = () => {
       return;
     }
     setBatchAlojamentoId('');
+    setBatchDataInicio(selectedPedido?.data_inicio || new Date().toISOString().split('T')[0]);
+    setBatchDataFim(selectedPedido?.data_fim || '');
     setIsBatchModalOpen(true);
   };
 
   // Confirmar Alocação em Lote
   const handleConfirmBatchAlloc = async () => {
     if (!selectedPedido || !batchAlojamentoId) return;
+    const effectiveStart = batchDataInicio || selectedPedido.data_inicio || new Date().toISOString().split('T')[0];
+    const effectiveEnd = batchDataFim || selectedPedido.data_fim;
 
     // Alocação em Lote para Alojamento Cliente
     if (batchAlojamentoId === 'cliente') {
@@ -1197,8 +1245,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
             obra_nome: selectedPedido.obra_nome,
             pedido_id: selectedPedido.pedido_id,
             pedido_codigo: selectedPedido.pedido_codigo,
-            data_inicio: selectedPedido.data_inicio || new Date().toISOString().split('T')[0],
-            data_fim: selectedPedido.data_fim,
+            data_inicio: effectiveStart,
+            data_fim: effectiveEnd,
             empresa_contratante: selectedPedido.empresa_contratante,
             alojamento_nome: `Alojamiento Cedido por ${selectedPedido.cliente_nome}`,
             municipio: selectedPedido.cidade,
@@ -1230,8 +1278,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
             obra_nome: selectedPedido.obra_nome,
             pedido_id: selectedPedido.pedido_id,
             pedido_codigo: selectedPedido.pedido_codigo,
-            data_inicio: selectedPedido.data_inicio || new Date().toISOString().split('T')[0],
-            data_fim: selectedPedido.data_fim,
+            data_inicio: effectiveStart,
+            data_fim: effectiveEnd,
             empresa_contratante: selectedPedido.empresa_contratante,
             observacoes: `Alojamiento Propio en Lote - Pedido ${selectedPedido.pedido_codigo}`
           });
@@ -1270,8 +1318,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
         pedido_codigo: selectedPedido.pedido_codigo,
         cliente_nome: selectedPedido.cliente_nome,
         obra_nome: selectedPedido.obra_nome,
-        data_inicio: selectedPedido.data_inicio,
-        data_fim: selectedPedido.data_fim,
+        data_inicio: effectiveStart,
+        data_fim: effectiveEnd,
         observacoes: `Asignación en Lote - Pedido ${selectedPedido.pedido_codigo}`
       });
 
@@ -2627,9 +2675,46 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                           <CheckCircle2 size={11} />
                                           {worker.alocacao_detalhe?.alojamento_nome}
                                         </span>
-                                        <p className="text-[10px] text-slate-400">
-                                          {worker.alocacao_detalhe?.cama_identificador}
-                                        </p>
+                                        <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+                                          <span>{worker.alocacao_detalhe?.cama_identificador}</span>
+                                          {worker.alocacao_detalhe?.data_inicio && (
+                                            <>
+                                              <span>•</span>
+                                              <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
+                                                Desde: {String(worker.alocacao_detalhe.data_inicio).split('T')[0]}
+                                              </span>
+                                            </>
+                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const companheiros = selectedPedido.trabalhadores
+                                                .filter(t => t.status_alocacao === 'alocado' && t.alocacao_detalhe?.alojamento_id === worker.alocacao_detalhe?.alojamento_id)
+                                                .map(t => ({
+                                                  alocacaoId: t.alocacao_detalhe!.alocacao_id,
+                                                  workerId: t.worker_id,
+                                                  nome: t.worker_nome
+                                                }));
+                                              setEditingAlocacaoPeriodo({
+                                                alocacaoId: worker.alocacao_detalhe!.alocacao_id,
+                                                workerId: worker.worker_id,
+                                                workerNome: worker.worker_nome,
+                                                codigoColab: worker.codigo_colab,
+                                                alojamentoNome: worker.alocacao_detalhe?.alojamento_nome || 'Alojamiento',
+                                                clienteNome: selectedPedido.cliente_nome,
+                                                dataInicio: worker.alocacao_detalhe?.data_inicio ? String(worker.alocacao_detalhe.data_inicio).split('T')[0] : selectedPedido.data_inicio,
+                                                dataFim: worker.alocacao_detalhe?.data_fim ? String(worker.alocacao_detalhe.data_fim).split('T')[0] : (selectedPedido.data_fim || ''),
+                                                companheiros,
+                                                applyToCompanheiros: false
+                                              });
+                                            }}
+                                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800 cursor-pointer"
+                                            title="Editar fecha de inicio en el alojamiento"
+                                          >
+                                            <Pencil size={9} />
+                                            Fecha
+                                          </button>
+                                        </div>
                                         {worker.data_baixa && (
                                           <p className="text-[10px] font-bold text-rose-600 dark:text-rose-400">
                                             🛑 Baja RRHH: {formatBaixaDate(worker.data_baixa)}
@@ -3435,12 +3520,44 @@ export const DemandasAlocacaoPage: React.FC = () => {
                         </td>
 
                         <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                          <p className="font-medium">Desde: {aloc.data_checkin}</p>
-                          {aloc.data_checkout_prevista ? (
-                            <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
-                          ) : (
-                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            <div>
+                              <p className="font-medium">Desde: {aloc.data_checkin}</p>
+                              {aloc.data_checkout_prevista ? (
+                                <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
+                              ) : (
+                                <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const companheiros = empresaAlojadosRaw
+                                  .filter(other => other.alojamento_id === aloc.alojamento_id)
+                                  .map(other => ({
+                                    alocacaoId: other.alocacao_id || other.id,
+                                    workerId: other.worker_id,
+                                    nome: other.worker_nome
+                                  }));
+                                setEditingAlocacaoPeriodo({
+                                  alocacaoId: aloc.alocacao_id || aloc.id,
+                                  workerId: aloc.worker_id,
+                                  workerNome: aloc.worker_nome,
+                                  codigoColab: aloc.codigo_colab,
+                                  alojamentoNome: aloc.alojamento_nome,
+                                  clienteNome: aloc.cliente_nome,
+                                  dataInicio: aloc.data_checkin ? String(aloc.data_checkin).split('T')[0] : new Date().toISOString().split('T')[0],
+                                  dataFim: aloc.data_checkout_prevista ? String(aloc.data_checkout_prevista).split('T')[0] : '',
+                                  companheiros,
+                                  applyToCompanheiros: false
+                                });
+                              }}
+                              className="p-1 text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200 dark:border-blue-800 rounded-md transition-colors cursor-pointer"
+                              title="Editar Fecha de Inicio / Período en este Alojamiento"
+                            >
+                              <Pencil size={11} />
+                            </button>
+                          </div>
                           {(aloc.is_inativo_rh || aloc.data_baixa) && (
                             <p className="text-[10px] font-bold text-rose-700 dark:text-rose-300 bg-rose-100/90 dark:bg-rose-950/70 px-1.5 py-0.5 rounded border border-rose-300 dark:border-rose-800 mt-1 w-fit flex items-center gap-1">
                               <span>🛑 Baja RRHH:</span>
@@ -3979,7 +4096,30 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           </td>
 
                           <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                            <p className="font-medium">Desde: {a.data_checkin || '2026-01-01'}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium">Desde: {a.data_checkin || '2026-01-01'}</p>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditingAlocacaoPeriodo({
+                                    alocacaoId: a.alocacao_id || a.id,
+                                    workerId: a.worker_id,
+                                    workerNome: a.worker_nome,
+                                    codigoColab: a.codigo_colab,
+                                    alojamentoNome: 'Alojamiento Propio (€ 300 / mes)',
+                                    clienteNome: a.cliente_nome,
+                                    dataInicio: a.data_checkin ? String(a.data_checkin).split('T')[0] : '2026-10-01',
+                                    dataFim: (a.data_checkout_prevista || a.data_fim) ? String(a.data_checkout_prevista || a.data_fim).split('T')[0] : '',
+                                    companheiros: [{ alocacaoId: a.alocacao_id || a.id, workerId: a.worker_id, nome: a.worker_nome }],
+                                    applyToCompanheiros: false
+                                  })
+                                }
+                                className="p-1 text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-md transition-colors cursor-pointer"
+                                title="Editar Fecha de Inicio de Alojamiento Propio"
+                              >
+                                <Pencil size={10} />
+                              </button>
+                            </div>
                             {(a.status === 'Checkout' || a.motivo_checkout) && (a.data_checkout_prevista || a.data_fim) ? (
                               <p className="text-[10px] text-rose-500 font-semibold">Salida: {a.data_checkout_prevista || a.data_fim}</p>
                             ) : (
@@ -4359,7 +4499,30 @@ export const DemandasAlocacaoPage: React.FC = () => {
                       </td>
 
                       <td className="px-4 py-3.5 text-slate-600 dark:text-slate-300 font-mono text-[11px]">
-                        <p className="font-medium">Desde: {aloc.data_checkin}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-medium">Desde: {aloc.data_checkin}</p>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditingAlocacaoPeriodo({
+                                alocacaoId: aloc.alocacao_id || aloc.id,
+                                workerId: aloc.worker_id,
+                                workerNome: aloc.worker_nome,
+                                codigoColab: aloc.codigo_colab,
+                                alojamentoNome: aloc.alojamento_nome,
+                                clienteNome: aloc.cliente_nome,
+                                dataInicio: aloc.data_checkin ? String(aloc.data_checkin).split('T')[0] : new Date().toISOString().split('T')[0],
+                                dataFim: aloc.data_checkout_prevista ? String(aloc.data_checkout_prevista).split('T')[0] : '',
+                                companheiros: [{ alocacaoId: aloc.alocacao_id || aloc.id, workerId: aloc.worker_id, nome: aloc.worker_nome }],
+                                applyToCompanheiros: false
+                              })
+                            }
+                            className="p-1 text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-md transition-colors cursor-pointer"
+                            title="Editar Fecha de Inicio"
+                          >
+                            <Pencil size={10} />
+                          </button>
+                        </div>
                         {aloc.data_checkout_prevista ? (
                           <p className="text-[10px] text-slate-400">Hasta: {aloc.data_checkout_prevista}</p>
                         ) : (
@@ -4813,11 +4976,32 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 allowCliente={true}
               />
 
-              <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 size={15} />
-                <span>
-                  Fechas automáticas del pedido: <strong>{selectedPedido.data_inicio}</strong> hasta <strong>{selectedPedido.data_fim || 'Fin previsto'}</strong>.
-                </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-600 dark:text-slate-400 block">
+                    Fecha Check-in en el Alojamiento:
+                  </label>
+                  <input
+                    type="date"
+                    value={batchDataInicio}
+                    onChange={e => setBatchDataInicio(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                  />
+                  <span className="text-[10px] text-slate-400 block">
+                    Inicio del pedido: {selectedPedido.data_inicio} (puede ajustarla si entraron antes o después)
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-600 dark:text-slate-400 block">
+                    Fecha Prevista Fin:
+                  </label>
+                  <input
+                    type="date"
+                    value={batchDataFim}
+                    onChange={e => setBatchDataFim(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                  />
+                </div>
               </div>
             </div>
 
@@ -5556,6 +5740,115 @@ export const DemandasAlocacaoPage: React.FC = () => {
               >
                 <LogOut size={13} />
                 {isProcessingCheckout ? 'Procesando...' : 'Confirmar Salida'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EDIÇÃO DE DATA DE INÍCIO / PERÍODO NO ALOJAMENTO */}
+      {editingAlocacaoPeriodo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl space-y-0">
+            <div className="p-5 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-xs">
+                  <Calendar size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    Editar Fecha de Inicio en Alojamiento
+                  </h3>
+                  <p className="text-[11px] text-slate-500 truncate max-w-[260px]">
+                    {editingAlocacaoPeriodo.alojamentoNome}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingAlocacaoPeriodo(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Trabajador Alojado:</span>
+                <p className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                  {editingAlocacaoPeriodo.workerNome}
+                </p>
+                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                  {editingAlocacaoPeriodo.codigoColab && (
+                    <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                      {editingAlocacaoPeriodo.codigoColab}
+                    </span>
+                  )}
+                  {editingAlocacaoPeriodo.clienteNome && (
+                    <>
+                      <span>•</span>
+                      <span>{editingAlocacaoPeriodo.clienteNome}</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Fecha Inicio Real (Desde) *
+                  </label>
+                  <input
+                    type="date"
+                    value={editingAlocacaoPeriodo.dataInicio}
+                    onChange={e => setEditingAlocacaoPeriodo(prev => prev ? { ...prev, dataInicio: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Fecha Fin Prevista (Hasta)
+                  </label>
+                  <input
+                    type="date"
+                    value={editingAlocacaoPeriodo.dataFim}
+                    onChange={e => setEditingAlocacaoPeriodo(prev => prev ? { ...prev, dataFim: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {editingAlocacaoPeriodo.companheiros.length > 1 && (
+                <label className="flex items-start gap-2.5 p-3 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingAlocacaoPeriodo.applyToCompanheiros}
+                    onChange={e => setEditingAlocacaoPeriodo(prev => prev ? { ...prev, applyToCompanheiros: e.target.checked } : null)}
+                    className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 border-blue-300"
+                  />
+                  <span className="text-[11px] font-semibold text-blue-900 dark:text-blue-200">
+                    Aplicar esta misma fecha de inicio a todos los compañeros alojados en este inmueble ({editingAlocacaoPeriodo.companheiros.length} trabajadores)
+                  </span>
+                </label>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+              <button
+                disabled={isSavingPeriodoAloc}
+                onClick={() => setEditingAlocacaoPeriodo(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={isSavingPeriodoAloc || !editingAlocacaoPeriodo.dataInicio}
+                onClick={handleSaveEditedPeriodo}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 size={14} />
+                {isSavingPeriodoAloc ? 'Guardando...' : 'Guardar Fecha'}
               </button>
             </div>
           </div>

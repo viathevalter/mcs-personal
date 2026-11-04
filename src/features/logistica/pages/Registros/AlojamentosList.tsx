@@ -132,6 +132,17 @@ export const AlojamentosList: React.FC = () => {
   const [isSubmittingCheckout, setIsSubmittingCheckout] = useState(false);
   const [selectedOccupantsMap, setSelectedOccupantsMap] = useState<Record<string, string[]>>({});
 
+  // Modal de Edição de Data de Início / Período no Alojamento
+  const [editingPeriodoModal, setEditingPeriodoModal] = useState<{
+    alocacao: Alocacao;
+    alojamento: Alojamento;
+    allOccupants: Alocacao[];
+    dataInicio: string;
+    dataFim: string;
+    applyToAllOccupants: boolean;
+  } | null>(null);
+  const [isSavingPeriodo, setIsSavingPeriodo] = useState(false);
+
   // Ordenação
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -432,6 +443,33 @@ export const AlojamentosList: React.FC = () => {
       alert('Error: ' + err.message);
     } finally {
       setIsSubmittingCheckout(false);
+    }
+  };
+
+  // Salvar edição de data de início / fim da alocação no alojamento
+  const handleSavePeriodoAlocacao = async () => {
+    if (!editingPeriodoModal || !editingPeriodoModal.dataInicio) return;
+    try {
+      setIsSavingPeriodo(true);
+      const targetAlocs = editingPeriodoModal.applyToAllOccupants
+        ? editingPeriodoModal.allOccupants
+        : [editingPeriodoModal.alocacao];
+
+      await logisticsService.atualizarDatasAlocacao(
+        targetAlocs.map(a => a.id),
+        {
+          data_inicio: editingPeriodoModal.dataInicio,
+          data_fim: editingPeriodoModal.dataFim || undefined,
+          workerIds: targetAlocs.map(a => a.worker_id)
+        }
+      );
+      setEditingPeriodoModal(null);
+      await fetchData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Error al actualizar la fecha de inicio: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setIsSavingPeriodo(false);
     }
   };
 
@@ -1541,8 +1579,31 @@ export const AlojamentosList: React.FC = () => {
                                         </td>
 
                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
-                                          <p className="font-medium">Desde: {oc.data_inicio}</p>
-                                          {oc.data_fim && <p className="text-[10px] text-slate-400">Hasta: {oc.data_fim}</p>}
+                                          <div className="flex items-center gap-1.5 group/date">
+                                            <div>
+                                              <p className="font-medium flex items-center gap-1">
+                                                <span>Desde: {oc.data_inicio}</span>
+                                              </p>
+                                              {oc.data_fim && <p className="text-[10px] text-slate-400">Hasta: {oc.data_fim}</p>}
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setEditingPeriodoModal({
+                                                  alocacao: oc,
+                                                  alojamento: a,
+                                                  allOccupants: occupants,
+                                                  dataInicio: oc.data_inicio ? String(oc.data_inicio).split('T')[0] : new Date().toISOString().split('T')[0],
+                                                  dataFim: oc.data_fim ? String(oc.data_fim).split('T')[0] : '',
+                                                  applyToAllOccupants: false
+                                                })
+                                              }
+                                              className="p-1 text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 rounded-md transition-colors cursor-pointer"
+                                              title="Editar Fecha de Inicio / Período en este Alojamiento"
+                                            >
+                                              <Pencil size={11} />
+                                            </button>
+                                          </div>
                                         </td>
 
                                         <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
@@ -1568,6 +1629,24 @@ export const AlojamentosList: React.FC = () => {
 
                                         <td className="px-4 py-3 text-right">
                                           <div className="inline-flex items-center justify-end gap-1.5">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setEditingPeriodoModal({
+                                                  alocacao: oc,
+                                                  alojamento: a,
+                                                  allOccupants: occupants,
+                                                  dataInicio: oc.data_inicio ? String(oc.data_inicio).split('T')[0] : new Date().toISOString().split('T')[0],
+                                                  dataFim: oc.data_fim ? String(oc.data_fim).split('T')[0] : '',
+                                                  applyToAllOccupants: false
+                                                })
+                                              }
+                                              className="px-2.5 py-1 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:text-blue-300 dark:hover:bg-blue-900/60 border border-blue-200 dark:border-blue-800 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                              title="Cambiar Fecha de Inicio / Entrada en el Alojamiento"
+                                            >
+                                              <Calendar size={12} />
+                                              Editar Fecha
+                                            </button>
                                             <button
                                               type="button"
                                               onClick={async () => {
@@ -3056,6 +3135,109 @@ export const AlojamentosList: React.FC = () => {
               >
                 <Trash2 size={13} />
                 {isDeleting ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE EDIÇÃO DE DATA DE INÍCIO / PERÍODO NO ALOJAMENTO */}
+      {editingPeriodoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl space-y-0">
+            <div className="p-5 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-xs">
+                  <Calendar size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    Editar Fecha de Inicio en Alojamiento
+                  </h3>
+                  <p className="text-[11px] text-slate-500 truncate max-w-[260px]">
+                    {editingPeriodoModal.alojamento.nome}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingPeriodoModal(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/70 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-slate-400 block">Trabajador Alojado:</span>
+                <p className="font-black text-slate-800 dark:text-slate-100 text-sm">
+                  {editingPeriodoModal.alocacao.worker_nome}
+                </p>
+                <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                  <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                    {editingPeriodoModal.alocacao.codigo_colab || 'E-XXXX'}
+                  </span>
+                  <span>•</span>
+                  <span>{editingPeriodoModal.alocacao.cliente_nome}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Fecha Inicio Real (Desde) *
+                  </label>
+                  <input
+                    type="date"
+                    value={editingPeriodoModal.dataInicio}
+                    onChange={e => setEditingPeriodoModal(prev => prev ? { ...prev, dataInicio: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                    Fecha Fin Prevista (Hasta)
+                  </label>
+                  <input
+                    type="date"
+                    value={editingPeriodoModal.dataFim}
+                    onChange={e => setEditingPeriodoModal(prev => prev ? { ...prev, dataFim: e.target.value } : null)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {editingPeriodoModal.allOccupants.length > 1 && (
+                <label className="flex items-start gap-2.5 p-3 bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 rounded-2xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editingPeriodoModal.applyToAllOccupants}
+                    onChange={e => setEditingPeriodoModal(prev => prev ? { ...prev, applyToAllOccupants: e.target.checked } : null)}
+                    className="w-4 h-4 mt-0.5 rounded text-blue-600 focus:ring-blue-500 border-blue-300"
+                  />
+                  <span className="text-[11px] font-semibold text-blue-900 dark:text-blue-200">
+                    Aplicar esta misma fecha de inicio a todos los compañeros alojados en este inmueble ({editingPeriodoModal.allOccupants.length} trabajadores)
+                  </span>
+                </label>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+              <button
+                disabled={isSavingPeriodo}
+                onClick={() => setEditingPeriodoModal(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                disabled={isSavingPeriodo || !editingPeriodoModal.dataInicio}
+                onClick={handleSavePeriodoAlocacao}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              >
+                <Check size={14} />
+                {isSavingPeriodo ? 'Guardando...' : 'Guardar Fecha'}
               </button>
             </div>
           </div>
