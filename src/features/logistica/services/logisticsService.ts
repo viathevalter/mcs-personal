@@ -546,6 +546,7 @@ export const logisticsService = {
       const cap = aloj.capacidade_pessoas || (aloj.camas_individuais || 0) + (aloj.camas_duplas || 0) || 4;
       const croquis = aloj.croquis_planta || aloj.comodidades?.__croquis_planta;
       const habitaciones = Array.isArray(croquis?.habitaciones) ? croquis.habitaciones : [];
+      const alojBeds: Cama[] = [];
 
       if (habitaciones.length > 0) {
         let bedCounter = 0;
@@ -556,51 +557,69 @@ export const logisticsService = {
           for (let c = 1; c <= qtdCamas; c++) {
             bedCounter++;
             const camaId = `${aloj.id}-cama-ind-${bedCounter}`;
-            const aloc = alocacoesAtivas.find(a => a.cama_id === camaId && a.status !== 'Checkout');
-            result.push({
+            alojBeds.push({
               id: camaId,
               alojamento_id: aloj.id,
               alojamento_nome: aloj.nome,
               identificador: `${habLabel} • Cama #${c}${hab.observacao ? ` (${hab.observacao})` : ''}`,
               tipo: 'individual',
-              status: aloc ? 'ocupada' : 'livre',
-              alocacao_atual: aloc
+              status: 'livre'
             });
           }
         });
-        return;
+      } else {
+        const ind = aloj.camas_individuais || cap;
+        const dup = aloj.camas_duplas || 0;
+
+        for (let i = 1; i <= ind; i++) {
+          const camaId = `${aloj.id}-cama-ind-${i}`;
+          alojBeds.push({
+            id: camaId,
+            alojamento_id: aloj.id,
+            alojamento_nome: aloj.nome,
+            identificador: `Hab Nº 1 • Cama Individual #${i}`,
+            tipo: 'individual',
+            status: 'livre'
+          });
+        }
+
+        for (let d = 1; d <= dup; d++) {
+          const camaId = `${aloj.id}-cama-dup-${d}`;
+          alojBeds.push({
+            id: camaId,
+            alojamento_id: aloj.id,
+            alojamento_nome: aloj.nome,
+            identificador: `Hab Principal • Cama Matrimonio/Doble #${d} (1 plaza)`,
+            tipo: 'dupla',
+            status: 'livre'
+          });
+        }
       }
 
-      const ind = aloj.camas_individuais || cap;
-      const dup = aloj.camas_duplas || 0;
+      // Associar alocações ativas deste alojamento às camas (por cama_id exato ou sequencialmente quando cama_id for nulo no banco)
+      const alojAlocs = alocacoesAtivas.filter(a => a.alojamento_id === aloj.id && a.status !== 'Checkout');
+      const matchedAlocIds = new Set<string>();
 
-      for (let i = 1; i <= ind; i++) {
-        const camaId = `${aloj.id}-cama-ind-${i}`;
-        const aloc = alocacoesAtivas.find(a => a.cama_id === camaId && a.status !== 'Checkout');
-        result.push({
-          id: camaId,
-          alojamento_id: aloj.id,
-          alojamento_nome: aloj.nome,
-          identificador: `Hab Nº 1 • Cama Individual #${i}`,
-          tipo: 'individual',
-          status: aloc ? 'ocupada' : 'livre',
-          alocacao_atual: aloc
-        });
-      }
+      alojBeds.forEach(bed => {
+        const exact = alojAlocs.find(a => a.cama_id === bed.id && !matchedAlocIds.has(a.id));
+        if (exact) {
+          bed.status = 'ocupada';
+          bed.alocacao_atual = exact;
+          matchedAlocIds.add(exact.id);
+        }
+      });
 
-      for (let d = 1; d <= dup; d++) {
-        const camaId = `${aloj.id}-cama-dup-${d}`;
-        const aloc = alocacoesAtivas.find(a => a.cama_id === camaId && a.status !== 'Checkout');
-        result.push({
-          id: camaId,
-          alojamento_id: aloj.id,
-          alojamento_nome: aloj.nome,
-          identificador: `Hab Principal • Cama Matrimonio/Doble #${d} (1 plaza)`,
-          tipo: 'dupla',
-          status: aloc ? 'ocupada' : 'livre',
-          alocacao_atual: aloc
-        });
-      }
+      alojAlocs.forEach(aloc => {
+        if (matchedAlocIds.has(aloc.id)) return;
+        const nextFreeBed = alojBeds.find(b => b.status === 'livre');
+        if (nextFreeBed) {
+          nextFreeBed.status = 'ocupada';
+          nextFreeBed.alocacao_atual = aloc;
+          matchedAlocIds.add(aloc.id);
+        }
+      });
+
+      result.push(...alojBeds);
     });
 
     return result;
@@ -1267,7 +1286,14 @@ export const logisticsService = {
         tipo_alojamento: 'TEMPORAL'
       }));
 
-      await client.from('alocacoes').insert(rowsToInsert);
+      const { data: insertedRows } = await client.from('alocacoes').insert(rowsToInsert).select('id, worker_id');
+      if (Array.isArray(insertedRows)) {
+        insertedRows.forEach((r: any, idx: number) => {
+          if (r?.id && items[idx]) {
+            (items[idx] as any)._dbId = r.id;
+          }
+        });
+      }
 
       const validCamaIds = items.map(i => i.cama_id).filter(isUuid);
       if (validCamaIds.length > 0) {
@@ -1286,8 +1312,9 @@ export const logisticsService = {
     const usedWorkerIds = new Set(items.map(i => i.worker_id));
 
     items.forEach(item => {
+      const dbMatch = alocacoes.find(a => a.worker_id === item.worker_id && a.alojamento_id === alojamento_id && a.status !== 'Checkout');
       const newAloc: Alocacao = {
-        id: `aloc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+        id: (item as any)._dbId || dbMatch?.id || `aloc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
         cama_id: item.cama_id,
         alojamento_id: alojamento_id,
         worker_id: item.worker_id,
@@ -1329,7 +1356,16 @@ export const logisticsService = {
   ): Promise<void> {
     const isUuid = (str?: string) => Boolean(str && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str));
     const idsSet = new Set(alocacaoIds);
+
+    // Capturar também qualquer alocação em cache local caso o ID passado seja temporário (aloc-...)
+    let cachedLocalAlocs: Alocacao[] = [];
+    try {
+      const rawLocal = localStorage.getItem(ALOCACOES_STORAGE_KEY);
+      if (rawLocal) cachedLocalAlocs = JSON.parse(rawLocal) || [];
+    } catch (e) {}
+
     const alocacoes = await this.fetchAlocacoesAtivas();
+    const combinedAlocs = [...alocacoes, ...cachedLocalAlocs];
     const effectiveDate = dataSaida || new Date().toISOString().split('T')[0];
     const client = (supabase as any).schema ? (supabase as any).schema('core_logistics') : supabase;
 
@@ -1340,9 +1376,9 @@ export const logisticsService = {
       if (hasCustomDates) {
         // Atualizar individualmente quando cada trabalhador tem sua própria data de baixa
         for (const alocId of alocacaoIds) {
-          const alocObj = alocacoes.find(a => a.id === alocId);
+          const alocObj = combinedAlocs.find(a => a.id === alocId || a.worker_id === alocId);
           const customDate = perWorkerDates![alocId] || effectiveDate;
-          const targets = [alocId, alocObj?.worker_id].filter(isUuid);
+          const targets = [alocId, alocObj?.id, alocObj?.worker_id].filter(isUuid);
           if (targets.length > 0) {
             await client
               .from('alocacoes')
@@ -1357,11 +1393,12 @@ export const logisticsService = {
         }
       } else {
         const validUuids = alocacaoIds.filter(isUuid);
-        const matchingWorkerIds = alocacoes
-          .filter(a => idsSet.has(a.id) && isUuid(a.worker_id))
-          .map(a => a.worker_id);
+        const matchingWorkerAndAlocIds = combinedAlocs
+          .filter(a => idsSet.has(a.id) || idsSet.has(a.worker_id))
+          .flatMap(a => [a.id, a.worker_id])
+          .filter(isUuid);
 
-        const allTargetIds = [...new Set([...validUuids, ...matchingWorkerIds])];
+        const allTargetIds = [...new Set([...validUuids, ...matchingWorkerAndAlocIds])];
 
         if (allTargetIds.length > 0) {
           await client

@@ -460,12 +460,6 @@ export const DemandasAlocacaoPage: React.FC = () => {
     }
   };
 
-  // Pedido atualmente selecionado
-  const selectedPedido = useMemo(() => {
-    if (!selectedPedidoId) return pedidos[0] || null;
-    return pedidos.find(p => p.pedido_id === selectedPedidoId) || pedidos[0] || null;
-  }, [pedidos, selectedPedidoId]);
-
   // Pedidos Filtrados na Coluna Esquerda
   const filteredPedidos = useMemo(() => {
     return pedidos.filter(p => {
@@ -493,6 +487,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
       return true;
     });
   }, [pedidos, searchTerm, filterStatus]);
+
+  // Pedido atualmente selecionado (sempre sincronizado com os pedidos visíveis no filtro/busca)
+  const selectedPedido = useMemo(() => {
+    if (filteredPedidos.length === 0) return null;
+    if (!selectedPedidoId) return filteredPedidos[0] || null;
+    return filteredPedidos.find(p => p.pedido_id === selectedPedidoId) || filteredPedidos[0] || null;
+  }, [filteredPedidos, selectedPedidoId]);
 
   // Categorias de Trabalhadores Alojados
   const empresaAlojadosRaw = useMemo(() => {
@@ -1123,7 +1124,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
       const snapAloj = alojamentos.find(a => a.id === singleAlojamentoId);
       const snapCama = camasDisponiveis.find(c => c.id === singleCamaId);
 
-      await logisticsService.alocarTrabalhador({
+      const createdAloc = await logisticsService.alocarTrabalhador({
         cama_id: singleCamaId,
         alojamento_id: singleAlojamentoId,
         worker_id: snapWorker.worker_id,
@@ -1142,11 +1143,12 @@ export const DemandasAlocacaoPage: React.FC = () => {
       await loadData();
 
       await handleOpenTermoForWorker({
+        alocacao_id: createdAloc?.id,
         alojamento_id: singleAlojamentoId,
         alojamento_codigo: snapAloj?.codigo,
         alojamento_nome: snapAloj?.nome || 'Alojamiento Corporativo',
         alojamento_cidade: snapAloj?.municipio || snapPedido.cidade,
-        cama_identificador: snapCama?.codigo_cama || 'Habitación Asignada',
+        cama_identificador: snapCama?.identificador || snapCama?.codigo_cama || 'Habitación Asignada',
         worker_id: snapWorker.worker_id,
         worker_codigo: snapWorker.codigo_colab,
         worker_nome: snapWorker.worker_nome,
