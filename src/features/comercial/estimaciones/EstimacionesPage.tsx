@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useEstimaciones, matchesEstimacionSearch } from './hooks/useEstimaciones';
 import { EstimacionKpiCards } from './components/EstimacionKpiCards';
 import { EstimacionesTable } from './components/EstimacionesTable';
@@ -27,6 +27,22 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 
+function isProposalExpired(est: any): boolean {
+  if (!['draft', 'review', 'sent'].includes(est.status)) return false;
+  const rawValidity = est.validity_date || est.current_version?.valid_until;
+  let validityDate: Date;
+  if (rawValidity) {
+    validityDate = new Date(`${String(rawValidity).slice(0, 10)}T23:59:59`);
+  } else if (est.created_at) {
+    validityDate = new Date(est.created_at);
+    validityDate.setDate(validityDate.getDate() + 15);
+    validityDate.setHours(23, 59, 59, 999);
+  } else {
+    return false;
+  }
+  return validityDate.getTime() < Date.now();
+}
+
 export function EstimacionesPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -34,6 +50,7 @@ export function EstimacionesPage() {
   const [filters, setFilters] = useState({
     status: 'all',
     solicitud_type: 'all',
+    seller_id: 'all',
     search: '',
     empresa_id: selectedEmpresaId || 'all'
   });
@@ -42,12 +59,9 @@ export function EstimacionesPage() {
   const [confirmEmpresaId, setConfirmEmpresaId] = useState('');
 
   const handleNewEstimacionClick = () => {
-    console.log('handleNewEstimacionClick foi chamado. Empresas:', empresas);
     if (empresas.length <= 1) {
-      console.log('Ignorando modal porque o número de empresas é:', empresas.length);
       navigate('/comercial/estimaciones/nova');
     } else {
-      console.log('Abrindo modal. Empresa selecionada padrão:', selectedEmpresaId || empresas[0].id);
       setConfirmEmpresaId(selectedEmpresaId || empresas[0].id);
       setIsConfirmCompanyOpen(true);
     }
@@ -65,11 +79,40 @@ export function EstimacionesPage() {
     empresa_id: filters.empresa_id
   });
 
+  const availableSellers = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; email?: string }>();
+    allEstimaciones.forEach((est: any) => {
+      const s = est.seller || est.created_by_user;
+      if (s?.id) {
+        const name = s.display_name || s.email?.split('@')[0] || 'Sem Nome';
+        if (!map.has(s.id)) {
+          map.set(s.id, { id: s.id, name, email: s.email });
+        }
+      }
+      const c = est.created_by_user;
+      if (c?.id && !map.has(c.id)) {
+        const name = c.display_name || c.email?.split('@')[0] || 'Sem Nome';
+        map.set(c.id, { id: c.id, name, email: c.email });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [allEstimaciones]);
+
   const filteredEstimaciones = allEstimaciones.filter(est => {
     if (filters.status !== 'all') {
       if (filters.status === 'rejected') {
         if (!['rejected', 'expired'].includes(est.status)) return false;
+      } else if (filters.status === 'expired_validity') {
+        if (!isProposalExpired(est)) return false;
       } else if (est.status !== filters.status) {
+        return false;
+      }
+    }
+
+    if (filters.seller_id !== 'all') {
+      const sellerId = est.seller?.id || est.commercial_owner_id || est.created_by_user?.id || est.created_by;
+      const creatorId = est.created_by_user?.id || est.created_by;
+      if (sellerId !== filters.seller_id && creatorId !== filters.seller_id) {
         return false;
       }
     }
@@ -82,7 +125,13 @@ export function EstimacionesPage() {
   });
 
   const clearFilters = () => {
-    setFilters({ status: 'all', solicitud_type: 'all', search: '', empresa_id: selectedEmpresaId || 'all' });
+    setFilters({
+      status: 'all',
+      solicitud_type: 'all',
+      seller_id: 'all',
+      search: '',
+      empresa_id: selectedEmpresaId || 'all'
+    });
   };
 
   const pendingReviewsCount = allEstimaciones.filter(est => est.status === 'review').length;
@@ -156,8 +205,8 @@ export function EstimacionesPage() {
           onStatusSelect={(status) => setFilters(prev => ({ ...prev, status }))}
         />
 
-        <div className="flex flex-col sm:flex-row gap-4 items-end bg-card p-4 rounded-md border">
-          <div className="space-y-1.5 flex-1">
+        <div className="flex flex-col lg:flex-row gap-3 items-end bg-card p-4 rounded-md border flex-wrap">
+          <div className="space-y-1.5 flex-1 min-w-[220px]">
             <label className="text-sm font-medium text-muted-foreground">{t('comercial.list.searchLabel')}</label>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -170,7 +219,7 @@ export function EstimacionesPage() {
             </div>
           </div>
           
-          <div className="space-y-1.5 w-full sm:w-[200px]">
+          <div className="space-y-1.5 w-full sm:w-[180px]">
             <label className="text-sm font-medium text-muted-foreground">{t('comercial.table.empresa')}</label>
             <Select 
               value={filters.empresa_id} 
@@ -189,8 +238,28 @@ export function EstimacionesPage() {
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-1.5 w-full sm:w-[190px]">
+            <label className="text-sm font-medium text-muted-foreground">{t('comercial.table.vendedor', 'Vendedor / Comercial')}</label>
+            <Select 
+              value={filters.seller_id} 
+              onValueChange={(val) => setFilters({ ...filters, seller_id: val })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Todos os comerciais" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os comerciais</SelectItem>
+                {availableSellers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           
-          <div className="space-y-1.5 w-full sm:w-[200px]">
+          <div className="space-y-1.5 w-full sm:w-[190px]">
             <label className="text-sm font-medium text-muted-foreground">{t('comercial.list.statusLabel')}</label>
             <Select 
               value={filters.status} 
@@ -204,6 +273,7 @@ export function EstimacionesPage() {
                 <SelectItem value="draft">{t('comercial.status.draft')}</SelectItem>
                 <SelectItem value="review">{t('comercial.status.review')}</SelectItem>
                 <SelectItem value="sent">{t('comercial.status.sent')}</SelectItem>
+                <SelectItem value="expired_validity">⚠️ Validade Vencida (Paradas)</SelectItem>
                 <SelectItem value="signed">{t('comercial.status.signed')}</SelectItem>
                 <SelectItem value="approved">{t('comercial.status.approved')}</SelectItem>
                 <SelectItem value="rejected">{t('comercial.status.rejected')}</SelectItem>
@@ -211,7 +281,7 @@ export function EstimacionesPage() {
             </Select>
           </div>
 
-          <div className="space-y-1.5 w-full sm:w-[200px]">
+          <div className="space-y-1.5 w-full sm:w-[180px]">
             <label className="text-sm font-medium text-muted-foreground">{t('comercial.list.orderTypeLabel')}</label>
             <Select 
               value={filters.solicitud_type} 

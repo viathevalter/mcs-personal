@@ -231,6 +231,51 @@ export function useEstimacionMutations() {
     },
   });
 
+  const encerrarEstimacion = useMutation({
+    mutationFn: async ({ id, status = 'expired', reason }: { id: string; status?: 'expired' | 'rejected' | 'draft'; reason?: string }) => {
+      const { data, error } = await supabase.schema('core_comercial').rpc('encerrar_estimacion', {
+        p_estimacion_id: id,
+        p_status: status,
+        p_reason: reason || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.status === 'draft'
+          ? 'Orçamento reaberto como rascunho!'
+          : 'Orçamento encerrado com sucesso!'
+      );
+      queryClient.invalidateQueries({ queryKey: ['estimaciones'] });
+      queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, variables.id] });
+    },
+    onError: (error: any) => {
+      console.error(error);
+      toast.error('Erro ao alterar situação do orçamento', { description: error.message });
+    },
+  });
+
+  const atribuirVendedorEstimacion = useMutation({
+    mutationFn: async ({ id, commercialOwnerId }: { id: string; commercialOwnerId: string }) => {
+      const { data, error } = await supabase.schema('core_comercial').rpc('atribuir_vendedor_estimacion', {
+        p_estimacion_id: id,
+        p_commercial_owner_id: commercialOwnerId,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success('Comercial responsável atualizado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['estimaciones'] });
+      queryClient.invalidateQueries({ queryKey: ['estimacion-detail', selectedEmpresaId, variables.id] });
+    },
+    onError: (error: any) => {
+      console.error(error);
+      toast.error('Erro ao atualizar comercial responsável', { description: error.message });
+    },
+  });
+
   return {
     aprovarEstimacion,
     criarEstimacion,
@@ -241,5 +286,7 @@ export function useEstimacionMutations() {
     criarNovaVersao,
     decidirContratoCustomizado,
     submeterParaRevisao,
+    encerrarEstimacion,
+    atribuirVendedorEstimacion,
   };
 }

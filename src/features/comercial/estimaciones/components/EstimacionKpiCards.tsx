@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { DollarSign, FileText, Send, CheckCircle2, AlertCircle, PenTool } from 'lucide-react';
+import { DollarSign, FileText, Send, CheckCircle2, AlertCircle, PenTool, Clock } from 'lucide-react';
 import type { Estimacion } from '../types';
 import { useTranslation } from 'react-i18next';
 
@@ -9,8 +9,27 @@ interface Props {
   onStatusSelect?: (status: string) => void;
 }
 
+function isProposalExpired(est: Estimacion): boolean {
+  if (!['draft', 'review', 'sent'].includes(est.status)) return false;
+  const rawValidity = est.validity_date || (est as any).current_version?.valid_until;
+  let validityDate: Date;
+  if (rawValidity) {
+    validityDate = new Date(`${String(rawValidity).slice(0, 10)}T23:59:59`);
+  } else if (est.created_at) {
+    validityDate = new Date(est.created_at);
+    validityDate.setDate(validityDate.getDate() + 15);
+    validityDate.setHours(23, 59, 59, 999);
+  } else {
+    return false;
+  }
+  return validityDate.getTime() < Date.now();
+}
+
 export function EstimacionKpiCards({ estimaciones, selectedStatus, onStatusSelect }: Props) {
   const { t, i18n } = useTranslation();
+  const openActiveCount = estimaciones.filter(e => ['draft', 'review', 'sent'].includes(e.status)).length;
+  const expiredOpenCount = estimaciones.filter(e => isProposalExpired(e)).length;
+
   const stats = {
     total: estimaciones.length,
     draft: estimaciones.filter(e => e.status === 'draft').length,
@@ -48,6 +67,9 @@ export function EstimacionKpiCards({ estimaciones, selectedStatus, onStatusSelec
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.total}</div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            {openActiveCount} em aberto no funil
+          </p>
         </CardContent>
       </Card>
 
@@ -74,6 +96,20 @@ export function EstimacionKpiCards({ estimaciones, selectedStatus, onStatusSelec
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.sent}</div>
+          {expiredOpenCount > 0 && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onStatusSelect?.('expired_validity');
+              }}
+              className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 px-1.5 py-0.5 rounded border border-red-200 dark:border-red-900/50 hover:bg-red-100 transition-colors"
+              title="Filtrar propostas abertas com validade vencida"
+            >
+              <Clock className="h-2.5 w-2.5" />
+              {expiredOpenCount} vencida(s)
+            </button>
+          )}
         </CardContent>
       </Card>
 

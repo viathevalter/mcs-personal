@@ -91,7 +91,7 @@ export function useEstimaciones(filters?: UseEstimacionesFilters) {
         .select(`
           *,
           current_version:estimacion_versions!fk_estimacion_current_version(
-            id, version_number, total_cost, total_revenue, margin_percent, status,
+            id, version_number, total_cost, total_revenue, margin_percent, status, created_by, updated_by,
             items:estimacion_items(
               quantity,
               job_function:job_functions(id, name)
@@ -152,7 +152,7 @@ export function useEstimaciones(filters?: UseEstimacionesFilters) {
 
       let enrichedList = data.map(est => {
         const lead = leads?.find((l: any) => l.id === est.lead_id);
-        const sellerId = est.commercial_owner_id || est.created_by || lead?.assigned_to;
+        const sellerId = est.commercial_owner_id || est.created_by || est.current_version?.created_by || est.current_version?.updated_by || est.updated_by || lead?.assigned_to;
         let sellerUser = users?.find((u: any) => u.id === sellerId);
         
         // Fallback: match by contact_email if it's an @gestaologinpro.com address
@@ -160,7 +160,8 @@ export function useEstimaciones(filters?: UseEstimacionesFilters) {
           sellerUser = users?.find((u: any) => u.email?.toLowerCase() === est.contact_email.toLowerCase());
         }
 
-        const createdByUser = users?.find((u: any) => u.id === est.created_by) || sellerUser;
+        const creatorId = est.created_by || est.current_version?.created_by || est.current_version?.updated_by;
+        const createdByUser = users?.find((u: any) => u.id === creatorId) || sellerUser;
 
         return {
           ...est,

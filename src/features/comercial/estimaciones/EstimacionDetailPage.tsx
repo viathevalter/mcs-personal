@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { 
   ArrowLeft, FileText, CheckCircle2, AlertCircle, 
   MapPin, Clock, Calendar, Users, DollarSign, ExternalLink,
-  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Building2, Briefcase, Link2, UserCheck, User, Package
+  Pencil, Copy, Eye, Coins, TrendingUp, TrendingDown, Home, Truck, ShieldCheck, Sparkles, Building, Building2, Briefcase, Link2, UserCheck, User, Package, XCircle, RotateCcw
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { ConvertLeadToClientModal } from '@/features/comercial/leads/components/ConvertLeadToClientModal';
@@ -38,7 +38,7 @@ export function EstimacionDetailPage() {
   const { t, i18n } = useTranslation();
   const { data: estimacion, isLoading, error } = useEstimacionDetail(id);
   const { role } = useEmpresa();
-  const { decidirAprovacaoGerente, criarNovaVersao } = useEstimacionMutations();
+  const { decidirAprovacaoGerente, criarNovaVersao, encerrarEstimacion } = useEstimacionMutations();
   const [comercialSettings, setComercialSettings] = useState<any>(null);
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
   const [versionNotes, setVersionNotes] = useState('');
@@ -218,6 +218,11 @@ export function EstimacionDetailPage() {
                     <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-slate-300">
                       <User className="w-3.5 h-3.5 text-indigo-500" />
                       Vendedor: <strong className="text-foreground">{estimacion.seller?.display_name || estimacion.created_by_user?.display_name || estimacion.seller?.email?.split('@')[0]}</strong>
+                      {estimacion.created_by_user && estimacion.seller && estimacion.created_by_user.id !== estimacion.seller.id && (
+                        <span className="text-xs text-muted-foreground font-normal">
+                          (Criado por: {estimacion.created_by_user.display_name || estimacion.created_by_user.email?.split('@')[0]})
+                        </span>
+                      )}
                     </span>
                   </>
                 )}
@@ -322,6 +327,40 @@ export function EstimacionDetailPage() {
                <Link2 className="mr-2 h-4 w-4" />
                Enviar Formulário Técnico
              </Button>
+             {['draft', 'review', 'sent'].includes(estimacion.status) && !estimacion.pedido?.id && (
+               <Button
+                 variant="outline"
+                 onClick={() =>
+                   encerrarEstimacion.mutate({
+                     id: estimacion.id,
+                     status: 'expired',
+                     reason: 'Orçamento encerrado pela tela de detalhes',
+                   })
+                 }
+                 disabled={encerrarEstimacion.isPending}
+                 className="border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 font-semibold"
+               >
+                 <XCircle className="mr-2 h-4 w-4" />
+                 Encerrar Orçamento
+               </Button>
+             )}
+             {['expired', 'rejected'].includes(estimacion.status) && !estimacion.pedido?.id && (
+               <Button
+                 variant="outline"
+                 onClick={() =>
+                   encerrarEstimacion.mutate({
+                     id: estimacion.id,
+                     status: 'draft',
+                     reason: 'Orçamento reaberto pela tela de detalhes',
+                   })
+                 }
+                 disabled={encerrarEstimacion.isPending}
+                 className="border-slate-300 dark:border-slate-700 font-semibold"
+               >
+                 <RotateCcw className="mr-2 h-4 w-4" />
+                 Reabrir Orçamento
+               </Button>
+             )}
              <ApproveEstimacionButton estimacion={estimacion} />
           </div>
         </div>
