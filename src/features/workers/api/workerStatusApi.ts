@@ -151,7 +151,7 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
         }
     }
 
-    // 4. Inserir histórico de alteração para cada status alterado
+    // 4. Inserir histórico de alteração (ou confirmação de revisão para dar baixa no alerta operacional)
     const userId = (await supabase.auth.getUser()).data.user?.id;
     const historyInserts: any[] = [];
 
@@ -178,6 +178,20 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
             new_value: statusSeguridad || 'Sem Status',
             effective_date: effectiveDate,
             comments: comments || null,
+            changed_by: userId
+        });
+    }
+
+    // Mesmo que o usuário apenas clique em "Atualizar" -> "Salvar Ambos os Status" (com ou sem observação,
+    // mantendo os mesmos status selecionados), registramos a confirmação no histórico para concluir/matar o alerta operacional!
+    if (!isTrabChanged && !isSegChanged) {
+        historyInserts.push({
+            worker_id: workerId,
+            change_type: 'TRABALHADOR',
+            old_value: oldStatusTrabalhador || 'Sem Status',
+            new_value: statusTrabalhador || 'Sem Status',
+            effective_date: effectiveDate,
+            comments: comments || 'Status revisado e confirmado pelo operador',
             changed_by: userId
         });
     }
