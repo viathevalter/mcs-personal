@@ -762,6 +762,17 @@ export function CampaignsPage() {
       }
     });
     const priorityTags = [
+      'ASTURIAS - Alba',
+      'BALEARES - Alba',
+      'ANDALUCIA - Alba',
+      'ARAGON - Alba',
+      'Sem E-mail - ASTURIAS - Alba',
+      'Sem E-mail - BALEARES - Alba',
+      'Sem E-mail - Alba',
+      'Mailing Alba - Asturias 2026',
+      'Mailing Alba - Baleares 2026',
+      'Mailing Alba - Asturias & Baleares 2026',
+      'Mailing Alba Inéditos - Asturias & Baleares 2026',
       'captacion activa',
       'ETT',
       'catalan',
@@ -825,15 +836,112 @@ export function CampaignsPage() {
     };
 
     // 1. EMPRESA: TRIÂNGULO (Alba / Espanha)
-    // Mostra estritamente públicos de Triângulo (incluindo os 5 públicos de 1.000 da Alba) e gerais sem contato / sem Alex
+    // Mostra estritamente públicos de Triângulo (incluindo os PDFs de Asturias, Baleares, Andalucía, Aragón e os 5 públicos de 1.000 da Alba)
     if (isTriangulo) {
-      const albaTopBatches = ALL_STRATEGIC_AUDIENCES.filter(
-        a => a.ownerKey === 'alba' && (a.id.startsWith('aud_alba_publico_') || a.id === 'aud_alba_5000_ineditos_espanha_2026')
-      );
-      const albaOtherStrategic = ALL_STRATEGIC_AUDIENCES.filter(
-        a => a.ownerKey === 'alba' && !a.id.startsWith('aud_alba_publico_') && a.id !== 'aud_alba_5000_ineditos_espanha_2026'
-      );
-      return mergeUniqueById([...albaTopBatches, ...albaOtherStrategic], [
+      const albaAllStrategic = ALL_STRATEGIC_AUDIENCES.filter(a => a.ownerKey === 'alba');
+      return mergeUniqueById(albaAllStrategic, [
+        {
+          id: 'aud_triangulo_alba_ineditos_asturias_baleares_2026',
+          name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Asturias & Baleares (47 leads)',
+          leadCount: 47,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Alba Inéditos - Asturias & Baleares 2026',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-04T14:00:00.000Z'
+        },
+        {
+          id: 'aud_triangulo_alba_asturias_baleares_completo_2026',
+          name: '🎯 🇪🇸 Alba (Triangulo) - PDF Asturias & Baleares Completo (78 leads)',
+          leadCount: 78,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Alba - Asturias & Baleares 2026',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-04T14:00:00.000Z'
+        },
+        {
+          id: 'aud_triangulo_alba_asturias_2026',
+          name: '📍 🇪🇸 Alba (Triangulo) - PDF Asturias [Tag: ASTURIAS - Alba] (52 leads)',
+          leadCount: 52,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            selectedTags: ['ASTURIAS - Alba'],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'ASTURIAS - Alba',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-04T14:00:00.000Z'
+        },
+        {
+          id: 'aud_triangulo_alba_baleares_2026',
+          name: '📍 🇪🇸 Alba (Triangulo) - PDF Baleares [Tag: BALEARES - Alba] (26 leads)',
+          leadCount: 26,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            selectedTags: ['BALEARES - Alba'],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'BALEARES - Alba',
+            excludeTagKeyword: '',
+            excludeProposals: false,
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-04T14:00:00.000Z'
+        },
         {
           id: 'aud_triangulo_alba_ineditos_andalucia_aragon_2026',
           name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Andalucía & Aragón (88 leads)',

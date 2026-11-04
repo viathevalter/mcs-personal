@@ -944,6 +944,7 @@ export function LeadsPage() {
       setSelectedRegion('all');
       setSelectedProvince('all');
       setSelectedWebsiteFilter('all');
+      setSelectedTag('all');
     }
   };
 
@@ -1043,7 +1044,25 @@ export function LeadsPage() {
         });
       }
     });
-    const priority = ['captacion activa', 'ETT', 'catalan', 'Liseth - captacion activa', 'Liseth - ETT', 'Liseth - catalan', 'Mailing Liseth - Barcelona 2026'];
+    const priority = [
+      'ASTURIAS - Alba',
+      'BALEARES - Alba',
+      'ANDALUCIA - Alba',
+      'ARAGON - Alba',
+      'Sem E-mail - ASTURIAS - Alba',
+      'Sem E-mail - BALEARES - Alba',
+      'Sem E-mail - Alba',
+      'Mailing Alba - Asturias 2026',
+      'Mailing Alba - Baleares 2026',
+      'Mailing Alba - Asturias & Baleares 2026',
+      'captacion activa',
+      'ETT',
+      'catalan',
+      'Liseth - captacion activa',
+      'Liseth - ETT',
+      'Liseth - catalan',
+      'Mailing Liseth - Barcelona 2026',
+    ];
     return Object.keys(counts)
       .sort((a, b) => {
         const ia = priority.indexOf(a);
@@ -1224,12 +1243,15 @@ export function LeadsPage() {
 
   const dialerDefaultTitle = useMemo(() => {
     const dateStr = new Date().toLocaleDateString('pt-BR');
+    if (selectedTag && selectedTag !== 'all') {
+      return `Fila: ${selectedTag} - ${dateStr}`;
+    }
     if (activeAudience) {
       const cleanName = activeAudience.name.replace(/^[^\w\dÀ-ÿ]+/, '').trim();
       return `Fila: ${cleanName} - ${dateStr}`;
     }
     return `Fila de Prospecção - ${dateStr}`;
-  }, [activeAudience]);
+  }, [activeAudience, selectedTag]);
 
   return (
     <div className="flex flex-col space-y-2.5 p-3">
@@ -1641,7 +1663,7 @@ export function LeadsPage() {
           </div>
 
           {/* 1-Click Generate Work Queue Button */}
-          {selectedAudienceId !== 'all' && (
+          {(selectedAudienceId !== 'all' || selectedTag !== 'all') && (
             <Button
               type="button"
               size="sm"
@@ -1649,7 +1671,7 @@ export function LeadsPage() {
               className="h-8 text-xs bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-sm gap-1.5"
             >
               <Zap className="w-3.5 h-3.5" />
-              {tr('Gerar Fila do Público', 'Generar Cola del Público', 'Créer File de l\x27Audience')} ({selectedLeadIds.length > 0 ? selectedLeadIds.length : filteredLeads.filter((l) => !l.do_not_call).length})
+              {tr('Gerar Fila do Público / Tag', 'Generar Cola del Público / Tag', 'Créer File de l\x27Audience')} ({selectedLeadIds.length > 0 ? selectedLeadIds.length : filteredLeads.filter((l) => !l.do_not_call).length})
             </Button>
           )}
         </div>
@@ -1803,7 +1825,7 @@ export function LeadsPage() {
           </div>
 
           {/* Quick Clear All Filters button */}
-          {(searchTerm || selectedSector !== 'all' || selectedCompanySize !== 'all' || selectedRegion !== 'all' || selectedProvince !== 'all' || selectedWebsiteFilter !== 'all' || selectedAudienceId !== 'all') && (
+          {(searchTerm || selectedSector !== 'all' || selectedCompanySize !== 'all' || selectedRegion !== 'all' || selectedProvince !== 'all' || selectedWebsiteFilter !== 'all' || selectedAudienceId !== 'all' || selectedTag !== 'all') && (
             <Button
               type="button"
               variant="ghost"
@@ -1816,6 +1838,7 @@ export function LeadsPage() {
                 setSelectedProvince('all');
                 setSelectedWebsiteFilter('all');
                 setSelectedAudienceId('all');
+                setSelectedTag('all');
               }}
               className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1 px-2 shrink-0"
               title="Limpar todos os filtros da busca"
@@ -1995,10 +2018,17 @@ export function LeadsPage() {
                       </span>
                     </td>
                     <td className="p-4 align-middle space-y-1">
-                      <div className="flex items-center gap-2 text-foreground/90 text-sm">
-                        <Mail className="h-3.5 w-3.5 text-muted-foreground/75 shrink-0" />
-                        <span className="hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors">{lead.email}</span>
-                      </div>
+                      {lead.email ? (
+                        <div className="flex items-center gap-2 text-foreground/90 text-sm">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground/75 shrink-0" />
+                          <span className="hover:text-yellow-500 dark:hover:text-yellow-400 transition-colors">{lead.email}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 text-xs font-semibold">
+                          <Phone className="h-3.5 w-3.5 shrink-0" />
+                          <span>{tr('Sem e-mail (Foco Telemarketing)', 'Sin correo (Enfoque Llamada)', 'Sans e-mail (Focus Appel)')}</span>
+                        </div>
+                      )}
                       {lead.phone && (
                         <div className="flex items-center gap-2 text-muted-foreground text-xs">
                           <Phone className="h-3.5 w-3.5 text-muted-foreground/75 shrink-0" />
