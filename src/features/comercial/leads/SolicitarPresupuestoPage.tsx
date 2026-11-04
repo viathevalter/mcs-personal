@@ -326,14 +326,26 @@ export function SolicitarPresupuestoPage() {
               );
 
               if (!hasBudget) {
-                const { data: stageData } = await supabase
+                let { data: stageData } = await supabase
                   .schema('core_comercial')
                   .from('kanban_stages')
                   .select('id, order_index')
                   .eq('empresa_id', lead.empresa_id)
-                  .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
+                  .or('name.ilike.%Lido%,name.ilike.%Clicado%,name_es.ilike.%Leído%,name_es.ilike.%Clicado%')
                   .limit(1)
                   .maybeSingle();
+
+                if (!stageData) {
+                  const { data: fallbackStage } = await supabase
+                    .schema('core_comercial')
+                    .from('kanban_stages')
+                    .select('id, order_index')
+                    .eq('empresa_id', lead.empresa_id)
+                    .eq('order_index', 3)
+                    .limit(1)
+                    .maybeSingle();
+                  stageData = fallbackStage;
+                }
 
                 if (stageData) {
                   let currentOrderIndex = 0;
@@ -465,17 +477,29 @@ export function SolicitarPresupuestoPage() {
 
     try {
       if (targetLeadId) {
-        // Fetch 'Orçamento Solicitado' stage ID (order_index = 4) for this empresa
+        // Fetch 'Orçamento Solicitado' stage ID by name first for this empresa
         let budgetStageId = null;
         try {
-          const { data: bStage } = await supabase
+          let { data: bStage } = await supabase
             .schema('core_comercial')
             .from('kanban_stages')
             .select('id')
             .eq('empresa_id', empresaId)
-            .or('order_index.eq.4,name.ilike.%Orçamento%,name.ilike.%Presupuesto%')
+            .or('name.ilike.%Orçamento%,name.ilike.%Presupuesto%,name_es.ilike.%Presupuesto%')
             .limit(1)
             .maybeSingle();
+
+          if (!bStage) {
+            const { data: fallbackBStage } = await supabase
+              .schema('core_comercial')
+              .from('kanban_stages')
+              .select('id')
+              .eq('empresa_id', empresaId)
+              .eq('order_index', 4)
+              .limit(1)
+              .maybeSingle();
+            bStage = fallbackBStage;
+          }
 
           if (bStage) {
             budgetStageId = bStage.id;

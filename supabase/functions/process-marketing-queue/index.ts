@@ -789,8 +789,40 @@ async function updateLeadStageToSent(supabase: any, leadId: string | null, leadE
 
     const shouldUpdateOwner = Boolean(effectiveAssignedTo && targetEmpresaId === empresaId);
 
-    // Regra de avanço seguro: NUNCA regredir lead que já avançou (order_index >= 2)
-    if (currentOrderIndex >= 2) {
+    // Buscar estágio 'E-mail Enviado' prioritariamente pelo NOME para targetEmpresaId
+    let stageId: string | null = null;
+    let targetStageOrderIndex = 2;
+    if (targetEmpresaId) {
+      const { data: namedStage } = await supabase
+        .from("kanban_stages")
+        .select("id, order_index")
+        .eq("empresa_id", targetEmpresaId)
+        .or("name.ilike.%enviado%,name_es.ilike.%enviado%")
+        .limit(1)
+        .maybeSingle();
+
+      if (namedStage) {
+        stageId = namedStage.id;
+        targetStageOrderIndex = namedStage.order_index || 2;
+      }
+    }
+
+    if (!stageId && targetEmpresaId) {
+      const { data: fallbackStage } = await supabase
+        .from("kanban_stages")
+        .select("id, order_index")
+        .eq("empresa_id", targetEmpresaId)
+        .eq("order_index", 2)
+        .limit(1)
+        .maybeSingle();
+      if (fallbackStage) {
+        stageId = fallbackStage.id;
+        targetStageOrderIndex = fallbackStage.order_index || 2;
+      }
+    }
+
+    // Regra de avanço seguro: NUNCA regredir lead que já avançou (currentOrderIndex >= targetStageOrderIndex)
+    if (currentOrderIndex >= targetStageOrderIndex) {
       const ownerPayload: any = {};
       if (targetEmpresaId && targetEmpresaId !== currentLead.empresa_id) {
         ownerPayload.empresa_id = targetEmpresaId;
@@ -806,33 +838,6 @@ async function updateLeadStageToSent(supabase: any, leadId: string | null, leadE
           .eq("id", currentLead.id);
       }
       return;
-    }
-
-    // Buscar estágio 2 ('E-mail Enviado') para targetEmpresaId
-    let stageId: string | null = null;
-    if (targetEmpresaId) {
-      const { data: stageData } = await supabase
-        .from("kanban_stages")
-        .select("id")
-        .eq("empresa_id", targetEmpresaId)
-        .eq("order_index", 2)
-        .limit(1)
-        .maybeSingle();
-
-      if (stageData) {
-        stageId = stageData.id;
-      }
-    }
-
-    if (!stageId && targetEmpresaId) {
-      const { data: fallbackStage } = await supabase
-        .from("kanban_stages")
-        .select("id")
-        .eq("empresa_id", targetEmpresaId)
-        .ilike("name", "%enviado%")
-        .limit(1)
-        .maybeSingle();
-      if (fallbackStage) stageId = fallbackStage.id;
     }
 
     const updatePayload: any = {

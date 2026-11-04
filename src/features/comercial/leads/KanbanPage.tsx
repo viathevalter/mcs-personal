@@ -135,7 +135,7 @@ export function KanbanPage() {
 
   // Queries & Mutations
   const { data: salespeople = [] } = useSalespeople();
-  const { data: stages = [], isLoading: loadingStages } = useKanbanStages();
+  const { data: stages = [], isLoading: loadingStages } = useKanbanStages(effectiveEmpresaId);
   const { data: allStages = [] } = useAllKanbanStages();
   const { data: leads = [], isLoading: loadingLeads } = useLeads({
     empresaId: effectiveEmpresaId,
@@ -159,7 +159,7 @@ export function KanbanPage() {
     [specificCampaignLeadIds]
   );
 
-  const { createStage, updateStage, deleteStage, reorderStages, moveLead } = useMutateKanban();
+  const { createStage, updateStage, deleteStage, reorderStages, moveLead } = useMutateKanban(effectiveEmpresaId);
   const { createLead, updateLead } = useMutateLead();
   const { data: salesScripts = [] } = useSalesScripts();
   const { createCampaign } = useMutateDialer();
@@ -616,13 +616,15 @@ export function KanbanPage() {
     });
   };
 
-  // Lido / Clicado Stage detection & lead count
+  // Lido / Clicado Stage detection & lead count (prioritize stage name over order_index)
   const lidoStage = useMemo(() => {
-    return stages.find(
-      s =>
-        s.order_index === 3 ||
-        s.name.toLowerCase().includes('lido') ||
-        s.name.toLowerCase().includes('clicad')
+    return (
+      stages.find(
+        s =>
+          s.name.toLowerCase().includes('lido') ||
+          s.name.toLowerCase().includes('clicad') ||
+          (s.name_es && (s.name_es.toLowerCase().includes('leído') || s.name_es.toLowerCase().includes('clicad')))
+      ) || stages.find(s => s.order_index === 3)
     );
   }, [stages]);
 

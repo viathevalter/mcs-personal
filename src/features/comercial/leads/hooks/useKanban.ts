@@ -183,24 +183,25 @@ export function useCommercialCampaignLeadScope(options: {
   };
 }
 
-export function useKanbanStages() {
+export function useKanbanStages(overrideEmpresaId?: string | null) {
   const { selectedEmpresaId } = useEmpresa();
+  const targetEmpresaId = overrideEmpresaId !== undefined ? overrideEmpresaId : selectedEmpresaId;
 
   return useQuery({
-    queryKey: ['kanban_stages', selectedEmpresaId],
+    queryKey: ['kanban_stages', targetEmpresaId],
     queryFn: async () => {
-      if (!selectedEmpresaId) return [];
+      if (!targetEmpresaId) return [];
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('kanban_stages')
         .select('*')
-        .eq('empresa_id', selectedEmpresaId)
+        .eq('empresa_id', targetEmpresaId)
         .order('order_index', { ascending: true });
 
       if (error) throw error;
       return data as KanbanStage[];
     },
-    enabled: !!selectedEmpresaId,
+    enabled: !!targetEmpresaId,
   });
 }
 
@@ -220,19 +221,20 @@ export function useAllKanbanStages() {
   });
 }
 
-export function useMutateKanban() {
+export function useMutateKanban(overrideEmpresaId?: string | null) {
   const queryClient = useQueryClient();
   const { selectedEmpresaId } = useEmpresa();
+  const targetEmpresaId = overrideEmpresaId !== undefined ? overrideEmpresaId : selectedEmpresaId;
 
   const createStage = useMutation({
     mutationFn: async (payload: { name: string; name_es?: string; color?: string; order_index: number }) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+      if (!targetEmpresaId) throw new Error('Empresa não selecionada');
       const { data, error } = await supabase
         .schema('core_comercial')
         .from('kanban_stages')
         .insert({
           ...payload,
-          empresa_id: selectedEmpresaId,
+          empresa_id: targetEmpresaId,
           is_system: false,
         })
         .select()
@@ -242,7 +244,8 @@ export function useMutateKanban() {
       return data as KanbanStage;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kanban_stages', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', targetEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', 'all'] });
     },
   });
 
@@ -260,7 +263,8 @@ export function useMutateKanban() {
       return data as KanbanStage;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kanban_stages', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', targetEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', 'all'] });
     },
   });
 
@@ -275,7 +279,8 @@ export function useMutateKanban() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kanban_stages', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', targetEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', 'all'] });
     },
   });
 
@@ -312,7 +317,8 @@ export function useMutateKanban() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kanban_stages', selectedEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', targetEmpresaId] });
+      queryClient.invalidateQueries({ queryKey: ['kanban_stages', 'all'] });
     },
   });
 

@@ -27,24 +27,26 @@ async function markLeadAsRead(supabase: any, leadId: string, campaignId?: string
     const targetEmpresaId = lead.empresa_id || hintEmpresaId;
     if (!targetEmpresaId) return;
 
-    const { data: stages3 } = await supabase
+    // 1. Buscar primeiro pelo NOME da etapa ('E-mail Lido / Clicado' / 'Correo Leído / Clicado')
+    const { data: namedStages3 } = await supabase
       .schema("core_comercial")
       .from("kanban_stages")
       .select("id, order_index")
       .eq("empresa_id", targetEmpresaId)
-      .eq("order_index", 3)
+      .or("name.ilike.%Lido%,name.ilike.%Clicado%,name_es.ilike.%Leído%,name_es.ilike.%Clicado%")
       .limit(1);
 
-    let stage3 = stages3 && stages3.length > 0 ? stages3[0] : null;
+    let stage3 = namedStages3 && namedStages3.length > 0 ? namedStages3[0] : null;
+    // 2. Fallback para order_index = 3 apenas se nenhuma etapa com o nome existir
     if (!stage3) {
-      const { data: altStages3 } = await supabase
+      const { data: fallbackStages3 } = await supabase
         .schema("core_comercial")
         .from("kanban_stages")
         .select("id, order_index")
         .eq("empresa_id", targetEmpresaId)
-        .or("name.ilike.%Lido%,name.ilike.%Clicado%")
+        .eq("order_index", 3)
         .limit(1);
-      stage3 = altStages3 && altStages3.length > 0 ? altStages3[0] : null;
+      stage3 = fallbackStages3 && fallbackStages3.length > 0 ? fallbackStages3[0] : null;
     }
 
     if (!stage3) return;

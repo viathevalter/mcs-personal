@@ -727,6 +727,49 @@ export function useMutateDialer() {
       if (outcome === 'answered_rejected') {
         leadUpdatePayload.do_not_call = true;
         leadUpdatePayload.do_not_call_reason = rejectionReason || 'Recusado na prospecção telefônica';
+      } else if (outcome === 'answered_callback' || outcome === 'answered_converted') {
+        try {
+          const { data: leadRow } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .select('empresa_id, stage_id')
+            .eq('id', leadId)
+            .maybeSingle();
+
+          const targetEmpId = leadRow?.empresa_id || selectedEmpresaId;
+          if (targetEmpId) {
+            const { data: empStages } = await supabase
+              .schema('core_comercial')
+              .from('kanban_stages')
+              .select('id, name, name_es, order_index')
+              .eq('empresa_id', targetEmpId)
+              .order('order_index', { ascending: true });
+
+            if (empStages && empStages.length > 0) {
+              const currentStageObj = leadRow?.stage_id
+                ? empStages.find(s => s.id === leadRow.stage_id)
+                : undefined;
+              const currentOrderIdx = currentStageObj?.order_index ?? 1;
+
+              const callStage = empStages.find(s => {
+                const n = (s.name || '').toLowerCase();
+                const nes = (s.name_es || '').toLowerCase();
+                return (
+                  n.includes('liga') ||
+                  n.includes('llamad') ||
+                  n.includes('telemarketing') ||
+                  nes.includes('llamad')
+                );
+              });
+
+              if (callStage && callStage.order_index > currentOrderIdx) {
+                leadUpdatePayload.stage_id = callStage.id;
+              }
+            }
+          }
+        } catch (stageErr) {
+          console.warn('Could not auto-advance call stage:', stageErr);
+        }
       }
 
       await supabase

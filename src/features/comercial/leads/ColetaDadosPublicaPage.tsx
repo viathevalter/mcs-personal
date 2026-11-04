@@ -364,14 +364,26 @@ export function ColetaDadosPublicaPage() {
             );
 
             if (!hasBudget) {
-              const { data: stageData } = await supabase
+              let { data: stageData } = await supabase
                 .schema('core_comercial')
                 .from('kanban_stages')
                 .select('id, order_index')
                 .eq('empresa_id', data.empresa_id)
-                .or('order_index.eq.3,name.ilike.%Lido%,name.ilike.%Clicado%')
+                .or('name.ilike.%Lido%,name.ilike.%Clicado%,name_es.ilike.%Leído%,name_es.ilike.%Clicado%')
                 .limit(1)
                 .maybeSingle();
+
+              if (!stageData) {
+                const { data: fallbackStage } = await supabase
+                  .schema('core_comercial')
+                  .from('kanban_stages')
+                  .select('id, order_index')
+                  .eq('empresa_id', data.empresa_id)
+                  .eq('order_index', 3)
+                  .limit(1)
+                  .maybeSingle();
+                stageData = fallbackStage;
+              }
 
               if (stageData) {
                 let currentOrderIndex = 0;
