@@ -22,7 +22,7 @@ const LANGUAGES = [
 
 export function ComercialSettingsPage() {
   const { t } = useTranslation();
-  const { selectedEmpresaId, role, empresas } = useEmpresa();
+  const { selectedEmpresaId, setSelectedEmpresaId, role, empresas } = useEmpresa();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -182,7 +182,7 @@ export function ComercialSettingsPage() {
   const [templateEmpresaId, setTemplateEmpresaId] = useState<string>('');
 
   useEffect(() => {
-    if (selectedEmpresaId && !templateEmpresaId) {
+    if (selectedEmpresaId) {
       setTemplateEmpresaId(selectedEmpresaId);
     }
   }, [selectedEmpresaId]);
@@ -1144,7 +1144,13 @@ export function ComercialSettingsPage() {
               <Label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5 block">
                 Empresa dos Modelos (.docx)
               </Label>
-              <Select value={activeTemplateEmpresaId} onValueChange={setTemplateEmpresaId}>
+              <Select
+                value={activeTemplateEmpresaId}
+                onValueChange={(val) => {
+                  setTemplateEmpresaId(val);
+                  if (setSelectedEmpresaId) setSelectedEmpresaId(val);
+                }}
+              >
                 <SelectTrigger className="w-full h-9 text-xs bg-white dark:bg-slate-950 font-bold border-indigo-200 dark:border-slate-700 shadow-sm">
                   <SelectValue placeholder="Selecione a empresa..." />
                 </SelectTrigger>
