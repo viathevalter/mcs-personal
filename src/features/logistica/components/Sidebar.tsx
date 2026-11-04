@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Box, Home, Calendar, ArrowLeft, Menu, Users, FileText, DollarSign, Layers } from 'lucide-react';
+import { Box, Home, Calendar, ArrowLeft, Menu, Users, FileText, DollarSign, Layers, Zap } from 'lucide-react';
 import { useLanguage } from '../../operacoes/i18n';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 
@@ -86,6 +86,7 @@ export const Sidebar: React.FC = () => {
           <SectionLabel label="Financiero" />
           <div className="space-y-1">
             <NavItem to="/logistica/contratos" icon={FileText} label="Contratos & Fianzas" />
+            <NavItem to="/logistica/suministros" icon={Zap} label="Gestión de Suministros" />
             <NavItem to="/logistica/financeiro" icon={DollarSign} label="Órdenes de Pago" />
           </div>
         </div>

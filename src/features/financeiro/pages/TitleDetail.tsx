@@ -6,7 +6,7 @@ import {
     ChevronLeft, Calendar, DollarSign, FileText, CheckCircle, XCircle, 
     AlertCircle, RefreshCw, Send, ArrowRight, Link2, Users, Bed, Home, 
     UserCheck, AlertTriangle, CheckCircle2, Wallet, Landmark, Download, 
-    Upload, Edit3, Clock, ArrowUpRight, Copy, Check, CreditCard
+    Upload, Edit3, Clock, ArrowUpRight, Copy, Check, CreditCard, Zap, Calculator, Plus
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -24,6 +24,7 @@ import {
     fetchBancos 
 } from '../data/loader';
 import { financeLogisticsService, type OcupanteInfo } from '@/features/logistica/services/financeLogisticsService';
+import { suministrosLogisticsService, type SuministroFatura, type RateioMoradorItem } from '@/features/logistica/services/suministrosLogisticsService';
 import { toast } from 'sonner';
 import * as Tooltip from '@radix-ui/react-tooltip';
 
@@ -177,6 +178,97 @@ export const TitleDetail = () => {
             title?.descricao,
             title?.observaciones
         ),
+        enabled: !!title && isLodgingOrder
+    });
+
+    // Faturas de Suministros vinculadas a esta Ordem de Pagamento (Ponte Logística <-> Financeiro <-> Folha)
+    const { data: faturasSuministros = [], refetch: refetchSuministros } = useQuery({
+        queryKey: ['suministros_ordem_pagamento', id],
+        queryFn: () => id ? suministrosLogisticsService.fetchFaturasByOrdemPagamento(id, title?.cod_alojamiento) : Promise.resolve([]),
+        enabled: !!id
+    });
+
+    const [activeSuministroEdit, setActiveSuministroEdit] = useState<Record<string, {
+        limiteAceitavel: number;
+        valorExcedente: number;
+        competenciaDesconto: string;
+        rateio: RateioMoradorItem[];
+    }>>({});
+    const [isLaunchingDiscounts, setIsLaunchingDiscounts] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (faturasSuministros.length > 0) {
+            const nextState: Record<string, any> = {};
+            const defaultComp = new Date().toISOString().slice(0, 7);
+            faturasSuministros.forEach((f) => {
+                nextState[f.id] = {
+                    limiteAceitavel: Number(f.limite_aceitavel_periodo || 0),
+                    valorExcedente: Number(f.valor_excedente || 0),
+                    competenciaDesconto: f.competencia_desconto || defaultComp,
+                    rateio: Array.isArray(f.rateio_detalhes) ? [...f.rateio_detalhes] : []
+                };
+            });
+            setActiveSuministroEdit(nextState);
+        }
+    }, [faturasSuministros]);
+
+    const handleRecalcRateioFinanceiro = (fatura: SuministroFatura, novoLimite: number) => {
+        const current = activeSuministroEdit[fatura.id];
+        if (!current) return;
+        const novoExc = Math.max(0, Number((Number(fatura.valor_fatura || 0) - novoLimite).toFixed(2)));
+        const novoRateio = suministrosLogisticsService.recalcularDistribuicaoProRata(current.rateio, novoExc);
+        setActiveSuministroEdit(prev => ({
+            ...prev,
+            [fatura.id]: {
+                ...current,
+                limiteAceitavel: novoLimite,
+                valorExcedente: novoExc,
+                rateio: novoRateio
+            }
+        }));
+    };
+
+    const handleUpdateMoradorRateioFinanceiro = (faturaId: string, idx: number, field: keyof RateioMoradorItem, value: any) => {
+        setActiveSuministroEdit(prev => {
+            const current = prev[faturaId];
+            if (!current) return prev;
+            const list = [...current.rateio];
+            list[idx] = { ...list[idx], [field]: value };
+            const finalRateio = (field === 'dias_alojado' || field === 'isento')
+                ? suministrosLogisticsService.recalcularDistribuicaoProRata(list, current.valorExcedente)
+                : list;
+            return {
+                ...prev,
+                [faturaId]: {
+                    ...current,
+                    rateio: finalRateio
+                }
+            };
+        });
+    };
+
+    const handleLancarDescontosFolhaFinanceiro = async (fatura: SuministroFatura) => {
+        const state = activeSuministroEdit[fatura.id];
+        if (!state) return;
+        setIsLaunchingDiscounts(fatura.id);
+        try {
+            const res = await suministrosLogisticsService.lancarDescontosExcedenteFolha({
+                faturaId: fatura.id,
+                competenciaDesconto: state.competenciaDesconto,
+                limiteAceitavelPeriodo: state.limiteAceitavel,
+                valorExcedente: state.valorExcedente,
+                rateioDetalhes: state.rateio
+            });
+            toast.success(`${res.lancadosCount} desconto(s) lançado(s)/atualizado(s) na folha (Categoria SUMINISTROS - Total: ${formatCurrency(res.totalDescontado)})!`);
+            await refetchSuministros();
+        } catch (err: any) {
+            toast.error(`Erro ao lançar descontos na folha: ${err.message}`);
+        } finally {
+            setIsLaunchingDiscounts(null);
+        }
+    };
+
+    const _unusedGuard = ({
         enabled: !!title && isLodgingOrder
     });
 
@@ -631,6 +723,201 @@ export const TitleDetail = () => {
                                     </CardContent>
                                 </Card>
                             )}
+
+                            {/* Card de Supervisão de Consumo & Rateio de Excedente de Suministros (Ponte Logística -> Financeiro -> Folha) */}
+                            {faturasSuministros.length > 0 && faturasSuministros.map((fat) => {
+                                const editState = activeSuministroEdit[fat.id] || {
+                                    limiteAceitavel: Number(fat.limite_aceitavel_periodo || 0),
+                                    valorExcedente: Number(fat.valor_excedente || 0),
+                                    competenciaDesconto: fat.competencia_desconto || new Date().toISOString().slice(0, 7),
+                                    rateio: fat.rateio_detalhes || []
+                                };
+                                const somaDescontos = editState.rateio.reduce((acc, r) => acc + (r.isento ? 0 : (Number(r.valor_desconto) || 0)), 0);
+                                const isLancado = fat.rateio_status === 'descontos_lancados';
+
+                                return (
+                                    <Card key={fat.id} className="rounded-3xl border-2 border-amber-200 dark:border-amber-800/70 shadow-sm bg-white dark:bg-slate-900/50 overflow-hidden">
+                                        <CardHeader className="bg-amber-50/60 dark:bg-amber-950/30 border-b border-amber-100 dark:border-amber-900/40 pb-4 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2.5 rounded-2xl bg-amber-500 text-white shadow-xs">
+                                                    <Zap size={20} />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-sm font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                                                        Supervisão de Consumo & Rateio em Folha ({fat.servico})
+                                                        <Badge className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                                            isLancado
+                                                                ? 'bg-emerald-600 text-white'
+                                                                : editState.valorExcedente > 0
+                                                                ? 'bg-amber-600 text-white'
+                                                                : 'bg-slate-200 text-slate-700'
+                                                        }`}>
+                                                            {isLancado ? 'Descontos Lançados na Folha (SUMINISTROS)' : editState.valorExcedente > 0 ? 'Excedente p/ Supervisionar e Lançar' : 'Dentro do Limite Aceitável'}
+                                                        </Badge>
+                                                    </CardTitle>
+                                                    <p className="text-xs text-slate-500 mt-0.5">
+                                                        Fatura <strong>{fat.codigo_fatura}</strong> • Período: {fat.data_inicio ? `${formatDate(fat.data_inicio)} a ${formatDate(fat.data_fim || '')} (${fat.num_dias} dias)` : (fat.mes_periodo || 'N/A')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <Link
+                                                to="/logistica/suministros"
+                                                className="text-xs font-bold text-amber-700 dark:text-amber-300 hover:underline flex items-center gap-1"
+                                            >
+                                                Abrir Gestão de Suministros <ArrowUpRight size={14} />
+                                            </Link>
+                                        </CardHeader>
+
+                                        <CardContent className="p-6 space-y-5">
+                                            {/* KPIs e Ajuste de Franquia / Competência pelo Financeiro */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5">
+                                                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Valor da Fatura</span>
+                                                    <span className="text-lg font-black text-slate-900 dark:text-slate-100 mt-0.5 block">
+                                                        {formatCurrency(fat.valor_fatura)}
+                                                    </span>
+                                                </div>
+
+                                                <div className="p-3.5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/80 dark:border-blue-800/60">
+                                                    <label className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider block mb-1">
+                                                        Limite Aceitável (€)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={editState.limiteAceitavel}
+                                                        onChange={(e) => handleRecalcRateioFinanceiro(fat, Number(e.target.value) || 0)}
+                                                        className="w-full px-2.5 py-1 rounded-lg border border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-900 text-sm font-black text-blue-900 dark:text-blue-200"
+                                                    />
+                                                </div>
+
+                                                <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/60">
+                                                    <label className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider block mb-1">
+                                                        Excedente a Ratear (€)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={editState.valorExcedente}
+                                                        onChange={(e) => {
+                                                            const novoExc = Math.max(0, Number(e.target.value) || 0);
+                                                            const novoRateio = suministrosLogisticsService.recalcularDistribuicaoProRata(editState.rateio, novoExc);
+                                                            setActiveSuministroEdit(prev => ({
+                                                                ...prev,
+                                                                [fat.id]: { ...editState, valorExcedente: novoExc, rateio: novoRateio }
+                                                            }));
+                                                        }}
+                                                        className="w-full px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-sm font-black text-amber-900 dark:text-amber-200"
+                                                    />
+                                                </div>
+
+                                                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800">
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                                                        Mês Folha (Desconto)
+                                                    </label>
+                                                    <input
+                                                        type="month"
+                                                        value={editState.competenciaDesconto}
+                                                        onChange={(e) => setActiveSuministroEdit(prev => ({
+                                                            ...prev,
+                                                            [fat.id]: { ...editState, competenciaDesconto: e.target.value }
+                                                        }))}
+                                                        className="w-full px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-100"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Tabela de Moradores e Desconto Individual Editável pelo Financeiro */}
+                                            {editState.rateio.length > 0 ? (
+                                                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
+                                                    <Table>
+                                                        <TableHeader className="bg-slate-50 dark:bg-slate-900">
+                                                            <TableRow>
+                                                                <TableHead className="text-xs font-bold uppercase px-4">Trabalhador</TableHead>
+                                                                <TableHead className="text-xs font-bold uppercase text-center">Dias no Período</TableHead>
+                                                                <TableHead className="text-xs font-bold uppercase text-center">% Rateio</TableHead>
+                                                                <TableHead className="text-xs font-bold uppercase text-center">Isento</TableHead>
+                                                                <TableHead className="text-xs font-bold uppercase text-right px-4">Desconto Folha (€)</TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {editState.rateio.map((m, idx) => (
+                                                                <TableRow key={m.worker_id || idx} className={m.isento ? 'opacity-50 bg-slate-50/40' : ''}>
+                                                                    <TableCell className="px-4 font-bold text-slate-800 dark:text-slate-200 text-xs">
+                                                                        <div>{m.worker_nome}</div>
+                                                                        <div className="text-[10px] text-slate-400 font-mono">
+                                                                            {m.codigo_colab || 'S/C'} {m.cliente_nome ? `• ${m.cliente_nome}` : ''}
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center">
+                                                                        <input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            value={m.dias_alojado}
+                                                                            onChange={(e) => handleUpdateMoradorRateioFinanceiro(fat.id, idx, 'dias_alojado', Number(e.target.value) || 0)}
+                                                                            className="w-16 text-center px-2 py-1 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold"
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center text-xs font-semibold text-slate-600 dark:text-slate-400">
+                                                                        {Number(m.percentual || 0).toFixed(1)}%
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={Boolean(m.isento)}
+                                                                            onChange={(e) => handleUpdateMoradorRateioFinanceiro(fat.id, idx, 'isento', e.target.checked)}
+                                                                            className="rounded border-slate-300"
+                                                                        />
+                                                                    </TableCell>
+                                                                    <TableCell className="text-right px-4">
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            disabled={Boolean(m.isento)}
+                                                                            value={m.isento ? 0 : m.valor_desconto}
+                                                                            onChange={(e) => handleUpdateMoradorRateioFinanceiro(fat.id, idx, 'valor_desconto', Number(e.target.value) || 0)}
+                                                                            className="w-24 text-right px-2.5 py-1 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-slate-900 text-xs font-black text-slate-900 dark:text-slate-100"
+                                                                        />
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                            ) : (
+                                                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 text-center">
+                                                    Nenhum morador vinculado ao rateio desta fatura.
+                                                </div>
+                                            )}
+
+                                            {/* Rodapé de Ação do Financeiro: Lançar / Atualizar Descontos na Folha */}
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                                <div className="text-xs text-slate-600 dark:text-slate-400">
+                                                    Total dos descontos configurados: <strong className="text-slate-900 dark:text-white">{formatCurrency(somaDescontos)}</strong>
+                                                    {isLancado && (
+                                                        <span className="ml-2 text-emerald-600 dark:text-emerald-400 font-bold">
+                                                            ✓ Já sincronizado em Descontos da Folha (Categoria SUMINISTROS)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    onClick={() => handleLancarDescontosFolhaFinanceiro(fat)}
+                                                    disabled={isLaunchingDiscounts === fat.id || somaDescontos <= 0}
+                                                    className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold gap-2 shadow-sm"
+                                                >
+                                                    <Calculator size={15} />
+                                                    {isLaunchingDiscounts === fat.id
+                                                        ? 'Lançando na Folha...'
+                                                        : isLancado
+                                                        ? 'Atualizar Descontos na Folha (SUMINISTROS)'
+                                                        : 'Confirmar e Lançar Descontos na Folha'}
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
 
                             {/* Card de Itens */}
                             <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 overflow-hidden">

@@ -128,6 +128,7 @@ import { ProvedorForm } from '../features/logistica/pages/Registros/ProvedorForm
 import { DemandasAlocacaoPage } from '../features/logistica/pages/DemandasAlocacaoPage';
 import { ContratosList } from '../features/logistica/pages/Contratos/ContratosList';
 import { FinanceiroLogisticaPage } from '../features/logistica/pages/FinanceiroLogisticaPage';
+import { SuministrosLogisticaPage } from '../features/logistica/pages/SuministrosLogisticaPage';
 import { PublicTermoAlojamentoPage } from '../features/logistica/pages/PublicTermoAlojamentoPage';
 import { FinanceiroRhPage } from '../features/personal/pages/FinanceiroRhPage';
 
@@ -540,6 +541,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'contratos',
                         element: <ContratosList />
+                    },
+                    {
+                        path: 'suministros',
+                        element: <SuministrosLogisticaPage />
                     },
                     {
                         path: 'financeiro',

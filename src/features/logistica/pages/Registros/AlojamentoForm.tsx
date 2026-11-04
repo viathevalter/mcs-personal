@@ -92,6 +92,11 @@ const alojamentoSchema = z.object({
   suministro_gas: z.boolean().default(false),
   suministro_limpieza: z.boolean().default(false),
   suministro_otros: z.boolean().default(false),
+  limite_luz_pessoa: z.coerce.number().min(0).default(0),
+  limite_agua_pessoa: z.coerce.number().min(0).default(0),
+  limite_gas_pessoa: z.coerce.number().min(0).default(0),
+  limite_global_pessoa: z.coerce.number().min(0).default(0),
+  limite_global_alojamento: z.coerce.number().min(0).default(0),
 
   // Observações
   observacoes: z.string().optional(),
@@ -190,6 +195,11 @@ export const AlojamentoForm: React.FC = () => {
       suministro_gas: false,
       suministro_limpieza: false,
       suministro_otros: false,
+      limite_luz_pessoa: 0,
+      limite_agua_pessoa: 0,
+      limite_gas_pessoa: 0,
+      limite_global_pessoa: 0,
+      limite_global_alojamento: 0,
       observacoes: '',
       contrato_codigo: `CT-2026/${Math.floor(1000 + Math.random() * 9000)}`,
       contrato_status: 'Activo',
@@ -677,6 +687,11 @@ export const AlojamentoForm: React.FC = () => {
             suministro_gas: sumin.gas ?? false,
             suministro_limpieza: sumin.limpieza ?? false,
             suministro_otros: sumin.otros ?? false,
+            limite_luz_pessoa: Number(sumin.limite_luz_pessoa || 0),
+            limite_agua_pessoa: Number(sumin.limite_agua_pessoa || 0),
+            limite_gas_pessoa: Number(sumin.limite_gas_pessoa || 0),
+            limite_global_pessoa: Number(sumin.limite_global_pessoa || 0),
+            limite_global_alojamento: Number(sumin.limite_global_alojamento || 0),
             observacoes: a.observacoes || '',
             contrato_codigo: cont.codigo || `CT-2026/${Math.floor(1000 + Math.random() * 9000)}`,
             contrato_status: cont.status || 'Activo',
@@ -742,6 +757,11 @@ export const AlojamentoForm: React.FC = () => {
         gas: data.suministro_gas,
         limpieza: data.suministro_limpieza,
         otros: data.suministro_otros,
+        limite_luz_pessoa: Number(data.limite_luz_pessoa || 0),
+        limite_agua_pessoa: Number(data.limite_agua_pessoa || 0),
+        limite_gas_pessoa: Number(data.limite_gas_pessoa || 0),
+        limite_global_pessoa: Number(data.limite_global_pessoa || 0),
+        limite_global_alojamento: Number(data.limite_global_alojamento || 0),
       };
 
       const contrato = {
@@ -1386,6 +1406,69 @@ export const AlojamentoForm: React.FC = () => {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* BLOCO: Límites de Consumo Aceptable (Franquicias de Suministros) */}
+          <div className="bg-amber-50/40 dark:bg-amber-950/15 p-5 rounded-2xl border border-amber-200/80 dark:border-amber-900/40 space-y-3 shadow-xs">
+            <h3 className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-2 pb-2 border-b border-amber-200/60 dark:border-amber-900/40">
+              <Zap size={14} className="text-amber-600" />
+              Límites de Consumo Aceptable (Franquicias)
+            </h3>
+            <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 leading-relaxed">
+              Configura el valor mensual liberado por persona o techo fijo del inmueble. El excedente podrá prorratearse en <strong>Gestión de Suministros</strong>.
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Luz (€ / pers / mes)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('limite_luz_pessoa')}
+                  placeholder="Ej: 50"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Agua (€ / pers / mes)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('limite_agua_pessoa')}
+                  placeholder="Ej: 20"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Gas (€ / pers / mes)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('limite_gas_pessoa')}
+                  placeholder="Ej: 30"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase mb-1">Global (€ / pers / mes)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('limite_global_pessoa')}
+                  placeholder="Ej: 50"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase mb-1">Techo Fijo Inmueble (€ / mes total)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('limite_global_alojamento')}
+                  placeholder="Ej: 150.00 (Si > 0, usa este techo fijo mensual)"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 text-xs font-bold"
+                />
+              </div>
             </div>
           </div>
 
