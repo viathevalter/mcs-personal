@@ -375,21 +375,16 @@ serve(async (req) => {
           .replace(/https:\/\/iili\.io\/nwMkkSn\.png/gi, `${appUrl}/assets/images/luminous-mkt06-logo.png`)
           .replace(/https:\/\/iili\.io\/nhyf4R9\.png/gi, `${appUrl}/assets/images/luminous-mkt05-logo.png`)
           .replace(/src=["']data:image\/[a-zA-Z]+;base64,[^"']{500,}["']/gi, `src="${appUrl}/assets/images/wiseowe-logo.png"`)
-          // Variáveis explícitas por vendedor (garantia 100% de direcionamento separado por comercial)
-          .replace(/\{\{\s*whatsapp_url_fatumata\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=fatumata&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=fatumata&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_liseth\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=liseth&dest=${encodeURIComponent(waLisethUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_alba\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=alba&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=alba&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=giada&dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${campaign.empresa_id}`)
-          .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&seller=alex&dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${campaign.empresa_id}`)
+          // Variáveis explícitas por vendedor (link direto oficial wa.me para máxima entregabilidade sem redirecionamento cruzado de domínio)
+          .replace(/\{\{\s*whatsapp_url_fatumata\s*\}\}/g, waOmarUrl)
+          .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, waOmarUrl)
+          .replace(/\{\{\s*whatsapp_url_liseth\s*\}\}/g, waLisethUrl)
+          .replace(/\{\{\s*whatsapp_url_alba\s*\}\}/g, waMichelleUrl)
+          .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, waMichelleUrl)
+          .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, waGiadaUrl)
+          .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, waAlexUrl)
           // Variável genérica inteligente (respeita template/vendedor atribuído, país do lead e empresa)
-          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(defaultWaUrl)}&empresa_id=${campaign.empresa_id}`);
-
-        // Preservar links wa.me explicitamente definidos no HTML do template, mantendo o número e texto exatos
-        res = res.replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, (match) => {
-          return `${appUrl}/public/whatsapp?lead_id=${targetLeadId}&dest=${encodeURIComponent(match)}&empresa_id=${campaign.empresa_id}`;
-        });
+          .replace(/\{\{\s*whatsapp_url\s*\}\}/g, defaultWaUrl);
 
         return res;
       };
@@ -398,12 +393,8 @@ serve(async (req) => {
       const emailSubject = formatVars(rawSubject);
       const plainTextBody = stripHtmlToText(rawFormattedHtml);
 
-      // Injeção de pixel de rastreamento transparente 1x1 universal
-      const trackingPixelUrl = `${supabaseUrl}/functions/v1/resend-webhook?event=pixel_open&lead_id=${targetLeadId}&campaign_id=${campaign.id}`;
-      const trackingPixelHtml = `<img src="${trackingPixelUrl}" width="1" height="1" alt="" style="display:none !important; visibility:hidden !important; opacity:0 !important; width:1px !important; height:1px !important; border:0 !important;" />`;
-      const htmlBody = rawFormattedHtml.includes('</body>')
-        ? rawFormattedHtml.replace('</body>', `${trackingPixelHtml}</body>`)
-        : `${rawFormattedHtml}${trackingPixelHtml}`;
+      // Corpo HTML limpo (sem pixel 1x1 oculto de domínio externo para evitar classificação de spam/phishing)
+      const htmlBody = rawFormattedHtml;
       
       // Resolução inteligente do Remetente (Subdomínio Resend) e Reply-To (Outlook M365) por Comercial, Empresa e País
       let validSenderEmail =
@@ -565,8 +556,11 @@ serve(async (req) => {
           }
 
           // 4. Trava de 1 E-mail por Domínio Corporativo no Lote + Cooldown Anti-Repetição (21 dias)
+          // Domínios internos da empresa ficam liberados da trava de mesmo domínio e do cooldown de 21 dias para permitir testes da diretoria/equipe
+          const internalWhitelistedDomains = new Set(["gestaologinpro.com", "luminousalley.com", "wiseowe.com", "triangulolda.com"]);
+          const isInternalTestDomain = internalWhitelistedDomains.has(emailDomain);
           const genericWebmailsEs = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.es", "yahoo.com", "hotmail.es", "outlook.es", "live.com", "icloud.com"]);
-          const isCorporateDomain = emailDomain && !genericWebmailsEs.has(emailDomain) && !frenchPersonalWebmails.has(emailDomain);
+          const isCorporateDomain = emailDomain && !isInternalTestDomain && !genericWebmailsEs.has(emailDomain) && !frenchPersonalWebmails.has(emailDomain);
 
           if (isCorporateDomain && sentDomainsInBatch.has(emailDomain)) {
             console.warn(`[DEDUPLICAÇÃO DOMÍNIO] Empresa ${emailDomain} já recebeu e-mail neste lote. Pulando ${cleanLeadEmail}.`);
@@ -580,7 +574,7 @@ serve(async (req) => {
             continue;
           }
 
-          if (targetLeadId) {
+          if (targetLeadId && !isInternalTestDomain) {
             const cooldownDate = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString();
             const { count: recentSentCount } = await supabase
               .from("marketing_campaign_queue")
@@ -615,8 +609,6 @@ serve(async (req) => {
             text: plainTextBody,
             headers: {
               "Reply-To": validReplyTo,
-              "List-Unsubscribe": `<${unsubscribeLink}>`,
-              "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
             },
             tags: [
               { name: "campaign_id", value: campaign.id },
