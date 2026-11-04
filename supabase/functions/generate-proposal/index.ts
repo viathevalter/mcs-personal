@@ -183,7 +183,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse do body
-    const { estimacion_id, client_email, include_proposal = true, include_contract = true } = await req.json();
+    const { estimacion_id, client_email, include_proposal = true, include_contract = true, reprocess_only = false } = await req.json();
 
     if (!estimacion_id) {
       return new Response(
@@ -732,6 +732,46 @@ serve(async (req) => {
 
       if (uploadContractErr) {
         throw new Error(`Falha ao salvar contrato gerado no storage: ${uploadContractErr.message}`);
+      }
+    }
+
+    if (reprocess_only) {
+      const { data: existingPending } = await supabase
+        .schema("core_comercial")
+        .from("proposal_signatures")
+        .select("*")
+        .eq("estimacion_id", est.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPending) {
+        const updatePayload: any = { updated_at: new Date().toISOString() };
+        if (docPath) {
+          updatePayload.document_url = docPath;
+          updatePayload.signed_document_url = docPath.replace(/\.docx$/i, ".pdf");
+        }
+        if (contractDocPath) {
+          updatePayload.contract_document_url = contractDocPath;
+          updatePayload.contract_signed_document_url = contractDocPath.replace(/\.docx$/i, ".pdf");
+        }
+        await supabase
+          .schema("core_comercial")
+          .from("proposal_signatures")
+          .update(updatePayload)
+          .eq("id", existingPending.id);
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            reprocessed: true,
+            proposal_signature_id: existingPending.id,
+            signature_token: existingPending.signature_token,
+            document_url: updatePayload.document_url || existingPending.document_url,
+            contract_document_url: updatePayload.contract_document_url || existingPending.contract_document_url,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
