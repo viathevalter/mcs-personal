@@ -3,7 +3,7 @@ import {
     Loader2, Search, Wallet, Download, Eye, EyeOff, FileText, 
     UploadCloud, UserCheck, AlertCircle, RefreshCw, Send, CheckCircle2, 
     XCircle, Clock, Link2, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, HelpCircle, PenTool,
-    ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy
+    ArrowUpDown, ArrowUp, ArrowDown, Trash2, Copy, Pencil
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { ExportBankAccountsDialog } from '../components/ExportBankAccountsDialog
 import { IbanDocumentUploadDialog } from '../components/IbanDocumentUploadDialog';
 import { CreateIbanRequestDialog } from '../components/CreateIbanRequestDialog';
 import { ReviewIbanRequestDialog } from '../components/ReviewIbanRequestDialog';
+import { EditIbanDialog } from '@/features/workers/components/EditIbanDialog';
 import type { IbanDocType } from '../api/ibanDocumentsApi';
 import { Link } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
@@ -80,6 +81,8 @@ export function BankAccountsPage() {
 
     const [reviewRequestData, setReviewRequestData] = useState<IbanChangeRequest | null>(null);
     const [reviewRequestOpen, setReviewRequestOpen] = useState(false);
+    const [editIbanData, setEditIbanData] = useState<{ workerId: string; workerName: string; iban: string; banco: string } | null>(null);
+    const [editIbanOpen, setEditIbanOpen] = useState(false);
 
     // Fetch primary bank accounts and request history
     const { data: bankAccounts, isLoading: isLoadingAccounts } = useAllBankAccounts(selectedEmpresaId || undefined, periodMonth, periodYear);
@@ -675,6 +678,24 @@ export function BankAccountsPage() {
                                                                     >
                                                                         {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                                                     </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            setEditIbanData({
+                                                                                workerId: account.worker_id,
+                                                                                workerName: account.worker_nome,
+                                                                                iban: account.iban || '',
+                                                                                banco: account.banco || ''
+                                                                            });
+                                                                            setEditIbanOpen(true);
+                                                                        }}
+                                                                        className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-md transition-colors"
+                                                                        title="Corrigir número do IBAN / Banco"
+                                                                    >
+                                                                        <Pencil className="w-3.5 h-3.5" />
+                                                                    </button>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1061,6 +1082,17 @@ export function BankAccountsPage() {
                     onOpenChange={setReviewRequestOpen}
                     request={reviewRequestData}
                     empresaId={selectedEmpresaId}
+                />
+            )}
+
+            {editIbanData && (
+                <EditIbanDialog
+                    open={editIbanOpen}
+                    onOpenChange={setEditIbanOpen}
+                    workerId={editIbanData.workerId}
+                    workerName={editIbanData.workerName}
+                    initialIban={editIbanData.iban}
+                    initialBanco={editIbanData.banco}
                 />
             )}
         </div>

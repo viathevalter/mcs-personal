@@ -68,6 +68,43 @@ export function useManageWorkerIban() {
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['worker_ibans', variables.worker_id] });
+            queryClient.invalidateQueries({ queryKey: ['all-bank-accounts'] });
+        }
+    });
+
+    const editIbanMutation = useMutation({
+        mutationFn: async ({ id, worker_id, banco, iban, observacoes }: { id?: string, worker_id: string, banco: string, iban: string, observacoes?: string | null }) => {
+            if (!user) throw new Error('Usuário não autenticado');
+
+            const updatePayload: Record<string, any> = {
+                banco,
+                iban,
+                changed_by: user.id,
+                updated_at: new Date().toISOString()
+            };
+
+            if (observacoes !== undefined) {
+                updatePayload.observacoes = observacoes;
+            }
+
+            let query = supabase
+                .schema('core_personal')
+                .from('worker_ibans')
+                .update(updatePayload);
+
+            if (id) {
+                query = query.eq('id', id);
+            } else {
+                query = query.eq('worker_id', worker_id).eq('status', 'ATIVO');
+            }
+
+            const { error } = await query;
+
+            if (error) throw mapSupabaseError(error);
+        },
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ['worker_ibans', variables.worker_id] });
+            queryClient.invalidateQueries({ queryKey: ['all-bank-accounts'] });
         }
     });
 
@@ -75,9 +112,6 @@ export function useManageWorkerIban() {
         mutationFn: async ({ id, status, worker_id }: { id: string, status: 'ATIVO' | 'INATIVO' | 'BLOQUEADO', worker_id: string }) => {
             if (!user) throw new Error('Usuário não autenticado');
 
-            // If setting to ATIVO, we should ensure others are INATIVO first? 
-            // Better to let the user figure it out or just run the update above. 
-            // For now, simple update is enough.
             if (status === 'ATIVO') {
                 await supabase
                     .schema('core_personal')
@@ -97,6 +131,7 @@ export function useManageWorkerIban() {
         },
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['worker_ibans', variables.worker_id] });
+            queryClient.invalidateQueries({ queryKey: ['all-bank-accounts'] });
         }
     });
 
@@ -126,6 +161,7 @@ export function useManageWorkerIban() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['worker_ibans', variables.worker_id] });
             queryClient.invalidateQueries({ queryKey: ['worker_documents', variables.worker_id] }); // Update docs tab
+            queryClient.invalidateQueries({ queryKey: ['all-bank-accounts'] });
         }
     });
 
@@ -133,6 +169,8 @@ export function useManageWorkerIban() {
     return {
         addIban: addIbanMutation.mutateAsync,
         isAdding: addIbanMutation.isPending,
+        editIban: editIbanMutation.mutateAsync,
+        isEditing: editIbanMutation.isPending,
         updateStatus: updateIbanStatusMutation.mutateAsync,
         isUpdatingStatus: updateIbanStatusMutation.isPending,
         attachDocument: attachDocumentMutation.mutateAsync,

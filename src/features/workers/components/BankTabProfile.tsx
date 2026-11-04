@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, Plus, FileSignature, CheckCircle2, History, UploadCloud } from 'lucide-react';
+import { Download, Loader2, Plus, FileSignature, CheckCircle2, History, UploadCloud, Pencil } from 'lucide-react';
 import { useRole } from '@/app/providers/RoleProvider';
 import { useWorkerIbans } from '../hooks/useWorkerIbans';
 import { useWorkerById } from '../hooks/useWorkerById';
 import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
 import { useManageWorkerIban } from '../hooks/useManageWorkerIban';
 import { AddIbanDialog } from './AddIbanDialog';
+import { EditIbanDialog } from './EditIbanDialog';
 import { generateIbanAuthDoc } from '../utils/printIbanAuth';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -25,6 +26,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
     
     const { data: ibans, isLoading, isError } = useWorkerIbans(workerId);
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const [isEditOpen, setIsEditOpen] = useState(false);
     const { attachDocument, isAttaching } = useManageWorkerIban();
 
     const { data: worker } = useWorkerById(workerId);
@@ -117,6 +119,17 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                     <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                                     <CardTitle className="text-emerald-900 dark:text-emerald-100">Conta Ativa</CardTitle>
                                 </div>
+                                {activeIban && globalRole !== 'visualizador' && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setIsEditOpen(true)}
+                                        className="h-8 text-xs border-emerald-300 dark:border-emerald-800 bg-white/80 dark:bg-slate-900/80 hover:bg-emerald-100/60 dark:hover:bg-emerald-950/60 text-emerald-800 dark:text-emerald-200 shadow-sm"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5 mr-1.5" />
+                                        Editar / Corrigir IBAN
+                                    </Button>
+                                )}
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -128,7 +141,19 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                     </div>
                                     <div className="col-span-1">
                                         <p className="text-sm font-medium text-emerald-800/70 dark:text-emerald-300">IBAN</p>
-                                        <p className="text-lg font-mono font-semibold">{activeIban.iban}</p>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-lg font-mono font-semibold">{activeIban.iban}</p>
+                                            {globalRole !== 'visualizador' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setIsEditOpen(true)}
+                                                    className="p-1 text-emerald-700/70 hover:text-emerald-900 dark:text-emerald-400 dark:hover:text-emerald-200 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 rounded transition-colors"
+                                                    title="Corrigir número do IBAN"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                     {activeIban.observacoes && (
                                         <div className="col-span-2 mt-2">
@@ -259,6 +284,19 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                 onOpenChange={setIsAddOpen} 
                 workerId={workerId} 
             />
+
+            {activeIban && (
+                <EditIbanDialog
+                    open={isEditOpen}
+                    onOpenChange={setIsEditOpen}
+                    workerId={workerId}
+                    workerName={worker?.nome}
+                    ibanId={activeIban.id}
+                    initialIban={activeIban.iban || ''}
+                    initialBanco={activeIban.banco || ''}
+                    initialObservacoes={activeIban.observacoes}
+                />
+            )}
         </div>
     );
 }
