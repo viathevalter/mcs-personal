@@ -705,6 +705,7 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
     const prevExt = (prevReq?.extracted_data || {}) as Record<string, any>;
     const prevIbanUrl = prevReq?.iban_url || prevExt.iban_url || null;
     const prevResidenceUrl = prevReq?.residence_url || prevExt.residence_url || null;
+    const prevResidenceBackUrl = prevExt.residence_back_url || null;
 
     const extractedData: any = {
         ...prevExt,
@@ -728,6 +729,7 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
         banco: prevExt.banco || '',
         iban_url: prevIbanUrl,
         residence_url: prevResidenceUrl,
+        residence_back_url: prevResidenceBackUrl,
         client_id: clientId || prevExt.client_id || null,
         start_date: startDate || prevExt.start_date || null
     };
@@ -1126,10 +1128,12 @@ export async function approveDocumentRequest(
         try {
             const empresaIdForDocs = currentReq.empresa_id || 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d';
             const residenceFileUrl = currentReq.residence_url || (currentReq.extracted_data?.residence_url) || null;
+            const residenceBackFileUrl = (currentReq.extracted_data?.residence_back_url) || null;
             const docsToArchive: Array<{ docType: string; label: string; filePath: string | null }> = [
                 { docType: 'foto', label: 'Foto do Trabalhador', filePath: currentReq.selfie_url },
                 { docType: 'passaporte', label: 'Passaporte / Identificação', filePath: currentReq.passport_url },
-                { docType: 'residencia_europeia', label: 'Residência Europeia', filePath: residenceFileUrl },
+                { docType: 'residencia_europeia', label: residenceBackFileUrl ? 'Residência Europeia (Frente)' : 'Residência Europeia', filePath: residenceFileUrl },
+                { docType: 'residencia_europeia', label: 'Residência Europeia (Verso)', filePath: residenceBackFileUrl },
                 { docType: 'nif', label: 'NIF', filePath: currentReq.nif_url },
                 { docType: 'niss', label: 'NISS', filePath: currentReq.niss_url },
                 { docType: 'permision_conducir', label: 'Carta de Condução', filePath: currentReq.license_url },

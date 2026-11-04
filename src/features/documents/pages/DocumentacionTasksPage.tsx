@@ -391,6 +391,7 @@ export function DocumentacionTasksPage() {
     const [selectedRequest, setSelectedRequest] = useState<DocumentRequest | null>(null);
     const [verifying, setVerifying] = useState(false);
     const [activeDocTab, setActiveDocTab] = useState<'identity' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie' | 'residence'>('identity');
+    const [residenceSide, setResidenceSide] = useState<'front' | 'back'>('front');
     const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
     const [selectedAttachDocType, setSelectedAttachDocType] = useState<string>('passaporte');
     const [savingAttachDoc, setSavingAttachDoc] = useState(false);
@@ -1949,6 +1950,7 @@ Muchas gracias.`;
             fecha_nacimiento: normalizedBirthDate
         });
         setActiveDocTab('identity');
+        setResidenceSide('front');
         setSelectedAttachDocType('passaporte');
         setVerifyDialogOpen(true);
     };
@@ -1961,7 +1963,11 @@ Muchas gracias.`;
 
         let path = '';
         if (activeDocTab === 'identity') path = selectedRequest.passport_url || '';
-        else if (activeDocTab === 'residence') path = selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || '';
+        else if (activeDocTab === 'residence') {
+            path = residenceSide === 'back'
+                ? ((selectedRequest.extracted_data as any)?.residence_back_url || '')
+                : (selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || '');
+        }
         else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
         else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
         else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
@@ -1979,7 +1985,7 @@ Muchas gracias.`;
             const docTypeLabelMap: Record<string, string> = {
                 foto: 'Foto do Trabalhador',
                 passaporte: 'Passaporte',
-                residencia_europeia: 'Residência Europeia',
+                residencia_europeia: activeDocTab === 'residence' ? (residenceSide === 'back' ? 'Residência Europeia (Verso)' : 'Residência Europeia (Frente)') : 'Residência Europeia',
                 nie: 'Residência Europeia',
                 identificacao: 'Doc. Identificação Genérica',
                 nif: 'NIF',
@@ -2085,9 +2091,10 @@ Muchas gracias.`;
             const ext = file.name.split('.').pop() || 'jpg';
             const cleanExt = ext.toLowerCase();
             const tokenFolder = selectedRequest.token || selectedRequest.id;
-            const targetFilePath = `${tokenFolder}/${activeDocTab}_${Date.now()}.${cleanExt}`;
+            const filePrefix = activeDocTab === 'residence' && residenceSide === 'back' ? 'residence_back' : activeDocTab;
+            const targetFilePath = `${tokenFolder}/${filePrefix}_${Date.now()}.${cleanExt}`;
 
-            toast.info(`Fazendo upload do arquivo para ${activeDocTab.toUpperCase()}...`);
+            toast.info(`Fazendo upload do arquivo para ${filePrefix.toUpperCase()}...`);
 
             const { error: uploadError } = await supabase.storage
                 .from('worker-incoming-docs')
@@ -2101,7 +2108,7 @@ Muchas gracias.`;
             // Mapeamento para coluna de document_requests
             let updateColumn = '';
             if (activeDocTab === 'identity') updateColumn = 'passport_url';
-            else if (activeDocTab === 'residence') updateColumn = 'residence_url';
+            else if (activeDocTab === 'residence' && residenceSide === 'front') updateColumn = 'residence_url';
             else if (activeDocTab === 'nif') updateColumn = 'nif_url';
             else if (activeDocTab === 'niss') updateColumn = 'niss_url';
             else if (activeDocTab === 'license') updateColumn = 'license_url';
@@ -2109,14 +2116,17 @@ Muchas gracias.`;
             else if (activeDocTab === 'selfie') updateColumn = 'selfie_url';
 
             const updatePayload: any = {
-                [updateColumn]: targetFilePath,
+                ...(updateColumn ? { [updateColumn]: targetFilePath } : {}),
                 updated_at: new Date().toISOString()
             };
 
             if (activeDocTab === 'iban' || activeDocTab === 'residence') {
+                const extKey = activeDocTab === 'iban'
+                    ? 'iban_url'
+                    : (residenceSide === 'back' ? 'residence_back_url' : 'residence_url');
                 updatePayload.extracted_data = {
                     ...(selectedRequest.extracted_data || {}),
-                    [activeDocTab === 'iban' ? 'iban_url' : 'residence_url']: targetFilePath
+                    [extKey]: targetFilePath
                 };
             }
 
@@ -2131,11 +2141,11 @@ Muchas gracias.`;
             // Atualizar o selectedRequest em memória
             const updatedRequest: DocumentRequest = {
                 ...selectedRequest,
-                [updateColumn]: targetFilePath,
+                ...(updateColumn ? { [updateColumn]: targetFilePath } : {}),
                 ...(activeDocTab === 'iban' || activeDocTab === 'residence' ? {
                     extracted_data: {
                         ...(selectedRequest.extracted_data || {}),
-                        [activeDocTab === 'iban' ? 'iban_url' : 'residence_url']: targetFilePath
+                        [activeDocTab === 'iban' ? 'iban_url' : (residenceSide === 'back' ? 'residence_back_url' : 'residence_url')]: targetFilePath
                     }
                 } : {})
             };
@@ -2153,7 +2163,7 @@ Muchas gracias.`;
                 setActiveDocUrl(signedData.signedUrl);
             }
 
-            toast.success(`Arquivo de ${activeDocTab.toUpperCase()} anexado com sucesso!`);
+            toast.success(`Arquivo de ${filePrefix.toUpperCase()} anexado com sucesso!`);
 
             // Executar OCR se for documento de identificação/NIF/NISS/Carta
             if (['identity', 'nif', 'niss', 'license'].includes(activeDocTab)) {
@@ -2209,7 +2219,17 @@ Muchas gracias.`;
         let tabLabel = '';
 
         if (activeDocTab === 'identity') { path = selectedRequest.passport_url || ''; updateColumn = 'passport_url'; tabLabel = 'Identificação'; }
-        else if (activeDocTab === 'residence') { path = selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || ''; updateColumn = 'residence_url'; tabLabel = 'Residência Europeia'; }
+        else if (activeDocTab === 'residence') {
+            if (residenceSide === 'back') {
+                path = (selectedRequest.extracted_data as any)?.residence_back_url || '';
+                updateColumn = '';
+                tabLabel = 'Residência Europeia (Verso)';
+            } else {
+                path = selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || '';
+                updateColumn = 'residence_url';
+                tabLabel = 'Residência Europeia (Frente)';
+            }
+        }
         else if (activeDocTab === 'nif') { path = selectedRequest.nif_url || ''; updateColumn = 'nif_url'; tabLabel = 'NIF'; }
         else if (activeDocTab === 'niss') { path = selectedRequest.niss_url || ''; updateColumn = 'niss_url'; tabLabel = 'NISS'; }
         else if (activeDocTab === 'license') { path = selectedRequest.license_url || ''; updateColumn = 'license_url'; tabLabel = 'Carta de Condução'; }
@@ -2229,12 +2249,15 @@ Muchas gracias.`;
         setRejectingDoc(true);
         try {
             const reqUpdatePayload: any = {
-                [updateColumn]: null
+                ...(updateColumn ? { [updateColumn]: null } : {})
             };
             if (activeDocTab === 'iban' || activeDocTab === 'residence') {
+                const extKey = activeDocTab === 'iban'
+                    ? 'iban_url'
+                    : (residenceSide === 'back' ? 'residence_back_url' : 'residence_url');
                 reqUpdatePayload.extracted_data = {
                     ...(selectedRequest.extracted_data || {}),
-                    [activeDocTab === 'iban' ? 'iban_url' : 'residence_url']: null
+                    [extKey]: null
                 };
             }
 
@@ -2275,12 +2298,15 @@ Muchas gracias.`;
 
             const updatedReq: any = {
                 ...selectedRequest,
-                [updateColumn]: null
+                ...(updateColumn ? { [updateColumn]: null } : {})
             };
             if (activeDocTab === 'iban' || activeDocTab === 'residence') {
+                const extKey = activeDocTab === 'iban'
+                    ? 'iban_url'
+                    : (residenceSide === 'back' ? 'residence_back_url' : 'residence_url');
                 updatedReq.extracted_data = {
                     ...(selectedRequest.extracted_data || {}),
-                    [activeDocTab === 'iban' ? 'iban_url' : 'residence_url']: null
+                    [extKey]: null
                 };
             }
 
@@ -2303,7 +2329,11 @@ Muchas gracias.`;
         
         let path = '';
         if (activeDocTab === 'identity') path = selectedRequest.passport_url || '';
-        else if (activeDocTab === 'residence') path = selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || '';
+        else if (activeDocTab === 'residence') {
+            path = residenceSide === 'back'
+                ? ((selectedRequest.extracted_data as any)?.residence_back_url || '')
+                : (selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || '');
+        }
         else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
         else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
         else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
@@ -2329,14 +2359,18 @@ Muchas gracias.`;
             }
         }
         getSigned();
-    }, [selectedRequest, activeDocTab]);
+    }, [selectedRequest, activeDocTab, residenceSide]);
 
     // Funções para download individual e em lote dos documentos enviados pelo trabalhador
     const handleDownloadCurrentDoc = async () => {
         if (!selectedRequest) return;
         let path = '';
         if (activeDocTab === 'identity') path = selectedRequest.passport_url || '';
-        else if (activeDocTab === 'residence') path = selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || '';
+        else if (activeDocTab === 'residence') {
+            path = residenceSide === 'back'
+                ? ((selectedRequest.extracted_data as any)?.residence_back_url || '')
+                : (selectedRequest.residence_url || (selectedRequest.extracted_data?.residence_url) || '');
+        }
         else if (activeDocTab === 'nif') path = selectedRequest.nif_url || '';
         else if (activeDocTab === 'niss') path = selectedRequest.niss_url || '';
         else if (activeDocTab === 'license') path = selectedRequest.license_url || '';
@@ -2359,12 +2393,13 @@ Muchas gracias.`;
             const ext = path.split('.').pop() || 'file';
             const a = document.createElement('a');
             a.href = data.signedUrl;
-            a.download = `${workerName}_${activeDocTab}.${ext}`;
+            const downloadSuffix = activeDocTab === 'residence' ? `residence_${residenceSide}` : activeDocTab;
+            a.download = `${workerName}_${downloadSuffix}.${ext}`;
             a.target = '_blank';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-            toast.success(`Download do documento (${activeDocTab.toUpperCase()}) iniciado!`);
+            toast.success(`Download do documento (${downloadSuffix.toUpperCase()}) iniciado!`);
         } catch (err: any) {
             console.error("Erro ao baixar documento:", err);
             toast.error("Falha ao baixar o documento.");
@@ -2376,7 +2411,8 @@ Muchas gracias.`;
         const workerName = selectedRequest.worker?.nome || 'Trabalhador';
         const docs = [
             { label: 'Identificacao_Passaporte', path: selectedRequest.passport_url },
-            { label: 'Residencia_Europeia', path: selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url },
+            { label: 'Residencia_Europeia_Frente', path: selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url },
+            { label: 'Residencia_Europeia_Verso', path: (selectedRequest.extracted_data as any)?.residence_back_url },
             { label: 'NIF', path: selectedRequest.nif_url },
             { label: 'NISS', path: selectedRequest.niss_url },
             { label: 'Carta_Conducao', path: selectedRequest.license_url },
@@ -5251,7 +5287,7 @@ Muchas gracias.`;
                                         onClick={() => handleTabChange('residence')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all whitespace-nowrap ${activeDocTab === 'residence' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        Residência {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? '●' : ''}
+                                        Residência {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url || (selectedRequest.extracted_data as any)?.residence_back_url) ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
@@ -5289,6 +5325,37 @@ Muchas gracias.`;
                                         Selfie {selectedRequest.selfie_url ? '●' : ''}
                                     </button>
                                 </div>
+
+                                {/* Sub-seletor Frente / Verso quando estiver na aba Residência */}
+                                {activeDocTab === 'residence' && (
+                                    <div className="px-2.5 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-2">
+                                        <span className="text-[11px] font-semibold text-slate-400">Lado do Documento de Residência:</span>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setResidenceSide('front')}
+                                                className={`px-3 py-1 rounded text-xs font-bold transition-all border ${
+                                                    residenceSide === 'front'
+                                                        ? 'bg-indigo-600 text-white border-indigo-500'
+                                                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                                                }`}
+                                            >
+                                                1. Frente (Anverso) {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? '●' : ''}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setResidenceSide('back')}
+                                                className={`px-3 py-1 rounded text-xs font-bold transition-all border ${
+                                                    residenceSide === 'back'
+                                                        ? 'bg-indigo-600 text-white border-indigo-500'
+                                                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                                                }`}
+                                            >
+                                                2. Verso (Reverso) {(selectedRequest.extracted_data as any)?.residence_back_url ? '●' : ''}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Barra de Ação Rápida: Classificar & Anexar ao Cadastro do Trabalhador */}
                                 <div className="p-2.5 bg-indigo-950/40 border-b border-indigo-500/20 flex flex-wrap items-center justify-between gap-2">
@@ -5392,7 +5459,9 @@ Muchas gracias.`;
                                                 <UploadCloud className="h-6 w-6" />
                                             </div>
                                             <div>
-                                                <p className="text-sm font-semibold text-slate-200">Nenhum arquivo enviado para {activeDocTab === 'residence' ? 'RESIDÊNCIA EUROPEIA' : activeDocTab.toUpperCase()}</p>
+                                                <p className="text-sm font-semibold text-slate-200">
+                                                    Nenhum arquivo enviado para {activeDocTab === 'residence' ? `RESIDÊNCIA EUROPEIA (${residenceSide === 'back' ? 'VERSO' : 'FRENTE'})` : activeDocTab.toUpperCase()}
+                                                </p>
                                                 <p className="text-xs text-slate-400 mt-1">Clique aqui para carregar o arquivo (Foto/PDF) enviado pelo trabalhador via WhatsApp ou e-mail</p>
                                             </div>
                                             <Button
@@ -5493,29 +5562,53 @@ Muchas gracias.`;
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center justify-between pt-2 border-t border-indigo-200/60 dark:border-indigo-800/60 text-xs">
-                                                {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? (
-                                                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
-                                                        <CheckCircle2 className="h-4 w-4 shrink-0" /> Foto da Residência Europeia anexada
-                                                    </span>
-                                                ) : verifyFormData.tiene_residencia_ue ? (
-                                                    <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1.5">
-                                                        <AlertTriangle className="h-4 w-4 shrink-0" /> Sem foto de residência anexada
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-slate-500 dark:text-slate-400 text-[11px]">
-                                                        Não possui residência europeia (apenas passaporte)
-                                                    </span>
-                                                )}
-                                                <Button
-                                                    type="button"
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() => handleTabChange('residence')}
-                                                    className="h-7 text-xs px-2.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
-                                                >
-                                                    {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? 'Ver Foto da Residência' : 'Abrir Aba Residência'}
-                                                </Button>
+                                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-indigo-200/60 dark:border-indigo-800/60 text-xs">
+                                                <div className="flex flex-wrap items-center gap-3">
+                                                    {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? (
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Frente anexada
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Sem Frente
+                                                        </span>
+                                                    )}
+                                                    {(selectedRequest.extracted_data as any)?.residence_back_url ? (
+                                                        <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Verso anexado
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Sem Verso
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            handleTabChange('residence');
+                                                            setResidenceSide('front');
+                                                        }}
+                                                        className="h-7 text-xs px-2.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                                                    >
+                                                        Ver Frente
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => {
+                                                            handleTabChange('residence');
+                                                            setResidenceSide('back');
+                                                        }}
+                                                        className="h-7 text-xs px-2.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
+                                                    >
+                                                        Ver Verso
+                                                    </Button>
+                                                </div>
                                             </div>
 
                                             {verifyFormData.tiene_residencia_ue && (

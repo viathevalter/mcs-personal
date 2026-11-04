@@ -86,6 +86,7 @@ export function WorkerDocCapturePage() {
     // Document URLs and File states
     const [passportUrl, setPassportUrl] = useState<string | null>(null);
     const [residenceUrl, setResidenceUrl] = useState<string | null>(null);
+    const [residenceBackUrl, setResidenceBackUrl] = useState<string | null>(null);
     const [nifUrl, setNifUrl] = useState<string | null>(null);
     const [nissUrl, setNissUrl] = useState<string | null>(null);
     const [licenseUrl, setLicenseUrl] = useState<string | null>(null);
@@ -96,10 +97,13 @@ export function WorkerDocCapturePage() {
     const [ocrLoading, setOcrLoading] = useState<{ [key: string]: boolean }>({
         identity: false,
         residence: false,
+        residence_back: false,
         nif: false,
         niss: false,
         license: false
     });
+
+    const residenceSectionRef = useRef<HTMLDivElement>(null);
 
     // Extracted / Form fields
     const [formData, setFormData] = useState({
@@ -133,6 +137,7 @@ export function WorkerDocCapturePage() {
     const inputRefs = {
         identity: useRef<HTMLInputElement>(null),
         residence: useRef<HTMLInputElement>(null),
+        residence_back: useRef<HTMLInputElement>(null),
         nif: useRef<HTMLInputElement>(null),
         niss: useRef<HTMLInputElement>(null),
         license: useRef<HTMLInputElement>(null),
@@ -156,6 +161,7 @@ export function WorkerDocCapturePage() {
                 // Carregar dados existentes se houver
                 setPassportUrl(reqData.passport_url);
                 setResidenceUrl(reqData.residence_url || (reqData.extracted_data as any)?.residence_url || null);
+                setResidenceBackUrl((reqData.extracted_data as any)?.residence_back_url || null);
                 setNifUrl(reqData.nif_url);
                 setNissUrl(reqData.niss_url);
                 setLicenseUrl(reqData.license_url);
@@ -205,7 +211,7 @@ export function WorkerDocCapturePage() {
     }, [token]);
 
     // 2. Upload de arquivo e execução do OCR
-    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'identity' | 'residence' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, docType: 'identity' | 'residence' | 'residence_back' | 'nif' | 'niss' | 'license' | 'iban' | 'selfie') => {
         const file = e.target.files?.[0];
         // Reset input value so user can select the same file or re-try
         e.target.value = '';
@@ -241,6 +247,12 @@ export function WorkerDocCapturePage() {
             if (docType === 'residence') {
                 setResidenceUrl(filePath);
                 setFormData(prev => ({ ...prev, tiene_residencia_ue: true }));
+                toast.success("Foto da FRENTE (Anverso) carregada!");
+            }
+            if (docType === 'residence_back') {
+                setResidenceBackUrl(filePath);
+                setFormData(prev => ({ ...prev, tiene_residencia_ue: true }));
+                toast.success("Foto do VERSO (Parte Trasera) carregada!");
             }
             if (docType === 'nif') setNifUrl(filePath);
             if (docType === 'niss') setNissUrl(filePath);
@@ -263,7 +275,7 @@ export function WorkerDocCapturePage() {
                 const ocrRes = await processDocumentOcr({
                     file_path: filePath,
                     mime_type: contentType,
-                    document_type: docType === 'residence' ? 'identity' : docType
+                    document_type: (docType === 'residence' || docType === 'residence_back') ? 'identity' : docType
                 });
 
                 if (ocrRes.success && ocrRes.data) {
@@ -291,7 +303,7 @@ export function WorkerDocCapturePage() {
                             }
                             return updated;
                         });
-                    } else if (docType === 'residence') {
+                    } else if (docType === 'residence' || docType === 'residence_back') {
                         setFormData(prev => {
                             const docNum = data.numero_documento || data.nie || '';
                             return {
@@ -328,15 +340,22 @@ export function WorkerDocCapturePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validação obrigatória principal
-        if (!passportUrl || !selfieUrl) {
-            toast.error("Por favor, envie os documentos obrigatórios (Identificação e Selfie).");
+        // Validação condicional: se possui residência europeia, FRENTE e VERSO são obrigatórios para avançar
+        if (formData.tiene_residencia_ue && (!residenceUrl || !residenceBackUrl)) {
+            residenceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (!residenceUrl && !residenceBackUrl) {
+                toast.error("Obrigatório: Você indicou que possui residência europeia. Envie as 2 fotos obrigatórias (FRENTE e VERSO) do documento para continuar.");
+            } else if (!residenceUrl) {
+                toast.error("Obrigatório: Falta enviar a foto da FRENTE (Anverso) do seu documento de residência europeia.");
+            } else {
+                toast.error("Obrigatório: Falta enviar a foto do VERSO (Parte de Trás / Reverso) do seu documento de residência europeia.");
+            }
             return;
         }
 
-        // Validação condicional: se possui residência europeia, o comprovativo é obrigatório
-        if (formData.tiene_residencia_ue && !residenceUrl) {
-            toast.error("Você indicou que possui residência europeia. Por favor, anexe a foto do seu comprovativo de residência (NIE / Título de Residência).");
+        // Validação obrigatória principal
+        if (!passportUrl || !selfieUrl) {
+            toast.error("Por favor, envie os documentos obrigatórios (Identificação e Selfie).");
             return;
         }
 
@@ -358,6 +377,7 @@ export function WorkerDocCapturePage() {
                     ...formData,
                     iban_url: ibanUrl,
                     residence_url: residenceUrl,
+                    residence_back_url: residenceBackUrl,
                     tiene_residencia_ue: formData.tiene_residencia_ue
                 }
             });
@@ -565,6 +585,7 @@ export function WorkerDocCapturePage() {
                     </Card>
 
                     {/* Pergunta e Upload: Residência / Autorização Europeia */}
+                    <div ref={residenceSectionRef}>
                     <Card className="bg-slate-900 border-slate-800">
                         <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
@@ -612,126 +633,232 @@ export function WorkerDocCapturePage() {
                                 </button>
                             </div>
 
-                            {/* Se respondeu SÍ: Seção de upload obrigatório com suporte móvel universal */}
+                            {/* Se respondeu SÍ: Seção de upload obrigatório FRENTE + VERSO com suporte móvel universal */}
                             {formData.tiene_residencia_ue && (
-                                <div className="pt-3 border-t border-slate-800/80 space-y-3">
+                                <div className="pt-3 border-t border-slate-800/80 space-y-4">
                                     <div className="flex items-center justify-between">
                                         <label className="text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
                                             <Sparkles className="h-4 w-4 text-indigo-400" />
-                                            Foto de la Tarjeta / Permiso de Residencia Europea
+                                            Fotos de la Tarjeta / Permiso de Residencia Europea (Frente y Verso)
                                         </label>
-                                        <Badge className="bg-red-500/10 text-red-400 border border-red-500/20 text-[10px]">Obligatorio</Badge>
+                                        <Badge className={residenceUrl && residenceBackUrl ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px]" : "bg-red-500/15 text-red-400 border border-red-500/30 text-[10px]"}>
+                                            {(residenceUrl ? 1 : 0) + (residenceBackUrl ? 1 : 0)}/2 Obligatorio
+                                        </Badge>
                                     </div>
                                     <p className="text-xs text-slate-400">
-                                        Suba una foto clara del anverso y reverso de su tarjeta de residencia (NIE/TIE de España, Título de Residência de Portugal, etc.).
+                                        Es obligatorio enviar las <strong>2 fotos separadas</strong> de su documento de residencia: <strong>1) Frente (Anverso)</strong> y <strong>2) Parte Trasera (Reverso / Verso)</strong>. Mientras no cargue ambas fotos no podrá avanzar.
                                     </p>
 
-                                    {uploadingDoc === 'residence' ? (
-                                        <div className="w-full h-32 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-4">
-                                            <Loader2 className="h-8 w-8 animate-spin mb-2 text-indigo-400" />
-                                            <span className="text-sm font-semibold animate-pulse">Cargando documento de residencia...</span>
-                                            <span className="text-xs text-slate-500 mt-1">Espere a que finalice el envío</span>
+                                    {/* 1. FOTO FRENTE (ANVERSO) */}
+                                    <div className={`p-3.5 rounded-xl border space-y-3 transition-all ${residenceUrl ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-indigo-500/40 bg-slate-950/50'}`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                                <CreditCard className="h-4 w-4 text-indigo-400" />
+                                                1. Foto FRENTE (Anverso) del Documento
+                                            </span>
+                                            <Badge className={residenceUrl ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]" : "bg-amber-500/20 text-amber-300 border-amber-500/30 text-[10px]"}>
+                                                {residenceUrl ? '✓ Cargada (1/2)' : 'Obligatorio (Frente)'}
+                                            </Badge>
                                         </div>
-                                    ) : !residenceUrl ? (
-                                        <div className="space-y-3">
-                                            {/* Opções de Captura Rápidas */}
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                                                {/* Botão Câmera Traseira */}
-                                                <div className="relative overflow-hidden rounded-xl border border-indigo-500/40 bg-indigo-950/30 hover:bg-indigo-900/40 p-3.5 flex items-center justify-center gap-2.5 text-indigo-200 cursor-pointer transition-all active:scale-[0.98]">
-                                                    <input 
-                                                        type="file" 
-                                                        accept="image/*" 
-                                                        capture="environment"
-                                                        onChange={(e) => handleFileUpload(e, 'residence')}
-                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                                        title="Fotografar Residência com Câmera"
-                                                    />
-                                                    <Camera className="h-5 w-5 text-indigo-400 shrink-0 pointer-events-none" />
-                                                    <span className="text-xs font-semibold pointer-events-none">Fotografar Tarjeta</span>
+
+                                        {uploadingDoc === 'residence' ? (
+                                            <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-4">
+                                                <Loader2 className="h-7 w-7 animate-spin mb-2 text-indigo-400" />
+                                                <span className="text-xs font-semibold animate-pulse">Cargando foto de FRENTE (Anverso)...</span>
+                                            </div>
+                                        ) : !residenceUrl ? (
+                                            <div className="space-y-2.5">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                    <div className="relative overflow-hidden rounded-xl border border-indigo-500/40 bg-indigo-950/30 hover:bg-indigo-900/40 p-3 flex items-center justify-center gap-2 text-indigo-200 cursor-pointer transition-all active:scale-[0.98]">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            capture="environment"
+                                                            onChange={(e) => handleFileUpload(e, 'residence')}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                            title="Fotografar Frente da Residência"
+                                                        />
+                                                        <Camera className="h-4 w-4 text-indigo-400 shrink-0 pointer-events-none" />
+                                                        <span className="text-xs font-semibold pointer-events-none">📷 Fotografar FRENTE</span>
+                                                    </div>
+
+                                                    <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800/60 p-3 flex items-center justify-center gap-2 text-slate-200 cursor-pointer transition-all active:scale-[0.98]">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*,application/pdf" 
+                                                            onChange={(e) => handleFileUpload(e, 'residence')}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                            title="Elegir Foto de Frente o PDF"
+                                                        />
+                                                        <UploadCloud className="h-4 w-4 text-slate-400 shrink-0 pointer-events-none" />
+                                                        <span className="text-xs font-semibold pointer-events-none">🖼️ Galería o PDF (Frente)</span>
+                                                    </div>
                                                 </div>
 
-                                                {/* Botão Galeria ou PDF */}
-                                                <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800/60 p-3.5 flex items-center justify-center gap-2.5 text-slate-200 cursor-pointer transition-all active:scale-[0.98]">
+                                                <div className="relative w-full h-16 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
                                                     <input 
                                                         type="file" 
                                                         accept="image/*,application/pdf" 
+                                                        ref={inputRefs.residence}
                                                         onChange={(e) => handleFileUpload(e, 'residence')}
                                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                                        title="Elegir Foto o PDF"
+                                                        title="Adjuntar Frente de Tarjeta de Residencia"
                                                     />
-                                                    <UploadCloud className="h-5 w-5 text-slate-400 shrink-0 pointer-events-none" />
-                                                    <span className="text-xs font-semibold pointer-events-none">Galería o PDF</span>
+                                                    <div className="flex items-center justify-center gap-2 pointer-events-none text-center px-2">
+                                                        <Camera className="h-4 w-4 text-slate-500" />
+                                                        <span className="text-xs font-medium">Toque aquí para subir la foto de FRENTE (Anverso)</span>
+                                                    </div>
                                                 </div>
                                             </div>
-
-                                            {/* Box de Toque Geral */}
-                                            <div className="relative w-full h-20 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
-                                                <input 
-                                                    type="file" 
-                                                    accept="image/*,application/pdf" 
-                                                    ref={inputRefs.residence}
-                                                    onChange={(e) => handleFileUpload(e, 'residence')}
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                                    title="Adjuntar Tarjeta de Residencia"
-                                                />
-                                                <div className="flex flex-col items-center justify-center pointer-events-none text-center px-2">
-                                                    <Camera className="h-6 w-6 mb-1 text-slate-500" />
-                                                    <span className="text-xs font-medium">O toque aquí para seleccionar el archivo</span>
-                                                </div>
+                                        ) : ocrLoading.residence ? (
+                                            <div className="w-full h-24 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                                <Loader2 className="h-5 w-5 animate-spin mb-1" />
+                                                <span className="text-xs font-semibold flex items-center gap-1.5 animate-pulse">
+                                                    <Sparkles className="h-3 w-3 text-amber-500" /> IA Leyendo Frente de Residencia...
+                                                </span>
                                             </div>
-                                        </div>
-                                    ) : ocrLoading.residence ? (
-                                        <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
-                                            <Loader2 className="h-6 w-6 animate-spin mb-1" />
-                                            <span className="text-xs font-semibold flex items-center gap-1.5 animate-pulse">
-                                                <Sparkles className="h-3 w-3 text-amber-500" /> IA Leyendo Tarjeta de Residencia...
-                                            </span>
-                                            <Button
-                                                type="button"
-                                                variant="link"
-                                                className="text-xs text-indigo-400/80 hover:text-white mt-1 h-auto py-0"
-                                                onClick={() => setOcrLoading(prev => ({ ...prev, residence: false }))}
-                                            >
-                                                Completar manualmente
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <div className="border border-emerald-500/30 rounded-xl bg-emerald-500/5 p-4 space-y-3">
-                                            <div className="flex items-center justify-between text-emerald-400 text-sm font-semibold">
-                                                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Tarjeta de Residencia Cargada</span>
+                                        ) : (
+                                            <div className="flex items-center justify-between text-emerald-400 text-xs font-semibold pt-1">
+                                                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Foto de FRENTE (Anverso) cargada con éxito</span>
                                                 <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
                                                     <input 
                                                         type="file" 
                                                         accept="image/*,application/pdf" 
                                                         onChange={(e) => handleFileUpload(e, 'residence')}
                                                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                                        title="Cambiar Documento"
+                                                        title="Cambiar Foto de Frente"
                                                     />
-                                                    <span className="text-xs font-medium text-slate-300 pointer-events-none">Cambiar</span>
+                                                    <span className="text-xs font-medium text-slate-300 pointer-events-none">Cambiar Frente</span>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-800/80">
-                                                <div>
-                                                    <label className="text-slate-400 block mb-1">Nº NIE / Título de Residencia</label>
-                                                    <Input 
-                                                        placeholder="Ej: Y1234567X / PT123456" 
-                                                        value={formData.numero_residencia} 
-                                                        onChange={(e) => {
-                                                            const val = e.target.value.toUpperCase();
-                                                            setFormData(prev => ({ ...prev, numero_residencia: val, nie: prev.nie || val }));
-                                                        }} 
-                                                        className="bg-slate-950 border-slate-800 text-slate-200 h-8 text-xs font-mono" 
-                                                    />
+                                        )}
+                                    </div>
+
+                                    {/* 2. FOTO VERSO / PARTE TRASERA (REVERSO) */}
+                                    <div className={`p-3.5 rounded-xl border space-y-3 transition-all ${residenceBackUrl ? 'border-emerald-500/30 bg-emerald-500/5' : (residenceUrl ? 'border-amber-500/70 bg-amber-950/15 ring-2 ring-amber-500/20' : 'border-indigo-500/40 bg-slate-950/50')}`}>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                                                <CreditCard className="h-4 w-4 text-indigo-400" />
+                                                2. Foto VERSO / PARTE TRASERA (Reverso)
+                                            </span>
+                                            <Badge className={residenceBackUrl ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30 text-[10px]" : "bg-red-500/20 text-red-300 border-red-500/30 text-[10px]"}>
+                                                {residenceBackUrl ? '✓ Cargada (2/2)' : 'Obligatorio (Parte Trasera)'}
+                                            </Badge>
+                                        </div>
+
+                                        {uploadingDoc === 'residence_back' ? (
+                                            <div className="w-full h-28 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-4">
+                                                <Loader2 className="h-7 w-7 animate-spin mb-2 text-indigo-400" />
+                                                <span className="text-xs font-semibold animate-pulse">Cargando foto del VERSO (Parte Trasera)...</span>
+                                            </div>
+                                        ) : !residenceBackUrl ? (
+                                            <div className="space-y-2.5">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                                    <div className="relative overflow-hidden rounded-xl border border-indigo-500/40 bg-indigo-950/30 hover:bg-indigo-900/40 p-3 flex items-center justify-center gap-2 text-indigo-200 cursor-pointer transition-all active:scale-[0.98]">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            capture="environment"
+                                                            onChange={(e) => handleFileUpload(e, 'residence_back')}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                            title="Fotografar Verso da Residência"
+                                                        />
+                                                        <Camera className="h-4 w-4 text-indigo-400 shrink-0 pointer-events-none" />
+                                                        <span className="text-xs font-semibold pointer-events-none">📷 Fotografar VERSO (Atrás)</span>
+                                                    </div>
+
+                                                    <div className="relative overflow-hidden rounded-xl border border-slate-700 bg-slate-950/60 hover:bg-slate-800/60 p-3 flex items-center justify-center gap-2 text-slate-200 cursor-pointer transition-all active:scale-[0.98]">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*,application/pdf" 
+                                                            onChange={(e) => handleFileUpload(e, 'residence_back')}
+                                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                            title="Elegir Foto del Verso o PDF"
+                                                        />
+                                                        <UploadCloud className="h-4 w-4 text-slate-400 shrink-0 pointer-events-none" />
+                                                        <span className="text-xs font-semibold pointer-events-none">🖼️ Galería o PDF (Verso)</span>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <label className="text-slate-400 block mb-1">País Emisor de la Residencia</label>
-                                                    <Input 
-                                                        placeholder="Ej: España, Portugal, Italia..." 
-                                                        value={formData.pais_residencia} 
-                                                        onChange={(e) => setFormData({ ...formData, pais_residencia: e.target.value })} 
-                                                        className="bg-slate-950 border-slate-800 text-slate-200 h-8 text-xs" 
+
+                                                <div className="relative w-full h-16 border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl flex flex-col items-center justify-center bg-slate-950/40 text-slate-400 hover:text-slate-200 transition-colors overflow-hidden cursor-pointer active:scale-[0.99]">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*,application/pdf" 
+                                                        ref={inputRefs.residence_back}
+                                                        onChange={(e) => handleFileUpload(e, 'residence_back')}
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                        title="Adjuntar Reverso de Tarjeta de Residencia"
                                                     />
+                                                    <div className="flex items-center justify-center gap-2 pointer-events-none text-center px-2">
+                                                        <Camera className="h-4 w-4 text-slate-500" />
+                                                        <span className="text-xs font-medium">Toque aquí para subir la foto del VERSO (Parte Trasera)</span>
+                                                    </div>
                                                 </div>
+                                            </div>
+                                        ) : ocrLoading.residence_back ? (
+                                            <div className="w-full h-24 border border-slate-800 rounded-xl flex flex-col items-center justify-center bg-slate-950/80 text-indigo-400 p-2">
+                                                <Loader2 className="h-5 w-5 animate-spin mb-1" />
+                                                <span className="text-xs font-semibold flex items-center gap-1.5 animate-pulse">
+                                                    <Sparkles className="h-3 w-3 text-amber-500" /> IA Leyendo Reverso de Residencia...
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between text-emerald-400 text-xs font-semibold pt-1">
+                                                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> Foto del VERSO (Parte Trasera) cargada con éxito</span>
+                                                <div className="relative overflow-hidden rounded-md bg-slate-800 hover:bg-slate-700 px-3 py-1 cursor-pointer">
+                                                    <input 
+                                                        type="file" 
+                                                        accept="image/*,application/pdf" 
+                                                        onChange={(e) => handleFileUpload(e, 'residence_back')}
+                                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                        title="Cambiar Foto del Verso"
+                                                    />
+                                                    <span className="text-xs font-medium text-slate-300 pointer-events-none">Cambiar Verso</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Campos extraídos de NIE / País da Residência */}
+                                    {(residenceUrl || residenceBackUrl) && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-2 border-t border-slate-800/80">
+                                            <div>
+                                                <label className="text-slate-400 block mb-1">Nº NIE / Título de Residencia</label>
+                                                <Input 
+                                                    placeholder="Ej: Y1234567X / PT123456" 
+                                                    value={formData.numero_residencia} 
+                                                    onChange={(e) => {
+                                                        const val = e.target.value.toUpperCase();
+                                                        setFormData(prev => ({ ...prev, numero_residencia: val, nie: prev.nie || val }));
+                                                    }} 
+                                                    className="bg-slate-950 border-slate-800 text-slate-200 h-8 text-xs font-mono" 
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-slate-400 block mb-1">País Emisor de la Residencia</label>
+                                                <Input 
+                                                    placeholder="Ej: España, Portugal, Italia..." 
+                                                    value={formData.pais_residencia} 
+                                                    onChange={(e) => setFormData({ ...formData, pais_residencia: e.target.value })} 
+                                                    className="bg-slate-950 border-slate-800 text-slate-200 h-8 text-xs" 
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Alerta de bloqueio enquanto não enviar as 2 fotos */}
+                                    {(!residenceUrl || !residenceBackUrl) && (
+                                        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 text-xs flex items-start gap-2.5">
+                                            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <span className="font-bold block">Envío de Frente y Verso obligatorio para avanzar</span>
+                                                <span className="text-amber-200/80 text-[11px]">
+                                                    {!residenceUrl && !residenceBackUrl
+                                                        ? 'Falta subir la foto de FRENTE (1/2) y la foto del VERSO / PARTE TRASERA (2/2).'
+                                                        : !residenceUrl
+                                                            ? 'Falta subir la foto de FRENTE (Anverso) del documento.'
+                                                            : 'Ya subió el frente, pero falta subir la foto de la PARTE TRASERA (Verso / Reverso) para desbloquear el resto del formulario.'}
+                                                </span>
                                             </div>
                                         </div>
                                     )}
@@ -739,6 +866,30 @@ export function WorkerDocCapturePage() {
                             )}
                         </CardContent>
                     </Card>
+                    </div>
+
+                    {/* Bloqueio visual e interativo das seções seguintes enquanto Residência UE = SÍ e faltar Frente ou Verso */}
+                    <div
+                        className={`space-y-6 transition-opacity ${
+                            formData.tiene_residencia_ue && (!residenceUrl || !residenceBackUrl)
+                                ? 'opacity-45'
+                                : 'opacity-100'
+                        }`}
+                        onClickCapture={(e) => {
+                            if (formData.tiene_residencia_ue && (!residenceUrl || !residenceBackUrl)) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                residenceSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                toast.warning(
+                                    !residenceUrl && !residenceBackUrl
+                                        ? "Para avançar, envie primeiro as 2 fotos obrigatórias da sua Residência Europeia (Frente e Verso), ou selecione 'NO, solo pasaporte'."
+                                        : !residenceUrl
+                                            ? "Para avançar, envie a foto da FRENTE (Anverso) da sua Residência Europeia."
+                                            : "Para avançar, envie a foto do VERSO (Parte de Trás) da sua Residência Europeia."
+                                );
+                            }
+                        }}
+                    >
 
                     {/* Dados de Contacto y Dirección */}
                     <Card className="bg-slate-900 border-slate-800">
@@ -1348,6 +1499,7 @@ export function WorkerDocCapturePage() {
                                 </>
                             ) : "Confirmar e Enviar Documentos"}
                         </Button>
+                    </div>
                     </div>
                 </form>
             </div>
