@@ -1045,6 +1045,10 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'Classeur1 - Fatumata',
+      'Sem E-mail - Classeur1 - Fatumata',
+      'Sem E-mail - Fatumata',
+      'Mailing Fatumata - Classeur1 2026',
       'ASTURIAS - Alba',
       'BALEARES - Alba',
       'ANDALUCIA - Alba',

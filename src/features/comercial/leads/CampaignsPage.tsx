@@ -762,6 +762,11 @@ export function CampaignsPage() {
       }
     });
     const priorityTags = [
+      'Classeur1 - Fatumata',
+      'Sem E-mail - Classeur1 - Fatumata',
+      'Sem E-mail - Fatumata',
+      'Mailing Fatumata - Classeur1 2026',
+      'Mailing Fatumata Inéditos - Classeur1 2026',
       'ASTURIAS - Alba',
       'BALEARES - Alba',
       'ANDALUCIA - Alba',
@@ -1504,6 +1509,53 @@ export function CampaignsPage() {
         a => a.ownerKey === 'liseth' || a.ownerKey === 'fatumata'
       );
       return mergeUniqueById(wiseoweStrategic, [
+        {
+          id: 'aud_fatumata_ineditos_classeur1_2026',
+          name: '🚀 🇫🇷 Fatumata (Wiseowe) - Inédits Planilha Classeur1 (15 leads)',
+          leadCount: 15,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Fatumata Inéditos - Classeur1 2026',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-04T15:30:00.000Z'
+        },
+        {
+          id: 'aud_fatumata_classeur1_completo_2026',
+          name: '🎯 🇫🇷 Fatumata (Wiseowe) - Planilha Classeur1 Completa [Tag: Classeur1 - Fatumata] (30 leads)',
+          leadCount: 30,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['FR'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            selectedTags: ['Classeur1 - Fatumata'],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Classeur1 - Fatumata',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-04T15:30:00.000Z'
+        },
         {
           id: 'aud_liseth_ineditos_barcelona_2026',
           name: '🚀 🇪🇸 Liseth (Wiseowe) - Inéditos Barcelona (11 leads)',

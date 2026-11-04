@@ -236,6 +236,41 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // FATUMATA (FRANÇA & BÉLGICA - WISEOWE)
   // ==========================================
   {
+    id: 'aud_fatumata_ineditos_classeur1_2026',
+    name: '🚀 🇫🇷 Fatumata (Wiseowe) - Inédits Planilha Classeur1 (15 leads)',
+    leadCount: 15,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      tagKeyword: 'Mailing Fatumata Inéditos - Classeur1 2026',
+    },
+  },
+  {
+    id: 'aud_fatumata_classeur1_completo_2026',
+    name: '🎯 🇫🇷 Fatumata (Wiseowe) - Planilha Classeur1 Completa [Tag: Classeur1 - Fatumata] (30 leads)',
+    leadCount: 30,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      selectedTags: ['Classeur1 - Fatumata'],
+      tagKeyword: 'Classeur1 - Fatumata',
+    },
+  },
+  {
+    id: 'aud_fatumata_classeur1_sem_email_2026',
+    name: '📞 🇫🇷 Fatumata (Wiseowe) - Sem E-mail p/ Discador (Classeur1 - 2 leads)',
+    leadCount: 2,
+    ownerKey: 'fatumata',
+    country: 'FR',
+    filters: {
+      selectedCountries: ['FR'],
+      selectedTags: ['Sem E-mail - Classeur1 - Fatumata'],
+      tagKeyword: 'Sem E-mail - Classeur1 - Fatumata',
+    },
+  },
+  {
     id: 'aud_fatumata_publico_1_1000_fr_2026',
     name: '📦 🇫🇷 Fatumata (Wiseowe) - Público 1 (1.000 Inédits FR - 100/jour)',
     leadCount: 1000,
