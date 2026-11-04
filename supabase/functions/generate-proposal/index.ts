@@ -3,7 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { createReport } from "npm:docx-templates@4.13.0";
 import JSZip from "https://esm.sh/jszip@3.10.1";
 
-async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8Array> {
+async function normalizeDocxTemplates(
+  templateBuffer: Uint8Array,
+  brandGuard?: { brandName: string; website: string; isHexagon: boolean }
+): Promise<Uint8Array> {
   try {
     const zip = new JSZip();
     await zip.loadAsync(templateBuffer);
@@ -32,6 +35,21 @@ async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8
           content = content.replace(/<w:t\b([^>]*)>([\s\S]*?)<\/w:t>/g, (_match, attrs, text) => {
             return `<w:t${attrs}>${text.replace(/&(?!(amp|lt|gt|quot|apos);)/g, '&amp;')}</w:t>`;
           });
+        }
+
+        if (brandGuard) {
+          if (path.includes('footer') || path.includes('header')) {
+            content = content
+              .replace(/www\.\s*montajeshexagon\s*\.\s*com/gi, brandGuard.website)
+              .replace(/www\.\s*luminous\s*alley\s*\.\s*com/gi, brandGuard.website)
+              .replace(/www\.\s*triangulolda\s*\.\s*com/gi, brandGuard.website)
+              .replace(/www\.\s*wiseowe\s*\.\s*com/gi, brandGuard.website)
+              .replace(/www\.\s*stocc?o\s*\.\s*(pt|es|com)/gi, brandGuard.website)
+              .replace(/\b(Hexagon|Luminous|Triangulo|Wiseowe|Stocco)\b(?=\s*·|\s*<\/w:t>)/gi, brandGuard.brandName);
+          }
+          if (!brandGuard.isHexagon && path === 'word/document.xml' && content.includes('Tarancón')) {
+            content = content.replace(/Tarancón\s*\(Cuenca\)/gi, 'Vila Nova de Gaia');
+          }
         }
 
         if (content !== originalContent) {
@@ -570,13 +588,25 @@ serve(async (req) => {
       ),
     };
 
+    const tradeLower = (empresa.trade_name || empresa.legal_name || "").toLowerCase();
+    const brandGuard = {
+      brandName: tradeLower.includes("hexagon") ? "Hexagon" :
+                 tradeLower.includes("luminous") ? "Luminous" :
+                 tradeLower.includes("wise") ? "Wiseowe" :
+                 tradeLower.includes("triangulo") ? "Triangulo" :
+                 tradeLower.includes("stocco") ? "Stocco" :
+                 (empresa.trade_name || "MCS"),
+      website: mergeData.WEB_EMPRESA,
+      isHexagon: tradeLower.includes("hexagon"),
+    };
+
     let generatedDoc;
     if (include_proposal) {
       // 5. Baixar o template DOCX da proposta do storage 'proposal-templates'
       console.log(`Iniciando carregamento do template de proposta no idioma: ${docLang}`);
       const templateBlob = await loadTemplate('proposta', docLang);
       let templateBuffer = new Uint8Array(await templateBlob.arrayBuffer());
-      templateBuffer = await normalizeDocxTemplates(templateBuffer);
+      templateBuffer = await normalizeDocxTemplates(templateBuffer, brandGuard);
 
       console.log("Gerando proposta preenchida...");
       generatedDoc = await createReport({
@@ -633,7 +663,7 @@ serve(async (req) => {
         console.log(`Iniciando carregamento do template de contrato no idioma: ${docLang}`);
         const contractTemplateBlob = await loadTemplate('contrato', docLang);
         let contractTemplateBuffer = new Uint8Array(await contractTemplateBlob.arrayBuffer());
-        contractTemplateBuffer = await normalizeDocxTemplates(contractTemplateBuffer);
+        contractTemplateBuffer = await normalizeDocxTemplates(contractTemplateBuffer, brandGuard);
 
         console.log("Gerando contrato preenchido...");
         generatedContractDoc = await createReport({
