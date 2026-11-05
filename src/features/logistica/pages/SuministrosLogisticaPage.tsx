@@ -69,6 +69,10 @@ export const SuministrosLogisticaPage: React.FC = () => {
   const [estadoPagoFilter, setEstadoPagoFilter] = useState<string>('todos');
   const [estatusFilter, setEstatusFilter] = useState<string>('todos');
   const [excedenteFilter, setExcedenteFilter] = useState<'todos' | 'com_excedente' | 'descontos_lancados' | 'enviado_financeiro'>('todos');
+  const [mesPeriodoFilter, setMesPeriodoFilter] = useState<string>('todos');
+  const [anoConsumoFilter, setAnoConsumoFilter] = useState<string>('todos');
+  const [dataConsumoDesde, setDataConsumoDesde] = useState<string>('');
+  const [dataConsumoHasta, setDataConsumoHasta] = useState<string>('');
 
   // Paginação e Ordenação
   const [currentPage, setCurrentPage] = useState(1);
@@ -568,6 +572,61 @@ export const SuministrosLogisticaPage: React.FC = () => {
     XLSX.writeFile(wb, `Control_Suministros_Alojamientos_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  // Opções dinâmicas de Anos e Meses/Períodos de Consumo extraídas das faturas
+  const anosDisponiveis = useMemo(() => {
+    const setAnos = new Set<string>();
+    faturas.forEach(f => {
+      if (f.data_inicio && f.data_inicio.length >= 4) setAnos.add(f.data_inicio.slice(0, 4));
+      if (f.data_fim && f.data_fim.length >= 4) setAnos.add(f.data_fim.slice(0, 4));
+    });
+    return Array.from(setAnos).sort((a, b) => b.localeCompare(a));
+  }, [faturas]);
+
+  const mesesPeriodosDisponiveis = useMemo(() => {
+    const ordemMeses = [
+      'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+      'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+    const extras = new Set<string>();
+    faturas.forEach(f => {
+      const mp = (f.mes_periodo || '').trim().toUpperCase();
+      if (mp && !ordemMeses.includes(mp)) {
+        extras.add(mp);
+      }
+    });
+    return {
+      mesesPadrao: ordemMeses,
+      periodosCompostos: Array.from(extras).sort()
+    };
+  }, [faturas]);
+
+  const hasActiveFilters = Boolean(
+    searchTerm.trim() ||
+    alojamentoFilter !== 'todos' ||
+    servicoFilter !== 'todos' ||
+    estadoPagoFilter !== 'todos' ||
+    estatusFilter !== 'todos' ||
+    excedenteFilter !== 'todos' ||
+    mesPeriodoFilter !== 'todos' ||
+    anoConsumoFilter !== 'todos' ||
+    dataConsumoDesde ||
+    dataConsumoHasta
+  );
+
+  const handleLimparFiltros = () => {
+    setSearchTerm('');
+    setAlojamentoFilter('todos');
+    setServicoFilter('todos');
+    setEstadoPagoFilter('todos');
+    setEstatusFilter('todos');
+    setExcedenteFilter('todos');
+    setMesPeriodoFilter('todos');
+    setAnoConsumoFilter('todos');
+    setDataConsumoDesde('');
+    setDataConsumoHasta('');
+    setCurrentPage(1);
+  };
+
   // Filtragem e Ordenação das Faturas
   const filteredFaturas = useMemo(() => {
     return faturas
@@ -582,6 +641,52 @@ export const SuministrosLogisticaPage: React.FC = () => {
         if (excedenteFilter === 'com_excedente' && f.valor_excedente <= 0) return false;
         if (excedenteFilter === 'descontos_lancados' && f.rateio_status !== 'descontos_lancados') return false;
         if (excedenteFilter === 'enviado_financeiro' && f.rateio_status !== 'enviado_financeiro') return false;
+
+        // Filtro por Año de Consumo
+        if (anoConsumoFilter !== 'todos') {
+          const anoIni = f.data_inicio ? f.data_inicio.slice(0, 4) : '';
+          const anoFim = f.data_fim ? f.data_fim.slice(0, 4) : '';
+          if (anoIni !== anoConsumoFilter && anoFim !== anoConsumoFilter) return false;
+        }
+
+        // Filtro por Mes / Período de Consumo (suporta nome do mês, períodos compostos ex: OCT/NOV e mês da data)
+        if (mesPeriodoFilter !== 'todos') {
+          const mpUpper = (f.mes_periodo || '').toUpperCase();
+          const mapMeses: Record<string, { abrev: string[]; num: string }> = {
+            ENERO: { abrev: ['ENERO', 'ENE'], num: '01' },
+            FEBRERO: { abrev: ['FEBRERO', 'FEB'], num: '02' },
+            MARZO: { abrev: ['MARZO', 'MAR'], num: '03' },
+            ABRIL: { abrev: ['ABRIL', 'ABR'], num: '04' },
+            MAYO: { abrev: ['MAYO', 'MAY'], num: '05' },
+            JUNIO: { abrev: ['JUNIO', 'JUN'], num: '06' },
+            JULIO: { abrev: ['JULIO', 'JUL'], num: '07' },
+            AGOSTO: { abrev: ['AGOSTO', 'AGO'], num: '08' },
+            SEPTIEMBRE: { abrev: ['SEPTIEMBRE', 'SEP', 'SET'], num: '09' },
+            OCTUBRE: { abrev: ['OCTUBRE', 'OCT'], num: '10' },
+            NOVIEMBRE: { abrev: ['NOVIEMBRE', 'NOV'], num: '11' },
+            DICIEMBRE: { abrev: ['DICIEMBRE', 'DIC'], num: '12' }
+          };
+          const infoMes = mapMeses[mesPeriodoFilter];
+          if (infoMes) {
+            const matchTexto = mpUpper === mesPeriodoFilter || infoMes.abrev.some(ab => mpUpper.includes(ab));
+            const mesIni = f.data_inicio ? f.data_inicio.slice(5, 7) : '';
+            const mesFim = f.data_fim ? f.data_fim.slice(5, 7) : '';
+            const matchData = mesIni === infoMes.num || mesFim === infoMes.num;
+            if (!matchTexto && !matchData) return false;
+          } else if (mpUpper !== mesPeriodoFilter) {
+            return false;
+          }
+        }
+
+        // Filtro por Intervalo de Datas de Consumo (Desde -> Hasta, verificando superposição do período de consumo)
+        if (dataConsumoDesde) {
+          const fimRef = f.data_fim || f.data_inicio || '';
+          if (!fimRef || fimRef < dataConsumoDesde) return false;
+        }
+        if (dataConsumoHasta) {
+          const iniRef = f.data_inicio || f.data_fim || '';
+          if (!iniRef || iniRef > dataConsumoHasta) return false;
+        }
 
         if (searchTerm.trim()) {
           if (
@@ -617,7 +722,7 @@ export const SuministrosLogisticaPage: React.FC = () => {
         }
         return sortDir === 'asc' ? cmp : -cmp;
       });
-  }, [faturas, alojamentoFilter, servicoFilter, estadoPagoFilter, estatusFilter, excedenteFilter, searchTerm, sortField, sortDir]);
+  }, [faturas, alojamentoFilter, servicoFilter, estadoPagoFilter, estatusFilter, excedenteFilter, mesPeriodoFilter, anoConsumoFilter, dataConsumoDesde, dataConsumoHasta, searchTerm, sortField, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(filteredFaturas.length / itemsPerPage));
   const paginatedFaturas = filteredFaturas.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -1016,6 +1121,120 @@ export const SuministrosLogisticaPage: React.FC = () => {
                 <option value="enviado_financeiro">📤 Excedente Enviado a Finanzas</option>
                 <option value="descontos_lancados">✅ Descuentos Lanzados en Nómina</option>
               </select>
+            </div>
+
+            {/* Segunda Linha de Filtros: Período de Consumo (Mês, Ano, Datas Desde/Hasta) e Estatus do Alojamento */}
+            <div className="md:col-span-6 pt-3 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  📅 Mes / Período Consumo
+                </label>
+                <select
+                  value={mesPeriodoFilter}
+                  onChange={e => {
+                    setMesPeriodoFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  <option value="todos">Todos los Meses / Períodos</option>
+                  <optgroup label="Meses del Año (Incluye fechas y compuestos)">
+                    {mesesPeriodosDisponiveis.mesesPadrao.map(m => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </optgroup>
+                  {mesesPeriodosDisponiveis.periodosCompostos.length > 0 && (
+                    <optgroup label="Períodos Específicos / Bimensuales">
+                      {mesesPeriodosDisponiveis.periodosCompostos.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  📆 Año Consumo
+                </label>
+                <select
+                  value={anoConsumoFilter}
+                  onChange={e => {
+                    setAnoConsumoFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  <option value="todos">Todos los Años</option>
+                  {anosDisponiveis.map(ano => (
+                    <option key={ano} value={ano}>Año {ano}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  📥 Consumo Desde (Inicio)
+                </label>
+                <input
+                  type="date"
+                  value={dataConsumoDesde}
+                  onChange={e => {
+                    setDataConsumoDesde(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  📤 Consumo Hasta (Fin)
+                </label>
+                <input
+                  type="date"
+                  value={dataConsumoHasta}
+                  onChange={e => {
+                    setDataConsumoHasta(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                  🏠 Estatus Inmueble
+                </label>
+                <select
+                  value={estatusFilter}
+                  onChange={e => {
+                    setEstatusFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold"
+                >
+                  <option value="todos">Todos los Estatus</option>
+                  <option value="EN CURSO">🟢 EN CURSO (Activos)</option>
+                  <option value="FINALIZADO">⚪ FINALIZADO (Cerrados)</option>
+                </select>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={handleLimparFiltros}
+                  disabled={!hasActiveFilters}
+                  className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    hasActiveFilters
+                      ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800 cursor-pointer'
+                      : 'bg-slate-50 text-slate-400 border-slate-200 dark:bg-slate-800/40 dark:text-slate-600 dark:border-slate-800 cursor-not-allowed'
+                  }`}
+                >
+                  <X size={14} />
+                  Limpiar Filtros
+                </button>
+              </div>
             </div>
           </div>
 
