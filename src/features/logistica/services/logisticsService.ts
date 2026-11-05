@@ -1540,44 +1540,35 @@ export const logisticsService = {
     }
   },
 
-  // Demandas de Logística Agrupadas por Pedido Comercial Real & Trabalhadores Contratados
+  // Demandas de Logística Agrupadas por Pedido Comercial Real, Reemplazos & Trabalhadores Contratados
   async fetchDemandasPorPedido(): Promise<PedidoDemandaLogistica[]> {
     try {
       // 1. Buscar Pedidos Comerciais Ativos
-      const { data: pedidos, error: pedErr } = await supabase
+      const { data: pedidosData, error: pedErr } = await supabase
         .schema('core_comercial')
         .from('pedidos')
         .select('*')
         .neq('operational_status', 'cancelled')
         .order('created_at', { ascending: false });
 
-      if (pedErr || !pedidos || pedidos.length === 0) {
-        return [];
-      }
-
+      const pedidos = (!pedErr && pedidosData) ? pedidosData : [];
       const pedidoIds = pedidos.map(p => p.id);
-      const clientIds = [...new Set(pedidos.map(p => p.client_id).filter(Boolean))];
-      const siteIds = [...new Set(pedidos.map(p => p.client_site_id).filter(Boolean))];
-      const empresaIds = [...new Set(pedidos.map(p => p.empresa_id).filter(Boolean))];
+      const pedidoIdsSet = new Set(pedidoIds.map(id => String(id).trim()));
 
-      // 2. Buscar Clientes, Obras (Sites), Empresas, Itens e Funções dos Pedidos
-      const [clientsRes, sitesRes, empresasRes, itemsRes, jobsRes, assignmentsRes, solicitudesRes, alocacoesAtivas, alojamentos] = await Promise.all([
-        clientIds.length > 0
-          ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name, phone, email').in('id', clientIds)
+      // 2. Buscar Itens, Funções, Atribuições, Solicitudes Operativas, Targets de Reemplazo e Alocações
+      const [itemsRes, jobsRes, assignmentsRes, solicitudesRes, targetsRes, alocacoesAtivas, alojamentos] = await Promise.all([
+        pedidoIds.length > 0
+          ? supabase.schema('core_comercial').from('pedido_items').select('*').in('pedido_id', pedidoIds)
           : Promise.resolve({ data: [] }),
-        siteIds.length > 0
-          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code, contact_name, contact_phone, contact_email, notes').in('id', siteIds)
-          : Promise.resolve({ data: [] }),
-        empresaIds.length > 0
-          ? supabase.schema('core_common').from('empresas').select('id, name, trade_name').in('id', empresaIds)
-          : Promise.resolve({ data: [] }),
-        supabase.schema('core_comercial').from('pedido_items').select('*').in('pedido_id', pedidoIds),
         supabase.schema('core_comercial').from('job_functions').select('id, name'),
         supabase
           .schema('core_personal')
           .from('worker_assignments')
           .select(`
             id,
+            empresa_id,
+            client_id,
+            client_site_id,
             pedido_id,
             solicitud_id,
             replacement_of_assignment_id,
@@ -1585,6 +1576,7 @@ export const logisticsService = {
             planned_start_date,
             start_date,
             end_date,
+            job_function_id,
             job_function_name_snapshot,
             worker:workers(
               id,
@@ -1602,9 +1594,92 @@ export const logisticsService = {
         supabase
           .schema('core_operacoes')
           .from('solicitudes_operativas')
-          .select('id, codigo, title, description, tipo, status'),
+          .select('id, empresa_id, pedido_id, client_id, client_site_id, codigo, title, description, tipo, status, due_date, created_at, pergunta_respuesta'),
+        supabase
+          .schema('core_operacoes')
+          .from('solicitud_targets')
+          .select(`
+            id,
+            empresa_id,
+            solicitud_id,
+            source_assignment_id,
+            source_pedido_id,
+            source_pedido_item_id,
+            source_worker_id,
+            source_client_id,
+            source_client_site_id,
+            target_job_function_id,
+            target_job_function_name,
+            target_assignment_id,
+            target_worker_id,
+            status,
+            action_type,
+            requires_replacement,
+            reason,
+            notes
+          `)
+          .in('action_type', ['replace', 'offboard'])
+          .in('status', ['pending', 'in_progress', 'completed']),
         this.fetchAlocacoesAtivas(),
         this.fetchAlojamentos()
+      ]);
+
+      const allSolicitudes = solicitudesRes.data || [];
+      const solicitudesMap = new Map(allSolicitudes.map((s: any) => [s.id, s]));
+
+      const allReplacementTargets = (targetsRes.data || []).filter((t: any) => {
+        const sol = solicitudesMap.get(t.solicitud_id);
+        return (
+          (t.action_type === 'replace' || (t.action_type === 'offboard' && t.requires_replacement === true)) &&
+          sol &&
+          sol.status !== 'cancelled' &&
+          (!sol.tipo || sol.tipo === 'replacement' || sol.tipo === 'offboarding')
+        );
+      });
+
+      const clientIds = [...new Set([
+        ...pedidos.map(p => p.client_id),
+        ...allSolicitudes.map((s: any) => s.client_id),
+        ...allReplacementTargets.map((t: any) => t.source_client_id),
+        ...(assignmentsRes.data || []).map((a: any) => a.client_id)
+      ].filter(Boolean))];
+
+      const siteIds = [...new Set([
+        ...pedidos.map(p => p.client_site_id),
+        ...allSolicitudes.map((s: any) => s.client_site_id),
+        ...allReplacementTargets.map((t: any) => t.source_client_site_id),
+        ...(assignmentsRes.data || []).map((a: any) => a.client_site_id)
+      ].filter(Boolean))];
+
+      const empresaIds = [...new Set([
+        ...pedidos.map(p => p.empresa_id),
+        ...allSolicitudes.map((s: any) => s.empresa_id),
+        ...allReplacementTargets.map((t: any) => t.empresa_id),
+        ...(assignmentsRes.data || []).map((a: any) => a.empresa_id)
+      ].filter(Boolean))];
+
+      const extraWorkerIds = [...new Set([
+        ...allReplacementTargets.map((t: any) => t.source_worker_id),
+        ...allReplacementTargets.map((t: any) => t.target_worker_id)
+      ].filter(Boolean))];
+
+      const [clientsRes, sitesRes, empresasRes, extraWorkersRes] = await Promise.all([
+        clientIds.length > 0
+          ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name, phone, email').in('id', clientIds)
+          : Promise.resolve({ data: [] }),
+        siteIds.length > 0
+          ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code, contact_name, contact_phone, contact_email, notes').in('id', siteIds)
+          : Promise.resolve({ data: [] }),
+        empresaIds.length > 0
+          ? supabase.schema('core_common').from('empresas').select('id, name, trade_name').in('id', empresaIds)
+          : Promise.resolve({ data: [] }),
+        extraWorkerIds.length > 0
+          ? supabase
+              .schema('core_personal')
+              .from('workers')
+              .select('id, nome, nif, movil, cod_colab, funcion, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad')
+              .in('id', extraWorkerIds)
+          : Promise.resolve({ data: [] })
       ]);
 
       const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
@@ -1613,7 +1688,7 @@ export const logisticsService = {
       const jobsMap = new Map((jobsRes.data || []).map((j: any) => [j.id, j.name]));
       const alojMap = new Map(alojamentos.map(a => [a.id, a]));
       const allAssignmentsMap = new Map((assignmentsRes.data || []).map((a: any) => [a.id, a]));
-      const solicitudesMap = new Map((solicitudesRes.data || []).map((s: any) => [s.id, s]));
+      const extraWorkersMap = new Map((extraWorkersRes.data || []).map((w: any) => [w.id, w]));
 
       // Agrupar alocações ativas da logística por worker_id, codigo_colab e nome normalizado
       const alocacoesLogisticaMap = new Map<string, Alocacao>();
@@ -1641,14 +1716,14 @@ export const logisticsService = {
           }
         });
 
-      // Mapear em quais pedidos cada trabalhador possui atribuição ATIVA / PLANEJADA / PAUSADA no momento
+      // Mapear em quais pedidos/solicitações cada trabalhador possui atribuição ATIVA / PLANEJADA / PAUSADA no momento
       const activeAssignmentOrdersByWorker = new Map<string, Set<string>>();
       (assignmentsRes.data || []).forEach((ass: any) => {
         const st = (ass.status || '').toLowerCase().trim();
         if (st === 'active' || st === 'planned' || st === 'paused') {
           const rawW = Array.isArray(ass.worker) ? ass.worker[0] : (ass.worker || {});
           const wId = rawW.id || ass.worker_id;
-          const pId = ass.pedido_id ? String(ass.pedido_id).trim() : '';
+          const pId = ass.pedido_id ? String(ass.pedido_id).trim() : (ass.solicitud_id ? String(ass.solicitud_id).trim() : '');
           if (wId && pId) {
             if (!activeAssignmentOrdersByWorker.has(wId)) {
               activeAssignmentOrdersByWorker.set(wId, new Set());
@@ -1658,8 +1733,10 @@ export const logisticsService = {
         }
       });
 
-      // 3. Montar Lista de Pedidos com seus Trabalhadores Contratados
-      const result: PedidoDemandaLogistica[] = pedidos.map((ped: any) => {
+      const todayIso = new Date().toISOString().split('T')[0];
+
+      // 3. Montar Lista de Pedidos Comerciais com seus Trabalhadores Contratados e Reemplazos vinculados
+      const commercialResult: PedidoDemandaLogistica[] = pedidos.map((ped: any) => {
         const client = clientsMap.get(ped.client_id) as any;
         const site = sitesMap.get(ped.client_site_id) as any;
         const empresa = empresasMap.get(ped.empresa_id) as any;
@@ -1679,7 +1756,7 @@ export const logisticsService = {
         const rawInicio = ped.expected_start_date || ped.planned_start_date || ped.start_date;
         const rawFim = ped.expected_end_date || ped.planned_end_date || ped.end_date;
 
-        const dataInicioStr = formatToLocalDate(rawInicio) || new Date().toISOString().split('T')[0];
+        const dataInicioStr = formatToLocalDate(rawInicio) || todayIso;
         const dataInicioFormatada = formatDisplayDate(rawInicio) || dataInicioStr;
 
         const dataFimStr = formatToLocalDate(rawFim);
@@ -1717,13 +1794,36 @@ export const logisticsService = {
           };
         });
 
-        // Trabalhadores contratados vinculados estritamente a este pedido
-        const pedAssignments = (assignmentsRes.data || []).filter(
-          (ass: any) => Boolean(ass.pedido_id) && Boolean(ped.id) && String(ass.pedido_id).trim() === String(ped.id).trim()
-        );
+        const pedIdStr = String(ped.id || '').trim();
+
+        // Identificar targets e solicitações de reemplazo vinculados a este pedido
+        const pedTargets = allReplacementTargets.filter((t: any) => {
+          const sol = solicitudesMap.get(t.solicitud_id);
+          return (
+            (t.source_pedido_id && String(t.source_pedido_id).trim() === pedIdStr) ||
+            (sol?.pedido_id && String(sol.pedido_id).trim() === pedIdStr)
+          );
+        });
+
+        const pedSolIds = new Set<string>();
+        pedTargets.forEach((t: any) => {
+          if (t.solicitud_id) pedSolIds.add(String(t.solicitud_id).trim());
+        });
+        allSolicitudes.forEach((s: any) => {
+          if (s.pedido_id && String(s.pedido_id).trim() === pedIdStr && (s.tipo === 'replacement' || s.tipo === 'offboarding') && s.status !== 'cancelled') {
+            pedSolIds.add(String(s.id).trim());
+          }
+        });
+
+        // Trabalhadores contratados vinculados a este pedido (por pedido_id direto ou via solicitud_id de reemplazo deste pedido)
+        const pedAssignments = (assignmentsRes.data || []).filter((ass: any) => {
+          if (ass.pedido_id && String(ass.pedido_id).trim() === pedIdStr) return true;
+          if (!ass.pedido_id && ass.solicitud_id && pedSolIds.has(String(ass.solicitud_id).trim())) return true;
+          return false;
+        });
 
         // Identificar todas as solicitações de reemplazo que afetam este pedido
-        const solSet = new Set<string>();
+        const solSet = new Set<string>(pedSolIds);
         pedAssignments.forEach((ass: any) => {
           if (ass.solicitud_id) solSet.add(ass.solicitud_id);
           if (ass.replacement_of_assignment_id) {
@@ -1734,18 +1834,20 @@ export const logisticsService = {
 
         const solicitudesReemplazo: SolicitudReemplazoResumo[] = Array.from(solSet)
           .map(id => solicitudesMap.get(id))
-          .filter(Boolean)
-          .map((s: any) => ({
-            id: s.id,
-            codigo: s.codigo,
-            title: s.title,
-            motivo: s.description
-          }));
+          .filter((s: any) => Boolean(s && (s.tipo === 'replacement' || s.codigo?.startsWith('R-') || pedTargets.some((t: any) => t.solicitud_id === s.id))))
+          .map((s: any) => {
+            const matchingTarget = pedTargets.find((t: any) => t.solicitud_id === s.id);
+            return {
+              id: s.id,
+              codigo: s.codigo,
+              title: s.title,
+              motivo: matchingTarget?.reason || s.description
+            };
+          });
         
         const seenWorkerIds = new Set<string>();
         const trabalhadores: TrabalhadorDemandaItem[] = [];
 
-        const pedIdStr = String(ped.id || '').trim();
         const isPedidoCompleted = (ped.operational_status || '').toLowerCase() === 'completed' || (ped.commercial_status || '').toLowerCase() === 'completed';
         const hasOngoingAssignmentsInPedido = pedAssignments.some((a: any) => {
           const st = (a.status || '').toLowerCase().trim();
@@ -1763,7 +1865,7 @@ export const logisticsService = {
           const isActiveInThisOrder = assStatus === 'active' || assStatus === 'planned' || assStatus === 'paused';
           const workerActiveOrders = activeAssignmentOrdersByWorker.get(workerId);
           const isActiveInAnotherOrder = Boolean(
-            workerActiveOrders && Array.from(workerActiveOrders).some(oid => oid !== pedIdStr)
+            workerActiveOrders && Array.from(workerActiveOrders).some(oid => oid !== pedIdStr && !pedSolIds.has(oid))
           );
 
           // Se o trabalhador já saiu deste pedido (completed/replaced/relocated/terminated) e está ativo em outro pedido,
@@ -1774,7 +1876,7 @@ export const logisticsService = {
 
           const candPedidoId = candidate.pedido_id ? String(candidate.pedido_id).trim() : '';
           const isCandPedidoUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candPedidoId);
-          if (isCandPedidoUuid && candPedidoId !== pedIdStr) {
+          if (isCandPedidoUuid && candPedidoId !== pedIdStr && !pedSolIds.has(candPedidoId)) {
             // Se o alojamento está vinculado explicitamente a outro pedido e o trabalhador não está ativo neste pedido (ou está ativo no outro pedido)
             if (!isActiveInThisOrder || workerActiveOrders?.has(candPedidoId)) {
               return undefined;
@@ -1802,9 +1904,10 @@ export const logisticsService = {
           // (ou se este trabalhador foi substituído neste pedido ou já está ativo em outro pedido),
           // significa que ele encerrou seu ciclo antecipadamente neste pedido (ex: realocado/baixa) e deve ser tratado no bloco histórico (bloco 2).
           if (assStatus === 'completed') {
-            const wasReplacedHere = pedAssignments.some((other: any) => other.replacement_of_assignment_id === ass.id);
+            const wasReplacedHere = pedAssignments.some((other: any) => other.replacement_of_assignment_id === ass.id) ||
+                                    pedTargets.some((t: any) => t.source_worker_id === workerId && t.target_worker_id);
             const workerActiveOrders = activeAssignmentOrdersByWorker.get(workerId);
-            const isActiveElsewhere = Boolean(workerActiveOrders && Array.from(workerActiveOrders).some(oid => oid !== pedIdStr));
+            const isActiveElsewhere = Boolean(workerActiveOrders && Array.from(workerActiveOrders).some(oid => oid !== pedIdStr && !pedSolIds.has(oid)));
             if ((!isPedidoCompleted && hasOngoingAssignmentsInPedido) || wasReplacedHere || isActiveElsewhere) {
               continue;
             }
@@ -1824,8 +1927,14 @@ export const logisticsService = {
             }
           }
 
-          if (ass.solicitud_id) {
-            solCodigo = solicitudesMap.get(ass.solicitud_id)?.codigo;
+          const matchedTargetAsIncoming = pedTargets.find((t: any) => t.target_assignment_id === ass.id || t.target_worker_id === workerId);
+          if (!substitutoDeNome && matchedTargetAsIncoming?.source_worker_id) {
+            substitutoDeNome = extraWorkersMap.get(matchedTargetAsIncoming.source_worker_id)?.nome;
+          }
+
+          const resolvedSolId = ass.solicitud_id || matchedTargetAsIncoming?.solicitud_id;
+          if (resolvedSolId) {
+            solCodigo = solicitudesMap.get(resolvedSolId)?.codigo;
           }
 
           const normName = normalizeWName(rawWorker.nome);
@@ -1847,14 +1956,14 @@ export const logisticsService = {
             codigo_colab: rawWorker.cod_colab || 'E-XXXX',
             nif: rawWorker.nif,
             movil: rawWorker.movil,
-            funcao: ass.job_function_name_snapshot || 'Operador Especialista',
+            funcao: ass.job_function_name_snapshot || matchedTargetAsIncoming?.target_job_function_name || 'Operador Especialista',
             data_inicio: formatToLocalDate(ass.planned_start_date || ass.start_date) || dataInicioStr,
             data_fim: dataFimStr,
             status_alocacao: alocLog ? 'alocado' : 'pendente',
             assignment_status: ass.status,
             is_substituido: false,
             substituto_de_nome: substitutoDeNome,
-            solicitud_id: ass.solicitud_id,
+            solicitud_id: resolvedSolId,
             solicitud_codigo: solCodigo,
             alocacao_detalhe: alocLog ? {
               alocacao_id: alocLog.id,
@@ -1893,9 +2002,10 @@ export const logisticsService = {
 
           // Verificar se foi substituído por alguém neste pedido
           const incomingReplacement = pedAssignments.find((other: any) => other.replacement_of_assignment_id === ass.id);
+          const matchedTargetAsOutgoing = pedTargets.find((t: any) => t.source_assignment_id === ass.id || t.source_worker_id === workerId);
           
           // Se não estiver alojado neste pedido E não tiver relação de substituição ativa neste pedido, ignora
-          if (!alocLog && !incomingReplacement) {
+          if (!alocLog && !incomingReplacement && !matchedTargetAsOutgoing) {
             continue;
           }
 
@@ -1905,9 +2015,11 @@ export const logisticsService = {
           if (incomingReplacement) {
             const incW = Array.isArray(incomingReplacement.worker) ? incomingReplacement.worker[0] : incomingReplacement.worker;
             substituidoPorNome = incW?.nome;
+          } else if (matchedTargetAsOutgoing?.target_worker_id) {
+            substituidoPorNome = extraWorkersMap.get(matchedTargetAsOutgoing.target_worker_id)?.nome;
           }
 
-          const solId = incomingReplacement?.solicitud_id || ass.solicitud_id;
+          const solId = incomingReplacement?.solicitud_id || matchedTargetAsOutgoing?.solicitud_id || ass.solicitud_id;
           const solCodigo = solId ? solicitudesMap.get(solId)?.codigo : undefined;
           const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
           const rhCheckHist = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
@@ -1950,7 +2062,6 @@ export const logisticsService = {
 
         const trabalhadoresAtivos = trabalhadores.filter(t => !t.is_substituido);
         const allWorkersCompletedCycle = trabalhadoresAtivos.length > 0 && trabalhadoresAtivos.every(t => (t.assignment_status || '').toLowerCase() === 'completed');
-        const todayIso = new Date().toISOString().split('T')[0];
         const isEndDatePast = Boolean(dataFimStr && dataFimStr < todayIso);
         const isPedidoFinalizado = isPedidoCompleted || (allWorkersCompletedCycle && isEndDatePast);
 
@@ -2002,7 +2113,359 @@ export const logisticsService = {
         };
       });
 
-      return result;
+      // 4. Montar Solicitudes de Reemplazo Operativo Autônomas (sem pedido_id comercial vinculado, ex: R-2026-000258)
+      const standaloneSolIds = new Set<string>();
+      allReplacementTargets.forEach((t: any) => {
+        const sol = solicitudesMap.get(t.solicitud_id);
+        const linkedPedId = t.source_pedido_id || sol?.pedido_id;
+        if (!linkedPedId || !pedidoIdsSet.has(String(linkedPedId).trim())) {
+          if (t.solicitud_id) standaloneSolIds.add(t.solicitud_id);
+        }
+      });
+
+      (assignmentsRes.data || []).forEach((ass: any) => {
+        if (!ass.pedido_id && ass.solicitud_id) {
+          const sol = solicitudesMap.get(ass.solicitud_id);
+          if (sol && sol.status !== 'cancelled' && (!sol.pedido_id || !pedidoIdsSet.has(String(sol.pedido_id).trim()))) {
+            standaloneSolIds.add(sol.id);
+          }
+        }
+      });
+
+      const standaloneResult: PedidoDemandaLogistica[] = [];
+
+      for (const solId of Array.from(standaloneSolIds)) {
+        const sol = solicitudesMap.get(solId) as any;
+        if (!sol || sol.status === 'cancelled') continue;
+
+        const solTargets = allReplacementTargets.filter((t: any) => t.solicitud_id === solId);
+        const solAssignments = (assignmentsRes.data || []).filter(
+          (a: any) => a.solicitud_id === solId && (a.status || '').toLowerCase() !== 'cancelled'
+        );
+
+        // Ignorar se não houver nenhum trabalhador contratado nem vaga de reemplazo
+        if (solTargets.length === 0 && solAssignments.length === 0) continue;
+
+        const clientId = sol.client_id || solTargets[0]?.source_client_id || solAssignments[0]?.client_id;
+        const siteId = sol.client_site_id || solTargets[0]?.source_client_site_id || solAssignments[0]?.client_site_id;
+        const empresaId = sol.empresa_id || solTargets[0]?.empresa_id || solAssignments[0]?.empresa_id;
+
+        const client = clientsMap.get(clientId) as any;
+        const site = sitesMap.get(siteId) as any;
+        const empresa = empresasMap.get(empresaId) as any;
+
+        const clienteNome = client?.trade_name || client?.legal_name || 'Cliente';
+        const clienteTelefone = client?.phone || client?.mobile || '';
+        const empresaNome = normalizeLogisticaEmpresa(empresa?.trade_name || empresa?.name || 'LUMINOUS');
+        const obraNome = site?.name?.trim() || clienteNome || 'Obra Principal';
+        const enderecoCompleto = site?.address_line?.trim() || 'Dirección no informada';
+        const cidade = site?.city?.trim() || '';
+        const codigoPostal = site?.postal_code?.trim() || '';
+        const encarregadoNome = site?.contact_name?.trim() || '';
+        const encarregadoTelefone = site?.contact_phone?.trim() || '';
+        const encarregadoEmail = site?.contact_email?.trim() || '';
+
+        const rawInicio = sol.due_date || solAssignments[0]?.planned_start_date || solAssignments[0]?.start_date || sol.created_at;
+        const dataInicioStr = formatToLocalDate(rawInicio) || todayIso;
+        const dataInicioFormatada = formatDisplayDate(rawInicio) || dataInicioStr;
+        const dataInicio = new Date(dataInicioStr);
+        const hoje = new Date();
+        const diasRestantes = Math.ceil((dataInicio.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+        const duracaoTexto = calculateDurationText(dataInicioStr, undefined);
+        const diaSemanaInicio = getWeekDayEs(dataInicioStr);
+
+        const seenWorkerIds = new Set<string>();
+        const trabalhadores: TrabalhadorDemandaItem[] = [];
+        const solIdStr = String(sol.id).trim();
+
+        const resolveAlocLogForStandalone = (workerId: string, wCode: string, normName: string, isIncomingHired: boolean, assEndDate?: string): Alocacao | undefined => {
+          const candidate = alocacoesLogisticaMap.get(workerId) ||
+                            (wCode ? alocacoesByCodeMap.get(wCode) : undefined) ||
+                            (normName ? alocacoesByNameMap.get(normName) : undefined);
+          if (!candidate) return undefined;
+
+          const workerActiveOrders = activeAssignmentOrdersByWorker.get(workerId);
+          const isActiveInAnotherOrder = Boolean(
+            workerActiveOrders && Array.from(workerActiveOrders).some(oid => oid !== solIdStr)
+          );
+
+          const isEndedPast = Boolean(assEndDate && formatToLocalDate(assEndDate) < todayIso);
+          if ((!isIncomingHired || isEndedPast) && isActiveInAnotherOrder) {
+            return undefined;
+          }
+
+          const candPedidoId = candidate.pedido_id ? String(candidate.pedido_id).trim() : '';
+          const isCandPedidoUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(candPedidoId);
+          if (isCandPedidoUuid && candPedidoId !== solIdStr && workerActiveOrders?.has(candPedidoId)) {
+            return undefined;
+          }
+
+          return candidate;
+        };
+
+        // 4.1 Trabalhadores Contratados para este Reemplazo (Substitutos que entram)
+        for (const ass of solAssignments) {
+          const rawWorker = Array.isArray(ass.worker) ? ass.worker[0] : (ass.worker || {});
+          const workerId = rawWorker.id || ass.worker_id || ass.id;
+          if (!workerId || seenWorkerIds.has(workerId)) continue;
+
+          // Verificar se foi substituído dentro da MESMA solicitud
+          const wasReplacedInsideSameSol = solAssignments.some((other: any) => other.replacement_of_assignment_id === ass.id);
+          if (wasReplacedInsideSameSol) continue;
+
+          seenWorkerIds.add(workerId);
+
+          const matchedTarget = solTargets.find(
+            (t: any) => t.target_assignment_id === ass.id || t.target_worker_id === workerId
+          ) || solTargets[0];
+
+          let substitutoDeNome: string | undefined;
+          if (matchedTarget?.source_worker_id) {
+            substitutoDeNome = extraWorkersMap.get(matchedTarget.source_worker_id)?.nome;
+          } else if (ass.replacement_of_assignment_id) {
+            const repAss = allAssignmentsMap.get(ass.replacement_of_assignment_id);
+            const repW = Array.isArray(repAss?.worker) ? repAss.worker[0] : repAss?.worker;
+            substitutoDeNome = repW?.nome;
+          }
+
+          const normName = normalizeWName(rawWorker.nome);
+          const wCode = (rawWorker.cod_colab || '').toUpperCase().trim();
+          const alocLog = resolveAlocLogForStandalone(workerId, wCode, normName, true, ass.end_date);
+          const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
+
+          const rhCheck = checkWorkerInativoRH(rawWorker.status_trabajador, rawWorker.status_seguridad);
+          const rawBaixa = (!rhCheck.isInativo || rhCheck.isAfastado)
+            ? undefined
+            : (rawWorker.data_baixa || rawWorker.data_baixa_seguridad || alocLog?.data_baixa || ass.end_date);
+
+          // Se o trabalhador foi contratado para este reemplazo (ex: R-2026-000258) e depois teve um novo reemplazo futuro (ex: R-2026-000264),
+          // no contexto deste reemplazo (R-2026-000258) ele continua sendo o trabalhador contratado que necessita alojamento!
+          const rawAssStatus = (ass.status || 'active').toLowerCase().trim();
+          const effectiveStatus = rawAssStatus === 'replaced' ? 'active' : ass.status;
+
+          trabalhadores.push({
+            assignment_id: ass.id,
+            worker_id: workerId,
+            worker_nome: rawWorker.nome || 'Trabalhador',
+            codigo_colab: rawWorker.cod_colab || 'E-XXXX',
+            nif: rawWorker.nif,
+            movil: rawWorker.movil,
+            funcao: ass.job_function_name_snapshot || matchedTarget?.target_job_function_name || 'Operador Especialista',
+            data_inicio: formatToLocalDate(ass.planned_start_date || ass.start_date) || dataInicioStr,
+            data_fim: ass.end_date ? formatToLocalDate(ass.end_date) : undefined,
+            status_alocacao: alocLog ? 'alocado' : 'pendente',
+            assignment_status: effectiveStatus,
+            is_substituido: false,
+            substituto_de_nome: substitutoDeNome,
+            solicitud_id: sol.id,
+            solicitud_codigo: sol.codigo,
+            alocacao_detalhe: alocLog ? {
+              alocacao_id: alocLog.id,
+              alojamento_id: alocLog.alojamento_id || '',
+              alojamento_nome: aloj?.nome || alocLog.obra_nome || 'Alojamiento',
+              alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+              cama_id: alocLog.cama_id,
+              cama_identificador: alocLog.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble',
+              data_inicio: alocLog.data_inicio,
+              data_fim: alocLog.data_fim
+            } : undefined,
+            status_trabajador: rawWorker.status_trabajador,
+            status_seguridad: rawWorker.status_seguridad,
+            is_inativo_rh: rhCheck.isInativo,
+            is_afastado_rh: rhCheck.isAfastado,
+            alerta_inativo_rh: rhCheck.motivo,
+            data_baixa: rawBaixa ? formatToLocalDate(rawBaixa) : undefined
+          });
+        }
+
+        // Caso algum target tenha target_worker_id preenchido sem linha correspondente em solAssignments
+        for (const t of solTargets) {
+          if (!t.target_worker_id || seenWorkerIds.has(t.target_worker_id)) continue;
+          const tw = extraWorkersMap.get(t.target_worker_id);
+          if (!tw) continue;
+
+          seenWorkerIds.add(tw.id);
+          const sw = t.source_worker_id ? extraWorkersMap.get(t.source_worker_id) : undefined;
+          const normName = normalizeWName(tw.nome);
+          const wCode = (tw.cod_colab || '').toUpperCase().trim();
+          const alocLog = resolveAlocLogForStandalone(tw.id, wCode, normName, true);
+          const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
+          const rhCheck = checkWorkerInativoRH(tw.status_trabajador, tw.status_seguridad);
+          const rawBaixa = (!rhCheck.isInativo || rhCheck.isAfastado)
+            ? undefined
+            : (tw.data_baixa || tw.data_baixa_seguridad || alocLog?.data_baixa);
+
+          trabalhadores.push({
+            assignment_id: t.target_assignment_id || `target-${t.id}`,
+            worker_id: tw.id,
+            worker_nome: tw.nome || 'Trabalhador',
+            codigo_colab: tw.cod_colab || 'E-XXXX',
+            nif: tw.nif,
+            movil: tw.movil,
+            funcao: t.target_job_function_name || tw.funcion || 'Operador Especialista',
+            data_inicio: dataInicioStr,
+            status_alocacao: alocLog ? 'alocado' : 'pendente',
+            assignment_status: 'active',
+            is_substituido: false,
+            substituto_de_nome: sw?.nome,
+            solicitud_id: sol.id,
+            solicitud_codigo: sol.codigo,
+            alocacao_detalhe: alocLog ? {
+              alocacao_id: alocLog.id,
+              alojamento_id: alocLog.alojamento_id || '',
+              alojamento_nome: aloj?.nome || alocLog.obra_nome || 'Alojamiento',
+              alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+              cama_id: alocLog.cama_id,
+              cama_identificador: alocLog.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble',
+              data_inicio: alocLog.data_inicio,
+              data_fim: alocLog.data_fim
+            } : undefined,
+            status_trabajador: tw.status_trabajador,
+            status_seguridad: tw.status_seguridad,
+            is_inativo_rh: rhCheck.isInativo,
+            is_afastado_rh: rhCheck.isAfastado,
+            alerta_inativo_rh: rhCheck.motivo,
+            data_baixa: rawBaixa ? formatToLocalDate(rawBaixa) : undefined
+          });
+        }
+
+        // 4.2 Trabalhadores Substituídos / Salientes deste Reemplazo (source_worker_id)
+        for (const t of solTargets) {
+          if (!t.source_worker_id || seenWorkerIds.has(t.source_worker_id)) continue;
+          const sw = extraWorkersMap.get(t.source_worker_id);
+          if (!sw) continue;
+
+          seenWorkerIds.add(sw.id);
+          const tw = t.target_worker_id ? extraWorkersMap.get(t.target_worker_id) : undefined;
+          const fallbackIncoming = trabalhadores.find(w => !w.is_substituido);
+          const substituidoPorNome = tw?.nome || fallbackIncoming?.worker_nome;
+
+          const normName = normalizeWName(sw.nome);
+          const wCode = (sw.cod_colab || '').toUpperCase().trim();
+          const alocLog = resolveAlocLogForStandalone(sw.id, wCode, normName, false);
+          const aloj = alocLog?.alojamento_id ? alojMap.get(alocLog.alojamento_id) : undefined;
+          const rhCheckHist = checkWorkerInativoRH(sw.status_trabajador, sw.status_seguridad);
+          const rawBaixaHist = rhCheckHist.isAfastado
+            ? undefined
+            : (rhCheckHist.isInativo ? (sw.data_baixa || sw.data_baixa_seguridad || alocLog?.data_baixa) : undefined);
+
+          trabalhadores.push({
+            assignment_id: t.source_assignment_id || `source-${t.id}`,
+            worker_id: sw.id,
+            worker_nome: sw.nome || 'Trabalhador',
+            codigo_colab: sw.cod_colab || 'E-XXXX',
+            nif: sw.nif,
+            movil: sw.movil,
+            funcao: t.target_job_function_name || sw.funcion || 'Operador Especialista',
+            data_inicio: alocLog?.data_inicio || dataInicioStr,
+            status_alocacao: alocLog ? 'alocado' : 'pendente',
+            assignment_status: 'replaced',
+            is_substituido: true,
+            substituido_por_nome: substituidoPorNome,
+            solicitud_id: sol.id,
+            solicitud_codigo: sol.codigo,
+            alocacao_detalhe: alocLog ? {
+              alocacao_id: alocLog.id,
+              alojamento_id: alocLog.alojamento_id || '',
+              alojamento_nome: aloj?.nome || alocLog.obra_nome || 'Alojamiento',
+              alojamento_codigo: aloj?.codigo || 'AL-XXXX',
+              cama_id: alocLog.cama_id,
+              cama_identificador: alocLog.cama_id.includes('ind') ? 'Cama Individual' : 'Cama Doble',
+              data_inicio: alocLog.data_inicio,
+              data_fim: alocLog.data_fim
+            } : undefined,
+            status_trabajador: sw.status_trabajador,
+            status_seguridad: sw.status_seguridad,
+            is_inativo_rh: rhCheckHist.isInativo,
+            is_afastado_rh: rhCheckHist.isAfastado,
+            alerta_inativo_rh: rhCheckHist.motivo,
+            data_baixa: rawBaixaHist ? formatToLocalDate(rawBaixaHist) : undefined
+          });
+        }
+
+        const trabalhadoresAtivos = trabalhadores.filter(t => !t.is_substituido);
+        const totalSolicitado = Math.max(solTargets.length, trabalhadoresAtivos.length, 1);
+
+        const vagasPerfil: VagaPerfilItem[] = solTargets.length > 0
+          ? solTargets.map((t: any) => {
+              const isFulfilled = Boolean(t.status === 'completed' || t.target_worker_id || t.target_assignment_id);
+              return {
+                item_id: t.id,
+                funcao: t.target_job_function_name || jobsMap.get(t.target_job_function_id) || 'Función / Perfil',
+                total_solicitado: 1,
+                contratados: isFulfilled ? 1 : 0,
+                faltam_contratar: isFulfilled ? 0 : 1
+              };
+            })
+          : [{
+              item_id: sol.id,
+              funcao: trabalhadoresAtivos[0]?.funcao || 'Operador Especialista',
+              total_solicitado: totalSolicitado,
+              contratados: trabalhadoresAtivos.length,
+              faltam_contratar: Math.max(0, totalSolicitado - trabalhadoresAtivos.length)
+            }];
+
+        const manualCompletedFlag = sol.pergunta_respuesta?.__logistica_completed;
+        const allWorkersCompletedCycle = trabalhadoresAtivos.length > 0 && trabalhadoresAtivos.every(
+          t => (t.assignment_status || '').toLowerCase() === 'completed'
+        );
+        const isPedidoFinalizado = manualCompletedFlag === true
+          ? true
+          : manualCompletedFlag === false
+          ? false
+          : allWorkersCompletedCycle;
+
+        const totalAlojados = trabalhadoresAtivos.filter(t => t.status_alocacao === 'alocado').length;
+        const totalPendentes = isPedidoFinalizado
+          ? 0
+          : trabalhadoresAtivos.filter(
+              t => t.status_alocacao === 'pendente' && (t.assignment_status || '').toLowerCase() !== 'completed'
+            ).length;
+        const totalFaltamContratar = isPedidoFinalizado ? 0 : Math.max(0, totalSolicitado - trabalhadoresAtivos.length);
+
+        standaloneResult.push({
+          pedido_id: sol.id,
+          pedido_codigo: sol.codigo || `R-${sol.id.slice(0, 6)}`,
+          cliente_id: clientId,
+          cliente_nome: clienteNome,
+          cliente_telefone: clienteTelefone,
+          empresa_id: empresaId,
+          empresa_contratante: empresaNome,
+          obra_nome: obraNome,
+          endereco_completo: enderecoCompleto,
+          cidade: cidade,
+          provincia: site?.city || cidade,
+          codigo_postal: codigoPostal,
+          encarregado_nome: encarregadoNome,
+          encarregado_telefone: encarregadoTelefone,
+          encarregado_email: encarregadoEmail,
+          data_inicio: dataInicioStr,
+          data_inicio_formatada: dataInicioFormatada,
+          data_inicio_diasemana: diaSemanaInicio,
+          dias_restantes: diasRestantes,
+          duracao_texto: duracaoTexto,
+          tipo_solicitacao: 'Reemplazo',
+          solicitudes_reemplazo: [{
+            id: sol.id,
+            codigo: sol.codigo,
+            title: sol.title,
+            motivo: solTargets[0]?.reason || sol.description
+          }],
+          status_operacional: sol.status === 'completed' ? 'FULFILLED' : 'PARTIALLY_FULFILLED',
+          commercial_status: isPedidoFinalizado ? 'completed' : 'active',
+          is_finalizado: isPedidoFinalizado,
+          observacoes: sol.description || solTargets[0]?.notes || 'Sustitución operativa (Reemplazo).',
+          total_vagas_pedido: totalSolicitado,
+          total_contratados: trabalhadoresAtivos.length,
+          total_faltam_contratar: totalFaltamContratar,
+          total_alojados: totalAlojados,
+          total_pendentes_alojamento: totalPendentes,
+          vagas_perfil: vagasPerfil,
+          trabalhadores: trabalhadores
+        });
+      }
+
+      return [...commercialResult, ...standaloneResult];
     } catch (err) {
       console.error('Error fetching pedidos demanda logistica:', err);
       return [];
@@ -2010,21 +2473,59 @@ export const logisticsService = {
   },
 
   async finalizarPedido(pedidoId: string): Promise<void> {
-    const { error } = await supabase
+    const cleanId = pedidoId.replace(/^reemplazo-/, '');
+    const { data: pedUpdated, error: pedErr } = await supabase
       .schema('core_comercial')
       .from('pedidos')
       .update({ commercial_status: 'completed', updated_at: new Date().toISOString() })
-      .eq('id', pedidoId);
-    if (error) throw error;
+      .eq('id', cleanId)
+      .select('id');
+    if (pedErr) throw pedErr;
+
+    if (!pedUpdated || pedUpdated.length === 0) {
+      const { data: solRow } = await supabase
+        .schema('core_operacoes')
+        .from('solicitudes_operativas')
+        .select('id, pergunta_respuesta')
+        .eq('id', cleanId)
+        .maybeSingle();
+      if (solRow) {
+        const nextPr = { ...(solRow.pergunta_respuesta || {}), __logistica_completed: true };
+        await supabase
+          .schema('core_operacoes')
+          .from('solicitudes_operativas')
+          .update({ pergunta_respuesta: nextPr, updated_at: new Date().toISOString() })
+          .eq('id', cleanId);
+      }
+    }
   },
 
   async reabrirPedido(pedidoId: string): Promise<void> {
-    const { error } = await supabase
+    const cleanId = pedidoId.replace(/^reemplazo-/, '');
+    const { data: pedUpdated, error: pedErr } = await supabase
       .schema('core_comercial')
       .from('pedidos')
       .update({ commercial_status: 'active', updated_at: new Date().toISOString() })
-      .eq('id', pedidoId);
-    if (error) throw error;
+      .eq('id', cleanId)
+      .select('id');
+    if (pedErr) throw pedErr;
+
+    if (!pedUpdated || pedUpdated.length === 0) {
+      const { data: solRow } = await supabase
+        .schema('core_operacoes')
+        .from('solicitudes_operativas')
+        .select('id, pergunta_respuesta')
+        .eq('id', cleanId)
+        .maybeSingle();
+      if (solRow) {
+        const nextPr = { ...(solRow.pergunta_respuesta || {}), __logistica_completed: false };
+        await supabase
+          .schema('core_operacoes')
+          .from('solicitudes_operativas')
+          .update({ pergunta_respuesta: nextPr, updated_at: new Date().toISOString() })
+          .eq('id', cleanId);
+      }
+    }
   },
 
   async fetchDemandas(): Promise<DemandaTrabalhador[]> {
