@@ -9,6 +9,7 @@ import {
   Clock,
   AlertCircle,
   Building,
+  Building2,
   Home,
   CreditCard,
   Send,

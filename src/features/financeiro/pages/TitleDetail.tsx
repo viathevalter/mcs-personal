@@ -6,7 +6,7 @@ import {
     ChevronLeft, Calendar, DollarSign, FileText, CheckCircle, XCircle, 
     AlertCircle, RefreshCw, Send, ArrowRight, Link2, Users, Bed, Home, 
     UserCheck, AlertTriangle, CheckCircle2, Wallet, Landmark, Download, 
-    Upload, Edit3, Clock, ArrowUpRight, Copy, Check, CreditCard, Zap, Calculator, Plus
+    Upload, Edit3, Clock, ArrowUpRight, Copy, Check, CreditCard, Zap, Calculator, Plus, Building2
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { useAuth } from '@/app/providers/AuthProvider';
