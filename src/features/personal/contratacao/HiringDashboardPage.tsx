@@ -56,6 +56,7 @@ export const HiringDashboardPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'pending' | 'completed' | 'all'>('pending');
   const [clientFilter, setClientFilter] = useState<string>('all');
   const [profileFilter, setProfileFilter] = useState<string>('all');
+  const [comercialFilter, setComercialFilter] = useState<string>('all');
   const [workerSearch, setWorkerSearch] = useState<string>('');
 
   // Dialog state
@@ -256,9 +257,16 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       if (itemsErr) throw itemsErr;
 
       const jobFunctionIds = [...new Set((items || []).map(i => i.job_function_id).filter(Boolean))];
+      const userIds = [
+        ...new Set(
+          pedidos
+            .flatMap(p => [p.commercial_owner_id, p.created_by, p.updated_by])
+            .filter(Boolean)
+        ),
+      ];
 
-      // Fetch clients, sites, and functions in parallel
-      const [clientsRes, sitesRes, jobsRes] = await Promise.all([
+      // Fetch clients, sites, functions, and comercial users in parallel
+      const [clientsRes, sitesRes, jobsRes, usersRes] = await Promise.all([
         clientIds.length > 0 
           ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name').in('id', clientIds)
           : Promise.resolve({ data: [] }),
@@ -267,12 +275,16 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           : Promise.resolve({ data: [] }),
         jobFunctionIds.length > 0
           ? supabase.schema('core_comercial').from('job_functions').select('id, name').in('id', jobFunctionIds)
+          : Promise.resolve({ data: [] }),
+        userIds.length > 0
+          ? supabase.schema('core_operacoes').from('mcs_users').select('id, display_name, email').in('id', userIds)
           : Promise.resolve({ data: [] })
       ]);
 
       const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
       const sitesMap = new Map(sitesRes.data?.map(s => [s.id, s]) || []);
       const jobsMap = new Map(jobsRes.data?.map(j => [j.id, j]) || []);
+      const usersMap = new Map(usersRes.data?.map(u => [u.id, u]) || []);
 
       return pedidos.map(pedido => {
         const pedidoItems = (items || [])
@@ -282,10 +294,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
             job_function: jobsMap.get(item.job_function_id) || null
           }));
 
+        const ownerId = pedido.commercial_owner_id || pedido.created_by || pedido.updated_by;
+
         return {
           ...pedido,
           client: clientsMap.get(pedido.client_id) || null,
           client_site: sitesMap.get(pedido.client_site_id) || null,
+          commercial_owner: ownerId ? (usersMap.get(ownerId) || null) : null,
           pedido_items: pedidoItems
         };
       });
@@ -320,7 +335,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           reason,
           notes,
           solicitud_id, 
-          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id, pergunta_respuesta, tipo, status)
+          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id, pergunta_respuesta, tipo, status, created_by, requested_by)
         `)
         .in('action_type', ['replace', 'offboard'])
         .in('status', ['pending', 'in_progress', 'completed']);
@@ -344,8 +359,9 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       const workerIds = [...new Set(targets.map((t: any) => t.source_worker_id).filter(Boolean))];
       const clientIds = [...new Set(targets.map((t: any) => t.source_client_id || t.solicitud?.client_id).filter(Boolean))];
       const siteIds = [...new Set(targets.map((t: any) => t.source_client_site_id || t.solicitud?.client_site_id).filter(Boolean))];
+      const solUserIds = [...new Set(targets.flatMap((t: any) => [t.solicitud?.created_by, t.solicitud?.requested_by]).filter(Boolean))];
 
-      const [workersRes, clientsRes, sitesRes] = await Promise.all([
+      const [workersRes, clientsRes, sitesRes, solUsersRes] = await Promise.all([
         workerIds.length > 0 
           ? supabase.schema('core_personal').from('workers').select('id, nome, cod_colab, funcion').in('id', workerIds)
           : Promise.resolve({ data: [] }),
@@ -354,18 +370,23 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           : Promise.resolve({ data: [] }),
         siteIds.length > 0
           ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code').in('id', siteIds)
+          : Promise.resolve({ data: [] }),
+        solUserIds.length > 0
+          ? supabase.schema('core_operacoes').from('mcs_users').select('id, display_name, email').in('id', solUserIds)
           : Promise.resolve({ data: [] })
       ]);
 
       const workersMap = new Map(workersRes.data?.map(w => [w.id, w]) || []);
       const clientsMap = new Map(clientsRes.data?.map(c => [c.id, c]) || []);
       const sitesMap = new Map(sitesRes.data?.map(s => [s.id, s]) || []);
+      const solUsersMap = new Map(solUsersRes.data?.map(u => [u.id, u]) || []);
 
       return targets.map((t: any) => ({
         ...t,
         source_worker: workersMap.get(t.source_worker_id) || null,
         client: clientsMap.get(t.source_client_id || t.solicitud?.client_id) || null,
-        client_site: sitesMap.get(t.source_client_site_id || t.solicitud?.client_site_id) || null
+        client_site: sitesMap.get(t.source_client_site_id || t.solicitud?.client_site_id) || null,
+        solicitud_creator: solUsersMap.get(t.solicitud?.created_by || t.solicitud?.requested_by) || null
       }));
     },
     enabled: !!selectedEmpresaId
@@ -499,6 +520,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
           client: t.client || { trade_name: 'N/A - Reemplazo' },
           client_site: t.client_site || { name: 'N/A - Local não definido' },
           pergunta_respuesta: t.solicitud?.pergunta_respuesta || null,
+          commercial_owner: t.solicitud_creator || null,
           pedido_items: [item],
           empresa_id: t.empresa_id || selectedEmpresaId
         };
@@ -594,6 +616,19 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     return Array.from(set).sort();
   }, [blendedPedidos]);
 
+  // Unique comerciais present in active pedidos for filter dropdown
+  const comerciaisList = useMemo(() => {
+    const map = new Map<string, string>();
+    blendedPedidos.forEach(p => {
+      if (p.commercial_owner?.id && p.commercial_owner?.display_name) {
+        map.set(p.commercial_owner.id, p.commercial_owner.display_name);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [blendedPedidos]);
+
   // Calculate totals across all active orders
   const totals = useMemo(() => {
     let openVacancies = 0;
@@ -656,18 +691,25 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         if (!hasProfile) return false;
       }
 
-      // 4. General Search (Client trade name, legal name, code, site name)
+      // 3b. Comercial Filter
+      if (comercialFilter !== 'all' && p.commercial_owner?.id !== comercialFilter) {
+        return false;
+      }
+
+      // 4. General Search (Client trade name, legal name, code, site name, comercial name)
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         const clientTradeName = (p.client?.trade_name || '').toLowerCase();
         const clientLegalName = (p.client?.legal_name || '').toLowerCase();
         const code = (p.codigo || '').toLowerCase();
         const siteName = (p.client_site?.name || '').toLowerCase();
+        const comercialName = (p.commercial_owner?.display_name || '').toLowerCase();
         
         const matchesBasic = clientTradeName.includes(query) || 
                              clientLegalName.includes(query) || 
                              code.includes(query) || 
-                             siteName.includes(query);
+                             siteName.includes(query) ||
+                             comercialName.includes(query);
         if (!matchesBasic) return false;
       }
 
@@ -683,7 +725,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
       return true;
     });
-  }, [blendedPedidos, replacementTargets, statusFilter, clientFilter, profileFilter, searchQuery, workerSearch, allAllocations]);
+  }, [blendedPedidos, replacementTargets, statusFilter, clientFilter, profileFilter, comercialFilter, searchQuery, workerSearch, allAllocations]);
 
   // Automatically select the first Pedido if none is selected, or if the selected one is filtered out
   React.useEffect(() => {
@@ -885,13 +927,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
             </div>
 
             {/* Dropdown Filters */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               <div className="space-y-1">
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Cliente</label>
                 <select
                   value={clientFilter}
                   onChange={e => setClientFilter(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-md text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full px-1.5 py-1 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-md text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="all">Todos</option>
                   {clientsList.map(c => (
@@ -905,11 +947,25 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                 <select
                   value={profileFilter}
                   onChange={e => setProfileFilter(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-md text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  className="w-full px-1.5 py-1 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-md text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 >
                   <option value="all">Todos</option>
                   {profilesList.map(p => (
                     <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">Comercial</label>
+                <select
+                  value={comercialFilter}
+                  onChange={e => setComercialFilter(e.target.value)}
+                  className="w-full px-1.5 py-1 border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/40 dark:bg-indigo-950/30 rounded-md text-[11px] font-semibold text-indigo-900 dark:text-indigo-200 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="all">Todos</option>
+                  {comerciaisList.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
               </div>
@@ -984,6 +1040,13 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                       <p className="text-[11px] text-slate-500 truncate mt-0.5">
                         {pedido.client_site?.name || 'Local não definido'}
                       </p>
+                      {pedido.commercial_owner?.display_name && (
+                        <div className="mt-1 flex items-center gap-1">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800/60 truncate max-w-full">
+                            👤 Comercial: {pedido.commercial_owner.display_name}
+                          </span>
+                        </div>
+                      )}
                       {hasReplacement && (() => {
                         const pedidoReplacements = replacementTargets.filter(t => 
                           pedido.pedido_items?.some((item: any) => item.id === t.source_pedido_item_id)
@@ -1026,9 +1089,16 @@ LICENCIA DE CONDUCIR: ${cnh}`;
               <div className="bg-slate-50 dark:bg-slate-900/60 rounded-xl p-5 border border-slate-200 dark:border-slate-800 space-y-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 gap-2">
                   <div>
-                    <span className={`${selectedPedido.isSynthetic ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-400 border-purple-200' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-400 border-indigo-200'} text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider border`}>
-                      {selectedPedido.isSynthetic ? 'Substituição Operativa' : 'Pedido Comercial'}
-                    </span>
+                    <div className="flex items-center flex-wrap gap-2">
+                      <span className={`${selectedPedido.isSynthetic ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/50 dark:text-purple-400 border-purple-200' : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-400 border-indigo-200'} text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider border`}>
+                        {selectedPedido.isSynthetic ? 'Substituição Operativa' : 'Pedido Comercial'}
+                      </span>
+                      {selectedPedido.commercial_owner?.display_name && (
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-[11px] font-bold px-2.5 py-0.5 rounded-md shadow-xs">
+                          <span>👤 Comercial: {selectedPedido.commercial_owner.display_name}</span>
+                        </span>
+                      )}
+                    </div>
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white mt-1">
                       {selectedPedido.client?.trade_name || selectedPedido.client?.legal_name || 'Cliente'}
                     </h2>
@@ -1053,7 +1123,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
                   <div className="flex items-start space-x-2">
                     <MapPin className="h-4.5 w-4.5 text-slate-400 mt-0.5 flex-shrink-0" />
                     <div>
@@ -1079,6 +1149,21 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                         {' '} até {' '}
                         {selectedPedido.expected_end_date ? new Date(selectedPedido.expected_end_date).toLocaleDateString('pt-PT') : 'N/A'}
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-2">
+                    <Users className="h-4.5 w-4.5 text-indigo-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <span className="font-semibold text-slate-500">Comercial Responsável</span>
+                      <p className="font-bold text-indigo-700 dark:text-indigo-300 mt-0.5">
+                        {selectedPedido.commercial_owner?.display_name || 'Não informado'}
+                      </p>
+                      {selectedPedido.commercial_owner?.email && (
+                        <p className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                          {selectedPedido.commercial_owner.email}
+                        </p>
+                      )}
                     </div>
                   </div>
 
