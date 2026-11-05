@@ -509,7 +509,135 @@ serve(async (req) => {
 
     // Parse do body
     const body = await req.json();
-    const { token, otp_code, signature_image, ip_address, user_agent, action } = body;
+    const {
+      token,
+      otp_code,
+      signature_image,
+      ip_address,
+      user_agent,
+      action,
+      estimacion_id,
+      signed_proposal_path,
+      signed_contract_path,
+      signer_info,
+    } = body;
+
+    if (action === "manual-sign") {
+      if (!estimacion_id) {
+        return new Response(
+          JSON.stringify({ error: "Parâmetro estimacion_id é obrigatório para assinatura manual." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: estManual, error: estManualErr } = await supabase
+        .schema("core_comercial")
+        .from("estimaciones")
+        .select("*")
+        .eq("id", estimacion_id)
+        .single();
+
+      if (estManualErr || !estManual) {
+        return new Response(
+          JSON.stringify({ error: `Estimación não encontrada: ${estManualErr?.message}` }),
+          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: existingPs } = await supabase
+        .schema("core_comercial")
+        .from("proposal_signatures")
+        .select("*")
+        .eq("estimacion_id", estimacion_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const nowIso = new Date().toISOString();
+      let finalPs: any = null;
+
+      if (existingPs) {
+        const updateFields: any = {
+          status: "signed",
+          signed_at: existingPs.signed_at || nowIso,
+          otp_code: null,
+          otp_expires_at: null,
+          updated_at: nowIso,
+        };
+        if (signed_proposal_path) {
+          updateFields.signed_document_url = signed_proposal_path;
+          if (!existingPs.document_url) updateFields.document_url = signed_proposal_path;
+        }
+        if (signed_contract_path) {
+          updateFields.contract_signed_document_url = signed_contract_path;
+          if (!existingPs.contract_document_url) updateFields.contract_document_url = signed_contract_path;
+        }
+
+        const { data: updatedPs, error: updErr } = await supabase
+          .schema("core_comercial")
+          .from("proposal_signatures")
+          .update(updateFields)
+          .eq("id", existingPs.id)
+          .select()
+          .single();
+
+        if (updErr) throw new Error(`Falha ao atualizar assinatura manual: ${updErr.message}`);
+        finalPs = updatedPs;
+      } else {
+        const insertFields: any = {
+          empresa_id: estManual.empresa_id,
+          estimacion_id: estManual.id,
+          status: "signed",
+          signature_token: crypto.randomUUID(),
+          sent_at: nowIso,
+          signed_at: nowIso,
+          document_url: signed_proposal_path || signed_contract_path || null,
+          signed_document_url: signed_proposal_path || signed_contract_path || null,
+          contract_document_url: signed_contract_path || null,
+          contract_signed_document_url: signed_contract_path || null,
+        };
+
+        const { data: insertedPs, error: insErr } = await supabase
+          .schema("core_comercial")
+          .from("proposal_signatures")
+          .insert(insertFields)
+          .select()
+          .single();
+
+        if (insErr) throw new Error(`Falha ao criar registro de assinatura manual: ${insErr.message}`);
+        finalPs = insertedPs;
+      }
+
+      await supabase
+        .schema("core_comercial")
+        .from("proposal_audit_logs")
+        .insert({
+          proposal_signature_id: finalPs.id,
+          ip_address: "ASSINATURA EXTERNA (PDF)",
+          user_agent: user_agent || "Upload Manual de PDF Assinado pelo Cliente",
+          verification_code: "EXTERNO",
+          signature_image: signed_contract_path || signed_proposal_path || "",
+          email_or_phone_used: signer_info || estManual.contact_email || estManual.contact_name || "Assinatura Externa (PDF)",
+        });
+
+      const nextStatus = estManual.status === "approved" ? "approved" : "signed";
+      await supabase
+        .schema("core_comercial")
+        .from("estimaciones")
+        .update({ status: nextStatus, updated_at: nowIso })
+        .eq("id", estManual.id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          proposal_signature_id: finalPs.id,
+          status: nextStatus,
+          signed_document_url: finalPs.signed_document_url,
+          contract_signed_document_url: finalPs.contract_signed_document_url,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (!token) {
       return new Response(

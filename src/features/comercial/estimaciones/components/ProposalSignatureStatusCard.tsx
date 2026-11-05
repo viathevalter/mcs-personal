@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,7 @@ import { useEstimacionMutations } from '../hooks/useEstimacionMutations';
 import { 
   FileText, Send, CheckCircle2, Clock, Copy, 
   ExternalLink, Lock, Mail, RefreshCw, Download, 
-  Check, ShieldCheck, AlertCircle, Loader2, Package
+  Check, ShieldCheck, AlertCircle, Loader2, Package, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29,7 +30,15 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const [downloadingContract, setDownloadingContract] = useState(false);
   const [downloadingSignedContract, setDownloadingSignedContract] = useState(false);
   const [isMissingFiscalModalOpen, setIsMissingFiscalModalOpen] = useState(false);
+  const queryClient = useQueryClient();
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [isManualSignModalOpen, setIsManualSignModalOpen] = useState(false);
+  const [manualContractFile, setManualContractFile] = useState<File | null>(null);
+  const [manualProposalFile, setManualProposalFile] = useState<File | null>(null);
+  const [manualSignerInfo, setManualSignerInfo] = useState(
+    estimacion.contact_name || estimacion.client?.legal_name || estimacion.contact_email || ''
+  );
+  const [isUploadingManual, setIsUploadingManual] = useState(false);
 
   const initialEmail = estimacion.contact_email || estimacion.client?.email || estimacion.lead?.email || '';
   const [emailInput, setEmailInput] = useState(initialEmail);
@@ -239,6 +248,73 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
     });
   };
 
+  const handleManualSignUpload = async () => {
+    if (!manualContractFile && !manualProposalFile) {
+      toast.error('Selecione pelo menos um arquivo PDF assinado (Contrato ou Proposta).');
+      return;
+    }
+
+    try {
+      setIsUploadingManual(true);
+      const ts = Date.now();
+      let uploadedProposalPath: string | null = null;
+      let uploadedContractPath: string | null = null;
+
+      if (manualProposalFile) {
+        uploadedProposalPath = `${estimacion.id}/proposta_assinada_externa_${ts}.pdf`;
+        const { error: upPropErr } = await supabase.storage
+          .from('proposal-signatures')
+          .upload(uploadedProposalPath, manualProposalFile, {
+            contentType: 'application/pdf',
+            upsert: true,
+          });
+        if (upPropErr) throw new Error(`Erro no upload da proposta: ${upPropErr.message}`);
+      }
+
+      if (manualContractFile) {
+        uploadedContractPath = `${estimacion.id}/contrato_assinado_externo_${ts}.pdf`;
+        const { error: upContErr } = await supabase.storage
+          .from('proposal-signatures')
+          .upload(uploadedContractPath, manualContractFile, {
+            contentType: 'application/pdf',
+            upsert: true,
+          });
+        if (upContErr) throw new Error(`Erro no upload do contrato: ${upContErr.message}`);
+      }
+
+      const { data: resData, error: fnErr } = await supabase.functions.invoke('sign-proposal', {
+        body: {
+          action: 'manual-sign',
+          estimacion_id: estimacion.id,
+          token: sig?.signature_token || undefined,
+          signed_proposal_path: uploadedProposalPath,
+          signed_contract_path: uploadedContractPath,
+          signer_info: manualSignerInfo.trim() || undefined,
+          user_agent: navigator.userAgent,
+        },
+      });
+
+      if (fnErr || resData?.error) {
+        throw new Error(fnErr?.message || resData?.error || 'Erro ao registrar assinatura manual.');
+      }
+
+      toast.success('Contrato/Proposta assinado arquivado com sucesso!', {
+        description: 'O orçamento foi liberado para Aprovar e Gerar Pedido.',
+      });
+
+      setIsManualSignModalOpen(false);
+      setManualContractFile(null);
+      setManualProposalFile(null);
+      await queryClient.invalidateQueries({ queryKey: ['estimaciones'] });
+      await queryClient.invalidateQueries({ queryKey: ['estimaciones', estimacion.id] });
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Erro ao arquivar documento assinado', { description: err.message });
+    } finally {
+      setIsUploadingManual(false);
+    }
+  };
+
   const renderFiscalWarningModals = () => (
     <>
       <Dialog open={isMissingFiscalModalOpen} onOpenChange={setIsMissingFiscalModalOpen}>
@@ -329,9 +405,105 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           isOpen={isConvertModalOpen}
           onClose={() => setIsConvertModalOpen(false)}
           lead={estimacion.lead}
-          estimacionId={estimacion.id}
-        />
+          estimacionId={estimacion.id} />
       )}
+
+      <Dialog open={isManualSignModalOpen} onOpenChange={setIsManualSignModalOpen}>
+        <DialogContent className="sm:max-w-[540px] border border-slate-200 dark:border-slate-800 shadow-xl rounded-xl">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5 text-emerald-600 dark:text-emerald-400">
+              <Upload className="w-5 h-5 shrink-0" />
+              <DialogTitle className="text-base font-bold">
+                Arquivar Contrato / Proposta Assinado Externamente (PDF)
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground pt-1.5 leading-relaxed">
+              Utilize esta opção quando o cliente assinou o contrato e/ou pressuposto fora da plataforma (certificado digital próprio ou assinatura em PDF). Os arquivos ficarão arquivados neste orçamento e liberarão imediatamente o botão <strong>Aprovar e Gerar Pedido</strong>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                1. Contrato Assinado em PDF (ou arquivo único Contrato + Proposta)
+              </label>
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={(e) => setManualContractFile(e.target.files?.[0] || null)}
+                className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 dark:file:bg-emerald-950/50 dark:file:text-emerald-300 cursor-pointer"
+              />
+              {manualContractFile && (
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold pt-1">
+                  ✓ Selecionado: {manualContractFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5 bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                2. Proposta / Pressuposto Assinado em PDF (Opcional)
+              </label>
+              <input
+                type="file"
+                accept=".pdf,application/pdf"
+                onChange={(e) => setManualProposalFile(e.target.files?.[0] || null)}
+                className="w-full text-xs text-slate-600 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-indigo-950/50 dark:file:text-indigo-300 cursor-pointer"
+              />
+              {manualProposalFile && (
+                <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold pt-1">
+                  ✓ Selecionado: {manualProposalFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                Responsável / Identificação da Assinatura:
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: Nome do representante / Certificado Digital da Empresa"
+                value={manualSignerInfo}
+                onChange={(e) => setManualSignerInfo(e.target.value)}
+                className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3 py-2 rounded-md text-xs outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setIsManualSignModalOpen(false)}
+              disabled={isUploadingManual}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+              onClick={handleManualSignUpload}
+              disabled={isUploadingManual || (!manualContractFile && !manualProposalFile)}
+            >
+              {isUploadingManual ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Arquivando e Liberando...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                  Arquivar PDF Assinado e Liberar Pedido
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 
@@ -506,6 +678,15 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               )}
             </Button>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold"
+            onClick={() => setIsManualSignModalOpen(true)}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Subir Contrato / Proposta Assinada (PDF)
+          </Button>
         </CardContent>
       </Card>
       {renderFiscalWarningModals()}
@@ -622,7 +803,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
 
           <div className="flex flex-col gap-2.5">
             <div className="flex space-x-3">
-              {sig?.document_url && (
+              {(sig?.signed_document_url || sig?.document_url) && (
                 <Button 
                   variant="outline"
                   className="flex-1"
@@ -662,6 +843,15 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                 </>
               )}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold"
+              onClick={() => setIsManualSignModalOpen(true)}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Subir Contrato / Proposta Assinada (PDF)
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -682,7 +872,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               <CardTitle className="text-base font-semibold">Proposta Comercial</CardTitle>
             </div>
             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900">
-              Assinada Digitalmente
+              {sig?.proposal_audit_logs?.[0]?.verification_code === 'EXTERNO' ? 'Assinada Externamente (PDF)' : 'Assinada Digitalmente'}
             </Badge>
           </div>
           <CardDescription>
@@ -740,7 +930,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           </div>
 
           <div className="flex flex-col gap-2.5">
-            {sig?.document_url && (
+            {(sig?.signed_document_url || sig?.document_url) && (
               <Button 
                 variant="outline"
                 className="w-full"
@@ -763,6 +953,16 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               </Button>
             )}
           </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold"
+            onClick={() => setIsManualSignModalOpen(true)}
+          >
+            <Upload className="mr-2 h-3.5 w-3.5" />
+            Anexar / Substituir PDF Assinado Externamente
+          </Button>
 
           {/* Seção para Emitir / Reenviar Proposta da Nova Versão */}
           <div className="mt-4 pt-4 border-t border-emerald-200 dark:border-emerald-900/50 space-y-3">
