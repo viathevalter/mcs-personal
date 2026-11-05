@@ -1267,7 +1267,7 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
       {/* DIÁLOGO: Adicionar Exceção por Trabalhador */}
       <Dialog open={isWorkerDialogOpen} onOpenChange={setIsWorkerDialogOpen}>
-        <DialogContent className="sm:max-w-[600px] w-[95vw] bg-white">
+        <DialogContent className="max-w-[700px] sm:max-w-[700px] w-[95vw] bg-white overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-orange-500" />
@@ -1278,8 +1278,8 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-3">
-            <div className="space-y-1.5">
+          <div className="space-y-4 py-3 min-w-0">
+            <div className="space-y-1.5 min-w-0">
               <Label htmlFor="dialog_worker_select">Selecione o Trabalhador</Label>
               <Combobox
                 options={filteredWorkers.map(w => {

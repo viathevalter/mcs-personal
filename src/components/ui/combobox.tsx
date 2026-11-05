@@ -85,7 +85,7 @@ export function Combobox({
                     aria-expanded={open}
                     className={cn("w-full min-w-0 max-w-full overflow-hidden justify-between font-normal text-left text-foreground bg-background", className)}
                 >
-                    <span className="truncate mr-2 text-left flex-1 text-foreground">
+                    <span className="truncate mr-2 text-left flex-1 min-w-0 text-foreground">
                         {value
                             ? uniqueOptions.find((option) => option.value === value)?.label || options.find((option) => option.value === value)?.label
                             : placeholder}
