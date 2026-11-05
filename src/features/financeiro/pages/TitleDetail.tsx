@@ -168,7 +168,10 @@ export const TitleDetail = () => {
         title?.cod_alojamiento ||
         title?.descricao?.toLowerCase().includes('aluguel') ||
         title?.descricao?.toLowerCase().includes('alquiler') ||
-        title?.descricao?.toLowerCase().includes('alojamiento')
+        title?.descricao?.toLowerCase().includes('alojamiento') ||
+        title?.descricao?.toLowerCase().includes('suministro') ||
+        title?.descricao?.toLowerCase().includes('fianza') ||
+        /\bAL-\d+\b/i.test(`${title?.descricao || ''} ${title?.observaciones || ''}`)
     );
 
     const { data: ocupantes = [], isLoading: isLoadingOcupantes } = useQuery({
@@ -180,6 +183,27 @@ export const TitleDetail = () => {
         ),
         enabled: !!title && isLodgingOrder
     });
+
+    const { data: alojamentoDetalhes = null } = useQuery({
+        queryKey: ['alojamento_detalhes_ordem', title?.cod_alojamiento, title?.descricao, title?.observaciones],
+        queryFn: () => financeLogisticsService.fetchAlojamentoDetalhes(
+            title?.cod_alojamiento || undefined,
+            title?.descricao,
+            title?.observaciones
+        ),
+        enabled: !!title && isLodgingOrder
+    });
+
+    const [selectedClienteOcupanteFilter, setSelectedClienteOcupanteFilter] = useState<string>('TODOS');
+
+    const clientesAlojamento = React.useMemo(() => {
+        return Array.from(new Set(ocupantes.map(o => o.cliente_nome).filter(Boolean))) as string[];
+    }, [ocupantes]);
+
+    const ocupantesFiltrados = React.useMemo(() => {
+        if (selectedClienteOcupanteFilter === 'TODOS') return ocupantes;
+        return ocupantes.filter(o => o.cliente_nome === selectedClienteOcupanteFilter);
+    }, [ocupantes, selectedClienteOcupanteFilter]);
 
     // Faturas de Suministros vinculadas a esta Ordem de Pagamento (Ponte Logística <-> Financeiro <-> Folha)
     const { data: faturasSuministros = [], refetch: refetchSuministros } = useQuery({
@@ -630,72 +654,177 @@ export const TitleDetail = () => {
                                  </div>
                              </Card>
 
-                            {/* Card de Ocupantes Dinâmicos do Imóvel / Alojamento */}
+                            {/* Card de Dados do Alojamento, Clientes Contratados e Ocupantes Dinâmicos */}
                             {isLodgingOrder && (
                                 <Card className="rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50 overflow-hidden">
-                                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-4 px-6 flex flex-row items-center justify-between">
+                                    <CardHeader className="border-b border-slate-100 dark:border-slate-800 pb-4 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                         <div className="flex items-center gap-3">
                                             <div className="p-2.5 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400">
                                                 <Users size={20} />
                                             </div>
                                             <div>
-                                                <CardTitle className="text-sm font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2">
-                                                    Pessoas Alojadas no Imóvel
-                                                    <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
-                                                        {isLoadingOcupantes ? 'Carregando...' : `${ocupantes.length} ocupante(s)`}
+                                                <CardTitle className="text-sm font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center gap-2 flex-wrap">
+                                                    Conferência de Alojamento, Clientes & Trabalhadores Alojados
+                                                    <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                                                        {isLoadingOcupantes ? 'Carregando...' : `${ocupantes.length} trabalhador(es) alojado(s)`}
                                                     </Badge>
+                                                    {clientesAlojamento.length > 0 && (
+                                                        <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                                                            🏢 {clientesAlojamento.length} cliente(s) contratado(s)
+                                                        </Badge>
+                                                    )}
                                                 </CardTitle>
                                                 <p className="text-xs text-slate-400 mt-0.5">
-                                                    Ocupação dinâmica em tempo real vinculada ao imóvel / alocações ativas da logística
+                                                    Conferência em tempo real dos trabalhadores alojados e clientes vinculados ao imóvel para validação do pagamento
                                                 </p>
                                             </div>
                                         </div>
-                                        {title?.cod_alojamiento && (
-                                            <div className="hidden sm:flex items-center gap-2 px-3 py-1 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-100 dark:border-slate-700">
-                                                <Home size={14} className="text-slate-400" />
-                                                <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                                                    {title.cod_alojamiento}
+                                        {(title?.cod_alojamiento || alojamentoDetalhes?.codigo) && (
+                                            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-900/60">
+                                                <Home size={14} className="text-blue-600" />
+                                                <span className="text-xs font-mono font-bold text-blue-700 dark:text-blue-300">
+                                                    {title?.cod_alojamiento || alojamentoDetalhes?.codigo}
                                                 </span>
                                             </div>
                                         )}
                                     </CardHeader>
+
+                                    {/* Resumo do Imóvel + Filtro de Clientes Contratados */}
+                                    <div className="px-6 py-4 bg-slate-50/60 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 space-y-3">
+                                        {alojamentoDetalhes && (
+                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                                <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Alojamento / Cidade</span>
+                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate" title={alojamentoDetalhes.nome}>
+                                                        {alojamentoDetalhes.nome}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500 block truncate">
+                                                        📍 {alojamentoDetalhes.municipio || alojamentoDetalhes.provincia || 'Espanha'} {alojamentoDetalhes.endereco ? `• ${alojamentoDetalhes.endereco}` : ''}
+                                                    </span>
+                                                </div>
+                                                <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Capacidade & Ocupação</span>
+                                                    <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 block">
+                                                        👥 {ocupantes.length} / {alojamentoDetalhes.capacidade || ocupantes.length} plazas ocupadas
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500 block">
+                                                        Modalidade: {alojamentoDetalhes.tipo_alojamento || 'Fijo'}
+                                                    </span>
+                                                </div>
+                                                <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Aluguel Mensal Contrato</span>
+                                                    <span className="text-xs font-black text-blue-600 dark:text-blue-400 block">
+                                                        {formatCurrency(alojamentoDetalhes.valor_mensal_padrao || title?.valor || 0)}
+                                                    </span>
+                                                    {alojamentoDetalhes.dia_vencimento && (
+                                                        <span className="text-[10px] text-slate-500 block">
+                                                            Vencimento dia {alojamentoDetalhes.dia_vencimento}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Provedor / Proprietário</span>
+                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate" title={alojamentoDetalhes.provedor?.nome_razao_social || title?.cod_provedor}>
+                                                        {alojamentoDetalhes.provedor?.nome_razao_social || title?.cod_provedor || 'Não informado'}
+                                                    </span>
+                                                    <span className="text-[10px] text-slate-500 block truncate">
+                                                        Centro: {title?.centro_custos || 'Geral'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Barra de Filtro por Clientes Contratados neste Alojamento */}
+                                        {clientesAlojamento.length > 0 && (
+                                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                                                <span className="text-[11px] font-extrabold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1">
+                                                    <Building2 size={13} /> Filtrar por Cliente Contratado no Alojamento:
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedClienteOcupanteFilter('TODOS')}
+                                                    className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+                                                        selectedClienteOcupanteFilter === 'TODOS'
+                                                            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                                            : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-400'
+                                                    }`}
+                                                >
+                                                    Todos ({ocupantes.length})
+                                                </button>
+                                                {clientesAlojamento.map(cli => {
+                                                    const countCli = ocupantes.filter(o => o.cliente_nome === cli).length;
+                                                    const isSelected = selectedClienteOcupanteFilter === cli;
+                                                    return (
+                                                        <button
+                                                            key={cli}
+                                                            type="button"
+                                                            onClick={() => setSelectedClienteOcupanteFilter(isSelected ? 'TODOS' : cli)}
+                                                            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                                                                isSelected
+                                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                                                                    : 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:border-indigo-400'
+                                                            }`}
+                                                        >
+                                                            <span>🏢 {cli}</span>
+                                                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                                                                isSelected ? 'bg-indigo-800 text-white' : 'bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
+                                                            }`}>
+                                                                {countCli} trab.
+                                                            </span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <CardContent className="p-0 overflow-auto">
                                         {isLoadingOcupantes ? (
                                             <div className="py-8 text-center text-slate-400 text-sm flex items-center justify-center gap-2">
                                                 <RefreshCw className="animate-spin text-blue-600" size={16} /> Carregando ocupantes do imóvel...
                                             </div>
-                                        ) : ocupantes.length > 0 ? (
+                                        ) : ocupantesFiltrados.length > 0 ? (
                                             <Table>
                                                 <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
                                                     <TableRow>
                                                         <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider px-6">Colaborador</TableHead>
                                                         <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Código</TableHead>
-                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Cliente / Centro de Custo</TableHead>
-                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Obra</TableHead>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Cliente Contratado</TableHead>
+                                                        <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Obra / Pedido</TableHead>
                                                         <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Acomodação / Cama</TableHead>
                                                         <TableHead className="text-slate-500 font-bold text-xs uppercase tracking-wider">Entrada</TableHead>
                                                         <TableHead className="text-center text-slate-500 font-bold text-xs uppercase tracking-wider">Status</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
-                                                    {ocupantes.map((oc: OcupanteInfo, idx: number) => (
+                                                    {ocupantesFiltrados.map((oc: OcupanteInfo, idx: number) => (
                                                         <TableRow key={oc.worker_id || idx} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/30">
                                                             <TableCell className="px-6 font-bold text-slate-800 dark:text-slate-200">
                                                                 <div className="flex items-center gap-2">
                                                                     <div className="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-xs font-black">
                                                                         {oc.worker_nome?.charAt(0) || 'W'}
                                                                     </div>
-                                                                    <span>{oc.worker_nome}</span>
+                                                                    <div>
+                                                                        <span className="block">{oc.worker_nome}</span>
+                                                                        {oc.empresa_contratante && (
+                                                                            <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400">
+                                                                                {oc.empresa_contratante}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell className="font-mono text-xs font-semibold text-slate-600 dark:text-slate-400">
                                                                 {oc.codigo_colab || 'S/C'}
                                                             </TableCell>
-                                                            <TableCell className="text-sm text-slate-700 dark:text-slate-300">
-                                                                {oc.cliente_nome || 'N/A'}
+                                                            <TableCell className="text-sm">
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 font-bold text-xs border border-indigo-200 dark:border-indigo-800">
+                                                                    🏢 {oc.cliente_nome || 'N/A'}
+                                                                </span>
                                                             </TableCell>
-                                                            <TableCell className="text-sm text-slate-600 dark:text-slate-400">
-                                                                {oc.obra_nome || 'Principal'}
+                                                            <TableCell className="text-xs text-slate-600 dark:text-slate-400">
+                                                                <span className="font-semibold block">{oc.obra_nome || 'Principal'}</span>
+                                                                {oc.pedido_codigo && <span className="font-mono text-[10px] text-slate-400">{oc.pedido_codigo}</span>}
                                                             </TableCell>
                                                             <TableCell className="text-sm text-slate-600 dark:text-slate-400">
                                                                 <div className="flex items-center gap-1.5">
@@ -1258,7 +1387,7 @@ export const TitleDetail = () => {
 
                 {/* MODAL 2: Aprovação Híbrida */}
                 <Dialog open={isApproveOpen} onOpenChange={setIsApproveOpen}>
-                    <DialogContent className="rounded-3xl p-6 bg-white dark:bg-slate-900 border-none shadow-2xl max-w-lg">
+                    <DialogContent className="rounded-3xl p-6 bg-white dark:bg-slate-900 border-none shadow-2xl max-w-xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                 <CheckCircle className="text-emerald-500" size={22} />
@@ -1266,6 +1395,49 @@ export const TitleDetail = () => {
                             </DialogTitle>
                         </DialogHeader>
                         <div className="space-y-4 py-3">
+                            {/* Conferência de Alojamento e Trabalhadores Alojados na Hora de Aprovar */}
+                            {isLodgingOrder && (
+                                <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 space-y-2 text-xs">
+                                    <div className="flex items-center justify-between flex-wrap gap-1">
+                                        <span className="font-extrabold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider flex items-center gap-1.5 text-[11px]">
+                                            <Users size={14} className="text-emerald-600" />
+                                            Trabalhadores Alojados no Imóvel ({ocupantes.length})
+                                        </span>
+                                        {(title?.cod_alojamiento || alojamentoDetalhes?.codigo) && (
+                                            <span className="px-2 py-0.5 bg-blue-600 text-white font-mono text-[10px] font-bold rounded">
+                                                {title?.cod_alojamiento || alojamentoDetalhes?.codigo}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {clientesAlojamento.length > 0 && (
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300">🏢 Cliente(s):</span>
+                                            {clientesAlojamento.map(cli => (
+                                                <span key={cli} className="px-2 py-0.5 bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded text-[10px] font-bold">
+                                                    {cli} ({ocupantes.filter(o => o.cliente_nome === cli).length})
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {ocupantes.length > 0 ? (
+                                        <div className="max-h-32 overflow-y-auto divide-y divide-emerald-100 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-slate-800">
+                                            {ocupantes.map((oc, idx) => (
+                                                <div key={idx} className="px-3 py-1.5 flex items-center justify-between gap-2 text-[11px]">
+                                                    <div className="truncate">
+                                                        <span className="font-bold text-slate-800 dark:text-slate-100">{oc.worker_nome}</span>
+                                                        {oc.codigo_colab && <span className="ml-1 font-mono text-[10px] text-slate-400">[{oc.codigo_colab}]</span>}
+                                                        <span className="ml-1.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">• 🏢 {oc.cliente_nome || 'S/Cliente'}</span>
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-500 flex-shrink-0">🛏️ {oc.cama_identificador || 'Quarto'}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-[11px] text-amber-700 dark:text-amber-300">Nenhum trabalhador com check-in ativo neste alojamento no momento.</p>
+                                    )}
+                                </div>
+                            )}
+
                             <p className="text-xs text-slate-500">
                                 Como deseja processar esta aprovação?
                             </p>
@@ -1339,7 +1511,7 @@ export const TitleDetail = () => {
 
                 {/* MODAL 3: Pagar e Liquidar (Comprovante e Banco) */}
                 <Dialog open={isLiquidateOpen} onOpenChange={setIsLiquidateOpen}>
-                    <DialogContent className="rounded-3xl p-6 bg-white dark:bg-slate-900 border-none shadow-2xl max-w-lg">
+                    <DialogContent className="rounded-3xl p-6 bg-white dark:bg-slate-900 border-none shadow-2xl max-w-xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle className="text-xl font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                 <Landmark className="text-emerald-600" size={22} />
@@ -1358,6 +1530,74 @@ export const TitleDetail = () => {
                                     <span className="font-mono font-bold text-blue-600">{title.cod_orden_pago || 'OP'}</span>
                                 </div>
                             </div>
+
+                            {/* Conferência de Alojamento, Clientes Contratados e Trabalhadores Alojados na Hora de Pagar */}
+                            {isLodgingOrder && (
+                                <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 space-y-2.5 text-xs">
+                                    <div className="flex items-center justify-between flex-wrap gap-1.5">
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                                                <Home size={13} className="text-emerald-600" />
+                                                Conferência de Alojamento & Trabalhadores na Hora de Pagar
+                                            </span>
+                                            <span className="font-bold text-slate-800 dark:text-slate-100 block mt-0.5">
+                                                {alojamentoDetalhes?.nome || title.descricao}
+                                                {alojamentoDetalhes?.municipio ? ` (${alojamentoDetalhes.municipio})` : ''}
+                                            </span>
+                                        </div>
+                                        <span className="px-2.5 py-0.5 bg-emerald-600 text-white rounded-full text-[10px] font-bold">
+                                            👥 {ocupantes.length}{alojamentoDetalhes?.capacidade ? `/${alojamentoDetalhes.capacidade}` : ''} alojado(s)
+                                        </span>
+                                    </div>
+
+                                    {clientesAlojamento.length > 0 && (
+                                        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-emerald-200/60 dark:border-emerald-900/40">
+                                            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300">🏢 Clientes neste Alojamento:</span>
+                                            {clientesAlojamento.map(cli => (
+                                                <span key={cli} className="px-2 py-0.5 bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-md text-[10px] font-bold">
+                                                    🏢 {cli} ({ocupantes.filter(o => o.cliente_nome === cli).length} trab.)
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {ocupantes.length > 0 ? (
+                                        <div className="max-h-36 overflow-y-auto divide-y divide-emerald-100 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-slate-800">
+                                            {ocupantes.map((oc, idx) => (
+                                                <div key={idx} className="px-3 py-1.5 flex items-center justify-between gap-2 text-[11px]">
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            {oc.codigo_colab && (
+                                                                <span className="px-1 py-0.2 bg-slate-100 dark:bg-slate-800 font-mono text-[10px] font-bold rounded text-slate-600 dark:text-slate-300">
+                                                                    {oc.codigo_colab}
+                                                                </span>
+                                                            )}
+                                                            <span className="font-bold text-slate-800 dark:text-slate-100">{oc.worker_nome}</span>
+                                                        </div>
+                                                        <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold block">
+                                                            🏢 {oc.cliente_nome || 'Cliente N/A'} {oc.obra_nome ? `• 🏗️ ${oc.obra_nome}` : ''}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right flex-shrink-0">
+                                                        <span className="px-1.5 py-0.2 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold block">
+                                                            🛏️ {oc.cama_identificador || 'Quarto'}
+                                                        </span>
+                                                        {oc.data_inicio && (
+                                                            <span className="text-[9px] text-slate-400 block">
+                                                                Desde: {oc.data_inicio}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="p-2 bg-amber-50 dark:bg-amber-950/40 rounded-xl border border-amber-200 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300">
+                                            ⚠️ Nenhum trabalhador com check-in ativo neste alojamento no momento.
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {bankDetails.iban && (
                                 <div className="p-3.5 bg-blue-50/80 dark:bg-blue-950/40 rounded-2xl border border-blue-200 dark:border-blue-900/60 text-xs flex items-center justify-between gap-3 shadow-2xs">

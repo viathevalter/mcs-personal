@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Edit3, DollarSign, Calendar, Building, CreditCard } from 'lucide-react';
+import { X, Save, Edit3, DollarSign, Calendar, Building, CreditCard, Users } from 'lucide-react';
 import type { PagoAlojamento } from '../services/financeLogisticsService';
 import { financeLogisticsService } from '../services/financeLogisticsService';
 
@@ -289,6 +289,49 @@ export const EditarOrdemPagoModal: React.FC<EditarOrdemPagoModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Conferência de Trabalhadores Alojados e Clientes Contratados */}
+          {op.ocupantes && op.ocupantes.length > 0 && (
+            <div className="p-3 bg-emerald-50/60 dark:bg-emerald-950/20 rounded-2xl border border-emerald-200 dark:border-emerald-900/50 space-y-2">
+              <div className="flex items-center justify-between flex-wrap gap-1">
+                <span className="font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                  <Users size={13} className="text-emerald-600" />
+                  Trabajadores Alojados en este Inmueble ({op.ocupantes.length})
+                </span>
+                <div className="flex items-center gap-1 flex-wrap">
+                  {Array.from(new Set(op.ocupantes.map(o => o.cliente_nome).filter(Boolean))).map(cli => (
+                    <button
+                      key={cli}
+                      type="button"
+                      onClick={() => setClienteCC(cli || '')}
+                      className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded text-[10px] font-bold"
+                      title="Click para imputar este cliente"
+                    >
+                      🏢 {cli} ({op.ocupantes!.filter(o => o.cliente_nome === cli).length})
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="max-h-36 overflow-y-auto divide-y divide-emerald-100 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-slate-800">
+                {op.ocupantes.map((oc, idx) => (
+                  <div key={idx} className="px-3 py-2 flex items-center justify-between gap-2 text-[11px]">
+                    <div>
+                      <span className="font-bold text-slate-800 dark:text-slate-100">{oc.worker_nome}</span>
+                      {oc.codigo_colab && (
+                        <span className="ml-1.5 font-mono text-[10px] text-slate-400">[{oc.codigo_colab}]</span>
+                      )}
+                      <span className="block text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
+                        🏢 Cliente: {oc.cliente_nome || 'No informado'} {oc.obra_nome ? `• 🏗️ ${oc.obra_nome}` : ''}
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold">
+                      🛏️ {oc.cama_identificador || 'Habitación'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Observações */}
           <div className="space-y-1">

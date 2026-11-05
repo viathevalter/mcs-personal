@@ -62,6 +62,7 @@ import {
 import type { ContasPagar } from '../types';
 import { RichTextEditor } from '../components/RichTextEditor';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { logisticsService } from '@/features/logistica/services/logisticsService';
 import { toast } from 'sonner';
 
 const ALL_STATUSES = ['A vencer', 'Vencido', 'Parcial', 'Pago'];
@@ -90,6 +91,9 @@ export interface EnrichedContaPagar extends ContasPagar {
     resolvedDescricao: string;
     ibanInfo: string | null;
     notesList: PagoTimelineNote[];
+    codAlojamento?: string | null;
+    ocupantesAlojamento?: any[];
+    clientesAlojamento?: string[];
 }
 
 const parseTimelineNotes = (rawComentarios?: string | null, rawObs?: string | null, criado?: Date | null, criadoPor?: string | null): PagoTimelineNote[] => {
@@ -381,6 +385,12 @@ export const Pagos = () => {
         }
     });
 
+    const { data: alocacoesAtivas = [] } = useQuery({
+        queryKey: ['alocacoes_ativas_pagos'],
+        queryFn: () => logisticsService.fetchAlocacoesAtivas(),
+        staleTime: 1000 * 60 * 2
+    });
+
     // Enrich Contas a Pagar with Ordens de Pagamento, Suppliers, Companies & Dynamic Overdue Status
     const enrichedPayables: EnrichedContaPagar[] = useMemo(() => {
         const ordensById = new Map<string, any>();
@@ -514,6 +524,28 @@ export const Pagos = () => {
 
             const notesList = parseTimelineNotes(item.comentarios, item.Obs, item.Creado, item.Creado_por);
 
+            // 7. Identificar ocupantes e clientes do alojamento vinculado (se houver)
+            const alMatch = (`${linkedOp?.cod_alojamiento || ''} ${resolvedDescricao || ''} ${linkedOp?.observaciones || ''}`).match(/\b(AL-\d+)\b/i);
+            const codAlojamento = linkedOp?.cod_alojamiento || (alMatch ? alMatch[1].toUpperCase() : null);
+            const cleanAlojDesc = (linkedOp?.descricao || resolvedDescricao || '')
+                .replace(/^(Alquiler|Aluguel|Fianza_Saida|Fianza_Devolucion|Fianza|Suministro_Luz|Suministro_Agua|Suministro_Gas|Suministro_Internet|Suministro|Manutencao_Limpeza|Passagens_Transporte|Passagens|Viagem_Deslocamento|Viagem|Deslocamento|Diarias_Alimentacao|Outros_Gastos)\s*-\s*/i, '')
+                .replace(/\s*\(\d{2}\/\d{4}\)$/, '')
+                .trim();
+
+            const ocupantesAlojamento = (codAlojamento || linkedOp?.departamento_origem?.toLowerCase().includes('log'))
+                ? alocacoesAtivas.filter((a: any) =>
+                    a.status !== 'Checkout' &&
+                    (
+                        (codAlojamento && (a.alojamento_codigo === codAlojamento || a.alojamento_id === codAlojamento)) ||
+                        (cleanAlojDesc && cleanAlojDesc.length > 3 && a.alojamento_nome && (
+                            a.alojamento_nome.toLowerCase().includes(cleanAlojDesc.toLowerCase()) ||
+                            cleanAlojDesc.toLowerCase().includes(a.alojamento_nome.toLowerCase())
+                        ))
+                    )
+                  )
+                : [];
+            const clientesAlojamento = Array.from(new Set(ocupantesAlojamento.map((o: any) => o.cliente_nome).filter(Boolean))) as string[];
+
             return {
                 ...item,
                 ordem_pagamento_id: item.ordem_pagamento_id || linkedOp?.id || null,
@@ -531,10 +563,13 @@ export const Pagos = () => {
                 resolvedAnexoUrl,
                 resolvedDescricao,
                 ibanInfo,
-                notesList
+                notesList,
+                codAlojamento,
+                ocupantesAlojamento,
+                clientesAlojamento
             };
         });
-    }, [payables, ordens, suppliers, companies]);
+    }, [payables, ordens, suppliers, companies, alocacoesAtivas]);
 
     // Keep selectedPagoObs synced when query refreshes
     useEffect(() => {
@@ -2788,6 +2823,49 @@ export const Pagos = () => {
                                 </div>
                             )}
 
+                            {selectedPagoObs.ocupantesAlojamento && selectedPagoObs.ocupantesAlojamento.length > 0 && (
+                                <div className="px-5 py-3.5 bg-emerald-50/60 dark:bg-emerald-950/20 border-b dark:border-slate-800 space-y-2 text-xs">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <span className="font-extrabold text-emerald-900 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5 text-[11px]">
+                                            <Users size={14} className="text-emerald-600" />
+                                            Trabalhadores Alojados neste Imóvel ({selectedPagoObs.ocupantesAlojamento.length})
+                                            {selectedPagoObs.codAlojamento && (
+                                                <span className="px-2 py-0.5 bg-blue-600 text-white font-mono text-[10px] rounded">
+                                                    {selectedPagoObs.codAlojamento}
+                                                </span>
+                                            )}
+                                        </span>
+                                        {selectedPagoObs.clientesAlojamento && selectedPagoObs.clientesAlojamento.length > 0 && (
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300">🏢 Clientes no Alojamento:</span>
+                                                {selectedPagoObs.clientesAlojamento.map((cli: string) => (
+                                                    <span key={cli} className="px-2 py-0.5 bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded text-[10px] font-bold">
+                                                        🏢 {cli} ({selectedPagoObs.ocupantesAlojamento!.filter((o: any) => o.cliente_nome === cli).length})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                        {selectedPagoObs.ocupantesAlojamento.map((oc: any, idx: number) => (
+                                            <div key={idx} className="p-2 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-2 text-[11px]">
+                                                <div className="min-w-0">
+                                                    <span className="font-bold text-slate-800 dark:text-slate-100 block truncate">
+                                                        {oc.codigo_colab ? `[${oc.codigo_colab}] ` : ''}{oc.worker_nome}
+                                                    </span>
+                                                    <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 block truncate">
+                                                        🏢 {oc.cliente_nome || 'Cliente N/A'}
+                                                    </span>
+                                                </div>
+                                                <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold flex-shrink-0">
+                                                    🛏️ {oc.cama_identificador || 'Quarto'}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Timeline Body */}
                             <div className="p-6 space-y-6 max-h-[380px] overflow-y-auto">
                                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b pb-2">
@@ -3039,7 +3117,7 @@ export const Pagos = () => {
 
             {/* Individual Payment Modal */}
             <Dialog open={isPayOpen} onOpenChange={setIsPayOpen}>
-                <DialogContent className="max-w-md rounded-2xl p-6 bg-white dark:bg-slate-900">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6 bg-white dark:bg-slate-900">
                     <DialogHeader className="border-b pb-3 mb-3">
                         <DialogTitle className="text-lg font-extrabold">Confirmar Liquidação Bancária</DialogTitle>
                     </DialogHeader>
@@ -3050,6 +3128,44 @@ export const Pagos = () => {
                                 <div><span className="text-slate-400 font-semibold">Credor:</span> <span className="font-bold">{payingItem.resolvedProvedor}</span></div>
                                 <div><span className="text-slate-400 font-semibold">Empresa:</span> {payingItem.resolvedEmpresa}</div>
                                 <div><span className="text-slate-400 font-semibold">Saldo Pendente:</span> <span className="font-mono font-bold text-rose-600">{formatCurrency(payingItem.saldo_a_pagar)}</span></div>
+                            </div>
+                        )}
+
+                        {payingItem?.ocupantesAlojamento && payingItem.ocupantesAlojamento.length > 0 && (
+                            <div className="p-3.5 bg-emerald-50/70 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-900/50 space-y-2 text-xs">
+                                <div className="flex items-center justify-between flex-wrap gap-1">
+                                    <span className="font-extrabold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider flex items-center gap-1.5 text-[11px]">
+                                        <Users size={13} className="text-emerald-600" />
+                                        Trabalhadores Alojados ({payingItem.ocupantesAlojamento.length})
+                                    </span>
+                                    {payingItem.codAlojamento && (
+                                        <span className="px-2 py-0.5 bg-blue-600 text-white font-mono text-[10px] font-bold rounded">
+                                            {payingItem.codAlojamento}
+                                        </span>
+                                    )}
+                                </div>
+                                {payingItem.clientesAlojamento && payingItem.clientesAlojamento.length > 0 && (
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                        <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300">🏢 Cliente(s):</span>
+                                        {payingItem.clientesAlojamento.map((cli: string) => (
+                                            <span key={cli} className="px-2 py-0.5 bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded text-[10px] font-bold">
+                                                {cli} ({payingItem.ocupantesAlojamento!.filter((o: any) => o.cliente_nome === cli).length})
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                                <div className="max-h-32 overflow-y-auto divide-y divide-emerald-100 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-lg border border-emerald-100 dark:border-slate-800">
+                                    {payingItem.ocupantesAlojamento.map((oc: any, idx: number) => (
+                                        <div key={idx} className="px-2.5 py-1.5 flex items-center justify-between gap-2 text-[11px]">
+                                            <div className="truncate">
+                                                <span className="font-bold text-slate-800 dark:text-slate-100">{oc.worker_nome}</span>
+                                                {oc.codigo_colab && <span className="ml-1 font-mono text-[10px] text-slate-400">[{oc.codigo_colab}]</span>}
+                                                <span className="ml-1.5 text-[10px] font-bold text-indigo-600 dark:text-indigo-400">• 🏢 {oc.cliente_nome || 'S/Cliente'}</span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-500 flex-shrink-0">🛏️ {oc.cama_identificador || 'Quarto'}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         )}
 

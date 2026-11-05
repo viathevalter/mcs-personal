@@ -401,34 +401,66 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
             </div>
           </div>
 
-          {/* Ocupantes Dinâmicos Vinculados */}
+          {/* Ocupantes Dinâmicos e Clientes Contratados Vinculados */}
           <div className="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-2.5 bg-slate-50/60 dark:bg-slate-800/30">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-1">
               <span className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
                 <Users size={14} className="text-blue-600" />
                 Personal Alojado en el Inmueble ({ocupantes.length} ocupantes activos)
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {isLoadingOcupantes ? 'Cargando...' : 'Sincronizado con Logística'}
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                {isLoadingOcupantes ? 'Cargando...' : '✓ Sincronizado con Finanzas para conferencia al pagar'}
               </span>
             </div>
+
+            {ocupantes.length > 0 && (
+              <div className="flex items-center flex-wrap gap-1.5 pt-0.5">
+                <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300">🏢 Clientes en este piso:</span>
+                {Array.from(new Set(ocupantes.map(o => o.cliente_nome).filter(Boolean))).map(cli => (
+                  <button
+                    key={cli}
+                    type="button"
+                    onClick={() => setCentroCustoCliente(cli || '')}
+                    className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-md text-[10px] font-bold transition-colors"
+                    title="Click para imputar este cliente en el Centro de Coste"
+                  >
+                    🏢 {cli} ({ocupantes.filter(o => o.cliente_nome === cli).length})
+                  </button>
+                ))}
+              </div>
+            )}
 
             {isLoadingOcupantes ? (
               <p className="text-slate-400 text-center py-2 text-xs">Cargando ocupantes...</p>
             ) : ocupantes.length > 0 ? (
-              <div className="max-h-36 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
+              <div className="max-h-40 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900">
                 {ocupantes.map((oc, idx) => (
-                  <div key={oc.worker_id || idx} className="p-2 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center text-[10px] font-bold">
-                        {oc.worker_nome?.charAt(0) || 'W'}
+                  <div key={oc.worker_id || idx} className="p-2.5 flex items-center justify-between text-xs gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                          {oc.worker_nome?.charAt(0) || 'W'}
+                        </div>
+                        <span className="font-bold text-slate-800 dark:text-slate-200">{oc.worker_nome}</span>
+                        <span className="font-mono text-[10px] text-slate-400">[{oc.codigo_colab || 'S/C'}]</span>
                       </div>
-                      <span className="font-bold text-slate-800 dark:text-slate-200">{oc.worker_nome}</span>
-                      <span className="font-mono text-[10px] text-slate-400">[{oc.codigo_colab || 'S/C'}]</span>
+                      <div className="text-[10px] text-slate-500 mt-0.5 pl-7 flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                          🏢 Cliente: {oc.cliente_nome || 'No informado'}
+                        </span>
+                        {oc.obra_nome && <span>• 🏗️ {oc.obra_nome}</span>}
+                      </div>
                     </div>
-                    <span className="text-[10px] text-slate-500 truncate max-w-[180px]">
-                      {oc.obra_nome || oc.cliente_nome || 'Obra Principal'}
-                    </span>
+                    <div className="text-right flex-shrink-0">
+                      <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold block">
+                        🛏️ {oc.cama_identificador || 'Habitación'}
+                      </span>
+                      {oc.data_inicio && (
+                        <span className="text-[9px] text-slate-400 block mt-0.5">
+                          Desde: {oc.data_inicio}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

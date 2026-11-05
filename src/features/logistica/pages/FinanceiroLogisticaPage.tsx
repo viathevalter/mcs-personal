@@ -66,6 +66,8 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('todos');
   const [tipoFilter, setTipoFilter] = useState<string>('todos');
   const [competenciaFilter, setCompetenciaFilter] = useState<string>('todos');
+  const [clienteFilter, setClienteFilter] = useState<string>('todos');
+  const [modalClienteFilterOcupantes, setModalClienteFilterOcupantes] = useState<string>('TODOS');
   const [copiedIban, setCopiedIban] = useState<string | null>(null);
 
   // Seleção Múltipla para Envio e Exclusão em Lote
@@ -268,8 +270,31 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     new Set(pagos.map(p => p.periodo_competencia).filter(Boolean))
   ).sort().reverse();
 
+  // Extrair lista de clientes contratados em alojamentos / ordens de pagamento
+  const clientesUnicos = React.useMemo(() => {
+    const set = new Set<string>();
+    pagos.forEach(p => {
+      if (p.centro_custo_cliente && p.centro_custo_cliente !== 'Centro de Coste General') {
+        p.centro_custo_cliente.split(',').forEach(c => {
+          const clean = c.trim();
+          if (clean) set.add(clean);
+        });
+      }
+      (p.ocupantes || []).forEach(o => {
+        if (o.cliente_nome) set.add(o.cliente_nome.trim());
+      });
+    });
+    alocacoes.forEach((a: any) => {
+      if (a.status !== 'Checkout' && a.cliente_nome) {
+        set.add(a.cliente_nome.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [pagos, alocacoes]);
+
   const handleSelectAlojamento = (alojId: string) => {
     setSelectedAlojamentoId(alojId);
+    setModalClienteFilterOcupantes('TODOS');
     if (!alojId) {
       setClienteCentroCusto('');
       setObraCentroCusto('');
@@ -281,7 +306,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     const aloj = alojamentos.find(a => a.id === alojId);
     if (!aloj) return;
 
-    // Buscar ocupantes ativos
+    // Buscar ocupantes ativos neste alojamento
     const occ = alocacoes.filter(a => 
       a.status !== 'Checkout' && 
       (a.alojamento_id === alojId || a.alojamento_codigo === aloj.codigo || (a.alojamento_nome && (a.alojamento_nome === aloj.nome || a.alojamento_nome === aloj.titulo)))
@@ -289,15 +314,16 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
     if (occ.length > 0) {
       const uniqueClients = Array.from(new Set(occ.map(o => o.cliente_nome).filter(Boolean)));
+      const uniqueObras = Array.from(new Set(occ.map(o => o.obra_nome).filter(Boolean)));
       setClienteCentroCusto(uniqueClients.join(', '));
+      setObraCentroCusto(uniqueObras.length > 0 ? uniqueObras.join(', ') : `Obra ${aloj.municipio || aloj.provincia || 'Principal'}`);
     } else {
-      setClienteCentroCusto(aloj.cliente_nome || (aloj.municipio ? `Obra ${aloj.municipio}` : 'Centro de Coste General'));
+      setClienteCentroCusto((aloj as any).cliente_nome || (aloj.municipio ? `Obra ${aloj.municipio}` : 'Centro de Coste General'));
+      setObraCentroCusto(`Obra ${aloj.municipio || aloj.provincia || 'Principal'}`);
     }
 
-    setObraCentroCusto(`Obra ${aloj.municipio || aloj.provincia || 'Principal'}`);
-
-    const prov = provedores.find(p => p.id === aloj.provedor_id);
-    const contMetodo = (aloj as any).contrato?.metodo_pago || prov?.metodo_pago || '';
+    const prov = provedores.find(p => p.id === aloj.provedor_id) || aloj.provedor;
+    const contMetodo = (aloj as any).contrato?.metodo_pago || (prov as any)?.metodo_pago || '';
     const hasIban = !!((aloj as any).contrato?.iban || prov?.iban);
     const isTemporal = aloj.tipo_alojamento === 'Temporal' || ((aloj as any).contrato?.tipo_contrato || '').includes('Temporario');
 
@@ -314,8 +340,9 @@ export const FinanceiroLogisticaPage: React.FC = () => {
       setFormaPagamento('Transferência Bancária');
     }
 
-    if (tipoGasto === 'Aluguel' && (aloj.custo_mensal_total || aloj.valor_mensal)) {
-      setValorGasto(Number(aloj.custo_mensal_total || aloj.valor_mensal));
+    const valorAluguel = Number((aloj as any).custo_mensal_total || (aloj as any).valor_mensal || aloj.valor_mensal_padrao || 0);
+    if (tipoGasto === 'Aluguel' && valorAluguel > 0) {
+      setValorGasto(valorAluguel);
     }
   };
 
@@ -755,6 +782,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
   const filtered = pagos.filter(p => {
     const matchesSearch = matchesPartialSearch(searchTerm, [
       p.codigo_pago,
+      p.alojamento_codigo,
       p.alojamento_nome,
       p.worker_nome,
       p.worker_codigo,
@@ -762,14 +790,25 @@ export const FinanceiroLogisticaPage: React.FC = () => {
       p.rota_deslocamento,
       p.provedor_nome,
       p.centro_custo_cliente,
+      p.centro_custo_obra,
       p.iban_cobranca,
-      p.observacoes
+      p.observacoes,
+      ...(p.ocupantes || []).map(o => o.worker_nome),
+      ...(p.ocupantes || []).map(o => o.codigo_colab),
+      ...(p.ocupantes || []).map(o => o.cliente_nome),
+      ...(p.ocupantes || []).map(o => o.obra_nome)
     ]);
 
     if (!matchesSearch) return false;
     if (statusFilter !== 'todos' && p.status_pago !== statusFilter) return false;
     if (tipoFilter !== 'todos' && p.tipo_pago !== tipoFilter) return false;
     if (competenciaFilter !== 'todos' && p.periodo_competencia !== competenciaFilter) return false;
+    if (clienteFilter !== 'todos') {
+      const targetCli = clienteFilter.toLowerCase();
+      const matchCC = (p.centro_custo_cliente || '').toLowerCase().includes(targetCli);
+      const matchOc = (p.ocupantes || []).some(o => (o.cliente_nome || '').toLowerCase().includes(targetCli));
+      if (!matchCC && !matchOc) return false;
+    }
     return true;
   });
 
@@ -1139,6 +1178,22 @@ export const FinanceiroLogisticaPage: React.FC = () => {
 
           {/* Seletores de Filtro */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Filtro por Cliente Contratado no Alojamento / OP */}
+            <div className="flex items-center gap-1 bg-indigo-50/70 dark:bg-indigo-950/30 px-3 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-900/50 text-xs">
+              <Building2 size={13} className="text-indigo-500" />
+              <span className="text-indigo-700 dark:text-indigo-300 font-semibold">Cliente:</span>
+              <select
+                value={clienteFilter}
+                onChange={e => setClienteFilter(e.target.value)}
+                className="bg-transparent font-bold text-slate-800 dark:text-slate-200 focus:outline-none max-w-[180px]"
+              >
+                <option value="todos">Todos los Clientes</option>
+                {clientesUnicos.map(cli => (
+                  <option key={cli} value={cli}>{cli}</option>
+                ))}
+              </select>
+            </div>
+
             {/* Filtro por Competência */}
             <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
               <Calendar size={13} className="text-slate-400" />
@@ -1309,13 +1364,26 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                                 {op.alojamento_codigo || '-'} {op.contrato_id ? `• ${op.contrato_id}` : ''}
                               </span>
                               {op.ocupantes && op.ocupantes.length > 0 && (
-                                <span
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
-                                  title={op.ocupantes.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
+                                <button
+                                  type="button"
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    setViewingOp(op);
+                                  }}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-pointer transition-colors"
+                                  title={op.ocupantes.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - Cliente: ${o.cliente_nome || 'N/A'}`).join('\n')}
                                 >
-                                  <Users size={10} /> {op.ocupantes.length} ocupante(s)
-                                </span>
+                                  <Users size={10} /> {op.ocupantes.length} alojado(s) • Ver
+                                </button>
                               )}
+                              {op.ocupantes && op.ocupantes.length > 0 && Array.from(new Set(op.ocupantes.map(o => o.cliente_nome).filter(Boolean))).slice(0, 2).map((cli, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                                >
+                                  🏢 {cli}
+                                </span>
+                              ))}
                             </div>
                           </div>
                         </div>
@@ -1561,6 +1629,161 @@ export const FinanceiroLogisticaPage: React.FC = () => {
           onClose={() => setReceiptOp(null)}
         />
       )}
+
+      {/* Modal de Conferência Rápida de Alojamento, Clientes e Trabalhadores Alojados */}
+      {viewingOp && (() => {
+        const alojObj = alojamentos.find(a =>
+          (viewingOp.alojamento_codigo && a.codigo === viewingOp.alojamento_codigo) ||
+          (viewingOp.alojamento_nome && a.nome && a.nome.toLowerCase() === viewingOp.alojamento_nome.toLowerCase())
+        ) || null;
+        const ocs = viewingOp.ocupantes || [];
+        const clientesOp = Array.from(new Set(ocs.map(o => o.cliente_nome).filter(Boolean))) as string[];
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/80 dark:bg-slate-800/80">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-600 text-white rounded-2xl shadow-sm">
+                    <Users size={20} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-blue-600 text-white font-mono text-[10px] font-bold rounded">
+                        {viewingOp.codigo_pago}
+                      </span>
+                      <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                        {viewingOp.alojamento_nome || 'Alojamiento Vinculado'}
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      Conferencia de Inmueble, Clientes Contratados y Trabajadores Alojados
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setViewingOp(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+                {/* Resumo do Alojamento e Ordem */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Código / Ciudad</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100 block">
+                      {viewingOp.alojamento_codigo || alojObj?.codigo || '-'} • {alojObj?.municipio || 'España'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Ocupación Actual</span>
+                    <span className="font-black text-emerald-600 dark:text-emerald-400 block">
+                      👥 {ocs.length} / {alojObj?.capacidade || ocs.length} plazas
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Importe OP</span>
+                    <span className="font-black text-slate-900 dark:text-white block">
+                      € {Number(viewingOp.valor_previsto || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Proveedor</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-100 block truncate" title={viewingOp.provedor_nome}>
+                      {viewingOp.provedor_nome}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Clientes Contratados no Alojamento */}
+                <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/30 rounded-2xl border border-indigo-200 dark:border-indigo-900/50">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 block mb-1.5">
+                    🏢 Clientes Contratados en este Alojamiento ({clientesOp.length})
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {clientesOp.length > 0 ? clientesOp.map(cli => {
+                      const count = ocs.filter(o => o.cliente_nome === cli).length;
+                      return (
+                        <span
+                          key={cli}
+                          className="px-2.5 py-1 bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-lg text-xs font-bold inline-flex items-center gap-1.5"
+                        >
+                          🏢 {cli}
+                          <span className="px-1.5 py-0.2 bg-indigo-100 dark:bg-indigo-950 rounded-full text-[10px]">
+                            {count} trab.
+                          </span>
+                        </span>
+                      );
+                    }) : (
+                      <span className="text-xs text-slate-500">{viewingOp.centro_custo_cliente || 'Sin cliente especificado'}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Lista de Trabalhadores Alojados */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Users size={14} className="text-emerald-600" />
+                    Trabajadores Alojados ({ocs.length})
+                  </h4>
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900">
+                    {ocs.map((oc, idx) => (
+                      <div key={idx} className="p-3 flex items-center justify-between gap-3 text-xs">
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {oc.codigo_colab && (
+                              <span className="px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 font-mono text-[10px] font-bold rounded text-slate-700 dark:text-slate-300">
+                                {oc.codigo_colab}
+                              </span>
+                            )}
+                            <span className="font-bold text-slate-900 dark:text-white">{oc.worker_nome}</span>
+                            {oc.empresa_contratante && (
+                              <span className="px-1.5 py-0.2 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[9px] font-bold rounded border border-purple-200 dark:border-purple-800">
+                                {oc.empresa_contratante}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                              🏢 Cliente: {oc.cliente_nome || 'No informado'}
+                            </span>
+                            {oc.obra_nome && <span>• 🏗️ {oc.obra_nome}</span>}
+                            {oc.pedido_codigo && <span className="font-mono">• Ped: {oc.pedido_codigo}</span>}
+                          </div>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <span className="px-2 py-0.5 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 rounded text-[10px] font-bold block">
+                            🛏️ {oc.cama_identificador || 'Habitación'}
+                          </span>
+                          {oc.data_inicio && (
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              Desde: {oc.data_inicio}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/50 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setViewingOp(null)}
+                  className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-bold"
+                >
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal Nova Ordem de Pagamento / Gasto Ampliado */}
       {isModalOpen && (
@@ -2002,19 +2225,203 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                 </div>
               )}
 
-              {modoVinculacao === 'alojamento' && (
-                <div className="space-y-1 p-4 bg-blue-50/40 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/40">
-                  <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1">
-                    <Home size={13} className="text-blue-500" />
-                    Inmueble / Alojamiento Vinculado <span className="text-red-500">*</span>
-                  </label>
-                  <AlojamentoQuickCombobox
-                    alojamentos={alojamentos}
-                    selectedAlojamentoId={selectedAlojamentoId}
-                    onSelectAlojamento={alojId => handleSelectAlojamento(alojId)}
-                  />
-                </div>
-              )}
+              {modoVinculacao === 'alojamento' && (() => {
+                const selectedAlojObj = alojamentos.find(a => a.id === selectedAlojamentoId) || null;
+                const ocupantesAloj = selectedAlojObj
+                  ? alocacoes.filter(a =>
+                      a.status !== 'Checkout' &&
+                      (a.alojamento_id === selectedAlojObj.id ||
+                        (selectedAlojObj.codigo && a.alojamento_codigo === selectedAlojObj.codigo) ||
+                        (selectedAlojObj.nome && a.alojamento_nome && a.alojamento_nome.toLowerCase() === selectedAlojObj.nome.toLowerCase()))
+                    )
+                  : [];
+                const clientesAloj = Array.from(new Set(ocupantesAloj.map((o: any) => o.cliente_nome).filter(Boolean))) as string[];
+                const ocupantesFiltradosModal = modalClienteFilterOcupantes === 'TODOS'
+                  ? ocupantesAloj
+                  : ocupantesAloj.filter((o: any) => o.cliente_nome === modalClienteFilterOcupantes);
+
+                return (
+                  <div className="space-y-3 p-4 bg-blue-50/40 dark:bg-blue-950/20 rounded-2xl border border-blue-100 dark:border-blue-900/40">
+                    <div>
+                      <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5 mb-1.5">
+                        <Home size={13} className="text-blue-500" />
+                        Inmueble / Alojamiento Vinculado <span className="text-red-500">*</span>
+                      </label>
+                      <AlojamentoQuickCombobox
+                        alojamentos={alojamentos}
+                        selectedAlojamentoId={selectedAlojamentoId}
+                        onSelectAlojamento={alojId => handleSelectAlojamento(alojId)}
+                        alocacoes={alocacoes}
+                      />
+                    </div>
+
+                    {selectedAlojObj && (
+                      <div className="space-y-3 pt-2 border-t border-blue-200/60 dark:border-blue-900/50">
+                        {/* Resumo Completo do Alojamento */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-white dark:bg-slate-900 p-3 rounded-xl border border-blue-100 dark:border-slate-800 shadow-2xs">
+                          <div>
+                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Inmueble / Ubicación</span>
+                            <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 block truncate" title={selectedAlojObj.endereco || selectedAlojObj.nome}>
+                              📍 {selectedAlojObj.municipio || selectedAlojObj.provincia || 'Sin ciudad'}
+                            </span>
+                            {selectedAlojObj.endereco && (
+                              <span className="text-[10px] text-slate-500 block truncate" title={selectedAlojObj.endereco}>
+                                {selectedAlojObj.endereco}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Capacidad & Ocupación</span>
+                            <span className={`text-[11px] font-black block ${ocupantesAloj.length > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600'}`}>
+                              👥 {ocupantesAloj.length} / {selectedAlojObj.capacidade || 0} plazas ocupadas
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">
+                              Modalidad: {selectedAlojObj.tipo_alojamento || 'Fijo'}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Alquiler Mensual Ref.</span>
+                            <span className="text-[11px] font-black text-blue-600 dark:text-blue-400 block">
+                              € {Number(selectedAlojObj.valor_mensal_padrao || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
+                            </span>
+                            {selectedAlojObj.dia_vencimento && (
+                              <span className="text-[10px] text-slate-500 block">
+                                Vencto día {selectedAlojObj.dia_vencimento}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-bold uppercase text-slate-400 block">Clientes en el Piso</span>
+                            <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400 block">
+                              🏢 {clientesAloj.length} cliente(s)
+                            </span>
+                            <span className="text-[10px] text-slate-500 block truncate" title={clientesAloj.join(', ')}>
+                              {clientesAloj.length > 0 ? clientesAloj.join(', ') : 'Sin cliente activo'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Filtro de Clientes Contratados no Alojamento */}
+                        {clientesAloj.length > 0 && (
+                          <div className="bg-indigo-50/70 dark:bg-indigo-950/30 p-2.5 rounded-xl border border-indigo-200/70 dark:border-indigo-900/50 space-y-1.5">
+                            <div className="flex items-center justify-between flex-wrap gap-1">
+                              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                                <Building2 size={12} /> Clientes Contratados en este Alojamiento (Click para filtrar o imputar):
+                              </span>
+                              {clientesAloj.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setModalClienteFilterOcupantes('TODOS');
+                                    setClienteCentroCusto(clientesAloj.join(', '));
+                                  }}
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
+                                    modalClienteFilterOcupantes === 'TODOS'
+                                      ? 'bg-indigo-600 text-white'
+                                      : 'bg-white dark:bg-slate-800 text-indigo-600 border border-indigo-200 dark:border-slate-700'
+                                  }`}
+                                >
+                                  Todos ({ocupantesAloj.length})
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {clientesAloj.map(cli => {
+                                const countWorkers = ocupantesAloj.filter((o: any) => o.cliente_nome === cli).length;
+                                const isSelectedCli = modalClienteFilterOcupantes === cli;
+                                return (
+                                  <button
+                                    key={cli}
+                                    type="button"
+                                    onClick={() => {
+                                      const next = isSelectedCli ? 'TODOS' : cli;
+                                      setModalClienteFilterOcupantes(next);
+                                      setClienteCentroCusto(next === 'TODOS' ? clientesAloj.join(', ') : cli);
+                                    }}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold flex items-center gap-1.5 transition-all border ${
+                                      isSelectedCli
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-indigo-200 dark:border-slate-700 hover:border-indigo-400'
+                                    }`}
+                                  >
+                                    <span>🏢 {cli}</span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${isSelectedCli ? 'bg-indigo-800 text-white' : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'}`}>
+                                      {countWorkers} trab.
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Lista de Trabalhadores Alojados para Conferência do Financeiro */}
+                        <div className="bg-emerald-50/60 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-900/50 p-3 space-y-2">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="text-[11px] font-black text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+                              <Users size={14} className="text-emerald-600" />
+                              Trabajadores Alojados en este Inmueble ({ocupantesFiltradosModal.length})
+                            </span>
+                            <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100/80 dark:bg-emerald-900/50 px-2 py-0.5 rounded-full">
+                              ✓ Se enviará a Finanzas para conferencia al pagar
+                            </span>
+                          </div>
+
+                          {ocupantesFiltradosModal.length > 0 ? (
+                            <div className="max-h-44 overflow-y-auto divide-y divide-emerald-100 dark:divide-slate-800 bg-white dark:bg-slate-900 rounded-xl border border-emerald-100 dark:border-slate-800">
+                              {ocupantesFiltradosModal.map((oc: any, idx: number) => (
+                                <div key={`${oc.worker_id}-${idx}`} className="px-3 py-2 flex items-center justify-between gap-2 text-[11px] hover:bg-emerald-50/40 dark:hover:bg-slate-800/60">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      {oc.codigo_colab && (
+                                        <span className="px-1.5 py-0.2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[10px] font-bold rounded">
+                                          {oc.codigo_colab}
+                                        </span>
+                                      )}
+                                      <span className="font-bold text-slate-800 dark:text-slate-100">
+                                        {oc.worker_nome}
+                                      </span>
+                                      {oc.empresa_contratante && (
+                                        <span className="px-1.5 py-0.2 bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[9px] font-bold rounded border border-purple-200 dark:border-purple-800">
+                                          {oc.empresa_contratante}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-500 mt-0.5">
+                                      <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                                        🏢 Cliente: {oc.cliente_nome || 'No informado'}
+                                      </span>
+                                      {oc.obra_nome && <span>• 🏗️ {oc.obra_nome}</span>}
+                                      {oc.pedido_codigo && <span className="font-mono">• Ped: {oc.pedido_codigo}</span>}
+                                    </div>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 rounded text-[10px] font-bold block">
+                                      🛏️ {oc.cama_identificador || 'Habitación'}
+                                    </span>
+                                    {oc.data_inicio && (
+                                      <span className="text-[9px] text-slate-400 block mt-0.5">
+                                        Desde: {oc.data_inicio}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 rounded-xl border border-amber-200/70 dark:border-amber-900/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                              <AlertCircle size={14} className="text-amber-600 flex-shrink-0" />
+                              <span>
+                                No constan trabajadores con check-in activo en este alojamiento en este momento.
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* Categorias e Forma de Pagamento */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

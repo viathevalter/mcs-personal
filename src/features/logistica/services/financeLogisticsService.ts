@@ -7,6 +7,11 @@ export interface OcupanteInfo {
   codigo_colab?: string;
   cliente_nome?: string;
   obra_nome?: string;
+  empresa_contratante?: string;
+  pedido_codigo?: string;
+  alojamento_id?: string;
+  alojamento_codigo?: string;
+  alojamento_nome?: string;
   cama_identificador?: string;
   data_inicio?: string;
   status?: string;
@@ -213,12 +218,19 @@ export const financeLogisticsService = {
           if (compMatch) comp = compMatch[1];
         }
 
+        // Extrair eventual código AL-XXXX da descrição ou observações caso cod_alojamiento não esteja preenchido
+        const extractedAlMatch = (op.cod_alojamiento || op.descricao || op.observaciones || '').match(/\b(AL-\d+)\b/i);
+        const effectiveAlCode = op.cod_alojamiento || (extractedAlMatch ? extractedAlMatch[1].toUpperCase() : undefined);
+
         // Mapeamento dinâmico dos ocupantes que estão alojados neste imóvel
         const ocupantesImovel: OcupanteInfo[] = alocsAtivas
           .filter((a: any) =>
             a.status !== 'Checkout' &&
             (
-              (op.cod_alojamiento && (a.alojamento_codigo === op.cod_alojamiento || a.alojamento_id === op.cod_alojamiento)) ||
+              (effectiveAlCode && (
+                (a.alojamento_codigo && a.alojamento_codigo.toUpperCase() === effectiveAlCode.toUpperCase()) ||
+                a.alojamento_id === effectiveAlCode
+              )) ||
               (op.cod_contrato && (a.pedido_codigo === op.cod_contrato || a.solicitud_id === op.cod_contrato)) ||
               (a.alojamento_nome && (
                 (op.descricao && op.descricao.toLowerCase().includes(a.alojamento_nome.toLowerCase())) ||
@@ -232,6 +244,11 @@ export const financeLogisticsService = {
             codigo_colab: a.codigo_colab,
             cliente_nome: a.cliente_nome,
             obra_nome: a.obra_nome,
+            empresa_contratante: a.empresa_contratante,
+            pedido_codigo: a.pedido_codigo,
+            alojamento_id: a.alojamento_id,
+            alojamento_codigo: a.alojamento_codigo,
+            alojamento_nome: a.alojamento_nome,
             cama_identificador: a.cama_identificador,
             data_inicio: a.data_inicio,
             status: a.status
@@ -241,8 +258,8 @@ export const financeLogisticsService = {
           id: op.id,
           codigo_pago: op.cod_orden_pago || `OP-${op.id.substring(0, 8)}`,
           contrato_id: op.cod_contrato || undefined,
-          alojamento_codigo: op.cod_alojamiento || undefined,
-          alojamento_nome: meta.alojamento_nome || op.descricao?.replace(/^(Alquiler|Aluguel|Fianza|Suministro|Passagens|Viagem|Deslocamento)\s*-\s*/i, '').replace(/\s*\(\d{2}\/\d{4}\)$/, '') || 'Alojamiento / Servicio',
+          alojamento_codigo: effectiveAlCode || undefined,
+          alojamento_nome: meta.alojamento_nome || op.descricao?.replace(/^(Alquiler|Aluguel|Fianza_Saida|Fianza_Devolucion|Fianza|Suministro_Luz|Suministro_Agua|Suministro_Gas|Suministro_Internet|Suministro|Manutencao_Limpeza|Passagens_Transporte|Passagens|Viagem_Deslocamento|Viagem|Deslocamento|Diarias_Alimentacao|Outros_Gastos)\s*-\s*/i, '').replace(/\s*\(\d{2}\/\d{4}\)$/, '') || 'Alojamiento / Servicio',
           worker_nome: meta.worker_nome || undefined,
           worker_codigo: meta.worker_codigo || undefined,
           pedido_codigo: meta.pedido_codigo || op.cod_contrato || undefined,
@@ -290,9 +307,13 @@ export const financeLogisticsService = {
         if (match) parsedAlojamentoNome = match[1].trim();
       }
 
+      // Extrair eventual código AL-XXXX de qualquer um dos parâmetros
+      const alMatch = (`${alojamentoCodigoOrId || ''} ${alojamentoNome || ''} ${parsedAlojamentoNome || ''} ${observacoes || ''}`).match(/\b(AL-\d+)\b/i);
+      const extractedAlCode = alMatch ? alMatch[1].toUpperCase() : undefined;
+
       // Limpar prefixos e sufixos de competência do nome do imóvel
       const cleanTargetNome = (alojamentoNome || '')
-        .replace(/^(Alquiler|Aluguel|Fianza|Suministro)\s*-\s*/i, '')
+        .replace(/^(Alquiler|Aluguel|Fianza_Saida|Fianza_Devolucion|Fianza|Suministro_Luz|Suministro_Agua|Suministro_Gas|Suministro_Internet|Suministro|Manutencao_Limpeza|Passagens_Transporte|Passagens|Viagem_Deslocamento|Viagem|Deslocamento|Diarias_Alimentacao|Outros_Gastos)\s*-\s*/i, '')
         .replace(/\s*\(\d{2}\/\d{4}\)$/, '')
         .trim();
 
@@ -303,6 +324,10 @@ export const financeLogisticsService = {
             a.alojamento_codigo === alojamentoCodigoOrId ||
             a.alojamento_id === alojamentoCodigoOrId ||
             (a.cama_id && a.cama_id.includes(alojamentoCodigoOrId))
+          )) ||
+          (extractedAlCode && (
+            (a.alojamento_codigo && a.alojamento_codigo.toUpperCase() === extractedAlCode) ||
+            (a.alojamento_nome && a.alojamento_nome.toUpperCase().includes(extractedAlCode))
           )) ||
           (cleanTargetNome && cleanTargetNome.length > 3 && a.alojamento_nome && (
             a.alojamento_nome.toLowerCase().includes(cleanTargetNome.toLowerCase()) ||
@@ -325,6 +350,11 @@ export const financeLogisticsService = {
         codigo_colab: a.codigo_colab,
         cliente_nome: a.cliente_nome,
         obra_nome: a.obra_nome,
+        empresa_contratante: a.empresa_contratante,
+        pedido_codigo: a.pedido_codigo,
+        alojamento_id: a.alojamento_id,
+        alojamento_codigo: a.alojamento_codigo,
+        alojamento_nome: a.alojamento_nome,
         cama_identificador: a.cama_identificador,
         data_inicio: a.data_inicio,
         status: a.status
@@ -332,6 +362,42 @@ export const financeLogisticsService = {
     } catch (e) {
       console.warn('Erro ao buscar ocupantes dinâmicos:', e);
       return [];
+    }
+  },
+
+  // 2b. Busca detalhes completos do alojamento (endereço, cidade, capacidade, aluguel, provedor) para conferência financeira
+  async fetchAlojamentoDetalhes(alojamentoCodigoOrId?: string, alojamentoNome?: string, observacoes?: string) {
+    if (!alojamentoCodigoOrId && !alojamentoNome && !observacoes) return null;
+    try {
+      const alojamentos = await logisticsService.fetchAlojamentos();
+      let parsedAlojamentoNome = '';
+      if (observacoes) {
+        const match = observacoes.match(/Alojamiento:\s*([^\n\r]+)/i);
+        if (match) parsedAlojamentoNome = match[1].trim();
+      }
+      const alMatch = (`${alojamentoCodigoOrId || ''} ${alojamentoNome || ''} ${parsedAlojamentoNome || ''} ${observacoes || ''}`).match(/\b(AL-\d+)\b/i);
+      const extractedAlCode = alMatch ? alMatch[1].toUpperCase() : undefined;
+
+      const cleanTargetNome = (alojamentoNome || '')
+        .replace(/^(Alquiler|Aluguel|Fianza_Saida|Fianza_Devolucion|Fianza|Suministro_Luz|Suministro_Agua|Suministro_Gas|Suministro_Internet|Suministro|Manutencao_Limpeza|Passagens_Transporte|Passagens|Viagem_Deslocamento|Viagem|Deslocamento|Diarias_Alimentacao|Outros_Gastos)\s*-\s*/i, '')
+        .replace(/\s*\(\d{2}\/\d{4}\)$/, '')
+        .trim();
+
+      return alojamentos.find(a =>
+        (alojamentoCodigoOrId && (a.codigo === alojamentoCodigoOrId || a.id === alojamentoCodigoOrId)) ||
+        (extractedAlCode && a.codigo && a.codigo.toUpperCase() === extractedAlCode) ||
+        (parsedAlojamentoNome && parsedAlojamentoNome.length > 3 && a.nome && (
+          a.nome.toLowerCase().includes(parsedAlojamentoNome.toLowerCase()) ||
+          parsedAlojamentoNome.toLowerCase().includes(a.nome.toLowerCase())
+        )) ||
+        (cleanTargetNome && cleanTargetNome.length > 3 && a.nome && (
+          a.nome.toLowerCase().includes(cleanTargetNome.toLowerCase()) ||
+          cleanTargetNome.toLowerCase().includes(a.nome.toLowerCase())
+        ))
+      ) || null;
+    } catch (e) {
+      console.warn('Erro ao buscar detalhes do alojamento:', e);
+      return null;
     }
   },
 
@@ -366,10 +432,12 @@ export const financeLogisticsService = {
     const codOrdenPago = await getNextCodOrdenPago(0);
 
     // Buscar ocupantes ativos atuais do imóvel se for despesa de alojamento
-    const ocupantes = payload.alojamento_codigo || payload.alojamento_id
+    const ocupantes = payload.alojamento_codigo || payload.alojamento_id || payload.alojamento_nome
       ? await this.fetchOcupantesAlojamento(payload.alojamento_codigo || payload.alojamento_id, payload.alojamento_nome)
       : [];
-    const ocupantesNomes = ocupantes.map(o => `${o.worker_nome}${o.codigo_colab ? ` [${o.codigo_colab}]` : ''}`).join(', ');
+    const ocupantesNomes = ocupantes.map(o => `${o.worker_nome}${o.codigo_colab ? ` [${o.codigo_colab}]` : ''}${o.cliente_nome ? ` (${o.cliente_nome})` : ''}`).join(', ');
+    const clientesAlojados = Array.from(new Set(ocupantes.map(o => o.cliente_nome).filter(Boolean)));
+    const obrasAlojadas = Array.from(new Set(ocupantes.map(o => o.obra_nome).filter(Boolean)));
 
     const compStr = payload.periodo_competencia ? ` (${payload.periodo_competencia})` : '';
 
@@ -384,10 +452,13 @@ export const financeLogisticsService = {
       descricao = `${payload.tipo_pago} - Logística${compStr}`;
     }
 
-    const centroCustos = `${payload.centro_custo_cliente || 'Centro de Coste General'} / ${payload.centro_custo_obra || payload.pedido_codigo || 'Obra Principal'}`;
+    const effectiveClienteCC = payload.centro_custo_cliente || (clientesAlojados.length > 0 ? clientesAlojados.join(', ') : 'Centro de Coste General');
+    const effectiveObraCC = payload.centro_custo_obra || payload.pedido_codigo || (obrasAlojadas.length > 0 ? obrasAlojadas.join(', ') : 'Obra Principal');
+    const centroCustos = `${effectiveClienteCC} / ${effectiveObraCC}`;
 
     const obsCompletas = [
       payload.alojamento_nome ? `Alojamiento: ${payload.alojamento_nome}` : null,
+      clientesAlojados.length > 0 ? `Clientes en Alojamiento: ${clientesAlojados.join(', ')}` : null,
       payload.worker_nome ? `Trabajador: ${payload.worker_nome}${payload.worker_codigo ? ` [${payload.worker_codigo}]` : ''}` : null,
       payload.pedido_codigo ? `Pedido: ${payload.pedido_codigo}` : null,
       payload.rota_deslocamento ? `Ruta / Desplazamiento: ${payload.rota_deslocamento}` : null,

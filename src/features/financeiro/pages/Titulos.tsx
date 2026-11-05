@@ -193,6 +193,63 @@ export const Titulos = () => {
         staleTime: 1000 * 60 * 2
     });
 
+    const [selectedClienteFilter, setSelectedClienteFilter] = useState<string>('TODOS');
+
+    // Helper robusto para recuperar os trabalhadores alojados vinculados a uma OP
+    const getOccupantsForOrder = React.useCallback((item: any) => {
+        const isLodging = Boolean(
+            item.departamento_origem?.toLowerCase().includes('log') ||
+            item.cod_alojamiento ||
+            item.descricao?.toLowerCase().includes('aluguel') ||
+            item.descricao?.toLowerCase().includes('alquiler') ||
+            item.descricao?.toLowerCase().includes('alojamiento') ||
+            item.descricao?.toLowerCase().includes('suministro') ||
+            item.descricao?.toLowerCase().includes('fianza')
+        );
+        if (!isLodging) return [];
+
+        const alMatch = (`${item.cod_alojamiento || ''} ${item.descricao || ''} ${item.observaciones || ''}`).match(/\b(AL-\d+)\b/i);
+        const extractedAlCode = alMatch ? alMatch[1].toUpperCase() : undefined;
+
+        const cleanDesc = (item.descricao || '')
+            .replace(/^(Alquiler|Aluguel|Fianza_Saida|Fianza_Devolucion|Fianza|Suministro_Luz|Suministro_Agua|Suministro_Gas|Suministro_Internet|Suministro|Manutencao_Limpeza|Passagens_Transporte|Passagens|Viagem_Deslocamento|Viagem|Deslocamento|Diarias_Alimentacao|Outros_Gastos)\s*-\s*/i, '')
+            .replace(/\s*\(\d{2}\/\d{4}\)$/, '')
+            .trim();
+
+        return alocacoes.filter((a: any) =>
+            a.status !== 'Checkout' &&
+            (
+                (item.cod_alojamiento && (a.alojamento_codigo === item.cod_alojamiento || a.alojamento_id === item.cod_alojamiento)) ||
+                (extractedAlCode && a.alojamento_codigo && a.alojamento_codigo.toUpperCase() === extractedAlCode) ||
+                (cleanDesc && cleanDesc.length > 3 && a.alojamento_nome && (
+                    a.alojamento_nome.toLowerCase().includes(cleanDesc.toLowerCase()) ||
+                    cleanDesc.toLowerCase().includes(a.alojamento_nome.toLowerCase())
+                ))
+            )
+        );
+    }, [alocacoes]);
+
+    // Lista única de clientes contratados nos alojamentos / OPs
+    const clientesUnicos = React.useMemo(() => {
+        const set = new Set<string>();
+        alocacoes.forEach((a: any) => {
+            if (a.status !== 'Checkout' && a.cliente_nome) {
+                set.add(a.cliente_nome.trim());
+            }
+        });
+        (ordens || []).forEach((item: any) => {
+            if (item.centro_custos) {
+                const cliPart = item.centro_custos.split(' / ')[0]?.trim();
+                if (cliPart && cliPart !== 'Centro de Coste General') {
+                    cliPart.split(',').forEach((c: string) => {
+                        if (c.trim()) set.add(c.trim());
+                    });
+                }
+            }
+        });
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [alocacoes, ordens]);
+
     const toggleStatus = (status: string) => {
         setSelectedStatuses(prev =>
             prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
@@ -209,6 +266,16 @@ export const Titulos = () => {
     const localFilteredData = (ordens || []).filter(item => {
         // Status filter
         if (selectedStatuses.length > 0 && !selectedStatuses.includes(item.status)) return false;
+
+        const matchingOccs = getOccupantsForOrder(item);
+
+        // Cliente filter
+        if (selectedClienteFilter !== 'TODOS') {
+            const targetCli = selectedClienteFilter.toLowerCase();
+            const matchCC = (item.centro_custos || '').toLowerCase().includes(targetCli);
+            const matchOcc = matchingOccs.some((o: any) => (o.cliente_nome || '').toLowerCase().includes(targetCli));
+            if (!matchCC && !matchOcc) return false;
+        }
         
         // Search filter
         if (searchTerm) {
@@ -217,8 +284,14 @@ export const Titulos = () => {
             const code = (item.cod_orden_pago || '').toLowerCase();
             const creator = (item.criador_email || '').toLowerCase();
             const dept = (item.departamento_origem || '').toLowerCase();
+            const cc = (item.centro_custos || '').toLowerCase();
             const supplier = (suppliers?.find(s => s.codigo === item.cod_provedor || s.id === item.fornecedor_id)?.trade_name || item.cod_provedor || '').toLowerCase();
-            if (!desc.includes(lowerTerm) && !code.includes(lowerTerm) && !creator.includes(lowerTerm) && !dept.includes(lowerTerm) && !supplier.includes(lowerTerm)) return false;
+            const matchOccText = matchingOccs.some((o: any) =>
+                (o.worker_nome || '').toLowerCase().includes(lowerTerm) ||
+                (o.codigo_colab || '').toLowerCase().includes(lowerTerm) ||
+                (o.cliente_nome || '').toLowerCase().includes(lowerTerm)
+            );
+            if (!desc.includes(lowerTerm) && !code.includes(lowerTerm) && !creator.includes(lowerTerm) && !dept.includes(lowerTerm) && !cc.includes(lowerTerm) && !supplier.includes(lowerTerm) && !matchOccText) return false;
         }
         return true;
     });
@@ -411,20 +484,37 @@ export const Titulos = () => {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                         <input
                             type="text"
-                            placeholder="Buscar por descrição ou código (ex: OP-0001)..."
+                            placeholder="Buscar por código OP, alojamento, trabalhador ou cliente..."
                             className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600/20 transition-all text-slate-800 dark:text-slate-100"
                             value={searchTerm}
                             onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                         />
                     </div>
-                    <div className="relative">
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
-                            className="flex items-center gap-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl py-2 px-4 text-slate-650 dark:text-slate-350"
-                        >
-                            <Filter size={16} /> Status {selectedStatuses.length > 0 && `(${selectedStatuses.length})`}
-                        </Button>
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        {/* Filtro por Cliente Contratado no Alojamento / OP */}
+                        <div className="flex items-center gap-1.5 bg-indigo-50/70 dark:bg-indigo-950/30 px-3 py-2 rounded-xl border border-indigo-200 dark:border-indigo-900/50 text-xs">
+                            <Building2 size={15} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                            <span className="font-bold text-indigo-700 dark:text-indigo-300">Cliente no Alojamento:</span>
+                            <select
+                                value={selectedClienteFilter}
+                                onChange={(e) => { setSelectedClienteFilter(e.target.value); setCurrentPage(1); }}
+                                className="bg-transparent font-bold text-slate-800 dark:text-slate-100 focus:outline-none max-w-[200px]"
+                            >
+                                <option value="TODOS">Todos os Clientes</option>
+                                {clientesUnicos.map(cli => (
+                                    <option key={cli} value={cli}>{cli}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="relative">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+                                className="flex items-center gap-2 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl py-2 px-4 text-slate-650 dark:text-slate-350"
+                            >
+                                <Filter size={16} /> Status {selectedStatuses.length > 0 && `(${selectedStatuses.length})`}
+                            </Button>
 
                         {isStatusDropdownOpen && (
                             <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 p-2">
@@ -444,6 +534,7 @@ export const Titulos = () => {
                                 </div>
                             </div>
                         )}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -528,25 +619,8 @@ export const Titulos = () => {
                                 </TableRow>
                             ) : paginatedData.length > 0 ? paginatedData.map((item) => {
                                 const supplierName = suppliers?.find(s => s.codigo === item.cod_provedor || s.id === item.fornecedor_id)?.trade_name || item.cod_provedor || 'Não informado';
-                                const isLodging = Boolean(
-                                    item.departamento_origem?.toLowerCase().includes('log') ||
-                                    item.cod_alojamiento ||
-                                    item.descricao?.toLowerCase().includes('aluguel') ||
-                                    item.descricao?.toLowerCase().includes('alquiler') ||
-                                    item.descricao?.toLowerCase().includes('alojamiento')
-                                );
-                                const matchingOccupants = isLodging
-                                    ? alocacoes.filter(a =>
-                                        a.status !== 'Checkout' &&
-                                        (
-                                            (item.cod_alojamiento && (a.alojamento_codigo === item.cod_alojamiento || a.alojamento_id === item.cod_alojamiento)) ||
-                                            (a.alojamento_nome && (
-                                                item.descricao?.toLowerCase().includes(a.alojamento_nome.toLowerCase()) ||
-                                                a.alojamento_nome.toLowerCase().includes(item.descricao?.toLowerCase())
-                                            ))
-                                        )
-                                      )
-                                    : [];
+                                const matchingOccupants = getOccupantsForOrder(item);
+                                const matchingClientes = Array.from(new Set(matchingOccupants.map((o: any) => o.cliente_nome).filter(Boolean))) as string[];
                                 const isExpanded = expandedRowId === item.id;
 
                                 // Extrair dados bancários se presentes nas observações
@@ -655,11 +729,19 @@ export const Titulos = () => {
                                                         {matchingOccupants.length > 0 && (
                                                             <span
                                                                 className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 cursor-help"
-                                                                title={matchingOccupants.map(o => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - ${o.obra_nome || 'Obra'}`).join('\n')}
+                                                                title={matchingOccupants.map((o: any) => `${o.worker_nome} (${o.codigo_colab || 'S/C'}) - Cliente: ${o.cliente_nome || 'N/A'}`).join('\n')}
                                                             >
-                                                                <Users size={10} /> {matchingOccupants.length} ocupante(s)
+                                                                <Users size={10} /> {matchingOccupants.length} alojado(s)
                                                             </span>
                                                         )}
+                                                        {matchingClientes.slice(0, 2).map((cli, idx) => (
+                                                            <span
+                                                                key={idx}
+                                                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                                                            >
+                                                                🏢 {cli}
+                                                            </span>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             </TableCell>
@@ -923,17 +1005,45 @@ export const Titulos = () => {
 
                                                         {/* Ocupantes da Obra / Imóvel (se houver) */}
                                                         {matchingOccupants.length > 0 && (
-                                                            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40">
-                                                                <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300 mb-2">
-                                                                    <Users size={15} />
-                                                                    <span>Ocupantes Vinculados ao Aluguel ({matchingOccupants.length})</span>
+                                                            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 space-y-2.5">
+                                                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                                                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                                                                        <Users size={15} />
+                                                                        <span>Trabalhadores Alojados neste Imóvel ({matchingOccupants.length})</span>
+                                                                    </div>
+                                                                    {matchingClientes.length > 0 && (
+                                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                                            <span className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Clientes no Alojamento:</span>
+                                                                            {matchingClientes.map((cli, cIdx) => (
+                                                                                <span key={cIdx} className="px-2 py-0.5 bg-indigo-100/80 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 rounded-md text-[10px] font-bold border border-indigo-200 dark:border-indigo-800">
+                                                                                    🏢 {cli} ({matchingOccupants.filter((o: any) => o.cliente_nome === cli).length})
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                                <div className="flex flex-wrap gap-2">
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                                                                     {matchingOccupants.map((occ: any, idx: number) => (
-                                                                        <div key={idx} className="bg-white dark:bg-slate-900 px-2.5 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800/60 shadow-2xs text-[11px] flex items-center gap-2">
-                                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">{occ.worker_nome}</span>
-                                                                            {occ.codigo_colab && <span className="font-mono text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">{occ.codigo_colab}</span>}
-                                                                            {occ.obra_nome && <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">({occ.obra_nome})</span>}
+                                                                        <div key={idx} className="bg-white dark:bg-slate-900 px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800/60 shadow-2xs text-[11px] flex items-center justify-between gap-2">
+                                                                            <div className="min-w-0">
+                                                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                                                    {occ.codigo_colab && <span className="font-mono text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1 py-0.2 rounded font-bold">{occ.codigo_colab}</span>}
+                                                                                    <span className="font-bold text-slate-800 dark:text-slate-100 truncate">{occ.worker_nome}</span>
+                                                                                </div>
+                                                                                <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold truncate mt-0.5">
+                                                                                    🏢 {occ.cliente_nome || 'Cliente N/A'} {occ.obra_nome ? `• ${occ.obra_nome}` : ''}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="text-right flex-shrink-0">
+                                                                                <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded text-[9px] font-bold block">
+                                                                                    🛏️ {occ.cama_identificador || 'Quarto'}
+                                                                                </span>
+                                                                                {occ.data_inicio && (
+                                                                                    <span className="text-[9px] text-slate-400 block mt-0.5">
+                                                                                        Desde: {occ.data_inicio}
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
                                                                         </div>
                                                                     ))}
                                                                 </div>
