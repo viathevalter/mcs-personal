@@ -54,29 +54,73 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const { data: clientSites = [], isLoading: loadingSites } = useClientSites();
   const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions(activeEmpresaId);
   
-  // Fetch all worker profiles for this company (via contracts, allocations or historical/manual allocations)
+  // Fetch all worker profiles for this company and client (with pagination & chunking to avoid 1000-row limit)
   const { data: workersList = [], isLoading: loadingWorkers } = useQuery({
-    queryKey: ['lightweightActiveWorkers', activeEmpresaId],
+    queryKey: ['lightweightActiveWorkers', activeEmpresaId, clientId, client?.trade_name],
     queryFn: async () => {
       if (!activeEmpresaId) return [];
+
+      const fetchAllRows = async (buildQuery: (from: number, to: number) => any) => {
+        const all: any[] = [];
+        let from = 0;
+        const step = 1000;
+        while (true) {
+          const { data, error } = await buildQuery(from, from + step - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          all.push(...data);
+          if (data.length < step) break;
+          from += step;
+        }
+        return all;
+      };
       
-      // 1. Fetch worker IDs from contracts
-      const { data: contracts, error: contractsError } = await supabase
-        .schema('core_personal')
-        .from('contracts')
-        .select('worker_id')
-        .eq('empresa_id', activeEmpresaId);
-        
-      if (contractsError) throw contractsError;
+      // 1. Fetch worker IDs from contracts (paginated)
+      const contracts = await fetchAllRows((from, to) =>
+        supabase
+          .schema('core_personal')
+          .from('contracts')
+          .select('worker_id')
+          .eq('empresa_id', activeEmpresaId)
+          .range(from, to)
+      );
       
-      // 2. Fetch worker IDs from worker_assignments
-      const { data: assignments, error: assignmentsError } = await supabase
-        .schema('core_personal')
-        .from('worker_assignments')
-        .select('worker_id')
-        .eq('empresa_id', activeEmpresaId);
-        
-      if (assignmentsError) throw assignmentsError;
+      // 2. Fetch worker IDs from worker_assignments (paginated)
+      const assignments = await fetchAllRows((from, to) =>
+        supabase
+          .schema('core_personal')
+          .from('worker_assignments')
+          .select('worker_id')
+          .eq('empresa_id', activeEmpresaId)
+          .range(from, to)
+      );
+
+      // 2b. Fetch worker IDs specifically assigned or with hours on this client
+      let clientWorkerIds: string[] = [];
+      if (clientId) {
+        const [clientAssignments, clientHours] = await Promise.all([
+          fetchAllRows((from, to) =>
+            supabase
+              .schema('core_personal')
+              .from('worker_assignments')
+              .select('worker_id')
+              .eq('client_id', clientId)
+              .range(from, to)
+          ).catch(() => []),
+          fetchAllRows((from, to) =>
+            supabase
+              .schema('core_finance')
+              .from('horas_trabalhadas')
+              .select('worker_id')
+              .eq('client_id', clientId)
+              .range(from, to)
+          ).catch(() => []),
+        ]);
+        clientWorkerIds = [
+          ...clientAssignments.map((a: any) => a.worker_id),
+          ...clientHours.map((h: any) => h.worker_id),
+        ].filter(Boolean);
+      }
       
       // 3. Fetch company name from core_common.empresas directly to avoid race conditions
       const { data: empresaData } = await supabase
@@ -88,47 +132,61 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
 
       let allocatedCodes: string[] = [];
       if (empresaData?.nome) {
-        // Extract the first word of the company name to avoid suffix mismatches (e.g. "Stocco, Lda" vs "Stocco")
         const firstWord = empresaData.nome.split(/[\s,]+/)[0];
-        const { data: allocations, error: allocationsError } = await supabase
-          .schema('core_personal')
-          .from('vw_worker_allocations')
-          .select('cod_colab')
-          .ilike('contratante', `%${firstWord}%`);
-          
-        if (!allocationsError && allocations) {
-          allocatedCodes = allocations.map(a => a.cod_colab).filter(Boolean) as string[];
-        }
+        const allocations = await fetchAllRows((from, to) =>
+          supabase
+            .schema('core_personal')
+            .from('vw_worker_allocations')
+            .select('cod_colab')
+            .ilike('contratante', `%${firstWord}%`)
+            .range(from, to)
+        ).catch(() => []);
+        allocatedCodes = allocations.map((a: any) => a.cod_colab).filter(Boolean) as string[];
+      }
+
+      if (client?.trade_name) {
+        const clientAllocations = await fetchAllRows((from, to) =>
+          supabase
+            .schema('core_personal')
+            .from('vw_worker_allocations')
+            .select('cod_colab')
+            .ilike('cliente_nombre', client.trade_name.trim())
+            .range(from, to)
+        ).catch(() => []);
+        allocatedCodes.push(...(clientAllocations.map((a: any) => a.cod_colab).filter(Boolean) as string[]));
       }
 
       // Combine unique worker IDs and codes
-      const contractWorkerIds = contracts?.map(c => c.worker_id) || [];
-      const assignmentWorkerIds = assignments?.map(a => a.worker_id) || [];
-      const workerIds = Array.from(new Set([...contractWorkerIds, ...assignmentWorkerIds].filter(Boolean))) as string[];
+      const contractWorkerIds = contracts?.map((c: any) => c.worker_id) || [];
+      const assignmentWorkerIds = assignments?.map((a: any) => a.worker_id) || [];
+      const workerIds = Array.from(new Set([...contractWorkerIds, ...assignmentWorkerIds, ...clientWorkerIds].filter(Boolean))) as string[];
       const uniqueCodes = Array.from(new Set(allocatedCodes)) as string[];
       
       if (workerIds.length === 0 && uniqueCodes.length === 0) return [];
       
-      // 4. Fetch worker profiles by ID
+      // 4. Fetch worker profiles by ID (chunked in batches of 200)
       let workersById: any[] = [];
-      if (workerIds.length > 0) {
+      const CHUNK_SIZE = 200;
+      for (let i = 0; i < workerIds.length; i += CHUNK_SIZE) {
+        const chunk = workerIds.slice(i, i + CHUNK_SIZE);
         const { data, error } = await supabase
           .schema('core_personal')
           .from('workers')
           .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
-          .in('id', workerIds);
-        if (!error && data) workersById = data;
+          .in('id', chunk);
+        if (!error && data) workersById.push(...data);
       }
 
-      // 5. Fetch worker profiles by Code
+      // 5. Fetch worker profiles by Code (chunked in batches of 200)
       let workersByCode: any[] = [];
-      if (uniqueCodes.length > 0) {
+      for (let i = 0; i < uniqueCodes.length; i += CHUNK_SIZE) {
+        const chunk = uniqueCodes.slice(i, i + CHUNK_SIZE);
         const { data, error } = await supabase
           .schema('core_personal')
           .from('workers')
           .select('id, nome, cod_colab, funcion, cliente, status_trabajador')
-          .in('cod_colab', uniqueCodes);
-        if (!error && data) workersByCode = data;
+          .in('cod_colab', chunk);
+        if (!error && data) workersByCode.push(...data);
       }
 
       // Merge and deduplicate by worker ID
@@ -171,48 +229,114 @@ export function ClientTariffsTab({ client }: ClientTariffsTabProps) {
   const [workerNightRate, setWorkerNightRate] = useState('');
   const [showOnlyClientWorkers, setShowOnlyClientWorkers] = useState(true);
   const [allocatedWorkerCodes, setAllocatedWorkerCodes] = useState<string[]>([]);
+  const [allocatedWorkerIds, setAllocatedWorkerIds] = useState<string[]>([]);
 
-  // Fetch exact worker allocations for this client from colaborador_por_pedido
+  // Fetch exact worker allocations for this client across new and legacy tables
   useEffect(() => {
-    if (client?.trade_name) {
-      supabase
-        .from('colaborador_por_pedido')
-        .select('cod_colab')
-        .eq('cliente_nombre', client.trade_name)
-        .then(({ data, error }) => {
-          if (error) {
-            console.error('Erro ao buscar alocações de trabalhadores:', error);
-            return;
-          }
-          if (data) {
-            const codes = Array.from(new Set(data.map(d => d.cod_colab).filter(Boolean)));
-            setAllocatedWorkerCodes(codes as string[]);
-          }
-        });
-    }
-  }, [client]);
+    let cancelled = false;
+    const loadClientWorkerAllocations = async () => {
+      const codesSet = new Set<string>();
+      const idsSet = new Set<string>();
+
+      const promises: Promise<void>[] = [];
+
+      if (clientId) {
+        // 1. New allocations table: core_personal.worker_assignments
+        promises.push(
+          Promise.resolve(
+            supabase
+              .schema('core_personal')
+              .from('worker_assignments')
+              .select('worker_id')
+              .eq('client_id', clientId)
+          ).then(({ data }) => {
+            data?.forEach((d: any) => {
+              if (d.worker_id) idsSet.add(d.worker_id);
+            });
+          }).catch(() => {})
+        );
+
+        // 2. Workers with registered hours on this client: core_finance.horas_trabalhadas
+        promises.push(
+          Promise.resolve(
+            supabase
+              .schema('core_finance')
+              .from('horas_trabalhadas')
+              .select('worker_id')
+              .eq('client_id', clientId)
+          ).then(({ data }) => {
+            data?.forEach((d: any) => {
+              if (d.worker_id) idsSet.add(d.worker_id);
+            });
+          }).catch(() => {})
+        );
+      }
+
+      if (client?.trade_name) {
+        const tradeName = client.trade_name.trim();
+        // 3. Unified allocations view: core_personal.vw_worker_allocations
+        promises.push(
+          Promise.resolve(
+            supabase
+              .schema('core_personal')
+              .from('vw_worker_allocations')
+              .select('cod_colab')
+              .ilike('cliente_nombre', tradeName)
+          ).then(({ data }) => {
+            data?.forEach((d: any) => {
+              if (d.cod_colab) codesSet.add(d.cod_colab);
+            });
+          }).catch(() => {})
+        );
+
+        // 4. Legacy allocations table: public.colaborador_por_pedido
+        promises.push(
+          Promise.resolve(
+            supabase
+              .from('colaborador_por_pedido')
+              .select('cod_colab')
+              .ilike('cliente_nombre', tradeName)
+          ).then(({ data }) => {
+            data?.forEach((d: any) => {
+              if (d.cod_colab) codesSet.add(d.cod_colab);
+            });
+          }).catch(() => {})
+        );
+      }
+
+      await Promise.all(promises);
+      if (!cancelled) {
+        setAllocatedWorkerIds(Array.from(idsSet));
+        setAllocatedWorkerCodes(Array.from(codesSet));
+      }
+    };
+
+    loadClientWorkerAllocations();
+    return () => {
+      cancelled = true;
+    };
+  }, [clientId, client?.trade_name]);
 
   const filteredWorkers = useMemo(() => {
     if (!showOnlyClientWorkers) return workersList;
 
-    // 1. Filter by colaborador_por_pedido active allocation codes
-    const filteredByCode = workersList.filter(
-      w => w.cod_colab && allocatedWorkerCodes.includes(w.cod_colab)
-    );
-    if (filteredByCode.length > 0) return filteredByCode;
+    const clientNameLower = client?.trade_name?.trim().toLowerCase() || '';
+    const idsSet = new Set(allocatedWorkerIds);
+    const codesSet = new Set(allocatedWorkerCodes);
 
-    // 2. Fallback: filter by w.cliente string match (general/outdated client name field)
-    if (client?.trade_name) {
-      const clientNameLower = client.trade_name.trim().toLowerCase();
-      const filteredByName = workersList.filter(
-        w => w.cliente?.trim().toLowerCase() === clientNameLower
-      );
-      if (filteredByName.length > 0) return filteredByName;
-    }
+    // Combine all client allocation matches (ID in assignments/hours, code in allocations/legacy, or client name on worker profile)
+    const matched = workersList.filter(w => {
+      if (idsSet.has(w.id)) return true;
+      if (w.cod_colab && codesSet.has(w.cod_colab)) return true;
+      if (clientNameLower && w.cliente?.trim().toLowerCase() === clientNameLower) return true;
+      return false;
+    });
 
-    // 3. Fallback: return everything so dropdown is not empty
+    if (matched.length > 0) return matched;
+
+    // Fallback: return everything so dropdown is not empty
     return workersList;
-  }, [workersList, allocatedWorkerCodes, client, showOnlyClientWorkers]);
+  }, [workersList, allocatedWorkerIds, allocatedWorkerCodes, client, showOnlyClientWorkers]);
 
   useEffect(() => {
     if (selectedWorkerId && !filteredWorkers.some(w => w.id === selectedWorkerId)) {
