@@ -30,7 +30,7 @@ export function normalizeSearchText(text?: string | number | null): string {
  */
 export function matchesPartialSearch(
   query: string,
-  fields: Array<string | number | undefined | null>
+  fields: Array<string | number | undefined | null> | string | number | undefined | null
 ): boolean {
   const normQuery = normalizeSearchText(query);
   if (!normQuery) return true;
@@ -38,7 +38,8 @@ export function matchesPartialSearch(
   const tokens = normQuery.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return true;
 
-  const combinedHaystack = fields.map(f => normalizeSearchText(f)).join(' ');
+  const fieldList = Array.isArray(fields) ? fields : [fields];
+  const combinedHaystack = fieldList.map(f => normalizeSearchText(f)).join(' ');
   return tokens.every(token => combinedHaystack.includes(token));
 }
 

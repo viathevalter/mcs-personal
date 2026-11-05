@@ -584,8 +584,23 @@ export const SuministrosLogisticaPage: React.FC = () => {
         if (excedenteFilter === 'enviado_financeiro' && f.rateio_status !== 'enviado_financeiro') return false;
 
         if (searchTerm.trim()) {
-          const target = `${f.codigo_fatura} ${f.alojamento_codigo || ''} ${f.alojamento_nome || ''} ${f.direccion_planilha || ''} ${f.servico} ${f.concepto_original || ''} ${f.mes_periodo || ''} ${f.num_ordem_pago || ''} ${f.observacoes || ''}`;
-          if (!matchesPartialSearch(target, searchTerm)) return false;
+          if (
+            !matchesPartialSearch(searchTerm, [
+              f.codigo_fatura,
+              f.alojamento_codigo,
+              f.alojamento_nome,
+              f.direccion_planilha,
+              f.provedor_nome,
+              f.servico,
+              f.concepto_original,
+              f.mes_periodo,
+              f.num_ordem_pago,
+              f.observacoes,
+              f.estado_pago
+            ])
+          ) {
+            return false;
+          }
         }
         return true;
       })
