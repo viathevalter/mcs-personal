@@ -534,8 +534,8 @@ serve(async (req) => {
       empresa_morada: empresa.address_line || "",
       
       proposta_codigo: est.codigo || "",
-      proposta_data: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "pt-PT"),
-      proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT") : "",
+      proposta_data: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }),
+      proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }) : "",
       proposta_pagamento: est.payment_terms || (isFr ? "À convenir" : "A combinar"),
       proposta_notes: est.general_notes || "",
       
@@ -548,8 +548,8 @@ serve(async (req) => {
 
       obra_morada: siteAddress || (isFr ? "Installations du Client" : "Instalações do Cliente"),
       tarifa_tipo: isFixedPrice ? (isFr ? "Prix Forfaitaire Ferme" : "Preço Fechado") : (isFr ? "Grille Complète" : "Completa"),
-      data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT") : "",
-      data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT") : "",
+      data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }) : "",
+      data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }) : "",
       condicoes_pagamento: est.payment_terms || (isFr ? "À convenir" : "A combinar"),
 
       itens: formattedItems,
@@ -585,7 +585,7 @@ serve(async (req) => {
       // ALIASES EM ESPANHOL (Suporte aos modelos de presupuesto customizados)
       NUMERO_PRESUPUESTO: est.codigo || "",
       PRESUPUESTO_NUMERO: est.codigo || "",
-      FECHA_EMISION: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "es-ES"),
+      FECHA_EMISION: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "es-ES", { timeZone: "Europe/Madrid" }),
       PAIS: isFr ? "France" : "España",
       CLIENTE_CONTRATANTE: targetCompany || targetName || "",
       UBICACION: siteAddress || (isFr ? "Installations du Client" : "Instalaciones del Cliente"),
@@ -593,14 +593,14 @@ serve(async (req) => {
       TIPO_TRABAJO: isFixedPrice 
         ? (isFr ? "Exécution à Prix Forfaitaire Ferme" : "Ejecución a Precio Cerrado") 
         : (isFr ? "Mise à Disposition de Main-d'Œuvre" : "Suministro de Mano de Obra"),
-      FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES") : "",
-      FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES") : "",
+      FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES", { timeZone: "Europe/Madrid" }) : "",
+      FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES", { timeZone: "Europe/Madrid" }) : "",
       TARIFA_APLICABLE: isFixedPrice 
         ? (isFr ? "Prix Forfaitaire Ferme" : "Precio Cerrado") 
         : (isFr ? "Grille Complète" : "Completa"),
       CONDICIONES_PAGO: est.payment_terms || (isFr ? "À convenir" : "A convenir"),
       PLAZO_PAGO: est.payment_terms || (isFr ? "À convenir" : "A convenir"),
-      VALIDEZ_PRESUPUESTO: est.validity_date ? Math.ceil((new Date(est.validity_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : "30",
+      VALIDEZ_PRESUPUESTO: est.validity_date ? Math.max(1, Math.ceil((new Date(est.validity_date).getTime() - new Date(est.created_at || Date.now()).getTime()) / (1000 * 3600 * 24))) : "30",
       OBSERVACIONES: est.general_notes || "",
       CLIENTE_NIF: clientTaxId || "",
       CIF_CLIENTE: clientTaxId || "",
@@ -801,31 +801,68 @@ serve(async (req) => {
       }
     }
 
+    // Calcular validade do OTP/Link com base em validity_date
+    let otpExpiresAt = new Date();
+    if (est.validity_date) {
+      const rawVal = String(est.validity_date);
+      const parsedValDate = rawVal.includes("T") ? new Date(rawVal) : new Date(`${rawVal}T23:59:59`);
+      if (!isNaN(parsedValDate.getTime())) {
+        otpExpiresAt = parsedValDate;
+      } else {
+        otpExpiresAt.setDate(otpExpiresAt.getDate() + 30);
+      }
+    } else {
+      otpExpiresAt.setDate(otpExpiresAt.getDate() + 30); // 30 days fallback
+    }
+
     if (reprocess_only) {
       const { data: existingPending } = await supabase
         .schema("core_comercial")
         .from("proposal_signatures")
         .select("*")
         .eq("estimacion_id", est.id)
+        .eq("status", "pending_signature")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (existingPending) {
-        const updatePayload: any = { updated_at: new Date().toISOString() };
+        const updatePayload: any = {
+          updated_at: new Date().toISOString(),
+          otp_expires_at: otpExpiresAt.toISOString(),
+        };
         if (docPath) {
           updatePayload.document_url = docPath;
-          updatePayload.signed_document_url = docPath.replace(/\.docx$/i, ".pdf");
+          updatePayload.signed_document_url = null;
         }
         if (contractDocPath) {
           updatePayload.contract_document_url = contractDocPath;
-          updatePayload.contract_signed_document_url = contractDocPath.replace(/\.docx$/i, ".pdf");
+          updatePayload.contract_signed_document_url = null;
         }
         await supabase
           .schema("core_comercial")
           .from("proposal_signatures")
           .update(updatePayload)
           .eq("id", existingPending.id);
+
+        // Disparar conversão imediata de DOCX para PDF via sign-proposal (action: reprocess)
+        if (existingPending.signature_token) {
+          try {
+            await fetch(`${supabaseUrl}/functions/v1/sign-proposal`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                token: existingPending.signature_token,
+                action: "reprocess",
+              }),
+            });
+          } catch (pdfConvErr) {
+            console.warn("[generate-proposal] Aviso ao converter PDF no reprocess_only:", pdfConvErr);
+          }
+        }
 
         return new Response(
           JSON.stringify({
@@ -839,24 +876,20 @@ serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          reprocessed: false,
+          message: "Nenhuma proposta pendente de assinatura para reprocessar.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // 8. Gerar OTP e signature token
     const signatureToken = crypto.randomUUID();
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString(); // OTP 6 dígitos
-    // OTP/Link validity: if the estimation has a validity_date, keep the link active until that date.
-    // Otherwise, fallback to a longer period (e.g., 30 days) to avoid deactivating the link too soon.
-    let otpExpiresAt = new Date();
-    if (est.validity_date) {
-      const parsedValDate = new Date(`${est.validity_date}T23:59:59`);
-      if (!isNaN(parsedValDate.getTime())) {
-        otpExpiresAt = parsedValDate;
-      } else {
-        otpExpiresAt.setDate(otpExpiresAt.getDate() + 30);
-      }
-    } else {
-      otpExpiresAt.setDate(otpExpiresAt.getDate() + 30); // 30 days fallback
-    }
 
     // Invalida assinaturas anteriores pendentes para esta estimativa
     console.log(`[generate-proposal] Expirando assinaturas pendentes anteriores da estimativa: ${est.id}`);

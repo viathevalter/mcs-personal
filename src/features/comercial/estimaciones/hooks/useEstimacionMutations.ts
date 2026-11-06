@@ -61,6 +61,19 @@ export function useEstimacionMutations() {
         p_payload: payload,
       });
       if (error) throw error;
+
+      // Se já houver proposta gerada aguardando assinatura, regenera silenciosamente o DOCX e PDF mantendo o mesmo link
+      try {
+        await supabase.functions.invoke('generate-proposal', {
+          body: {
+            estimacion_id: id,
+            reprocess_only: true,
+          },
+        });
+      } catch (reprocessErr) {
+        console.warn('[atualizarEstimacion] Aviso ao reprocessar proposta após edição:', reprocessErr);
+      }
+
       return data;
     },
     onSuccess: (_, variables) => {

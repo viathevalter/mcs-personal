@@ -143,7 +143,9 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const token = sig?.signature_token || (sig as any)?.token;
 
   const handleDownloadDoc = async () => {
-    const docUrl = sig?.signed_document_url || sig?.document_url;
+    const docUrl = status === 'signed'
+      ? (sig?.signed_document_url || sig?.document_url)
+      : (sig?.document_url || sig?.signed_document_url);
     if (!docUrl) return;
     try {
       setDownloading(true);
@@ -188,7 +190,9 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   };
 
   const handleDownloadContract = async () => {
-    const docUrl = sig?.contract_signed_document_url || sig?.contract_document_url;
+    const docUrl = status === 'signed'
+      ? (sig?.contract_signed_document_url || sig?.contract_document_url)
+      : (sig?.contract_document_url || sig?.contract_signed_document_url);
     if (!docUrl) return;
     try {
       setDownloadingContract(true);

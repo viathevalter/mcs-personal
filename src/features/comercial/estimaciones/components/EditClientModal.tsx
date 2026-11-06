@@ -152,6 +152,18 @@ export function EditClientModal({
             signer_role: repRole,
           })
           .eq('id', estimacionId);
+
+        // Regenera silenciosamente o DOCX e PDF da proposta/contrato ativa mantendo o mesmo link
+        try {
+          await supabase.functions.invoke('generate-proposal', {
+            body: {
+              estimacion_id: estimacionId,
+              reprocess_only: true,
+            },
+          });
+        } catch (reprocessErr) {
+          console.warn('[EditClientModal] Aviso ao reprocessar proposta:', reprocessErr);
+        }
       }
 
       queryClient.invalidateQueries({ queryKey: ['clients'] });
