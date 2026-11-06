@@ -1045,6 +1045,10 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'Madrid - Liseth',
+      'Sin Correo - Madrid - Liseth',
+      'Barcelona - Liseth',
+      'Mailing Liseth - Madrid 2026',
       'Classeur1 - Fatumata',
       'Sem E-mail - Classeur1 - Fatumata',
       'Sem E-mail - Fatumata',

@@ -762,6 +762,11 @@ export function CampaignsPage() {
       }
     });
     const priorityTags = [
+      'Madrid - Liseth',
+      'Sin Correo - Madrid - Liseth',
+      'Barcelona - Liseth',
+      'Mailing Liseth - Madrid 2026',
+      'Mailing Liseth Inéditos - Madrid 2026',
       'Classeur1 - Fatumata',
       'Sem E-mail - Classeur1 - Fatumata',
       'Sem E-mail - Fatumata',
@@ -1555,6 +1560,53 @@ export function CampaignsPage() {
             offset: '',
           },
           created_at: '2026-11-04T15:30:00.000Z'
+        },
+        {
+          id: 'aud_liseth_ineditos_madrid_2026',
+          name: '🚀 🇪🇸 Liseth (Wiseowe) - Inéditos Madrid (36 leads)',
+          leadCount: 36,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Mailing Liseth Inéditos - Madrid 2026',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-06T14:20:00.000Z'
+        },
+        {
+          id: 'aud_liseth_madrid_completo_2026',
+          name: '🎯 🇪🇸 Liseth (Wiseowe) - Madrid Completo [Tag: Madrid - Liseth] (42 leads)',
+          leadCount: 42,
+          filters: {
+            stageId: '',
+            origin: '',
+            intelligence: 'all',
+            selectedCountries: ['ES'],
+            selectedCompanySizes: [],
+            selectedRegions: [],
+            selectedProvinces: [],
+            selectedSectors: [],
+            selectedServices: [],
+            selectedTags: ['Madrid - Liseth'],
+            sectorKeyword: '',
+            cargoKeyword: '',
+            provinceKeyword: '',
+            tagKeyword: 'Madrid - Liseth',
+            limit: '',
+            offset: '',
+          },
+          created_at: '2026-11-06T14:20:00.000Z'
         },
         {
           id: 'aud_liseth_ineditos_barcelona_2026',
