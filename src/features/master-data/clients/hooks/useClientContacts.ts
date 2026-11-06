@@ -22,6 +22,7 @@ export function useMutateClientContact(clientId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['client_contacts', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
     },
   });
 
@@ -31,6 +32,7 @@ export function useMutateClientContact(clientId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['client_contacts', clientId] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
     },
   });
 

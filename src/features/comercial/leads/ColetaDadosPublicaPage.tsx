@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
-import { Building, User, Mail, Phone, MapPin, CheckCircle, Loader2, Globe } from 'lucide-react';
+import { Building, User, Mail, Phone, MapPin, CheckCircle, Loader2, Globe, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 const translations = {
@@ -17,30 +17,38 @@ const translations = {
     successTitle: 'Obrigado!',
     successDesc: 'As suas informações foram salvas com sucesso.',
     successInfo: 'Nossa equipe comercial já recebeu os dados atualizados e dará andamento à elaboração de sua proposta e contrato.',
-    badgeUpdate: 'Atualização cadastral',
+    badgeUpdate: 'Atualização cadastral e contratual',
     badgeNew: 'Novo Cadastro',
-    titleUpdate: 'Ficha de Cadastro de Cliente',
+    titleUpdate: 'Ficha de Dados Fiscais e Representante Legal',
     titleNew: 'Ficha de Cadastro de Novo Lead',
-    descUpdate: (leadName: string, companyName: string) => `Olá, ${leadName}! Confirme ou complete os dados cadastrais da empresa ${companyName} para darmos início ao contrato.`,
+    descUpdate: (leadName: string, companyName: string) => `Olá${leadName ? `, ${leadName}` : ''}! Confirme ou complete os dados fiscais da empresa ${companyName || ''} e da pessoa física que assinará o contrato.`,
     descNew: 'Por favor, preencha os dados abaixo com as informações de sua empresa para gerarmos a proposta comercial.',
     loadingForm: 'Carregando formulário...',
-    secIdent: 'Identificação da Empresa',
+    secIdent: '1. Identificação Fiscal da Empresa',
     lblTradeName: 'Nome Comercial / Fantasia *',
     phTradeName: 'Ex: Mastercorp Portugal',
-    lblLegalName: 'Razão Social *',
+    lblLegalName: 'Razão Social (Nome Legal da Sociedade) *',
     phLegalName: 'Ex: Mastercorp S.A.',
-    lblTaxId: 'NIF / CIF / CPF (Número Fiscal) *',
-    phTaxId: 'Ex: 500123456',
-    secContact: 'Contato Principal',
-    lblContactName: 'Nome do Ponto de Contato *',
+    lblTaxId: 'CIF / NIF da Empresa (Pessoa Jurídica) *',
+    phTaxId: 'Ex: B12345678 / 500123456',
+    secLegalRep: '2. Representante Legal (Pessoa que Assina o Contrato)',
+    secLegalRepDesc: 'Informe os dados da pessoa física com poderes legais para assinar o contrato em nome da empresa.',
+    lblLegalRepName: 'Nome Completo do Representante Legal (Firmante) *',
+    phLegalRepName: 'Ex: Carlos Alberto Oliveira',
+    lblLegalRepTaxId: 'NIF / DNI / NIE Pessoal do Representante *',
+    phLegalRepTaxId: 'Ex: 12345678Z',
+    lblLegalRepRole: 'Cargo / Qualidade na Empresa',
+    phLegalRepRole: 'Ex: Administrador Único / Procurador / Diretor',
+    secContact: '3. Contato e E-mails',
+    lblContactName: 'Nome do Ponto de Contato',
     phContactName: 'Ex: Ana Souza',
-    lblContactEmail: 'E-mail de Contato *',
+    lblContactEmail: 'E-mail Principal / para Assinatura Digital *',
     phContactEmail: 'Ex: ana@empresa.com',
     lblBillingEmail: 'E-mail para Faturamento',
     phBillingEmail: 'Ex: financeiro@empresa.com',
     lblPhone: 'Telefone *',
     phPhone: 'Ex: +351 912 345 678',
-    secAddress: 'Endereço de Faturamento',
+    secAddress: '4. Endereço da Sede Social / Faturamento',
     lblCountry: 'País',
     lblRegion: 'Região',
     lblProvince: 'Província',
@@ -51,9 +59,9 @@ const translations = {
     phPostalCode: 'Ex: 1000-001',
     lblAddressLine: 'Logradouro / Avenida / Rua e Número',
     phAddressLine: 'Ex: Avenida da Liberdade, nº 123, 4º Andar',
-    btnSubmit: 'Confirmar e Enviar Dados',
+    btnSubmit: 'Confirmar e Enviar Dados para o Contrato',
     btnSubmitting: 'Enviando Informações...',
-    requiredError: 'Por favor, preencha todos os campos obrigatórios.',
+    requiredError: 'Por favor, preencha os dados da empresa e do representante legal.',
     companyError: 'Identificador da empresa do grupo não encontrado.',
     toastSuccess: 'Informações enviadas com sucesso!',
     toastError: 'Erro ao enviar dados. Tente novamente.',
@@ -67,30 +75,38 @@ const translations = {
     successTitle: '¡Gracias!',
     successDesc: 'Su información ha sido guardada con éxito.',
     successInfo: 'Nuestro equipo comercial ya ha recibido los datos actualizados y procederá con la elaboración de su propuesta y contrato.',
-    badgeUpdate: 'Actualización de datos',
+    badgeUpdate: 'Datos Fiscales y de Contrato',
     badgeNew: 'Nuevo Registro',
-    titleUpdate: 'Ficha de Registro de Cliente',
-    titleNew: 'Ficha de Registro de Nuevo Lead',
-    descUpdate: (leadName: string, companyName: string) => `¡Hola, ${leadName}! Confirme o complete los datos de registro de la empresa ${companyName} para iniciar el contrato.`,
-    descNew: 'Por favor, complete los datos a continuación con la información de su empresa para generar la propuesta comercial.',
+    titleUpdate: 'Ficha de Datos Fiscales y Representante Legal',
+    titleNew: 'Ficha de Registro de Nuevo Cliente',
+    descUpdate: (leadName: string, companyName: string) => `¡Hola${leadName ? `, ${leadName}` : ''}! Confirme o complete los datos fiscales de la sociedad ${companyName || ''} y de la persona física que firmará el contrato.`,
+    descNew: 'Por favor, complete los datos a continuación con la información de su empresa para generar la propuesta y el contrato comercial.',
     loadingForm: 'Cargando formulario...',
-    secIdent: 'Identificación de la Empresa',
+    secIdent: '1. Datos Fiscales de la Sociedad (Empresa)',
     lblTradeName: 'Nombre Comercial / Fantasía *',
-    phTradeName: 'Ej: Talleres Metalúrgicos S.L.',
-    lblLegalName: 'Razón Social *',
-    phLegalName: 'Ej: Metalúrgicas Unidas S.A.',
-    lblTaxId: 'NIF / CIF / NIE (Número Fiscal) *',
+    phTradeName: 'Ej: Talleres Metalúrgicos',
+    lblLegalName: 'Razón Social de la Sociedad *',
+    phLegalName: 'Ej: Talleres Metalúrgicos S.L.',
+    lblTaxId: 'CIF / NIF de la Sociedad (Empresa) *',
     phTaxId: 'Ej: B12345678',
-    secContact: 'Contacto Principal',
-    lblContactName: 'Nombre del Punto de Contacto *',
-    phContactName: 'Ej: Juan Pérez',
-    lblContactEmail: 'Correo Electrónico de Contacto *',
+    secLegalRep: '2. Representante Legal (Persona que Firma el Contrato)',
+    secLegalRepDesc: 'Indique los datos de la persona física que actuará en nombre y representación de la sociedad para firmar el contrato.',
+    lblLegalRepName: 'Nombre y Apellidos del Firmante (Representante Legal) *',
+    phLegalRepName: 'Ej: Juan Pérez García',
+    lblLegalRepTaxId: 'DNI / NIE / NIF Personal del Firmante *',
+    phLegalRepTaxId: 'Ej: 12345678Z',
+    lblLegalRepRole: 'Cargo / Calidad en la Empresa',
+    phLegalRepRole: 'Ej: Administrador Único / Apoderado / Gerente',
+    secContact: '3. Datos de Contacto y Envío de Contrato',
+    lblContactName: 'Persona de Contacto (si es distinta del firmante)',
+    phContactName: 'Ej: María López',
+    lblContactEmail: 'Correo Electrónico de Contacto / Firma Digital *',
     phContactEmail: 'Ej: contacto@empresa.com',
     lblBillingEmail: 'Correo Electrónico para Facturación',
-    phBillingEmail: 'Ej: financiero@empresa.com',
+    phBillingEmail: 'Ej: administracion@empresa.com',
     lblPhone: 'Teléfono *',
     phPhone: 'Ej: +34 600 000 000',
-    secAddress: 'Dirección de Facturación',
+    secAddress: '4. Domicilio Social / Dirección de Facturación',
     lblCountry: 'País',
     lblRegion: 'Región',
     lblProvince: 'Provincia',
@@ -99,11 +115,11 @@ const translations = {
     phCity: 'Ej: Barcelona',
     lblPostalCode: 'Código Postal',
     phPostalCode: 'Ej: 28001',
-    lblAddressLine: 'Calle, Avenida o Plaza y Número',
+    lblAddressLine: 'Domicilio Social Completo (Calle, Número, Polígono)',
     phAddressLine: 'Ej: Gran Vía, nº 123, 4º Derecha',
-    btnSubmit: 'Confirmar y Enviar Datos',
+    btnSubmit: 'Confirmar y Enviar Datos para el Contrato',
     btnSubmitting: 'Enviando Información...',
-    requiredError: 'Por favor, rellene todos los campos obligatorios.',
+    requiredError: 'Por favor, rellene los campos obligatorios de la empresa y del representante legal.',
     companyError: 'Identificador de la empresa del grupo no encontrado.',
     toastSuccess: '¡Información enviada con éxito!',
     toastError: 'Error al enviar los datos. Inténtelo de nuevo.',
@@ -117,30 +133,38 @@ const translations = {
     successTitle: 'Grazie!',
     successDesc: 'Le tue informazioni sono state salvate con successo.',
     successInfo: 'Il nostro team commerciale ha già ricevuto i dati aggiornati e procederà con la stesura della proposta e del contratto.',
-    badgeUpdate: 'Aggiornamento dati',
+    badgeUpdate: 'Dati Fiscali e Contrattuali',
     badgeNew: 'Nuovo Profilo',
-    titleUpdate: 'Scheda di Registrazione Cliente',
+    titleUpdate: 'Scheda Dati Fiscali e Rappresentante Legale',
     titleNew: 'Scheda di Registrazione Nuovo Lead',
-    descUpdate: (leadName: string, companyName: string) => `Ciao, ${leadName}! Conferma o completa i dati di registrazione dell'azienda ${companyName} per avviare il contratto.`,
-    descNew: 'Si prega di compilare i dati sottostanti con le informazioni della propria azienda per generare la proposta proposta.',
+    descUpdate: (leadName: string, companyName: string) => `Ciao${leadName ? `, ${leadName}` : ''}! Conferma o completa i dati fiscali dell'azienda ${companyName || ''} e del rappresentante legale firmatario del contratto.`,
+    descNew: 'Si prega di compilare i dati sottostanti con le informazioni della propria azienda per generare la proposta commerciale.',
     loadingForm: 'Caricamento del modulo...',
-    secIdent: 'Identificazione dell\'Azienda',
+    secIdent: '1. Identificazione Fiscale dell\'Azienda',
     lblTradeName: 'Nome Commerciale / Insegna *',
     phTradeName: 'Es: Carpenteria Metallica S.R.L.',
     lblLegalName: 'Ragione Sociale *',
     phLegalName: 'Es: Carpenterie Unite S.P.A.',
-    lblTaxId: 'Partita IVA / Codice Fiscale *',
+    lblTaxId: 'Partita IVA / Codice Fiscale Azienda *',
     phTaxId: 'Es: IT12345678901',
-    secContact: 'Contatto Principale',
-    lblContactName: 'Nome del Punto di Contatto *',
-    phContactName: 'Es: Mario Rossi',
-    lblContactEmail: 'Email di Contatto *',
+    secLegalRep: '2. Rappresentante Legale (Firmatario del Contratto)',
+    secLegalRepDesc: 'Inserisci i dati della persona fisica autorizzata a firmare il contratto a nome della società.',
+    lblLegalRepName: 'Nome e Cognome del Rappresentante Legale *',
+    phLegalRepName: 'Es: Mario Rossi',
+    lblLegalRepTaxId: 'Documento / Codice Fiscale Personale del Firmatario *',
+    phLegalRepTaxId: 'Es: RSSMRA80A01F205X',
+    lblLegalRepRole: 'Ruolo / Qualifica',
+    phLegalRepRole: 'Es: Amministratore Unico / Legale Rappresentante',
+    secContact: '3. Contatto Principale',
+    lblContactName: 'Nome del Punto di Contatto',
+    phContactName: 'Es: Giulia Bianchi',
+    lblContactEmail: 'Email di Contatto / Firma Digitale *',
     phContactEmail: 'Es: contatto@azienda.it',
     lblBillingEmail: 'Email per Fatturazione',
     phBillingEmail: 'Es: amministrazione@azienda.it',
     lblPhone: 'Telefono *',
     phPhone: 'Es: +39 02 1234567',
-    secAddress: 'Indirizzo di Fatturazione',
+    secAddress: '4. Sede Legale / Indirizzo di Fatturazione',
     lblCountry: 'Paese',
     lblRegion: 'Regione',
     lblProvince: 'Provincia',
@@ -167,30 +191,38 @@ const translations = {
     successTitle: 'Merci !',
     successDesc: 'Vos informations ont été enregistrées avec succès.',
     successInfo: 'Notre équipe commerciale a bien reçu les données mises à jour et va procéder à la rédaction de votre proposition et de votre contrat.',
-    badgeUpdate: 'Mise à jour des données',
-    badgeNew: 'Nouveau Fiche',
-    titleUpdate: 'Fiche d\'Enregistrement Client',
-    titleNew: 'Fiche d\'Enregistrement Nouveau Lead',
-    descUpdate: (leadName: string, companyName: string) => `Bonjour, ${leadName} ! Veuillez confirmer ou compléter les données d'enregistrement de l'entreprise ${companyName} pour lancer le contrat.`,
+    badgeUpdate: 'Données Fiscales et Contractuelles',
+    badgeNew: 'Nouvelle Fiche',
+    titleUpdate: 'Fiche de Données Fiscales et Représentant Légal',
+    titleNew: 'Fiche d\'Enregistrement Nouveau Client',
+    descUpdate: (leadName: string, companyName: string) => `Bonjour${leadName ? `, ${leadName}` : ''} ! Veuillez confirmer ou compléter les données fiscales de la société ${companyName || ''} ainsi que celles du représentant légal signataire du contrat.`,
     descNew: 'Veuillez remplir les données ci-dessous avec les informations de votre entreprise afin de générer la proposition commerciale.',
     loadingForm: 'Chargement du formulaire...',
-    secIdent: 'Identification de l\'Entreprise',
+    secIdent: '1. Identification Fiscale de la Société',
     lblTradeName: 'Nom Commercial / Enseigne *',
-    phTradeName: 'Ex : Chaudronnerie Métallique S.A.S.',
-    lblLegalName: 'Raison Sociale *',
-    phLegalName: 'Ex : Métallurgie Réunie S.A.',
-    lblTaxId: 'Numéro de TVA / SIRET *',
+    phTradeName: 'Ex : Chaudronnerie Métallique',
+    lblLegalName: 'Raison Sociale de la Société *',
+    phLegalName: 'Ex : Métallurgie Réunie S.A.S.',
+    lblTaxId: 'Numéro de TVA / SIRET / NIF de la Société *',
     phTaxId: 'Ex : FR12345678901',
-    secContact: 'Contact Principal',
-    lblContactName: 'Nom du Point de Contact *',
-    phContactName: 'Ex : Jean Dupont',
-    lblContactEmail: 'E-mail de Contact *',
+    secLegalRep: '2. Représentant Légal (Personne qui Signe le Contrat)',
+    secLegalRepDesc: 'Indiquez les coordonnées de la personne physique habilitée à signer le contrat au nom et pour le compte de la société.',
+    lblLegalRepName: 'Nom et Prénom du Signataire (Représentant Légal) *',
+    phLegalRepName: 'Ex : Jean Dupont',
+    lblLegalRepTaxId: 'Numéro de Pièce d\'Identité / DNI / NIF du Signataire *',
+    phLegalRepTaxId: 'Ex : 12345678Z',
+    lblLegalRepRole: 'Fonction / Qualité dans l\'Entreprise',
+    phLegalRepRole: 'Ex : Gérant / Président / Directeur Général',
+    secContact: '3. Coordonnées de Contact',
+    lblContactName: 'Nom du Point de Contact',
+    phContactName: 'Ex : Marie Martin',
+    lblContactEmail: 'E-mail de Contact / Signature Électronique *',
     phContactEmail: 'Ex : contact@entreprise.fr',
     lblBillingEmail: 'E-mail de Facturation',
     phBillingEmail: 'Ex : compta@entreprise.fr',
     lblPhone: 'Téléphone *',
     phPhone: 'Ex : +33 1 23 45 67 89',
-    secAddress: 'Adresse de Facturation',
+    secAddress: '4. Siège Social / Adresse de Facturation',
     lblCountry: 'Pays',
     lblRegion: 'Région',
     lblProvince: 'Département / Province',
@@ -199,11 +231,11 @@ const translations = {
     phCity: 'Ex : Lyon',
     lblPostalCode: 'Code Postal',
     phPostalCode: 'Ex : 75001',
-    lblAddressLine: 'Rue, Avenue ou Boulevard et Numéro',
+    lblAddressLine: 'Adresse Complète du Siège Social',
     phAddressLine: 'Ex : Rue de la Paix, nº 123',
-    btnSubmit: 'Confirmer et Envoyer les Données',
+    btnSubmit: 'Confirmer et Envoyer les Données pour le Contrat',
     btnSubmitting: 'Envoi des Informations...',
-    requiredError: 'Veuillez remplir tous les champs obligatoires.',
+    requiredError: 'Veuillez remplir tous les champs obligatoires de la société et du représentant légal.',
     companyError: 'Identifiant de l\'entreprise du groupe introuvable.',
     toastSuccess: 'Informations envoyées avec succès !',
     toastError: 'Erreur lors de l\'envoi des données. Veuillez réessayer.',
@@ -256,6 +288,9 @@ export function ColetaDadosPublicaPage() {
     city: '',
     postal_code: '',
     address_line: '',
+    legal_rep_name: '',
+    legal_rep_tax_id: '',
+    legal_rep_role: '',
   });
 
   useEffect(() => {
@@ -321,98 +356,75 @@ export function ColetaDadosPublicaPage() {
         return;
       }
 
-      // Mode: Edit/Update Existing Lead
+      // Mode: Edit/Update Existing Lead, Client, or Estimación via secure RPC
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
+        const { data: rpcTarget } = await supabase
           .schema('core_comercial')
-          .from('leads')
-          .select('*')
-          .eq('id', id)
-          .single();
+          .rpc('public_get_fiscal_data_target', { p_id: id });
 
-        if (error) throw error;
-
-        if (data) {
-          setLeadName(data.name || '');
-          setCompanyName(data.company_name || '');
-          setEmpresaId(data.empresa_id || '');
-          
-          setFormData({
-            name: data.name || '',
-            email: data.email || '',
-            phone: data.phone || '',
-            company_name: data.company_name || '',
-            legal_name: data.legal_name || data.company_name || '',
-            tax_id: data.tax_id || '',
-            billing_email: data.billing_email || data.email || '',
-            country_id: data.country_id || '',
-            region_id: data.region_id || '',
-            province: data.province || '',
-            city: data.city || '',
-            postal_code: data.postal_code || '',
-            address_line: data.address_line || '',
-          });
-
-          // Automatically transition to 'E-mail Lido / Clicado' (order_index = 3) only if lower stage
-          try {
-            const hasBudget = data.notes && (
-              data.notes.includes('PRESUPUESTO') ||
-              data.notes.includes('ORÇAMENTO') ||
-              data.notes.includes('PREVENTIVO') ||
-              data.notes.includes('DEVIS')
-            );
-
-            if (!hasBudget) {
-              let { data: stageData } = await supabase
-                .schema('core_comercial')
-                .from('kanban_stages')
-                .select('id, order_index')
-                .eq('empresa_id', data.empresa_id)
-                .or('name.ilike.%Lido%,name.ilike.%Clicado%,name_es.ilike.%Leído%,name_es.ilike.%Clicado%')
-                .limit(1)
-                .maybeSingle();
-
-              if (!stageData) {
-                const { data: fallbackStage } = await supabase
-                  .schema('core_comercial')
-                  .from('kanban_stages')
-                  .select('id, order_index')
-                  .eq('empresa_id', data.empresa_id)
-                  .eq('order_index', 3)
-                  .limit(1)
-                  .maybeSingle();
-                stageData = fallbackStage;
-              }
-
-              if (stageData) {
-                let currentOrderIndex = 0;
-                if (data.stage_id) {
-                  const { data: curStage } = await supabase
-                    .schema('core_comercial')
-                    .from('kanban_stages')
-                    .select('order_index')
-                    .eq('id', data.stage_id)
-                    .maybeSingle();
-                  if (curStage) {
-                    currentOrderIndex = curStage.order_index;
-                  }
-                }
-
-                if (currentOrderIndex > 0 && currentOrderIndex < stageData.order_index) {
-                  await supabase
-                    .schema('core_comercial')
-                    .from('leads')
-                    .update({
-                      stage_id: stageData.id,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', id);
-                }
-              }
+        if (rpcTarget) {
+          setLeadName(rpcTarget.legal_rep_name || '');
+          setCompanyName(rpcTarget.company_name || rpcTarget.legal_name || '');
+          if (rpcTarget.document_language && !searchParams.get('lang')) {
+            const dl = rpcTarget.document_language.toLowerCase();
+            if (dl === 'es' || dl === 'pt' || dl === 'fr' || dl === 'it') {
+              setLang(dl as any);
             }
-          } catch (stageErr) {
-            console.warn("Failed to automatically update lead stage to read:", stageErr);
+          }
+
+          setFormData({
+            name: rpcTarget.legal_rep_name || '',
+            email: rpcTarget.billing_email || '',
+            phone: rpcTarget.phone || '',
+            company_name: rpcTarget.company_name || rpcTarget.legal_name || '',
+            legal_name: rpcTarget.legal_name || rpcTarget.company_name || '',
+            tax_id: rpcTarget.tax_id || '',
+            billing_email: rpcTarget.billing_email || '',
+            country_id: rpcTarget.country_id || '',
+            region_id: rpcTarget.region_id || '',
+            province: rpcTarget.province || '',
+            city: rpcTarget.city || '',
+            postal_code: rpcTarget.postal_code || '',
+            address_line: rpcTarget.address_line || '',
+            legal_rep_name: rpcTarget.legal_rep_name || '',
+            legal_rep_tax_id: rpcTarget.legal_rep_tax_id || '',
+            legal_rep_role: rpcTarget.legal_rep_role || '',
+          });
+        } else {
+          // Fallback direct query on leads
+          const { data, error } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+          if (error) throw error;
+
+          if (data) {
+            setLeadName(data.name || '');
+            setCompanyName(data.company_name || '');
+            setEmpresaId(data.empresa_id || '');
+            
+            setFormData({
+              name: data.name || '',
+              email: data.email || '',
+              phone: data.phone || '',
+              company_name: data.company_name || '',
+              legal_name: data.legal_name || data.company_name || '',
+              tax_id: data.tax_id || '',
+              billing_email: data.billing_email || data.email || '',
+              country_id: data.country_id || '',
+              region_id: data.region_id || '',
+              province: data.province || '',
+              city: data.city || '',
+              postal_code: data.postal_code || '',
+              address_line: data.address_line || '',
+              legal_rep_name: data.legal_rep_name || (data.name !== data.company_name ? data.name : '') || '',
+              legal_rep_tax_id: data.legal_rep_tax_id || '',
+              legal_rep_role: data.legal_rep_role || data.cargo || '',
+            });
           }
         }
       } catch (err: any) {
@@ -424,16 +436,16 @@ export function ColetaDadosPublicaPage() {
     }
 
     loadLeadData();
-  }, [id, empresaIdParam, lang]);
+  }, [id, empresaIdParam]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.phone || !formData.company_name || !formData.legal_name || !formData.tax_id) {
+    if (!formData.legal_name || !formData.tax_id || !formData.legal_rep_name || !formData.legal_rep_tax_id) {
       toast.error(t.requiredError);
       return;
     }
 
-    if (!empresaId) {
+    if (!id && !empresaId) {
       toast.error(t.companyError);
       return;
     }
@@ -441,29 +453,28 @@ export function ColetaDadosPublicaPage() {
     setIsLoading(true);
     try {
       if (id) {
-        // Update existing lead
-        const { error } = await supabase
+        const { error: rpcError } = await supabase
           .schema('core_comercial')
-          .from('leads')
-          .update({
-            name: formData.name,
-            email: formData.email,
-            phone: formData.phone,
-            company_name: formData.company_name,
-            legal_name: formData.legal_name,
-            tax_id: formData.tax_id,
-            billing_email: formData.billing_email || null,
-            country_id: formData.country_id || null,
-            region_id: formData.region_id || null,
-            province: formData.province || null,
-            city: formData.city || null,
-            postal_code: formData.postal_code || null,
-            address_line: formData.address_line || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', id);
+          .rpc('public_submit_fiscal_data', {
+            p_id: id,
+            p_payload: {
+              legal_name: formData.legal_name,
+              tax_id: formData.tax_id,
+              address_line: formData.address_line || null,
+              postal_code: formData.postal_code || null,
+              city: formData.city || null,
+              province: formData.province || null,
+              country_id: formData.country_id || null,
+              region_id: formData.region_id || null,
+              billing_email: formData.billing_email || formData.email || null,
+              phone: formData.phone || null,
+              legal_rep_name: formData.legal_rep_name,
+              legal_rep_tax_id: formData.legal_rep_tax_id.toUpperCase(),
+              legal_rep_role: formData.legal_rep_role || 'Representante Legal',
+            },
+          });
 
-        if (error) throw error;
+        if (rpcError) throw rpcError;
       } else {
         // Insert new lead
         const { error } = await supabase
@@ -471,19 +482,22 @@ export function ColetaDadosPublicaPage() {
           .from('leads')
           .insert({
             empresa_id: empresaId,
-            name: formData.name,
-            email: formData.email,
+            name: formData.name || formData.legal_rep_name,
+            email: formData.email || formData.billing_email,
             phone: formData.phone,
-            company_name: formData.company_name,
+            company_name: formData.company_name || formData.legal_name,
             legal_name: formData.legal_name,
-            tax_id: formData.tax_id,
-            billing_email: formData.billing_email || null,
+            tax_id: formData.tax_id.toUpperCase(),
+            billing_email: formData.billing_email || formData.email || null,
             country_id: formData.country_id || null,
             region_id: formData.region_id || null,
             province: formData.province || null,
             city: formData.city || null,
             postal_code: formData.postal_code || null,
             address_line: formData.address_line || null,
+            legal_rep_name: formData.legal_rep_name,
+            legal_rep_tax_id: formData.legal_rep_tax_id.toUpperCase(),
+            legal_rep_role: formData.legal_rep_role || 'Representante Legal',
           });
 
         if (error) throw error;
@@ -639,7 +653,52 @@ export function ColetaDadosPublicaPage() {
                 </div>
               </div>
 
-              {/* Section 2: Contact */}
+              {/* Section 2: Legal Representative (Contract Signer) */}
+              <div className="bg-indigo-50/50 border border-indigo-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                <div className="flex items-center gap-2 pb-2 border-b border-indigo-200/70">
+                  <UserCheck className="h-5 w-5 text-indigo-600 shrink-0" />
+                  <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-wider">{t.secLegalRep}</h3>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="legal_rep_name" className="text-xs font-semibold text-slate-800">{t.lblLegalRepName}</Label>
+                  <Input
+                    id="legal_rep_name"
+                    required
+                    placeholder={t.phLegalRepName}
+                    className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm h-11 rounded-xl shadow-sm"
+                    value={formData.legal_rep_name}
+                    onChange={(e) => setFormData({ ...formData, legal_rep_name: e.target.value, name: formData.name || e.target.value })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="legal_rep_tax_id" className="text-xs font-semibold text-slate-800">{t.lblLegalRepTaxId}</Label>
+                    <Input
+                      id="legal_rep_tax_id"
+                      required
+                      placeholder={t.phLegalRepTaxId}
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm h-11 rounded-xl shadow-sm"
+                      value={formData.legal_rep_tax_id}
+                      onChange={(e) => setFormData({ ...formData, legal_rep_tax_id: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="legal_rep_role" className="text-xs font-semibold text-slate-800">{t.lblLegalRepRole}</Label>
+                    <Input
+                      id="legal_rep_role"
+                      placeholder={t.phLegalRepRole}
+                      className="bg-white border-slate-300 text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm h-11 rounded-xl shadow-sm"
+                      value={formData.legal_rep_role}
+                      onChange={(e) => setFormData({ ...formData, legal_rep_role: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Contact */}
               <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
                 <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
                   <User className="h-5 w-5 text-amber-500 shrink-0" />

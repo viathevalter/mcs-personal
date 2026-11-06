@@ -44,10 +44,10 @@ export function useEstimacionDetail(id: string | undefined) {
         { data: pedido }
       ] = await Promise.all([
         estimacion.client_id
-          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id').eq('id', estimacion.client_id).maybeSingle()
+          ? supabase.schema('core_common').from('clients').select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id, legal_rep_name, legal_rep_tax_id, legal_rep_role').eq('id', estimacion.client_id).maybeSingle()
           : Promise.resolve({ data: null }),
         estimacion.lead_id
-          ? supabase.schema('core_comercial').from('leads').select('id, name, email, phone, company_name, legal_name, tax_id, client_id, address_line, postal_code, city, province, country_id, billing_email, payment_term_id').eq('id', estimacion.lead_id).maybeSingle()
+          ? supabase.schema('core_comercial').from('leads').select('id, name, email, phone, company_name, legal_name, tax_id, client_id, address_line, postal_code, city, province, country_id, billing_email, payment_term_id, cargo, legal_rep_name, legal_rep_tax_id, legal_rep_role').eq('id', estimacion.lead_id).maybeSingle()
           : Promise.resolve({ data: null }),
         estimacion.client_site_id 
           ? supabase.schema('core_common').from('client_sites').select('id, name, address:address_line, address_line, city, postal_code, province').eq('id', estimacion.client_site_id).maybeSingle()
@@ -83,12 +83,12 @@ export function useEstimacionDetail(id: string | undefined) {
         solicitud = solData;
       }
 
-      let resolvedClient = client;
+      let resolvedClient: any = client;
       if (!resolvedClient && lead?.client_id) {
         const { data: clientFromLead } = await supabase
           .schema('core_common')
           .from('clients')
-          .select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id')
+          .select('id, legal_name, trade_name, tax_id, email, phone, billing_email, address_line, postal_code, city, province, country_id, legal_rep_name, legal_rep_tax_id, legal_rep_role')
           .eq('id', lead.client_id)
           .maybeSingle();
 
@@ -101,6 +101,31 @@ export function useEstimacionDetail(id: string | undefined) {
             .update({ client_id: clientFromLead.id })
             .eq('id', id)
             .then(() => {});
+        }
+      }
+
+      if (resolvedClient && (!resolvedClient.legal_rep_name || !resolvedClient.legal_rep_tax_id)) {
+        const { data: contacts } = await supabase
+          .schema('core_common')
+          .from('client_contacts')
+          .select('*')
+          .eq('client_id', resolvedClient.id)
+          .order('is_legal_representative', { ascending: false })
+          .order('created_at', { ascending: false });
+
+        if (contacts && contacts.length > 0) {
+          const repContact =
+            contacts.find((c: any) => c.is_legal_representative) ||
+            contacts.find((c: any) => /representante|administrador|gerente|diretor|director|apoderado|ceo/i.test(c.role || '')) ||
+            contacts.find((c: any) => Boolean(c.tax_id));
+          if (repContact) {
+            resolvedClient = {
+              ...resolvedClient,
+              legal_rep_name: resolvedClient.legal_rep_name || repContact.name,
+              legal_rep_tax_id: resolvedClient.legal_rep_tax_id || repContact.tax_id,
+              legal_rep_role: resolvedClient.legal_rep_role || repContact.role,
+            };
+          }
         }
       }
 

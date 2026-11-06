@@ -1555,12 +1555,14 @@ export function ComercialSettingsPage() {
                   <div className="space-y-2">
                     <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1">{t('comercial.settings.guideClientHeader')}</h4>
                     <ul className="space-y-1 font-mono text-[11px] list-disc pl-4">
-                      <li><strong>{"{{"}cliente_nome{"}}"}</strong>: Nome do responsável</li>
-                      <li><strong>{"{{"}cliente_empresa{"}}"}</strong>: Nome corporativo</li>
+                      <li><strong>{"{{"}EMPRESA_CLIENTE{"}}"}</strong> / <strong>{"{{"}cliente_empresa{"}}"}</strong>: Razão Social da Empresa</li>
+                      <li><strong>{"{{"}CLIENTE_NIF{"}}"}</strong> / <strong>{"{{"}CIF_CLIENTE{"}}"}</strong>: CIF / NIF da Empresa</li>
+                      <li><strong>{"{{"}NOMBRE_FIRMANTE_CLIENTE{"}}"}</strong> / <strong>{"{{"}cliente_nome{"}}"}</strong>: Nome da Pessoa Física (Representante Legal)</li>
+                      <li><strong>{"{{"}NIF_FIRMANTE_CLIENTE{"}}"}</strong> / <strong>{"{{"}DNI_FIRMANTE_CLIENTE{"}}"}</strong>: DNI / NIE / NIF do Representante Legal</li>
+                      <li><strong>{"{{"}CARGO_FIRMANTE_CLIENTE{"}}"}</strong>: Cargo do Representante Legal</li>
                       <li><strong>{"{{"}cliente_email{"}}"}</strong>: E-mail de destino</li>
                       <li><strong>{"{{"}cliente_telefone{"}}"}</strong>: Telefone</li>
-                      <li><strong>{"{{"}cliente_morada{"}}"}</strong>: Morada</li>
-                      <li><strong>{"{{"}cliente_nif{"}}"}</strong>: NIF / CIF</li>
+                      <li><strong>{"{{"}CLIENTE_MORADA{"}}"}</strong> / <strong>{"{{"}cliente_morada{"}}"}</strong>: Sede Social Completa</li>
                     </ul>
 
                     <h4 className="font-bold text-slate-800 dark:text-slate-100 border-b pb-1 pt-2">{t('comercial.settings.guideServiceHeader')}</h4>

@@ -121,6 +121,8 @@ export function NewEstimacionPage() {
     parent_estimacion_id: null,
     contact_name: '',
     contact_email: '',
+    signer_tax_id: '',
+    signer_role: 'Representante Legal',
     expected_start_date: '',
     expected_end_date: '',
     validity_date: '',
@@ -198,8 +200,10 @@ export function NewEstimacionPage() {
               ...prev,
               lead_id: data.id,
               empresa_id: prev.empresa_id || data.empresa_id || selectedEmpresaId,
-              contact_name: data.name || prev.contact_name,
+              contact_name: data.legal_rep_name || (data.name && data.name !== data.company_name ? data.name : '') || prev.contact_name,
               contact_email: data.email || prev.contact_email,
+              signer_tax_id: data.legal_rep_tax_id || prev.signer_tax_id || '',
+              signer_role: data.legal_rep_role || data.cargo || prev.signer_role || 'Representante Legal',
               country_id: prev.country_id || data.country_id || (isEs ? '2f487ab4-c7f5-4b70-9c37-995dc4cda125' : ''),
               document_language: isEs ? 'es' : prev.document_language,
               postal_code: addressVal || prev.postal_code,
@@ -431,8 +435,15 @@ export function NewEstimacionPage() {
         pricing_model: estimacion.pricing_model || 'hourly',
         fixed_price_notes: estimacion.fixed_price_notes || '',
         parent_estimacion_id: estimacion.parent_estimacion_id || null,
-        contact_name: estimacion.contact_name || '',
+        contact_name:
+          (estimacion.contact_name &&
+            estimacion.contact_name !== estimacion.client?.trade_name &&
+            estimacion.contact_name !== estimacion.client?.legal_name
+            ? estimacion.contact_name
+            : estimacion.client?.legal_rep_name || estimacion.lead?.legal_rep_name || '') || '',
         contact_email: estimacion.contact_email || '',
+        signer_tax_id: estimacion.signer_tax_id || estimacion.client?.legal_rep_tax_id || estimacion.lead?.legal_rep_tax_id || '',
+        signer_role: estimacion.signer_role || estimacion.client?.legal_rep_role || estimacion.lead?.legal_rep_role || 'Representante Legal',
         expected_start_date: estimacion.expected_start_date || '',
         expected_end_date: estimacion.expected_end_date || '',
         validity_date: estimacion.validity_date || '',

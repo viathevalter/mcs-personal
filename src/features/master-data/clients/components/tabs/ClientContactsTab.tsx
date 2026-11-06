@@ -20,7 +20,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Edit, Trash2, Users, AlertCircle, Mail, Phone, Contact } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Users, AlertCircle, Mail, Phone, Contact, ShieldCheck, IdCard } from 'lucide-react';
 import { toast } from 'sonner';
 import type { ClientContact } from '../../types';
 
@@ -29,8 +29,9 @@ interface ClientContactsTabProps {
 }
 
 const PREDEFINED_ROLES = [
-  { value: 'financeiro', label: 'Financeiro' },
+  { value: 'representante_legal', label: 'Representante Legal / Administrador' },
   { value: 'diretor', label: 'Diretor' },
+  { value: 'financeiro', label: 'Financeiro' },
   { value: 'comercial', label: 'Comercial' },
   { value: 'encarregado', label: 'Encarregado' },
 ];
@@ -47,20 +48,25 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
   // Form State
   const [formData, setFormData] = useState({
     name: '',
-    roleSelect: 'financeiro',
+    roleSelect: 'representante_legal',
     roleCustom: '',
+    tax_id: '',
     phone: '',
     email: '',
+    is_legal_representative: true,
   });
 
   const handleOpenCreate = () => {
     setSelectedContact(null);
+    const hasExistingLegalRep = contacts.some(c => c.is_legal_representative);
     setFormData({
       name: '',
-      roleSelect: 'financeiro',
+      roleSelect: hasExistingLegalRep ? 'financeiro' : 'representante_legal',
       roleCustom: '',
+      tax_id: '',
       phone: '',
       email: '',
+      is_legal_representative: !hasExistingLegalRep,
     });
     setIsFormOpen(true);
   };
@@ -69,14 +75,18 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
     setSelectedContact(contact);
     
     // Check if current role is predefined
-    const isPredefined = PREDEFINED_ROLES.some(r => r.label.toLowerCase() === contact.role?.toLowerCase() || r.value === contact.role?.toLowerCase());
+    const matchedPredefined = PREDEFINED_ROLES.find(
+      r => r.label.toLowerCase() === contact.role?.toLowerCase() || r.value === contact.role?.toLowerCase()
+    );
     
     setFormData({
       name: contact.name,
-      roleSelect: isPredefined ? (contact.role?.toLowerCase() || 'financeiro') : 'custom',
-      roleCustom: isPredefined ? '' : (contact.role || ''),
+      roleSelect: matchedPredefined ? matchedPredefined.value : 'custom',
+      roleCustom: matchedPredefined ? '' : (contact.role || ''),
+      tax_id: contact.tax_id || '',
       phone: contact.phone || '',
       email: contact.email || '',
+      is_legal_representative: Boolean(contact.is_legal_representative),
     });
     setIsFormOpen(true);
   };
@@ -107,10 +117,12 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
 
     try {
       const payload = {
-        name: formData.name,
-        role: finalRole || null,
-        phone: formData.phone.trim() || null,
-        email: formData.email.trim() || null,
+        name: formData.name.trim(),
+        role: finalRole || undefined,
+        tax_id: formData.tax_id.trim().toUpperCase() || null,
+        phone: formData.phone.trim() || undefined,
+        email: formData.email.trim() || undefined,
+        is_legal_representative: formData.is_legal_representative,
       };
 
       if (selectedContact) {
@@ -219,6 +231,7 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
               <TableHeader className="bg-muted/50">
                 <TableRow>
                   <TableHead className="py-4">Nome</TableHead>
+                  <TableHead className="py-4">NIF / DNI</TableHead>
                   <TableHead className="py-4">Cargo / Função</TableHead>
                   <TableHead className="py-4">E-mail</TableHead>
                   <TableHead className="py-4">Telefone</TableHead>
@@ -228,9 +241,27 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
               <TableBody>
                 {filteredContacts.map((contact) => (
                   <TableRow key={contact.id}>
-                    <TableCell className="font-medium text-foreground py-4 flex items-center gap-2">
-                      <Contact className="h-4 w-4 text-slate-400 shrink-0" />
-                      {contact.name}
+                    <TableCell className="font-medium text-foreground py-4">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Contact className="h-4 w-4 text-slate-400 shrink-0" />
+                        <span>{contact.name}</span>
+                        {contact.is_legal_representative && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <ShieldCheck className="h-3 w-3" />
+                            Firmante / Rep. Legal
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4 text-sm font-mono">
+                      {contact.tax_id ? (
+                        <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-semibold">
+                          <IdCard className="h-3.5 w-3.5 text-slate-400" />
+                          {contact.tax_id}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/50 italic font-sans">Não informado</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-foreground/90 py-4">
                       {contact.role || <span className="text-muted-foreground/50 italic">Não informado</span>}
@@ -315,7 +346,13 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
               <Label htmlFor="cont_role_select">Função / Cargo *</Label>
               <Select
                 value={formData.roleSelect}
-                onValueChange={(val) => setFormData({ ...formData, roleSelect: val })}
+                onValueChange={(val) =>
+                  setFormData({
+                    ...formData,
+                    roleSelect: val,
+                    is_legal_representative: val === 'representante_legal' ? true : formData.is_legal_representative,
+                  })
+                }
               >
                 <SelectTrigger id="cont_role_select" className="focus-visible:ring-orange-500">
                   <SelectValue placeholder="Selecione o cargo/função..." />
@@ -337,13 +374,24 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
                 <Input
                   id="cont_role_custom"
                   required
-                  placeholder="Ex: Gerente de Operações, Diretor Técnico"
+                  placeholder="Ex: Gerente de Operações, Administrador Único"
                   value={formData.roleCustom}
                   onChange={(e) => setFormData({ ...formData, roleCustom: e.target.value })}
                   className="focus-visible:ring-orange-500"
                 />
               </div>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="cont_tax_id">NIF / DNI / Documento Pessoal (para Contrato)</Label>
+              <Input
+                id="cont_tax_id"
+                placeholder="Ex: 12345678Z / NIF Pessoal"
+                value={formData.tax_id}
+                onChange={(e) => setFormData({ ...formData, tax_id: e.target.value.toUpperCase() })}
+                className="focus-visible:ring-orange-500 font-mono uppercase"
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="cont_email">E-mail</Label>
@@ -366,6 +414,22 @@ export function ClientContactsTab({ clientId }: ClientContactsTabProps) {
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="focus-visible:ring-orange-500"
               />
+            </div>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-orange-500/20 bg-orange-500/5">
+              <input
+                type="checkbox"
+                id="cont_is_legal_rep"
+                checked={formData.is_legal_representative}
+                onChange={(e) => setFormData({ ...formData, is_legal_representative: e.target.checked })}
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-orange-500 focus:ring-orange-500"
+              />
+              <label htmlFor="cont_is_legal_rep" className="text-xs leading-relaxed cursor-pointer select-none">
+                <span className="font-bold text-foreground block">Representante Legal (Firmante do Contrato)</span>
+                <span className="text-muted-foreground">
+                  Marque se esta pessoa assina os contratos em nome da empresa. O nome e NIF pessoal serão utilizados automaticamente nos contratos comerciais.
+                </span>
+              </label>
             </div>
 
             <DialogFooter className="pt-4 border-t">

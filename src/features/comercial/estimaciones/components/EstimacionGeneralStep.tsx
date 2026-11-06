@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
+import { useClientContacts } from '@/features/master-data/clients/hooks/useClientContacts';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
 import { useLeads } from '@/features/comercial/leads/hooks/useLeads';
 import { usePaymentTerms } from '@/features/master-data/clients/hooks/usePaymentTerms';
@@ -120,6 +121,7 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
   const { data: clients = [], isLoading: isLoadingClients } = useClients();
   const { data: leads = [], isLoading: isLoadingLeads } = useLeads({ global: true });
   const { data: sites = [], isLoading: isLoadingSites } = useClientSites(data.client_id || undefined);
+  const { data: clientContacts = [] } = useClientContacts(data.client_id || '');
   const { data: paymentTerms = [] } = usePaymentTerms();
 
   const [sellers, setSellers] = useState<any[]>([]);
@@ -184,10 +186,17 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
     const docLang = COUNTRY_LABELS[cCode]?.lang || 'es';
     const defaultTerm = paymentTerms.find(pt => pt.id === lead?.payment_term_id);
 
+    const personName =
+      lead.legal_rep_name ||
+      (lead.name && lead.name.trim().toLowerCase() !== (lead.company_name || '').trim().toLowerCase() ? lead.name : '') ||
+      '';
+
     onChange({
       lead_id: lead.id,
-      contact_name: lead.name || lead.company_name || '',
+      contact_name: personName,
       contact_email: lead.email || '',
+      signer_tax_id: lead.legal_rep_tax_id || '',
+      signer_role: lead.legal_rep_role || lead.cargo || 'Representante Legal',
       country_id: countryUuid,
       document_language: docLang,
       payment_term_id: defaultTerm ? defaultTerm.id : '',
@@ -235,8 +244,10 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
     onChange({ 
       client_id: selectedClient.id, 
       client_site_id: '',
-      contact_name: selectedClient?.trade_name || selectedClient?.legal_name || '',
+      contact_name: selectedClient?.legal_rep_name || '',
       contact_email: selectedClient?.email || '',
+      signer_tax_id: selectedClient?.legal_rep_tax_id || '',
+      signer_role: selectedClient?.legal_rep_role || 'Representante Legal',
       ...(selectedClient?.country_id ? { country_id: selectedClient.country_id } : {}),
       ...(mappedLanguage ? { document_language: mappedLanguage } : {}),
       payment_term_id: defaultTerm ? defaultTerm.id : '',
@@ -245,6 +256,29 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
     setIsClientSearchOpen(false);
     setClientSearchTerm('');
   };
+
+  // Auto-populate legal representative from clientContacts if not already filled
+  useEffect(() => {
+    if (targetType === 'client' && data.client_id && clientContacts.length > 0) {
+      const isCompanyName =
+        data.contact_name &&
+        (data.contact_name === selectedClientObj?.trade_name || data.contact_name === selectedClientObj?.legal_name);
+      if (!data.contact_name || isCompanyName) {
+        const rep =
+          clientContacts.find((c: any) => c.is_legal_representative) ||
+          clientContacts.find((c: any) => /representante|administrador|gerente|diretor|director|apoderado/i.test(c.role || '')) ||
+          clientContacts[0];
+        if (rep) {
+          onChange({
+            contact_name: rep.name || '',
+            signer_tax_id: rep.tax_id || data.signer_tax_id || '',
+            signer_role: rep.role || data.signer_role || 'Representante Legal',
+            ...(rep.email && !data.contact_email ? { contact_email: rep.email } : {}),
+          });
+        }
+      }
+    }
+  }, [clientContacts, data.client_id, targetType]);
 
   // Auto-select site if client has exactly one site
   useEffect(() => {
@@ -820,13 +854,66 @@ export function EstimacionGeneralStep({ data, onChange }: Props) {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="contact_name">{t('comercial.stepGeneral.contactName')}</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="contact_name">
+              Nome do Representante Legal / Firmante (Pessoa Física)
+            </Label>
+            {targetType === 'client' && clientContacts.length > 0 && (
+              <Select
+                onValueChange={(contactId) => {
+                  const chosen = clientContacts.find((c: any) => c.id === contactId);
+                  if (chosen) {
+                    onChange({
+                      contact_name: chosen.name || '',
+                      signer_tax_id: chosen.tax_id || '',
+                      signer_role: chosen.role || 'Representante Legal',
+                      ...(chosen.email ? { contact_email: chosen.email } : {}),
+                    });
+                  }
+                }}
+              >
+                <SelectTrigger className="h-7 w-[220px] text-xs bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300">
+                  <SelectValue placeholder="Escolher contato cadastrado..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientContacts.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.name} {c.role ? `(${c.role})` : ''} {c.tax_id ? `• ${c.tax_id}` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <Input 
             id="contact_name"
-            placeholder="Ex: Carlos Silva"
+            placeholder="Ex: Juan Pérez García (Nome da pessoa que assina)"
             value={data.contact_name || ''}
             onChange={(e) => onChange({ contact_name: e.target.value })}
           />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="signer_tax_id">NIF / DNI do Representante (Firmante)</Label>
+            <Input
+              id="signer_tax_id"
+              placeholder="Ex: 12345678Z"
+              value={data.signer_tax_id || ''}
+              onChange={(e) => onChange({ signer_tax_id: e.target.value.toUpperCase() })}
+              className="font-mono uppercase bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="signer_role">Cargo do Representante</Label>
+            <Input
+              id="signer_role"
+              placeholder="Ex: Administrador Único / Representante Legal"
+              value={data.signer_role || ''}
+              onChange={(e) => onChange({ signer_role: e.target.value })}
+              className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100"
+            />
+          </div>
         </div>
 
         <div className="space-y-2">

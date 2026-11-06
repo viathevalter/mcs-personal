@@ -166,6 +166,21 @@ export const clientsApi = {
 
     if (settingsError) throw settingsError;
 
+    if (globalPayload.legal_rep_name) {
+      await supabase
+        .schema('core_common')
+        .from('client_contacts')
+        .insert({
+          client_id: clientData.id,
+          full_name: globalPayload.legal_rep_name,
+          tax_id: globalPayload.legal_rep_tax_id || null,
+          role: globalPayload.legal_rep_role || 'Representante Legal / Administrador',
+          email: globalPayload.email || null,
+          phone: globalPayload.phone || null,
+          is_legal_representative: true,
+        });
+    }
+
     const clients = await this.getClients(empresaId);
     const created = clients.find(c => c.id === clientData.id);
     if (!created) throw new Error('Erro ao carregar cliente criado');
@@ -204,6 +219,43 @@ export const clientsApi = {
         .eq('id', id);
 
       if (clientError) throw clientError;
+
+      if (globalPayload.legal_rep_name) {
+        const { data: existingRep } = await supabase
+          .schema('core_common')
+          .from('client_contacts')
+          .select('id')
+          .eq('client_id', id)
+          .eq('is_legal_representative', true)
+          .limit(1)
+          .maybeSingle();
+
+        if (existingRep?.id) {
+          await supabase
+            .schema('core_common')
+            .from('client_contacts')
+            .update({
+              full_name: globalPayload.legal_rep_name,
+              tax_id: globalPayload.legal_rep_tax_id || null,
+              role: globalPayload.legal_rep_role || 'Representante Legal / Administrador',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingRep.id);
+        } else {
+          await supabase
+            .schema('core_common')
+            .from('client_contacts')
+            .insert({
+              client_id: id,
+              full_name: globalPayload.legal_rep_name,
+              tax_id: globalPayload.legal_rep_tax_id || null,
+              role: globalPayload.legal_rep_role || 'Representante Legal / Administrador',
+              email: globalPayload.email || null,
+              phone: globalPayload.phone || null,
+              is_legal_representative: true,
+            });
+        }
+      }
     }
 
     const settingsUpdate: any = {};
@@ -314,6 +366,7 @@ export const clientsApi = {
       .from('client_contacts')
       .select('*')
       .eq('client_id', clientId)
+      .order('is_legal_representative', { ascending: false })
       .order('name', { ascending: true });
 
     if (error) throw error;
@@ -322,6 +375,14 @@ export const clientsApi = {
 
   async createClientContact(clientId: string, payload: Omit<ClientContact, 'id' | 'client_id' | 'created_at' | 'updated_at'>): Promise<ClientContact> {
     if (!clientId) throw new Error('Cliente não selecionado');
+
+    if (payload.is_legal_representative) {
+      await supabase
+        .schema('core_common')
+        .from('client_contacts')
+        .update({ is_legal_representative: false })
+        .eq('client_id', clientId);
+    }
 
     const { data, error } = await supabase
       .schema('core_common')
@@ -334,6 +395,19 @@ export const clientsApi = {
       .single();
 
     if (error) throw error;
+
+    if (data.is_legal_representative) {
+      await supabase
+        .schema('core_common')
+        .from('clients')
+        .update({
+          legal_rep_name: data.name,
+          legal_rep_tax_id: data.tax_id || null,
+          legal_rep_role: data.role || 'Representante Legal',
+        })
+        .eq('id', clientId);
+    }
+
     return data as ClientContact;
   },
 
@@ -347,6 +421,26 @@ export const clientsApi = {
       .single();
 
     if (error) throw error;
+
+    if (data.is_legal_representative && data.client_id) {
+      await supabase
+        .schema('core_common')
+        .from('client_contacts')
+        .update({ is_legal_representative: false })
+        .eq('client_id', data.client_id)
+        .neq('id', data.id);
+
+      await supabase
+        .schema('core_common')
+        .from('clients')
+        .update({
+          legal_rep_name: data.name,
+          legal_rep_tax_id: data.tax_id || null,
+          legal_rep_role: data.role || 'Representante Legal',
+        })
+        .eq('id', data.client_id);
+    }
+
     return data as ClientContact;
   },
 

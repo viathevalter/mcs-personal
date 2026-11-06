@@ -6,9 +6,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Save, Loader2 } from 'lucide-react';
+import { Building2, Save, Loader2, UserCheck, Link2, Check } from 'lucide-react';
 import { useMutateClient } from '@/features/master-data/clients/hooks/useClients';
 import { useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/shared/supabase/client';
 import { toast } from 'sonner';
 
 interface EditClientModalProps {
@@ -27,13 +28,28 @@ interface EditClientModalProps {
     city?: string;
     province?: string;
     country_id?: string;
+    legal_rep_name?: string | null;
+    legal_rep_tax_id?: string | null;
+    legal_rep_role?: string | null;
   };
   estimacionId?: string;
+  initialSignerName?: string;
+  initialSignerTaxId?: string;
+  initialSignerRole?: string;
 }
 
-export function EditClientModal({ isOpen, onClose, client, estimacionId }: EditClientModalProps) {
+export function EditClientModal({
+  isOpen,
+  onClose,
+  client,
+  estimacionId,
+  initialSignerName,
+  initialSignerTaxId,
+  initialSignerRole,
+}: EditClientModalProps) {
   const { updateClient, isUpdating } = useMutateClient();
   const queryClient = useQueryClient();
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const [formData, setFormData] = useState({
     legal_name: '',
@@ -46,10 +62,19 @@ export function EditClientModal({ isOpen, onClose, client, estimacionId }: EditC
     email: '',
     billing_email: '',
     phone: '',
+    legal_rep_name: '',
+    legal_rep_tax_id: '',
+    legal_rep_role: 'Representante Legal',
   });
 
   useEffect(() => {
     if (client) {
+      const safeInitialName =
+        initialSignerName &&
+        initialSignerName !== client.trade_name &&
+        initialSignerName !== client.legal_name
+          ? initialSignerName
+          : '';
       setFormData({
         legal_name: client.legal_name || '',
         trade_name: client.trade_name || '',
@@ -61,9 +86,24 @@ export function EditClientModal({ isOpen, onClose, client, estimacionId }: EditC
         email: client.email || '',
         billing_email: client.billing_email || '',
         phone: client.phone || '',
+        legal_rep_name: client.legal_rep_name || safeInitialName || '',
+        legal_rep_tax_id: client.legal_rep_tax_id || initialSignerTaxId || '',
+        legal_rep_role: client.legal_rep_role || initialSignerRole || 'Representante Legal',
       });
     }
-  }, [client, isOpen]);
+  }, [client, isOpen, initialSignerName, initialSignerTaxId, initialSignerRole]);
+
+  const handleCopyPublicFormLink = () => {
+    const targetId = estimacionId || client?.id;
+    if (!targetId) return;
+    const url = `${window.location.origin}/public/coleta-dados/${targetId}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    toast.success('Link do formulário copiado!', {
+      description: 'Envie este link para o cliente preencher os dados fiscais e do representante legal.',
+    });
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,9 +114,13 @@ export function EditClientModal({ isOpen, onClose, client, estimacionId }: EditC
       return;
     }
     if (!formData.tax_id.trim()) {
-      toast.error('O CIF / NIF é obrigatório');
+      toast.error('O CIF / NIF da empresa é obrigatório');
       return;
     }
+
+    const repName = formData.legal_rep_name.trim() || null;
+    const repTaxId = formData.legal_rep_tax_id.trim().toUpperCase() || null;
+    const repRole = formData.legal_rep_role.trim() || 'Representante Legal';
 
     try {
       await updateClient({
@@ -92,14 +136,30 @@ export function EditClientModal({ isOpen, onClose, client, estimacionId }: EditC
           email: formData.email.trim() || null,
           billing_email: formData.billing_email.trim() || null,
           phone: formData.phone.trim() || null,
+          legal_rep_name: repName,
+          legal_rep_tax_id: repTaxId,
+          legal_rep_role: repRole,
         } as any,
       });
 
+      if (estimacionId) {
+        await supabase
+          .schema('core_comercial')
+          .from('estimaciones')
+          .update({
+            ...(repName ? { contact_name: repName } : {}),
+            signer_tax_id: repTaxId,
+            signer_role: repRole,
+          })
+          .eq('id', estimacionId);
+      }
+
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['client_contacts', client.id] });
       queryClient.invalidateQueries({ queryKey: ['estimacion-detail'] });
       queryClient.invalidateQueries({ queryKey: ['estimaciones'] });
 
-      toast.success('Dados fiscais do cliente atualizados com sucesso!');
+      toast.success('Dados fiscais e representante legal atualizados com sucesso!');
       onClose();
     } catch (err: any) {
       console.error(err);
@@ -243,6 +303,55 @@ export function EditClientModal({ isOpen, onClose, client, estimacionId }: EditC
                 placeholder="contato@empresa.es"
                 className="h-9 text-xs"
               />
+            </div>
+          </div>
+
+          {/* Representante Legal (Firmante do Contrato) */}
+          <div className="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider">
+                <UserCheck className="h-4 w-4" />
+                Representante Legal (Quem Assina o Contrato)
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleCopyPublicFormLink}
+                className="h-7 text-[11px] px-2.5 gap-1.5 border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10"
+              >
+                {copiedLink ? <Check className="h-3 w-3 text-emerald-500" /> : <Link2 className="h-3 w-3" />}
+                {copiedLink ? 'Link Copiado!' : 'Copiar Link p/ Cliente Preencher'}
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-foreground">Nome Completo (Firmante)</Label>
+                <Input
+                  value={formData.legal_rep_name}
+                  onChange={(e) => setFormData({ ...formData, legal_rep_name: e.target.value })}
+                  placeholder="Ex: Juan Pérez García"
+                  className="h-8 text-xs bg-white dark:bg-slate-950"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-foreground">NIF / DNI Pessoal</Label>
+                <Input
+                  value={formData.legal_rep_tax_id}
+                  onChange={(e) => setFormData({ ...formData, legal_rep_tax_id: e.target.value.toUpperCase() })}
+                  placeholder="Ex: 12345678Z"
+                  className="h-8 text-xs font-mono uppercase font-semibold bg-white dark:bg-slate-950"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[11px] font-semibold text-foreground">Cargo / Qualidade</Label>
+                <Input
+                  value={formData.legal_rep_role}
+                  onChange={(e) => setFormData({ ...formData, legal_rep_role: e.target.value })}
+                  placeholder="Administrador / Rep. Legal"
+                  className="h-8 text-xs bg-white dark:bg-slate-950"
+                />
+              </div>
             </div>
           </div>
 

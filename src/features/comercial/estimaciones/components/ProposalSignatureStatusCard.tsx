@@ -9,11 +9,12 @@ import { useEstimacionMutations } from '../hooks/useEstimacionMutations';
 import { 
   FileText, Send, CheckCircle2, Clock, Copy, 
   ExternalLink, Lock, Mail, RefreshCw, Download, 
-  Check, ShieldCheck, AlertCircle, Loader2, Package, Upload
+  Check, ShieldCheck, AlertCircle, Loader2, Package, Upload, UserCheck, Link2, Edit
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { ConvertLeadToClientModal } from '@/features/comercial/leads/components/ConvertLeadToClientModal';
+import { EditClientModal } from './EditClientModal';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
   DialogDescription, DialogFooter 
@@ -26,12 +27,14 @@ interface Props {
 export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const { enviarProposta } = useEstimacionMutations();
   const [copied, setCopied] = useState(false);
+  const [copiedFormLink, setCopiedFormLink] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingContract, setDownloadingContract] = useState(false);
   const [downloadingSignedContract, setDownloadingSignedContract] = useState(false);
   const [isMissingFiscalModalOpen, setIsMissingFiscalModalOpen] = useState(false);
   const queryClient = useQueryClient();
   const [isConvertModalOpen, setIsConvertModalOpen] = useState(false);
+  const [isEditClientModalOpen, setIsEditClientModalOpen] = useState(false);
   const [isManualSignModalOpen, setIsManualSignModalOpen] = useState(false);
   const [manualContractFile, setManualContractFile] = useState<File | null>(null);
   const [manualProposalFile, setManualProposalFile] = useState<File | null>(null);
@@ -52,7 +55,43 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
 
   const clientTaxId = estimacion.client?.tax_id || estimacion.lead?.tax_id;
   const clientLegalName = estimacion.client?.legal_name || estimacion.lead?.legal_name;
-  const hasFiscalData = Boolean(clientTaxId && clientLegalName);
+  const clientTradeName = estimacion.client?.trade_name || estimacion.lead?.company_name;
+
+  const isEstContactPerson =
+    estimacion.contact_name &&
+    estimacion.contact_name.trim().toLowerCase() !== (clientTradeName || '').trim().toLowerCase() &&
+    estimacion.contact_name.trim().toLowerCase() !== (clientLegalName || '').trim().toLowerCase();
+
+  const signerName =
+    (isEstContactPerson ? estimacion.contact_name : '') ||
+    estimacion.client?.legal_rep_name ||
+    estimacion.lead?.legal_rep_name ||
+    '';
+
+  const signerTaxId =
+    estimacion.signer_tax_id ||
+    estimacion.client?.legal_rep_tax_id ||
+    estimacion.lead?.legal_rep_tax_id ||
+    '';
+
+  const signerRole =
+    estimacion.signer_role ||
+    estimacion.client?.legal_rep_role ||
+    estimacion.lead?.legal_rep_role ||
+    estimacion.lead?.cargo ||
+    'Representante Legal';
+
+  const hasFiscalData = Boolean(clientTaxId && clientLegalName && signerName && signerTaxId);
+
+  const handleCopyDataCollectionLink = () => {
+    const url = `${window.location.origin}/public/coleta-dados/${estimacion.id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedFormLink(true);
+    toast.success('Link do formulário copiado!', {
+      description: 'Envie para o cliente preencher os dados fiscais e do representante legal que assina o contrato.',
+    });
+    setTimeout(() => setCopiedFormLink(false), 2500);
+  };
 
   const sig = estimacion.proposal_signature;
   let status = sig?.status || 'draft';
@@ -318,32 +357,42 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
   const renderFiscalWarningModals = () => (
     <>
       <Dialog open={isMissingFiscalModalOpen} onOpenChange={setIsMissingFiscalModalOpen}>
-        <DialogContent className="sm:max-w-[500px] border border-slate-200 dark:border-slate-800 shadow-xl rounded-xl">
+        <DialogContent className="sm:max-w-[520px] border border-slate-200 dark:border-slate-800 shadow-xl rounded-xl">
           <DialogHeader>
             <div className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400">
               <AlertCircle className="w-5 h-5 shrink-0" />
               <DialogTitle className="text-base font-bold">
-                Dados Fiscais Incompletos para Contrato
+                Dados Fiscais ou do Representante Incompletos
               </DialogTitle>
             </div>
             <DialogDescription className="text-xs text-muted-foreground pt-1.5 leading-relaxed">
-              O Contrato Comercial exige obrigatoriamente a <strong>Razão Social</strong> e o <strong>CIF / NIF</strong> da empresa para possuir plena validade jurídica.
+              O Contrato Comercial exige os dados da <strong>Empresa Contratante</strong> (Razão Social e CIF/NIF) e do <strong>Representante Legal que assina o contrato</strong> (Nome completo e DNI/NIF pessoal).
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-2 text-xs text-slate-700 dark:text-slate-300 space-y-2 bg-amber-50/50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-900/40">
-            {!clientTaxId && (
-              <p className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1.5">
-                • CIF / NIF não preenchido
-              </p>
-            )}
             {!clientLegalName && (
               <p className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1.5">
-                • Razão Social completa não preenchida
+                • Razão Social da empresa não preenchida
+              </p>
+            )}
+            {!clientTaxId && (
+              <p className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1.5">
+                • CIF / NIF da empresa não preenchido
+              </p>
+            )}
+            {!signerName && (
+              <p className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1.5">
+                • Nome Completo do Representante Legal (Firmante) não preenchido
+              </p>
+            )}
+            {!signerTaxId && (
+              <p className="text-red-600 dark:text-red-400 font-semibold flex items-center gap-1.5">
+                • NIF / DNI pessoal do Representante Legal não preenchido
               </p>
             )}
             <p className="text-muted-foreground pt-1">
-              Recomendamos formalizar o cadastro fiscal agora para que os documentos contratuais sejam gerados com todos os campos jurídicos corretos.
+              Você pode preencher os dados agora ou copiar o link do formulário público para o cliente preencher.
             </p>
           </div>
 
@@ -352,21 +401,25 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
               type="button"
               variant="outline"
               size="sm"
-              className="text-xs"
-              onClick={() => {
-                setIsMissingFiscalModalOpen(false);
-                setIncludeContract(false);
-                enviarProposta.mutate({
-                  estimacionId: estimacion.id,
-                  email: emailInput,
-                  includeProposal: true,
-                  includeContract: false
-                });
-              }}
+              className="text-xs gap-1.5"
+              onClick={handleCopyDataCollectionLink}
             >
-              Gerar Apenas Proposta (Sem Contrato)
+              {copiedFormLink ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Link2 className="w-3.5 h-3.5" />}
+              {copiedFormLink ? 'Link Copiado!' : 'Copiar Link p/ Cliente'}
             </Button>
-            {estimacion.lead ? (
+            {estimacion.client ? (
+              <Button
+                type="button"
+                size="sm"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
+                onClick={() => {
+                  setIsMissingFiscalModalOpen(false);
+                  setIsEditClientModalOpen(true);
+                }}
+              >
+                Preencher Dados Agora
+              </Button>
+            ) : estimacion.lead ? (
               <Button
                 type="button"
                 size="sm"
@@ -376,26 +429,26 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                   setIsConvertModalOpen(true);
                 }}
               >
-                Completar Dados Fiscais Agora
+                Completar Dados Agora
               </Button>
-            ) : (
-              <Button
-                type="button"
-                size="sm"
-                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold"
-                onClick={() => {
-                  setIsMissingFiscalModalOpen(false);
-                  enviarProposta.mutate({
-                    estimacionId: estimacion.id,
-                    email: emailInput,
-                    includeProposal,
-                    includeContract
-                  });
-                }}
-              >
-                Gerar Mesmo Assim
-              </Button>
-            )}
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-xs text-amber-700 dark:text-amber-400"
+              onClick={() => {
+                setIsMissingFiscalModalOpen(false);
+                enviarProposta.mutate({
+                  estimacionId: estimacion.id,
+                  email: emailInput,
+                  includeProposal,
+                  includeContract
+                });
+              }}
+            >
+              Gerar Mesmo Assim
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -406,6 +459,18 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
           onClose={() => setIsConvertModalOpen(false)}
           lead={estimacion.lead}
           estimacionId={estimacion.id} />
+      )}
+
+      {estimacion.client && (
+        <EditClientModal
+          isOpen={isEditClientModalOpen}
+          onClose={() => setIsEditClientModalOpen(false)}
+          client={estimacion.client}
+          estimacionId={estimacion.id}
+          initialSignerName={signerName}
+          initialSignerTaxId={signerTaxId}
+          initialSignerRole={signerRole}
+        />
       )}
 
       <Dialog open={isManualSignModalOpen} onOpenChange={setIsManualSignModalOpen}>
@@ -595,7 +660,7 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
 
           {includeContract && (
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 space-y-2.5">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
                   <ShieldCheck className={`w-4 h-4 ${hasFiscalData ? 'text-emerald-500' : 'text-amber-500'}`} />
                   Conferência dos Dados do Contrato (.DOCX)
@@ -619,9 +684,24 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                   </span>
                 </div>
                 <div className="p-2 rounded bg-background border border-border/60">
-                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">CIF / NIF Oficial</span>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">CIF / NIF da Empresa</span>
                   <span className="font-mono font-bold text-foreground">
                     {clientTaxId || 'Não informado'}
+                  </span>
+                </div>
+                <div className={`p-2 rounded bg-background border ${signerName ? 'border-border/60' : 'border-amber-500/40 bg-amber-500/5'}`}>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold flex items-center gap-1">
+                    <UserCheck className="w-3 h-3 text-indigo-500" />
+                    Representante Legal (Firmante)
+                  </span>
+                  <span className={`font-bold truncate block ${signerName ? 'text-foreground' : 'text-amber-600 dark:text-amber-400'}`} title={signerName || ''}>
+                    {signerName || '⚠️ Pessoa física não informada'}
+                  </span>
+                </div>
+                <div className={`p-2 rounded bg-background border ${signerTaxId ? 'border-border/60' : 'border-amber-500/40 bg-amber-500/5'}`}>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-semibold">NIF / DNI do Representante</span>
+                  <span className={`font-mono font-bold ${signerTaxId ? 'text-foreground' : 'text-amber-600 dark:text-amber-400'}`}>
+                    {signerTaxId || '⚠️ Não informado'}
                   </span>
                 </div>
                 <div className="sm:col-span-2 p-2 rounded bg-background border border-border/60">
@@ -635,9 +715,35 @@ export function ProposalSignatureStatusCard({ estimacion }: Props) {
                 </div>
               </div>
 
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (estimacion.client) setIsEditClientModalOpen(true);
+                    else if (estimacion.lead) setIsConvertModalOpen(true);
+                  }}
+                  className="h-7 text-[11px] px-2.5 gap-1.5 font-semibold"
+                >
+                  <Edit className="w-3 h-3" />
+                  Editar Empresa / Representante
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyDataCollectionLink}
+                  className="h-7 text-[11px] px-2.5 gap-1.5 border-indigo-500/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/10"
+                >
+                  {copiedFormLink ? <Check className="w-3 h-3 text-emerald-500" /> : <Link2 className="w-3 h-3" />}
+                  {copiedFormLink ? 'Link Copiado!' : 'Link do Formulário p/ Cliente'}
+                </Button>
+              </div>
+
               {!hasFiscalData && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                  * A Razão Social ou CIF estão ausentes. Você pode formalizar ou editar os dados fiscais acima antes de gerar.
+                  * Preencha o Nome e NIF/DNI do Representante Legal (ou envie o link do formulário acima ao cliente) antes de gerar o contrato.
                 </p>
               )}
             </div>

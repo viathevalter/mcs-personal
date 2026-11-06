@@ -34,7 +34,14 @@ export const DOCUMENT_VARIABLES: VariableDefinition[] = [
     { key: '{{cliente.cidade}}', label: 'Cidade do Cliente', category: 'cliente', example: 'Madrid' },
     { key: '{{cliente.codigo_postal}}', label: 'Código Postal do Cliente', category: 'cliente', example: '28080' },
     { key: '{{cliente.pais}}', label: 'País do Cliente', category: 'cliente', example: 'Espanha' },
-    { key: '{{cliente.contato_responsavel}}', label: 'Contato / Representante Legal', category: 'cliente', example: 'Sr. Carlos Rodriguez' },
+    { key: '{{cliente.contato_responsavel}}', label: 'Contato / Representante Legal (Pessoa Física)', category: 'cliente', example: 'Sr. Carlos Rodriguez' },
+    { key: '{{cliente.nif_representante}}', label: 'DNI / NIE / NIF do Representante Legal', category: 'cliente', example: '12345678Z' },
+    { key: '{{cliente.cargo_representante}}', label: 'Cargo do Representante Legal', category: 'cliente', example: 'Administrador Único' },
+    { key: '{{NOMBRE_FIRMANTE_CLIENTE}}', label: 'Nome do Firmante / Representante Legal (Contrato)', category: 'cliente', example: 'Carlos Rodriguez' },
+    { key: '{{NIF_FIRMANTE_CLIENTE}}', label: 'DNI / NIE / NIF do Firmante (Contrato)', category: 'cliente', example: '12345678Z' },
+    { key: '{{CARGO_FIRMANTE_CLIENTE}}', label: 'Cargo do Firmante (Contrato)', category: 'cliente', example: 'Administrador Único' },
+    { key: '{{EMPRESA_CLIENTE}}', label: 'Razão Social da Empresa Cliente (Contrato)', category: 'cliente', example: 'Construcciones e Obras Madrid S.L.' },
+    { key: '{{CLIENTE_NIF}}', label: 'CIF / NIF da Empresa Cliente (Contrato)', category: 'cliente', example: 'B12345678' },
     { key: '{{cliente.prazo_pagamento}}', label: 'Prazo / Condição de Pagamento', category: 'cliente', example: '30 dias após faturamento' },
 
     // --- ALIASES DO CLIENTE DO RODAPÉ / SIGNATÁRIO ---

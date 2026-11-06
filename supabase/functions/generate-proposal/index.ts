@@ -52,6 +52,24 @@ async function normalizeDocxTemplates(
           }
         }
 
+        // 4. Upgrade legacy contract REUNIDOS paragraphs to separate Representative NIF ({{NIF_FIRMANTE_CLIENTE}}) and Company CIF ({{CLIENTE_NIF}})
+        if (path === 'word/document.xml' && content.includes('NOMBRE_FIRMANTE_CLIENTE') && content.includes('EMPRESA_CLIENTE') && !content.includes('NIF_FIRMANTE_CLIENTE')) {
+          content = content.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (p) => {
+            if (p.includes('NOMBRE_FIRMANTE_CLIENTE') && p.includes('EMPRESA_CLIENTE') && !p.includes('NIF_FIRMANTE_CLIENTE')) {
+              const isFrench = p.includes('agissant au nom') || p.includes('titulaire du');
+              let newP = p.replace('{{CLIENTE_NIF}}', '{{NIF_FIRMANTE_CLIENTE}}')
+                .replace(', mayor de edad, con NIF/CIF: ', ', mayor de edad, con DNI/NIF: ')
+                .replace(', majeur, titulaire du NIF/CIF : ', ', majeur, titulaire du DNI/NIF : ');
+              const companyCifRun = isFrench
+                ? `<w:t>{{EMPRESA_CLIENTE}}</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="222222"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:lang w:val="es-ES"/></w:rPr><w:t xml:space="preserve">, immatriculée sous le NIF/CIF : </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:bCs/><w:color w:val="222222"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:lang w:val="es-ES"/></w:rPr><w:t>{{CLIENTE_NIF}}</w:t>`
+                : `<w:t>{{EMPRESA_CLIENTE}}</w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:color w:val="222222"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:lang w:val="es-ES"/></w:rPr><w:t xml:space="preserve">, con CIF/NIF: </w:t></w:r><w:r><w:rPr><w:rFonts w:ascii="Arial" w:eastAsia="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:b/><w:bCs/><w:color w:val="222222"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:lang w:val="es-ES"/></w:rPr><w:t>{{CLIENTE_NIF}}</w:t>`;
+              newP = newP.replace('<w:t>{{EMPRESA_CLIENTE}}</w:t>', companyCifRun);
+              return newP;
+            }
+            return p;
+          });
+        }
+
         if (content !== originalContent) {
           console.log(`[normalizeDocx] Saved normalized XML content for ${path}`);
           zip.file(path, content);
@@ -242,13 +260,21 @@ serve(async (req) => {
     const senderEmail = empresa.proposal_sender_email || "vendas@stoco.es";
     const senderName = `${empresa.trade_name || empresa.legal_name || "Vendas"}`;
 
-    // 3. Buscar dados do Cliente ou Lead (incluindo morada e nif do cliente)
+    // 3. Buscar dados do Cliente ou Lead (incluindo morada, nif da empresa e representante legal / firmante)
     let targetName = "";
     let targetEmail = "";
     let targetPhone = "";
     let targetCompany = "";
     let clientAddress = "";
     let clientTaxId = "";
+    let signerTaxId = est.signer_tax_id || "";
+    let signerRole = est.signer_role || "";
+
+    const isDistinctPersonName = (candidate?: string | null, ...companyNames: (string | null | undefined)[]) => {
+      if (!candidate || !candidate.trim()) return false;
+      const norm = candidate.trim().toLowerCase();
+      return !companyNames.some(c => c && c.trim().toLowerCase() === norm);
+    };
 
     let effectiveClientId = est.client_id;
 
@@ -274,9 +300,31 @@ serve(async (req) => {
         .single();
       
       if (!clientErr && client) {
-        targetName = est.contact_name || client.trade_name || client.legal_name || "";
-        targetEmail = est.contact_email || client.email || "";
-        targetPhone = client.phone || "";
+        // Buscar contatos do cliente para verificar representante legal cadastrado na aba Contatos
+        const { data: contacts } = await supabase
+          .schema("core_common")
+          .from("client_contacts")
+          .select("*")
+          .eq("client_id", effectiveClientId)
+          .order("is_legal_representative", { ascending: false })
+          .order("created_at", { ascending: false });
+
+        const repContact = (contacts || []).find((c: any) => c.is_legal_representative) ||
+          (contacts || []).find((c: any) => /representante|administrador|gerente|diretor|director|apoderado|ceo/i.test(c.role || "")) ||
+          (contacts || []).find((c: any) => Boolean(c.tax_id));
+
+        const validEstContact = isDistinctPersonName(est.contact_name, client.trade_name, client.legal_name)
+          ? est.contact_name
+          : "";
+        const validClientContact = isDistinctPersonName(client.contact_name, client.trade_name, client.legal_name)
+          ? client.contact_name
+          : "";
+
+        targetName = validEstContact || client.legal_rep_name || repContact?.name || validClientContact || client.trade_name || client.legal_name || "";
+        signerTaxId = est.signer_tax_id || client.legal_rep_tax_id || repContact?.tax_id || "";
+        signerRole = est.signer_role || client.legal_rep_role || repContact?.role || "";
+        targetEmail = est.contact_email || repContact?.email || client.email || "";
+        targetPhone = repContact?.phone || client.phone || "";
         targetCompany = client.legal_name || client.trade_name || "";
         clientTaxId = client.tax_id || client.vat_id || "";
         clientAddress = [client.address_line, client.postal_code, client.city, client.province]
@@ -292,7 +340,16 @@ serve(async (req) => {
         .single();
       
       if (!leadErr && lead) {
-        targetName = est.contact_name || lead.name || "";
+        const validEstContact = isDistinctPersonName(est.contact_name, lead.company_name, lead.legal_name)
+          ? est.contact_name
+          : "";
+        const validLeadName = isDistinctPersonName(lead.name, lead.company_name, lead.legal_name)
+          ? lead.name
+          : "";
+
+        targetName = validEstContact || lead.legal_rep_name || validLeadName || lead.company_name || "";
+        signerTaxId = est.signer_tax_id || lead.legal_rep_tax_id || "";
+        signerRole = est.signer_role || lead.legal_rep_role || lead.cargo || "";
         targetEmail = est.contact_email || lead.email || "";
         targetPhone = lead.phone || "";
         targetCompany = lead.legal_name || lead.company_name || "";
@@ -546,6 +603,8 @@ serve(async (req) => {
       VALIDEZ_PRESUPUESTO: est.validity_date ? Math.ceil((new Date(est.validity_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24)) : "30",
       OBSERVACIONES: est.general_notes || "",
       CLIENTE_NIF: clientTaxId || "",
+      CIF_CLIENTE: clientTaxId || "",
+      EMPRESA_CLIENTE_NIF: clientTaxId || "",
       CLIENTE_MORADA: clientAddress || "",
       PRESTADORA_NIF: empresa.tax_id || empresa.vat_id || "",
       PRESTADORA_MORADA: empresa.address_line || "",
@@ -555,11 +614,18 @@ serve(async (req) => {
       EPI_COMPLETO: `${defaultEpiDescripcion} ${defaultEpiNota}`,
       EPI_PREVENCION: `${defaultEpiDescripcion} ${defaultEpiNota}`,
       
-      // Assinaturas e Representantes
+      // Assinaturas e Representantes (Pessoa Física que assina pelo cliente vs Empresa Cliente)
       NOMBRE_REPRESENTANTE_CLIENTE: targetName,
       NOMBRE_FIRMANTE_CLIENTE: targetName,
-      CARGO_CLIENTE: "Representante Autorizado",
-      CARGO_FIRMANTE_CLIENTE: "Representante Autorizado",
+      NIF_FIRMANTE_CLIENTE: signerTaxId || clientTaxId || "",
+      DNI_FIRMANTE_CLIENTE: signerTaxId || clientTaxId || "",
+      DOCUMENTO_FIRMANTE_CLIENTE: signerTaxId || clientTaxId || "",
+      REPRESENTANTE_NIF: signerTaxId || clientTaxId || "",
+      cliente_representante_nif: signerTaxId || clientTaxId || "",
+      CARGO_CLIENTE: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
+      CARGO_FIRMANTE_CLIENTE: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
+      CARGO_REPRESENTANTE_CLIENTE: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
+      cliente_cargo: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
       EMPRESA_CLIENTE: targetCompany || "",
       EMAIL_FIRMANTE_CLIENTE: targetEmail,
       

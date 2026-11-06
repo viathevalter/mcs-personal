@@ -11,6 +11,9 @@ export interface Lead {
   notes?: string;
   tax_id?: string;
   legal_name?: string;
+  legal_rep_name?: string;
+  legal_rep_tax_id?: string;
+  legal_rep_role?: string;
   country_id?: string;
   region_id?: string;
   province?: string;
@@ -51,6 +54,8 @@ export interface Estimacion {
   parent_estimacion_id?: string;
   contact_name?: string;
   contact_email?: string;
+  signer_tax_id?: string;
+  signer_role?: string;
   expected_start_date?: string;
   expected_end_date?: string;
   validity_date?: string;

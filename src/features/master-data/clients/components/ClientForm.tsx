@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { Building2, Wallet, MapPin, Info } from 'lucide-react';
+import { Building2, Wallet, MapPin, Info, UserCheck } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -58,6 +58,9 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
       postal_code: '',
       address_line: '',
       notes: '',
+      legal_rep_name: '',
+      legal_rep_tax_id: '',
+      legal_rep_role: 'Representante Legal',
       status: 'active',
       payment_term_id: '',
     },
@@ -93,6 +96,9 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
         postal_code: client.postal_code || '',
         address_line: client.address_line || '',
         notes: client.notes || '',
+        legal_rep_name: client.legal_rep_name || '',
+        legal_rep_tax_id: client.legal_rep_tax_id || '',
+        legal_rep_role: client.legal_rep_role || 'Representante Legal',
         status: client.status,
         payment_term_id: client.payment_term_id || '',
       });
@@ -112,6 +118,9 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
         postal_code: '',
         address_line: '',
         notes: '',
+        legal_rep_name: '',
+        legal_rep_tax_id: '',
+        legal_rep_role: 'Representante Legal',
         status: 'active',
         payment_term_id: '',
       });
@@ -131,6 +140,9 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
         postal_code: data.postal_code?.trim() === '' ? null : data.postal_code,
         address_line: data.address_line?.trim() === '' ? null : data.address_line,
         notes: data.notes?.trim() === '' ? null : data.notes,
+        legal_rep_name: data.legal_rep_name?.trim() === '' ? null : data.legal_rep_name?.trim(),
+        legal_rep_tax_id: data.legal_rep_tax_id?.trim() === '' ? null : data.legal_rep_tax_id?.trim().toUpperCase(),
+        legal_rep_role: data.legal_rep_role?.trim() === '' ? null : data.legal_rep_role?.trim(),
         payment_term_id: data.payment_term_id === 'none' || data.payment_term_id === '' ? null : data.payment_term_id,
       };
 
@@ -225,6 +237,69 @@ export function ClientForm({ client, onSuccess, onCancel, isSheet = false }: Cli
                     <FormLabel>Razão Social</FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: Mastercorp S.A." {...field} className="bg-white focus-visible:ring-orange-500" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* BLOCO 1.5: Representante Legal (Firmante do Contrato) */}
+        <div className="bg-slate-50/40 p-6 rounded-xl border border-slate-100 dark:bg-slate-900/40 dark:border-slate-800 space-y-4 shadow-sm">
+          <div>
+            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+              <UserCheck className="h-4.5 w-4.5 text-orange-500" />
+              Representante Legal (Quem Assina o Contrato)
+            </h3>
+            <p className="text-xs text-slate-400 mt-1">
+              Dados da pessoa física responsável por assinar contratos em nome da empresa (preenche automaticamente as variáveis de firmante no contrato).
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="md:col-span-1">
+              <FormField
+                control={form.control}
+                name="legal_rep_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome Completo do Representante</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Juan Pérez García" {...field} value={field.value || ''} className="bg-white focus-visible:ring-orange-500 font-medium" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="md:col-span-1">
+              <FormField
+                control={form.control}
+                name="legal_rep_tax_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>NIF / DNI / NIE do Representante</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: 12345678Z" {...field} value={field.value || ''} className="bg-white focus-visible:ring-orange-500 font-mono text-xs font-semibold uppercase" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="md:col-span-1">
+              <FormField
+                control={form.control}
+                name="legal_rep_role"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cargo / Qualidade</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ex: Administrador Único / Apoderado" {...field} value={field.value || ''} className="bg-white focus-visible:ring-orange-500" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

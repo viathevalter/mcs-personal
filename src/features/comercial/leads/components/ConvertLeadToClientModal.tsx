@@ -56,10 +56,17 @@ export function ConvertLeadToClientModal({
     postal_code: '',
     address_line: '',
     payment_term_id: '',
+    legal_rep_name: '',
+    legal_rep_tax_id: '',
+    legal_rep_role: 'Representante Legal',
   });
 
   useEffect(() => {
     if (lead) {
+      const safeLeadPerson =
+        lead.name && lead.name.trim().toLowerCase() !== (lead.company_name || '').trim().toLowerCase()
+          ? lead.name
+          : '';
       setFormData({
         trade_name: lead.company_name || lead.name || '',
         legal_name: lead.legal_name || lead.company_name || '',
@@ -74,6 +81,9 @@ export function ConvertLeadToClientModal({
         postal_code: lead.postal_code || '',
         address_line: lead.address_line || '',
         payment_term_id: lead.payment_term_id || '',
+        legal_rep_name: lead.legal_rep_name || safeLeadPerson || '',
+        legal_rep_tax_id: lead.legal_rep_tax_id || '',
+        legal_rep_role: lead.legal_rep_role || lead.cargo || 'Representante Legal',
       });
     }
   }, [lead, isOpen]);
@@ -95,6 +105,10 @@ export function ConvertLeadToClientModal({
       return;
     }
 
+    const repName = formData.legal_rep_name.trim() || null;
+    const repTaxId = formData.legal_rep_tax_id.trim().toUpperCase() || null;
+    const repRole = formData.legal_rep_role.trim() || 'Representante Legal';
+
     try {
       setIsSubmitting(true);
 
@@ -113,9 +127,28 @@ export function ConvertLeadToClientModal({
         postal_code: formData.postal_code.trim() || null,
         address_line: formData.address_line.trim() || null,
         payment_term_id: formData.payment_term_id === 'none' || !formData.payment_term_id ? null : formData.payment_term_id,
+        legal_rep_name: repName,
+        legal_rep_tax_id: repTaxId,
+        legal_rep_role: repRole,
         status: 'active',
         codigo: null,
       } as any);
+
+      // 1.5 Criar o contato de Representante Legal se preenchido
+      if (repName) {
+        await supabase
+          .schema('core_common')
+          .from('client_contacts')
+          .insert({
+            client_id: newClient.id,
+            name: repName,
+            role: repRole,
+            tax_id: repTaxId,
+            email: formData.email.trim() || null,
+            phone: formData.phone.trim() || null,
+            is_legal_representative: true,
+          });
+      }
 
       // 2. Vincular o lead ao cliente criado
       await updateLead({
@@ -132,6 +165,9 @@ export function ConvertLeadToClientModal({
           postal_code: formData.postal_code.trim() || null,
           address_line: formData.address_line.trim() || null,
           payment_term_id: formData.payment_term_id === 'none' || !formData.payment_term_id ? null : formData.payment_term_id,
+          legal_rep_name: repName,
+          legal_rep_tax_id: repTaxId,
+          legal_rep_role: repRole,
         } as any,
       });
 
@@ -143,6 +179,9 @@ export function ConvertLeadToClientModal({
           .update({ 
             client_id: newClient.id,
             country_id: formData.country_id || null,
+            ...(repName ? { contact_name: repName } : {}),
+            signer_tax_id: repTaxId,
+            signer_role: repRole,
           })
           .eq('id', estimacionId);
       }
@@ -153,6 +192,9 @@ export function ConvertLeadToClientModal({
         .update({ 
           client_id: newClient.id,
           country_id: formData.country_id || null,
+          ...(repName ? { contact_name: repName } : {}),
+          signer_tax_id: repTaxId,
+          signer_role: repRole,
         })
         .eq('lead_id', lead.id);
 
@@ -306,6 +348,46 @@ export function ConvertLeadToClientModal({
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="h-9 text-xs focus-visible:ring-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Representante Legal (Firmante do Contrato) */}
+          <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-50/40 dark:bg-emerald-950/20 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+              <UserCheck className="w-4 h-4" />
+              Representante Legal (Quem Assina o Contrato)
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="conv_rep_name" className="text-[11px] font-semibold">Nome Completo (Firmante)</Label>
+                <Input
+                  id="conv_rep_name"
+                  placeholder="Ex: Juan Pérez García"
+                  value={formData.legal_rep_name}
+                  onChange={(e) => setFormData({ ...formData, legal_rep_name: e.target.value })}
+                  className="h-8 text-xs bg-white dark:bg-slate-950 focus-visible:ring-emerald-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="conv_rep_tax_id" className="text-[11px] font-semibold">NIF / DNI Pessoal</Label>
+                <Input
+                  id="conv_rep_tax_id"
+                  placeholder="Ex: 12345678Z"
+                  value={formData.legal_rep_tax_id}
+                  onChange={(e) => setFormData({ ...formData, legal_rep_tax_id: e.target.value.toUpperCase() })}
+                  className="h-8 text-xs font-mono uppercase font-semibold bg-white dark:bg-slate-950 focus-visible:ring-emerald-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="conv_rep_role" className="text-[11px] font-semibold">Cargo / Qualidade</Label>
+                <Input
+                  id="conv_rep_role"
+                  placeholder="Ex: Administrador Único"
+                  value={formData.legal_rep_role}
+                  onChange={(e) => setFormData({ ...formData, legal_rep_role: e.target.value })}
+                  className="h-8 text-xs bg-white dark:bg-slate-950 focus-visible:ring-emerald-500"
                 />
               </div>
             </div>

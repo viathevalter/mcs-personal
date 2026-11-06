@@ -20,6 +20,9 @@ export const clientSchema = z.object({
   postal_code: z.string().nullable().optional(),
   address_line: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
+  legal_rep_name: z.string().nullable().optional(),
+  legal_rep_tax_id: z.string().nullable().optional(),
+  legal_rep_role: z.string().nullable().optional(),
   status: clientStatusSchema.default('active'),
   financial_status: z.enum(['active', 'debtor', 'blocked']).default('active'),
   credit_limit: z.coerce.number().nullable().optional(),
@@ -78,6 +81,8 @@ export interface ClientContact {
   role?: string;
   phone?: string;
   email?: string;
+  tax_id?: string | null;
+  is_legal_representative?: boolean;
   created_at?: string;
   updated_at?: string;
 }

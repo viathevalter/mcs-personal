@@ -519,6 +519,38 @@ export function EstimacionDetailPage() {
                           )}
                         </div>
 
+                        {/* Representante Legal (Firmante do Contrato) */}
+                        <div className="p-3.5 rounded-xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/30 flex flex-wrap items-center justify-between gap-2">
+                          <div className="space-y-1">
+                            <span className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                              <UserCheck className="h-3.5 w-3.5" />
+                              Representante Legal (Firmante do Contrato)
+                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-foreground">
+                                {(estimacion.contact_name &&
+                                  estimacion.contact_name !== estimacion.client.trade_name &&
+                                  estimacion.contact_name !== estimacion.client.legal_name
+                                  ? estimacion.contact_name
+                                  : estimacion.client.legal_rep_name) || 'Não informado'}
+                              </span>
+                              {(estimacion.signer_role || estimacion.client.legal_rep_role) && (
+                                <span className="text-[11px] text-muted-foreground">
+                                  ({estimacion.signer_role || estimacion.client.legal_rep_role})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-left sm:text-right space-y-0.5">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              NIF / DNI do Representante
+                            </span>
+                            <p className="text-xs font-mono font-bold text-foreground">
+                              {estimacion.signer_tax_id || estimacion.client.legal_rep_tax_id || '⚠️ Não informado'}
+                            </p>
+                          </div>
+                        </div>
+
                         {/* Sede Social da Empresa */}
                         <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 flex items-start gap-3">
                           <MapPin className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
@@ -650,6 +682,9 @@ export function EstimacionDetailPage() {
                     onClose={() => setIsEditClientModalOpen(false)}
                     client={estimacion.client}
                     estimacionId={estimacion.id}
+                    initialSignerName={estimacion.contact_name}
+                    initialSignerTaxId={estimacion.signer_tax_id}
+                    initialSignerRole={estimacion.signer_role}
                   />
                 )}
 
