@@ -223,7 +223,7 @@ export function WorkerHoleritesPage() {
                 // Right row
                 doc.rect(margin + colW + 4, y, colW, 6, 'S');
                 if (desc) {
-                    doc.text(desc.descricao || desc.categoria, margin + colW + 7, y + 4.2);
+                    doc.text(desc.categoria || desc.descricao, margin + colW + 7, y + 4.2);
                     doc.text(formatCurrency(desc.valor), margin + contentWidth - 3, y + 4.2, { align: 'right' });
                 } else if (i === 0 && descontos.length === 0) {
                     doc.text('Sem descontos', margin + colW + 7, y + 4.2);
@@ -399,7 +399,7 @@ export function WorkerHoleritesPage() {
                                                     {descontos.length > 0 ? (
                                                         descontos.map((d, idx) => (
                                                             <div key={idx} className="flex justify-between text-slate-600">
-                                                                <span className="truncate pr-2">{d.descricao || d.categoria}</span>
+                                                                <span className="truncate pr-2">{d.categoria || d.descricao}</span>
                                                                 <span className="font-mono text-red-600">-{formatCurrency(d.valor)}</span>
                                                             </div>
                                                         ))

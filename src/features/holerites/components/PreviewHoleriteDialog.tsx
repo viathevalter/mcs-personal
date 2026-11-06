@@ -395,9 +395,6 @@ export function PreviewHoleriteDialog({
                                                     <div key={idx} className="px-3 py-2 flex justify-between items-center">
                                                         <div className="flex flex-col">
                                                             <span className="font-medium text-slate-800">{item.label}</span>
-                                                            {item.descricao && (
-                                                                <span className="text-[10px] text-slate-500 font-normal">↳ {item.descricao}</span>
-                                                            )}
                                                         </div>
                                                         <span className="font-mono text-slate-900 font-semibold">{Number(item.valor || 0).toFixed(2)}€</span>
                                                     </div>
@@ -514,9 +511,6 @@ export function PreviewHoleriteDialog({
                                                         <tr key={idx}>
                                                             <td className="py-1.5 px-3">
                                                                 <span className="font-medium text-slate-800 block">{item.label}</span>
-                                                                {item.descricao && (
-                                                                    <span className="text-[10px] text-slate-500 font-normal block">↳ {item.descricao}</span>
-                                                                )}
                                                             </td>
                                                             <td className="py-1.5 px-3 text-right font-mono font-semibold text-slate-900">{Number(item.valor || 0).toFixed(2)}€</td>
                                                         </tr>

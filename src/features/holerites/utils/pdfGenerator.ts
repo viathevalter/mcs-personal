@@ -412,7 +412,7 @@ export function generateHoleriteAltaPdf(
 
         const descontosItens = data.detalhamento.descontos.itemizedList && data.detalhamento.descontos.itemizedList.length > 0
             ? data.detalhamento.descontos.itemizedList.map(i => ({
-                label: i.descricao ? `${i.label} (${i.descricao})` : i.label,
+                label: i.label,
                 val: i.valor
             }))
             : [
@@ -662,7 +662,7 @@ export function generateHoleriteRegularizacaoPdf(data: HoleriteRegularizacaoCalc
 
     const itensDesconto = data.descontos.itemizedList && data.descontos.itemizedList.length > 0
         ? data.descontos.itemizedList.map(i => ({
-            label: i.descricao ? `${i.label} (${i.descricao})` : i.label,
+            label: i.label,
             val: i.valor
         }))
         : [

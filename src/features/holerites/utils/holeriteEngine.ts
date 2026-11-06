@@ -361,7 +361,7 @@ export function parseDescontosCategorias(descontosList: any[]): HoleriteDesconto
         } else if (cat.includes('aviso') || cat.includes('rescis')) {
             outros += val;
             descontosAdicionais += val;
-            label = 'Aviso Prévio Não Cumprido';
+            label = 'Aviso Prévio';
         } else if (cat.includes('carro') || cat.includes('auto') || cat.includes('veicul') || cat.includes('aluguel')) {
             descontoCarro += val;
             aluguelCarros += val;
@@ -398,6 +398,10 @@ export function parseDescontosCategorias(descontosList: any[]): HoleriteDesconto
             } else if ((desc.includes('limp') || desc.includes('dan')) && !desc.includes('manual')) {
                 limpiezaDanos += val;
                 label = 'Limpeza ou Danos';
+            } else if ((desc.includes('aviso') || desc.includes('rescis')) && !desc.includes('manual')) {
+                outros += val;
+                descontosAdicionais += val;
+                label = 'Aviso Prévio';
             } else if ((desc.includes('carro') || desc.includes('aluguel')) && !desc.includes('manual')) {
                 descontoCarro += val;
                 aluguelCarros += val;
@@ -405,15 +409,14 @@ export function parseDescontosCategorias(descontosList: any[]): HoleriteDesconto
             } else {
                 outros += val;
                 descontosAdicionais += val;
-                label = rawCat || rawDesc || 'Outros Descontos';
+                label = rawCat || 'Outros Descontos';
             }
         }
 
         itemizedList.push({
             categoria: rawCat || label,
             label: label || rawCat || 'Outros Descontos',
-            valor: val,
-            descricao: rawDesc && rawDesc !== 'Lançamento Manual' && rawDesc !== '-' ? rawDesc : undefined
+            valor: val
         });
     }
 
