@@ -358,6 +358,10 @@ export function parseDescontosCategorias(descontosList: any[]): HoleriteDesconto
         } else if (cat.includes('limp') || cat.includes('dan') || cat.includes('avaria')) {
             limpiezaDanos += val;
             label = 'Limpeza ou Danos';
+        } else if (cat.includes('aviso') || cat.includes('rescis')) {
+            outros += val;
+            descontosAdicionais += val;
+            label = 'Aviso Prévio Não Cumprido';
         } else if (cat.includes('carro') || cat.includes('auto') || cat.includes('veicul') || cat.includes('aluguel')) {
             descontoCarro += val;
             aluguelCarros += val;

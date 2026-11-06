@@ -2,6 +2,7 @@
  * Normaliza e resolve categorias de descontos considerando maiúsculas/minúsculas e apelidos legados.
  */
 export const STANDARD_DISCOUNT_CATEGORIES = [
+    'AVISO PRÉVIO',
     'ADIANTAMENTO',
     'COMBUSTIBLE',
     'DESCONTO CARRO',
@@ -87,6 +88,12 @@ export function normalizeDiscountCategoryName(
     if (lowerInput.includes('epi')) {
         const match = candidateList.find(c => c.toUpperCase() === 'EPIS');
         if (match) return match;
+    }
+
+    if (lowerInput.includes('aviso') || lowerInput.includes('rescis')) {
+        const match = candidateList.find(c => c.toUpperCase().includes('AVISO'));
+        if (match) return match;
+        return 'AVISO PRÉVIO';
     }
 
     if (lowerInput.includes('suministro') || lowerInput.includes('suprimento')) {

@@ -4,7 +4,7 @@ import { Layout } from '@/components/layout/Layout';
 import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
-    listContracts, generateContract, deleteContract, updateContractNoticeMetadata, createManualNoticeEntry, type Contract,
+    listContracts, generateContract, deleteContract, updateContractNoticeMetadata, createManualNoticeEntry, consolidateNoticeDiscountToPayroll, type Contract,
     listDocumentRequests, createDocumentRequest, reopenDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, HEXAGON_EMPRESA_ID, type DocumentRequest
 } from '../api/contractsApi';
 import { listWorkers } from '@/features/workers/api/workersApi';
@@ -26,6 +26,7 @@ import {
     UploadCloud, Upload
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 const formatHeaderDate = (dateStr?: string | null) => {
     if (!dateStr) return '';
@@ -174,7 +175,57 @@ const computeNoticeDetails = (c: Contract, todayStr: string) => {
         monthWorkedDays,
         isManualEntry: Boolean(c.metadata?.is_manual_entry),
         notes: c.metadata?.notice_notes || '',
+        payrollDiscountId: c.metadata?.payroll_discount_id || null,
+        payrollCompetence: c.metadata?.payroll_competence || null,
+        payrollConsolidatedAmount: c.metadata?.payroll_consolidated_amount !== undefined && c.metadata?.payroll_consolidated_amount !== null
+            ? Number(c.metadata.payroll_consolidated_amount)
+            : null,
+        payrollConsolidatedAt: c.metadata?.payroll_consolidated_at || null,
+        payrollStopReason: c.metadata?.payroll_stop_reason || '',
     };
+};
+
+const formatCompetenceLabel = (ym?: string | null): string => {
+    if (!ym) return '';
+    const m = String(ym).match(/^(\d{4})-(\d{2})/);
+    if (!m) return ym;
+    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const idx = Number(m[2]) - 1;
+    return `${months[idx] || m[2]}/${m[1]}`;
+};
+
+const buildAutoPayrollDescription = (params: {
+    competenceMonth: string;
+    startNotice: string;
+    endNotice: string;
+    stopDate: string;
+    fulfilledDays: number;
+    totalDays: number;
+    dailyRate: number;
+    penaltyTotal: number;
+    finalDiscount: number;
+    stopReason: string;
+    extraNotes?: string;
+    monthWorkedDays?: string | number;
+}): string => {
+    const missingDays = Math.max(0, params.totalDays - params.fulfilledDays);
+    const compParts = (params.competenceMonth || '').split('-');
+    const compFormatted = compParts.length === 2 ? `${compParts[1]}/${compParts[0]}` : params.competenceMonth;
+    const parts = [
+        `AVISO PRÉVIO NÃO CUMPRIDO (Último Salário - Comp. ${compFormatted})`,
+        `Motivo: ${params.stopReason || 'Abandono / Não cumprimento integral do aviso prévio'}`,
+        `Período para cumprir (${params.totalDays}d): ${formatIsoToBr(params.startNotice)} a ${formatIsoToBr(params.endNotice)}`,
+        `Data em que parou: ${params.stopDate ? formatIsoToBr(params.stopDate) : 'Não informada'}`,
+        `Regra: Cumpriu ${params.fulfilledDays} de ${params.totalDays} dias | Faltaram ${missingDays} dias (${formatCurrencyEur(params.dailyRate)}/dia)`,
+        `Valor Descontado: ${formatCurrencyEur(params.finalDiscount)} (Base ${formatCurrencyEur(params.penaltyTotal)})`,
+    ];
+    if (params.monthWorkedDays !== undefined && String(params.monthWorkedDays).trim() !== '') {
+        parts.push(`Dias trab. no mês: ${params.monthWorkedDays}d`);
+    }
+    if (params.extraNotes && params.extraNotes.trim() && params.extraNotes.trim().toLowerCase() !== (params.stopReason || '').trim().toLowerCase()) {
+        parts.push(`Obs: ${params.extraNotes.trim()}`);
+    }
+    return parts.join(' | ');
 };
 
 const parseDateToInput = (dateStr?: string | null): string => {
@@ -268,6 +319,7 @@ export const resolveContratanteOption = (empresaIdOrName?: string | null): strin
 
 export function DocumentacionTasksPage() {
     const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
+    const queryClient = useQueryClient();
     
     // Contratos state
     const [contracts, setContracts] = useState<Contract[]>([]);
@@ -364,6 +416,11 @@ export function DocumentacionTasksPage() {
     const [noticeApplyDeduction, setNoticeApplyDeduction] = useState<boolean>(true);
     const [noticeSignedManually, setNoticeSignedManually] = useState<boolean>(true);
     const [noticeNotes, setNoticeNotes] = useState<string>('');
+    const [noticeCompetenceMonth, setNoticeCompetenceMonth] = useState<string>(() => todayIsoStr().substring(0, 7));
+    const [noticeStopReason, setNoticeStopReason] = useState<string>('Abandono de trabalho / Não cumpriu aviso prévio');
+    const [noticePayrollDescriptionCustom, setNoticePayrollDescriptionCustom] = useState<string>('');
+    const [noticePayrollDescriptionEdited, setNoticePayrollDescriptionEdited] = useState<boolean>(false);
+    const [consolidatingPayroll, setConsolidatingPayroll] = useState<boolean>(false);
 
     // Lista global de clientes e trabalhadores para formulários
     const [clientsList, setClientsList] = useState<{ id: string; name: string }[]>([]);
@@ -728,6 +785,9 @@ export function DocumentacionTasksPage() {
         let completedOrWaived = 0;
         let totalToDeduct = 0;
 
+        let consolidatedCount = 0;
+        let consolidatedTotal = 0;
+
         rescisaoContracts.forEach(c => {
             const info = computeNoticeDetails(c, today);
             if (info.computedStatus === 'in_progress') inProgress++;
@@ -735,6 +795,10 @@ export function DocumentacionTasksPage() {
             else completedOrWaived++;
 
             totalToDeduct += info.finalToDeduct;
+            if (info.payrollDiscountId) {
+                consolidatedCount++;
+                consolidatedTotal += info.payrollConsolidatedAmount ?? info.finalToDeduct;
+            }
         });
 
         return {
@@ -743,6 +807,8 @@ export function DocumentacionTasksPage() {
             abandoned,
             completedOrWaived,
             totalToDeduct: Number(totalToDeduct.toFixed(2)),
+            consolidatedCount,
+            consolidatedTotal: Number(consolidatedTotal.toFixed(2)),
         };
     }, [rescisaoContracts]);
 
@@ -2664,6 +2730,10 @@ Muchas gracias.`;
         setNoticeApplyDeduction(true);
         setNoticeSignedManually(true);
         setNoticeNotes('');
+        setNoticeCompetenceMonth(today.substring(0, 7));
+        setNoticeStopReason('Abandono de trabalho / Não cumpriu aviso prévio');
+        setNoticePayrollDescriptionCustom('');
+        setNoticePayrollDescriptionEdited(false);
         setNoticeDialogOpen(true);
         loadWorkers();
     };
@@ -2731,11 +2801,20 @@ Muchas gracias.`;
         setNoticeMonthWorkedDays(String(info.monthWorkedDays));
         setNoticePenaltyTotal(String(info.penaltyTotal));
 
+        const defaultStopIso = info.stopDate || today;
+        const defaultComp = info.payrollCompetence || (info.stopDate || info.startNotice || today).substring(0, 7);
+        setNoticeCompetenceMonth(defaultComp);
+        setNoticeStopReason(
+            info.payrollStopReason ||
+            (info.notes ? info.notes : 'Abandono de trabalho / Não cumpriu aviso prévio')
+        );
+        setNoticePayrollDescriptionCustom('');
+        setNoticePayrollDescriptionEdited(false);
+
         if (prefillStopToday) {
-            const stopIso = info.stopDate || today;
             setNoticeStatus('abandoned');
-            setNoticeStopDate(stopIso);
-            const autoFulfilled = Math.max(0, Math.min(info.totalNoticeDays, getDaysDiff(info.startNotice, stopIso)));
+            setNoticeStopDate(defaultStopIso);
+            const autoFulfilled = Math.max(0, Math.min(info.totalNoticeDays, getDaysDiff(info.startNotice, defaultStopIso)));
             setNoticeFulfilledDaysOverride(
                 contract.metadata?.fulfilled_days_override !== undefined && contract.metadata?.fulfilled_days_override !== null
                     ? String(contract.metadata.fulfilled_days_override)
@@ -2779,6 +2858,62 @@ Muchas gracias.`;
         }
     };
 
+    const buildCurrentNoticeMetadataPayload = (): {
+        metadataPayload: NonNullable<Contract['metadata']>;
+        penaltyTotalVal: number;
+        previewFulfilledDays: number;
+        previewFinalDesconto: number;
+        effectiveStopDate: string;
+    } => {
+        const today = todayIsoStr();
+        const parsedPenalty = Number(String(noticePenaltyTotal).replace(',', '.'));
+        const penaltyTotalVal = Number.isFinite(parsedPenalty) && parsedPenalty >= 0 ? parsedPenalty : 460;
+        const dailyRatePreview = penaltyTotalVal / 15;
+        const parsedWorkedDays = noticeMonthWorkedDays.trim() !== '' ? Number(noticeMonthWorkedDays) : null;
+        const parsedOverride = noticeFulfilledDaysOverride.trim() !== '' ? Number(noticeFulfilledDaysOverride) : null;
+        const effectiveStopDate = noticeStatus === 'abandoned' ? (noticeStopDate || today) : (noticeStopDate || '');
+
+        let previewFulfilledDays = 0;
+        if (parsedOverride !== null && Number.isFinite(parsedOverride)) {
+            previewFulfilledDays = Math.max(0, Math.min(15, parsedOverride));
+        } else if (noticeStatus === 'completed') {
+            previewFulfilledDays = 15;
+        } else if (noticeStatus === 'abandoned' && !effectiveStopDate) {
+            previewFulfilledDays = 0;
+        } else {
+            const ref = effectiveStopDate || today;
+            previewFulfilledDays = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, ref)));
+        }
+
+        const previewAbatido = Math.min(penaltyTotalVal, previewFulfilledDays * dailyRatePreview);
+        const previewRestante = Math.max(0, Number((penaltyTotalVal - previewAbatido).toFixed(2)));
+        const previewFinalDesconto = noticeApplyDeduction ? previewRestante : 0;
+
+        const metadataPayload: NonNullable<Contract['metadata']> = {
+            request_date: noticeRequestDate || noticeStartDate,
+            notice_start_date: noticeStartDate,
+            notice_end_date: noticeEndDate,
+            effective_date: noticeStartDate,
+            notice_days: 15,
+            penalty_total: penaltyTotalVal,
+            apply_deduction: noticeApplyDeduction,
+            notice_status: noticeStatus,
+            stop_date: effectiveStopDate || null,
+            work_start_date: noticeWorkStartDate || null,
+            month_worked_days: parsedWorkedDays !== null && Number.isFinite(parsedWorkedDays) ? parsedWorkedDays : null,
+            fulfilled_days_override: parsedOverride !== null && Number.isFinite(parsedOverride) ? parsedOverride : null,
+            notice_notes: noticeNotes.trim() || null,
+        };
+
+        return {
+            metadataPayload,
+            penaltyTotalVal,
+            previewFulfilledDays,
+            previewFinalDesconto,
+            effectiveStopDate,
+        };
+    };
+
     const handleSaveNoticeModal = async (e: React.FormEvent) => {
         e.preventDefault();
         if (noticeDialogMode === 'create' && !noticeWorkerId) {
@@ -2790,26 +2925,7 @@ Muchas gracias.`;
             return;
         }
 
-        const parsedPenalty = Number(String(noticePenaltyTotal).replace(',', '.'));
-        const penaltyTotalVal = Number.isFinite(parsedPenalty) && parsedPenalty >= 0 ? parsedPenalty : 460;
-        const parsedWorkedDays = noticeMonthWorkedDays.trim() !== '' ? Number(noticeMonthWorkedDays) : null;
-        const parsedOverride = noticeFulfilledDaysOverride.trim() !== '' ? Number(noticeFulfilledDaysOverride) : null;
-
-        const metadataPayload: NonNullable<Contract['metadata']> = {
-            request_date: noticeRequestDate || noticeStartDate,
-            notice_start_date: noticeStartDate,
-            notice_end_date: noticeEndDate,
-            effective_date: noticeStartDate,
-            notice_days: 15,
-            penalty_total: penaltyTotalVal,
-            apply_deduction: noticeApplyDeduction,
-            notice_status: noticeStatus,
-            stop_date: noticeStatus === 'abandoned' ? (noticeStopDate || todayIsoStr()) : (noticeStopDate || null),
-            work_start_date: noticeWorkStartDate || null,
-            month_worked_days: parsedWorkedDays !== null && Number.isFinite(parsedWorkedDays) ? parsedWorkedDays : null,
-            fulfilled_days_override: parsedOverride !== null && Number.isFinite(parsedOverride) ? parsedOverride : null,
-            notice_notes: noticeNotes.trim() || null,
-        };
+        const { metadataPayload } = buildCurrentNoticeMetadataPayload();
 
         try {
             setSavingNotice(true);
@@ -2836,6 +2952,110 @@ Muchas gracias.`;
             toast.error(`Erro ao salvar: ${err.message || err}`);
         } finally {
             setSavingNotice(false);
+        }
+    };
+
+    const handleConsolidateAndLaunchPayroll = async () => {
+        if (noticeDialogMode === 'create' && !noticeWorkerId) {
+            toast.error('Selecione o trabalhador antes de consolidar o desconto na folha.');
+            return;
+        }
+        if (!noticeCompetenceMonth || !/^\d{4}-\d{2}$/.test(noticeCompetenceMonth)) {
+            toast.error('Selecione o mês de competência (último salário) para lançar o desconto.');
+            return;
+        }
+
+        const today = todayIsoStr();
+        const finalStopDate = noticeStopDate || today;
+        const { metadataPayload, penaltyTotalVal, previewFulfilledDays } = buildCurrentNoticeMetadataPayload();
+        const dailyRate = penaltyTotalVal / 15;
+        const fulfilledDaysToUse = noticeStatus === 'completed' ? 15 : previewFulfilledDays;
+        const discountAmount = Math.max(0, Number((penaltyTotalVal - Math.min(penaltyTotalVal, fulfilledDaysToUse * dailyRate)).toFixed(2)));
+
+        if (discountAmount <= 0) {
+            toast.error('O saldo a descontar é € 0,00. Verifique os dias cumpridos ou o valor base antes de lançar na folha.');
+            return;
+        }
+
+        const autoDesc = buildAutoPayrollDescription({
+            competenceMonth: noticeCompetenceMonth,
+            startNotice: noticeStartDate,
+            endNotice: noticeEndDate,
+            stopDate: finalStopDate,
+            fulfilledDays: fulfilledDaysToUse,
+            totalDays: 15,
+            dailyRate,
+            penaltyTotal: penaltyTotalVal,
+            finalDiscount: discountAmount,
+            stopReason: noticeStopReason || noticeNotes || 'Abandono de trabalho / Não cumpriu aviso prévio',
+            extraNotes: noticeNotes,
+            monthWorkedDays: noticeMonthWorkedDays,
+        });
+
+        const finalDescription = noticePayrollDescriptionEdited && noticePayrollDescriptionCustom.trim()
+            ? noticePayrollDescriptionCustom.trim()
+            : autoDesc;
+
+        try {
+            setConsolidatingPayroll(true);
+            const targetEmpresaId = resolveEmpresaIdFromContratante(
+                noticeContratante,
+                editingNoticeContract?.empresa_id || selectedEmpresaId || activeEmpresaId
+            );
+
+            let contractIdToConsolidate = editingNoticeContract?.id;
+            let workerIdToConsolidate = editingNoticeContract?.worker_id || noticeWorkerId!;
+
+            const updatedMetadataForConsolidation: NonNullable<Contract['metadata']> = {
+                ...metadataPayload,
+                notice_status: 'abandoned',
+                stop_date: finalStopDate,
+                fulfilled_days_override: fulfilledDaysToUse,
+                apply_deduction: true,
+                notice_notes: (noticeNotes || noticeStopReason || '').trim() || null,
+            };
+
+            if (!contractIdToConsolidate && noticeDialogMode === 'create' && noticeWorkerId) {
+                const createdContract = await createManualNoticeEntry({
+                    empresa_id: targetEmpresaId,
+                    worker_id: noticeWorkerId,
+                    contratante: noticeContratante,
+                    assignment_id: noticeAssignmentId,
+                    signed_manually: noticeSignedManually,
+                    metadata: updatedMetadataForConsolidation,
+                });
+                contractIdToConsolidate = createdContract.id;
+            }
+
+            if (!contractIdToConsolidate) {
+                throw new Error('Contrato de aviso prévio não identificado.');
+            }
+
+            await consolidateNoticeDiscountToPayroll({
+                contractId: contractIdToConsolidate,
+                workerId: workerIdToConsolidate,
+                empresaId: targetEmpresaId,
+                competenceMonth: noticeCompetenceMonth,
+                amount: discountAmount,
+                stopDate: finalStopDate,
+                stopReason: noticeStopReason || 'Abandono de trabalho / Não cumpriu aviso prévio',
+                description: finalDescription,
+                metadataUpdates: updatedMetadataForConsolidation,
+                existingDiscountId: editingNoticeContract?.metadata?.payroll_discount_id || null,
+            });
+
+            toast.success(
+                `Desconto de ${formatCurrencyEur(discountAmount)} consolidado e lançado na folha (${formatCompetenceLabel(noticeCompetenceMonth)}) de ${noticeWorkerName || 'trabalhador'}!`
+            );
+            queryClient.invalidateQueries({ queryKey: ['all-worker-discounts'] });
+            setRescisaoSubView('aviso_previo');
+            setNoticeDialogOpen(false);
+            loadContracts();
+        } catch (err: any) {
+            console.error('Erro ao consolidar desconto na folha:', err);
+            toast.error(`Erro ao consolidar desconto na folha: ${err.message || err}`);
+        } finally {
+            setConsolidatingPayroll(false);
         }
     };
 
@@ -4501,8 +4721,8 @@ Muchas gracias.`;
                                         <div className="text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
                                             {formatCurrencyEur(noticeStats.totalToDeduct)}
                                         </div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">
-                                            Cumpridos / Isentos: <span className="font-semibold text-emerald-600 dark:text-emerald-400">{noticeStats.completedOrWaived}</span>
+                                        <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
+                                            <span>Consolidados na Folha: <strong className="text-emerald-600 dark:text-emerald-400">{noticeStats.consolidatedCount} ({formatCurrencyEur(noticeStats.consolidatedTotal)})</strong></span>
                                         </div>
                                     </div>
                                     <div className="h-10 w-10 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-sm">
@@ -5042,32 +5262,41 @@ Muchas gracias.`;
                                                                 }`}>
                                                                     {formatCurrencyEur(info.finalToDeduct)}
                                                                 </div>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleQuickToggleDeduction(c)}
-                                                                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
-                                                                        info.applyDeduction
-                                                                            ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 hover:bg-rose-100'
-                                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
-                                                                    }`}
-                                                                    title="Clique para alternar entre Descontar na Folha ou Isentar"
-                                                                >
-                                                                    {info.applyDeduction ? '💰 Descontar na Folha' : '⚪ Não Descontar (Isento)'}
-                                                                </button>
+                                                                {info.payrollDiscountId ? (
+                                                                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-500 text-[10px] px-2 py-0.5 font-bold gap-1">
+                                                                        ✅ Lançado na Folha ({formatCompetenceLabel(info.payrollCompetence)})
+                                                                    </Badge>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleQuickToggleDeduction(c)}
+                                                                        className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded border transition-colors ${
+                                                                            info.applyDeduction
+                                                                                ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 hover:bg-rose-100'
+                                                                                : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:bg-slate-200'
+                                                                        }`}
+                                                                        title="Clique para alternar entre Descontar na Folha ou Isentar"
+                                                                    >
+                                                                        {info.applyDeduction ? '💰 Descontar na Folha' : '⚪ Não Descontar (Isento)'}
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </TableCell>
 
                                                         <TableCell className="text-right space-x-1.5 whitespace-nowrap">
-                                                            {info.computedStatus !== 'completed' && (
+                                                            {info.finalToDeduct > 0 && info.applyDeduction && (
                                                                 <Button
                                                                     size="sm"
-                                                                    variant="outline"
                                                                     onClick={() => handleOpenEditNotice(c, true)}
-                                                                    className="h-8 text-xs font-semibold border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 px-2.5"
-                                                                    title="Informar data em que o trabalhador abandonou/parou e travar valor para desconto em folha"
+                                                                    className={`h-8 text-xs font-bold gap-1 px-2.5 ${
+                                                                        info.payrollDiscountId
+                                                                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                                                                            : 'bg-rose-600 hover:bg-rose-500 text-white shadow-sm'
+                                                                    }`}
+                                                                    title="Consolidar parada do aviso prévio e lançar o desconto na folha de pagamento (último salário)"
                                                                 >
-                                                                    <AlertTriangle className="h-3.5 w-3.5" />
-                                                                    Parar / Abandonou
+                                                                    <CheckCircle className="h-3.5 w-3.5" />
+                                                                    {info.payrollDiscountId ? 'Folha Consolidada' : 'Consolidar na Folha'}
                                                                 </Button>
                                                             )}
 
@@ -6093,21 +6322,38 @@ Muchas gracias.`;
                     </div>
                 </DialogContent>
             </Dialog>
-            {/* Modal de Gestão e Inclusão no Controle de Aviso Prévio */}
+            {/* Modal de Gestão, Inclusão e Consolidação de Desconto do Aviso Prévio na Folha */}
             <Dialog open={noticeDialogOpen} onOpenChange={setNoticeDialogOpen}>
-                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-white dark:bg-slate-900">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-                            <Clock className="h-5 w-5 text-amber-500" />
-                            {noticeDialogMode === 'create'
-                                ? 'Incluir Trabalhador no Controle de Aviso Prévio'
-                                : `Gerenciar Aviso Prévio & Desconto — ${noticeWorkerName}`}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {noticeDialogMode === 'create'
-                                ? 'Adicione um trabalhador ao controle de aviso prévio (ex: carta assinada manualmente) para acompanhar os 15 dias corridos, os dias trabalhados no mês e o saldo a descontar na folha.'
-                                : 'Ajuste a data de início no trabalho, os dias trabalhados no mês, o valor base do aviso (€ 460,00 padrão) ou registre a data de abandono/encerramento para congelar o valor a descontar na folha.'}
-                        </DialogDescription>
+                <DialogContent className="sm:max-w-[95vw] max-w-[1320px] w-[95vw] p-5 bg-white dark:bg-slate-900 overflow-hidden">
+                    <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pr-6">
+                            <div>
+                                <DialogTitle className="flex items-center gap-2 text-lg font-bold">
+                                    <Clock className="h-5 w-5 text-amber-500" />
+                                    {noticeDialogMode === 'create'
+                                        ? 'Incluir Trabalhador no Controle de Aviso Prévio & Desconto'
+                                        : `Gerenciar Aviso Prévio & Consolidar Desconto na Folha — ${noticeWorkerName}`}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs mt-0.5">
+                                    Controle os 15 dias de aviso prévio, registre a data de parada/abandono e consolide o desconto diretamente na folha de pagamento (último salário).
+                                </DialogDescription>
+                            </div>
+                            {noticeDialogMode === 'edit' && (
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Badge variant="outline" className="text-xs font-semibold px-2.5 py-1">
+                                        {noticeContratante}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs font-mono px-2.5 py-1 bg-slate-50 dark:bg-slate-800">
+                                        Aviso: {formatIsoToBr(noticeStartDate)} → {formatIsoToBr(noticeEndDate)}
+                                    </Badge>
+                                    {editingNoticeContract?.metadata?.payroll_discount_id && (
+                                        <Badge className="bg-emerald-600 text-white text-xs px-2.5 py-1">
+                                            ✅ Consolidado na Folha ({formatCompetenceLabel(editingNoticeContract.metadata.payroll_competence)})
+                                        </Badge>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </DialogHeader>
 
                     {(() => {
@@ -6128,15 +6374,40 @@ Muchas gracias.`;
                             previewFulfilledDays = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, ref)));
                         }
 
+                        const previewMissingDays = Math.max(0, 15 - previewFulfilledDays);
                         const previewAbatido = Math.min(safePenalty, previewFulfilledDays * dailyRatePreview);
                         const previewRestante = Math.max(0, Number((safePenalty - previewAbatido).toFixed(2)));
                         const previewFinalDesconto = noticeApplyDeduction ? previewRestante : 0;
 
+                        const autoGeneratedObs = buildAutoPayrollDescription({
+                            competenceMonth: noticeCompetenceMonth,
+                            startNotice: noticeStartDate,
+                            endNotice: noticeEndDate,
+                            stopDate: noticeStopDate || today,
+                            fulfilledDays: previewFulfilledDays,
+                            totalDays: 15,
+                            dailyRate: dailyRatePreview,
+                            penaltyTotal: safePenalty,
+                            finalDiscount: previewRestante,
+                            stopReason: noticeStopReason || noticeNotes || 'Abandono de trabalho / Não cumpriu aviso prévio',
+                            extraNotes: noticeNotes,
+                            monthWorkedDays: noticeMonthWorkedDays,
+                        });
+
+                        const displayedPayrollObs = noticePayrollDescriptionEdited
+                            ? noticePayrollDescriptionCustom
+                            : autoGeneratedObs;
+
+                        // Sugestões rápidas de mês de competência (mês do início do aviso e mês da parada/fim)
+                        const startMonth = (noticeStartDate || today).substring(0, 7);
+                        const stopOrEndMonth = (noticeStopDate || noticeEndDate || today).substring(0, 7);
+                        const suggestedMonths = Array.from(new Set([startMonth, stopOrEndMonth, today.substring(0, 7)])).filter(Boolean);
+
                         return (
-                            <form onSubmit={handleSaveNoticeModal} className="space-y-5 pt-2">
-                                {noticeDialogMode === 'create' ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
-                                        <div className="space-y-1.5">
+                            <form onSubmit={handleSaveNoticeModal} className="space-y-3 pt-1">
+                                {noticeDialogMode === 'create' && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
+                                        <div className="space-y-1">
                                             <Label className="text-xs font-semibold">Trabalhador *</Label>
                                             <Combobox
                                                 options={workersList}
@@ -6147,10 +6418,10 @@ Muchas gracias.`;
                                             />
                                         </div>
 
-                                        <div className="space-y-1.5">
+                                        <div className="space-y-1">
                                             <Label className="text-xs font-semibold">Empresa Contratante *</Label>
                                             <Select value={noticeContratante} onValueChange={setNoticeContratante}>
-                                                <SelectTrigger className="bg-white dark:bg-black">
+                                                <SelectTrigger className="bg-white dark:bg-black h-9">
                                                     <SelectValue placeholder="Selecione a empresa..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -6164,319 +6435,416 @@ Muchas gracias.`;
                                             </Select>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800">
-                                        <div>
-                                            <div className="text-sm font-bold text-slate-900 dark:text-slate-100">{noticeWorkerName}</div>
-                                            <div className="text-xs text-slate-500">Empresa: <strong>{noticeContratante}</strong></div>
-                                        </div>
-                                        <Badge variant="outline" className="w-fit text-xs font-mono">
-                                            Período: {formatIsoToBr(noticeStartDate)} → {formatIsoToBr(noticeEndDate)}
-                                        </Badge>
-                                    </div>
                                 )}
 
-                                {/* Bloco 1: Início do Trabalho (Admissão) e Controle de Dias Trabalhados no Mês */}
-                                <div className="p-4 rounded-lg border border-indigo-200/70 dark:border-indigo-900/50 bg-indigo-50/30 dark:bg-indigo-950/20 space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
-                                            <Calendar className="h-4 w-4" />
-                                            1. Histórico de Trabalho & Dias Trabalhados no Mês
-                                        </h4>
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="ghost"
-                                            onClick={() => setNoticeMonthWorkedDays('0')}
-                                            className="h-6 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2"
-                                        >
-                                            Zerar Dias no Mês (Abandono s/ Saldo)
-                                        </Button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold">Data que Iniciou o Trabalho (Admissão)</Label>
-                                            <Input
-                                                type="date"
-                                                value={noticeWorkStartDate}
-                                                onChange={(e) => {
-                                                    const ws = e.target.value;
-                                                    setNoticeWorkStartDate(ws);
-                                                    const autoDays = computeDefaultMonthWorkedDays(ws || null, noticeStartDate, noticeStopDate || null, today);
-                                                    setNoticeMonthWorkedDays(String(autoDays));
-                                                }}
-                                                className="bg-white dark:bg-black"
-                                            />
-                                            <p className="text-[11px] text-slate-500">
-                                                Data em que o colaborador começou a trabalhar na empresa/obra.
-                                            </p>
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold">Dias Trabalhados no Mês da Rescisão</Label>
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                max={31}
-                                                value={noticeMonthWorkedDays}
-                                                onChange={(e) => setNoticeMonthWorkedDays(e.target.value)}
-                                                className="bg-white dark:bg-black font-bold"
-                                            />
-                                            <p className="text-[11px] text-slate-500">
-                                                Ex: pediu aviso dia 15 → tem 15 dias trabalhados no mês para abater/conferir na folha.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Bloco 2: Período de 15 Dias e Valor Base (€ 460,00 padrão) */}
-                                <div className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 space-y-3">
-                                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                                        <Clock className="h-4 w-4 text-amber-500" />
-                                        2. Período do Aviso Prévio (15 Dias Corridos) & Valor Base
-                                    </h4>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold leading-tight block">Início do Aviso Prévio</Label>
-                                            <Input
-                                                type="date"
-                                                value={noticeStartDate}
-                                                onChange={(e) => {
-                                                    const val = e.target.value;
-                                                    setNoticeStartDate(val);
-                                                    if (val) {
-                                                        setNoticeEndDate(addDaysToIso(val, 15));
-                                                    }
-                                                }}
-                                                className="bg-white dark:bg-black"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold leading-tight block">Fim do Aviso (15 dias)</Label>
-                                            <Input
-                                                type="date"
-                                                value={noticeEndDate}
-                                                onChange={(e) => setNoticeEndDate(e.target.value)}
-                                                className="bg-white dark:bg-black"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold leading-tight block">
-                                                Valor Total do Aviso (€)
-                                            </Label>
-                                            <div className="relative">
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    value={noticePenaltyTotal}
-                                                    onChange={(e) => setNoticePenaltyTotal(e.target.value)}
-                                                    className="bg-white dark:bg-black font-bold pr-24"
-                                                />
-                                                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-mono text-slate-500">
-                                                    {formatCurrencyEur(dailyRatePreview)}/d
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <p className="text-[11px] text-slate-500">
-                                        O sábado e o domingo contam como dias cumpridos. A cada dia cumprido, o saldo diminui <strong>{formatCurrencyEur(dailyRatePreview)}</strong>.
-                                    </p>
-                                </div>
-
-                                {/* Bloco 3: Controle de Cumprimento / Parada por Abandono */}
-                                <div className="p-4 rounded-lg border border-rose-200/70 dark:border-rose-900/50 bg-rose-50/20 dark:bg-rose-950/15 space-y-3">
-                                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
-                                        <AlertTriangle className="h-4 w-4" />
-                                        3. Situação de Cumprimento / Parada por Abandono
-                                    </h4>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setNoticeStatus('in_progress');
-                                                setNoticeStopDate('');
-                                                setNoticeFulfilledDaysOverride('');
-                                            }}
-                                            className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
-                                                noticeStatus === 'in_progress'
-                                                    ? 'border-amber-500 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold shadow-sm'
-                                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
-                                            }`}
-                                        >
-                                            <div>⏳ Em Cumprimento</div>
-                                            <div className="text-[10px] font-normal opacity-80 mt-0.5">Vai diminuindo dia a dia</div>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setNoticeStatus('abandoned');
-                                                const defaultStop = noticeStopDate || today;
-                                                setNoticeStopDate(defaultStop);
-                                                const autoF = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, defaultStop)));
-                                                setNoticeFulfilledDaysOverride(String(autoF));
-                                            }}
-                                            className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
-                                                noticeStatus === 'abandoned'
-                                                    ? 'border-rose-600 bg-rose-500/15 text-rose-900 dark:text-rose-200 font-bold shadow-sm'
-                                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
-                                            }`}
-                                        >
-                                            <div>🛑 Abandonou / Parou</div>
-                                            <div className="text-[10px] font-normal opacity-80 mt-0.5">Trava o valor p/ descontar</div>
-                                        </button>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setNoticeStatus('completed');
-                                                setNoticeStopDate('');
-                                                setNoticeFulfilledDaysOverride('15');
-                                            }}
-                                            className={`p-2.5 rounded-lg border text-left text-xs transition-all ${
-                                                noticeStatus === 'completed'
-                                                    ? 'border-emerald-600 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold shadow-sm'
-                                                    : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
-                                            }`}
-                                        >
-                                            <div>✅ Cumpriu 15 Dias</div>
-                                            <div className="text-[10px] font-normal opacity-80 mt-0.5">Saldo zerado (€ 0,00)</div>
-                                        </button>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                                        <div className="space-y-1.5">
-                                            <Label className="text-xs font-semibold">
-                                                Data em que Encerrou / Abandonou (Parar Contagem)
-                                            </Label>
-                                            <Input
-                                                type="date"
-                                                value={noticeStopDate}
-                                                onChange={(e) => {
-                                                    const stopVal = e.target.value;
-                                                    setNoticeStopDate(stopVal);
-                                                    if (stopVal) {
-                                                        setNoticeStatus('abandoned');
-                                                        const autoF = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, stopVal)));
-                                                        setNoticeFulfilledDaysOverride(String(autoF));
-                                                    }
-                                                }}
-                                                className="bg-white dark:bg-black"
-                                            />
-                                            <p className="text-[11px] text-slate-500">
-                                                Se o trabalhador saiu antes, informe a data para congelar o saldo restante.
-                                            </p>
-                                        </div>
-
-                                        <div className="space-y-1.5">
+                                {/* Layout Lado a Lado em 2 Colunas para caber em Tela Inteira sem Barra de Rolagem */}
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+                                    {/* COLUNA ESQUERDA (7 cols): Dados de Admissão, Período de 15 Dias e Situação de Parada */}
+                                    <div className="lg:col-span-7 flex flex-col justify-between gap-3">
+                                        {/* Bloco 1 & 2 Integrados: Admissão, Dias no Mês, Período do Aviso (15d) e Valor Base */}
+                                        <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40 space-y-3">
                                             <div className="flex items-center justify-between">
-                                                <Label className="text-xs font-semibold">Dias de Aviso Cumpridos (0 a 15)</Label>
-                                                {noticeFulfilledDaysOverride !== '' && (
+                                                <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                                                    <Calendar className="h-3.5 w-3.5" />
+                                                    1. Admissão, Dias Trabalhados no Mês & Período do Aviso (15 Dias)
+                                                </h4>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    onClick={() => setNoticeMonthWorkedDays('0')}
+                                                    className="h-6 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2"
+                                                >
+                                                    Zerar Dias no Mês (Abandono s/ Saldo)
+                                                </Button>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-end">
+                                                <div className="space-y-1">
+                                                    <Label className="text-[11px] font-semibold block truncate" title="Data que Iniciou o Trabalho (Admissão)">
+                                                        Início Trabalho (Admissão)
+                                                    </Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={noticeWorkStartDate}
+                                                        onChange={(e) => {
+                                                            const ws = e.target.value;
+                                                            setNoticeWorkStartDate(ws);
+                                                            const autoDays = computeDefaultMonthWorkedDays(ws || null, noticeStartDate, noticeStopDate || null, today);
+                                                            setNoticeMonthWorkedDays(String(autoDays));
+                                                        }}
+                                                        className="h-9 text-xs bg-white dark:bg-black"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-[11px] font-semibold block truncate" title="Dias Trabalhados no Mês da Rescisão">
+                                                        Dias Trab. no Mês
+                                                    </Label>
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        max={31}
+                                                        value={noticeMonthWorkedDays}
+                                                        onChange={(e) => setNoticeMonthWorkedDays(e.target.value)}
+                                                        className="h-9 text-xs bg-white dark:bg-black font-bold"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-[11px] font-semibold block truncate">Início Aviso Prévio</Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={noticeStartDate}
+                                                        onChange={(e) => {
+                                                            const val = e.target.value;
+                                                            setNoticeStartDate(val);
+                                                            if (val) {
+                                                                setNoticeEndDate(addDaysToIso(val, 15));
+                                                            }
+                                                        }}
+                                                        className="h-9 text-xs bg-white dark:bg-black"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-[11px] font-semibold block truncate">Fim Aviso (15 dias)</Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={noticeEndDate}
+                                                        onChange={(e) => setNoticeEndDate(e.target.value)}
+                                                        className="h-9 text-xs bg-white dark:bg-black"
+                                                    />
+                                                </div>
+
+                                                <div className="space-y-1 col-span-2 sm:col-span-1">
+                                                    <Label className="text-[11px] font-semibold block truncate">Valor Base (€)</Label>
+                                                    <div className="relative">
+                                                        <Input
+                                                            type="number"
+                                                            step="0.01"
+                                                            min="0"
+                                                            value={noticePenaltyTotal}
+                                                            onChange={(e) => setNoticePenaltyTotal(e.target.value)}
+                                                            className="h-9 text-xs bg-white dark:bg-black font-bold pr-14"
+                                                        />
+                                                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500">
+                                                            {formatCurrencyEur(dailyRatePreview)}/d
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p className="text-[11px] text-slate-500">
+                                                Regra: 15 dias corridos (sábado e domingo contam como cumpridos). Valor diário: <strong>{formatCurrencyEur(dailyRatePreview)}/dia</strong>.
+                                            </p>
+                                        </div>
+
+                                        {/* Bloco 3: Situação de Cumprimento / Parada por Abandono */}
+                                        <div className="p-3.5 rounded-xl border border-rose-200/70 dark:border-rose-900/50 bg-rose-50/20 dark:bg-rose-950/15 space-y-3 flex-1 flex flex-col justify-between">
+                                            <div className="space-y-2.5">
+                                                <div className="flex items-center justify-between">
+                                                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
+                                                        <AlertTriangle className="h-3.5 w-3.5" />
+                                                        2. Situação de Cumprimento & Parada do Aviso
+                                                    </h4>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Descontar na Folha?</span>
+                                                        <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 overflow-hidden">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setNoticeApplyDeduction(true)}
+                                                                className={`px-2.5 py-0.5 text-[11px] font-bold ${
+                                                                    noticeApplyDeduction
+                                                                        ? 'bg-rose-600 text-white'
+                                                                        : 'bg-white dark:bg-slate-900 text-slate-600'
+                                                                }`}
+                                                            >
+                                                                Sim, Descontar
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setNoticeApplyDeduction(false)}
+                                                                className={`px-2.5 py-0.5 text-[11px] font-bold ${
+                                                                    !noticeApplyDeduction
+                                                                        ? 'bg-slate-700 text-white'
+                                                                        : 'bg-white dark:bg-slate-900 text-slate-600'
+                                                                }`}
+                                                            >
+                                                                Não (Isentar)
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-3 gap-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() => setNoticeFulfilledDaysOverride('')}
-                                                        className="text-[10px] text-indigo-600 hover:underline"
+                                                        onClick={() => {
+                                                            setNoticeStatus('in_progress');
+                                                            setNoticeStopDate('');
+                                                            setNoticeFulfilledDaysOverride('');
+                                                        }}
+                                                        className={`p-2 rounded-lg border text-left text-xs transition-all ${
+                                                            noticeStatus === 'in_progress'
+                                                                ? 'border-amber-500 bg-amber-500/15 text-amber-900 dark:text-amber-200 font-bold shadow-sm'
+                                                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                        }`}
                                                     >
-                                                        Usar cálculo automático
+                                                        <div>⏳ Em Cumprimento</div>
+                                                        <div className="text-[10px] font-normal opacity-80">Reduz dia a dia</div>
                                                     </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setNoticeStatus('abandoned');
+                                                            const defaultStop = noticeStopDate || today;
+                                                            setNoticeStopDate(defaultStop);
+                                                            const autoF = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, defaultStop)));
+                                                            setNoticeFulfilledDaysOverride(String(autoF));
+                                                        }}
+                                                        className={`p-2 rounded-lg border text-left text-xs transition-all ${
+                                                            noticeStatus === 'abandoned'
+                                                                ? 'border-rose-600 bg-rose-500/15 text-rose-900 dark:text-rose-200 font-bold shadow-sm'
+                                                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                        }`}
+                                                    >
+                                                        <div>🛑 Abandonou / Parou</div>
+                                                        <div className="text-[10px] font-normal opacity-80">Trava valor p/ folha</div>
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setNoticeStatus('completed');
+                                                            setNoticeStopDate('');
+                                                            setNoticeFulfilledDaysOverride('15');
+                                                        }}
+                                                        className={`p-2 rounded-lg border text-left text-xs transition-all ${
+                                                            noticeStatus === 'completed'
+                                                                ? 'border-emerald-600 bg-emerald-500/15 text-emerald-900 dark:text-emerald-200 font-bold shadow-sm'
+                                                                : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                        }`}
+                                                    >
+                                                        <div>✅ Cumpriu 15 Dias</div>
+                                                        <div className="text-[10px] font-normal opacity-80">Sem desconto (€ 0,00)</div>
+                                                    </button>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[11px] font-semibold">Data em que Parou / Abandonou</Label>
+                                                        <Input
+                                                            type="date"
+                                                            value={noticeStopDate}
+                                                            onChange={(e) => {
+                                                                const stopVal = e.target.value;
+                                                                setNoticeStopDate(stopVal);
+                                                                if (stopVal) {
+                                                                    setNoticeStatus('abandoned');
+                                                                    const autoF = Math.max(0, Math.min(15, getDaysDiff(noticeStartDate, stopVal)));
+                                                                    setNoticeFulfilledDaysOverride(String(autoF));
+                                                                }
+                                                            }}
+                                                            className="h-9 text-xs bg-white dark:bg-black"
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <Label className="text-[11px] font-semibold">Dias Cumpridos (0 a 15)</Label>
+                                                            {noticeFulfilledDaysOverride !== '' && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setNoticeFulfilledDaysOverride('')}
+                                                                    className="text-[10px] text-indigo-600 hover:underline"
+                                                                >
+                                                                    Auto
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            max={15}
+                                                            placeholder={`Automático (${previewFulfilledDays}d)`}
+                                                            value={noticeFulfilledDaysOverride}
+                                                            onChange={(e) => setNoticeFulfilledDaysOverride(e.target.value)}
+                                                            className="h-9 text-xs bg-white dark:bg-black font-bold"
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[11px] font-semibold">Motivo da Saída / Parada</Label>
+                                                        <Select
+                                                            value={noticeStopReason}
+                                                            onValueChange={(val) => setNoticeStopReason(val)}
+                                                        >
+                                                            <SelectTrigger className="h-9 text-xs bg-white dark:bg-black">
+                                                                <SelectValue placeholder="Motivo..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="Abandono de trabalho / Não cumpriu aviso prévio">Abandono de trabalho / Não cumpriu aviso</SelectItem>
+                                                                <SelectItem value="Cumprimento parcial do aviso prévio">Cumprimento parcial do aviso prévio</SelectItem>
+                                                                <SelectItem value="Saída imediata sem cumprir aviso prévio">Saída imediata sem cumprir aviso</SelectItem>
+                                                                <SelectItem value="Pedido de demissão com desconto em folha">Pedido de demissão c/ desconto</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1 pt-1">
+                                                    <Label className="text-[11px] font-semibold">Observação Adicional do Aviso</Label>
+                                                    <Input
+                                                        placeholder="Ex: abandonou o trabalho dia 27/10 sem avisar encarregado..."
+                                                        value={noticeNotes}
+                                                        onChange={(e) => setNoticeNotes(e.target.value)}
+                                                        className="h-8 text-xs bg-white dark:bg-black"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* COLUNA DIREITA (5 cols): Consolidação do Desconto na Folha de Pagamento (Último Salário) */}
+                                    <div className="lg:col-span-5 flex flex-col justify-between rounded-xl border-2 border-indigo-500/30 dark:border-indigo-500/40 bg-slate-900 text-white p-4 space-y-3">
+                                        <div className="space-y-2.5">
+                                            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                                                <div>
+                                                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                                                        💸 3. Consolidar Desconto na Folha (Último Salário)
+                                                    </h4>
+                                                    <p className="text-[11px] text-slate-400 mt-0.5">
+                                                        Envia este valor diretamente para a <strong>Gestão de Descontos / Folha</strong> do trabalhador.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Seleção da Competência (Mês do Último Salário) */}
+                                            <div className="space-y-1.5 bg-white/5 p-2.5 rounded-lg border border-white/10">
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-xs font-bold text-amber-300">
+                                                        Competência da Folha (Mês do Último Salário) *
+                                                    </Label>
+                                                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded font-semibold">
+                                                        Último Salário
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Input
+                                                        type="month"
+                                                        value={noticeCompetenceMonth}
+                                                        onChange={(e) => setNoticeCompetenceMonth(e.target.value)}
+                                                        className="h-9 text-xs bg-slate-950 border-slate-700 text-white font-bold w-[160px]"
+                                                    />
+                                                    <div className="flex items-center gap-1 flex-wrap">
+                                                        {suggestedMonths.map((m) => (
+                                                            <button
+                                                                key={m}
+                                                                type="button"
+                                                                onClick={() => setNoticeCompetenceMonth(m)}
+                                                                className={`px-2 py-1 rounded text-[11px] font-bold border transition-all ${
+                                                                    noticeCompetenceMonth === m
+                                                                        ? 'bg-indigo-600 text-white border-indigo-400'
+                                                                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                                                                }`}
+                                                            >
+                                                                {formatCompetenceLabel(m)}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Quadro Resumo da Regra (Para cumprir vs Cumprido vs Faltou) */}
+                                            <div className="grid grid-cols-3 gap-2 text-center bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
+                                                <div>
+                                                    <div className="text-[10px] uppercase text-slate-400">Cumpriu</div>
+                                                    <div className="text-sm font-bold text-emerald-400">{previewFulfilledDays} de 15 dias</div>
+                                                    <div className="text-[10px] text-slate-400">- {formatCurrencyEur(previewAbatido)}</div>
+                                                </div>
+                                                <div className="border-x border-slate-800">
+                                                    <div className="text-[10px] uppercase text-slate-400">Faltou Cumprir</div>
+                                                    <div className="text-sm font-bold text-rose-400">{previewMissingDays} dias</div>
+                                                    <div className="text-[10px] text-slate-400">{formatCurrencyEur(dailyRatePreview)}/dia</div>
+                                                </div>
+                                                <div>
+                                                    <div className="text-[10px] uppercase text-rose-300 font-bold">Desconto Final</div>
+                                                    <div className="text-base font-black text-rose-400 font-mono">{formatCurrencyEur(previewFinalDesconto)}</div>
+                                                    <div className="text-[10px] text-slate-400">{noticeMonthWorkedDays || 0}d trab. mês</div>
+                                                </div>
+                                            </div>
+
+                                            {/* Observações detalhadas que vão para o Desconto na Folha */}
+                                            <div className="space-y-1">
+                                                <div className="flex items-center justify-between">
+                                                    <Label className="text-[11px] font-bold text-slate-300">
+                                                        Observações na Folha (Data que parou, motivo, dias cumpridos e faltantes)
+                                                    </Label>
+                                                    {noticePayrollDescriptionEdited && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setNoticePayrollDescriptionEdited(false);
+                                                                setNoticePayrollDescriptionCustom('');
+                                                            }}
+                                                            className="text-[10px] text-indigo-400 hover:underline"
+                                                        >
+                                                            Restaurar texto padrão
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                <textarea
+                                                    rows={3}
+                                                    value={displayedPayrollObs}
+                                                    onChange={(e) => {
+                                                        setNoticePayrollDescriptionEdited(true);
+                                                        setNoticePayrollDescriptionCustom(e.target.value);
+                                                    }}
+                                                    className="w-full rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-[11px] text-slate-200 leading-relaxed focus:outline-none focus:border-indigo-500"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="pt-1">
+                                            <Button
+                                                type="button"
+                                                disabled={consolidatingPayroll || savingNotice || previewRestante <= 0}
+                                                onClick={handleConsolidateAndLaunchPayroll}
+                                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold h-10 text-xs gap-2 shadow-lg"
+                                            >
+                                                {consolidatingPayroll ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle className="h-4 w-4" />
                                                 )}
-                                            </div>
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                max={15}
-                                                placeholder={`Automático (${previewFulfilledDays} dias)`}
-                                                value={noticeFulfilledDaysOverride}
-                                                onChange={(e) => setNoticeFulfilledDaysOverride(e.target.value)}
-                                                className="bg-white dark:bg-black font-bold"
-                                            />
-                                            <p className="text-[11px] text-slate-500">
-                                                Deixe em branco para reduzir automaticamente a cada dia ou digite (ex: 0 se abandonou no 1º dia).
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-rose-200/50 dark:border-rose-900/40">
-                                        <div className="flex items-center gap-2">
-                                            <Label className="text-xs font-semibold">Descontar este aviso na folha?</Label>
-                                            <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 overflow-hidden">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setNoticeApplyDeduction(true)}
-                                                    className={`px-3 py-1 text-xs font-bold ${
-                                                        noticeApplyDeduction
-                                                            ? 'bg-rose-600 text-white'
-                                                            : 'bg-white dark:bg-slate-900 text-slate-600'
-                                                    }`}
-                                                >
-                                                    Sim, Descontar
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setNoticeApplyDeduction(false)}
-                                                    className={`px-3 py-1 text-xs font-bold ${
-                                                        !noticeApplyDeduction
-                                                            ? 'bg-slate-700 text-white'
-                                                            : 'bg-white dark:bg-slate-900 text-slate-600'
-                                                    }`}
-                                                >
-                                                    Não (Isentar)
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex-1 max-w-xs">
-                                            <Input
-                                                placeholder="Observações (ex: abandonou a obra dia 29)..."
-                                                value={noticeNotes}
-                                                onChange={(e) => setNoticeNotes(e.target.value)}
-                                                className="h-8 text-xs bg-white dark:bg-black"
-                                            />
+                                                {editingNoticeContract?.metadata?.payroll_discount_id
+                                                    ? `Atualizar Desconto na Folha (${formatCompetenceLabel(noticeCompetenceMonth)} — ${formatCurrencyEur(previewRestante)})`
+                                                    : `Consolidar & Lançar Desconto na Folha (${formatCompetenceLabel(noticeCompetenceMonth)} — ${formatCurrencyEur(previewRestante)})`}
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Card Resumo Final de Cálculo para a Folha */}
-                                <div className="p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                    <div className="space-y-1">
-                                        <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
-                                            Resumo do Cálculo para Fechamento de Folha
-                                        </div>
-                                        <div className="text-xs text-slate-300 flex flex-wrap items-center gap-x-4 gap-y-1">
-                                            <span>Dias Trab. no Mês: <strong className="text-white">{noticeMonthWorkedDays || 0} dias</strong></span>
-                                            <span>•</span>
-                                            <span>Aviso Cumprido: <strong className="text-emerald-400">{previewFulfilledDays}/15 dias (- {formatCurrencyEur(previewAbatido)})</strong></span>
-                                        </div>
+                                {/* Rodapé Compacto */}
+                                <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                                    <span className="text-[11px] text-slate-500">
+                                        💡 Você pode salvar apenas o controle de acompanhamento ou consolidar o desconto diretamente na folha de pagamento.
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setNoticeDialogOpen(false)}>
+                                            Fechar
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            size="sm"
+                                            disabled={savingNotice || consolidatingPayroll}
+                                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5"
+                                        >
+                                            {savingNotice ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
+                                            {noticeDialogMode === 'create' ? 'Incluir Apenas no Controle' : 'Salvar Alterações do Aviso'}
+                                        </Button>
                                     </div>
-
-                                    <div className="text-left sm:text-right shrink-0">
-                                        <div className="text-[11px] uppercase tracking-wider text-rose-300 font-semibold">
-                                            Valor a Descontar na Folha
-                                        </div>
-                                        <div className="text-2xl font-black text-rose-400 font-mono">
-                                            {formatCurrencyEur(previewFinalDesconto)}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-end gap-2 pt-2">
-                                    <Button type="button" variant="outline" onClick={() => setNoticeDialogOpen(false)}>
-                                        Cancelar
-                                    </Button>
-                                    <Button
-                                        type="submit"
-                                        disabled={savingNotice}
-                                        className="bg-rose-600 hover:bg-rose-500 text-white font-bold gap-1.5"
-                                    >
-                                        {savingNotice ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                        {noticeDialogMode === 'create' ? 'Incluir no Aviso Prévio' : 'Salvar Alterações do Aviso'}
-                                    </Button>
                                 </div>
                             </form>
                         );

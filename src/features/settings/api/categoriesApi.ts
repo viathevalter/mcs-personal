@@ -15,6 +15,7 @@ export interface BenefitCategory {
 }
 
 export const DEFAULT_DISCOUNT_CATEGORIES: string[] = [
+    'AVISO PRÉVIO',
     'IMPOSTO SS',
     'ADIANTAMENTO',
     'DESCONTO CARRO',

@@ -33,6 +33,11 @@ export interface Contract {
         fulfilled_days_override?: number | null;
         notice_notes?: string | null;
         is_manual_entry?: boolean;
+        payroll_discount_id?: string | null;
+        payroll_competence?: string | null;
+        payroll_consolidated_amount?: number | null;
+        payroll_consolidated_at?: string | null;
+        payroll_stop_reason?: string | null;
     } | null;
     created_at: string;
     updated_at: string;
@@ -1197,4 +1202,81 @@ export async function approveDocumentRequest(
     if (requestErr) {
         throw mapSupabaseError(requestErr);
     }
+}
+
+
+export interface ConsolidateNoticeDiscountPayload {
+    contractId: string;
+    workerId: string;
+    empresaId: string;
+    competenceMonth: string; // YYYY-MM
+    amount: number;
+    stopDate: string;
+    stopReason: string;
+    description: string;
+    metadataUpdates: NonNullable<Contract['metadata']>;
+    existingDiscountId?: string | null;
+}
+
+export async function consolidateNoticeDiscountToPayroll(
+    payload: ConsolidateNoticeDiscountPayload
+): Promise<{ discountId: string }> {
+    const referenceDate = `${payload.competenceMonth.substring(0, 7)}-01`;
+    let discountId = payload.existingDiscountId || null;
+
+    if (discountId) {
+        const { data: updated, error: updErr } = await supabase
+            .from('worker_discounts')
+            .update({
+                empresa_id: payload.empresaId,
+                category: 'AVISO PRÉVIO',
+                amount: Number(payload.amount.toFixed(2)),
+                reference_date: referenceDate,
+                description: payload.description,
+                status: 'Ativo',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', discountId)
+            .select('id')
+            .maybeSingle();
+
+        if (updErr || !updated) {
+            discountId = null;
+        }
+    }
+
+    if (!discountId) {
+        const { data: created, error: insErr } = await supabase
+            .from('worker_discounts')
+            .insert([
+                {
+                    worker_id: payload.workerId,
+                    empresa_id: payload.empresaId,
+                    category: 'AVISO PRÉVIO',
+                    amount: Number(payload.amount.toFixed(2)),
+                    reference_date: referenceDate,
+                    description: payload.description,
+                    is_recurring: false,
+                    status: 'Ativo',
+                },
+            ])
+            .select('id')
+            .single();
+
+        if (insErr) {
+            throw mapSupabaseError(insErr);
+        }
+        discountId = created.id;
+    }
+
+    await updateContractNoticeMetadata(payload.contractId, {
+        ...payload.metadataUpdates,
+        payroll_discount_id: discountId,
+        payroll_competence: payload.competenceMonth.substring(0, 7),
+        payroll_consolidated_amount: Number(payload.amount.toFixed(2)),
+        payroll_consolidated_at: new Date().toISOString(),
+        payroll_stop_reason: payload.stopReason,
+    });
+
+    return { discountId: discountId! };
 }
