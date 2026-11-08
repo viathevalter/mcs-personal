@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
+import { PdfCanvasViewer } from '../components/PdfCanvasViewer';
 
 function adjustDocxPreviewSpacing(container: HTMLElement | null) {
     if (!container) return;
@@ -164,9 +165,11 @@ export function ContractSigningPage() {
         loadContractData();
     }, [token]);
 
-    // 2. Renderizar o arquivo .docx usando docx-preview
+    const isPdfContract = Boolean(contract?.document_url?.toLowerCase().endsWith('.pdf'));
+
+    // 2. Renderizar o arquivo .docx usando docx-preview (somente para contratos .docx)
     useEffect(() => {
-        if (fileBlob && docContainerRef.current) {
+        if (fileBlob && !isPdfContract && docContainerRef.current) {
             console.log("Renders docx preview...");
             docContainerRef.current.innerHTML = "";
             renderAsync(fileBlob, docContainerRef.current, undefined, {
@@ -189,7 +192,7 @@ export function ContractSigningPage() {
                 console.error("Falha ao renderizar visualização do docx:", err);
             });
         }
-    }, [fileBlob]);
+    }, [fileBlob, isPdfContract]);
 
     useEffect(() => {
         if (docContainerRef.current && signatureBase64) {
@@ -477,9 +480,17 @@ export function ContractSigningPage() {
             setOtpModalOpen(false);
             setSignatureBase64(signatureImageBase64);
             
-            // Recarregar os dados do contrato
+            // Recarregar os dados do contrato e o PDF atualizado com a assinatura carimbada
             const updatedContract = await getContractByToken(token!);
             setContract(updatedContract);
+            if (updatedContract.document_url) {
+                const { data: updatedFile } = await supabase.storage
+                    .from('worker-contracts')
+                    .download(updatedContract.document_url);
+                if (updatedFile) {
+                    setFileBlob(updatedFile);
+                }
+            }
             
             const { data: auditData } = await supabase
                 .schema('core_personal')
@@ -500,8 +511,19 @@ export function ContractSigningPage() {
         }
     };
 
-    // 5. Baixar PDF com Alta Fidelidade (via iframe print isolado)
+    // 5. Baixar PDF com Alta Fidelidade
     const handlePrintPdf = () => {
+        if (isPdfContract && fileBlob) {
+            const url = URL.createObjectURL(fileBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Contrato_SEPE_${(contract?.worker?.nome || 'Colaborador').replace(/\s+/g, '_')}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
+            return;
+        }
         const docElement = docContainerRef.current?.querySelector('.docx-document');
         if (!docElement) {
             toast.error(t('signing.errorNotRendered', { defaultValue: 'Documento não renderizado ainda.' }));
@@ -781,7 +803,13 @@ export function ContractSigningPage() {
                     </div>
 
                     <div className="w-full max-w-5xl overflow-x-auto docx-preview-container flex justify-center">
-                        <div ref={docContainerRef} className="docx-wrapper" style={{ zoom: docZoom } as React.CSSProperties} />
+                        {isPdfContract ? (
+                            <div style={{ zoom: docZoom } as React.CSSProperties} className="w-full">
+                                <PdfCanvasViewer pdfBlob={fileBlob} />
+                            </div>
+                        ) : (
+                            <div ref={docContainerRef} className="docx-wrapper" style={{ zoom: docZoom } as React.CSSProperties} />
+                        )}
                     </div>
 
                     {/* Card/Botão de transição rápida no rodapé do contrato no celular */}
@@ -835,6 +863,25 @@ export function ContractSigningPage() {
                                     <label className="text-slate-400 text-xs block">{t('signing.labelRegisteredEmail')}</label>
                                     <span className="font-semibold text-slate-200 block">{contract.worker?.email}</span>
                                 </div>
+                                {isPdfContract && (
+                                    <div className="pt-2 border-t border-slate-800/80 space-y-1.5">
+                                        <label className="text-slate-400 text-[11px] uppercase tracking-wider font-semibold block">
+                                            Estado de Firmas (Bilateral SEPE)
+                                        </label>
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-slate-400">Persona Trabajadora:</span>
+                                            <span className={success || contract.metadata?.worker_signed ? 'text-emerald-400 font-bold' : 'text-amber-400 font-semibold'}>
+                                                {success || contract.metadata?.worker_signed ? 'Firmado ✓' : 'Pendiente'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs">
+                                            <span className="text-slate-400">Representante Empresa:</span>
+                                            <span className={contract.metadata?.company_signed ? 'text-emerald-400 font-bold' : 'text-amber-400 font-semibold'}>
+                                                {contract.metadata?.company_signed ? 'Firmado ✓' : 'Pendiente'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

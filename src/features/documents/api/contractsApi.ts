@@ -38,6 +38,34 @@ export interface Contract {
         payroll_consolidated_amount?: number | null;
         payroll_consolidated_at?: string | null;
         payroll_stop_reason?: string | null;
+        is_sepe_pdf?: boolean;
+        sepe_codigo?: string;
+        base_document_url?: string;
+        worker_signed?: boolean;
+        worker_signed_at?: string;
+        worker_ip?: string;
+        worker_otp?: string;
+        company_signed?: boolean;
+        company_signed_at?: string;
+        company_ip?: string;
+        company_otp?: string;
+        company_otp_code?: string | null;
+        company_otp_expires_at?: string | null;
+        company_signer_name?: string;
+        company_signer_nif?: string;
+        company_signer_cargo?: string;
+        company_signer_email?: string;
+        representante_nombre?: string;
+        representante_nif?: string;
+        representante_cargo?: string;
+        representante_email?: string;
+        puesto?: string;
+        grupo_profesional?: string;
+        funciones?: string;
+        centro_trabajo?: string;
+        fecha_inicio?: string;
+        retribucion_total?: string;
+        convenio_colectivo?: string;
     } | null;
     created_at: string;
     updated_at: string;
@@ -374,7 +402,13 @@ export interface GenerateContractPayload {
         niss?: string;
         dni?: string;
         nie?: string;
+        nuss?: string;
+        codigo_postal?: string;
+        municipio_domicilio?: string;
+        nivel_formativo?: string;
     };
+    sepe_overrides?: Record<string, any>;
+    template_base64?: string;
 }
 
 export interface GenerateContractResponse {
@@ -383,6 +417,7 @@ export interface GenerateContractResponse {
     document_url?: string;
     signature_token: string;
     otp_code: string;
+    company_otp_code?: string;
     signing_link: string;
     email_sent: boolean;
 }
@@ -501,6 +536,10 @@ export interface DocumentRequest {
         niss?: string;
         nie?: string;
         dni?: string;
+        nuss?: string;
+        codigo_postal?: string;
+        municipio_domicilio?: string;
+        nivel_formativo?: string;
         licencia_conducir?: string;
         nacionalidade?: string;
         fecha_nacimiento?: string;
@@ -589,7 +628,7 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
         .select(`
             *,
             worker:workers (
-                id, nome, email, movil, cod_colab, address_line, morada_contrato, location, pasaporte, nif, niss, nie, dni, licencia_conducir, nacionalidade, fecha_nacimiento, cliente, cod_cliente,
+                id, nome, email, movil, cod_colab, address_line, morada_contrato, location, pasaporte, nif, niss, nie, dni, nuss, codigo_postal, municipio_domicilio, nivel_formativo, licencia_conducir, nacionalidade, fecha_nacimiento, cliente, cod_cliente,
                 assignments:worker_assignments (
                     id, status, empresa_id, client_id, start_date, planned_start_date, created_at
                 )
@@ -720,6 +759,10 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
         nie: worker?.nie || prevExt.nie || '',
         nif: worker?.nif || prevExt.nif || '',
         niss: worker?.niss || prevExt.niss || '',
+        nuss: worker?.nuss || prevExt.nuss || '',
+        codigo_postal: worker?.codigo_postal || prevExt.codigo_postal || '',
+        municipio_domicilio: worker?.municipio_domicilio || prevExt.municipio_domicilio || '',
+        nivel_formativo: worker?.nivel_formativo || prevExt.nivel_formativo || '',
         movil: worker?.movil || prevExt.movil || '',
         email: worker?.email || prevExt.email || '',
         talla_camisa: worker?.camiseta || prevExt.talla_camisa || '',
@@ -1014,6 +1057,10 @@ export async function approveDocumentRequest(
         nie?: string;
         dni?: string;
         pasaporte?: string;
+        nuss?: string;
+        codigo_postal?: string;
+        municipio_domicilio?: string;
+        nivel_formativo?: string;
         licencia_conducir?: string;
         nacionalidade?: string;
         fecha_nacimiento?: string;
@@ -1279,4 +1326,109 @@ export async function consolidateNoticeDiscountToPayroll(
     });
 
     return { discountId: discountId! };
+}
+
+export interface SignContractAsCompanyPayload {
+    contract_id: string;
+    otp_code: string;
+    signature_image: string;
+    signer_name?: string;
+    signer_nif?: string;
+    signer_cargo?: string;
+    signer_email?: string;
+    ip_address?: string;
+    user_agent?: string;
+}
+
+export async function signContractAsCompany(
+    payload: SignContractAsCompanyPayload
+): Promise<{
+    success: boolean;
+    message: string;
+    signed_at: string;
+    worker_signed?: boolean;
+    company_signed?: boolean;
+}> {
+    const { data, error } = await supabase.functions.invoke('sign-contract', {
+        body: {
+            ...payload,
+            signer_role: 'company',
+        },
+    });
+
+    if (error) {
+        let errorMsg = error.message;
+        if ('context' in error && (error as any).context instanceof Response) {
+            try {
+                const body = await (error as any).context.clone().json();
+                if (body && body.error) {
+                    errorMsg = body.error;
+                }
+            } catch (_) {}
+        }
+        throw new Error(errorMsg || 'Erro ao assinar o contrato pelo representante da empresa.');
+    }
+
+    return data;
+}
+
+export async function requestCompanyOtp(
+    contractId: string,
+    signerEmail?: string
+): Promise<{ success: boolean; company_otp_code: string; email_sent: boolean }> {
+    const { data, error } = await supabase.functions.invoke('sign-contract', {
+        body: {
+            action: 'request_company_otp',
+            contract_id: contractId,
+            signer_email: signerEmail,
+        },
+    });
+
+    if (error) {
+        let errorMsg = error.message;
+        if ('context' in error && (error as any).context instanceof Response) {
+            try {
+                const body = await (error as any).context.clone().json();
+                if (body && body.error) {
+                    errorMsg = body.error;
+                }
+            } catch (_) {}
+        }
+        throw new Error(errorMsg || 'Erro ao solicitar código OTP corporativo.');
+    }
+
+    return data;
+}
+
+export async function getCompanyContractSettings(empresaId: string): Promise<Record<string, any>> {
+    const { data, error } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .select('contract_settings')
+        .eq('id', empresaId)
+        .maybeSingle();
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
+    return (data?.contract_settings && typeof data.contract_settings === 'object')
+        ? data.contract_settings
+        : {};
+}
+
+export async function updateCompanyContractSettings(
+    empresaId: string,
+    settings: Record<string, any>
+): Promise<void> {
+    const { error } = await supabase
+        .schema('core_common')
+        .from('empresas')
+        .update({ contract_settings: settings })
+        .eq('id', empresaId);
+
+    if (error) {
+        throw mapSupabaseError(error);
+    }
+
 }

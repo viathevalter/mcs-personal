@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/shared/supabase/client';
-import { getDocumentRequestByToken, processDocumentOcr, submitDocumentRequest, type DocumentRequest } from '../api/contractsApi';
+import { getDocumentRequestByToken, processDocumentOcr, submitDocumentRequest, HEXAGON_EMPRESA_ID, type DocumentRequest } from '../api/contractsApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -112,6 +112,10 @@ export function WorkerDocCapturePage() {
         movil: '',
         nif: '',
         niss: '',
+        nuss: '',
+        codigo_postal: '',
+        municipio_domicilio: '',
+        nivel_formativo: '',
         nie: '',
         dni: '',
         pasaporte: '',
@@ -189,6 +193,10 @@ export function WorkerDocCapturePage() {
                     iban: existingData.iban || workerObj.iban || '',
                     nif: existingData.nif || workerObj.nif || '',
                     niss: existingData.niss || workerObj.niss || '',
+                    nuss: existingData.nuss || workerObj.nuss || existingData.niss || '',
+                    codigo_postal: existingData.codigo_postal || workerObj.codigo_postal || '',
+                    municipio_domicilio: existingData.municipio_domicilio || workerObj.municipio_domicilio || existingData.ubicacion_actual || workerObj.location || '',
+                    nivel_formativo: existingData.nivel_formativo || workerObj.nivel_formativo || '',
                     pasaporte: existingData.pasaporte || workerObj.pasaporte || '',
                     nie: existingData.nie || workerObj.nie || '',
                     dni: existingData.dni || workerObj.dni || '',
@@ -963,6 +971,46 @@ export function WorkerDocCapturePage() {
                                             />
                                         </div>
                                     </div>
+
+                                    {request.empresa_id === HEXAGON_EMPRESA_ID && (
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-slate-800/80">
+                                            <div>
+                                                <label className="text-xs font-semibold text-indigo-300 block mb-1">
+                                                    Código Postal (España)
+                                                </label>
+                                                <Input
+                                                    placeholder="Ej: 08028"
+                                                    maxLength={5}
+                                                    value={formData.codigo_postal}
+                                                    onChange={(e) => setFormData({ ...formData, codigo_postal: e.target.value })}
+                                                    className="bg-slate-950 border-slate-800 text-slate-200 text-sm font-mono"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-semibold text-indigo-300 block mb-1">
+                                                    Municipio de Domicilio
+                                                </label>
+                                                <Input
+                                                    placeholder="Ej: Barcelona, Madrid..."
+                                                    value={formData.municipio_domicilio}
+                                                    onChange={(e) => setFormData({ ...formData, municipio_domicilio: e.target.value })}
+                                                    className="bg-slate-950 border-slate-800 text-slate-200 text-sm"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs font-semibold text-indigo-300 block mb-1">
+                                                    Nº Seguridad Social (NUSS)
+                                                </label>
+                                                <Input
+                                                    placeholder="12 dígitos (Ej: 281234567890)"
+                                                    maxLength={12}
+                                                    value={formData.nuss}
+                                                    onChange={(e) => setFormData({ ...formData, nuss: e.target.value.replace(/\s+/g, '') })}
+                                                    className="bg-slate-950 border-slate-800 text-slate-200 text-sm font-mono"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </CardContent>

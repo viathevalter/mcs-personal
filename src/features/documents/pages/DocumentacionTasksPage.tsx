@@ -4,9 +4,11 @@ import { Layout } from '@/components/layout/Layout';
 import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components/DepartmentTaskBoard';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
-    listContracts, generateContract, deleteContract, updateContractNoticeMetadata, createManualNoticeEntry, consolidateNoticeDiscountToPayroll, type Contract,
+    listContracts, generateContract, deleteContract, updateContractNoticeMetadata, createManualNoticeEntry, consolidateNoticeDiscountToPayroll,
+    signContractAsCompany, requestCompanyOtp, getCompanyContractSettings, updateCompanyContractSettings, type Contract,
     listDocumentRequests, createDocumentRequest, reopenDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, HEXAGON_EMPRESA_ID, type DocumentRequest
 } from '../api/contractsApi';
+import { PdfCanvasViewer } from '../components/PdfCanvasViewer';
 import { listWorkers } from '@/features/workers/api/workersApi';
 import { Combobox } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
@@ -23,7 +25,7 @@ import {
     Mail, AlertCircle, Loader2, Eye, ShieldCheck, Camera,
     MessageSquare, Send, Search, X, Pencil, Trash2, Download, Building2,
     Calendar, MapPin, Clock, AlertTriangle, FolderPlus, ArrowUpDown, ArrowUp, ArrowDown, Package,
-    UploadCloud, Upload
+    UploadCloud, Upload, PenTool, Settings2, Save, Eraser, Type, KeyRound
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
@@ -340,8 +342,10 @@ export function DocumentacionTasksPage() {
     const [selectedContratante, setSelectedContratante] = useState<string>('');
     const [selectedContractType, setSelectedContractType] = useState<string>('');
     const [generationSuccess, setGenerationSuccess] = useState<{
+        contractId?: string;
         signingLink: string;
         otpCode: string;
+        companyOtpCode?: string;
         emailSent: boolean;
         contractType?: string;
         documentUrl?: string;
@@ -349,6 +353,98 @@ export function DocumentacionTasksPage() {
     const [previewBlob, setPreviewBlob] = useState<Blob | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const previewContainerRef = useRef<HTMLDivElement>(null);
+
+    // States SEPE Hexagon (Contrato Indefinido Fijo-Discontinuo Cód. 300)
+    const [sepeForm, setSepeForm] = useState({
+        puesto: '',
+        grupo_profesional: '',
+        funciones: '',
+        centro_trabajo_calle: '',
+        centro_trabajo_cp: '',
+        centro_trabajo_municipio: '',
+        fecha_inicio: new Date().toISOString().split('T')[0],
+        periodo_prueba: 'Según Convenio Colectivo aplicable',
+        retribucion_total: 'Según Convenio Colectivo aplicable',
+        convenio_colectivo: 'Convenio Colectivo del Sector de la Industria Siderometalúrgica / Construcción',
+        lugar_firma: 'Barcelona',
+        nuss: '',
+        codigo_postal: '',
+        municipio_domicilio: '',
+        clausulas_adicionales: ''
+    });
+
+    // Configurações SEPE da Hexagon (salvas em core_common.empresas.contract_settings)
+    const [hexagonSettings, setHexagonSettings] = useState<any>({
+        cif: 'B19394493',
+        razon_social: 'HEXAGON MONTAJES INDUSTRIALES, S.L.',
+        domicilio_social: '',
+        pais_empresa: 'ESPAÑA',
+        pais_cod_empresa: '724',
+        municipio_empresa: 'BARCELONA',
+        municipio_cod_empresa: '08019',
+        cp_empresa: '08028',
+        representante_nombre: '',
+        representante_nif: '',
+        representante_cargo: 'ADMINISTRADOR ÚNICO',
+        representante_email: '',
+        ccc_regimen: '0111',
+        ccc_numero: '',
+        cnae_cod: '43',
+        cnae_texto: 'CONSTRUCCIÓN / MONTAJES INDUSTRIALES',
+        municipio_ct_cod: '08019',
+        horas_semanales: '40',
+        horario_jornada: 'LUNES A VIERNES DE 08:00 A 17:00',
+        periodo_prueba_default: 'Según Convenio Colectivo aplicable',
+        vacaciones: '30 días naturales por año trabajado',
+        convenio_colectivo: 'Convenio Colectivo del Sector de la Industria Siderometalúrgica / Construcción',
+        retribucion_default: 'Según Convenio Colectivo aplicable',
+        conceptos_salariales: 'Salario base + complementos según Convenio Colectivo',
+        sepe_municipio: 'BARCELONA',
+        lugar_firma: 'Barcelona',
+        actividad_fijo_discontinuo: 'Montaje y mantenimiento de estructuras metálicas e instalaciones industriales según pedidos y obras de clientes',
+        cargos_mapeamento: {
+            'ENCARGADO DE OBRA': {
+                puesto: 'ENCARGADO DE OBRA',
+                grupo_profesional: 'GRUPO 3 / ENCARGADOS Y JEFES DE EQUIPO',
+                funciones: 'Coordinación, supervisión de montaje de estructura metálica y seguridad en obra',
+                periodo_prueba: 'Según Convenio Colectivo'
+            },
+            'MONTADOR DE ESTRUCTURA METÁLICA (OBRA)': {
+                puesto: 'OFICIAL MONTADOR DE ESTRUCTURAS METÁLICAS',
+                grupo_profesional: 'GRUPO 5 / OFICIALES DE PRIMERA Y SEGUNDA',
+                funciones: 'Montaje, ensamblaje y fijación de estructuras metálicas en obra',
+                periodo_prueba: 'Según Convenio Colectivo'
+            },
+            'AYUDANTE': {
+                puesto: 'AYUDANTE / PEÓN ESPECIALISTA DE MONTAJE',
+                grupo_profesional: 'GRUPO 6 / AYUDANTES Y PEONES ESPECIALISTAS',
+                funciones: 'Apoyo en tareas de montaje de estructuras metálicas, acopio y preparación de materiales',
+                periodo_prueba: 'Según Convenio Colectivo'
+            }
+        }
+    });
+    const [savingHexagonSettings, setSavingHexagonSettings] = useState(false);
+    const [newRoleKey, setNewRoleKey] = useState('');
+
+    // Modal de Assinatura Eletrônica da Empresa (Representante Legal - Bilateral OTP)
+    const [companySignDialogOpen, setCompanySignDialogOpen] = useState(false);
+    const [companySigningContract, setCompanySigningContract] = useState<Contract | null>(null);
+    const [companySignMode, setCompanySignMode] = useState<'draw' | 'type' | 'saved'>('draw');
+    const [companyTypedSignature, setCompanyTypedSignature] = useState('');
+    const [companySavedSigBase64, setCompanySavedSigBase64] = useState<string | null>(() => {
+        try { return localStorage.getItem('hexagon_rep_signature'); } catch { return null; }
+    });
+    const [companySaveDefaultSig, setCompanySaveDefaultSig] = useState(true);
+    const [companySignerName, setCompanySignerName] = useState('');
+    const [companySignerDocument, setCompanySignerDocument] = useState('');
+    const [companySignerCargo, setCompanySignerCargo] = useState('ADMINISTRADOR ÚNICO');
+    const [companySignerEmail, setCompanySignerEmail] = useState('');
+    const [companyOtpInput, setCompanyOtpInput] = useState('');
+    const [requestingCompanyOtp, setRequestingCompanyOtp] = useState(false);
+    const [submittingCompanySign, setSubmittingCompanySign] = useState(false);
+    const companyCanvasRef = useRef<HTMLCanvasElement>(null);
+    const [isDrawingCompanySig, setIsDrawingCompanySig] = useState(false);
+    const [hasDrawnCompanySig, setHasDrawnCompanySig] = useState(false);
 
     // Dialog & Form states - Carta de Rescisão
     const todayIsoStr = () => new Date().toISOString().split('T')[0];
@@ -490,7 +586,11 @@ export function DocumentacionTasksPage() {
         pais_residencia: '',
         licencia_conducir: '',
         nacionalidade: '',
-        fecha_nacimiento: ''
+        fecha_nacimiento: '',
+        nuss: '',
+        codigo_postal: '',
+        municipio_domicilio: '',
+        nivel_formativo: '00'
     });
 
     // State para modal de trabalhadores associados à tarefa clicada
@@ -844,7 +944,9 @@ export function DocumentacionTasksPage() {
 
     const getTemplatePath = (contratante: string, docType: string) => {
         const upper = contratante.toUpperCase();
-        if (docType === 'contrato_nis') {
+        if (docType === 'contrato_fijo_discontinuo') {
+            return `${contratante}/CONTRATO FIJO DISCONTINUO - ${upper}.pdf`;
+        } else if (docType === 'contrato_nis') {
             return `${contratante}/CONTRATO NIS - ${upper}.docx`;
         } else if (docType === 'contrato_termo_incerto') {
             return `${contratante}/CONTRATO TERMO INCERTO - ${upper}.docx`;
@@ -862,9 +964,17 @@ export function DocumentacionTasksPage() {
             const filePath = getTemplatePath(selectedConfigContratante, docType);
             if (!filePath) throw new Error("Caminho inválido");
 
-            const { data, error } = await supabase.storage
+            let { data, error } = await supabase.storage
                 .from('contract-templates')
                 .download(filePath);
+
+            if ((error || !data) && docType === 'contrato_fijo_discontinuo') {
+                const fallbackResp = await fetch('/templates/CONTRATO_FIJO_DISCONTINUO_HEXAGON.pdf');
+                if (fallbackResp.ok) {
+                    data = await fallbackResp.blob();
+                    error = null;
+                }
+            }
 
             if (error) throw error;
             if (!data) throw new Error("Arquivo vazio retornado");
@@ -873,7 +983,7 @@ export function DocumentacionTasksPage() {
             const url = window.URL.createObjectURL(data);
             const a = document.createElement('a');
             a.href = url;
-            a.download = filePath.split('/').pop() || 'template.docx';
+            a.download = filePath.split('/').pop() || (docType === 'contrato_fijo_discontinuo' ? 'template.pdf' : 'template.docx');
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -900,8 +1010,12 @@ export function DocumentacionTasksPage() {
         const file = e.target.files?.[0];
         if (!file || !activeUploadDocType) return;
 
-        // Validar extensão
-        if (!file.name.toLowerCase().endsWith('.docx')) {
+        const isPdfTemplate = activeUploadDocType === 'contrato_fijo_discontinuo';
+        if (isPdfTemplate && !file.name.toLowerCase().endsWith('.pdf')) {
+            toast.error("Para o modelo SEPE Fijo-Discontinuo, envie um arquivo PDF (.pdf)");
+            return;
+        }
+        if (!isPdfTemplate && !file.name.toLowerCase().endsWith('.docx')) {
             toast.error("Por favor, envie um arquivo no formato Word (.docx)");
             return;
         }
@@ -911,14 +1025,15 @@ export function DocumentacionTasksPage() {
             const filePath = getTemplatePath(selectedConfigContratante, activeUploadDocType);
             if (!filePath) throw new Error("Caminho inválido");
 
-            // Fazer upload do arquivo exatamente como foi enviado pelo usuário, sem alterar seu XML
             const fileToUpload: Blob = file;
 
             const { error } = await supabase.storage
                 .from('contract-templates')
                 .upload(filePath, fileToUpload, {
                     upsert: true,
-                    contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    contentType: isPdfTemplate
+                        ? 'application/pdf'
+                        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                 });
 
             if (error) throw error;
@@ -1388,8 +1503,91 @@ Muchas gracias.`;
         }
     };
 
+    const loadHexagonSettings = async () => {
+        try {
+            const settings = await getCompanyContractSettings(HEXAGON_EMPRESA_ID);
+            if (settings && Object.keys(settings).length > 0) {
+                setHexagonSettings((prev: any) => ({
+                    ...prev,
+                    ...settings,
+                    cargos_mapeamento: {
+                        ...(prev.cargos_mapeamento || {}),
+                        ...(settings.cargos_mapeamento || {})
+                    }
+                }));
+                if (settings.representante_signature_base64 && !companySavedSigBase64) {
+                    setCompanySavedSigBase64(settings.representante_signature_base64);
+                }
+            }
+        } catch (err) {
+            console.warn("Aviso ao carregar configurações SEPE da Hexagon:", err);
+        }
+    };
+
+    const handleSaveHexagonSettings = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        try {
+            setSavingHexagonSettings(true);
+            await updateCompanyContractSettings(HEXAGON_EMPRESA_ID, hexagonSettings);
+            toast.success("Configurações oficiais SEPE da Hexagon salvas com sucesso!");
+        } catch (err: any) {
+            console.error("Erro ao salvar configurações SEPE da Hexagon:", err);
+            toast.error(`Erro ao salvar configurações: ${err.message || err}`);
+        } finally {
+            setSavingHexagonSettings(false);
+        }
+    };
+
+    const populateSepeFormForWorker = async (workerId: string, currentSettings?: any) => {
+        const cfg = currentSettings || hexagonSettings;
+        try {
+            const [{ data: w }, { data: dr }, { data: wa }] = await Promise.all([
+                supabase.schema('core_personal').from('workers').select('*').eq('id', workerId).maybeSingle(),
+                supabase.schema('core_personal').from('document_requests').select('extracted_data').eq('worker_id', workerId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
+                supabase.schema('core_personal').from('worker_assignments').select('*, client:clients(trade_name, legal_name, address_line, city), site:client_sites(name, address_line, city, province, postal_code)').eq('worker_id', workerId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+            ]);
+
+            const ed = (dr as any)?.extracted_data || {};
+            const rawFunc = String(w?.funcion || ed?.funcion || 'AYUDANTE').trim().toUpperCase();
+            const cargosMap = cfg?.cargos_mapeamento || {};
+            let roleCfg = cargosMap[rawFunc];
+            if (!roleCfg) {
+                const matchedKey = Object.keys(cargosMap).find(k => rawFunc.includes(k.toUpperCase()) || k.toUpperCase().includes(rawFunc));
+                if (matchedKey) roleCfg = cargosMap[matchedKey];
+            }
+
+            const site = (wa as any)?.site;
+            const client = (wa as any)?.client;
+            const ctCalle = site?.address_line || site?.name || client?.address_line || client?.trade_name || 'SEGÚN OBRA ASIGNADA';
+            const ctCp = site?.postal_code || cfg?.cp_empresa || '08028';
+            const ctMun = site?.city || client?.city || cfg?.municipio_empresa || 'BARCELONA';
+            const startDate = ((wa as any)?.planned_start_date || (wa as any)?.start_date || ed?.start_date || new Date().toISOString()).substring(0, 10);
+
+            setSepeForm(prev => ({
+                ...prev,
+                puesto: roleCfg?.puesto || rawFunc || 'OPERARIO DE MONTAJE',
+                grupo_profesional: roleCfg?.grupo_profesional || 'OFICIALES / AYUDANTES SEGÚN CONVENIO',
+                funciones: roleCfg?.funciones || `Trabajos propios de la categoría de ${rawFunc} en obra`,
+                centro_trabajo_calle: ctCalle,
+                centro_trabajo_cp: ctCp,
+                centro_trabajo_municipio: ctMun,
+                fecha_inicio: startDate,
+                periodo_prueba: roleCfg?.periodo_prueba || cfg?.periodo_prueba_default || 'Según Convenio Colectivo aplicable',
+                retribucion_total: cfg?.retribucion_default || 'Según Convenio Colectivo aplicable',
+                convenio_colectivo: cfg?.convenio_colectivo || 'Convenio Colectivo del Sector de la Industria Siderometalúrgica / Construcción',
+                lugar_firma: cfg?.lugar_firma || 'Barcelona',
+                nuss: w?.nuss || ed?.nuss || w?.niss || ed?.niss || '',
+                codigo_postal: w?.codigo_postal || ed?.codigo_postal || '',
+                municipio_domicilio: w?.municipio_domicilio || ed?.municipio_domicilio || w?.location || ed?.ubicacion_actual || ctMun,
+            }));
+        } catch (err) {
+            console.warn("Aviso ao pré-preencher dados SEPE do trabalhador:", err);
+        }
+    };
+
     useEffect(() => {
         loadClients(selectedEmpresaId);
+        loadHexagonSettings();
     }, [selectedEmpresaId]);
 
     useEffect(() => {
@@ -1411,11 +1609,12 @@ Muchas gracias.`;
 
     useEffect(() => {
         if (generateDialogOpen) {
-            if (!selectedContractType) {
-                setSelectedContractType('contrato_termo_incerto');
-            }
+            const resolvedContratante = selectedContratante || resolveContratanteOption(activeEmpresaId || selectedEmpresaId);
             if (!selectedContratante) {
-                setSelectedContratante(resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
+                setSelectedContratante(resolvedContratante);
+            }
+            if (!selectedContractType) {
+                setSelectedContractType(resolvedContratante === 'HEXAGON' ? 'contrato_fijo_discontinuo' : 'contrato_termo_incerto');
             }
             if (workersList.length === 0) {
                 loadWorkers();
@@ -1424,7 +1623,8 @@ Muchas gracias.`;
     }, [generateDialogOpen, selectedEmpresaId, activeEmpresaId]);
 
     useEffect(() => {
-        if (previewBlob && previewContainerRef.current) {
+        const isPdfPreview = generationSuccess?.documentUrl?.toLowerCase().endsWith('.pdf') || generationSuccess?.contractType === 'contrato_fijo_discontinuo';
+        if (previewBlob && previewContainerRef.current && !isPdfPreview) {
             console.log("Renderizando visualização prévia do contrato gerado...");
             previewContainerRef.current.innerHTML = "";
             renderAsync(previewBlob, previewContainerRef.current, undefined, {
@@ -1448,7 +1648,7 @@ Muchas gracias.`;
                 console.error("Erro ao renderizar pré-visualização:", err);
             });
         }
-    }, [previewBlob]);
+    }, [previewBlob, generationSuccess]);
 
     useEffect(() => {
         if (rescisaoPreviewBlob && rescisaoPreviewRef.current) {
@@ -1705,23 +1905,40 @@ Muchas gracias.`;
         try {
             setGenerating(true);
             setPreviewBlob(null);
+            const isSepeHexagon = selectedContractType === 'contrato_fijo_discontinuo';
             const res = await generateContract({
                 worker_id: selectedWorkerId,
                 assignment_id: selectedAssignmentId || undefined,
                 contratante: selectedContratante,
                 contract_type: selectedContractType,
-                empresa_id: selectedEmpresaId || undefined,
+                empresa_id: isSepeHexagon ? HEXAGON_EMPRESA_ID : (selectedEmpresaId || undefined),
+                ...(isSepeHexagon ? {
+                    sepe_overrides: sepeForm,
+                    worker_updates: {
+                        nuss: sepeForm.nuss,
+                        codigo_postal: sepeForm.codigo_postal,
+                        municipio_domicilio: sepeForm.municipio_domicilio
+                    }
+                } : {})
             });
 
             setGenerationSuccess({
+                contractId: res.contract_id,
                 signingLink: res.signing_link,
                 otpCode: res.otp_code,
+                companyOtpCode: res.company_otp_code,
                 emailSent: res.email_sent,
                 contractType: selectedContractType,
                 documentUrl: res.document_url
             });
             
-            toast.success(selectedContractType === 'contrato_alta' ? "Contrato de alta emitido!" : "Contrato emitido e pronto para assinatura!");
+            toast.success(
+                selectedContractType === 'contrato_alta'
+                    ? "Contrato de alta emitido!"
+                    : selectedContractType === 'contrato_fijo_discontinuo'
+                    ? "Contrato Oficial SEPE Fijo-Discontinuo emitido e pronto para assinatura bilateral!"
+                    : "Contrato emitido e pronto para assinatura!"
+            );
             loadContracts();
 
             // Baixar o arquivo para visualização prévia
@@ -1763,6 +1980,218 @@ Muchas gracias.`;
             toast.error(err.message || "Erro interno ao tentar emitir o contrato.");
         } finally {
             setGenerating(false);
+        }
+    };
+
+    // 4.1 Modal de Assinatura Eletrônica da Empresa (Representante Legal — Bilateral OTP)
+    const handleOpenCompanySignModal = (contract: Contract) => {
+        setCompanySigningContract(contract);
+        const repName = contract.metadata?.representante_nombre || hexagonSettings?.representante_nombre || 'REPRESENTANTE LEGAL HEXAGON';
+        const repDoc = contract.metadata?.representante_nif || hexagonSettings?.representante_nif || hexagonSettings?.cif || 'B19394493';
+        const repCargo = contract.metadata?.representante_cargo || hexagonSettings?.representante_cargo || 'ADMINISTRADOR ÚNICO';
+        const repEmail = hexagonSettings?.representante_email || '';
+        const otpDefault = contract.metadata?.company_otp_code || '';
+
+        setCompanySignerName(repName);
+        setCompanySignerDocument(repDoc);
+        setCompanySignerCargo(repCargo);
+        setCompanySignerEmail(repEmail);
+        setCompanyTypedSignature(repName);
+        setCompanyOtpInput(otpDefault);
+
+        const savedSig = (() => {
+            try { return localStorage.getItem('hexagon_rep_signature'); } catch { return null; }
+        })() || hexagonSettings?.representante_signature_base64 || null;
+        setCompanySavedSigBase64(savedSig);
+        setCompanySignMode(savedSig ? 'saved' : 'draw');
+        setHasDrawnCompanySig(false);
+        setCompanySignDialogOpen(true);
+    };
+
+    const startDrawingCompany = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        const canvas = companyCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        setIsDrawingCompanySig(true);
+        setHasDrawnCompanySig(true);
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const clientX = ('touches' in e ? e.touches[0].clientX : e.clientX) - rect.left;
+        const clientY = ('touches' in e ? e.touches[0].clientY : e.clientY) - rect.top;
+
+        ctx.beginPath();
+        ctx.moveTo(clientX * scaleX, clientY * scaleY);
+    };
+
+    const drawCompany = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+        if (!isDrawingCompanySig) return;
+        const canvas = companyCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const clientX = ('touches' in e ? e.touches[0].clientX : e.clientX) - rect.left;
+        const clientY = ('touches' in e ? e.touches[0].clientY : e.clientY) - rect.top;
+
+        ctx.lineTo(clientX * scaleX, clientY * scaleY);
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+    };
+
+    const stopDrawingCompany = () => {
+        setIsDrawingCompanySig(false);
+    };
+
+    const clearCompanyCanvas = () => {
+        const canvas = companyCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            setHasDrawnCompanySig(false);
+        }
+    };
+
+    const generateTypedSignaturePng = (nameText: string): string => {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = 480;
+        offCanvas.height = 160;
+        const ctx = offCanvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, offCanvas.width, offCanvas.height);
+            ctx.fillStyle = '#0f172a';
+            ctx.font = 'italic bold 34px Georgia, "Times New Roman", serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(nameText.trim(), offCanvas.width / 2, offCanvas.height / 2 - 10, 440);
+            ctx.font = 'bold 12px Helvetica, Arial, sans-serif';
+            ctx.fillStyle = '#334155';
+            ctx.fillText(`FIRMA DIGITAL EMPRESA — ${companySignerDocument || 'B19394493'}`, offCanvas.width / 2, offCanvas.height / 2 + 28);
+        }
+        return offCanvas.toDataURL('image/png');
+    };
+
+    const handleRequestNewCompanyOtp = async () => {
+        if (!companySigningContract) return;
+        try {
+            setRequestingCompanyOtp(true);
+            const res = await requestCompanyOtp(companySigningContract.id, companySignerEmail || undefined);
+            if (res.company_otp_code) {
+                setCompanyOtpInput(res.company_otp_code);
+                toast.success(
+                    res.email_sent
+                        ? `Novo código OTP (${res.company_otp_code}) gerado e enviado para ${companySignerEmail}!`
+                        : `Novo código OTP da empresa gerado: ${res.company_otp_code}`
+                );
+            }
+        } catch (err: any) {
+            toast.error(`Erro ao gerar código OTP da empresa: ${err.message || err}`);
+        } finally {
+            setRequestingCompanyOtp(false);
+        }
+    };
+
+    const handleSubmitCompanySign = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!companySigningContract) return;
+        if (!companySignerName.trim()) {
+            toast.error("Informe o nome do Representante Legal da Empresa.");
+            return;
+        }
+        if (!companyOtpInput || companyOtpInput.trim().length < 6) {
+            toast.error("Informe o código OTP de 6 dígitos da Empresa.");
+            return;
+        }
+
+        let signatureBase64 = '';
+        if (companySignMode === 'saved') {
+            if (!companySavedSigBase64) {
+                toast.error("Nenhuma rubrica salva encontrada. Desenhe ou digite sua assinatura.");
+                return;
+            }
+            signatureBase64 = companySavedSigBase64;
+        } else if (companySignMode === 'type') {
+            if (!companyTypedSignature.trim()) {
+                toast.error("Digite o nome para gerar a rubrica digital.");
+                return;
+            }
+            signatureBase64 = generateTypedSignaturePng(companyTypedSignature);
+        } else {
+            if (!hasDrawnCompanySig || !companyCanvasRef.current) {
+                toast.error("Desenhe a assinatura do representante no quadro antes de confirmar.");
+                return;
+            }
+            signatureBase64 = companyCanvasRef.current.toDataURL('image/png');
+        }
+
+        try {
+            setSubmittingCompanySign(true);
+            const res = await signContractAsCompany({
+                contract_id: companySigningContract.id,
+                otp_code: companyOtpInput.trim(),
+                signature_base64: signatureBase64,
+                signer_name: companySignerName.trim(),
+                signer_document: companySignerDocument.trim(),
+                signer_cargo: companySignerCargo.trim(),
+            });
+
+            if (companySaveDefaultSig && signatureBase64) {
+                try {
+                    localStorage.setItem('hexagon_rep_signature', signatureBase64);
+                    setCompanySavedSigBase64(signatureBase64);
+                } catch {}
+                if (companySigningContract.empresa_id === HEXAGON_EMPRESA_ID || companySigningContract.contratante === 'HEXAGON') {
+                    const updatedCfg = {
+                        ...hexagonSettings,
+                        representante_nombre: companySignerName.trim(),
+                        representante_nif: companySignerDocument.trim(),
+                        representante_cargo: companySignerCargo.trim(),
+                        representante_email: companySignerEmail.trim(),
+                        representante_signature_base64: signatureBase64
+                    };
+                    setHexagonSettings(updatedCfg);
+                    updateCompanyContractSettings(HEXAGON_EMPRESA_ID, updatedCfg).catch(() => {});
+                }
+            }
+
+            toast.success("Assinatura Eletrônica da Empresa (Representante Legal) aplicada com sucesso no PDF e no Certificado eIDAS!");
+            setCompanySignDialogOpen(false);
+            loadContracts();
+
+            // Se estávamos na tela de pós-geração deste mesmo contrato, recarrega o preview do PDF assinado!
+            if (generationSuccess && generationSuccess.contractId === companySigningContract.id && res.signed_document_url) {
+                try {
+                    setLoadingPreview(true);
+                    const { data: signedData } = await supabase.storage
+                        .from('worker-contracts')
+                        .createSignedUrl(`${res.signed_document_url}?t=${Date.now()}`, 300);
+                    if (signedData?.signedUrl) {
+                        const fileRes = await fetch(signedData.signedUrl);
+                        if (fileRes.ok) {
+                            const blob = await fileRes.blob();
+                            setPreviewBlob(blob);
+                        }
+                    }
+                } catch (e) {
+                    console.warn("Erro ao atualizar preview pós-assinatura:", e);
+                } finally {
+                    setLoadingPreview(false);
+                }
+            }
+        } catch (err: any) {
+            console.error("Erro ao assinar contrato pela empresa:", err);
+            toast.error(err.message || "Falha ao registrar assinatura da empresa.");
+        } finally {
+            setSubmittingCompanySign(false);
         }
     };
 
@@ -2013,7 +2442,11 @@ Muchas gracias.`;
             pais_residencia: data.pais_residencia || '',
             licencia_conducir: data.licencia_conducir || req.worker?.licencia_conducir || '',
             nacionalidade: data.nacionalidade || req.worker?.nacionalidade || '',
-            fecha_nacimiento: normalizedBirthDate
+            fecha_nacimiento: normalizedBirthDate,
+            nuss: data.nuss || (req.worker as any)?.nuss || req.worker?.niss || data.niss || '',
+            codigo_postal: data.codigo_postal || (req.worker as any)?.codigo_postal || '',
+            municipio_domicilio: data.municipio_domicilio || (req.worker as any)?.municipio_domicilio || req.worker?.location || data.ubicacion_actual || '',
+            nivel_formativo: data.nivel_formativo || (req.worker as any)?.nivel_formativo || '00'
         });
         setActiveDocTab('identity');
         setResidenceSide('front');
@@ -2552,6 +2985,10 @@ Muchas gracias.`;
                 licencia_conducir: verifyFormData.licencia_conducir || undefined,
                 nacionalidade: verifyFormData.nacionalidade || undefined,
                 fecha_nacimiento: cleanBirthDate || undefined,
+                nuss: verifyFormData.nuss || undefined,
+                codigo_postal: verifyFormData.codigo_postal || undefined,
+                municipio_domicilio: verifyFormData.municipio_domicilio || undefined,
+                nivel_formativo: verifyFormData.nivel_formativo || undefined,
                 camiseta: verifyFormData.talla_camisa || undefined,
                 pantalones: verifyFormData.talla_pantalon || undefined,
                 foto: selectedRequest.selfie_url 
@@ -2595,7 +3032,7 @@ Muchas gracias.`;
         // Pré-seleciona contratante com base na empresa ativa
         const defaultContratante = resolveContratanteOption(activeEmpresaId || selectedEmpresaId);
         setSelectedContratante(defaultContratante);
-        setSelectedContractType('contrato_termo_incerto');
+        setSelectedContractType(defaultContratante === 'HEXAGON' ? 'contrato_fijo_discontinuo' : 'contrato_termo_incerto');
         
         setGenerateDialogOpen(true);
         loadWorkers();
@@ -2612,8 +3049,12 @@ Muchas gracias.`;
         const contratanteName = resolveContratanteOption(empresaId || activeEmpresaId || selectedEmpresaId);
         setSelectedContratante(contratanteName);
         
-        // 3. Pré-definir modelo de contrato padrão
-        setSelectedContractType('contrato_termo_incerto');
+        // 3. Pré-definir modelo de contrato padrão (SEPE Fijo-Discontinuo quando Hexagon)
+        const defaultType = contratanteName === 'HEXAGON' ? 'contrato_fijo_discontinuo' : 'contrato_termo_incerto';
+        setSelectedContractType(defaultType);
+        if (contratanteName === 'HEXAGON') {
+            populateSepeFormForWorker(workerId);
+        }
 
         // 4. Se tiver workerObj, injeta imediatamente na workersList
         if (workerObj && workerObj.nome) {
@@ -3277,11 +3718,12 @@ Muchas gracias.`;
                                 setGenerationSuccess(null);
                                 setPreviewBlob(null);
                             } else {
-                                if (!selectedContractType) {
-                                    setSelectedContractType('contrato_termo_incerto');
-                                }
+                                const resolvedContratante = selectedContratante || resolveContratanteOption(activeEmpresaId || selectedEmpresaId);
                                 if (!selectedContratante) {
-                                    setSelectedContratante(resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
+                                    setSelectedContratante(resolvedContratante);
+                                }
+                                if (!selectedContractType) {
+                                    setSelectedContractType(resolvedContratante === 'HEXAGON' ? 'contrato_fijo_discontinuo' : 'contrato_termo_incerto');
                                 }
                             }
                         }}>
@@ -3292,98 +3734,266 @@ Muchas gracias.`;
                                 <Plus className="h-4 w-4" />
                                 Gerar Contrato
                             </Button>
-                            <DialogContent className={`${generationSuccess ? 'max-w-7xl h-[85vh]' : 'max-w-md'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
+                            <DialogContent className={`${generationSuccess ? 'max-w-7xl h-[88vh]' : selectedContractType === 'contrato_fijo_discontinuo' ? 'max-w-3xl max-h-[92vh]' : 'max-w-md'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader>
                                     <DialogTitle>Gerar Novo Contrato</DialogTitle>
                                     <DialogDescription>
-                                        Selecione o trabalhador e o modelo de contrato. O sistema gerará o arquivo automaticamente com validade eIDAS.
+                                        Selecione o trabalhador e o modelo de contrato. O sistema gerará o arquivo automaticamente com validade eIDAS (incluindo o modelo oficial SEPE Fijo-Discontinuo em PDF para a Hexagon).
                                     </DialogDescription>
                                 </DialogHeader>
 
                                 {!generationSuccess ? (
-                                    <form onSubmit={handleGenerate} className="space-y-4 pt-2">
-                                        <div className="space-y-2">
-                                            <Label>Selecionar Trabalhador</Label>
-                                            <Combobox
-                                                options={workersList}
-                                                value={selectedWorkerId || ''}
-                                                onChange={async (val) => {
-                                                    setSelectedWorkerId(val || null);
-                                                    if (val) {
-                                                        try {
-                                                            const { data: wa } = await supabase
-                                                                .schema('core_personal')
-                                                                .from('worker_assignments')
-                                                                .select('id, empresa_id')
-                                                                .eq('worker_id', val)
-                                                                .order('created_at', { ascending: false })
-                                                                .limit(1)
-                                                                .maybeSingle();
-
-                                                            if (wa) {
-                                                                setSelectedAssignmentId(wa.id);
-                                                                if (wa.empresa_id) {
-                                                                    setSelectedContratante(resolveContratanteOption(wa.empresa_id));
-                                                                }
-                                                            } else {
-                                                                const { data: dr } = await supabase
+                                    <form onSubmit={handleGenerate} className="space-y-4 pt-2 overflow-y-auto pr-1">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div className="space-y-1.5 md:col-span-1">
+                                                <Label>Selecionar Trabalhador</Label>
+                                                <Combobox
+                                                    options={workersList}
+                                                    value={selectedWorkerId || ''}
+                                                    onChange={async (val) => {
+                                                        setSelectedWorkerId(val || null);
+                                                        if (val) {
+                                                            try {
+                                                                const { data: wa } = await supabase
                                                                     .schema('core_personal')
-                                                                    .from('document_requests')
-                                                                    .select('empresa_id')
+                                                                    .from('worker_assignments')
+                                                                    .select('id, empresa_id')
                                                                     .eq('worker_id', val)
                                                                     .order('created_at', { ascending: false })
                                                                     .limit(1)
                                                                     .maybeSingle();
-                                                                if (dr?.empresa_id) {
-                                                                    setSelectedContratante(resolveContratanteOption(dr.empresa_id));
+
+                                                                let resolvedCont = selectedContratante;
+                                                                if (wa) {
+                                                                    setSelectedAssignmentId(wa.id);
+                                                                    if (wa.empresa_id) {
+                                                                        resolvedCont = resolveContratanteOption(wa.empresa_id);
+                                                                        setSelectedContratante(resolvedCont);
+                                                                    }
+                                                                } else {
+                                                                    const { data: dr } = await supabase
+                                                                        .schema('core_personal')
+                                                                        .from('document_requests')
+                                                                        .select('empresa_id')
+                                                                        .eq('worker_id', val)
+                                                                        .order('created_at', { ascending: false })
+                                                                        .limit(1)
+                                                                        .maybeSingle();
+                                                                    if (dr?.empresa_id) {
+                                                                        resolvedCont = resolveContratanteOption(dr.empresa_id);
+                                                                        setSelectedContratante(resolvedCont);
+                                                                    }
                                                                 }
+
+                                                                if (resolvedCont === 'HEXAGON') {
+                                                                    setSelectedContractType('contrato_fijo_discontinuo');
+                                                                    populateSepeFormForWorker(val);
+                                                                } else if (selectedContractType === 'contrato_fijo_discontinuo') {
+                                                                    populateSepeFormForWorker(val);
+                                                                }
+                                                            } catch (err) {
+                                                                console.error("Erro ao auto-selecionar contratante do trabalhador:", err);
                                                             }
-                                                        } catch (err) {
-                                                            console.error("Erro ao auto-selecionar contratante do trabalhador:", err);
                                                         }
-                                                    }
-                                                }}
-                                                placeholder="Digite o nome do trabalhador..."
-                                            />
+                                                    }}
+                                                    placeholder="Digite o nome do trabalhador..."
+                                                />
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label>Empresa Contratante</Label>
+                                                <Select
+                                                    value={selectedContratante || undefined}
+                                                    onValueChange={(val) => {
+                                                        setSelectedContratante(val);
+                                                        if (val === 'HEXAGON') {
+                                                            setSelectedContractType('contrato_fijo_discontinuo');
+                                                            if (selectedWorkerId) populateSepeFormForWorker(selectedWorkerId);
+                                                        } else if (selectedContractType === 'contrato_fijo_discontinuo') {
+                                                            setSelectedContractType('contrato_termo_incerto');
+                                                        }
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                                                        <SelectValue placeholder="Selecione a empresa contratante..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="z-[9999]">
+                                                        <SelectItem value="STOCCO">Stocco</SelectItem>
+                                                        <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
+                                                        <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
+                                                        <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
+                                                        <SelectItem value="TRIANGULO">Triangulo</SelectItem>
+                                                        <SelectItem value="HEXAGON">Hexagon (Espanha - SEPE)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <Label>Modelo de Contrato</Label>
+                                                <Select
+                                                    value={selectedContractType || undefined}
+                                                    onValueChange={(val) => {
+                                                        setSelectedContractType(val);
+                                                        if (val === 'contrato_fijo_discontinuo' && selectedWorkerId) {
+                                                            populateSepeFormForWorker(selectedWorkerId);
+                                                        }
+                                                    }}
+                                                >
+                                                    <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
+                                                        <SelectValue placeholder="Selecione o tipo de contrato..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="z-[9999]">
+                                                        <SelectItem value="contrato_fijo_discontinuo">🇪🇸 Contrato Indefinido Fijo-Discontinuo (SEPE Cód. 300 - Oficial PDF)</SelectItem>
+                                                        <SelectItem value="contrato_termo_incerto">🇵🇹 Contrato a Termo Incerto (Passaporte)</SelectItem>
+                                                        <SelectItem value="contrato_nis">🇵🇹 Contrato NIS (NIF)</SelectItem>
+                                                        <SelectItem value="contrato_alta">📋 Contrato de Alta (Contabilidade - Sem Assinatura)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <Label>Empresa Contratante</Label>
-                                            <Select value={selectedContratante || undefined} onValueChange={setSelectedContratante}>
-                                                <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                                                    <SelectValue placeholder="Selecione a empresa contratante..." />
-                                                </SelectTrigger>
-                                                <SelectContent className="z-[9999]">
-                                                    <SelectItem value="STOCCO">Stocco</SelectItem>
-                                                    <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
-                                                    <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
-                                                    <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
-                                                    <SelectItem value="TRIANGULO">Triangulo</SelectItem>
-                                            <SelectItem value="HEXAGON">Hexagon</SelectItem>
+                                        {selectedContractType === 'contrato_fijo_discontinuo' && (
+                                            <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-3">
+                                                <div className="flex items-center justify-between border-b border-indigo-200 dark:border-indigo-800/80 pb-2">
+                                                    <div>
+                                                        <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                                                            🇪🇸 Dados Oficiais SEPE — Contrato Indefinido Fijo-Discontinuo (Código 300)
+                                                        </h4>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                                            Pré-preenchido com os dados da obra/alocação, cargo do trabalhador e configurações da Hexagon. Ajuste se necessário antes de emitir o PDF.
+                                                        </p>
+                                                    </div>
+                                                    <Badge variant="outline" className="font-mono text-[10px] border-indigo-300 text-indigo-700 dark:text-indigo-300">
+                                                        7 Páginas Oficiais + eIDAS
+                                                    </Badge>
+                                                </div>
 
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Nº Afiliación Seg. Social (NUSS - 12 dígitos)</Label>
+                                                        <Input
+                                                            value={sepeForm.nuss}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, nuss: e.target.value }))}
+                                                            placeholder="Ex: 081234567890"
+                                                            className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Município Domicílio do Trabalhador</Label>
+                                                        <Input
+                                                            value={sepeForm.municipio_domicilio}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, municipio_domicilio: e.target.value }))}
+                                                            placeholder="Ex: BARCELONA"
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Código Postal (CP Domicílio)</Label>
+                                                        <Input
+                                                            value={sepeForm.codigo_postal}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, codigo_postal: e.target.value }))}
+                                                            placeholder="Ex: 08028"
+                                                            className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                </div>
 
-                                        <div className="space-y-2">
-                                            <Label>Modelo de Contrato</Label>
-                                            <Select value={selectedContractType || undefined} onValueChange={setSelectedContractType}>
-                                                <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                                                    <SelectValue placeholder="Selecione o tipo de contrato..." />
-                                                </SelectTrigger>
-                                                <SelectContent className="z-[9999]">
-                                                    <SelectItem value="contrato_termo_incerto">Contrato a Termo Incerto (Passaporte)</SelectItem>
-                                                    <SelectItem value="contrato_nis">Contrato NIS (NIF)</SelectItem>
-                                                    <SelectItem value="contrato_alta">Contrato de Alta (Contabilidade - Sem Assinatura)</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Puesto de Trabajo (Primera Cláusula)</Label>
+                                                        <Input
+                                                            value={sepeForm.puesto}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, puesto: e.target.value }))}
+                                                            placeholder="Ex: OFICIAL MONTADOR DE ESTRUCTURAS METÁLICAS"
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900 font-semibold"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Grupo Profesional</Label>
+                                                        <Input
+                                                            value={sepeForm.grupo_profesional}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, grupo_profesional: e.target.value }))}
+                                                            placeholder="Ex: GRUPO 5 / OFICIALES DE PRIMERA Y SEGUNDA"
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <Label className="text-xs font-semibold">Funciones que va a desarrollar</Label>
+                                                    <Input
+                                                        value={sepeForm.funciones}
+                                                        onChange={(e) => setSepeForm(p => ({ ...p, funciones: e.target.value }))}
+                                                        placeholder="Ex: Montaje, ensamblaje y fijación de estructuras metálicas en obra"
+                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                    />
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Centro de Trabajo (Obra / Calle)</Label>
+                                                        <Input
+                                                            value={sepeForm.centro_trabajo_calle}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_calle: e.target.value }))}
+                                                            placeholder="Ex: Obra Camp Nou, Av. d'Arístides Maillol"
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Município da Obra</Label>
+                                                        <Input
+                                                            value={sepeForm.centro_trabajo_municipio}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_municipio: e.target.value }))}
+                                                            placeholder="Ex: BARCELONA"
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">CP da Obra</Label>
+                                                        <Input
+                                                            value={sepeForm.centro_trabajo_cp}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_cp: e.target.value }))}
+                                                            placeholder="Ex: 08028"
+                                                            className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Fecha de Inicio (Quinta Cláusula)</Label>
+                                                        <Input
+                                                            type="date"
+                                                            value={sepeForm.fecha_inicio}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, fecha_inicio: e.target.value }))}
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900 font-semibold"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Período de Prueba</Label>
+                                                        <Input
+                                                            value={sepeForm.periodo_prueba}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, periodo_prueba: e.target.value }))}
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-xs font-semibold">Retribución Total (Sexta Cláusula)</Label>
+                                                        <Input
+                                                            value={sepeForm.retribucion_total}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, retribucion_total: e.target.value }))}
+                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="flex justify-end gap-2 pt-2">
                                             <Button type="button" variant="outline" onClick={() => setGenerateDialogOpen(false)}>Cancelar</Button>
                                             <Button type="submit" disabled={generating} className="bg-indigo-600 hover:bg-indigo-500">
                                                 {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                                Gerar Contrato
+                                                {selectedContractType === 'contrato_fijo_discontinuo' ? 'Emitir Contrato SEPE (.PDF)' : 'Gerar Contrato'}
                                             </Button>
                                         </div>
                                     </form>
@@ -3409,11 +4019,15 @@ Muchas gracias.`;
                                                     display: inline-block !important;
                                                 }
                                             `}</style>
-                                            <div ref={previewContainerRef} className="docx-wrapper" />
+                                            {(generationSuccess.documentUrl?.toLowerCase().endsWith('.pdf') || generationSuccess.contractType === 'contrato_fijo_discontinuo') && previewBlob ? (
+                                                <PdfCanvasViewer pdfBlob={previewBlob} scale={1.35} />
+                                            ) : (
+                                                <div ref={previewContainerRef} className="docx-wrapper" />
+                                            )}
                                         </div>
 
                                         {/* Painel Direito: Ações e Status */}
-                                        <div className="w-full md:w-[380px] shrink-0 flex flex-col justify-between bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800 overflow-y-auto">
+                                        <div className="w-full md:w-[390px] shrink-0 flex flex-col justify-between bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-200 dark:border-slate-800 overflow-y-auto">
                                             <div className="space-y-4">
                                                 <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
                                                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
@@ -3426,11 +4040,20 @@ Muchas gracias.`;
                                                         </p>
                                                     ) : (
                                                         <>
-                                                            <p className="text-xs text-slate-500">
-                                                                Código OTP temporário (Desenvolvimento): <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800 px-2 py-0.5 rounded">{generationSuccess.otpCode}</span>
-                                                            </p>
+                                                            <div className="space-y-1.5 bg-white/80 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                                                                <p className="text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                                                                    <span>OTP Trabalhador:</span>
+                                                                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800 px-2 py-0.5 rounded">{generationSuccess.otpCode}</span>
+                                                                </p>
+                                                                {generationSuccess.companyOtpCode && (
+                                                                    <p className="text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                                                                        <span>OTP Empresa (Representante):</span>
+                                                                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-slate-800 px-2 py-0.5 rounded">{generationSuccess.companyOtpCode}</span>
+                                                                    </p>
+                                                                )}
+                                                            </div>
                                                             <div className="space-y-1">
-                                                                <Label className="text-xs text-muted-foreground">Link de Assinatura Pública</Label>
+                                                                <Label className="text-xs text-muted-foreground">Link de Assinatura do Trabalhador</Label>
                                                                 <div className="flex gap-2">
                                                                     <Input readOnly value={generationSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
                                                                     <Button size="icon" variant="outline" onClick={() => handleCopyContractSignLink(generationSuccess.signingLink, workersList.find(w => w.value === selectedWorkerId)?.label.split(' (')[0], generationSuccess.otpCode)} title="Copiar mensagem padrão com link e código OTP">
@@ -3441,8 +4064,40 @@ Muchas gracias.`;
                                                         </>
                                                     )}
 
+                                                    {/* Botão de Assinatura Eletrônica da Empresa (Bilateral OTP) */}
+                                                    {generationSuccess.contractType !== 'contrato_alta' && generationSuccess.contractId && (
+                                                        <div className="pt-1">
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center justify-center gap-2 shadow-sm"
+                                                                onClick={() => {
+                                                                    const found = contracts.find(c => c.id === generationSuccess.contractId);
+                                                                    handleOpenCompanySignModal(found || ({
+                                                                        id: generationSuccess.contractId!,
+                                                                        empresa_id: selectedContratante === 'HEXAGON' ? HEXAGON_EMPRESA_ID : (selectedEmpresaId || ''),
+                                                                        worker_id: selectedWorkerId || '',
+                                                                        contratante: selectedContratante,
+                                                                        contract_type: generationSuccess.contractType || selectedContractType,
+                                                                        document_url: generationSuccess.documentUrl || '',
+                                                                        status: 'pending_signature',
+                                                                        metadata: {
+                                                                            company_otp_code: generationSuccess.companyOtpCode,
+                                                                            representante_nombre: hexagonSettings?.representante_nombre,
+                                                                            representante_nif: hexagonSettings?.representante_nif,
+                                                                            representante_cargo: hexagonSettings?.representante_cargo,
+                                                                        }
+                                                                    } as Contract));
+                                                                }}
+                                                            >
+                                                                <PenTool className="h-4 w-4" />
+                                                                Assinar Agora pela Empresa (OTP)
+                                                            </Button>
+                                                        </div>
+                                                    )}
+
                                                     {generationSuccess.documentUrl && (
-                                                        <div className="pt-2">
+                                                        <div className="pt-1">
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
@@ -3454,7 +4109,7 @@ Muchas gracias.`;
                                                                 } as any)}
                                                             >
                                                                 <FileText className="h-4 w-4" />
-                                                                Baixar Arquivo Gerado (.docx)
+                                                                Baixar Arquivo Gerado ({generationSuccess.documentUrl.toLowerCase().endsWith('.pdf') ? '.pdf' : '.docx'})
                                                             </Button>
                                                         </div>
                                                     )}
@@ -4514,29 +5169,67 @@ Muchas gracias.`;
                                                         </TableCell>
                                                         <TableCell>
                                                             <Badge variant="outline" className="capitalize">
-                                                                {contract.contract_type.replace('_', ' ')}
+                                                                {contract.contract_type === 'contrato_fijo_discontinuo'
+                                                                    ? '🇪🇸 SEPE Fijo-Discontinuo (.PDF)'
+                                                                    : contract.contract_type.replace(/_/g, ' ')}
                                                             </Badge>
                                                         </TableCell>
-                                                        <TableCell className="font-mono text-indigo-600 dark:text-indigo-400 font-bold">
-                                                            {contract.otp_code || '-'}
+                                                        <TableCell className="font-mono text-xs">
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <span className="text-indigo-600 dark:text-indigo-400 font-bold" title="OTP do Trabalhador">
+                                                                    Trab: {contract.otp_code || '-'}
+                                                                </span>
+                                                                {contract.metadata?.company_otp_code && (
+                                                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="OTP do Representante da Empresa">
+                                                                        Emp: {contract.metadata.company_otp_code}
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell>
-                                                            <Badge className={
-                                                                contract.status === 'signed' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
-                                                                contract.status === 'pending_signature' ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-amber-500/20' :
-                                                                contract.status === 'no_signature' ? 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 border-slate-500/20' :
-                                                                'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10'
-                                                            }>
-                                                                {contract.status === 'signed' ? 'Assinado' :
-                                                                 contract.status === 'pending_signature' ? 'Pendente Assinatura' :
-                                                                 contract.status === 'no_signature' ? 'Não Requer Assinatura' :
-                                                                 contract.status}
-                                                            </Badge>
+                                                            <div className="flex flex-col gap-1">
+                                                                <Badge className={
+                                                                    contract.status === 'signed' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20 w-fit' :
+                                                                    contract.status === 'pending_signature' ? 'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10 border-amber-500/20 w-fit' :
+                                                                    contract.status === 'no_signature' ? 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 border-slate-500/20 w-fit' :
+                                                                    'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 w-fit'
+                                                                }>
+                                                                    {contract.status === 'signed' ? 'Trabalhador: Assinado ✓' :
+                                                                     contract.status === 'pending_signature' ? 'Trabalhador: Pendente' :
+                                                                     contract.status === 'no_signature' ? 'Não Requer Assinatura' :
+                                                                     contract.status}
+                                                                </Badge>
+                                                                {contract.status !== 'no_signature' && (contract.contract_type === 'contrato_fijo_discontinuo' || contract.metadata?.company_signed !== undefined || contract.contratante === 'HEXAGON') && (
+                                                                    <Badge variant="outline" className={
+                                                                        contract.metadata?.company_signed
+                                                                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] w-fit'
+                                                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 text-[10px] w-fit'
+                                                                    }>
+                                                                        {contract.metadata?.company_signed ? 'Empresa: Assinada ✓' : 'Empresa: Pendente'}
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
                                                         </TableCell>
                                                         <TableCell className="text-sm text-slate-500">
                                                             {contract.created_at ? new Date(contract.created_at).toLocaleDateString('pt-PT') : '-'}
                                                         </TableCell>
                                                         <TableCell className="text-right space-x-1.5 whitespace-nowrap">
+                                                            {contract.status !== 'no_signature' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant={contract.metadata?.company_signed ? "outline" : "default"}
+                                                                    onClick={() => handleOpenCompanySignModal(contract)}
+                                                                    title={contract.metadata?.company_signed ? "Reassinar ou atualizar assinatura do Representante da Empresa" : "Assinar eletronicamente como Representante da Empresa (OTP)"}
+                                                                    className={contract.metadata?.company_signed
+                                                                        ? "h-8 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
+                                                                        : "h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
+                                                                    }
+                                                                >
+                                                                    <PenTool className="h-3.5 w-3.5" />
+                                                                    {contract.metadata?.company_signed ? 'Empresa ✓' : 'Assinar Empresa'}
+                                                                </Button>
+                                                            )}
+
                                                             <Button
                                                                 size="icon"
                                                                 variant="ghost"
@@ -5332,7 +6025,7 @@ Muchas gracias.`;
                     </TabsContent>
 
                     {/* Conteúdo 4: Configuração de Modelos */}
-                    <TabsContent value="templates" className="flex-1 overflow-y-auto min-h-0 pt-4">
+                    <TabsContent value="templates" className="flex-1 overflow-y-auto min-h-0 pt-4 space-y-6">
                         <div className="rounded-md border bg-card p-6">
                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
                                 <div>
@@ -5341,7 +6034,7 @@ Muchas gracias.`;
                                         Modelos de Contratos e Documentos
                                     </h3>
                                     <p className="text-sm text-slate-500 mt-1">
-                                        Selecione a empresa contratante para gerenciar e customizar os modelos de arquivo .docx
+                                        Selecione a empresa contratante para gerenciar e customizar os modelos de arquivo (.docx e .pdf SEPE) e os parâmetros oficiais de preenchimento.
                                     </p>
                                 </div>
                                 <div className="w-full md:w-[320px]">
@@ -5356,7 +6049,7 @@ Muchas gracias.`;
                                             <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
                                             <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
                                             <SelectItem value="TRIANGULO">Triangulo</SelectItem>
-                                            <SelectItem value="HEXAGON">Hexagon</SelectItem>
+                                            <SelectItem value="HEXAGON">Hexagon (Espanha - SEPE)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -5364,29 +6057,40 @@ Muchas gracias.`;
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
                                 {[
+                                    ...(selectedConfigContratante === 'HEXAGON' ? [{
+                                        type: 'contrato_fijo_discontinuo',
+                                        name: '🇪🇸 Contrato Indefinido Fijo-Discontinuo (SEPE Cód. 300 - Oficial)',
+                                        desc: 'Modelo oficial em PDF editável do Ministério do Trabalho / SEPE da Espanha (7 páginas oficiais + Certificado Bilateral eIDAS).',
+                                        fileName: `CONTRATO FIJO DISCONTINUO - HEXAGON.pdf`,
+                                        ext: '.pdf'
+                                    }] : []),
                                     {
                                         type: 'contrato_termo_incerto',
                                         name: 'Contrato a Termo Incerto (Passaporte)',
                                         desc: 'Modelo padrão para admissão de trabalhadores temporários identificados por número de Passaporte.',
-                                        fileName: `CONTRATO TERMO INCERTO - ${selectedConfigContratante.toUpperCase()}.docx`
+                                        fileName: `CONTRATO TERMO INCERTO - ${selectedConfigContratante.toUpperCase()}.docx`,
+                                        ext: '.docx'
                                     },
                                     {
                                         type: 'contrato_nis',
                                         name: 'Contrato NIS (NIF)',
                                         desc: 'Modelo padrão para admissão de trabalhadores com identificação NISS/NIF registrada.',
-                                        fileName: `CONTRATO NIS - ${selectedConfigContratante.toUpperCase()}.docx`
+                                        fileName: `CONTRATO NIS - ${selectedConfigContratante.toUpperCase()}.docx`,
+                                        ext: '.docx'
                                     },
                                     {
                                         type: 'contrato_alta',
                                         name: 'Contrato de Alta (Sem Assinatura)',
                                         desc: 'Modelo enviado diretamente à contabilidade/administrativo. Não exige assinatura eletrônica do trabalhador.',
-                                        fileName: `CONTRATO DE ALTA - ${selectedConfigContratante.toUpperCase()}.docx`
+                                        fileName: `CONTRATO DE ALTA - ${selectedConfigContratante.toUpperCase()}.docx`,
+                                        ext: '.docx'
                                     },
                                     {
                                         type: 'rescisao',
                                         name: 'Carta de Rescisão (Solicitud de Rescisión)',
                                         desc: 'Modelo oficial em espanhol com cálculo de 15 dias de aviso prévio. Variáveis dinâmicas suportadas no Word: {{nome}}, {{linha_documentos}}, {{data_carta_extenso_es}}, {{data_efeito}}, {{data_inicio_aviso}}, {{data_fim_aviso}} e [ASSINATURA].',
-                                        fileName: `COMUNICADO RESCISAO ${selectedConfigContratante.toUpperCase()}.docx`
+                                        fileName: `COMUNICADO RESCISAO ${selectedConfigContratante.toUpperCase()}.docx`,
+                                        ext: '.docx'
                                     }
                                 ].map((doc) => (
                                     <div key={doc.type} className="flex flex-col justify-between border border-slate-200 dark:border-slate-800 rounded-lg p-5 bg-slate-50/50 dark:bg-slate-900/20 hover:shadow-sm transition-all">
@@ -5394,7 +6098,7 @@ Muchas gracias.`;
                                             <div className="flex items-start justify-between">
                                                 <h4 className="font-semibold text-slate-800 dark:text-slate-200">{doc.name}</h4>
                                                 <Badge variant="outline" className="text-[10px] font-mono border-indigo-100 bg-indigo-50/30 text-indigo-600 dark:border-slate-800 dark:text-indigo-400">
-                                                    .docx
+                                                    {doc.ext}
                                                 </Badge>
                                             </div>
                                             <p className="text-xs text-slate-500 leading-relaxed">{doc.desc}</p>
@@ -5450,12 +6154,385 @@ Muchas gracias.`;
                             </div>
                         </div>
 
+                        {/* Painel de Configuração Oficial SEPE para Hexagon (Espanha) */}
+                        {selectedConfigContratante === 'HEXAGON' && (
+                            <form onSubmit={handleSaveHexagonSettings} className="rounded-md border border-indigo-200 dark:border-indigo-800/80 bg-card p-6 space-y-6">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+                                            <Settings2 className="h-5 w-5" />
+                                            🇪🇸 Parâmetros Oficiais SEPE — Hexagon Montajes Industriales, S.L.
+                                        </h3>
+                                        <p className="text-xs text-slate-500 mt-1">
+                                            Configure os dados fixos da empresa, representante legal (para assinatura eletrônica OTP), conta de cotização da Seguridad Social e o mapeamento automático de funções para o Contrato Indefinido Fijo-Discontinuo (Cód. 300).
+                                        </p>
+                                    </div>
+                                    <Button type="submit" disabled={savingHexagonSettings} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-2">
+                                        {savingHexagonSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                        Salvar Parâmetros SEPE
+                                    </Button>
+                                </div>
+
+                                {/* 1. Representante Legal & Assinatura Digital da Empresa */}
+                                <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        1. Representante Legal da Empresa (Quadro "Datos de la Empresa" + Assinatura Bilateral OTP)
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">D./Dña. (Nome do Representante)</Label>
+                                            <Input
+                                                value={hexagonSettings.representante_nombre || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, representante_nombre: e.target.value }))}
+                                                placeholder="Ex: JUAN PÉREZ GARCÍA"
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">NIF / NIE do Representante</Label>
+                                            <Input
+                                                value={hexagonSettings.representante_nif || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, representante_nif: e.target.value }))}
+                                                placeholder="Ex: 12345678Z"
+                                                className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">En Concepto (Cargo)</Label>
+                                            <Input
+                                                value={hexagonSettings.representante_cargo || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, representante_cargo: e.target.value }))}
+                                                placeholder="Ex: ADMINISTRADOR ÚNICO"
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">E-mail p/ Receber OTP de Assinatura</Label>
+                                            <Input
+                                                type="email"
+                                                value={hexagonSettings.representante_email || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, representante_email: e.target.value }))}
+                                                placeholder="administracion@hexagon.es"
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 2. Dados da Empresa & Conta de Cotização (Seguridad Social) */}
+                                <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        2. Dados da Empresa, Conta de Cotização (CCC) & Atividade Econômica (CNAE)
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">CIF / NIF da Empresa</Label>
+                                            <Input
+                                                value={hexagonSettings.cif || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, cif: e.target.value }))}
+                                                placeholder="B19394493"
+                                                className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1 md:col-span-2">
+                                            <Label className="text-xs font-semibold">Nombre o Razón Social</Label>
+                                            <Input
+                                                value={hexagonSettings.razon_social || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, razon_social: e.target.value }))}
+                                                placeholder="HEXAGON MONTAJES INDUSTRIALES, S.L."
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Domicilio Social (Calle y Nº)</Label>
+                                            <Input
+                                                value={hexagonSettings.domicilio_social || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, domicilio_social: e.target.value }))}
+                                                placeholder="Ex: Calle..."
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-1">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Município Sede</Label>
+                                            <Input
+                                                value={hexagonSettings.municipio_empresa || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, municipio_empresa: e.target.value }))}
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Cód. INE Município</Label>
+                                            <Input
+                                                value={hexagonSettings.municipio_cod_empresa || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, municipio_cod_empresa: e.target.value }))}
+                                                placeholder="08019"
+                                                className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Código Postal</Label>
+                                            <Input
+                                                value={hexagonSettings.cp_empresa || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, cp_empresa: e.target.value }))}
+                                                placeholder="08028"
+                                                className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Régimen Seg. Social</Label>
+                                            <Input
+                                                value={hexagonSettings.ccc_regimen || '0111'}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, ccc_regimen: e.target.value }))}
+                                                placeholder="0111"
+                                                className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1 md:col-span-2">
+                                            <Label className="text-xs font-semibold">Conta de Cotização CCC (11 dígitos: Prov+Num+DC)</Label>
+                                            <Input
+                                                value={hexagonSettings.ccc_numero || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, ccc_numero: e.target.value }))}
+                                                placeholder="Ex: 08123456789"
+                                                className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Cód. CNAE</Label>
+                                            <Input
+                                                value={hexagonSettings.cnae_cod || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, cnae_cod: e.target.value }))}
+                                                placeholder="43"
+                                                className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1 md:col-span-2">
+                                            <Label className="text-xs font-semibold">Actividad Económica (Texto CNAE)</Label>
+                                            <Input
+                                                value={hexagonSettings.cnae_texto || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, cnae_texto: e.target.value }))}
+                                                placeholder="CONSTRUCCIÓN / MONTAJES INDUSTRIALES"
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">SEPE / Lugar de Firma</Label>
+                                            <Input
+                                                value={hexagonSettings.lugar_firma || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, lugar_firma: e.target.value, sepe_municipio: e.target.value.toUpperCase() }))}
+                                                placeholder="Barcelona"
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* 3. Condições Padrão do Contrato (Jornada, Salário, Férias, Convenio) */}
+                                <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                        3. Condições Laborais Padrão (Cláusulas 1ª a 9ª e Fijo-Discontinuo)
+                                    </h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-1 md:col-span-2">
+                                            <Label className="text-xs font-semibold">Convenio Colectivo Aplicável (Cláusula 8ª / Pág. 6)</Label>
+                                            <Input
+                                                value={hexagonSettings.convenio_colectivo || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, convenio_colectivo: e.target.value }))}
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Vacaciones Anuales (Cláusula 7ª)</Label>
+                                            <Input
+                                                value={hexagonSettings.vacaciones || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, vacaciones: e.target.value }))}
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Retribución Total Padrão (Cláusula 6ª)</Label>
+                                            <Input
+                                                value={hexagonSettings.retribucion_default || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, retribucion_default: e.target.value }))}
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Conceptos Salariales</Label>
+                                            <Input
+                                                value={hexagonSettings.conceptos_salariales || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, conceptos_salariales: e.target.value }))}
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Horário / Distribución Jornada (40h/sem)</Label>
+                                            <Input
+                                                value={hexagonSettings.horario_jornada || ''}
+                                                onChange={(e) => setHexagonSettings((p: any) => ({ ...p, horario_jornada: e.target.value }))}
+                                                className="h-9 text-xs bg-white dark:bg-slate-900"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label className="text-xs font-semibold">Actividad Cíclica / Intermitente Fijo-Discontinuo (Página 6 - Cláusula Específica Cód. 300)</Label>
+                                        <Input
+                                            value={hexagonSettings.actividad_fijo_discontinuo || ''}
+                                            onChange={(e) => setHexagonSettings((p: any) => ({ ...p, actividad_fijo_discontinuo: e.target.value }))}
+                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 4. Mapeamento de Cargos/Funções -> Puesto, Grupo Profesional e Funciones */}
+                                <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                        <div>
+                                            <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                                4. Mapeamento Automático de Cargos (Primera Cláusula SEPE)
+                                            </h4>
+                                            <p className="text-[11px] text-slate-500">
+                                                Quando o trabalhador tem um destes cargos na Solicitação/Obra, o sistema preenche automaticamente o Puesto, Grupo Profesional e Funciones no PDF.
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                value={newRoleKey}
+                                                onChange={(e) => setNewRoleKey(e.target.value)}
+                                                placeholder="Novo cargo (ex: SOLDADOR)"
+                                                className="h-8 text-xs w-48 bg-white dark:bg-slate-900"
+                                            />
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                className="h-8 text-xs font-semibold"
+                                                onClick={() => {
+                                                    const key = newRoleKey.trim().toUpperCase();
+                                                    if (!key) return;
+                                                    setHexagonSettings((prev: any) => ({
+                                                        ...prev,
+                                                        cargos_mapeamento: {
+                                                            ...(prev.cargos_mapeamento || {}),
+                                                            [key]: {
+                                                                puesto: key,
+                                                                grupo_profesional: 'SEGÚN CONVENIO COLECTIVO',
+                                                                funciones: `Trabajos propios de la categoría de ${key} en obra`,
+                                                                periodo_prueba: 'Según Convenio Colectivo'
+                                                            }
+                                                        }
+                                                    }));
+                                                    setNewRoleKey('');
+                                                }}
+                                            >
+                                                <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Cargo
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-3 pt-2">
+                                        {Object.entries(hexagonSettings.cargos_mapeamento || {}).map(([roleName, cfg]: [string, any]) => (
+                                            <div key={roleName} className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2">
+                                                <div className="flex items-center justify-between">
+                                                    <Badge className="bg-indigo-600 text-white font-mono text-xs">{roleName}</Badge>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-6 text-xs text-rose-500 hover:text-rose-700 px-2"
+                                                        onClick={() => {
+                                                            setHexagonSettings((prev: any) => {
+                                                                const nextMap = { ...(prev.cargos_mapeamento || {}) };
+                                                                delete nextMap[roleName];
+                                                                return { ...prev, cargos_mapeamento: nextMap };
+                                                            });
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[11px]">Puesto de Trabajo (Impresso no PDF)</Label>
+                                                        <Input
+                                                            value={cfg?.puesto || ''}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setHexagonSettings((prev: any) => ({
+                                                                    ...prev,
+                                                                    cargos_mapeamento: {
+                                                                        ...(prev.cargos_mapeamento || {}),
+                                                                        [roleName]: { ...cfg, puesto: val }
+                                                                    }
+                                                                }));
+                                                            }}
+                                                            className="h-8 text-xs"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[11px]">Grupo Profesional</Label>
+                                                        <Input
+                                                            value={cfg?.grupo_profesional || ''}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setHexagonSettings((prev: any) => ({
+                                                                    ...prev,
+                                                                    cargos_mapeamento: {
+                                                                        ...(prev.cargos_mapeamento || {}),
+                                                                        [roleName]: { ...cfg, grupo_profesional: val }
+                                                                    }
+                                                                }));
+                                                            }}
+                                                            className="h-8 text-xs"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[11px]">Funciones</Label>
+                                                        <Input
+                                                            value={cfg?.funciones || ''}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setHexagonSettings((prev: any) => ({
+                                                                    ...prev,
+                                                                    cargos_mapeamento: {
+                                                                        ...(prev.cargos_mapeamento || {}),
+                                                                        [roleName]: { ...cfg, funciones: val }
+                                                                    }
+                                                                }));
+                                                            }}
+                                                            className="h-8 text-xs"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end">
+                                    <Button type="submit" disabled={savingHexagonSettings} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-2">
+                                        {savingHexagonSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                        Salvar Parâmetros SEPE da Hexagon
+                                    </Button>
+                                </div>
+                            </form>
+                        )}
+
                         {/* Input de Arquivo oculto para upload de templates */}
                         <input
                             type="file"
                             ref={configFileInputRef}
                             onChange={handleUploadConfigTemplate}
-                            accept=".docx"
+                            accept=".docx,.pdf"
                             className="hidden"
                         />
                     </TabsContent>
@@ -5884,6 +6961,42 @@ Muchas gracias.`;
                                             <div>
                                                 <Label className="text-xs">Data de Nascimento (AAAA-MM-DD)</Label>
                                                 <Input type="date" value={verifyFormData.fecha_nacimiento} onChange={(e) => setVerifyFormData({ ...verifyFormData, fecha_nacimiento: e.target.value })} />
+                                            </div>
+                                        </div>
+
+                                        {/* Dados Espanhóis / Seguridad Social (Hexagon - SEPE) */}
+                                        <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-800/70 bg-amber-50/40 dark:bg-amber-950/20 space-y-2">
+                                            <span className="text-xs font-bold text-amber-800 dark:text-amber-300 block">
+                                                🇪🇸 Dados para Contrato Espanha (SEPE / Seguridad Social — Hexagon)
+                                            </span>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div>
+                                                    <Label className="text-[11px]">Nº Afiliación Seg. Social (NUSS)</Label>
+                                                    <Input
+                                                        value={verifyFormData.nuss}
+                                                        onChange={(e) => setVerifyFormData({ ...verifyFormData, nuss: e.target.value })}
+                                                        placeholder="12 dígitos"
+                                                        className="h-8 text-xs font-mono bg-white dark:bg-slate-900"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-[11px]">Município Domicílio (Espanha)</Label>
+                                                    <Input
+                                                        value={verifyFormData.municipio_domicilio}
+                                                        onChange={(e) => setVerifyFormData({ ...verifyFormData, municipio_domicilio: e.target.value })}
+                                                        placeholder="Ex: Barcelona"
+                                                        className="h-8 text-xs bg-white dark:bg-slate-900"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <Label className="text-[11px]">Código Postal (CP)</Label>
+                                                    <Input
+                                                        value={verifyFormData.codigo_postal}
+                                                        onChange={(e) => setVerifyFormData({ ...verifyFormData, codigo_postal: e.target.value })}
+                                                        placeholder="Ex: 08028"
+                                                        className="h-8 text-xs font-mono bg-white dark:bg-slate-900"
+                                                    />
+                                                </div>
                                             </div>
                                         </div>
 
@@ -6849,6 +7962,242 @@ Muchas gracias.`;
                             </form>
                         );
                     })()}
+                </DialogContent>
+            </Dialog>
+
+            {/* Modal de Assinatura Eletrônica da Empresa (Representante Legal — Bilateral OTP + eIDAS) */}
+            <Dialog open={companySignDialogOpen} onOpenChange={setCompanySignDialogOpen}>
+                <DialogContent className="max-w-2xl bg-white dark:bg-slate-900">
+                    <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                        <DialogTitle className="flex items-center gap-2 text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                            <PenTool className="h-5 w-5" />
+                            Assinatura Eletrônica da Empresa (Representante Legal — OTP Bilateral)
+                        </DialogTitle>
+                        <DialogDescription className="text-xs">
+                            A assinatura do representante legal será estampada no quadro <strong>"El/la representante de la empresa"</strong> (Página 20), na margem lateral de todas as páginas e no <strong>Certificado de Firma Electrónica Bilateral (eIDAS / UE Nº 910/2014)</strong>.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {companySigningContract && (
+                        <form onSubmit={handleSubmitCompanySign} className="space-y-4 pt-2">
+                            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                                <div>
+                                    <span className="text-slate-500 block">Trabalhador / Contrato</span>
+                                    <span className="font-bold text-slate-900 dark:text-slate-100">
+                                        {companySigningContract.worker?.nome || 'Trabalhador'} — {companySigningContract.contratante}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Badge variant="outline" className={companySigningContract.status === 'signed' ? 'border-emerald-500 text-emerald-600' : 'border-amber-500 text-amber-600'}>
+                                        {companySigningContract.status === 'signed' ? 'Trabalhador: Assinado ✓' : 'Trabalhador: Pendente'}
+                                    </Badge>
+                                    <Badge variant="outline" className={companySigningContract.metadata?.company_signed ? 'border-emerald-500 text-emerald-600' : 'border-slate-400 text-slate-600'}>
+                                        {companySigningContract.metadata?.company_signed ? 'Empresa: Assinada ✓' : 'Empresa: Pendente'}
+                                    </Badge>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold">Nome do Representante Legal *</Label>
+                                    <Input
+                                        required
+                                        value={companySignerName}
+                                        onChange={(e) => {
+                                            setCompanySignerName(e.target.value);
+                                            if (companySignMode === 'type') setCompanyTypedSignature(e.target.value);
+                                        }}
+                                        placeholder="Ex: JUAN PÉREZ GARCÍA"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold">NIF / NIE / CIF</Label>
+                                    <Input
+                                        value={companySignerDocument}
+                                        onChange={(e) => setCompanySignerDocument(e.target.value)}
+                                        placeholder="Ex: B19394493"
+                                        className="h-9 text-xs font-mono"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label className="text-xs font-semibold">Cargo / En Concepto</Label>
+                                    <Input
+                                        value={companySignerCargo}
+                                        onChange={(e) => setCompanySignerCargo(e.target.value)}
+                                        placeholder="ADMINISTRADOR ÚNICO"
+                                        className="h-9 text-xs"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Seletor de Modo de Rubrica (Desenhar / Digitar / Usar Salva) */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-xs font-bold">Rubrica / Assinatura do Representante</Label>
+                                    <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-100 dark:bg-slate-800">
+                                        {companySavedSigBase64 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setCompanySignMode('saved')}
+                                                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                                                    companySignMode === 'saved'
+                                                        ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm'
+                                                        : 'text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                Rubrica Padrão Salva
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setCompanySignMode('draw')}
+                                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                                                companySignMode === 'draw'
+                                                    ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm'
+                                                    : 'text-slate-600 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            <PenTool className="h-3 w-3" /> Desenhar
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCompanySignMode('type');
+                                                if (!companyTypedSignature) setCompanyTypedSignature(companySignerName);
+                                            }}
+                                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                                                companySignMode === 'type'
+                                                    ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm'
+                                                    : 'text-slate-600 dark:text-slate-400'
+                                            }`}
+                                        >
+                                            <Type className="h-3 w-3" /> Digitar Rubrica
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {companySignMode === 'saved' && companySavedSigBase64 ? (
+                                    <div className="border-2 border-dashed border-emerald-300 dark:border-emerald-800 rounded-xl p-4 bg-white flex flex-col items-center justify-center gap-2">
+                                        <img src={companySavedSigBase64} alt="Rubrica Salva" className="max-h-28 object-contain" />
+                                        <span className="text-[11px] text-emerald-700 font-medium">Rubrica oficial do representante pronta para uso</span>
+                                    </div>
+                                ) : companySignMode === 'type' ? (
+                                    <div className="space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50 dark:bg-slate-950">
+                                        <Input
+                                            value={companyTypedSignature}
+                                            onChange={(e) => setCompanyTypedSignature(e.target.value)}
+                                            placeholder="Digite o nome para gerar a assinatura caligráfica..."
+                                            className="bg-white dark:bg-slate-900 text-sm"
+                                        />
+                                        <div className="h-24 bg-white rounded-lg border flex flex-col items-center justify-center p-2">
+                                            <span className="text-2xl italic font-serif font-bold text-slate-900">
+                                                {companyTypedSignature || companySignerName || 'Firma Representante'}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-slate-500 mt-1">
+                                                FIRMA DIGITAL EMPRESA — {companySignerDocument || 'B19394493'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1.5">
+                                        <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden bg-white relative">
+                                            <canvas
+                                                ref={companyCanvasRef}
+                                                width={520}
+                                                height={150}
+                                                onMouseDown={startDrawingCompany}
+                                                onMouseMove={drawCompany}
+                                                onMouseUp={stopDrawingCompany}
+                                                onMouseLeave={stopDrawingCompany}
+                                                onTouchStart={startDrawingCompany}
+                                                onTouchMove={drawCompany}
+                                                onTouchEnd={stopDrawingCompany}
+                                                className="w-full h-[140px] cursor-crosshair touch-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={clearCompanyCanvas}
+                                                className="absolute top-2 right-2 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1"
+                                            >
+                                                <Eraser className="h-3 w-3" /> Limpar
+                                            </button>
+                                        </div>
+                                        <p className="text-[11px] text-slate-500">
+                                            Desenhe a assinatura do representante no quadro acima usando o mouse ou tela sensível ao toque.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer pt-1">
+                                    <input
+                                        type="checkbox"
+                                        checked={companySaveDefaultSig}
+                                        onChange={(e) => setCompanySaveDefaultSig(e.target.checked)}
+                                        className="rounded border-slate-300"
+                                    />
+                                    Salvar esta rubrica e dados como padrão do Representante da Hexagon para os próximos contratos
+                                </label>
+                            </div>
+
+                            {/* Validação OTP da Empresa */}
+                            <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 space-y-2.5">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                                        <KeyRound className="h-4 w-4 text-indigo-600" />
+                                        Código OTP de Validação da Empresa (6 dígitos)
+                                    </Label>
+                                    <div className="flex items-center gap-1.5">
+                                        <Input
+                                            type="email"
+                                            value={companySignerEmail}
+                                            onChange={(e) => setCompanySignerEmail(e.target.value)}
+                                            placeholder="E-mail p/ receber OTP (opcional)"
+                                            className="h-7 text-xs w-48 bg-white dark:bg-slate-900"
+                                        />
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={requestingCompanyOtp}
+                                            onClick={handleRequestNewCompanyOtp}
+                                            className="h-7 text-xs font-semibold border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                                        >
+                                            {requestingCompanyOtp ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                                            Gerar / Enviar OTP
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <Input
+                                        required
+                                        maxLength={6}
+                                        value={companyOtpInput}
+                                        onChange={(e) => setCompanyOtpInput(e.target.value)}
+                                        placeholder="000000"
+                                        className="h-10 font-mono text-base font-black tracking-widest text-center w-40 bg-white dark:bg-slate-900 border-indigo-300"
+                                    />
+                                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed flex-1">
+                                        O código OTP da empresa é gerado automaticamente na emissão do contrato e fica registrado na trilha de auditoria eIDAS junto com o IP e carimbo de tempo UTC.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                <Button type="button" variant="outline" onClick={() => setCompanySignDialogOpen(false)}>
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    disabled={submittingCompanySign}
+                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2"
+                                >
+                                    {submittingCompanySign ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                    Confirmar & Assinar Contrato pela Empresa
+                                </Button>
+                            </div>
+                        </form>
+                    )}
                 </DialogContent>
             </Dialog>
         </Layout>
