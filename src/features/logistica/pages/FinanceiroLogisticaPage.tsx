@@ -496,40 +496,26 @@ export const FinanceiroLogisticaPage: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleUploadAnexo = async (file: File) => {
+  const handleUploadAnexo = async (eOrFile: React.ChangeEvent<HTMLInputElement> | File | any) => {
+    const file: File | undefined =
+      eOrFile instanceof File
+        ? eOrFile
+        : eOrFile?.target?.files?.[0];
+
+    if (!file) return;
+
     try {
       setIsUploadingAnexo(true);
-      const fileExt = file.name.split('.').pop() || 'pdf';
-      const cleanFileName = `gasto_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-      const filePath = `comprovantes/${cleanFileName}`;
-
-      let uploadResult = await supabase.storage
-        .from('comprovantes-financeiro')
-        .upload(filePath, file, { upsert: true });
-
-      let publicUrl = '';
-      if (!uploadResult.error) {
-        const { data } = supabase.storage.from('comprovantes-financeiro').getPublicUrl(filePath);
-        publicUrl = data?.publicUrl || '';
-      } else {
-        const fallbackRes = await supabase.storage
-          .from('alojamentos')
-          .upload(filePath, file, { upsert: true });
-        if (!fallbackRes.error) {
-          const { data } = supabase.storage.from('alojamentos').getPublicUrl(filePath);
-          publicUrl = data?.publicUrl || '';
-        }
-      }
-
-      if (publicUrl) {
-        setAnexoUrl(publicUrl);
-        setAnexoNome(file.name);
+      const uploaded = await financeLogisticsService.uploadAnexoLogistica(file);
+      if (uploaded.url) {
+        setAnexoUrl(uploaded.url);
+        setAnexoNome(uploaded.name || file.name);
       } else {
         alert('No fue posible subir el archivo. Compruebe los permisos o tamaño.');
       }
     } catch (e: any) {
       console.error('Error al subir comprobante:', e);
-      alert('Error en la carga del archivo.');
+      alert(`Error en la carga del archivo: ${e?.message || 'Intente nuevamente'}`);
     } finally {
       setIsUploadingAnexo(false);
     }
@@ -2607,20 +2593,32 @@ export const FinanceiroLogisticaPage: React.FC = () => {
               </div>
 
               {/* Anexo / Bilhete / Passagem / Fatura */}
-              <div className="space-y-2 p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800">
+              <div
+                className="space-y-2 p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-xl border border-slate-200 dark:border-slate-800"
+                onDragOver={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={e => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const droppedFile = e.dataTransfer?.files?.[0];
+                  if (droppedFile) handleUploadAnexo(droppedFile);
+                }}
+              >
                 <div className="flex items-center justify-between">
                   <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                     <Paperclip size={14} className="text-blue-500" />
                     {modoVinculacao === 'reembolso' ? 'Tickets de Combustible / Recibos / Factura Adjunta' : 'Billete / Pasaje / Factura Adjunta'}
                   </label>
-                  <span className="text-[10px] text-slate-400">PDF, JPG o PNG (máx. 10MB)</span>
+                  <span className="text-[10px] text-slate-400">PDF, JPG, PNG o Documento (máx. 15MB)</span>
                 </div>
 
                 <input
                   type="file"
                   ref={fileInputRef}
-                  onChange={handleUploadAnexo}
-                  accept=".pdf,image/*"
+                  onChange={e => handleUploadAnexo(e)}
+                  accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"
                   className="hidden"
                 />
 
@@ -2645,6 +2643,14 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                       </a>
                       <button
                         type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold"
+                        title="Cambiar archivo"
+                      >
+                        Cambiar
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => {
                           setAnexoUrl('');
                           setAnexoNome('');
@@ -2666,7 +2672,7 @@ export const FinanceiroLogisticaPage: React.FC = () => {
                   >
                     <FileUp size={16} className={isUploadingAnexo ? 'animate-bounce' : ''} />
                     <span className="font-bold text-xs">
-                      {isUploadingAnexo ? 'Subiendo archivo al servidor...' : 'Subir billete, tarjeta de embarque o factura'}
+                      {isUploadingAnexo ? 'Subiendo archivo al servidor...' : 'Subir billete, tarjeta de embarque o factura (o arrastrar aquí)'}
                     </span>
                   </button>
                 )}

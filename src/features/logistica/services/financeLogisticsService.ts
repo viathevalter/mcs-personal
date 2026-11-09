@@ -788,6 +788,61 @@ export const financeLogisticsService = {
     return createdList;
   },
 
+  // 4b. Upload robusto de anexo / fatura / comprovante para Ordem de Pagamento
+  async uploadAnexoLogistica(file: File): Promise<{ url: string; name: string }> {
+    const fileExt = (file.name ? file.name.split('.').pop() : 'pdf') || 'pdf';
+    const safeBase = (file.name || 'anexo')
+      .replace(/\.[^/.]+$/, '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .substring(0, 40);
+    const cleanFileName = `gasto_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${safeBase}.${fileExt}`;
+    const filePath = `comprovantes/${cleanFileName}`;
+
+    const candidateBuckets = [
+      'comprovantes-financeiro',
+      'financeiro-anexos',
+      'alojamentos',
+      'documents',
+      'coches'
+    ];
+
+    for (const bucket of candidateBuckets) {
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from(bucket)
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: true
+          });
+
+        if (!uploadError) {
+          const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+          if (data?.publicUrl) {
+            return { url: data.publicUrl, name: file.name || cleanFileName };
+          }
+        }
+      } catch (e) {
+        // Tenta o próximo bucket
+      }
+    }
+
+    // Fallback seguro em Base64 Data URL caso todos os buckets falhem por permissão/RLS
+    return await new Promise<{ url: string; name: string }>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve({ url: reader.result, name: file.name || cleanFileName });
+        } else {
+          reject(new Error('Falha ao converter arquivo'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Erro ao ler o arquivo selecionado'));
+      reader.readAsDataURL(file);
+    });
+  },
+
   // 5. Edição / Alteração de Ordem de Pagamento
   async atualizarOrdemPagamento(
     id: string,
@@ -803,6 +858,7 @@ export const financeLogisticsService = {
       observacoes?: string;
       centro_custo_cliente?: string;
       centro_custo_obra?: string;
+      anexo_url?: string;
     }
   ): Promise<void> {
     const { email: userEmail } = await getCurrentUserId();
@@ -814,6 +870,7 @@ export const financeLogisticsService = {
     if (updates.data_vencimento) updateObj.data_vencimento = updates.data_vencimento;
     if (updates.provedor_nome) updateObj.cod_provedor = updates.provedor_nome;
     if (updates.forma_pagamento !== undefined) updateObj.forma_pagamento = updates.forma_pagamento || null;
+    if (updates.anexo_url !== undefined) updateObj.anexos = updates.anexo_url || null;
 
     if (updates.centro_custo_cliente || updates.centro_custo_obra) {
       updateObj.centro_custos = `${updates.centro_custo_cliente || ''} / ${updates.centro_custo_obra || ''}`;

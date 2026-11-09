@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   FileCheck,
@@ -12,7 +12,10 @@ import {
   Sparkles,
   Info,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Paperclip,
+  FileUp,
+  Trash2
 } from 'lucide-react';
 import type { ContratoAlojamento } from '../services/contratosLogisticsService';
 import { financeLogisticsService, type OcupanteInfo, type PagoAlojamento } from '../services/financeLogisticsService';
@@ -84,7 +87,32 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
     return isCard ? 'Tarjeta de Empresa' : 'Transferencia Bancaria';
   });
   const [observacoes, setObservacoes] = useState<string>('');
+  const [anexoUrl, setAnexoUrl] = useState<string>('');
+  const [anexoNome, setAnexoNome] = useState<string>('');
+  const [isUploadingAnexo, setIsUploadingAnexo] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUploadAnexo = async (eOrFile: React.ChangeEvent<HTMLInputElement> | File | any) => {
+    const file: File | undefined =
+      eOrFile instanceof File ? eOrFile : eOrFile?.target?.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingAnexo(true);
+      const uploaded = await financeLogisticsService.uploadAnexoLogistica(file);
+      if (uploaded.url) {
+        setAnexoUrl(uploaded.url);
+        setAnexoNome(uploaded.name || file.name);
+        toast.success('Archivo adjuntado con éxito.');
+      }
+    } catch (e: any) {
+      console.error('Error al subir archivo:', e);
+      toast.error(`Error en la carga del archivo: ${e?.message || 'Intente nuevamente'}`);
+    } finally {
+      setIsUploadingAnexo(false);
+    }
+  };
 
   // Ocupantes dinâmicos
   const [ocupantes, setOcupantes] = useState<OcupanteInfo[]>([]);
@@ -165,6 +193,7 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
         centro_custo_obra: obraCC,
         tipo_pago: tipoPago,
         forma_pagamento: formaPagamento,
+        anexo_url: anexoUrl || undefined,
         valor: Number(valor),
         data_vencimento: dataVencimento,
         periodo_competencia: competencia,
@@ -420,7 +449,7 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
                   <button
                     key={cli}
                     type="button"
-                    onClick={() => setCentroCustoCliente(cli || '')}
+                    onClick={() => setClienteCC(cli || '')}
                     className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-md text-[10px] font-bold transition-colors"
                     title="Click para imputar este cliente en el Centro de Coste"
                   >
@@ -468,6 +497,91 @@ export const GenerarOrdemPagoModal: React.FC<GenerarOrdemPagoModalProps> = ({
               <p className="text-slate-400 text-center py-2 text-[11px]">
                 Ningún trabajador alocado actualmente en este alojamiento.
               </p>
+            )}
+          </div>
+
+          {/* Anexo / Fatura / Comprovante */}
+          <div
+            className="space-y-2 p-3.5 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200 dark:border-slate-800"
+            onDragOver={e => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              const droppedFile = e.dataTransfer?.files?.[0];
+              if (droppedFile) handleUploadAnexo(droppedFile);
+            }}
+          >
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Paperclip size={13} className="text-blue-500" />
+                Factura / Recibo / Comprobante Adjunto (Opcional)
+              </label>
+              <span className="text-[10px] text-slate-400">PDF, JPG, PNG (máx. 15MB)</span>
+            </div>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={e => handleUploadAnexo(e)}
+              accept=".pdf,image/*,.doc,.docx,.xls,.xlsx"
+              className="hidden"
+            />
+
+            {anexoUrl ? (
+              <div className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-900 rounded-xl border border-emerald-300 dark:border-emerald-800">
+                <div className="flex items-center gap-2 truncate">
+                  <div className="p-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 rounded-lg">
+                    <CheckCircle2 size={15} />
+                  </div>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate text-xs">
+                    {anexoNome || 'Archivo adjunto'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <a
+                    href={anexoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded-lg text-[10px] font-bold"
+                  >
+                    Visualizar
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2 py-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold"
+                  >
+                    Cambiar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnexoUrl('');
+                      setAnexoNome('');
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="p-1 text-slate-400 hover:text-red-600 rounded-lg"
+                    title="Quitar archivo"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingAnexo}
+                className="w-full py-2.5 px-4 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-500 rounded-xl flex items-center justify-center gap-2 text-slate-600 dark:text-slate-400 hover:text-emerald-600 transition-colors bg-white dark:bg-slate-900"
+              >
+                <FileUp size={15} className={isUploadingAnexo ? 'animate-bounce' : ''} />
+                <span className="font-bold text-xs">
+                  {isUploadingAnexo ? 'Subiendo archivo al servidor...' : 'Subir o arrastrar factura / recibo de alquiler'}
+                </span>
+              </button>
             )}
           </div>
 
