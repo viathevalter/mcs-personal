@@ -357,15 +357,16 @@ export function DocumentacionTasksPage() {
     // States SEPE Hexagon (Contrato Indefinido Fijo-Discontinuo Cód. 300 / Indefinido Cód. 100)
     const [sepeForm, setSepeForm] = useState({
         sepe_codigo: '300',
-        puesto: '',
-        grupo_profesional: '5',
-        funciones: '',
+        puesto: 'PEON MONTADOR',
+        grupo_profesional: '10',
+        funciones: 'PEON MONTADOR',
         centro_trabajo_calle: 'CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON',
         centro_trabajo_cp: '16400',
         centro_trabajo_municipio: 'TARANCON',
         fecha_inicio: new Date().toISOString().split('T')[0],
         periodo_prueba: '2 MESES',
         retribucion_total: 'SEGUN CONVENIO',
+        vacaciones: '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado',
         convenio_colectivo: 'METAL DE CUENCA',
         lugar_firma: 'TARANCON',
         dni: '',
@@ -403,7 +404,7 @@ export function DocumentacionTasksPage() {
         horas_semanales: '40',
         horario_jornada: '',
         periodo_prueba_default: '2 MESES',
-        vacaciones: '30 DIAS NATURALES',
+        vacaciones: '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado',
         convenio_colectivo: 'METAL DE CUENCA',
         retribucion_default: 'SEGUN CONVENIO',
         conceptos_salariales: 'SEGUN CONVENIO',
@@ -412,28 +413,22 @@ export function DocumentacionTasksPage() {
         sepe_codigo_default: '300',
         actividad_fijo_discontinuo: 'INSTALACIONES Y MONTAJES INDUSTRIALES EN OBRAS',
         cargos_mapeamento: {
-            'ENCARGADO DE OBRA': {
-                puesto: 'ENCARGADO DE OBRA',
-                grupo_profesional: '3',
-                funciones: 'ENCARGADO DE OBRA',
-                periodo_prueba: '2 MESES'
-            },
-            'MONTADOR DE ESTRUCTURA METÁLICA (OBRA)': {
-                puesto: 'MONTADOR DE ESTRUCTURA METALICA',
-                grupo_profesional: '5',
-                funciones: 'MONTADOR DE ESTRUCTURA METALICA',
+            'PEON MONTADOR': {
+                puesto: 'PEON MONTADOR',
+                grupo_profesional: '10',
+                funciones: 'PEON MONTADOR',
                 periodo_prueba: '2 MESES'
             },
             'AYUDANTE': {
                 puesto: 'AYUDANTE',
-                grupo_profesional: '7',
+                grupo_profesional: '9',
                 funciones: 'AYUDANTE',
                 periodo_prueba: '2 MESES'
             },
-            'AUXILIAR ADMINISTRATIVO': {
-                puesto: 'AUXILIAR ADMINISTRATIVO',
-                grupo_profesional: '7',
-                funciones: 'AUXILIAR ADMINISTRATIVO',
+            'ENCARGADO': {
+                puesto: 'ENCARGADO',
+                grupo_profesional: '3',
+                funciones: 'ENCARGADO',
                 periodo_prueba: '2 MESES'
             }
         }
@@ -1526,16 +1521,79 @@ Muchas gracias.`;
         }
     };
 
+    const resolveStandardSepeRole = (rawFuncInput: string, cargosMap?: Record<string, any>) => {
+        const norm = String(rawFuncInput || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (norm.includes('MONTADOR') || norm.includes('PEON')) {
+            return {
+                puesto: 'PEON MONTADOR',
+                grupo_profesional: '10',
+                funciones: 'PEON MONTADOR',
+                periodo_prueba: '2 MESES'
+            };
+        }
+        if (norm.includes('AYUDANTE')) {
+            return {
+                puesto: 'AYUDANTE',
+                grupo_profesional: '9',
+                funciones: 'AYUDANTE',
+                periodo_prueba: '2 MESES'
+            };
+        }
+        if (norm.includes('ENCARGADO')) {
+            return {
+                puesto: 'ENCARGADO',
+                grupo_profesional: '3',
+                funciones: 'ENCARGADO',
+                periodo_prueba: '2 MESES'
+            };
+        }
+        if (cargosMap && cargosMap[norm]) {
+            return cargosMap[norm];
+        }
+        const matchedKey = cargosMap ? Object.keys(cargosMap).find(k => norm.includes(k.toUpperCase()) || k.toUpperCase().includes(norm)) : undefined;
+        if (matchedKey && cargosMap) {
+            return cargosMap[matchedKey];
+        }
+        return {
+            puesto: norm || 'PEON MONTADOR',
+            grupo_profesional: '10',
+            funciones: norm || 'PEON MONTADOR',
+            periodo_prueba: '2 MESES'
+        };
+    };
+
     const loadHexagonSettings = async () => {
         try {
             const settings = await getCompanyContractSettings(HEXAGON_EMPRESA_ID);
             if (settings && Object.keys(settings).length > 0) {
+                const resolvedVacaciones = (!settings.vacaciones || settings.vacaciones.toUpperCase() === '30 DIAS NATURALES')
+                    ? '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado'
+                    : settings.vacaciones;
                 setHexagonSettings((prev: any) => ({
                     ...prev,
                     ...settings,
+                    vacaciones: resolvedVacaciones,
                     cargos_mapeamento: {
                         ...(prev.cargos_mapeamento || {}),
-                        ...(settings.cargos_mapeamento || {})
+                        ...(settings.cargos_mapeamento || {}),
+                        'PEON MONTADOR': {
+                            puesto: 'PEON MONTADOR',
+                            grupo_profesional: '10',
+                            funciones: 'PEON MONTADOR',
+                            periodo_prueba: '2 MESES'
+                        },
+                        'AYUDANTE': {
+                            puesto: 'AYUDANTE',
+                            grupo_profesional: '9',
+                            funciones: 'AYUDANTE',
+                            periodo_prueba: '2 MESES'
+                        },
+                        'ENCARGADO': {
+                            puesto: 'ENCARGADO',
+                            grupo_profesional: '3',
+                            funciones: 'ENCARGADO',
+                            periodo_prueba: '2 MESES'
+                        }
                     }
                 }));
                 if (settings.representante_signature_base64 && !companySavedSigBase64) {
@@ -1582,30 +1640,29 @@ Muchas gracias.`;
             }
 
             const ed = (dr as any)?.extracted_data || {};
-            const rawFunc = String(w?.funcion || ed?.funcion || 'AYUDANTE').trim().toUpperCase();
-            const cargosMap = cfg?.cargos_mapeamento || {};
-            let roleCfg = cargosMap[rawFunc];
-            if (!roleCfg) {
-                const matchedKey = Object.keys(cargosMap).find(k => rawFunc.includes(k.toUpperCase()) || k.toUpperCase().includes(rawFunc));
-                if (matchedKey) roleCfg = cargosMap[matchedKey];
-            }
+            const rawFunc = String(w?.funcion || ed?.funcion || 'PEON MONTADOR').trim().toUpperCase();
+            const roleCfg = resolveStandardSepeRole(rawFunc, cfg?.cargos_mapeamento);
 
             const ctCalle = 'CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON';
             const ctCp = cfg?.cp_empresa || '16400';
             const ctMun = cfg?.municipio_empresa || 'TARANCON';
             const startDate = ((wa as any)?.planned_start_date || (wa as any)?.start_date || ed?.start_date || new Date().toISOString()).substring(0, 10);
+            const resolvedVacaciones = (!cfg?.vacaciones || String(cfg.vacaciones).toUpperCase() === '30 DIAS NATURALES')
+                ? '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado'
+                : cfg.vacaciones;
 
             setSepeForm(prev => ({
                 ...prev,
-                puesto: roleCfg?.puesto || rawFunc || 'OPERARIO',
-                grupo_profesional: roleCfg?.grupo_profesional || '5',
-                funciones: roleCfg?.funciones || roleCfg?.puesto || rawFunc || 'OPERARIO',
+                puesto: roleCfg?.puesto || 'PEON MONTADOR',
+                grupo_profesional: roleCfg?.grupo_profesional || '10',
+                funciones: roleCfg?.funciones || roleCfg?.puesto || 'PEON MONTADOR',
                 centro_trabajo_calle: ctCalle,
                 centro_trabajo_cp: ctCp,
                 centro_trabajo_municipio: ctMun,
                 fecha_inicio: startDate,
                 periodo_prueba: roleCfg?.periodo_prueba || cfg?.periodo_prueba_default || '2 MESES',
                 retribucion_total: cfg?.retribucion_default || 'SEGUN CONVENIO',
+                vacaciones: resolvedVacaciones,
                 convenio_colectivo: cfg?.convenio_colectivo || 'METAL DE CUENCA',
                 lugar_firma: cfg?.lugar_firma || 'TARANCON',
                 sepe_codigo: cfg?.sepe_codigo || '300',
@@ -4058,28 +4115,63 @@ Muchas gracias.`;
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                                                    <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
-                                                            Puesto de Trabajo (Primera Cláusula)
-                                                        </Label>
-                                                        <Input
-                                                            value={sepeForm.puesto}
-                                                            onChange={(e) => setSepeForm(p => ({ ...p, puesto: e.target.value }))}
-                                                            placeholder="Ex: OFICIAL MONTADOR DE ESTRUCTURAS METÁLICAS"
-                                                            className="h-10 text-xs bg-white dark:bg-slate-900 font-semibold"
-                                                        />
+                                                <div className="space-y-2">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
+                                                            Selección Rápida de Categoría / Grupo Estándar:
+                                                        </span>
+                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                            {[
+                                                                { label: 'Peón Montador (Grupo 10)', puesto: 'PEON MONTADOR', grupo: '10', funciones: 'PEON MONTADOR' },
+                                                                { label: 'Ayudante (Grupo 9)', puesto: 'AYUDANTE', grupo: '9', funciones: 'AYUDANTE' },
+                                                                { label: 'Encargado (Grupo 3)', puesto: 'ENCARGADO', grupo: '3', funciones: 'ENCARGADO' },
+                                                            ].map((preset) => {
+                                                                const isSelected = sepeForm.puesto.trim().toUpperCase() === preset.puesto && sepeForm.grupo_profesional.trim() === preset.grupo;
+                                                                return (
+                                                                    <button
+                                                                        key={preset.puesto}
+                                                                        type="button"
+                                                                        onClick={() => setSepeForm(p => ({
+                                                                            ...p,
+                                                                            puesto: preset.puesto,
+                                                                            grupo_profesional: preset.grupo,
+                                                                            funciones: preset.funciones
+                                                                        }))}
+                                                                        className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-all ${
+                                                                            isSelected
+                                                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                                                : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-indigo-400'
+                                                                        }`}
+                                                                    >
+                                                                        {preset.label}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
-                                                            Grupo Profesional
-                                                        </Label>
-                                                        <Input
-                                                            value={sepeForm.grupo_profesional}
-                                                            onChange={(e) => setSepeForm(p => ({ ...p, grupo_profesional: e.target.value }))}
-                                                            placeholder="Ex: GRUPO 5 / OFICIALES DE PRIMERA Y SEGUNDA"
-                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
-                                                        />
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                                        <div className="flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                                Puesto de Trabajo (Primera Cláusula)
+                                                            </Label>
+                                                            <Input
+                                                                value={sepeForm.puesto}
+                                                                onChange={(e) => setSepeForm(p => ({ ...p, puesto: e.target.value }))}
+                                                                placeholder="Ej: PEON MONTADOR"
+                                                                className="h-10 text-xs bg-white dark:bg-slate-900 font-semibold"
+                                                            />
+                                                        </div>
+                                                        <div className="flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                                Grupo Profesional
+                                                            </Label>
+                                                            <Input
+                                                                value={sepeForm.grupo_profesional}
+                                                                onChange={(e) => setSepeForm(p => ({ ...p, grupo_profesional: e.target.value }))}
+                                                                placeholder="Ej: 10"
+                                                                className="h-10 text-xs bg-white dark:bg-slate-900 font-bold"
+                                                            />
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -4163,6 +4255,17 @@ Muchas gracias.`;
                                                             className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
+                                                </div>
+
+                                                <div className="flex flex-col justify-end space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Vacaciones Anuales (Séptima Cláusula)">
+                                                        Vacaciones Anuales (Séptima Cláusula)
+                                                    </Label>
+                                                    <Input
+                                                        value={(sepeForm as any).vacaciones || '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado'}
+                                                        onChange={(e) => setSepeForm(p => ({ ...p, vacaciones: e.target.value }))}
+                                                        className="h-10 text-xs bg-white dark:bg-slate-900"
+                                                    />
                                                 </div>
                                             </div>
                                         )}

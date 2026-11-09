@@ -638,10 +638,35 @@ serve(async (req) => {
       // Código SEPE da Modalidade (300 = Fijo-Discontinuo, 100 = Indefinido Tiempo Completo, 200 = Tiempo Parcial)
       const sepeCodigo = String(sepe.sepe_codigo || settings.sepe_codigo_default || "300").trim();
 
-      // Página 2: Cláusula Primeira e Segunda
-      const resolvedPuesto = (sepe.puesto || roleProfile?.puesto || jobFunction || "OPERARIO").toUpperCase();
-      const resolvedGrupo = (sepe.grupo_profesional || roleProfile?.grupo_profesional || "5").toUpperCase();
-      const resolvedFunciones = (sepe.funciones || roleProfile?.funciones || resolvedPuesto).toUpperCase();
+      // Página 2: Cláusula Primeira e Segunda (Mapeamento padrão: Peon Montador -> Grupo 10, Ayudante -> Grupo 9, Encargado -> Grupo 3)
+      const rawPuestoCandidate = (sepe.puesto || roleProfile?.puesto || jobFunction || "PEON MONTADOR").toUpperCase().trim();
+      const normPuesto = rawPuestoCandidate.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      let stdPuesto = rawPuestoCandidate;
+      let stdGrupo = (sepe.grupo_profesional || roleProfile?.grupo_profesional || "").toUpperCase().trim();
+      let stdFunciones = (sepe.funciones || roleProfile?.funciones || "").toUpperCase().trim();
+
+      if (normPuesto.includes("MONTADOR") || normPuesto.includes("PEON")) {
+        stdPuesto = sepe.puesto ? sepe.puesto.toUpperCase().trim() : "PEON MONTADOR";
+        if (stdPuesto.includes("MONTADOR DE ESTRUCTURA")) stdPuesto = "PEON MONTADOR";
+        if (!stdGrupo || stdGrupo === "5") stdGrupo = "10";
+        if (!stdFunciones || stdFunciones.includes("MONTADOR DE ESTRUCTURA")) stdFunciones = stdPuesto;
+      } else if (normPuesto.includes("AYUDANTE")) {
+        stdPuesto = sepe.puesto ? sepe.puesto.toUpperCase().trim() : "AYUDANTE";
+        if (!stdGrupo || stdGrupo === "5" || stdGrupo === "7") stdGrupo = "9";
+        if (!stdFunciones) stdFunciones = stdPuesto;
+      } else if (normPuesto.includes("ENCARGADO")) {
+        stdPuesto = sepe.puesto ? sepe.puesto.toUpperCase().trim() : "ENCARGADO";
+        if (stdPuesto === "ENCARGADO DE OBRA") stdPuesto = "ENCARGADO";
+        if (!stdGrupo || stdGrupo === "5") stdGrupo = "3";
+        if (!stdFunciones || stdFunciones === "ENCARGADO DE OBRA") stdFunciones = stdPuesto;
+      } else {
+        if (!stdGrupo) stdGrupo = "10";
+        if (!stdFunciones) stdFunciones = stdPuesto;
+      }
+
+      const resolvedPuesto = stdPuesto;
+      const resolvedGrupo = stdGrupo;
+      const resolvedFunciones = stdFunciones;
       const resolvedConvenio = (sepe.convenio_colectivo || settings.convenio_colectivo || "METAL DE CUENCA").toUpperCase();
       const resolvedHoras = sepe.jornada_horas_semanales || settings.horas_semanales || settings.jornada_horas_semanales || "40";
 
@@ -678,10 +703,13 @@ serve(async (req) => {
       if (sepe.distribucion_tiempo) {
         setTxt("C0305", sepe.distribucion_tiempo);
       }
-      try {
-        form.getRadioGroup("C03BO3").select("Elección2");
-      } catch (e) {
-        console.warn("Aviso C03BO3:", e);
+      // Horas complementarias (C03BO3): deixar SEM seleção (apenas para contratos a tiempo parcial quando explicitamente informado)
+      if (sepe.tiempo_parcial && sepe.horas_complementarias_choice) {
+        try {
+          form.getRadioGroup("C03BO3").select(sepe.horas_complementarias_choice);
+        } catch (e) {
+          console.warn("Aviso C03BO3:", e);
+        }
       }
 
       const rawFechaInicioIso = sepe.fecha_inicio || startDate || todayIso;
@@ -690,7 +718,10 @@ serve(async (req) => {
       const resolvedRetribucion = (sepe.retribucion_total || settings.retribucion_default || settings.salario_default_texto || "SEGUN CONVENIO").toUpperCase();
       const resolvedRetribucionPeriodo = (sepe.retribucion_periodo || settings.salario_periodo || "MENSUALES").toUpperCase();
       const resolvedConceptos = (sepe.conceptos_salariales || settings.conceptos_salariales || "SEGUN CONVENIO").toUpperCase();
-      const resolvedVacaciones = (sepe.vacaciones || settings.vacaciones || "30 DIAS NATURALES").toUpperCase();
+      const rawVacaciones = sepe.vacaciones || settings.vacaciones || "22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado";
+      const resolvedVacaciones = (String(rawVacaciones).trim().toUpperCase() === "30 DIAS NATURALES" || !String(rawVacaciones).trim())
+        ? "22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado"
+        : String(rawVacaciones).trim();
 
       setTxt("C0401-FE", resolvedFechaInicio, 10);
       setTxt("C0402", resolvedPeriodoPrueba);
@@ -702,7 +733,13 @@ serve(async (req) => {
       } catch (e) {
         console.warn("Aviso C06BO1:", e);
       }
-      setTxt("C0701", resolvedVacaciones);
+      try {
+        const tfVac = form.getTextField("C0701");
+        tfVac.setFontSize(8.5);
+        tfVac.setText(resolvedVacaciones);
+      } catch (e) {
+        setTxt("C0701", resolvedVacaciones);
+      }
       setTxt("C0801", resolvedConvenio);
 
       // Página 4: Cláusulas Nona a Décima Primeira
