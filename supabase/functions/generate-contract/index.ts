@@ -718,9 +718,10 @@ serve(async (req) => {
       const resolvedRetribucion = (sepe.retribucion_total || settings.retribucion_default || settings.salario_default_texto || "SEGUN CONVENIO").toUpperCase();
       const resolvedRetribucionPeriodo = (sepe.retribucion_periodo || settings.salario_periodo || "MENSUALES").toUpperCase();
       const resolvedConceptos = (sepe.conceptos_salariales || settings.conceptos_salariales || "SEGUN CONVENIO").toUpperCase();
-      const rawVacaciones = sepe.vacaciones || settings.vacaciones || "22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado";
-      const resolvedVacaciones = (String(rawVacaciones).trim().toUpperCase() === "30 DIAS NATURALES" || !String(rawVacaciones).trim())
-        ? "22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado"
+      const rawVacaciones = sepe.vacaciones || settings.vacaciones || "22 dias laborales";
+      const upperVac = String(rawVacaciones).trim().toUpperCase();
+      const resolvedVacaciones = (upperVac === "30 DIAS NATURALES" || upperVac.includes("LUNES A VIERNES") || !upperVac)
+        ? "22 dias laborales"
         : String(rawVacaciones).trim();
 
       setTxt("C0401-FE", resolvedFechaInicio, 10);

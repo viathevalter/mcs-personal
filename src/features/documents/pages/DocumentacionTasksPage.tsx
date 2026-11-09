@@ -366,7 +366,7 @@ export function DocumentacionTasksPage() {
         fecha_inicio: new Date().toISOString().split('T')[0],
         periodo_prueba: '2 MESES',
         retribucion_total: 'SEGUN CONVENIO',
-        vacaciones: '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado',
+        vacaciones: '22 dias laborales',
         convenio_colectivo: 'METAL DE CUENCA',
         lugar_firma: 'TARANCON',
         dni: '',
@@ -404,7 +404,7 @@ export function DocumentacionTasksPage() {
         horas_semanales: '40',
         horario_jornada: '',
         periodo_prueba_default: '2 MESES',
-        vacaciones: '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado',
+        vacaciones: '22 dias laborales',
         convenio_colectivo: 'METAL DE CUENCA',
         retribucion_default: 'SEGUN CONVENIO',
         conceptos_salariales: 'SEGUN CONVENIO',
@@ -1566,8 +1566,8 @@ Muchas gracias.`;
         try {
             const settings = await getCompanyContractSettings(HEXAGON_EMPRESA_ID);
             if (settings && Object.keys(settings).length > 0) {
-                const resolvedVacaciones = (!settings.vacaciones || settings.vacaciones.toUpperCase() === '30 DIAS NATURALES')
-                    ? '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado'
+                const resolvedVacaciones = (!settings.vacaciones || settings.vacaciones.toUpperCase() === '30 DIAS NATURALES' || settings.vacaciones.toUpperCase().includes('LUNES A VIERNES'))
+                    ? '22 dias laborales'
                     : settings.vacaciones;
                 setHexagonSettings((prev: any) => ({
                     ...prev,
@@ -1647,8 +1647,8 @@ Muchas gracias.`;
             const ctCp = cfg?.cp_empresa || '16400';
             const ctMun = cfg?.municipio_empresa || 'TARANCON';
             const startDate = ((wa as any)?.planned_start_date || (wa as any)?.start_date || ed?.start_date || new Date().toISOString()).substring(0, 10);
-            const resolvedVacaciones = (!cfg?.vacaciones || String(cfg.vacaciones).toUpperCase() === '30 DIAS NATURALES')
-                ? '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado'
+            const resolvedVacaciones = (!cfg?.vacaciones || String(cfg.vacaciones).toUpperCase() === '30 DIAS NATURALES' || String(cfg.vacaciones).toUpperCase().includes('LUNES A VIERNES'))
+                ? '22 dias laborales'
                 : cfg.vacaciones;
 
             setSepeForm(prev => ({
@@ -4262,7 +4262,7 @@ Muchas gracias.`;
                                                         Vacaciones Anuales (Séptima Cláusula)
                                                     </Label>
                                                     <Input
-                                                        value={(sepeForm as any).vacaciones || '22 dias Laborales si es de Lunes a Viernes o 26 dias Laborales si es de Lunes a Sabado'}
+                                                        value={(sepeForm as any).vacaciones || '22 dias laborales'}
                                                         onChange={(e) => setSepeForm(p => ({ ...p, vacaciones: e.target.value }))}
                                                         className="h-10 text-xs bg-white dark:bg-slate-900"
                                                     />
