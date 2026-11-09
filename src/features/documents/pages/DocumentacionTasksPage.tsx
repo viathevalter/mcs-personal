@@ -191,7 +191,7 @@ const formatCompetenceLabel = (ym?: string | null): string => {
     if (!ym) return '';
     const m = String(ym).match(/^(\d{4})-(\d{2})/);
     if (!m) return ym;
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     const idx = Number(m[2]) - 1;
     return `${months[idx] || m[2]}/${m[1]}`;
 };
@@ -214,15 +214,15 @@ const buildAutoPayrollDescription = (params: {
     const compParts = (params.competenceMonth || '').split('-');
     const compFormatted = compParts.length === 2 ? `${compParts[1]}/${compParts[0]}` : params.competenceMonth;
     const parts = [
-        `AVISO PRÉVIO NÃO CUMPRIDO (Último Salário - Comp. ${compFormatted})`,
-        `Motivo: ${params.stopReason || 'Abandono / Não cumprimento integral do aviso prévio'}`,
-        `Período para cumprir (${params.totalDays}d): ${formatIsoToBr(params.startNotice)} a ${formatIsoToBr(params.endNotice)}`,
-        `Data em que parou: ${params.stopDate ? formatIsoToBr(params.stopDate) : 'Não informada'}`,
-        `Regra: Cumpriu ${params.fulfilledDays} de ${params.totalDays} dias | Faltaram ${missingDays} dias (${formatCurrencyEur(params.dailyRate)}/dia)`,
-        `Valor Descontado: ${formatCurrencyEur(params.finalDiscount)} (Base ${formatCurrencyEur(params.penaltyTotal)})`,
+        `PREAVISO NO CUMPLIDO (Último Salario - Comp. ${compFormatted})`,
+        `Motivo: ${params.stopReason || 'Abandono / Incumplimiento del preaviso'}`,
+        `Período a cumplir (${params.totalDays}d): ${formatIsoToBr(params.startNotice)} a ${formatIsoToBr(params.endNotice)}`,
+        `Fecha en que cesó: ${params.stopDate ? formatIsoToBr(params.stopDate) : 'No informada'}`,
+        `Regla: Cumplió ${params.fulfilledDays} de ${params.totalDays} días | Faltaron ${missingDays} días (${formatCurrencyEur(params.dailyRate)}/día)`,
+        `Importe Descontado: ${formatCurrencyEur(params.finalDiscount)} (Base ${formatCurrencyEur(params.penaltyTotal)})`,
     ];
     if (params.monthWorkedDays !== undefined && String(params.monthWorkedDays).trim() !== '') {
-        parts.push(`Dias trab. no mês: ${params.monthWorkedDays}d`);
+        parts.push(`Días trab. en el mes: ${params.monthWorkedDays}d`);
     }
     if (params.extraNotes && params.extraNotes.trim() && params.extraNotes.trim().toLowerCase() !== (params.stopReason || '').trim().toLowerCase()) {
         parts.push(`Obs: ${params.extraNotes.trim()}`);
@@ -268,7 +268,7 @@ const parseDateToInput = (dateStr?: string | null): string => {
 };
 
 const getStartDateUrgency = (dateStr?: string | null) => {
-    if (!dateStr) return { text: 'A Definir', badgeClass: 'bg-slate-500/20 text-slate-300 border-slate-400/30' };
+    if (!dateStr) return { text: 'Por Definir', badgeClass: 'bg-slate-500/20 text-slate-300 border-slate-400/30' };
     
     try {
         const targetDate = new Date(dateStr);
@@ -280,18 +280,18 @@ const getStartDateUrgency = (dateStr?: string | null) => {
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) {
-            return { text: `Já Iniciou (${Math.abs(diffDays)}d atrás)`, badgeClass: 'bg-slate-700 text-slate-200 border-slate-600' };
+            return { text: `Ya Inició (hace ${Math.abs(diffDays)}d)`, badgeClass: 'bg-slate-700 text-slate-200 border-slate-600' };
         } else if (diffDays === 0) {
-            return { text: '🚨 INICIA HOJE!', badgeClass: 'bg-rose-600 text-white font-extrabold animate-pulse' };
+            return { text: '🚨 ¡INICIA HOY!', badgeClass: 'bg-rose-600 text-white font-extrabold animate-pulse' };
         } else if (diffDays <= 3) {
-            return { text: `🔴 URGENTE: Faltam ${diffDays}d`, badgeClass: 'bg-rose-500/25 text-rose-300 border-rose-400/40 font-bold' };
+            return { text: `🔴 URGENTE: Faltan ${diffDays}d`, badgeClass: 'bg-rose-500/25 text-rose-300 border-rose-400/40 font-bold' };
         } else if (diffDays <= 7) {
-            return { text: `🟡 ATENÇÃO: Faltam ${diffDays}d`, badgeClass: 'bg-amber-500/25 text-amber-300 border-amber-400/40 font-bold' };
+            return { text: `🟡 ATENCIÓN: Faltan ${diffDays}d`, badgeClass: 'bg-amber-500/25 text-amber-300 border-amber-400/40 font-bold' };
         } else {
-            return { text: `🟢 Faltam ${diffDays} dias`, badgeClass: 'bg-emerald-500/25 text-emerald-300 border-emerald-400/40' };
+            return { text: `🟢 Faltan ${diffDays} días`, badgeClass: 'bg-emerald-500/25 text-emerald-300 border-emerald-400/40' };
         }
     } catch {
-        return { text: 'Data Fixada', badgeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30' };
+        return { text: 'Fecha Fijada', badgeClass: 'bg-indigo-500/20 text-indigo-300 border-indigo-400/30' };
     }
 };
 
@@ -458,7 +458,7 @@ export function DocumentacionTasksPage() {
     const [isDrawingCompanySig, setIsDrawingCompanySig] = useState(false);
     const [hasDrawnCompanySig, setHasDrawnCompanySig] = useState(false);
 
-    // Dialog & Form states - Carta de Rescisão
+    // Dialog & Form states - Carta de Rescisión
     const todayIsoStr = () => new Date().toISOString().split('T')[0];
     const [rescisaoDialogOpen, setRescisaoDialogOpen] = useState(false);
     const [generatingRescisao, setGeneratingRescisao] = useState(false);
@@ -675,7 +675,7 @@ export function DocumentacionTasksPage() {
             const clientName = req.client?.trade_name || req.client?.legal_name ||
                                activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
                                latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
-                               req.worker?.cliente || 'Sem Alocação';
+                               req.worker?.cliente || 'Sin Asignación';
             set.add(clientName);
         });
         return Array.from(set).sort();
@@ -720,7 +720,7 @@ export function DocumentacionTasksPage() {
             const clientName = req.client?.trade_name || req.client?.legal_name ||
                                activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
                                latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
-                               req.worker?.cliente || 'Sem Alocação';
+                               req.worker?.cliente || 'Sin Asignación';
             
             const empresaName = req.empresa?.name || 'Stocco';
             const workerName = req.worker?.nome || '';
@@ -821,7 +821,7 @@ export function DocumentacionTasksPage() {
     // Filtrar e ordenar contratos localmente
     const filteredContracts = useMemo(() => {
         const filtered = contracts.filter(contract => {
-            const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || contract.worker?.cliente || 'Sem Alocação';
+            const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || contract.worker?.cliente || 'Sin Asignación';
             const empresaName = contract.contratante || '';
             const workerName = contract.worker?.nome || '';
             const workerEmail = contract.worker?.email || '';
@@ -1541,7 +1541,7 @@ Muchas gracias.`;
         try {
             setSavingHexagonSettings(true);
             await updateCompanyContractSettings(HEXAGON_EMPRESA_ID, hexagonSettings);
-            toast.success("Configurações oficiais SEPE da Hexagon salvas com sucesso!");
+            toast.success("¡Parámetros oficiales SEPE de Hexagon guardados con éxito!");
         } catch (err: any) {
             console.error("Erro ao salvar configurações SEPE da Hexagon:", err);
             toast.error(`Erro ao salvar configurações: ${err.message || err}`);
@@ -1836,11 +1836,11 @@ Muchas gracias.`;
     const handleGenerateRescisao = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!rescisaoWorkerId || !rescisaoContratante) {
-            toast.error("Por favor, selecione o trabalhador e a empresa contratante.");
+            toast.error("Por favor, seleccione el trabajador y la empresa contratante.");
             return;
         }
         if (!rescisaoRequestDate || !rescisaoStartDate || !rescisaoEndDate) {
-            toast.error("Por favor, preencha as datas da solicitação e do período de aviso prévio.");
+            toast.error("Por favor, complete las fechas de la solicitud y del período de preaviso.");
             return;
         }
 
@@ -1871,7 +1871,7 @@ Muchas gracias.`;
                 documentUrl: res.document_url,
             });
 
-            toast.success("Carta de Rescisão gerada e pronta para assinatura eletrônica!");
+            toast.success("¡Carta de Rescisión generada y lista para firma electrónica!");
             loadContracts();
 
             if (res.document_url) {
@@ -1898,8 +1898,8 @@ Muchas gracias.`;
                 }
             }
         } catch (err: any) {
-            console.error("Erro ao gerar Carta de Rescisão:", err);
-            toast.error(err.message || "Erro ao gerar Carta de Rescisão.");
+            console.error("Erro ao gerar Carta de Rescisión:", err);
+            toast.error(err.message || "Erro ao gerar Carta de Rescisión.");
         } finally {
             setGeneratingRescisao(false);
         }
@@ -1909,7 +1909,7 @@ Muchas gracias.`;
     const handleGenerate = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedWorkerId || !selectedContratante || !selectedContractType) {
-            toast.error("Por favor, preencha todos os campos.");
+            toast.error("Por favor, complete todos los campos.");
             return;
         }
 
@@ -1945,10 +1945,10 @@ Muchas gracias.`;
             
             toast.success(
                 selectedContractType === 'contrato_alta'
-                    ? "Contrato de alta emitido!"
+                    ? "¡Contrato de alta emitido!"
                     : selectedContractType === 'contrato_fijo_discontinuo'
-                    ? "Contrato Oficial SEPE Fijo-Discontinuo emitido e pronto para assinatura bilateral!"
-                    : "Contrato emitido e pronto para assinatura!"
+                    ? "¡Contrato Oficial SEPE emitido y listo para firma bilateral!"
+                    : "¡Contrato emitido y listo para firma!"
             );
             loadContracts();
 
@@ -2115,30 +2115,30 @@ Muchas gracias.`;
         e.preventDefault();
         if (!companySigningContract) return;
         if (!companySignerName.trim()) {
-            toast.error("Informe o nome do Representante Legal da Empresa.");
+            toast.error("Informe el nombre del Representante Legal de la Empresa.");
             return;
         }
         if (!companyOtpInput || companyOtpInput.trim().length < 6) {
-            toast.error("Informe o código OTP de 6 dígitos da Empresa.");
+            toast.error("Informe el código OTP de 6 dígitos de la Empresa.");
             return;
         }
 
         let signatureBase64 = '';
         if (companySignMode === 'saved') {
             if (!companySavedSigBase64) {
-                toast.error("Nenhuma rubrica salva encontrada. Desenhe ou digite sua assinatura.");
+                toast.error("No se encontró ninguna firma guardada. Dibuje o escriba su firma.");
                 return;
             }
             signatureBase64 = companySavedSigBase64;
         } else if (companySignMode === 'type') {
             if (!companyTypedSignature.trim()) {
-                toast.error("Digite o nome para gerar a rubrica digital.");
+                toast.error("Escriba el nombre para generar la firma digital.");
                 return;
             }
             signatureBase64 = generateTypedSignaturePng(companyTypedSignature);
         } else {
             if (!hasDrawnCompanySig || !companyCanvasRef.current) {
-                toast.error("Desenhe a assinatura do representante no quadro antes de confirmar.");
+                toast.error("Dibuje la firma del representante en el recuadro antes de confirmar.");
                 return;
             }
             signatureBase64 = companyCanvasRef.current.toDataURL('image/png');
@@ -2174,7 +2174,7 @@ Muchas gracias.`;
                 }
             }
 
-            toast.success("Assinatura Eletrônica da Empresa (Representante Legal) aplicada com sucesso no PDF e no Certificado eIDAS!");
+            toast.success("¡Firma Electrónica de la Empresa (Representante Legal) aplicada con éxito en el PDF y en el Certificado eIDAS!");
             setCompanySignDialogOpen(false);
             loadContracts();
 
@@ -2249,7 +2249,7 @@ Muchas gracias.`;
             const isRescisao = contract.contract_type === 'rescisao';
             const docType = isRescisao ? 'carta_renuncia' : isAlta ? 'contrato_alta' : 'contrato_trabalho';
             const statusPrefix = isRescisao
-                ? (contract.status === 'signed' ? 'Carta de Rescisão Assinada' : 'Carta de Rescisão')
+                ? (contract.status === 'signed' ? 'Carta de Rescisión Assinada' : 'Carta de Rescisión')
                 : (contract.status === 'signed' ? 'Contrato Assinado' : isAlta ? 'Contrato de Alta' : 'Contrato de Trabalho');
 
             const workerName = contract.worker?.nome || 'Trabalhador';
@@ -2720,7 +2720,7 @@ Muchas gracias.`;
         }
     };
 
-    // 6.7. Recusar / Eliminar documento da aba atual
+    // 6.7. Rechazar / Eliminar documento da aba atual
     const handleRejectCurrentDoc = async () => {
         if (!selectedRequest) return;
 
@@ -3015,7 +3015,7 @@ Muchas gracias.`;
             };
 
             await approveDocumentRequest(selectedRequest.id, selectedRequest.worker_id, approvedPayload, updatedFormData);
-            toast.success("Documentação validada e cadastro atualizado com sucesso!");
+            toast.success("¡Documentación validada y registro actualizado con éxito!");
             setVerifyDialogOpen(false);
             loadDocRequests();
             if (selectedTaskForWorkers) {
@@ -3108,7 +3108,7 @@ Muchas gracias.`;
 
     const handleCopyLink = (link: string) => {
         navigator.clipboard.writeText(link);
-        toast.success("Link copiado para a área de transferência!");
+        toast.success("¡Enlace copiado al portapapeles!");
     };
 
     const handleCopyInviteLink = (link: string, workerName?: string) => {
@@ -3120,7 +3120,7 @@ A continuación se compartirá un link, donde proporcionarás la documentación 
  
 Muchas gracias.`;
         navigator.clipboard.writeText(msg);
-        toast.success("Mensagem padrão com o link copiada!");
+        toast.success("¡Mensaje estándar con el enlace copiado!");
     };
 
     const handleCopyContractSignLink = (link: string, workerName?: string, otpCode?: string) => {
@@ -3131,7 +3131,7 @@ Adjunto encontrará un link para firmar el contrato, por favor revise el mismo y
 *LINK* ${link}
 Muchas gracias.`;
         navigator.clipboard.writeText(msg);
-        toast.success("Mensagem padrão do contrato copiada!");
+        toast.success("¡Mensaje estándar del contrato copiado!");
     };
 
     const buildRescisaoMessage = (link: string, workerName?: string, otpCode?: string, startIso?: string, endIso?: string) => {
@@ -3148,7 +3148,7 @@ Muchas gracias.`;
     const handleCopyRescisaoSignLink = (link: string, workerName?: string, otpCode?: string, startIso?: string, endIso?: string) => {
         const msg = buildRescisaoMessage(link, workerName, otpCode, startIso, endIso);
         navigator.clipboard.writeText(msg);
-        toast.success("Mensagem de assinatura da Carta de Rescisão copiada!");
+        toast.success("¡Mensaje de firma de la Carta de Rescisión copiado!");
     };
 
     const handleSendRescisaoWhatsApp = (link: string, workerName?: string, phone?: string, otpCode?: string, startIso?: string, endIso?: string) => {
@@ -3518,10 +3518,10 @@ Muchas gracias.`;
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 shrink-0">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                            Painel de Documentos & Contratos
+                            Panel de Documentos y Contratos
                         </h1>
                         <p className="text-muted-foreground">
-                            Gerencie e emita contratos de trabalho com assinatura eletrônica e captura inteligente de documentos.
+                            Gestione y emita contratos de trabajo con firma electrónica y captura inteligente de documentos.
                         </p>
                     </div>
                     
@@ -3542,9 +3542,9 @@ Muchas gracias.`;
                             </DialogTrigger>
                             <DialogContent className="max-w-xl bg-white dark:bg-slate-900">
                                 <DialogHeader>
-                                    <DialogTitle>Solicitar Documentos por Link</DialogTitle>
+                                    <DialogTitle>Solicitar Documentos por Enlace</DialogTitle>
                                     <DialogDescription>
-                                        Gere um portal exclusivo e temporário para o trabalhador tirar fotos e enviar os documentos de cadastro do próprio celular.
+                                        Genere un portal exclusivo y temporal para que el trabajador tome fotos y envíe sus documentos desde su teléfono móvil.
                                     </DialogDescription>
                                 </DialogHeader>
                                 
@@ -3563,7 +3563,7 @@ Muchas gracias.`;
                                                 }}
                                             >
                                                 <SelectTrigger className="bg-white dark:bg-black w-full text-left">
-                                                    <SelectValue placeholder="Selecione a empresa contratante..." />
+                                                    <SelectValue placeholder="Seleccione la empresa contratante..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="dae64d51-2181-4510-b14f-e63d2f111a8e">Wiseowe Unipessoal Lda</SelectItem>
@@ -3579,24 +3579,24 @@ Muchas gracias.`;
 
                                          <div className="space-y-2">
                                             <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                                Cliente (Alocação / Destino)
+                                                Cliente (Asignación / Destino)
                                             </Label>
                                             <Combobox
                                                 options={[
-                                                    { value: 'none', label: 'Sem Cliente Especificado' },
+                                                    { value: 'none', label: 'Sin Cliente Especificado' },
                                                     ...clientsList.map(cli => ({ value: cli.id, label: cli.name }))
                                                 ]}
                                                 value={requestClientId || 'none'}
                                                 onChange={(val) => setRequestClientId(val || 'none')}
-                                                placeholder="Pesquise o cliente pelo nome ou código..."
-                                                emptyText="Nenhum cliente ativo encontrado."
+                                                placeholder="Busque el cliente por nombre o código..."
+                                                emptyText="No se encontró ningún cliente activo."
                                                 className="h-10 text-sm bg-white dark:bg-black border-slate-200 dark:border-slate-800 w-full"
                                                 popoverClassName="w-[450px]"
                                             />
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label>Data de Início Previsto (Trabalho)</Label>
+                                            <Label>Fecha de Inicio Prevista (Trabajo)</Label>
                                             <Input 
                                                 type="date"
                                                 value={requestStartDate}
@@ -3606,19 +3606,19 @@ Muchas gracias.`;
                                         </div>
 
                                         <div className="space-y-2">
-                                            <Label>Selecionar Trabalhador</Label>
+                                            <Label>Seleccionar Trabajador</Label>
                                             <Combobox
                                                 options={requestWorkersList.length > 0 ? requestWorkersList : workersList}
                                                 value={requestWorkerId || ''}
                                                 onChange={(val) => setRequestWorkerId(val || null)}
-                                                placeholder="Pesquise o trabalhador cadastrado..."
+                                                placeholder="Busque el trabajador registrado..."
                                             />
                                         </div>
                                         <div className="flex justify-end gap-2 pt-2">
                                             <Button type="button" variant="outline" onClick={() => setRequestDialogOpen(false)}>Cancelar</Button>
                                             <Button type="submit" disabled={creatingRequest || !requestWorkerId || !requestEmpresaId} className="bg-indigo-600 hover:bg-indigo-500">
                                                 {creatingRequest ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                                Criar Link
+                                                Crear Enlace
                                             </Button>
                                         </div>
                                     </form>
@@ -3627,16 +3627,16 @@ Muchas gracias.`;
                                         <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
                                             <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
                                                 <CheckCircle className="h-5 w-5" />
-                                                <span>Link de Cadastro Criado!</span>
+                                                <span>¡Enlace de Registro Creado!</span>
                                             </div>
-                                            <p className="text-xs text-slate-500">Copie o link seguro abaixo e envie para o trabalhador iniciar o preenchimento e captura das fotos:</p>
+                                            <p className="text-xs text-slate-500">Copie el siguiente enlace seguro y envíelo al trabajador para iniciar el formulario y la captura de fotos:</p>
                                             
                                             <div className="flex gap-2">
                                                 <Input readOnly value={requestSuccessLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
                                                 <Button size="icon" variant="outline" onClick={() => {
                                                      const workerObj = requestWorkersList.find(w => w.value === requestWorkerId) || workersList.find(w => w.value === requestWorkerId);
                                                      handleCopyInviteLink(requestSuccessLink, workerObj?.label);
-                                                 }} title="Copiar mensagem formatada com o link">
+                                                 }} title="Copiar mensaje con el enlace">
                                                     <Copy className="h-4 w-4" />
                                                 </Button>
                                             </div>
@@ -3650,9 +3650,9 @@ Muchas gracias.`;
                         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                             <DialogContent className="max-w-xl bg-white dark:bg-slate-900">
                                 <DialogHeader>
-                                    <DialogTitle>Editar Solicitação de Documentos</DialogTitle>
+                                    <DialogTitle>Editar Solicitud de Documentos</DialogTitle>
                                     <DialogDescription>
-                                        Altere a Empresa Contratante, o Cliente de destino e a Data de Início do trabalho para <strong>{editingRequest?.worker?.nome}</strong>.
+                                        Modifique la Empresa Contratante, el Cliente de destino y la Fecha de Inicio del trabajo para <strong>{editingRequest?.worker?.nome}</strong>.
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -3668,7 +3668,7 @@ Muchas gracias.`;
                                             }}
                                         >
                                             <SelectTrigger className="bg-white dark:bg-black w-full text-left">
-                                                <SelectValue placeholder="Selecione a empresa contratante..." />
+                                                <SelectValue placeholder="Seleccione la empresa contratante..." />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="dae64d51-2181-4510-b14f-e63d2f111a8e">Wiseowe Unipessoal Lda</SelectItem>
@@ -3683,24 +3683,24 @@ Muchas gracias.`;
 
                                     <div className="space-y-2">
                                         <Label className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                            Cliente (Alocação / Destino)
+                                            Cliente (Asignación / Destino)
                                         </Label>
                                         <Combobox
                                             options={[
-                                                { value: 'none', label: 'Sem Cliente Especificado' },
+                                                { value: 'none', label: 'Sin Cliente Especificado' },
                                                 ...clientsList.map(cli => ({ value: cli.id, label: cli.name }))
                                             ]}
                                             value={editClientId || 'none'}
                                             onChange={(val) => setEditClientId(val || 'none')}
-                                            placeholder="Pesquise o cliente pelo nome ou código..."
-                                            emptyText="Nenhum cliente ativo encontrado."
+                                            placeholder="Busque el cliente por nombre o código..."
+                                            emptyText="No se encontró ningún cliente activo."
                                             className="h-10 text-sm bg-white dark:bg-black border-slate-200 dark:border-slate-800 w-full"
                                             popoverClassName="w-[450px]"
                                         />
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label>Data de Início Previsto (Trabalho)</Label>
+                                        <Label>Fecha de Inicio Prevista (Trabajo)</Label>
                                         <Input 
                                             type="date"
                                             value={editStartDate}
@@ -3713,14 +3713,14 @@ Muchas gracias.`;
                                         <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancelar</Button>
                                         <Button type="submit" disabled={updatingRequest || !editEmpresaId} className="bg-indigo-600 hover:bg-indigo-500">
                                             {updatingRequest ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                            Salvar Alterações
+                                            Guardar Cambios
                                         </Button>
                                     </div>
                                 </form>
                             </DialogContent>
                         </Dialog>
 
-                        {/* Botão Gerar Contrato */}
+                        {/* Botão Generar Contrato */}
                         <Dialog open={generateDialogOpen} onOpenChange={(open) => {
                             setGenerateDialogOpen(open);
                             if (!open) {
@@ -3743,13 +3743,13 @@ Muchas gracias.`;
                                 className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold flex items-center gap-1 shadow-sm"
                             >
                                 <Plus className="h-4 w-4" />
-                                Gerar Contrato
+                                Generar Contrato
                             </Button>
                             <DialogContent className={`${generationSuccess ? 'sm:max-w-7xl max-w-7xl w-[95vw] h-[88vh]' : selectedContractType === 'contrato_fijo_discontinuo' ? 'sm:max-w-4xl max-w-4xl w-[92vw] max-h-[92vh]' : 'sm:max-w-2xl max-w-2xl w-[90vw]'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader>
-                                    <DialogTitle className="text-xl font-bold">Gerar Novo Contrato</DialogTitle>
+                                    <DialogTitle className="text-xl font-bold">Generar Nuevo Contrato</DialogTitle>
                                     <DialogDescription>
-                                        Selecione o trabalhador e o modelo de contrato. O sistema gerará o arquivo automaticamente com validade eIDAS (incluindo o modelo oficial SEPE Fijo-Discontinuo em PDF para a Hexagon).
+                                        Seleccione el trabajador y el modelo de contrato. El sistema generará el archivo automáticamente con validez eIDAS (incluyendo el modelo oficial SEPE en PDF para Hexagon).
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -3757,7 +3757,7 @@ Muchas gracias.`;
                                     <form onSubmit={handleGenerate} className="space-y-4 pt-2 overflow-y-auto pr-1">
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                             <div className="flex flex-col justify-end space-y-1.5 md:col-span-1">
-                                                <Label className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 block truncate">Selecionar Trabalhador</Label>
+                                                <Label className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 block truncate">Seleccionar Trabajador</Label>
                                                 <Combobox
                                                     options={workersList}
                                                     value={selectedWorkerId || ''}
@@ -3807,7 +3807,7 @@ Muchas gracias.`;
                                                             }
                                                         }
                                                     }}
-                                                    placeholder="Digite o nome do trabalhador..."
+                                                    placeholder="Escriba el nombre del trabajador..."
                                                 />
                                             </div>
 
@@ -3826,7 +3826,7 @@ Muchas gracias.`;
                                                     }}
                                                 >
                                                     <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                                                        <SelectValue placeholder="Selecione a empresa contratante..." />
+                                                        <SelectValue placeholder="Seleccione la empresa contratante..." />
                                                     </SelectTrigger>
                                                     <SelectContent className="z-[9999]">
                                                         <SelectItem value="STOCCO">Stocco</SelectItem>
@@ -3834,7 +3834,7 @@ Muchas gracias.`;
                                                         <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
                                                         <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
                                                         <SelectItem value="TRIANGULO">Triangulo</SelectItem>
-                                                        <SelectItem value="HEXAGON">Hexagon (Espanha - SEPE)</SelectItem>
+                                                        <SelectItem value="HEXAGON">Hexagon (España - SEPE)</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -3851,13 +3851,13 @@ Muchas gracias.`;
                                                     }}
                                                 >
                                                     <SelectTrigger className="bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                                                        <SelectValue placeholder="Selecione o tipo de contrato..." />
+                                                        <SelectValue placeholder="Seleccione el tipo de contrato..." />
                                                     </SelectTrigger>
                                                     <SelectContent className="z-[9999]">
-                                                        <SelectItem value="contrato_fijo_discontinuo">🇪🇸 Contrato Indefinido Fijo-Discontinuo (SEPE Cód. 300 - Oficial PDF)</SelectItem>
-                                                        <SelectItem value="contrato_termo_incerto">🇵🇹 Contrato a Termo Incerto (Passaporte)</SelectItem>
+                                                        <SelectItem value="contrato_fijo_discontinuo">🇪🇸 Contrato Oficial SEPE (Fijo-Discontinuo / Indefinido - PDF)</SelectItem>
+                                                        <SelectItem value="contrato_termo_incerto">🇵🇹 Contrato a Termo Incerto (Pasaporte)</SelectItem>
                                                         <SelectItem value="contrato_nis">🇵🇹 Contrato NIS (NIF)</SelectItem>
-                                                        <SelectItem value="contrato_alta">📋 Contrato de Alta (Contabilidade - Sem Assinatura)</SelectItem>
+                                                        <SelectItem value="contrato_alta">📋 Contrato de Alta (Contabilidad - Sin Firma)</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -3868,10 +3868,10 @@ Muchas gracias.`;
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200 dark:border-indigo-800/80 pb-3">
                                                     <div>
                                                         <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
-                                                            🇪🇸 Dados Oficiais SEPE — Modelo Oficial Gestoría Hexagon (Código {sepeForm.sepe_codigo || '300'})
+                                                            🇪🇸 Datos Oficiales SEPE — Modelo Oficial Gestoría Hexagon (Código {sepeForm.sepe_codigo || '300'})
                                                         </h4>
                                                         <p className="text-xs text-slate-500 mt-0.5">
-                                                            Pré-preenchido com os dados oficiais da Gestoría (Tarancón / Convenio Metal de Cuenca / CCC 0111-16106973470). Ajuste se necessário antes de emitir o PDF.
+                                                            Rellenado automáticamente con los datos oficiales de la Gestoría (Tarancón / Convenio Metal de Cuenca / CCC 0111-16106973470). Ajústelo si es necesario antes de emitir el PDF.
                                                         </p>
                                                     </div>
                                                     <div className="flex items-center gap-2 shrink-0">
@@ -3879,14 +3879,14 @@ Muchas gracias.`;
                                                             value={sepeForm.sepe_codigo || '300'}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, sepe_codigo: e.target.value }))}
                                                             className="h-8 rounded-md border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 px-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300"
-                                                            title="Modalidade SEPE na Página 5/6"
+                                                            title="Modalidad SEPE en la Página 5/6"
                                                         >
                                                             <option value="300">Cód. 300 — Fijo-Discontinuo</option>
                                                             <option value="100">Cód. 100 — Indefinido Tiempo Completo</option>
                                                             <option value="200">Cód. 200 — Indefinido Tiempo Parcial</option>
                                                         </select>
                                                         <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 shrink-0 border-indigo-300 text-indigo-700 dark:text-indigo-300 bg-white/80 dark:bg-slate-900/80">
-                                                            7 Páginas Oficiais + eIDAS
+                                                            7 Páginas Oficiales + eIDAS
                                                         </Badge>
                                                     </div>
                                                 </div>
@@ -3904,8 +3904,8 @@ Muchas gracias.`;
                                                         />
                                                     </div>
                                                     <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Município Domicílio do Trabalhador">
-                                                            Município Domicílio do Trabalhador
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Municipio Domicilio del Trabajador">
+                                                            Municipio Domicilio del Trabajador
                                                         </Label>
                                                         <Input
                                                             value={sepeForm.municipio_domicilio}
@@ -3915,8 +3915,8 @@ Muchas gracias.`;
                                                         />
                                                     </div>
                                                     <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Código Postal (CP Domicílio)">
-                                                            Código Postal (CP Domicílio)
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Código Postal (CP Domicilio)">
+                                                            Código Postal (CP Domicilio)
                                                         </Label>
                                                         <Input
                                                             value={sepeForm.codigo_postal}
@@ -3978,7 +3978,7 @@ Muchas gracias.`;
                                                     </div>
                                                     <div className="flex flex-col justify-end space-y-1.5">
                                                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
-                                                            Município da Obra
+                                                            Municipio del Centro de Trabajo
                                                         </Label>
                                                         <Input
                                                             value={sepeForm.centro_trabajo_municipio}
@@ -3989,7 +3989,7 @@ Muchas gracias.`;
                                                     </div>
                                                     <div className="flex flex-col justify-end space-y-1.5">
                                                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
-                                                            CP da Obra
+                                                            CP del Centro de Trabajo
                                                         </Label>
                                                         <Input
                                                             value={sepeForm.centro_trabajo_cp}
@@ -4002,8 +4002,8 @@ Muchas gracias.`;
 
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                                     <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Fecha de Inicio (Quinta Cláusula)">
-                                                            Fecha de Inicio (Quinta Cláusula)
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Fecha de Inicio (Cuarta Cláusula)">
+                                                            Fecha de Inicio (Cuarta Cláusula)
                                                         </Label>
                                                         <Input
                                                             type="date"
@@ -4023,8 +4023,8 @@ Muchas gracias.`;
                                                         />
                                                     </div>
                                                     <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Retribución Total (Sexta Cláusula)">
-                                                            Retribución Total (Sexta Cláusula)
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Retribución Total (Quinta Cláusula)">
+                                                            Retribución Total (Quinta Cláusula)
                                                         </Label>
                                                         <Input
                                                             value={sepeForm.retribucion_total}
@@ -4040,7 +4040,7 @@ Muchas gracias.`;
                                             <Button type="button" variant="outline" onClick={() => setGenerateDialogOpen(false)}>Cancelar</Button>
                                             <Button type="submit" disabled={generating} className="bg-indigo-600 hover:bg-indigo-500">
                                                 {generating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                                {selectedContractType === 'contrato_fijo_discontinuo' ? 'Emitir Contrato SEPE (.PDF)' : 'Gerar Contrato'}
+                                                {selectedContractType === 'contrato_fijo_discontinuo' ? 'Emitir Contrato SEPE (.PDF)' : 'Generar Contrato'}
                                             </Button>
                                         </div>
                                     </form>
@@ -4051,13 +4051,13 @@ Muchas gracias.`;
                                             {loadingPreview && (
                                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 z-10 gap-2">
                                                     <Loader2 className="h-8 w-8 animate-spin text-indigo-600 dark:text-indigo-400" />
-                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Carregando visualização prévia...</span>
+                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cargando vista previa...</span>
                                                 </div>
                                             )}
                                             {!loadingPreview && !previewBlob && (
                                                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
                                                     <AlertCircle className="h-10 w-10 text-slate-400 mb-2" />
-                                                    <span className="text-sm text-center font-medium text-slate-500">Pré-visualização indisponível.</span>
+                                                    <span className="text-sm text-center font-medium text-slate-500">Vista previa no disponible.</span>
                                                 </div>
                                             )}
                                             <style>{`
@@ -4079,17 +4079,17 @@ Muchas gracias.`;
                                                 <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
                                                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
                                                         <CheckCircle className="h-5 w-5" />
-                                                        <span>Contrato Gerado com Sucesso!</span>
+                                                        <span>¡Contrato Generado con Éxito!</span>
                                                     </div>
                                                     {generationSuccess.contractType === 'contrato_alta' ? (
                                                         <p className="text-xs text-slate-500 leading-relaxed">
-                                                            Este contrato foi classificado como <strong>Alta (Contabilidade)</strong>. Não requer assinatura eletrônica ou código OTP. O arquivo foi enviado diretamente para o histórico de contratos.
+                                                            Este contrato fue clasificado como <strong>Alta (Contabilidad)</strong>. No requiere firma electrónica ni código OTP. El archivo fue enviado directamente al historial de contratos.
                                                         </p>
                                                     ) : (
                                                         <>
                                                             <div className="space-y-1.5 bg-white/80 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800">
                                                                 <p className="text-xs text-slate-600 dark:text-slate-300 flex items-center justify-between">
-                                                                    <span>OTP Trabalhador:</span>
+                                                                    <span>OTP Trabajador:</span>
                                                                     <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-slate-800 px-2 py-0.5 rounded">{generationSuccess.otpCode}</span>
                                                                 </p>
                                                                 {generationSuccess.companyOtpCode && (
@@ -4100,10 +4100,10 @@ Muchas gracias.`;
                                                                 )}
                                                             </div>
                                                             <div className="space-y-1">
-                                                                <Label className="text-xs text-muted-foreground">Link de Assinatura do Trabalhador</Label>
+                                                                <Label className="text-xs text-muted-foreground">Enlace de Firma del Trabajador</Label>
                                                                 <div className="flex gap-2">
                                                                     <Input readOnly value={generationSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
-                                                                    <Button size="icon" variant="outline" onClick={() => handleCopyContractSignLink(generationSuccess.signingLink, workersList.find(w => w.value === selectedWorkerId)?.label.split(' (')[0], generationSuccess.otpCode)} title="Copiar mensagem padrão com link e código OTP">
+                                                                    <Button size="icon" variant="outline" onClick={() => handleCopyContractSignLink(generationSuccess.signingLink, workersList.find(w => w.value === selectedWorkerId)?.label.split(' (')[0], generationSuccess.otpCode)} title="Copiar mensaje estándar con enlace y código OTP">
                                                                         <Copy className="h-4 w-4" />
                                                                     </Button>
                                                                 </div>
@@ -4138,7 +4138,7 @@ Muchas gracias.`;
                                                                 }}
                                                             >
                                                                 <PenTool className="h-4 w-4" />
-                                                                Assinar Agora pela Empresa (OTP)
+                                                                Firmar Ahora por la Empresa (OTP)
                                                             </Button>
                                                         </div>
                                                     )}
@@ -4156,23 +4156,23 @@ Muchas gracias.`;
                                                                 } as any)}
                                                             >
                                                                 <FileText className="h-4 w-4" />
-                                                                Baixar Arquivo Gerado ({generationSuccess.documentUrl.toLowerCase().endsWith('.pdf') ? '.pdf' : '.docx'})
+                                                                Descargar Archivo Generado ({generationSuccess.documentUrl.toLowerCase().endsWith('.pdf') ? '.pdf' : '.docx'})
                                                             </Button>
                                                         </div>
                                                     )}
 
                                                     <div className="text-xs flex items-center gap-2 text-slate-500 pt-2 border-t border-slate-200 dark:border-slate-800 leading-normal">
                                                         {generationSuccess.contractType === 'contrato_alta' ? (
-                                                            <span>Pronto para envio à contabilidade.</span>
+                                                            <span>Listo para envío a contabilidad.</span>
                                                         ) : generationSuccess.emailSent ? (
                                                             <>
                                                                 <Mail className="h-4 w-4 text-emerald-500 shrink-0" />
-                                                                <span>E-mail enviado com sucesso ao trabalhador.</span>
+                                                                <span>Correo electrónico enviado con éxito al trabajador.</span>
                                                             </>
                                                         ) : (
                                                             <>
                                                                 <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                                                                <span>Sem envio automático de e-mail (Resend não configurado ou trabalhador sem e-mail). Copie o link acima.</span>
+                                                                <span>Sin envío automático de correo (Resend no configurado o trabajador sin correo). Copie el enlace de arriba.</span>
                                                             </>
                                                         )}
                                                     </div>
@@ -4181,7 +4181,7 @@ Muchas gracias.`;
 
                                             <div className="pt-4 mt-4 border-t border-slate-200 dark:border-slate-800">
                                                 <Button onClick={() => setGenerateDialogOpen(false)} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold">
-                                                    Fechar Painel
+                                                    Cerrar Panel
                                                 </Button>
                                             </div>
                                         </div>
@@ -4190,7 +4190,7 @@ Muchas gracias.`;
                             </DialogContent>
                         </Dialog>
 
-                        {/* Botão & Modal Gerar Carta de Rescisão */}
+                        {/* Botão & Modal Generar Carta de Rescisión */}
                         <Dialog open={rescisaoDialogOpen} onOpenChange={(open) => {
                             setRescisaoDialogOpen(open);
                             if (!open) {
@@ -4203,16 +4203,16 @@ Muchas gracias.`;
                                 className="bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 shadow-sm"
                             >
                                 <FileText className="h-4 w-4" />
-                                Carta de Rescisão
+                                Carta de Rescisión
                             </Button>
                             <DialogContent className={`${rescisaoSuccess ? 'max-w-7xl sm:max-w-7xl w-[96vw] h-[88vh]' : 'max-w-5xl sm:max-w-5xl w-[95vw] max-h-[92vh]'} flex flex-col bg-white dark:bg-slate-900 p-6 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
                                     <DialogTitle className="flex items-center gap-2 text-xl font-bold text-rose-600 dark:text-rose-400">
                                         <FileText className="h-6 w-6" />
-                                        Emitir Carta de Rescisão (Solicitud de Rescisión)
+                                        Emitir Carta de Rescisión (Solicitud de Rescisión)
                                     </DialogTitle>
                                     <DialogDescription className="text-sm">
-                                        Selecione o trabalhador para carregar automaticamente seus documentos (Passaporte, NIF e NISS), confira o período de aviso prévio de 15 dias corridos e gere o link para assinatura eletrônica.
+                                        Seleccione el trabajador para cargar automáticamente sus documentos (Pasaporte, NIF y NISS), verifique el período de preaviso de 15 días naturales y genere el enlace para firma electrónica.
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -4220,12 +4220,12 @@ Muchas gracias.`;
                                     <form onSubmit={handleGenerateRescisao} className="space-y-5 pt-3 overflow-y-auto pr-1">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                             <div className="space-y-2">
-                                                <Label className="text-sm font-semibold">Selecionar Trabalhador</Label>
+                                                <Label className="text-sm font-semibold">Seleccionar Trabajador</Label>
                                                 <Combobox
                                                     options={workersList}
                                                     value={rescisaoWorkerId || ''}
                                                     onChange={(val) => handleSelectRescisaoWorker(val || null)}
-                                                    placeholder="Digite o nome ou código do trabalhador..."
+                                                    placeholder="Escriba el nombre o código del trabajador..."
                                                     className="h-11 text-sm font-medium"
                                                     popoverClassName="w-[420px]"
                                                 />
@@ -4235,7 +4235,7 @@ Muchas gracias.`;
                                                 <Label className="text-sm font-semibold">Empresa Contratante (Modelo Word)</Label>
                                                 <Select value={rescisaoContratante} onValueChange={setRescisaoContratante}>
                                                     <SelectTrigger className="h-11 text-sm font-medium bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
-                                                        <SelectValue placeholder="Selecione a empresa..." />
+                                                        <SelectValue placeholder="Seleccione la empresa..." />
                                                     </SelectTrigger>
                                                     <SelectContent className="z-[9999]">
                                                         <SelectItem value="STOCCO">Stocco, Lda</SelectItem>
@@ -4254,15 +4254,15 @@ Muchas gracias.`;
                                             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                                                        Dados do Trabalhador & Documentos (Impressos no Cabeçalho da Carta)
+                                                        Datos del Trabajador y Documentos (Impresos en el Encabezado de la Carta)
                                                     </span>
                                                     {loadingRescisaoWorker && (
                                                         <span className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando dados...
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando datos...
                                                         </span>
                                                     )}
                                                 </div>
-                                                <span className="text-xs text-slate-500">Você pode complementar ou editar qualquer campo abaixo</span>
+                                                <span className="text-xs text-slate-500">Puede completar o editar cualquier campo a continuación</span>
                                             </div>
 
                                             {/* Resumo cadastral do trabalhador quando selecionado */}
@@ -4275,21 +4275,21 @@ Muchas gracias.`;
                                                         </span>
                                                     </div>
                                                     <div>
-                                                        <span className="text-slate-400 block text-[11px]">Cliente / Obra Atual</span>
+                                                        <span className="text-slate-400 block text-[11px]">Cliente / Obra Actual</span>
                                                         <span className="font-semibold text-slate-700 dark:text-slate-200">
-                                                            {rescisaoWorkerDetails.cliente || 'Sem cliente vinculado'}
+                                                            {rescisaoWorkerDetails.cliente || 'Sin cliente vinculado'}
                                                         </span>
                                                     </div>
                                                     <div>
-                                                        <span className="text-slate-400 block text-[11px]">Função / Cargo</span>
+                                                        <span className="text-slate-400 block text-[11px]">Función / Cargo</span>
                                                         <span className="font-semibold text-slate-700 dark:text-slate-200">
                                                             {rescisaoWorkerDetails.funcion || '-'}
                                                         </span>
                                                     </div>
                                                     <div>
-                                                        <span className="text-slate-400 block text-[11px]">Contato (WhatsApp / E-mail)</span>
+                                                        <span className="text-slate-400 block text-[11px]">Contacto (WhatsApp / Correo)</span>
                                                         <span className="font-semibold text-slate-700 dark:text-slate-200 truncate block" title={`${rescisaoWorkerPhone} ${rescisaoWorkerEmail}`}>
-                                                            {rescisaoWorkerPhone || rescisaoWorkerEmail || 'Sem telefone'}
+                                                            {rescisaoWorkerPhone || rescisaoWorkerEmail || 'Sin teléfono'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -4320,7 +4320,7 @@ Muchas gracias.`;
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        NISS (Segurança Social)
+                                                        NISS (Seguridad Social)
                                                     </Label>
                                                     <Input
                                                         value={rescisaoNiss}
@@ -4334,13 +4334,13 @@ Muchas gracias.`;
                                             {/* Linha prévia exata que vai sair no cabeçalho da carta */}
                                             {rescisaoWorkerId && (
                                                 <div className="text-xs bg-slate-100 dark:bg-slate-900/90 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                                                    <span className="text-slate-500 font-medium">Linha impressa na Carta:</span>
+                                                    <span className="text-slate-500 font-medium">Línea impresa en la Carta:</span>
                                                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
                                                         {[
                                                             rescisaoPasaporte ? `PASAPORTE: ${rescisaoPasaporte}` : null,
                                                             rescisaoNif ? `NIF: ${rescisaoNif}` : null,
                                                             rescisaoNiss ? `NISS: ${rescisaoNiss}` : null,
-                                                        ].filter(Boolean).join('   ') || 'Nenhum documento informado'}
+                                                        ].filter(Boolean).join('   ') || 'Ningún documento informado'}
                                                     </span>
                                                 </div>
                                             )}
@@ -4352,23 +4352,23 @@ Muchas gracias.`;
                                                 <div>
                                                     <span className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
                                                         <Calendar className="h-4 w-4" />
-                                                        Datas da Solicitação e Aviso Prévio (15 Dias Corridos)
+                                                        Fechas de la Solicitud y Preaviso (15 Días Naturales)
                                                     </span>
                                                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                                                        Ao alterar a data de início, a data final é calculada automaticamente (+15 dias), mas você pode editá-las livremente (inclusive retroativo).
+                                                        Al cambiar la fecha de inicio, la fecha final se calcula automáticamente (+15 días), pero puede editarlas libremente (incluso retroactivo).
                                                     </p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 bg-white dark:bg-slate-900">
-                                                        Prazo: {getDaysDiff(rescisaoStartDate, rescisaoEndDate)} dias corridos
+                                                        Plazo: {getDaysDiff(rescisaoStartDate, rescisaoEndDate)} días naturales
                                                     </Badge>
                                                     <button
                                                         type="button"
                                                         onClick={() => setRescisaoEndDate(addDaysToIso(rescisaoStartDate, 15))}
                                                         className="text-xs px-2.5 py-1 rounded-md border border-rose-200 dark:border-rose-800 bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 font-semibold transition-colors"
-                                                        title="Recalcular +15 dias a partir da data de início"
+                                                        title="Recalcular +15 días a partir de la fecha de inicio"
                                                     >
-                                                        Resetar +15d
+                                                        Restablecer +15d
                                                     </button>
                                                 </div>
                                             </div>
@@ -4376,7 +4376,7 @@ Muchas gracias.`;
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                                 <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        Data da Solicitação / Carta
+                                                        Fecha de la Solicitud / Carta
                                                     </Label>
                                                     <Input
                                                         type="date"
@@ -4395,7 +4395,7 @@ Muchas gracias.`;
 
                                                 <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        Início do Aviso Prévio
+                                                        Inicio del Preaviso
                                                     </Label>
                                                     <Input
                                                         type="date"
@@ -4413,7 +4413,7 @@ Muchas gracias.`;
 
                                                 <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                        Fim do Aviso Prévio (+15d)
+                                                        Fin del Preaviso (+15d)
                                                     </Label>
                                                     <Input
                                                         type="date"
@@ -4434,7 +4434,7 @@ Muchas gracias.`;
                                             <Button type="button" variant="outline" className="h-10 px-5" onClick={() => setRescisaoDialogOpen(false)}>Cancelar</Button>
                                             <Button type="submit" disabled={generatingRescisao || !rescisaoWorkerId} className="h-10 px-6 bg-rose-600 hover:bg-rose-500 text-white font-semibold">
                                                 {generatingRescisao ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-1.5" />}
-                                                Gerar Carta de Rescisão
+                                                Generar Carta de Rescisión
                                             </Button>
                                         </div>
                                     </form>
@@ -4445,13 +4445,13 @@ Muchas gracias.`;
                                             {loadingRescisaoPreview && (
                                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 z-10 gap-2">
                                                     <Loader2 className="h-8 w-8 animate-spin text-rose-600" />
-                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Carregando visualização da Carta de Rescisão...</span>
+                                                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Cargando vista previa de la Carta de Rescisión...</span>
                                                 </div>
                                             )}
                                             {!loadingRescisaoPreview && !rescisaoPreviewBlob && (
                                                 <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-8">
                                                     <AlertCircle className="h-10 w-10 text-slate-400 mb-2" />
-                                                    <span className="text-sm text-center font-medium text-slate-500">Pré-visualização indisponível.</span>
+                                                    <span className="text-sm text-center font-medium text-slate-500">Vista previa no disponible.</span>
                                                 </div>
                                             )}
                                             <div ref={rescisaoPreviewRef} className="docx-wrapper" />
@@ -4463,21 +4463,21 @@ Muchas gracias.`;
                                                 <div className="border border-emerald-500/35 bg-emerald-500/5 rounded-lg p-4 space-y-3">
                                                     <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-semibold">
                                                         <CheckCircle className="h-5 w-5" />
-                                                        <span>Carta de Rescisão Emitida!</span>
+                                                        <span>¡Carta de Rescisión Emitida!</span>
                                                     </div>
 
                                                     <div className="text-xs text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 p-2.5 rounded border border-slate-200 dark:border-slate-800 space-y-1">
-                                                        <div><span className="text-slate-400">Trabalhador:</span> <strong>{rescisaoWorkerName || workersList.find(w => w.value === rescisaoWorkerId)?.label.split(' (')[0]}</strong></div>
+                                                        <div><span className="text-slate-400">Trabajador:</span> <strong>{rescisaoWorkerName || workersList.find(w => w.value === rescisaoWorkerId)?.label.split(' (')[0]}</strong></div>
                                                         <div><span className="text-slate-400">Empresa:</span> <strong>{rescisaoContratante}</strong></div>
-                                                        <div><span className="text-slate-400">Aviso Prévio:</span> <strong className="text-rose-600 dark:text-rose-400">{formatIsoToBr(rescisaoStartDate)} → {formatIsoToBr(rescisaoEndDate)}</strong></div>
+                                                        <div><span className="text-slate-400">Preaviso:</span> <strong className="text-rose-600 dark:text-rose-400">{formatIsoToBr(rescisaoStartDate)} → {formatIsoToBr(rescisaoEndDate)}</strong></div>
                                                     </div>
 
                                                     <p className="text-xs text-slate-500">
-                                                        Código OTP de Assinatura: <span className="font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-slate-800 px-2 py-0.5 rounded">{rescisaoSuccess.otpCode}</span>
+                                                        Código OTP de Firma: <span className="font-mono font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-slate-800 px-2 py-0.5 rounded">{rescisaoSuccess.otpCode}</span>
                                                     </p>
 
                                                     <div className="space-y-1">
-                                                        <Label className="text-xs text-muted-foreground">Link de Assinatura Eletrônica</Label>
+                                                        <Label className="text-xs text-muted-foreground">Enlace de Firma Electrónica</Label>
                                                         <div className="flex gap-2">
                                                             <Input readOnly value={rescisaoSuccess.signingLink} className="font-mono text-xs select-all bg-white dark:bg-black" />
                                                             <Button
@@ -4490,7 +4490,7 @@ Muchas gracias.`;
                                                                     rescisaoStartDate,
                                                                     rescisaoEndDate
                                                                 )}
-                                                                title="Copiar mensagem com link e código OTP"
+                                                                title="Copiar mensaje con enlace y código OTP"
                                                             >
                                                                 <Copy className="h-4 w-4" />
                                                             </Button>
@@ -4511,7 +4511,7 @@ Muchas gracias.`;
                                                             )}
                                                         >
                                                             <Send className="h-4 w-4" />
-                                                            Enviar para Assinatura via WhatsApp
+                                                            Enviar para Firma vía WhatsApp
                                                         </Button>
 
                                                         {rescisaoSuccess.documentUrl && (
@@ -4526,7 +4526,7 @@ Muchas gracias.`;
                                                                 } as any)}
                                                             >
                                                                 <Download className="h-4 w-4" />
-                                                                Baixar Arquivo Word (.docx)
+                                                                Descargar Archivo Word (.docx)
                                                             </Button>
                                                         )}
                                                     </div>
@@ -4539,13 +4539,13 @@ Muchas gracias.`;
                                                     onClick={() => setRescisaoSuccess(null)}
                                                     className="flex-1"
                                                 >
-                                                    Emitir Outra
+                                                    Emitir Otra
                                                 </Button>
                                                 <Button
                                                     onClick={() => setRescisaoDialogOpen(false)}
                                                     className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold"
                                                 >
-                                                    Concluir
+                                                    Finalizar
                                                 </Button>
                                             </div>
                                         </div>
@@ -4567,24 +4567,24 @@ Muchas gracias.`;
                     }
                 }}>
                     <TabsList className="grid w-full md:w-[1040px] grid-cols-2 md:grid-cols-5 shrink-0">
-                        <TabsTrigger value="tasks">Tarefas Operacionais</TabsTrigger>
-                        <TabsTrigger value="requests">Solicitações de Documentos</TabsTrigger>
-                        <TabsTrigger value="contracts">Contratos & Assinaturas</TabsTrigger>
+                        <TabsTrigger value="tasks">Tareas Operativas</TabsTrigger>
+                        <TabsTrigger value="requests">Solicitudes de Documentos</TabsTrigger>
+                        <TabsTrigger value="contracts">Contratos y Firmas</TabsTrigger>
                         <TabsTrigger value="rescisoes" className="flex items-center gap-1.5">
-                            <span>Cartas de Rescisão</span>
+                            <span>Cartas de Rescisión</span>
                             {rescisaoStats.pending > 0 && (
                                 <span className="inline-flex items-center justify-center px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-rose-600 text-white">
                                     {rescisaoStats.pending}
                                 </span>
                             )}
                         </TabsTrigger>
-                        <TabsTrigger value="templates">Configuração de Modelos</TabsTrigger>
+                        <TabsTrigger value="templates">Configuración de Modelos</TabsTrigger>
                     </TabsList>
                     
                     {/* Conteúdo 1: Tarefas do Kanban */}
                     <TabsContent value="tasks" className="flex-1 hidden data-[state=active]:flex flex-col min-h-0 overflow-hidden pt-4">
                         <DepartmentTaskBoard 
-                            title="Fila de Tarefas de Documentação" 
+                            title="Cola de Tareas de Documentación" 
                             departmentCodes={['DOCUMENTACION', 'CONTRATOS']} 
                             onTaskClick={(task) => {
                                 setSelectedTaskForWorkers(task);
@@ -4603,7 +4603,7 @@ Muchas gracias.`;
                                 <Input
                                     value={searchTermRequests}
                                     onChange={(e) => setSearchTermRequests(e.target.value)}
-                                    placeholder="Pesquisar por trabalhador, empresa ou cliente..."
+                                    placeholder="Buscar por trabajador, empresa o cliente..."
                                     className="pl-9 pr-8 bg-white dark:bg-black"
                                 />
                                 {searchTermRequests && (
@@ -4623,7 +4623,7 @@ Muchas gracias.`;
                                             <SelectValue placeholder="Empresa" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todas as Empresas</SelectItem>
+                                            <SelectItem value="all">Todas las Empresas</SelectItem>
                                             {uniqueEmpresasRequests.map(emp => (
                                                 <SelectItem key={emp} value={emp}>{emp}</SelectItem>
                                             ))}
@@ -4637,7 +4637,7 @@ Muchas gracias.`;
                                             <SelectValue placeholder="Cliente" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todos os Clientes</SelectItem>
+                                            <SelectItem value="all">Todos los Clientes</SelectItem>
                                             {uniqueClientsRequests.map(cli => (
                                                 <SelectItem key={cli} value={cli}>{cli}</SelectItem>
                                             ))}
@@ -4651,7 +4651,7 @@ Muchas gracias.`;
                                             <SelectValue placeholder="Pedido / Reemplazo" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todos os Pedidos / Reemplazos</SelectItem>
+                                            <SelectItem value="all">Todos los Pedidos / Reemplazos</SelectItem>
                                             {uniquePedidosRequests.map(ped => (
                                                 <SelectItem key={ped} value={ped}>
                                                     <span className="font-mono">{ped}</span>
@@ -4664,13 +4664,13 @@ Muchas gracias.`;
                                 <div className="w-[180px]">
                                     <Select value={statusFilterRequests} onValueChange={setStatusFilterRequests}>
                                         <SelectTrigger className="bg-white dark:bg-black">
-                                            <SelectValue placeholder="Status" />
+                                            <SelectValue placeholder="Estado" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todos os Status</SelectItem>
-                                            <SelectItem value="pending_upload">Aguardando Envio</SelectItem>
-                                            <SelectItem value="submitted">Recebido - Analisar</SelectItem>
-                                            <SelectItem value="verified">Cadastro Validado</SelectItem>
+                                            <SelectItem value="all">Todos los Estados</SelectItem>
+                                            <SelectItem value="pending_upload">Esperando Envío</SelectItem>
+                                            <SelectItem value="submitted">Recibido - Revisar</SelectItem>
+                                            <SelectItem value="verified">Registro Validado</SelectItem>
                                             <SelectItem value="expired">Expirado</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -4689,7 +4689,7 @@ Muchas gracias.`;
                                         }}
                                         className="text-indigo-600 dark:text-indigo-400 font-semibold"
                                     >
-                                        Limpar Filtros
+                                        Limpiar Filtros
                                     </Button>
                                 )}
                             </div>
@@ -4697,7 +4697,7 @@ Muchas gracias.`;
 
                         <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
-                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Links e Envios Cadastrais</h3>
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Enlaces y Envíos de Documentación</h3>
                                 <Button size="sm" variant="ghost" onClick={loadDocRequests}><RefreshCw className="h-4 w-4" /></Button>
                             </div>
                             
@@ -4705,12 +4705,12 @@ Muchas gracias.`;
                                 {loadingDocRequests ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                                         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                                        <span>Carregando solicitações...</span>
+                                        <span>Cargando solicitudes...</span>
                                     </div>
                                 ) : filteredRequests.length === 0 ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                                         <Camera className="h-10 w-10 text-slate-400" />
-                                        <span>Nenhuma solicitação de documentos encontrada.</span>
+                                        <span>No se encontró ninguna solicitud de documentos.</span>
                                     </div>
                                 ) : (
                                     <Table>
@@ -4721,7 +4721,7 @@ Muchas gracias.`;
                                                     onClick={() => handleRequestSort('worker')}
                                                 >
                                                     <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                                                        <span>Trabalhador</span>
+                                                        <span>Trabajador</span>
                                                         {sortFieldRequests === 'worker' ? (
                                                             sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
@@ -4760,7 +4760,7 @@ Muchas gracias.`;
                                                     onClick={() => handleRequestSort('planned_start_date')}
                                                 >
                                                     <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                                                        <span>Início Previsto</span>
+                                                        <span>Inicio Previsto</span>
                                                         {sortFieldRequests === 'planned_start_date' ? (
                                                             sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
@@ -4768,13 +4768,13 @@ Muchas gracias.`;
                                                         )}
                                                     </div>
                                                 </TableHead>
-                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Status</TableHead>
+                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Estado</TableHead>
                                                 <TableHead 
                                                     className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                                                     onClick={() => handleRequestSort('created_at')}
                                                 >
                                                     <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                                                        <span>Criado Em</span>
+                                                        <span>Creado el</span>
                                                         {sortFieldRequests === 'created_at' ? (
                                                             sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
@@ -4782,8 +4782,8 @@ Muchas gracias.`;
                                                         )}
                                                     </div>
                                                 </TableHead>
-                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Expira Em</TableHead>
-                                                <TableHead className="text-right whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Ações</TableHead>
+                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Expira el</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Acciones</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -4797,7 +4797,7 @@ Muchas gracias.`;
                                                 const clientName = req.client?.trade_name || req.client?.legal_name ||
                                                                    activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
                                                                    latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
-                                                                   req.worker?.cliente || 'Sem Alocação';
+                                                                   req.worker?.cliente || 'Sin Asignación';
                                                 
                                                 const rawWorkerCode = (req.worker as any)?.cod_colab || '';
                                                 const workerCode = rawWorkerCode ? (String(rawWorkerCode).startsWith('E') ? String(rawWorkerCode) : `E${rawWorkerCode}`) : '';
@@ -4812,7 +4812,7 @@ Muchas gracias.`;
                                                                           latestAssignment?.planned_start_date || latestAssignment?.start_date;
 
                                                 const formatDisplayDate = (dateStr?: string | null) => {
-                                                    if (!dateStr) return 'Não informada';
+                                                    if (!dateStr) return 'No informada';
                                                     const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
                                                     if (match) {
                                                         return `${match[3]}/${match[2]}/${match[1]}`;
@@ -4836,8 +4836,8 @@ Muchas gracias.`;
                                                                         {workerCode}
                                                                     </span>
                                                                 )}
-                                                                <span className="truncate max-w-[220px]" title={req.worker?.email || req.worker?.movil || 'Sem contato'}>
-                                                                    {req.worker?.email || req.worker?.movil || 'Sem contato'}
+                                                                <span className="truncate max-w-[220px]" title={req.worker?.email || req.worker?.movil || 'Sin contacto'}>
+                                                                    {req.worker?.email || req.worker?.movil || 'Sin contacto'}
                                                                 </span>
                                                             </div>
                                                         </TableCell>
@@ -4884,9 +4884,9 @@ Muchas gracias.`;
                                                                 isExpired ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/15 border-red-500/25' :
                                                                 'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 border-amber-500/25'
                                                             }`}>
-                                                                {req.status === 'verified' ? 'Cadastro Validado' :
-                                                                 req.status === 'submitted' ? 'Recebido - Analisar' :
-                                                                 isExpired ? 'Expirado' : 'Aguardando Envio'}
+                                                                {req.status === 'verified' ? 'Registro Validado' :
+                                                                 req.status === 'submitted' ? 'Recibido - Revisar' :
+                                                                 isExpired ? 'Expirado' : 'Esperando Envío'}
                                                             </Badge>
                                                         </TableCell>
                                                         <TableCell className="text-slate-500 text-sm whitespace-nowrap">
@@ -4900,7 +4900,7 @@ Muchas gracias.`;
                                                                 size="sm" 
                                                                 variant="ghost" 
                                                                 onClick={() => handleOpenEditRequest(req)}
-                                                                title="Editar Empresa e Cliente"
+                                                                title="Editar Empresa y Cliente"
                                                                 className="h-8 w-8 p-0 text-slate-500 hover:text-indigo-600"
                                                             >
                                                                 <Pencil className="h-4 w-4" />
@@ -4910,7 +4910,7 @@ Muchas gracias.`;
                                                                 size="sm" 
                                                                 variant="ghost" 
                                                                 onClick={() => handleDeleteRequest(req.id, req.worker?.nome)}
-                                                                title="Excluir Solicitação"
+                                                                title="Eliminar Solicitud"
                                                                 className="h-8 w-8 p-0 text-slate-500 hover:text-red-600"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
@@ -4922,7 +4922,7 @@ Muchas gracias.`;
                                                                     variant="outline"
                                                                     className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold text-xs gap-1"
                                                                     onClick={() => handleOpenVerify(req)}
-                                                                    title="Visualizar Documentos Anteriores / Atuais"
+                                                                    title="Ver Documentos Anteriores / Actuales"
                                                                 >
                                                                     <Eye className="h-3.5 w-3.5" /> Ver Docs
                                                                 </Button>
@@ -4942,9 +4942,9 @@ Muchas gracias.`;
                                                                     }
                                                                     handleCopyInviteLink(inviteLink, req.worker?.nome);
                                                                 }}
-                                                                title="Copiar Link de Envio"
+                                                                title="Copiar Enlace de Envío"
                                                             >
-                                                                <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Link
+                                                                <Copy className="h-4 w-4 mr-1 text-slate-500" /> Copiar Enlace
                                                             </Button>
 
                                                             {(req.status === 'verified' || req.status === 'submitted' || isExpired) && (
@@ -4962,9 +4962,9 @@ Muchas gracias.`;
                                                                             toast.error("Erro ao reabrir solicitação.");
                                                                         }
                                                                     }}
-                                                                    title="Reabrir solicitação para permitir novo envio de documentos e copiar link"
+                                                                    title="Reabrir solicitud para permitir nuevo envío de documentos y copiar enlace"
                                                                 >
-                                                                    <RefreshCw className="h-3.5 w-3.5" /> Novo Envio
+                                                                    <RefreshCw className="h-3.5 w-3.5" /> Nuevo Envío
                                                                 </Button>
                                                             )}
 
@@ -4974,7 +4974,7 @@ Muchas gracias.`;
                                                                     className="bg-indigo-600 hover:bg-indigo-500"
                                                                     onClick={() => handleOpenVerify(req)}
                                                                 >
-                                                                    <Eye className="h-4 w-4 mr-1" /> Analisar
+                                                                    <Eye className="h-4 w-4 mr-1" /> Revisar
                                                                 </Button>
                                                             )}
                                                             {req.status === 'verified' && (
@@ -4984,16 +4984,16 @@ Muchas gracias.`;
                                                                         variant="outline"
                                                                         className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold text-xs gap-1"
                                                                         onClick={() => handleOpenVerify(req)}
-                                                                        title="Visualizar e Baixar Documentos do Trabalhador"
+                                                                        title="Ver y Descargar Documentos del Trabajador"
                                                                     >
-                                                                        <Eye className="h-3.5 w-3.5" /> Visualizar / Baixar Docs
+                                                                        <Eye className="h-3.5 w-3.5" /> Ver / Descargar Docs
                                                                     </Button>
                                                                     <Button 
                                                                         size="sm" 
                                                                         className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs gap-1.5"
                                                                         onClick={() => handleTriggerGenerate(req.worker_id, req.empresa_id, req.worker)}
                                                                     >
-                                                                        <Plus className="h-3 w-3" /> Gerar Contrato
+                                                                        <Plus className="h-3 w-3" /> Generar Contrato
                                                                     </Button>
                                                                 </div>
                                                             )}
@@ -5017,7 +5017,7 @@ Muchas gracias.`;
                                 <Input
                                     value={searchTermContracts}
                                     onChange={(e) => setSearchTermContracts(e.target.value)}
-                                    placeholder="Pesquisar por trabalhador, empresa ou cliente..."
+                                    placeholder="Buscar por trabajador, empresa o cliente..."
                                     className="pl-9 pr-8 bg-white dark:bg-black"
                                 />
                                 {searchTermContracts && (
@@ -5034,13 +5034,13 @@ Muchas gracias.`;
                                 <div className="w-[200px]">
                                     <Select value={statusFilterContracts} onValueChange={setStatusFilterContracts}>
                                         <SelectTrigger className="bg-white dark:bg-black">
-                                            <SelectValue placeholder="Status" />
+                                            <SelectValue placeholder="Estado" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todos os Status</SelectItem>
-                                            <SelectItem value="pending_signature">Pendente Assinatura</SelectItem>
-                                            <SelectItem value="signed">Assinado</SelectItem>
-                                            <SelectItem value="no_signature">Não Requer Assinatura</SelectItem>
+                                            <SelectItem value="all">Todos los Estados</SelectItem>
+                                            <SelectItem value="pending_signature">Pendiente de Firma</SelectItem>
+                                            <SelectItem value="signed">Firmado</SelectItem>
+                                            <SelectItem value="no_signature">No Requiere Firma</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -5051,7 +5051,7 @@ Muchas gracias.`;
                                             <SelectValue placeholder="Pedido / Reemplazo" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todos os Pedidos / Reemplazos</SelectItem>
+                                            <SelectItem value="all">Todos los Pedidos / Reemplazos</SelectItem>
                                             {uniquePedidosContracts.map(ped => (
                                                 <SelectItem key={ped} value={ped}>
                                                     <span className="font-mono">{ped}</span>
@@ -5079,14 +5079,14 @@ Muchas gracias.`;
                                             <SelectValue placeholder="Ordenar por..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="created_at_desc">📅 Data (Mais Recente)</SelectItem>
-                                            <SelectItem value="created_at_asc">📅 Data (Mais Antigo)</SelectItem>
-                                            <SelectItem value="worker_asc">🔤 Trabalhador (A-Z / Crescente)</SelectItem>
-                                            <SelectItem value="worker_desc">🔤 Trabalhador (Z-A / Decrescente)</SelectItem>
-                                            <SelectItem value="empresa_asc">🏢 Empresa (A-Z / Crescente)</SelectItem>
-                                            <SelectItem value="empresa_desc">🏢 Empresa (Z-A / Decrescente)</SelectItem>
-                                            <SelectItem value="client_asc">🏬 Cliente (A-Z / Crescente)</SelectItem>
-                                            <SelectItem value="client_desc">🏬 Cliente (Z-A / Decrescente)</SelectItem>
+                                            <SelectItem value="created_at_desc">📅 Fecha (Más Reciente)</SelectItem>
+                                            <SelectItem value="created_at_asc">📅 Fecha (Más Antiguo)</SelectItem>
+                                            <SelectItem value="worker_asc">🔤 Trabajador (A-Z / Ascendente)</SelectItem>
+                                            <SelectItem value="worker_desc">🔤 Trabajador (Z-A / Descendente)</SelectItem>
+                                            <SelectItem value="empresa_asc">🏢 Empresa (A-Z / Ascendente)</SelectItem>
+                                            <SelectItem value="empresa_desc">🏢 Empresa (Z-A / Descendente)</SelectItem>
+                                            <SelectItem value="client_asc">🏬 Cliente (A-Z / Ascendente)</SelectItem>
+                                            <SelectItem value="client_desc">🏬 Cliente (Z-A / Descendente)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -5104,7 +5104,7 @@ Muchas gracias.`;
                                         }}
                                         className="text-indigo-600 dark:text-indigo-400 font-semibold"
                                     >
-                                        Limpar Filtros
+                                        Limpiar Filtros
                                     </Button>
                                 )}
                             </div>
@@ -5112,7 +5112,7 @@ Muchas gracias.`;
 
                         <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
                             <div className="p-4 border-b flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 shrink-0">
-                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Contratos Gerados</h3>
+                                <h3 className="font-semibold text-slate-800 dark:text-slate-200">Contratos Generados</h3>
                                 <Button size="sm" variant="ghost" onClick={loadContracts}><RefreshCw className="h-4 w-4" /></Button>
                             </div>
 
@@ -5120,12 +5120,12 @@ Muchas gracias.`;
                                 {loadingContracts ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                                         <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                                        <span>Buscando contratos gerados...</span>
+                                        <span>Buscando contratos generados...</span>
                                     </div>
                                 ) : filteredContracts.length === 0 ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                                         <FileText className="h-10 w-10 text-slate-400" />
-                                        <span>Nenhum contrato encontrado.</span>
+                                        <span>No se encontró ningún contrato.</span>
                                     </div>
                                 ) : (
                                     <Table>
@@ -5133,7 +5133,7 @@ Muchas gracias.`;
                                             <TableRow>
                                                 <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('worker')}>
                                                     <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                                                        <span>Trabalhador</span>
+                                                        <span>Trabajador</span>
                                                         {sortFieldContracts === 'worker' ? (
                                                             sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
@@ -5175,11 +5175,11 @@ Muchas gracias.`;
                                                     </div>
                                                 </TableHead>
 
-                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">OTP Código</TableHead>
+                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Código OTP</TableHead>
 
                                                 <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('status')}>
                                                     <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                                                        <span>Status</span>
+                                                        <span>Estado</span>
                                                         {sortFieldContracts === 'status' ? (
                                                             sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
@@ -5190,7 +5190,7 @@ Muchas gracias.`;
 
                                                 <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('created_at')}>
                                                     <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
-                                                        <span>Data de Geração</span>
+                                                        <span>Fecha de Emisión</span>
                                                         {sortFieldContracts === 'created_at' ? (
                                                             sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
@@ -5198,13 +5198,13 @@ Muchas gracias.`;
                                                         )}
                                                     </div>
                                                 </TableHead>
-                                                <TableHead className="text-right whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Ações</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Acciones</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {filteredContracts.map((contract) => {
                                                 const signLink = `${window.location.origin}/assinar/${contract.signature_token}`;
-                                                const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || contract.worker?.cliente || 'Sem Alocação';
+                                                const clientName = contract.assignment?.client?.trade_name || contract.assignment?.client?.legal_name || contract.worker?.cliente || 'Sin Asignación';
                                                 
                                                 return (
                                                     <TableRow key={contract.id}>
@@ -5213,7 +5213,7 @@ Muchas gracias.`;
                                                                 {contract.worker?.nome}
                                                             </div>
                                                             <div className="mt-0.5 text-xs text-muted-foreground whitespace-nowrap">
-                                                                {contract.worker?.email || 'E-mail não cadastrado'}
+                                                                {contract.worker?.email || 'Correo no registrado'}
                                                             </div>
                                                         </TableCell>
                                                         <TableCell className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
@@ -5249,11 +5249,11 @@ Muchas gracias.`;
                                                         </TableCell>
                                                         <TableCell className="font-mono text-xs">
                                                             <div className="flex flex-col gap-0.5">
-                                                                <span className="text-indigo-600 dark:text-indigo-400 font-bold" title="OTP do Trabalhador">
+                                                                <span className="text-indigo-600 dark:text-indigo-400 font-bold" title="OTP del Trabajador">
                                                                     Trab: {contract.otp_code || '-'}
                                                                 </span>
                                                                 {contract.metadata?.company_otp_code && (
-                                                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="OTP do Representante da Empresa">
+                                                                    <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="OTP del Representante de la Empresa">
                                                                         Emp: {contract.metadata.company_otp_code}
                                                                     </span>
                                                                 )}
@@ -5267,9 +5267,9 @@ Muchas gracias.`;
                                                                     contract.status === 'no_signature' ? 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 border-slate-500/20 w-fit' :
                                                                     'bg-slate-500/10 text-slate-500 hover:bg-slate-500/10 w-fit'
                                                                 }>
-                                                                    {contract.status === 'signed' ? 'Trabalhador: Assinado ✓' :
-                                                                     contract.status === 'pending_signature' ? 'Trabalhador: Pendente' :
-                                                                     contract.status === 'no_signature' ? 'Não Requer Assinatura' :
+                                                                    {contract.status === 'signed' ? 'Trabajador: Firmado ✓' :
+                                                                     contract.status === 'pending_signature' ? 'Trabajador: Pendiente' :
+                                                                     contract.status === 'no_signature' ? 'No Requiere Firma' :
                                                                      contract.status}
                                                                 </Badge>
                                                                 {contract.status !== 'no_signature' && (contract.contract_type === 'contrato_fijo_discontinuo' || contract.metadata?.company_signed !== undefined || contract.contratante === 'HEXAGON') && (
@@ -5278,7 +5278,7 @@ Muchas gracias.`;
                                                                             ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] w-fit'
                                                                             : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 text-[10px] w-fit'
                                                                     }>
-                                                                        {contract.metadata?.company_signed ? 'Empresa: Assinada ✓' : 'Empresa: Pendente'}
+                                                                        {contract.metadata?.company_signed ? 'Empresa: Firmada ✓' : 'Empresa: Pendiente'}
                                                                     </Badge>
                                                                 )}
                                                             </div>
@@ -5292,14 +5292,14 @@ Muchas gracias.`;
                                                                     size="sm"
                                                                     variant={contract.metadata?.company_signed ? "outline" : "default"}
                                                                     onClick={() => handleOpenCompanySignModal(contract)}
-                                                                    title={contract.metadata?.company_signed ? "Reassinar ou atualizar assinatura do Representante da Empresa" : "Assinar eletronicamente como Representante da Empresa (OTP)"}
+                                                                    title={contract.metadata?.company_signed ? "Volver a firmar o actualizar firma del Representante de la Empresa" : "Firmar electrónicamente como Representante de la Empresa (OTP)"}
                                                                     className={contract.metadata?.company_signed
                                                                         ? "h-8 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
                                                                         : "h-8 text-xs gap-1 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm"
                                                                     }
                                                                 >
                                                                     <PenTool className="h-3.5 w-3.5" />
-                                                                    {contract.metadata?.company_signed ? 'Empresa ✓' : 'Assinar Empresa'}
+                                                                    {contract.metadata?.company_signed ? 'Empresa ✓' : 'Firmar Empresa'}
                                                                 </Button>
                                                             )}
 
@@ -5307,7 +5307,7 @@ Muchas gracias.`;
                                                                 size="icon"
                                                                 variant="ghost"
                                                                 onClick={() => handleDownloadContract(contract)}
-                                                                title="Visualizar / Baixar Contrato"
+                                                                title="Ver / Descargar Contrato"
                                                             >
                                                                 <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
                                                             </Button>
@@ -5316,7 +5316,7 @@ Muchas gracias.`;
                                                                 size="icon"
                                                                 variant="ghost"
                                                                 onClick={() => handleAttachContractToWorkerProfile(contract)}
-                                                                title="Arquivar Contrato no Cadastro do Trabalhador"
+                                                                title="Archivar Contrato en la Ficha del Trabajador"
                                                                 className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800"
                                                             >
                                                                 <FolderPlus className="h-4 w-4" />
@@ -5328,7 +5328,7 @@ Muchas gracias.`;
                                                                         size="icon"
                                                                         variant="ghost"
                                                                         onClick={() => handleCopyContractSignLink(signLink, contract.worker?.nome, contract.otp_code)}
-                                                                        title="Copiar mensagem padrão do contrato com link e código OTP"
+                                                                        title="Copiar mensaje estándar del contrato con enlace y código OTP"
                                                                     >
                                                                         <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
                                                                     </Button>
@@ -5337,7 +5337,7 @@ Muchas gracias.`;
                                                                         size="icon"
                                                                         variant="ghost"
                                                                         onClick={() => window.open(signLink, '_blank')}
-                                                                        title="Abrir Tela de Assinatura"
+                                                                        title="Abrir Pantalla de Firma"
                                                                     >
                                                                         <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
                                                                     </Button>
@@ -5348,7 +5348,7 @@ Muchas gracias.`;
                                                                 size="icon"
                                                                 variant="ghost"
                                                                 onClick={() => handleDeleteContractItem(contract.id)}
-                                                                title="Excluir Contrato"
+                                                                title="Eliminar Contrato"
                                                             >
                                                                 <Trash2 className="h-4 w-4 text-rose-500 hover:text-rose-700" />
                                                             </Button>
@@ -5363,7 +5363,7 @@ Muchas gracias.`;
                         </div>
                     </TabsContent>
 
-                    {/* Conteúdo 3.5: Controle de Cartas de Rescisão & Gestão do Aviso Prévio */}
+                    {/* Conteúdo 3.5: Control de Cartas de Rescisión & Gestão do Aviso Prévio */}
                     <TabsContent value="rescisoes" className="flex-1 hidden data-[state=active]:flex flex-col min-h-0 overflow-hidden pt-4 space-y-4">
                         {/* Cards de Resumo Dinâmicos conforme a Sub-Visão selecionada */}
                         {rescisaoSubView === 'assinaturas' ? (
@@ -5396,7 +5396,7 @@ Muchas gracias.`;
                                     }`}
                                 >
                                     <div>
-                                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Não Assinadas (Pendentes)</span>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">No Firmadas (Pendientes)</span>
                                         <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{rescisaoStats.pending}</div>
                                     </div>
                                     <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
@@ -5414,7 +5414,7 @@ Muchas gracias.`;
                                     }`}
                                 >
                                     <div>
-                                        <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Assinadas pelo Trabalhador</span>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Firmadas por el Trabajador</span>
                                         <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{rescisaoStats.signed}</div>
                                     </div>
                                     <div className="h-10 w-10 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -5434,9 +5434,9 @@ Muchas gracias.`;
                                     }`}
                                 >
                                     <div>
-                                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total em Controle de Aviso</span>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total en Control de Preaviso</span>
                                         <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{noticeStats.total}</div>
-                                        <div className="text-[11px] text-slate-500 mt-0.5">Base padrão: € 460,00 (€ 30,67/dia)</div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">Base estándar: € 460,00 (€ 30,67/día)</div>
                                     </div>
                                     <div className="h-10 w-10 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
                                         <Clock className="h-5 w-5" />
@@ -5453,9 +5453,9 @@ Muchas gracias.`;
                                     }`}
                                 >
                                     <div>
-                                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Cumprindo Aviso (Ativos)</span>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400">Cumpliendo Preaviso (Activos)</span>
                                         <div className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">{noticeStats.inProgress}</div>
-                                        <div className="text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-0.5">Reduz € 30,67/dia (Sáb/Dom incl.)</div>
+                                        <div className="text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-0.5">Reduce € 30,67/día (Sáb/Dom incl.)</div>
                                     </div>
                                     <div className="h-10 w-10 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center">
                                         <RefreshCw className="h-5 w-5" />
@@ -5472,9 +5472,9 @@ Muchas gracias.`;
                                     }`}
                                 >
                                     <div>
-                                        <span className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Abandonaram / Pararam</span>
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">Abandonaron / Cesaron</span>
                                         <div className="text-2xl font-bold text-rose-600 dark:text-rose-400 mt-1">{noticeStats.abandoned}</div>
-                                        <div className="text-[11px] text-rose-700/80 dark:text-rose-300/80 mt-0.5">Contagem parada p/ desconto</div>
+                                        <div className="text-[11px] text-rose-700/80 dark:text-rose-300/80 mt-0.5">Conteo detenido p/ descuento</div>
                                     </div>
                                     <div className="h-10 w-10 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
                                         <AlertTriangle className="h-5 w-5" />
@@ -5488,7 +5488,7 @@ Muchas gracias.`;
                                             {formatCurrencyEur(noticeStats.totalToDeduct)}
                                         </div>
                                         <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-2">
-                                            <span>Consolidados na Folha: <strong className="text-emerald-600 dark:text-emerald-400">{noticeStats.consolidatedCount} ({formatCurrencyEur(noticeStats.consolidatedTotal)})</strong></span>
+                                            <span>Consolidados en Nómina: <strong className="text-emerald-600 dark:text-emerald-400">{noticeStats.consolidatedCount} ({formatCurrencyEur(noticeStats.consolidatedTotal)})</strong></span>
                                         </div>
                                     </div>
                                     <div className="h-10 w-10 rounded-lg bg-rose-600 text-white flex items-center justify-center font-bold text-sm">
@@ -5505,7 +5505,7 @@ Muchas gracias.`;
                                 <Input
                                     value={searchTermRescisao}
                                     onChange={(e) => setSearchTermRescisao(e.target.value)}
-                                    placeholder="Pesquisar trabalhador, passaporte, NIF ou empresa..."
+                                    placeholder="Buscar trabajador, pasaporte, NIF o empresa..."
                                     className="pl-9 pr-8 bg-white dark:bg-black"
                                 />
                                 {searchTermRescisao && (
@@ -5523,12 +5523,12 @@ Muchas gracias.`;
                                     <div className="w-[200px]">
                                         <Select value={statusFilterRescisao} onValueChange={setStatusFilterRescisao}>
                                             <SelectTrigger className="bg-white dark:bg-black">
-                                                <SelectValue placeholder="Status da Assinatura" />
+                                                <SelectValue placeholder="Estado de la Firma" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">Todos os Status</SelectItem>
-                                                <SelectItem value="pending_signature">⏳ Pendente Assinatura</SelectItem>
-                                                <SelectItem value="signed">✅ Assinado</SelectItem>
+                                                <SelectItem value="all">Todos los Estados</SelectItem>
+                                                <SelectItem value="pending_signature">⏳ Pendiente de Firma</SelectItem>
+                                                <SelectItem value="signed">✅ Firmado</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -5536,14 +5536,14 @@ Muchas gracias.`;
                                     <div className="w-[215px]">
                                         <Select value={noticeStatusFilter} onValueChange={(v: any) => setNoticeStatusFilter(v)}>
                                             <SelectTrigger className="bg-white dark:bg-black">
-                                                <SelectValue placeholder="Situação do Aviso" />
+                                                <SelectValue placeholder="Situación del Preaviso" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">Todas as Situações</SelectItem>
-                                                <SelectItem value="in_progress">⏳ Em Cumprimento</SelectItem>
-                                                <SelectItem value="abandoned">🛑 Abandonou / Parou</SelectItem>
-                                                <SelectItem value="completed">✅ Aviso Cumprido</SelectItem>
-                                                <SelectItem value="waived">⚪ Isento (Não Descontar)</SelectItem>
+                                                <SelectItem value="all">Todas las Situaciones</SelectItem>
+                                                <SelectItem value="in_progress">⏳ En Cumplimiento</SelectItem>
+                                                <SelectItem value="abandoned">🛑 Abandonó / Cesó</SelectItem>
+                                                <SelectItem value="completed">✅ Preaviso Cumplido</SelectItem>
+                                                <SelectItem value="waived">⚪ Exento (No Descontar)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -5555,7 +5555,7 @@ Muchas gracias.`;
                                             <SelectValue placeholder="Empresa Contratante" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todas as Empresas</SelectItem>
+                                            <SelectItem value="all">Todas las Empresas</SelectItem>
                                             <SelectItem value="STOCCO">Stocco</SelectItem>
                                             <SelectItem value="WISEOWE UNIPESSOAL LDA">Wiseowe Unipessoal Lda</SelectItem>
                                             <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital</SelectItem>
@@ -5573,7 +5573,7 @@ Muchas gracias.`;
                                     title="Incluir trabalhador que assinou carta manual ou sem carta digital para controlar o aviso prévio e desconto"
                                 >
                                     <Plus className="h-4 w-4" />
-                                    Incluir no Aviso Prévio
+                                    Incluir en Preaviso
                                 </Button>
 
                                 <Button
@@ -5581,7 +5581,7 @@ Muchas gracias.`;
                                     className="bg-rose-600 hover:bg-rose-500 text-white font-semibold gap-1.5"
                                 >
                                     <Plus className="h-4 w-4" />
-                                    Nova Carta de Rescisão
+                                    Nueva Carta de Rescisión
                                 </Button>
                             </div>
                         </div>
@@ -5601,7 +5601,7 @@ Muchas gracias.`;
                                             }`}
                                         >
                                             <FileText className="h-3.5 w-3.5 text-rose-500" />
-                                            Controle de Cartas de Rescisão
+                                            Control de Cartas de Rescisión
                                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                                                 {rescisaoStats.total}
                                             </Badge>
@@ -5617,7 +5617,7 @@ Muchas gracias.`;
                                             }`}
                                         >
                                             <Clock className="h-3.5 w-3.5" />
-                                            Aviso Prévio & Descontos
+                                            Preaviso y Descuentos
                                             <Badge className={`text-[10px] px-1.5 py-0 h-4 ${
                                                 rescisaoSubView === 'aviso_previo'
                                                     ? 'bg-white/20 text-white border-transparent'
@@ -5630,7 +5630,7 @@ Muchas gracias.`;
 
                                     {rescisaoSubView === 'aviso_previo' && (
                                         <span className="text-xs text-slate-500 dark:text-slate-400 hidden xl:inline-flex items-center gap-1.5 pl-2">
-                                            • 15 dias corridos (Sáb/Dom contam como cumpridos) • Base padrão: <strong>€ 460,00</strong> (€ 30,67/dia)
+                                            • 15 días naturales (Sáb/Dom cuentan como cumplidos) • Base estándar: <strong>€ 460,00</strong> (€ 30,67/día)
                                         </span>
                                     )}
                                 </div>
@@ -5643,7 +5643,7 @@ Muchas gracias.`;
                                             className="h-8 bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold gap-1.5"
                                         >
                                             <Plus className="h-3.5 w-3.5" />
-                                            Incluir Trabalhador (Manual)
+                                            Incluir Trabajador (Manual)
                                         </Button>
                                     )}
                                     <Button size="sm" variant="ghost" onClick={loadContracts} title="Atualizar lista">
@@ -5656,12 +5656,12 @@ Muchas gracias.`;
                                 {loadingContracts ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2">
                                         <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
-                                        <span>Carregando registros...</span>
+                                        <span>Cargando registros...</span>
                                     </div>
                                 ) : filteredRescisoes.length === 0 ? (
                                     <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-3">
                                         <FileText className="h-10 w-10 text-slate-400" />
-                                        <span>Nenhum trabalhador encontrado para os filtros selecionados.</span>
+                                        <span>No se encontró ningún trabajador para los filtros seleccionados.</span>
                                         <div className="flex items-center gap-2">
                                             <Button
                                                 size="sm"
@@ -5670,7 +5670,7 @@ Muchas gracias.`;
                                                 className="border-amber-500/50 text-amber-700 dark:text-amber-300 font-semibold gap-1.5"
                                             >
                                                 <Plus className="h-4 w-4" />
-                                                Incluir Trabalhador no Aviso Prévio
+                                                Incluir Trabajador en Preaviso
                                             </Button>
                                             <Button
                                                 size="sm"
@@ -5678,7 +5678,7 @@ Muchas gracias.`;
                                                 className="bg-rose-600 hover:bg-rose-500 text-white font-semibold gap-1.5"
                                             >
                                                 <Plus className="h-4 w-4" />
-                                                Emitir Carta de Rescisão
+                                                Emitir Carta de Rescisión
                                             </Button>
                                         </div>
                                     </div>
@@ -5687,14 +5687,14 @@ Muchas gracias.`;
                                     <Table>
                                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
                                             <TableRow>
-                                                <TableHead>Trabalhador</TableHead>
+                                                <TableHead>Trabajador</TableHead>
                                                 <TableHead>Empresa / Cliente</TableHead>
-                                                <TableHead>Início Trabalho & Dias no Mês</TableHead>
-                                                <TableHead>Solicitação & Aviso (15d)</TableHead>
-                                                <TableHead>Resumo Aviso Prévio</TableHead>
+                                                <TableHead>Inicio Trabajo y Días en el Mes</TableHead>
+                                                <TableHead>Solicitud y Preaviso (15d)</TableHead>
+                                                <TableHead>Resumen Preaviso</TableHead>
                                                 <TableHead>Código OTP</TableHead>
-                                                <TableHead>Status Assinatura</TableHead>
-                                                <TableHead className="text-right">Ações</TableHead>
+                                                <TableHead>Estado de Firma</TableHead>
+                                                <TableHead className="text-right">Acciones</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -5732,7 +5732,7 @@ Muchas gracias.`;
                                                             >
                                                                 <div className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
                                                                     <Calendar className="h-3 w-3 text-indigo-500 shrink-0" />
-                                                                    <span>Início: <strong>{info.workStartDate ? formatIsoToBr(info.workStartDate) : 'Informar'}</strong></span>
+                                                                    <span>Inicio: <strong>{info.workStartDate ? formatIsoToBr(info.workStartDate) : 'Informar'}</strong></span>
                                                                     <Pencil className="h-2.5 w-2.5 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                                 </div>
                                                                 <div className="mt-1">
@@ -5741,7 +5741,7 @@ Muchas gracias.`;
                                                                             ? 'border-indigo-200 bg-indigo-50/60 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300'
                                                                             : 'border-rose-200 bg-rose-50/60 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
                                                                     }`}>
-                                                                        {info.monthWorkedDays} {info.monthWorkedDays === 1 ? 'dia trab. no mês' : 'dias trab. no mês'}
+                                                                        {info.monthWorkedDays} {info.monthWorkedDays === 1 ? 'día trab. en el mes' : 'días trab. en el mes'}
                                                                     </Badge>
                                                                 </div>
                                                             </button>
@@ -5765,13 +5765,13 @@ Muchas gracias.`;
                                                             >
                                                                 <div className="text-xs font-bold flex items-center gap-1.5">
                                                                     <span className={info.finalToDeduct > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                                                                        {info.applyDeduction ? `Descontar: ${formatCurrencyEur(info.finalToDeduct)}` : 'Isento (€ 0,00)'}
+                                                                        {info.applyDeduction ? `Descontar: ${formatCurrencyEur(info.finalToDeduct)}` : 'Exento (€ 0,00)'}
                                                                     </span>
                                                                     <Pencil className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                                 </div>
                                                                 <div className="text-[11px] text-slate-500">
-                                                                    {info.fulfilledDays}/{info.totalNoticeDays}d cumpridos
-                                                                    {info.stopDate ? ` • Parou ${formatIsoToBr(info.stopDate)}` : ''}
+                                                                    {info.fulfilledDays}/{info.totalNoticeDays}d cumplidos
+                                                                    {info.stopDate ? ` • Cesó ${formatIsoToBr(info.stopDate)}` : ''}
                                                                 </div>
                                                             </button>
                                                         </TableCell>
@@ -5782,7 +5782,7 @@ Muchas gracias.`;
                                                             {c.status === 'signed' ? (
                                                                 <div className="space-y-0.5">
                                                                     <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20">
-                                                                        {info.isManualEntry && !c.document_url ? '📝 Assinado (Manual)' : '✅ Assinado'}
+                                                                        {info.isManualEntry && !c.document_url ? '📝 Firmado (Manual)' : '✅ Firmado'}
                                                                     </Badge>
                                                                     {c.signed_at && (
                                                                         <div className="text-[10px] text-slate-500">
@@ -5792,7 +5792,7 @@ Muchas gracias.`;
                                                                 </div>
                                                             ) : (
                                                                 <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20">
-                                                                    ⏳ Não Assinado (Pendente)
+                                                                    ⏳ No Firmado (Pendiente)
                                                                 </Badge>
                                                             )}
                                                         </TableCell>
@@ -5801,7 +5801,7 @@ Muchas gracias.`;
                                                                 size="icon"
                                                                 variant="ghost"
                                                                 onClick={() => handleOpenEditNotice(c)}
-                                                                title="Gerenciar Aviso Prévio & Desconto em Folha"
+                                                                title="Gestionar Aviso Prévio & Desconto em Folha"
                                                                 className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-slate-800"
                                                             >
                                                                 <Clock className="h-4 w-4" />
@@ -5813,7 +5813,7 @@ Muchas gracias.`;
                                                                         size="icon"
                                                                         variant="ghost"
                                                                         onClick={() => handleDownloadContract(c)}
-                                                                        title="Visualizar / Baixar Carta de Rescisão (.docx)"
+                                                                        title="Visualizar / Baixar Carta de Rescisión (.docx)"
                                                                     >
                                                                         <FileText className="h-4 w-4 text-slate-600 hover:text-slate-800" />
                                                                     </Button>
@@ -5822,7 +5822,7 @@ Muchas gracias.`;
                                                                         size="icon"
                                                                         variant="ghost"
                                                                         onClick={() => handleAttachContractToWorkerProfile(c)}
-                                                                        title="Arquivar Carta de Rescisão no Cadastro do Trabalhador"
+                                                                        title="Arquivar Carta de Rescisión no Cadastro do Trabalhador"
                                                                         className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-slate-800"
                                                                     >
                                                                         <FolderPlus className="h-4 w-4" />
@@ -5842,7 +5842,7 @@ Muchas gracias.`;
                                                                         size="icon"
                                                                         variant="ghost"
                                                                         onClick={() => handleCopyRescisaoSignLink(signLink, c.worker?.nome, c.otp_code, info.startNotice, info.endNotice)}
-                                                                        title="Copiar mensagem com link e código OTP"
+                                                                        title="Copiar mensaje con enlace y código OTP"
                                                                     >
                                                                         <Copy className="h-4 w-4 text-slate-600 hover:text-slate-800" />
                                                                     </Button>
@@ -5851,7 +5851,7 @@ Muchas gracias.`;
                                                                         size="icon"
                                                                         variant="ghost"
                                                                         onClick={() => window.open(signLink, '_blank')}
-                                                                        title="Abrir Tela de Assinatura"
+                                                                        title="Abrir Pantalla de Firma"
                                                                     >
                                                                         <ExternalLink className="h-4 w-4 text-indigo-600 hover:text-indigo-800" />
                                                                     </Button>
@@ -5877,14 +5877,14 @@ Muchas gracias.`;
                                     <Table>
                                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
                                             <TableRow>
-                                                <TableHead>Trabalhador</TableHead>
+                                                <TableHead>Trabajador</TableHead>
                                                 <TableHead>Empresa / Cliente</TableHead>
-                                                <TableHead>Início Trabalho & Dias no Mês</TableHead>
-                                                <TableHead>Período Aviso (15d)</TableHead>
-                                                <TableHead>Cumprimento (Sáb/Dom incl.)</TableHead>
-                                                <TableHead>Valor Base / Diária</TableHead>
-                                                <TableHead>Saldo a Descontar (Folha)</TableHead>
-                                                <TableHead className="text-right">Gestão / Ações</TableHead>
+                                                <TableHead>Inicio Trabajo y Días en el Mes</TableHead>
+                                                <TableHead>Período Preaviso (15d)</TableHead>
+                                                <TableHead>Cumplimiento (Sáb/Dom incl.)</TableHead>
+                                                <TableHead>Importe Base / Diario</TableHead>
+                                                <TableHead>Saldo a Descontar (Nómina)</TableHead>
+                                                <TableHead className="text-right">Gestión / Acciones</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -5937,7 +5937,7 @@ Muchas gracias.`;
                                                                             ? 'border-indigo-200 bg-indigo-50/70 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300'
                                                                             : 'border-rose-200 bg-rose-50/70 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
                                                                     }`}>
-                                                                        {info.monthWorkedDays} {info.monthWorkedDays === 1 ? 'dia trab. no mês' : 'dias trab. no mês'}
+                                                                        {info.monthWorkedDays} {info.monthWorkedDays === 1 ? 'día trab. en el mes' : 'días trab. en el mes'}
                                                                     </Badge>
                                                                 </div>
                                                             </button>
@@ -5952,7 +5952,7 @@ Muchas gracias.`;
                                                             {info.stopDate && (
                                                                 <div className="mt-1">
                                                                     <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 text-[10px] px-1.5 py-0">
-                                                                        🛑 Parou em: {formatIsoToBr(info.stopDate)}
+                                                                        🛑 Cesó el: {formatIsoToBr(info.stopDate)}
                                                                     </Badge>
                                                                 </div>
                                                             )}
@@ -5983,19 +5983,19 @@ Muchas gracias.`;
                                                                 <div className="flex items-center justify-between pt-0.5">
                                                                     {info.computedStatus === 'abandoned' ? (
                                                                         <Badge className="bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 text-[10px] px-1.5 py-0">
-                                                                            🛑 Abandonou / Parou
+                                                                            🛑 Abandonó / Cesó
                                                                         </Badge>
                                                                     ) : info.computedStatus === 'completed' ? (
                                                                         <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[10px] px-1.5 py-0">
-                                                                            ✅ Aviso Cumprido
+                                                                            ✅ Preaviso Cumplido
                                                                         </Badge>
                                                                     ) : info.computedStatus === 'waived' ? (
                                                                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-slate-500">
-                                                                            ⚪ Isento de Desconto
+                                                                            ⚪ Exento de Descuento
                                                                         </Badge>
                                                                     ) : (
                                                                         <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px] px-1.5 py-0">
-                                                                            ⏳ Em Cumprimento ({info.remainingDays}d rest.)
+                                                                            ⏳ En Cumplimiento ({info.remainingDays}d rest.)
                                                                         </Badge>
                                                                     )}
                                                                 </div>
@@ -6030,7 +6030,7 @@ Muchas gracias.`;
                                                                 </div>
                                                                 {info.payrollDiscountId ? (
                                                                     <Badge className="bg-emerald-600 text-white hover:bg-emerald-500 text-[10px] px-2 py-0.5 font-bold gap-1">
-                                                                        ✅ Lançado na Folha ({formatCompetenceLabel(info.payrollCompetence)})
+                                                                        ✅ Lanzado en Nómina ({formatCompetenceLabel(info.payrollCompetence)})
                                                                     </Badge>
                                                                 ) : (
                                                                     <button
@@ -6043,7 +6043,7 @@ Muchas gracias.`;
                                                                         }`}
                                                                         title="Clique para alternar entre Descontar na Folha ou Isentar"
                                                                     >
-                                                                        {info.applyDeduction ? '💰 Descontar na Folha' : '⚪ Não Descontar (Isento)'}
+                                                                        {info.applyDeduction ? '💰 Descontar en Nómina' : '⚪ No Descontar (Exento)'}
                                                                     </button>
                                                                 )}
                                                             </div>
@@ -6062,7 +6062,7 @@ Muchas gracias.`;
                                                                     title="Consolidar parada do aviso prévio e lançar o desconto na folha de pagamento (último salário)"
                                                                 >
                                                                     <CheckCircle className="h-3.5 w-3.5" />
-                                                                    {info.payrollDiscountId ? 'Folha Consolidada' : 'Consolidar na Folha'}
+                                                                    {info.payrollDiscountId ? 'Nómina Consolidada' : 'Consolidar en Nómina'}
                                                                 </Button>
                                                             )}
 
@@ -6074,7 +6074,7 @@ Muchas gracias.`;
                                                                 title="Editar datas, dias trabalhados no mês e valores do aviso prévio"
                                                             >
                                                                 <Pencil className="h-3.5 w-3.5 text-indigo-600" />
-                                                                Gerenciar
+                                                                Gestionar
                                                             </Button>
 
                                                             <Button
@@ -6104,17 +6104,17 @@ Muchas gracias.`;
                                 <div>
                                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                                         <FileText className="h-5 w-5 text-indigo-500" />
-                                        Modelos de Contratos e Documentos
+                                        Modelos de Contratos y Documentos
                                     </h3>
                                     <p className="text-sm text-slate-500 mt-1">
-                                        Selecione a empresa contratante para gerenciar e customizar os modelos de arquivo (.docx e .pdf SEPE) e os parâmetros oficiais de preenchimento.
+                                        Seleccione la empresa contratante para gestionar y personalizar los modelos de archivo (.docx y .pdf SEPE) y los parámetros oficiales de cumplimentación.
                                     </p>
                                 </div>
                                 <div className="w-full md:w-[320px]">
                                     <Label className="text-xs text-slate-500 font-semibold mb-1 block">Empresa Contratante</Label>
                                     <Select value={selectedConfigContratante} onValueChange={setSelectedConfigContratante}>
                                         <SelectTrigger className="w-full">
-                                            <SelectValue placeholder="Selecione a empresa contratante..." />
+                                            <SelectValue placeholder="Seleccione la empresa contratante..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="STOCCO">Stocco</SelectItem>
@@ -6122,7 +6122,7 @@ Muchas gracias.`;
                                             <SelectItem value="LUMINOUS CAPITAL UNIPESSOAL LDA">Luminous Capital Unipessoal Lda</SelectItem>
                                             <SelectItem value="MASTERCORP PORTUGAL UNIPESSOAL LDA">Mastercorp Portugal Unipessoal Lda</SelectItem>
                                             <SelectItem value="TRIANGULO">Triangulo</SelectItem>
-                                            <SelectItem value="HEXAGON">Hexagon (Espanha - SEPE)</SelectItem>
+                                            <SelectItem value="HEXAGON">Hexagon (España - SEPE)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -6133,7 +6133,7 @@ Muchas gracias.`;
                                     ...(selectedConfigContratante === 'HEXAGON' ? [{
                                         type: 'contrato_fijo_discontinuo',
                                         name: '🇪🇸 Contrato Indefinido Fijo-Discontinuo (SEPE Cód. 300 - Oficial)',
-                                        desc: 'Modelo oficial em PDF editável do Ministério do Trabalho / SEPE da Espanha (7 páginas oficiais + Certificado Bilateral eIDAS).',
+                                        desc: 'Modelo oficial en PDF editable del Ministerio de Trabajo / SEPE de España (7 páginas oficiales + Certificado Bilateral eIDAS).',
                                         fileName: `CONTRATO FIJO DISCONTINUO - HEXAGON.pdf`,
                                         ext: '.pdf'
                                     }] : []),
@@ -6160,7 +6160,7 @@ Muchas gracias.`;
                                     },
                                     {
                                         type: 'rescisao',
-                                        name: 'Carta de Rescisão (Solicitud de Rescisión)',
+                                        name: 'Carta de Rescisión (Solicitud de Rescisión)',
                                         desc: 'Modelo oficial em espanhol com cálculo de 15 dias de aviso prévio. Variáveis dinâmicas suportadas no Word: {{nome}}, {{linha_documentos}}, {{data_carta_extenso_es}}, {{data_efeito}}, {{data_inicio_aviso}}, {{data_fim_aviso}} e [ASSINATURA].',
                                         fileName: `COMUNICADO RESCISAO ${selectedConfigContratante.toUpperCase()}.docx`,
                                         ext: '.docx'
@@ -6192,12 +6192,12 @@ Muchas gracias.`;
                                                 {downloadingTemplate === doc.type ? (
                                                     <>
                                                         <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                                                        Baixando...
+                                                        Descargando...
                                                     </>
                                                 ) : (
                                                     <>
                                                         <FileText className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
-                                                        Baixar Modelo
+                                                        Descargar Modelo
                                                     </>
                                                 )}
                                             </Button>
@@ -6212,12 +6212,12 @@ Muchas gracias.`;
                                                 {uploadingTemplate === doc.type ? (
                                                     <>
                                                         <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
-                                                        Enviando...
+                                                        Subiendo...
                                                     </>
                                                 ) : (
                                                     <>
                                                         <Plus className="h-3.5 w-3.5 mr-1.5 text-emerald-500" />
-                                                        Subir Novo
+                                                        Subir Nuevo
                                                     </>
                                                 )}
                                             </Button>
@@ -6234,26 +6234,26 @@ Muchas gracias.`;
                                     <div>
                                         <h3 className="text-lg font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
                                             <Settings2 className="h-5 w-5" />
-                                            🇪🇸 Parâmetros Oficiais SEPE — Hexagon Montajes Industriales, S.L.
+                                            🇪🇸 Parámetros Oficiales SEPE — Hexagon Montajes Industriales, S.L.
                                         </h3>
                                         <p className="text-xs text-slate-500 mt-1">
-                                            Configure os dados fixos da empresa, representante legal (para assinatura eletrônica OTP), conta de cotização da Seguridad Social e o mapeamento automático de funções para o Contrato Indefinido Fijo-Discontinuo (Cód. 300).
+                                            Configure los datos fijos de la empresa, representante legal (para firma electrónica OTP), cuenta de cotización de la Seguridad Social y la asignación automática de cargos para el Contrato Oficial SEPE.
                                         </p>
                                     </div>
                                     <Button type="submit" disabled={savingHexagonSettings} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-2">
                                         {savingHexagonSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                        Salvar Parâmetros SEPE
+                                        Guardar Parámetros SEPE
                                     </Button>
                                 </div>
 
                                 {/* 1. Representante Legal & Assinatura Digital da Empresa */}
                                 <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                                        1. Representante Legal da Empresa (Quadro "Datos de la Empresa" + Assinatura Bilateral OTP)
+                                        1. Representante Legal de la Empresa (Cuadro "Datos de la Empresa" + Firma Bilateral OTP)
                                     </h4>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">D./Dña. (Nome do Representante)</Label>
+                                            <Label className="text-xs font-semibold">D./Dña. (Nombre del Representante)</Label>
                                             <Input
                                                 value={hexagonSettings.representante_nombre || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, representante_nombre: e.target.value }))}
@@ -6262,7 +6262,7 @@ Muchas gracias.`;
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">NIF / NIE do Representante</Label>
+                                            <Label className="text-xs font-semibold">NIF / NIE del Representante</Label>
                                             <Input
                                                 value={hexagonSettings.representante_nif || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, representante_nif: e.target.value }))}
@@ -6280,7 +6280,7 @@ Muchas gracias.`;
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">E-mail p/ Receber OTP de Assinatura</Label>
+                                            <Label className="text-xs font-semibold">Correo p/ Recibir OTP de Firma</Label>
                                             <Input
                                                 type="email"
                                                 value={hexagonSettings.representante_email || ''}
@@ -6295,11 +6295,11 @@ Muchas gracias.`;
                                 {/* 2. Dados da Empresa & Conta de Cotização (Seguridad Social) */}
                                 <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                                        2. Dados da Empresa, Conta de Cotização (CCC) & Atividade Econômica (CNAE)
+                                        2. Datos de la Empresa, Cuenta de Cotización (CCC) y Actividad Económica (CNAE)
                                     </h4>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">CIF / NIF da Empresa</Label>
+                                            <Label className="text-xs font-semibold">CIF / NIF de la Empresa</Label>
                                             <Input
                                                 value={hexagonSettings.cif || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, cif: e.target.value }))}
@@ -6329,7 +6329,7 @@ Muchas gracias.`;
 
                                     <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-1 items-end">
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">Município Sede</Label>
+                                            <Label className="text-xs font-semibold">Municipio Sede</Label>
                                             <Input
                                                 value={hexagonSettings.municipio_empresa || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, municipio_empresa: e.target.value }))}
@@ -6337,7 +6337,7 @@ Muchas gracias.`;
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">Cód. INE Município</Label>
+                                            <Label className="text-xs font-semibold">Cód. INE Municipio</Label>
                                             <Input
                                                 value={hexagonSettings.municipio_cod_empresa || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, municipio_cod_empresa: e.target.value }))}
@@ -6364,7 +6364,7 @@ Muchas gracias.`;
                                             />
                                         </div>
                                         <div className="space-y-1 md:col-span-2">
-                                            <Label className="text-xs font-semibold">Conta de Cotização CCC (11 dígitos: Prov+Num+DC)</Label>
+                                            <Label className="text-xs font-semibold">Cuenta de Cotización CCC (11 dígitos: Prov+Num+DC)</Label>
                                             <Input
                                                 value={hexagonSettings.ccc_numero || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, ccc_numero: e.target.value }))}
@@ -6408,11 +6408,11 @@ Muchas gracias.`;
                                 {/* 3. Condições Padrão do Contrato (Jornada, Salário, Férias, Convenio) */}
                                 <div className="space-y-3 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30">
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                                        3. Condições Laborais Padrão (Cláusulas 1ª a 9ª e Fijo-Discontinuo)
+                                        3. Condiciones Laborales Estándar (Cláusulas 1ª a 9ª y Fijo-Discontinuo)
                                     </h4>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                         <div className="space-y-1 md:col-span-2">
-                                            <Label className="text-xs font-semibold">Convenio Colectivo Aplicável (Cláusula 8ª / Pág. 6)</Label>
+                                            <Label className="text-xs font-semibold">Convenio Colectivo Aplicable (Cláusula 8ª / Pág. 6)</Label>
                                             <Input
                                                 value={hexagonSettings.convenio_colectivo || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, convenio_colectivo: e.target.value }))}
@@ -6431,7 +6431,7 @@ Muchas gracias.`;
 
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">Retribución Total Padrão (Cláusula 6ª)</Label>
+                                            <Label className="text-xs font-semibold">Retribución Total Estándar (Cláusula 5ª)</Label>
                                             <Input
                                                 value={hexagonSettings.retribucion_default || ''}
                                                 onChange={(e) => setHexagonSettings((p: any) => ({ ...p, retribucion_default: e.target.value }))}
@@ -6471,17 +6471,17 @@ Muchas gracias.`;
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                                         <div>
                                             <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
-                                                4. Mapeamento Automático de Cargos (Primera Cláusula SEPE)
+                                                4. Asignación Automática de Cargos (Primera Cláusula SEPE)
                                             </h4>
                                             <p className="text-[11px] text-slate-500">
-                                                Quando o trabalhador tem um destes cargos na Solicitação/Obra, o sistema preenche automaticamente o Puesto, Grupo Profesional e Funciones no PDF.
+                                                Cuando el trabajador tiene uno de estos cargos en la Solicitud/Obra, el sistema rellena automáticamente el Puesto, Grupo Profesional y Funciones en el PDF.
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <Input
                                                 value={newRoleKey}
                                                 onChange={(e) => setNewRoleKey(e.target.value)}
-                                                placeholder="Novo cargo (ex: SOLDADOR)"
+                                                placeholder="Nuevo cargo (ej: SOLDADOR)"
                                                 className="h-8 text-xs w-48 bg-white dark:bg-slate-900"
                                             />
                                             <Button
@@ -6507,7 +6507,7 @@ Muchas gracias.`;
                                                     setNewRoleKey('');
                                                 }}
                                             >
-                                                <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Cargo
+                                                <Plus className="h-3.5 w-3.5 mr-1" /> Añadir Cargo
                                             </Button>
                                         </div>
                                     </div>
@@ -6535,7 +6535,7 @@ Muchas gracias.`;
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                     <div className="space-y-1">
-                                                        <Label className="text-[11px]">Puesto de Trabajo (Impresso no PDF)</Label>
+                                                        <Label className="text-[11px]">Puesto de Trabajo (Impreso en el PDF)</Label>
                                                         <Input
                                                             value={cfg?.puesto || ''}
                                                             onChange={(e) => {
@@ -6594,7 +6594,7 @@ Muchas gracias.`;
                                 <div className="flex justify-end">
                                     <Button type="submit" disabled={savingHexagonSettings} className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-2">
                                         {savingHexagonSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                        Salvar Parâmetros SEPE da Hexagon
+                                        Guardar Parámetros SEPE de Hexagon
                                     </Button>
                                 </div>
                             </form>
@@ -6620,10 +6620,10 @@ Muchas gracias.`;
                             <div>
                                 <DialogTitle className="flex items-center gap-2">
                                     <ShieldCheck className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                                    Revisão e Visualização de Documentos do Trabalhador
+                                    Revisión y Visualización de Documentos del Trabajador
                                 </DialogTitle>
                                 <DialogDescription>
-                                    Visualize e baixe os documentos originais (Identificação, Residência Europeia, NIF, NISS, Carta de Condução, IBAN, Selfie) enviados pelo trabalhador.
+                                    Visualice y descargue los documentos originales (Identificación, Residencia Europea, NIF, NISS, Permiso de Conducir, IBAN, Selfie) enviados por el trabajador.
                                 </DialogDescription>
                             </div>
                             {selectedRequest && (
@@ -6634,14 +6634,14 @@ Muchas gracias.`;
                                         className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 font-semibold gap-1.5"
                                         onClick={handleDownloadCurrentDoc}
                                     >
-                                        <Download className="h-4 w-4" /> Baixar Doc Atual
+                                        <Download className="h-4 w-4" /> Descargar Doc Actual
                                     </Button>
                                     <Button
                                         size="sm"
                                         className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold gap-1.5"
                                         onClick={handleDownloadAllDocs}
                                     >
-                                        <Download className="h-4 w-4" /> Baixar Todos os Anexos
+                                        <Download className="h-4 w-4" /> Descargar Todos los Adjuntos
                                     </Button>
                                 </div>
                             )}
@@ -6659,14 +6659,14 @@ Muchas gracias.`;
                                         onClick={() => handleTabChange('identity')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all whitespace-nowrap ${activeDocTab === 'identity' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        Identificação {selectedRequest.passport_url ? '●' : ''}
+                                        Identificación {selectedRequest.passport_url ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
                                         onClick={() => handleTabChange('residence')}
                                         className={`flex-1 py-3 px-2 border-b-2 text-center transition-all whitespace-nowrap ${activeDocTab === 'residence' ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400' : 'border-transparent text-slate-500'}`}
                                     >
-                                        Residência {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url || (selectedRequest.extracted_data as any)?.residence_back_url) ? '●' : ''}
+                                        Residencia {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url || (selectedRequest.extracted_data as any)?.residence_back_url) ? '●' : ''}
                                     </button>
                                     <button 
                                         type="button"
@@ -6708,7 +6708,7 @@ Muchas gracias.`;
                                 {/* Sub-seletor Frente / Verso quando estiver na aba Residência */}
                                 {activeDocTab === 'residence' && (
                                     <div className="px-2.5 py-2 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-2">
-                                        <span className="text-[11px] font-semibold text-slate-400">Lado do Documento de Residência:</span>
+                                        <span className="text-[11px] font-semibold text-slate-400">Lado del Documento de Residencia:</span>
                                         <div className="flex items-center gap-1.5">
                                             <button
                                                 type="button"
@@ -6736,10 +6736,10 @@ Muchas gracias.`;
                                     </div>
                                 )}
 
-                                {/* Barra de Ação Rápida: Classificar & Anexar ao Cadastro do Trabalhador */}
+                                {/* Barra de Ação Rápida: Classificar & Adjuntar a la Ficha do Trabalhador */}
                                 <div className="p-2.5 bg-indigo-950/40 border-b border-indigo-500/20 flex flex-wrap items-center justify-between gap-2">
                                     <div className="flex items-center gap-2 min-w-[240px] flex-1">
-                                        <span className="text-[11px] font-semibold text-indigo-300 shrink-0">Tipo no Cadastro:</span>
+                                        <span className="text-[11px] font-semibold text-indigo-300 shrink-0">Tipo en la Ficha:</span>
                                         <select
                                             value={selectedAttachDocType}
                                             onChange={(e) => setSelectedAttachDocType(e.target.value)}
@@ -6781,7 +6781,7 @@ Muchas gracias.`;
                                                 title="Recusar e eliminar o documento atual desta aba para liberar novo envio"
                                             >
                                                 {rejectingDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                                                Recusar / Eliminar
+                                                Rechazar / Eliminar
                                             </Button>
                                         )}
                                         <Button
@@ -6793,7 +6793,7 @@ Muchas gracias.`;
                                             title="Carregar ou substituir o documento desta categoria"
                                         >
                                             {uploadingDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}
-                                            {activeDocUrl ? 'Substituir Arquivo' : 'Carregar Arquivo'}
+                                            {activeDocUrl ? 'Reemplazar Archivo' : 'Subir Archivo'}
                                         </Button>
                                         <Button
                                             type="button"
@@ -6803,7 +6803,7 @@ Muchas gracias.`;
                                             className="h-8 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold gap-1 shrink-0 px-3"
                                         >
                                             {savingAttachDoc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                                            Anexar ao Cadastro
+                                            Adjuntar a la Ficha
                                         </Button>
                                     </div>
                                 </div>
@@ -6820,7 +6820,7 @@ Muchas gracias.`;
                                     {uploadingDoc && (
                                         <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-2 text-white">
                                             <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-                                            <span className="text-sm font-medium">Enviando e processando arquivo...</span>
+                                            <span className="text-sm font-medium">Subiendo y procesando archivo...</span>
                                         </div>
                                     )}
                                     {activeDocUrl ? (
@@ -6841,7 +6841,7 @@ Muchas gracias.`;
                                                 <p className="text-sm font-semibold text-slate-200">
                                                     Nenhum arquivo enviado para {activeDocTab === 'residence' ? `RESIDÊNCIA EUROPEIA (${residenceSide === 'back' ? 'VERSO' : 'FRENTE'})` : activeDocTab.toUpperCase()}
                                                 </p>
-                                                <p className="text-xs text-slate-400 mt-1">Clique aqui para carregar o arquivo (Foto/PDF) enviado pelo trabalhador via WhatsApp ou e-mail</p>
+                                                <p className="text-xs text-slate-400 mt-1">Haga clic aquí para subir el archivo (Foto/PDF) enviado por el trabajador por WhatsApp o correo</p>
                                             </div>
                                             <Button
                                                 type="button"
@@ -6849,7 +6849,7 @@ Muchas gracias.`;
                                                 variant="outline"
                                                 className="mt-2 text-xs border-indigo-500/30 text-indigo-300 hover:bg-indigo-500/20"
                                             >
-                                                <Upload className="h-3.5 w-3.5 mr-1" /> Selecionar Arquivo
+                                                <Upload className="h-3.5 w-3.5 mr-1" /> Seleccionar Archivo
                                             </Button>
                                         </div>
                                     )}
@@ -6859,17 +6859,17 @@ Muchas gracias.`;
                             {/* Painel Direito: Formulário com Dados do OCR */}
                             <form onSubmit={handleApproveVerify} className="flex flex-col border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-900/20 p-4 justify-between overflow-y-auto">
                                 <div className="space-y-4">
-                                    <h4 className="font-semibold text-slate-800 dark:text-slate-200 border-b pb-2 text-sm">Dados Cadastrais Revisados</h4>
+                                    <h4 className="font-semibold text-slate-800 dark:text-slate-200 border-b pb-2 text-sm">Datos del Trabajador Revisados</h4>
                                     
                                     <div className="space-y-3">
                                         <div>
-                                            <Label className="text-xs">Nome Completo</Label>
+                                            <Label className="text-xs">Nombre Completo</Label>
                                             <Input required value={verifyFormData.nome} onChange={(e) => setVerifyFormData({ ...verifyFormData, nome: e.target.value })} />
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <Label className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Banco / Entidade</Label>
+                                                <Label className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">Banco / Entidad</Label>
                                                 <Input value={verifyFormData.banco} onChange={(e) => setVerifyFormData({ ...verifyFormData, banco: e.target.value })} placeholder="Ex: Santander, Revolut" />
                                             </div>
                                             <div>
@@ -6899,7 +6899,7 @@ Muchas gracias.`;
                                                 <Input value={verifyFormData.nie} onChange={(e) => setVerifyFormData({ ...verifyFormData, nie: e.target.value })} />
                                             </div>
                                             <div>
-                                                <Label className="text-xs">Passaporte</Label>
+                                                <Label className="text-xs">Pasaporte</Label>
                                                 <Input value={verifyFormData.pasaporte} onChange={(e) => setVerifyFormData({ ...verifyFormData, pasaporte: e.target.value })} />
                                             </div>
                                         </div>
@@ -6909,10 +6909,10 @@ Muchas gracias.`;
                                             <div className="flex flex-wrap items-center justify-between gap-2">
                                                 <div>
                                                     <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 block">
-                                                        Possui Residência Legal na União Europeia?
+                                                        ¿Posee Residencia Legal en la Unión Europea?
                                                     </span>
                                                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                                        Resposta informada pelo trabalhador (clique para ajustar)
+                                                        Respuesta informada por el trabajador (haga clic para ajustar)
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 shrink-0">
@@ -6925,7 +6925,7 @@ Muchas gracias.`;
                                                                 : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-300 dark:border-slate-700 hover:text-slate-700'
                                                         }`}
                                                     >
-                                                        SIM (Tem Residência)
+                                                        SÍ (Tiene Residencia)
                                                     </button>
                                                     <button
                                                         type="button"
@@ -6936,7 +6936,7 @@ Muchas gracias.`;
                                                                 : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-300 dark:border-slate-700 hover:text-slate-700'
                                                         }`}
                                                     >
-                                                        NÃO (Só Passaporte)
+                                                        NO (Solo Pasaporte)
                                                     </button>
                                                 </div>
                                             </div>
@@ -6945,20 +6945,20 @@ Muchas gracias.`;
                                                 <div className="flex flex-wrap items-center gap-3">
                                                     {(selectedRequest.residence_url || selectedRequest.extracted_data?.residence_url) ? (
                                                         <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Frente anexada
+                                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Frente adjunto
                                                         </span>
                                                     ) : (
                                                         <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Sem Frente
+                                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Sin Frente
                                                         </span>
                                                     )}
                                                     {(selectedRequest.extracted_data as any)?.residence_back_url ? (
                                                         <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Verso anexado
+                                                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Reverso adjunto
                                                         </span>
                                                     ) : (
                                                         <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
-                                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Sem Verso
+                                                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Sin Reverso
                                                         </span>
                                                     )}
                                                 </div>
@@ -6985,7 +6985,7 @@ Muchas gracias.`;
                                                         }}
                                                         className="h-7 text-xs px-2.5 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50"
                                                     >
-                                                        Ver Verso
+                                                        Ver Reverso
                                                     </Button>
                                                 </div>
                                             </div>
@@ -6993,7 +6993,7 @@ Muchas gracias.`;
                                             {verifyFormData.tiene_residencia_ue && (
                                                 <div className="grid grid-cols-2 gap-3 pt-1">
                                                     <div>
-                                                        <Label className="text-xs">Nº Residência / NIE / Título</Label>
+                                                        <Label className="text-xs">Nº Residencia / NIE / Título</Label>
                                                         <Input
                                                             value={verifyFormData.numero_residencia || verifyFormData.nie}
                                                             onChange={(e) => {
@@ -7009,7 +7009,7 @@ Muchas gracias.`;
                                                         />
                                                     </div>
                                                     <div>
-                                                        <Label className="text-xs">País da Residência UE</Label>
+                                                        <Label className="text-xs">País de Residencia UE</Label>
                                                         <Input
                                                             value={verifyFormData.pais_residencia}
                                                             onChange={(e) => setVerifyFormData(prev => ({ ...prev, pais_residencia: e.target.value }))}
@@ -7022,17 +7022,17 @@ Muchas gracias.`;
                                         </div>
 
                                         <div>
-                                            <Label className="text-xs">Carta de Condução / Habilitação</Label>
+                                            <Label className="text-xs">Permiso de Conducir</Label>
                                             <Input value={verifyFormData.licencia_conducir} onChange={(e) => setVerifyFormData({ ...verifyFormData, licencia_conducir: e.target.value })} />
                                         </div>
 
                                          <div className="grid grid-cols-2 gap-3">
                                             <div>
-                                                <Label className="text-xs">Nacionalidade</Label>
+                                                <Label className="text-xs">Nacionalidad</Label>
                                                 <Input value={verifyFormData.nacionalidade} onChange={(e) => setVerifyFormData({ ...verifyFormData, nacionalidade: e.target.value })} />
                                             </div>
                                             <div>
-                                                <Label className="text-xs">Data de Nascimento (AAAA-MM-DD)</Label>
+                                                <Label className="text-xs">Fecha de Nacimiento (AAAA-MM-DD)</Label>
                                                 <Input type="date" value={verifyFormData.fecha_nacimiento} onChange={(e) => setVerifyFormData({ ...verifyFormData, fecha_nacimiento: e.target.value })} />
                                             </div>
                                         </div>
@@ -7040,7 +7040,7 @@ Muchas gracias.`;
                                         {/* Dados Espanhóis / Seguridad Social (Hexagon - SEPE) */}
                                         <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-800/70 bg-amber-50/40 dark:bg-amber-950/20 space-y-2">
                                             <span className="text-xs font-bold text-amber-800 dark:text-amber-300 block">
-                                                🇪🇸 Dados para Contrato Espanha (SEPE / Seguridad Social — Hexagon)
+                                                🇪🇸 Datos para Contrato España (SEPE / Seguridad Social — Hexagon)
                                             </span>
                                             <div className="grid grid-cols-3 gap-2">
                                                 <div>
@@ -7053,7 +7053,7 @@ Muchas gracias.`;
                                                     />
                                                 </div>
                                                 <div>
-                                                    <Label className="text-[11px]">Município Domicílio (Espanha)</Label>
+                                                    <Label className="text-[11px]">Municipio Domicilio (España)</Label>
                                                     <Input
                                                         value={verifyFormData.municipio_domicilio}
                                                         onChange={(e) => setVerifyFormData({ ...verifyFormData, municipio_domicilio: e.target.value })}
@@ -7074,24 +7074,24 @@ Muchas gracias.`;
                                         </div>
 
                                         <div className="border-t pt-3 space-y-3">
-                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto & Moradas</h5>
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto y Direcciones</h5>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <Label className="text-xs">Correo Electrónico (E-mail)</Label>
                                                     <Input type="email" value={verifyFormData.email} onChange={(e) => setVerifyFormData({ ...verifyFormData, email: e.target.value })} placeholder="email@exemplo.com" />
                                                 </div>
                                                 <div>
-                                                    <Label className="text-xs">Telefone / Telemóvel (Móvil)</Label>
+                                                    <Label className="text-xs">Teléfono Móvil</Label>
                                                     <Input type="tel" value={verifyFormData.movil} onChange={(e) => setVerifyFormData({ ...verifyFormData, movil: e.target.value })} placeholder="+34 600... / +55..." />
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
-                                                    <Label className="text-xs">Ubicación / Cidade e País</Label>
+                                                    <Label className="text-xs">Ubicación / Ciudad y País</Label>
                                                     <Input value={verifyFormData.ubicacion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, ubicacion_actual: e.target.value })} placeholder="Ex: Madrid, España" />
                                                 </div>
                                                 <div>
-                                                    <Label className="text-xs">Endereço / Morada Atual (Origem)</Label>
+                                                    <Label className="text-xs">Dirección Actual (Domicilio)</Label>
                                                     <Input value={verifyFormData.direccion_actual} onChange={(e) => setVerifyFormData({ ...verifyFormData, direccion_actual: e.target.value })} placeholder="Ex: Calle Mayor 12, 3ºB" />
                                                 </div>
                                             </div>
@@ -7099,7 +7099,7 @@ Muchas gracias.`;
                                             {/* Campo para Endereço Oficial do Contrato em Portugal */}
                                             <div className="bg-indigo-50/80 dark:bg-indigo-950/40 p-3 rounded-lg border border-indigo-200 dark:border-indigo-800 space-y-1.5">
                                                 <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                                                    <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Endereço para Contrato (Portugal)
+                                                    <Building2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" /> Dirección para Contrato (Portugal)
                                                 </Label>
                                                 <Input 
                                                     value={verifyFormData.morada_contrato} 
@@ -7108,16 +7108,16 @@ Muchas gracias.`;
                                                     className="bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700 text-sm font-medium"
                                                 />
                                                 <p className="text-[11px] text-indigo-600 dark:text-indigo-400">
-                                                    * Se preenchido, este endereço de Portugal será utilizado na morada do contrato em vez do endereço de origem.
+                                                    * Si se rellena, esta dirección se utilizará en contratos de Portugal en lugar de la dirección de origen.
                                                 </p>
                                             </div>
                                         </div>
 
                                         <div className="border-t pt-3 space-y-3">
-                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto de Emergência / Familiar</h5>
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Contacto de Emergencia / Familiar</h5>
                                             <div className="grid grid-cols-3 gap-2">
                                                 <div>
-                                                    <Label className="text-xs">Nome do Familiar</Label>
+                                                    <Label className="text-xs">Nombre del Familiar</Label>
                                                     <Input value={verifyFormData.contacto_emergencia_nombre} onChange={(e) => setVerifyFormData({ ...verifyFormData, contacto_emergencia_nombre: e.target.value })} placeholder="Nome completo" />
                                                 </div>
                                                 <div>
@@ -7125,14 +7125,14 @@ Muchas gracias.`;
                                                     <Input value={verifyFormData.contacto_emergencia_parentesco} onChange={(e) => setVerifyFormData({ ...verifyFormData, contacto_emergencia_parentesco: e.target.value })} placeholder="Ex: Esposa" />
                                                 </div>
                                                 <div>
-                                                    <Label className="text-xs">Telefone</Label>
+                                                    <Label className="text-xs">Teléfono</Label>
                                                     <Input value={verifyFormData.contacto_emergencia_telefono} onChange={(e) => setVerifyFormData({ ...verifyFormData, contacto_emergencia_telefono: e.target.value })} placeholder="+34 600..." />
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="border-t pt-3 space-y-3">
-                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Tamanhos de Uniforme / EPI</h5>
+                                            <h5 className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Tallas de Uniforme / EPI</h5>
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div>
                                                     <Label className="text-xs">Talla Camisa / Polo</Label>
@@ -7148,10 +7148,10 @@ Muchas gracias.`;
                                 </div>
 
                                 <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t mt-4">
-                                    <Button type="button" variant="outline" className="px-4" onClick={() => setVerifyDialogOpen(false)}>Fechar</Button>
+                                    <Button type="button" variant="outline" className="px-4" onClick={() => setVerifyDialogOpen(false)}>Cerrar</Button>
                                     <Button type="submit" disabled={verifying} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
                                         {verifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                                        {selectedRequest?.status === 'verified' ? 'Salvar Alterações no Cadastro' : 'Aprovar & Salvar no Cadastro'}
+                                        {selectedRequest?.status === 'verified' ? 'Guardar Cambios no Cadastro' : 'Aprovar & Salvar no Cadastro'}
                                     </Button>
                                     <Button 
                                         type="button" 
@@ -7160,7 +7160,7 @@ Muchas gracias.`;
                                         className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5"
                                     >
                                         {verifying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4" />}
-                                        Salvar & Gerar Contrato ⚡
+                                        Salvar & Generar Contrato ⚡
                                     </Button>
                                 </div>
                             </form>
@@ -7175,10 +7175,10 @@ Muchas gracias.`;
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-xl font-bold">
                             <MessageSquare className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                            Trabalhadores da Solicitação {selectedTaskForWorkers?.solicitud?.codigo}
+                            Trabajadores de la Solicitud {selectedTaskForWorkers?.solicitud?.codigo}
                         </DialogTitle>
                         <DialogDescription>
-                            Gerencie o envio de documentos, contato via WhatsApp e emissão de contratos para os trabalhadores vinculados a este pedido.
+                            Gestione el envío de documentos, contacto por WhatsApp y emisión de contratos para los trabajadores vinculados a este pedido.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -7195,7 +7195,7 @@ Muchas gracias.`;
                                     <div className="flex items-center justify-between gap-1 mb-1">
                                         <span className="text-[10px] font-bold tracking-wider text-amber-400 uppercase flex items-center gap-1">
                                             <Calendar className="h-3.5 w-3.5 text-amber-400" />
-                                            Início Previsto
+                                            Inicio Previsto
                                         </span>
                                         {taskMetadata.expectedStartDate && (
                                             <Badge className={`text-[10px] px-1.5 py-0.5 border ${
@@ -7206,15 +7206,15 @@ Muchas gracias.`;
                                         )}
                                     </div>
                                     <div className="text-xl font-black text-amber-300 tracking-tight my-0.5">
-                                        {taskMetadata.expectedStartDate ? formatHeaderDate(taskMetadata.expectedStartDate) : 'A Definir'}
+                                        {taskMetadata.expectedStartDate ? formatHeaderDate(taskMetadata.expectedStartDate) : 'Por Definir'}
                                     </div>
                                     {taskMetadata.expectedEndDate ? (
                                         <div className="text-[11px] text-slate-300 flex items-center gap-1">
                                             <Clock className="h-3 w-3 text-slate-400 shrink-0" />
-                                            Até: <span className="font-semibold text-white">{formatHeaderDate(taskMetadata.expectedEndDate)}</span>
+                                            Hasta: <span className="font-semibold text-white">{formatHeaderDate(taskMetadata.expectedEndDate)}</span>
                                         </div>
                                     ) : (
-                                        <div className="text-[11px] text-slate-400">Duração indeterminada</div>
+                                        <div className="text-[11px] text-slate-400">Duración indeterminada</div>
                                     )}
                                 </div>
 
@@ -7223,7 +7223,7 @@ Muchas gracias.`;
                                     <div>
                                         <span className="text-[10px] font-bold tracking-wider text-indigo-300 uppercase flex items-center gap-1 mb-1">
                                             <Building2 className="h-3.5 w-3.5 text-indigo-400" />
-                                            Cliente & Grupo
+                                            Cliente y Grupo
                                         </span>
                                         <div className="text-base font-bold text-white leading-snug truncate" title={taskMetadata.clientName}>
                                             {taskMetadata.clientName}
@@ -7242,7 +7242,7 @@ Muchas gracias.`;
                                     <div>
                                         <span className="text-[10px] font-bold tracking-wider text-emerald-300 uppercase flex items-center gap-1 mb-1">
                                             <MapPin className="h-3.5 w-3.5 text-emerald-400" />
-                                            Local / Obra
+                                            Lugar / Obra
                                         </span>
                                         <div className="text-sm font-bold text-white truncate" title={taskMetadata.siteName}>
                                             {taskMetadata.siteName}
@@ -7252,7 +7252,7 @@ Muchas gracias.`;
                                         {taskMetadata.siteAddressFormatted ? (
                                             <span className="text-slate-200">{taskMetadata.siteAddressFormatted}</span>
                                         ) : (
-                                            <span className="italic text-slate-400">Endereço do cliente</span>
+                                            <span className="italic text-slate-400">Dirección del cliente</span>
                                         )}
                                     </div>
                                 </div>
@@ -7269,7 +7269,7 @@ Muchas gracias.`;
                                         </div>
                                     </div>
                                     <div className="text-[11px] text-slate-300 mt-1 flex items-center justify-between">
-                                        <span className="text-slate-400">Criado em:</span>
+                                        <span className="text-slate-400">Creado el:</span>
                                         <span className="font-medium text-white">{taskMetadata.requestedAt ? formatHeaderDate(taskMetadata.requestedAt) : 'N/A'}</span>
                                     </div>
                                 </div>
@@ -7281,21 +7281,21 @@ Muchas gracias.`;
                         {loadingTaskWorkers ? (
                             <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 h-full">
                                 <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-                                <span>Carregando trabalhadores...</span>
+                                <span>Cargando trabajadores...</span>
                             </div>
                         ) : taskWorkers.length === 0 ? (
                             <div className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center gap-2 h-full">
                                 <AlertCircle className="h-10 w-10 text-slate-400" />
-                                <span>Nenhum trabalhador vinculado a este pedido foi encontrado.</span>
+                                <span>No se encontró ningún trabajador vinculado a este pedido.</span>
                             </div>
                         ) : (
                             <Table>
                                 <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0">
                                     <TableRow>
-                                        <TableHead>Trabalhador</TableHead>
+                                        <TableHead>Trabajador</TableHead>
                                         <TableHead>Cargo</TableHead>
-                                        <TableHead>Status Documentos</TableHead>
-                                        <TableHead className="text-right">Ações</TableHead>
+                                        <TableHead>Estado Documentos</TableHead>
+                                        <TableHead className="text-right">Acciones</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -7313,12 +7313,12 @@ Muchas gracias.`;
                                                         <>
                                                             <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                                                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
-                                                                    A Definir (Substituto)
+                                                                    Por Definir (Reemplazo)
                                                                 </span>
                                                             </div>
                                                             {item.replaced_worker && (
                                                                 <div className="text-xs text-rose-600 dark:text-rose-400 mt-1.5 font-medium">
-                                                                    Substituindo: {item.replaced_worker.nome} (Cód: {item.replaced_worker.cod_colab || 'N/A'})
+                                                                    Reemplazando a: {item.replaced_worker.nome} (Cód: {item.replaced_worker.cod_colab || 'N/A'})
                                                                 </div>
                                                             )}
                                                         </>
@@ -7332,7 +7332,7 @@ Muchas gracias.`;
                                                             </div>
                                                             {item.is_replacement && item.replaced_worker && (
                                                                 <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 font-medium">
-                                                                    Substituindo: {item.replaced_worker.nome}
+                                                                    Reemplazando a: {item.replaced_worker.nome}
                                                                 </div>
                                                             )}
                                                         </>
@@ -7344,23 +7344,23 @@ Muchas gracias.`;
                                                 <TableCell>
                                                     {isVacantReplacement ? (
                                                         <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-200">
-                                                            Aguardando Contratação
+                                                            Esperando Contratación
                                                         </Badge>
                                                     ) : !item.docRequest ? (
                                                         <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200">
-                                                            Sem Link de Envio
+                                                            Sin Enlace de Envío
                                                         </Badge>
                                                     ) : docStatus === 'verified' ? (
                                                         <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                                                            Cadastro Validado
+                                                            Registro Validado
                                                         </Badge>
                                                     ) : docStatus === 'submitted' ? (
                                                         <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/20 hover:bg-blue-500/20">
-                                                            Recebido - Analisar
+                                                            Recibido - Revisar
                                                         </Badge>
                                                     ) : (
                                                         <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
-                                                            Aguardando Envio
+                                                            Esperando Envío
                                                         </Badge>
                                                     )}
                                                 </TableCell>
@@ -7388,11 +7388,11 @@ Muchas gracias.`;
                                                             title="Visualizar ou analisar documentos do trabalhador"
                                                         >
                                                             <Eye className="h-3 w-3" />
-                                                            {docStatus === 'submitted' ? 'Analisar' : 'Ver Docs'}
+                                                            {docStatus === 'submitted' ? 'Revisar' : 'Ver Docs'}
                                                         </Button>
                                                     )}
 
-                                                    {/* Reabrir para Novo Envio Button */}
+                                                    {/* Reabrir para Nuevo Envío Button */}
                                                     {item.docRequest && (docStatus === 'verified' || docStatus === 'submitted') && (
                                                         <Button
                                                             size="sm"
@@ -7412,7 +7412,7 @@ Muchas gracias.`;
                                                             title="Solicitar novo envio de documentos (reabre o link)"
                                                         >
                                                             <RefreshCw className="h-3 w-3" />
-                                                            Novo Envio
+                                                            Nuevo Envío
                                                         </Button>
                                                     )}
 
@@ -7475,11 +7475,11 @@ Muchas gracias.`;
                                                              disabled={isVacantReplacement}
                                                          >
                                                              <Plus className="h-3.5 w-3.5 mr-1" />
-                                                             Criar Link
+                                                             Crear Enlace
                                                          </Button>
                                                      )}
 
-                                                    {/* Gerar Contrato Button */}
+                                                    {/* Generar Contrato Button */}
                                                     <Button
                                                         size="sm"
                                                         variant="ghost"
@@ -7504,7 +7504,7 @@ Muchas gracias.`;
                     </div>
 
                     <div className="flex justify-end gap-2 pt-2 border-t mt-4">
-                        <Button variant="outline" onClick={() => setWorkersDialogOpen(false)}>Fechar</Button>
+                        <Button variant="outline" onClick={() => setWorkersDialogOpen(false)}>Cerrar</Button>
                     </div>
                 </DialogContent>
             </Dialog>
@@ -7517,11 +7517,11 @@ Muchas gracias.`;
                                 <DialogTitle className="flex items-center gap-2 text-lg font-bold">
                                     <Clock className="h-5 w-5 text-amber-500" />
                                     {noticeDialogMode === 'create'
-                                        ? 'Incluir Trabalhador no Controle de Aviso Prévio & Desconto'
-                                        : `Gerenciar Aviso Prévio & Consolidar Desconto na Folha — ${noticeWorkerName}`}
+                                        ? 'Incluir Trabajador en el Control de Preaviso y Descuento'
+                                        : `Gestionar Preaviso y Consolidar Descuento en Nómina — ${noticeWorkerName}`}
                                 </DialogTitle>
                                 <DialogDescription className="text-xs mt-0.5">
-                                    Controle os 15 dias de aviso prévio, registre a data de parada/abandono e consolide o desconto diretamente na folha de pagamento (último salário).
+                                    Controle los 15 días de preaviso, registre la fecha de cese/abandono y consolide el descuento directamente en la nómina (último salario).
                                 </DialogDescription>
                             </div>
                             {noticeDialogMode === 'edit' && (
@@ -7534,7 +7534,7 @@ Muchas gracias.`;
                                     </Badge>
                                     {editingNoticeContract?.metadata?.payroll_discount_id && (
                                         <Badge className="bg-emerald-600 text-white text-xs px-2.5 py-1">
-                                            ✅ Consolidado na Folha ({formatCompetenceLabel(editingNoticeContract.metadata.payroll_competence)})
+                                            ✅ Consolidado en Nómina ({formatCompetenceLabel(editingNoticeContract.metadata.payroll_competence)})
                                         </Badge>
                                     )}
                                 </div>
@@ -7594,13 +7594,13 @@ Muchas gracias.`;
                                 {noticeDialogMode === 'create' && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800">
                                         <div className="space-y-1">
-                                            <Label className="text-xs font-semibold">Trabalhador *</Label>
+                                            <Label className="text-xs font-semibold">Trabajador *</Label>
                                             <Combobox
                                                 options={workersList}
                                                 value={noticeWorkerId}
                                                 onChange={(val) => handleSelectManualNoticeWorker(val)}
-                                                placeholder="Buscar por nome, passaporte, NIF ou código..."
-                                                emptyText="Nenhum trabalhador encontrado."
+                                                placeholder="Buscar por nombre, pasaporte, NIF o código..."
+                                                emptyText="Ningún trabajador encontrado."
                                             />
                                         </div>
 
@@ -7608,7 +7608,7 @@ Muchas gracias.`;
                                             <Label className="text-xs font-semibold">Empresa Contratante *</Label>
                                             <Select value={noticeContratante} onValueChange={setNoticeContratante}>
                                                 <SelectTrigger className="bg-white dark:bg-black h-9">
-                                                    <SelectValue placeholder="Selecione a empresa..." />
+                                                    <SelectValue placeholder="Seleccione la empresa..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="STOCCO">Stocco</SelectItem>
@@ -7632,7 +7632,7 @@ Muchas gracias.`;
                                             <div className="flex items-center justify-between">
                                                 <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
                                                     <Calendar className="h-3.5 w-3.5" />
-                                                    1. Admissão, Dias Trabalhados no Mês & Período do Aviso (15 Dias)
+                                                    1. Admisión, Días Trabajados en el Mes y Período de Preaviso (15 Días)
                                                 </h4>
                                                 <Button
                                                     type="button"
@@ -7641,14 +7641,14 @@ Muchas gracias.`;
                                                     onClick={() => setNoticeMonthWorkedDays('0')}
                                                     className="h-6 text-[11px] text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2"
                                                 >
-                                                    Zerar Dias no Mês (Abandono s/ Saldo)
+                                                    Poner Días a Cero (Abandono sin Saldo)
                                                 </Button>
                                             </div>
 
                                             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 items-end">
                                                 <div className="space-y-1">
-                                                    <Label className="text-[11px] font-semibold block truncate" title="Data que Iniciou o Trabalho (Admissão)">
-                                                        Início Trabalho (Admissão)
+                                                    <Label className="text-[11px] font-semibold block truncate" title="Fecha de Inicio de Trabajo (Admisión)">
+                                                        Inicio Trabajo (Admisión)
                                                     </Label>
                                                     <Input
                                                         type="date"
@@ -7664,8 +7664,8 @@ Muchas gracias.`;
                                                 </div>
 
                                                 <div className="space-y-1">
-                                                    <Label className="text-[11px] font-semibold block truncate" title="Dias Trabalhados no Mês da Rescisão">
-                                                        Dias Trab. no Mês
+                                                    <Label className="text-[11px] font-semibold block truncate" title="Días Trabajados en el Mes de Rescisión">
+                                                        Días Trab. Mes
                                                     </Label>
                                                     <Input
                                                         type="number"
@@ -7678,7 +7678,7 @@ Muchas gracias.`;
                                                 </div>
 
                                                 <div className="space-y-1">
-                                                    <Label className="text-[11px] font-semibold block truncate">Início Aviso Prévio</Label>
+                                                    <Label className="text-[11px] font-semibold block truncate">Inicio Preaviso</Label>
                                                     <Input
                                                         type="date"
                                                         value={noticeStartDate}
@@ -7694,7 +7694,7 @@ Muchas gracias.`;
                                                 </div>
 
                                                 <div className="space-y-1">
-                                                    <Label className="text-[11px] font-semibold block truncate">Fim Aviso (15 dias)</Label>
+                                                    <Label className="text-[11px] font-semibold block truncate">Fin Preaviso (15 días)</Label>
                                                     <Input
                                                         type="date"
                                                         value={noticeEndDate}
@@ -7721,7 +7721,7 @@ Muchas gracias.`;
                                                 </div>
                                             </div>
                                             <p className="text-[11px] text-slate-500">
-                                                Regra: 15 dias corridos (sábado e domingo contam como cumpridos). Valor diário: <strong>{formatCurrencyEur(dailyRatePreview)}/dia</strong>.
+                                                Regla: 15 días naturales (sábado y domingo cuentan como cumplidos). Valor diario: <strong>{formatCurrencyEur(dailyRatePreview)}/dia</strong>.
                                             </p>
                                         </div>
 
@@ -7731,10 +7731,10 @@ Muchas gracias.`;
                                                 <div className="flex items-center justify-between">
                                                     <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300 flex items-center gap-1.5">
                                                         <AlertTriangle className="h-3.5 w-3.5" />
-                                                        2. Situação de Cumprimento & Parada do Aviso
+                                                        2. Situación de Cumplimiento y Cese del Preaviso
                                                     </h4>
                                                     <div className="flex items-center gap-1.5">
-                                                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Descontar na Folha?</span>
+                                                        <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">¿Descontar en Nómina?</span>
                                                         <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 overflow-hidden">
                                                             <button
                                                                 type="button"
@@ -7745,7 +7745,7 @@ Muchas gracias.`;
                                                                         : 'bg-white dark:bg-slate-900 text-slate-600'
                                                                 }`}
                                                             >
-                                                                Sim, Descontar
+                                                                Sí, Descontar
                                                             </button>
                                                             <button
                                                                 type="button"
@@ -7756,7 +7756,7 @@ Muchas gracias.`;
                                                                         : 'bg-white dark:bg-slate-900 text-slate-600'
                                                                 }`}
                                                             >
-                                                                Não (Isentar)
+                                                                No (Eximir)
                                                             </button>
                                                         </div>
                                                     </div>
@@ -7776,8 +7776,8 @@ Muchas gracias.`;
                                                                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
                                                         }`}
                                                     >
-                                                        <div>⏳ Em Cumprimento</div>
-                                                        <div className="text-[10px] font-normal opacity-80">Reduz dia a dia</div>
+                                                        <div>⏳ En Cumplimiento</div>
+                                                        <div className="text-[10px] font-normal opacity-80">Reduce día a día</div>
                                                     </button>
 
                                                     <button
@@ -7795,8 +7795,8 @@ Muchas gracias.`;
                                                                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
                                                         }`}
                                                     >
-                                                        <div>🛑 Abandonou / Parou</div>
-                                                        <div className="text-[10px] font-normal opacity-80">Trava valor p/ folha</div>
+                                                        <div>🛑 Abandonó / Cesó</div>
+                                                        <div className="text-[10px] font-normal opacity-80">Fija importe p/ nómina</div>
                                                     </button>
 
                                                     <button
@@ -7812,14 +7812,14 @@ Muchas gracias.`;
                                                                 : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
                                                         }`}
                                                     >
-                                                        <div>✅ Cumpriu 15 Dias</div>
-                                                        <div className="text-[10px] font-normal opacity-80">Sem desconto (€ 0,00)</div>
+                                                        <div>✅ Cumplió 15 Días</div>
+                                                        <div className="text-[10px] font-normal opacity-80">Sin descuento (€ 0,00)</div>
                                                     </button>
                                                 </div>
 
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                                                     <div className="space-y-1">
-                                                        <Label className="text-[11px] font-semibold">Data em que Parou / Abandonou</Label>
+                                                        <Label className="text-[11px] font-semibold">Fecha en que Cesó / Abandonó</Label>
                                                         <Input
                                                             type="date"
                                                             value={noticeStopDate}
@@ -7838,7 +7838,7 @@ Muchas gracias.`;
 
                                                     <div className="space-y-1">
                                                         <div className="flex items-center justify-between">
-                                                            <Label className="text-[11px] font-semibold">Dias Cumpridos (0 a 15)</Label>
+                                                            <Label className="text-[11px] font-semibold">Días Cumplidos (0 a 15)</Label>
                                                             {noticeFulfilledDaysOverride !== '' && (
                                                                 <button
                                                                     type="button"
@@ -7861,7 +7861,7 @@ Muchas gracias.`;
                                                     </div>
 
                                                     <div className="space-y-1">
-                                                        <Label className="text-[11px] font-semibold">Motivo da Saída / Parada</Label>
+                                                        <Label className="text-[11px] font-semibold">Motivo de Salida / Cese</Label>
                                                         <Select
                                                             value={noticeStopReason}
                                                             onValueChange={(val) => setNoticeStopReason(val)}
@@ -7870,19 +7870,19 @@ Muchas gracias.`;
                                                                 <SelectValue placeholder="Motivo..." />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <SelectItem value="Abandono de trabalho / Não cumpriu aviso prévio">Abandono de trabalho / Não cumpriu aviso</SelectItem>
-                                                                <SelectItem value="Cumprimento parcial do aviso prévio">Cumprimento parcial do aviso prévio</SelectItem>
-                                                                <SelectItem value="Saída imediata sem cumprir aviso prévio">Saída imediata sem cumprir aviso</SelectItem>
-                                                                <SelectItem value="Pedido de demissão com desconto em folha">Pedido de demissão c/ desconto</SelectItem>
+                                                                <SelectItem value="Abandono de trabalho / Não cumpriu aviso prévio">Abandono de trabajo / No cumplió preaviso</SelectItem>
+                                                                <SelectItem value="Cumprimento parcial do aviso prévio">Cumplimiento parcial del preaviso</SelectItem>
+                                                                <SelectItem value="Saída imediata sem cumprir aviso prévio">Salida inmediata sin cumplir preaviso</SelectItem>
+                                                                <SelectItem value="Pedido de demissão com desconto em folha">Baja voluntaria con descuento</SelectItem>
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
                                                 </div>
 
                                                 <div className="space-y-1 pt-1">
-                                                    <Label className="text-[11px] font-semibold">Observação Adicional do Aviso</Label>
+                                                    <Label className="text-[11px] font-semibold">Observación Adicional del Preaviso</Label>
                                                     <Input
-                                                        placeholder="Ex: abandonou o trabalho dia 27/10 sem avisar encarregado..."
+                                                        placeholder="Ej: abandonó el trabajo el día 27/10 sin avisar al encargado..."
                                                         value={noticeNotes}
                                                         onChange={(e) => setNoticeNotes(e.target.value)}
                                                         className="h-8 text-xs bg-white dark:bg-black"
@@ -7892,28 +7892,28 @@ Muchas gracias.`;
                                         </div>
                                     </div>
 
-                                    {/* COLUNA DIREITA (5 cols): Consolidação do Desconto na Folha de Pagamento (Último Salário) */}
+                                    {/* COLUNA DIREITA (5 cols): Consolidação do Desconto na Folha de Pagamento (Último Salario) */}
                                     <div className="lg:col-span-5 flex flex-col justify-between rounded-xl border-2 border-indigo-500/30 dark:border-indigo-500/40 bg-slate-900 text-white p-4 space-y-3">
                                         <div className="space-y-2.5">
                                             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                                                 <div>
                                                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                                                        💸 3. Consolidar Desconto na Folha (Último Salário)
+                                                        💸 3. Consolidar Descuento en Nómina (Último Salario)
                                                     </h4>
                                                     <p className="text-[11px] text-slate-400 mt-0.5">
-                                                        Envia este valor diretamente para a <strong>Gestão de Descontos / Folha</strong> do trabalhador.
+                                                        Envía este importe directamente a la <strong>Gestión de Descuentos / Nómina</strong> del trabajador.
                                                     </p>
                                                 </div>
                                             </div>
 
-                                            {/* Seleção da Competência (Mês do Último Salário) */}
+                                            {/* Seleção da Competência (Mês do Último Salario) */}
                                             <div className="space-y-1.5 bg-white/5 p-2.5 rounded-lg border border-white/10">
                                                 <div className="flex items-center justify-between">
                                                     <Label className="text-xs font-bold text-amber-300">
-                                                        Competência da Folha (Mês do Último Salário) *
+                                                        Competencia de Nómina (Mes del Último Salario) *
                                                     </Label>
                                                     <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400/30 px-1.5 py-0.5 rounded font-semibold">
-                                                        Último Salário
+                                                        Último Salario
                                                     </span>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -7945,19 +7945,19 @@ Muchas gracias.`;
                                             {/* Quadro Resumo da Regra (Para cumprir vs Cumprido vs Faltou) */}
                                             <div className="grid grid-cols-3 gap-2 text-center bg-slate-950/80 p-2.5 rounded-lg border border-slate-800">
                                                 <div>
-                                                    <div className="text-[10px] uppercase text-slate-400">Cumpriu</div>
-                                                    <div className="text-sm font-bold text-emerald-400">{previewFulfilledDays} de 15 dias</div>
+                                                    <div className="text-[10px] uppercase text-slate-400">Cumplió</div>
+                                                    <div className="text-sm font-bold text-emerald-400">{previewFulfilledDays} de 15 días</div>
                                                     <div className="text-[10px] text-slate-400">- {formatCurrencyEur(previewAbatido)}</div>
                                                 </div>
                                                 <div className="border-x border-slate-800">
-                                                    <div className="text-[10px] uppercase text-slate-400">Faltou Cumprir</div>
-                                                    <div className="text-sm font-bold text-rose-400">{previewMissingDays} dias</div>
+                                                    <div className="text-[10px] uppercase text-slate-400">Faltó Cumplir</div>
+                                                    <div className="text-sm font-bold text-rose-400">{previewMissingDays} días</div>
                                                     <div className="text-[10px] text-slate-400">{formatCurrencyEur(dailyRatePreview)}/dia</div>
                                                 </div>
                                                 <div>
-                                                    <div className="text-[10px] uppercase text-rose-300 font-bold">Desconto Final</div>
+                                                    <div className="text-[10px] uppercase text-rose-300 font-bold">Descuento Final</div>
                                                     <div className="text-base font-black text-rose-400 font-mono">{formatCurrencyEur(previewFinalDesconto)}</div>
-                                                    <div className="text-[10px] text-slate-400">{noticeMonthWorkedDays || 0}d trab. mês</div>
+                                                    <div className="text-[10px] text-slate-400">{noticeMonthWorkedDays || 0}d trab. mes</div>
                                                 </div>
                                             </div>
 
@@ -7965,7 +7965,7 @@ Muchas gracias.`;
                                             <div className="space-y-1">
                                                 <div className="flex items-center justify-between">
                                                     <Label className="text-[11px] font-bold text-slate-300">
-                                                        Observações na Folha (Data que parou, motivo, dias cumpridos e faltantes)
+                                                        Observaciones en Nómina (Fecha de cese, motivo, días cumplidos y faltantes)
                                                     </Label>
                                                     {noticePayrollDescriptionEdited && (
                                                         <button
@@ -7976,7 +7976,7 @@ Muchas gracias.`;
                                                             }}
                                                             className="text-[10px] text-indigo-400 hover:underline"
                                                         >
-                                                            Restaurar texto padrão
+                                                            Restaurar texto predeterminado
                                                         </button>
                                                     )}
                                                 </div>
@@ -8005,8 +8005,8 @@ Muchas gracias.`;
                                                     <CheckCircle className="h-4 w-4" />
                                                 )}
                                                 {editingNoticeContract?.metadata?.payroll_discount_id
-                                                    ? `Atualizar Desconto na Folha (${formatCompetenceLabel(noticeCompetenceMonth)} — ${formatCurrencyEur(previewRestante)})`
-                                                    : `Consolidar & Lançar Desconto na Folha (${formatCompetenceLabel(noticeCompetenceMonth)} — ${formatCurrencyEur(previewRestante)})`}
+                                                    ? `Actualizar Descuento en Nómina (${formatCompetenceLabel(noticeCompetenceMonth)} — ${formatCurrencyEur(previewRestante)})`
+                                                    : `Consolidar y Lanzar Descuento en Nómina (${formatCompetenceLabel(noticeCompetenceMonth)} — ${formatCurrencyEur(previewRestante)})`}
                                             </Button>
                                         </div>
                                     </div>
@@ -8015,11 +8015,11 @@ Muchas gracias.`;
                                 {/* Rodapé Compacto */}
                                 <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
                                     <span className="text-[11px] text-slate-500">
-                                        💡 Você pode salvar apenas o controle de acompanhamento ou consolidar o desconto diretamente na folha de pagamento.
+                                        💡 Puede guardar solo el control de seguimiento o consolidar el descuento directamente en la nómina.
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button type="button" variant="outline" size="sm" onClick={() => setNoticeDialogOpen(false)}>
-                                            Fechar
+                                            Cerrar
                                         </Button>
                                         <Button
                                             type="submit"
@@ -8028,7 +8028,7 @@ Muchas gracias.`;
                                             className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5"
                                         >
                                             {savingNotice ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
-                                            {noticeDialogMode === 'create' ? 'Incluir Apenas no Controle' : 'Salvar Alterações do Aviso'}
+                                            {noticeDialogMode === 'create' ? 'Incluir Solo en el Control' : 'Guardar Cambios del Preaviso'}
                                         </Button>
                                     </div>
                                 </div>
@@ -8044,10 +8044,10 @@ Muchas gracias.`;
                     <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
                         <DialogTitle className="flex items-center gap-2 text-lg font-bold text-emerald-700 dark:text-emerald-400">
                             <PenTool className="h-5 w-5" />
-                            Assinatura Eletrônica da Empresa (Representante Legal — OTP Bilateral)
+                            Firma Electrónica de la Empresa (Representante Legal — OTP Bilateral)
                         </DialogTitle>
                         <DialogDescription className="text-xs">
-                            A assinatura do representante legal será estampada no quadro <strong>"El/la representante de la empresa"</strong> (Página 20), na margem lateral de todas as páginas e no <strong>Certificado de Firma Electrónica Bilateral (eIDAS / UE Nº 910/2014)</strong>.
+                            La firma del representante legal se estampará en el cuadro <strong>"El/la representante de la empresa"</strong> (Página 20), en el margen izquierdo de todas las páginas y en el <strong>Certificado de Firma Electrónica Bilateral (eIDAS / UE Nº 910/2014)</strong>.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -8055,24 +8055,24 @@ Muchas gracias.`;
                         <form onSubmit={handleSubmitCompanySign} className="space-y-4 pt-2">
                             <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
                                 <div>
-                                    <span className="text-slate-500 block">Trabalhador / Contrato</span>
+                                    <span className="text-slate-500 block">Trabajador / Contrato</span>
                                     <span className="font-bold text-slate-900 dark:text-slate-100">
                                         {companySigningContract.worker?.nome || 'Trabalhador'} — {companySigningContract.contratante}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Badge variant="outline" className={companySigningContract.status === 'signed' ? 'border-emerald-500 text-emerald-600' : 'border-amber-500 text-amber-600'}>
-                                        {companySigningContract.status === 'signed' ? 'Trabalhador: Assinado ✓' : 'Trabalhador: Pendente'}
+                                        {companySigningContract.status === 'signed' ? 'Trabajador: Firmado ✓' : 'Trabajador: Pendiente'}
                                     </Badge>
                                     <Badge variant="outline" className={companySigningContract.metadata?.company_signed ? 'border-emerald-500 text-emerald-600' : 'border-slate-400 text-slate-600'}>
-                                        {companySigningContract.metadata?.company_signed ? 'Empresa: Assinada ✓' : 'Empresa: Pendente'}
+                                        {companySigningContract.metadata?.company_signed ? 'Empresa: Firmada ✓' : 'Empresa: Pendiente'}
                                     </Badge>
                                 </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                 <div className="space-y-1">
-                                    <Label className="text-xs font-semibold">Nome do Representante Legal *</Label>
+                                    <Label className="text-xs font-semibold">Nombre del Representante Legal *</Label>
                                     <Input
                                         required
                                         value={companySignerName}
@@ -8107,7 +8107,7 @@ Muchas gracias.`;
                             {/* Seletor de Modo de Rubrica (Desenhar / Digitar / Usar Salva) */}
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
-                                    <Label className="text-xs font-bold">Rubrica / Assinatura do Representante</Label>
+                                    <Label className="text-xs font-bold">Rúbrica / Firma del Representante</Label>
                                     <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-100 dark:bg-slate-800">
                                         {companySavedSigBase64 && (
                                             <button
@@ -8119,7 +8119,7 @@ Muchas gracias.`;
                                                         : 'text-slate-600 dark:text-slate-400'
                                                 }`}
                                             >
-                                                Rubrica Padrão Salva
+                                                Firma Guardada
                                             </button>
                                         )}
                                         <button
@@ -8131,7 +8131,7 @@ Muchas gracias.`;
                                                     : 'text-slate-600 dark:text-slate-400'
                                             }`}
                                         >
-                                            <PenTool className="h-3 w-3" /> Desenhar
+                                            <PenTool className="h-3 w-3" /> Dibujar
                                         </button>
                                         <button
                                             type="button"
@@ -8145,7 +8145,7 @@ Muchas gracias.`;
                                                     : 'text-slate-600 dark:text-slate-400'
                                             }`}
                                         >
-                                            <Type className="h-3 w-3" /> Digitar Rubrica
+                                            <Type className="h-3 w-3" /> Escribir Firma
                                         </button>
                                     </div>
                                 </div>
@@ -8153,14 +8153,14 @@ Muchas gracias.`;
                                 {companySignMode === 'saved' && companySavedSigBase64 ? (
                                     <div className="border-2 border-dashed border-emerald-300 dark:border-emerald-800 rounded-xl p-4 bg-white flex flex-col items-center justify-center gap-2">
                                         <img src={companySavedSigBase64} alt="Rubrica Salva" className="max-h-28 object-contain" />
-                                        <span className="text-[11px] text-emerald-700 font-medium">Rubrica oficial do representante pronta para uso</span>
+                                        <span className="text-[11px] text-emerald-700 font-medium">Firma oficial del representante lista para usar</span>
                                     </div>
                                 ) : companySignMode === 'type' ? (
                                     <div className="space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50 dark:bg-slate-950">
                                         <Input
                                             value={companyTypedSignature}
                                             onChange={(e) => setCompanyTypedSignature(e.target.value)}
-                                            placeholder="Digite o nome para gerar a assinatura caligráfica..."
+                                            placeholder="Escriba el nombre para generar la firma caligráfica..."
                                             className="bg-white dark:bg-slate-900 text-sm"
                                         />
                                         <div className="h-24 bg-white rounded-lg border flex flex-col items-center justify-center p-2">
@@ -8168,7 +8168,7 @@ Muchas gracias.`;
                                                 {companyTypedSignature || companySignerName || 'Firma Representante'}
                                             </span>
                                             <span className="text-[10px] font-mono text-slate-500 mt-1">
-                                                FIRMA DIGITAL EMPRESA — {companySignerDocument || 'B19394493'}
+                                                FIRMA DIGITAL EMPRESA — {companySignerDocument || 'Z4103479P'}
                                             </span>
                                         </div>
                                     </div>
@@ -8193,11 +8193,11 @@ Muchas gracias.`;
                                                 onClick={clearCompanyCanvas}
                                                 className="absolute top-2 right-2 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1"
                                             >
-                                                <Eraser className="h-3 w-3" /> Limpar
+                                                <Eraser className="h-3 w-3" /> Limpiar
                                             </button>
                                         </div>
                                         <p className="text-[11px] text-slate-500">
-                                            Desenhe a assinatura do representante no quadro acima usando o mouse ou tela sensível ao toque.
+                                            Dibuje la firma del representante en el recuadro de arriba usando el ratón o la pantalla táctil.
                                         </p>
                                     </div>
                                 )}
@@ -8209,7 +8209,7 @@ Muchas gracias.`;
                                         onChange={(e) => setCompanySaveDefaultSig(e.target.checked)}
                                         className="rounded border-slate-300"
                                     />
-                                    Salvar esta rubrica e dados como padrão do Representante da Hexagon para os próximos contratos
+                                    Guardar esta firma y datos como predeterminados del Representante de Hexagon para los próximos contratos
                                 </label>
                             </div>
 
@@ -8218,14 +8218,14 @@ Muchas gracias.`;
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
                                         <KeyRound className="h-4 w-4 text-indigo-600" />
-                                        Código OTP de Validação da Empresa (6 dígitos)
+                                        Código OTP de Validación de la Empresa (6 dígitos)
                                     </Label>
                                     <div className="flex items-center gap-1.5">
                                         <Input
                                             type="email"
                                             value={companySignerEmail}
                                             onChange={(e) => setCompanySignerEmail(e.target.value)}
-                                            placeholder="E-mail p/ receber OTP (opcional)"
+                                            placeholder="Correo p/ recibir OTP (opcional)"
                                             className="h-7 text-xs w-48 bg-white dark:bg-slate-900"
                                         />
                                         <Button
@@ -8237,7 +8237,7 @@ Muchas gracias.`;
                                             className="h-7 text-xs font-semibold border-indigo-300 text-indigo-700 hover:bg-indigo-100"
                                         >
                                             {requestingCompanyOtp ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                                            Gerar / Enviar OTP
+                                            Generar / Enviar OTP
                                         </Button>
                                     </div>
                                 </div>
@@ -8251,7 +8251,7 @@ Muchas gracias.`;
                                         className="h-10 font-mono text-base font-black tracking-widest text-center w-40 bg-white dark:bg-slate-900 border-indigo-300"
                                     />
                                     <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed flex-1">
-                                        O código OTP da empresa é gerado automaticamente na emissão do contrato e fica registrado na trilha de auditoria eIDAS junto com o IP e carimbo de tempo UTC.
+                                        El código OTP de la empresa se genera automáticamente al emitir el contrato y queda registrado en la auditoría eIDAS junto con la IP y el sello de tiempo UTC.
                                     </p>
                                 </div>
                             </div>
@@ -8266,7 +8266,7 @@ Muchas gracias.`;
                                     className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2"
                                 >
                                     {submittingCompanySign ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                    Confirmar & Assinar Contrato pela Empresa
+                                    Confirmar y Firmar Contrato por la Empresa
                                 </Button>
                             </div>
                         </form>

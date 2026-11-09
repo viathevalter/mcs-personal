@@ -50,8 +50,8 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
       const taskTitle = task.title || '';
       const taskDescription = task.description || '';
       
-      const empresaName = task.solicitud?.empresa?.name || 'Sem Empresa';
-      const clientName = task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || 'Sem Alocação';
+      const empresaName = task.solicitud?.empresa?.name || 'Sin Empresa';
+      const clientName = task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || 'Sin Asignación';
       
       const textMatch = 
         solicitudCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -74,19 +74,19 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
           <p className="text-muted-foreground">
-            Gestão de tarefas operacionais direcionadas ao departamento.
+            Gestión de tareas operativas asignadas al departamento.
           </p>
         </div>
         <Button variant="outline" onClick={() => refetch()}>
           <RefreshCw className="mr-2 h-4 w-4" />
-          Atualizar
+          Actualizar
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 shrink-0">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pendentes (Livres)</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pendientes (Libres)</CardTitle>
             <Clock className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
@@ -96,7 +96,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Em Andamento</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">En Curso</CardTitle>
             <Activity className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
@@ -116,7 +116,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Concluídas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Completadas</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
@@ -132,7 +132,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Pesquisar por tarefa, código, empresa ou cliente..."
+            placeholder="Buscar por tarea, código, empresa o cliente..."
             className="pl-9 pr-8 bg-white dark:bg-black"
           />
           {searchTerm && (
@@ -149,14 +149,14 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
           <div className="w-[180px]">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="bg-white dark:bg-black">
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os Status</SelectItem>
-                <SelectItem value="pending">Pendente (Livre)</SelectItem>
-                <SelectItem value="in_progress">Em Andamento</SelectItem>
+                <SelectItem value="all">Todos los Estados</SelectItem>
+                <SelectItem value="pending">Pendiente (Libre)</SelectItem>
+                <SelectItem value="in_progress">En Curso</SelectItem>
                 <SelectItem value="blocked">Bloqueada</SelectItem>
-                <SelectItem value="completed">Concluída</SelectItem>
+                <SelectItem value="completed">Completada</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -164,14 +164,14 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
           <div className="w-[180px]">
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
               <SelectTrigger className="bg-white dark:bg-black">
-                <SelectValue placeholder="Prioridade" />
+                <SelectValue placeholder="Prioridad" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas Prioridades</SelectItem>
+                <SelectItem value="all">Todas las Prioridades</SelectItem>
                 <SelectItem value="urgent">Urgente</SelectItem>
                 <SelectItem value="high">Alta</SelectItem>
                 <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="low">Baixa</SelectItem>
+                <SelectItem value="low">Baja</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -187,7 +187,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
               }}
               className="text-indigo-600 dark:text-indigo-400 font-semibold"
             >
-              Limpar Filtros
+              Limpiar Filtros
             </Button>
           )}
         </div>
@@ -196,21 +196,21 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
       <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
         {isLoading ? (
-          <div className="p-8 text-center text-muted-foreground">Carregando tarefas do departamento...</div>
+          <div className="p-8 text-center text-muted-foreground">Cargando tareas del departamento...</div>
         ) : filteredTasks.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">Nenhuma tarefa encontrada para os filtros aplicados.</div>
+          <div className="p-8 text-center text-muted-foreground">No se encontraron tareas para los filtros aplicados.</div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Solicitud Mãe</TableHead>
+                <TableHead>Solicitud Madre</TableHead>
                 <TableHead>Empresa</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead>Tarefa</TableHead>
-                <TableHead>Prioridade</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Dependência</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead>Tarea</TableHead>
+                <TableHead>Prioridad</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Dependencia</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -235,10 +235,10 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                     </div>
                   </TableCell>
                   <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                    {task.solicitud?.empresa?.name || 'Sem Empresa'}
+                    {task.solicitud?.empresa?.name || 'Sin Empresa'}
                   </TableCell>
                   <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                    {task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || 'Sem Alocação'}
+                    {task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || 'Sin Asignación'}
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{task.title}</div>
@@ -268,7 +268,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                         Bloqueada por: {task.blocked_by_task.title}
                       </div>
                     ) : (
-                      <span className="text-muted-foreground text-xs">Livre</span>
+                      <span className="text-muted-foreground text-xs">Libre</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -293,7 +293,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                         disabled={completeTask.isPending}
                       >
                         <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Concluir
+                        Completar
                       </Button>
                     )}
                     {task.status === 'completed' && (

@@ -23,19 +23,19 @@ export function Sidebar() {
     const links: SidebarLink[] = [
         { to: '/dashboard', tKey: 'navigation.dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'finance', 'commercial', 'user'] },
         { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
-        { to: '/workers/history', tKey: 'Histórico de Atividade', icon: History, roles: ['admin', 'rh'] },
-        { to: '/workers/salary-report', tKey: 'Informe de Salários', icon: FileSpreadsheet, roles: ['admin', 'rh', 'finance'] },
+        { to: '/workers/history', tKey: 'navigation.activityHistory', icon: History, roles: ['admin', 'rh'] },
+        { to: '/workers/salary-report', tKey: 'navigation.salaryReport', icon: FileSpreadsheet, roles: ['admin', 'rh', 'finance'] },
         { to: '/workers/tariffs', tKey: 'navigation.workerRates', icon: Tags, roles: ['admin', 'rh', 'finance'] },
-        { to: '/personal/ordens-pagamento', tKey: 'Órdenes de Pago (RH)', icon: Receipt, roles: ['admin', 'rh', 'finance'] },
-        { to: '/documentacion/tarefas', tKey: 'Documentos e Contratos', icon: FileText, roles: ['admin', 'rh'] },
-        { to: '/hours-control', tKey: 'Controle de Horas', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
+        { to: '/personal/ordens-pagamento', tKey: 'navigation.paymentOrders', icon: Receipt, roles: ['admin', 'rh', 'finance'] },
+        { to: '/documentacion/tarefas', tKey: 'navigation.documentsAndContracts', icon: FileText, roles: ['admin', 'rh'] },
+        { to: '/hours-control', tKey: 'navigation.hoursControl', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
         { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
         { to: '/holerites', tKey: 'navigation.holerites', icon: FileText, roles: ['admin', 'rh', 'finance'] },
         { to: '/benefits', tKey: 'navigation.benefits', icon: Gift, roles: ['admin', 'rh'] },
-        { to: '/discounts', tKey: 'Gestão de Descontos', icon: BadgeDollarSign, roles: ['admin', 'rh', 'finance'] },
-        { to: '/taxes', tKey: 'Configuração de Impostos', icon: Calculator, roles: ['admin', 'finance'] },
+        { to: '/discounts', tKey: 'navigation.discounts', icon: BadgeDollarSign, roles: ['admin', 'rh', 'finance'] },
+        { to: '/taxes', tKey: 'navigation.taxes', icon: Calculator, roles: ['admin', 'finance'] },
         { to: '/bank-accounts', tKey: 'navigation.bankAccounts', icon: Wallet, roles: ['admin', 'rh', 'finance'] },
-        { to: '/documents', tKey: 'Conformidade CAE', icon: ShieldCheck, roles: ['cae_compliance'] },
+        { to: '/documents', tKey: 'navigation.caeCompliance', icon: ShieldCheck, roles: ['cae_compliance'] },
     ];
 
     // Ocultar menus específicos caso o usuário seja apenas visualizador global
@@ -76,10 +76,10 @@ export function Sidebar() {
                         "flex items-center justify-center py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700",
                         isExpanded ? "w-full gap-2 px-4" : "w-12 mx-auto"
                     )}
-                    title={!isExpanded ? "Voltar para o Hub" : undefined}
+                    title={!isExpanded ? t('navigation.backToHub', 'Volver al Hub') : undefined}
                 >
                     <ArrowLeft size={16} className="shrink-0" />
-                    {isExpanded && <span>Voltar para o Hub</span>}
+                    {isExpanded && <span>{t('navigation.backToHub', 'Volver al Hub')}</span>}
                 </button>
             </div>
             

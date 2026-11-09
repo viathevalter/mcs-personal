@@ -34,7 +34,7 @@ export function Topbar() {
             {/* Vínculo Ausente Warning Banner */}
             {showLinkError && (
                 <div className="w-full bg-red-500/15 text-red-600 dark:text-red-400 text-sm py-1.5 px-4 text-center font-medium flex items-center justify-center border-b border-red-500/20">
-                    Usuário sem vínculo para esta empresa
+                    {t('topbar.noCompanyLink', 'Usuario sin vínculo para esta empresa')}
                 </div>
             )}
             <header className="sticky top-0 z-30 flex h-[72px] items-center gap-4 bg-white shadow-sm dark:bg-slate-950 px-4 sm:static sm:h-auto sm:border-0 sm:px-6 sm:py-4 sm:mb-4 sm:shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] sm:rounded-b-2xl">
@@ -53,7 +53,7 @@ export function Topbar() {
                         isLoading ? (
                             <Button variant="outline" className="gap-2 opacity-50 cursor-not-allowed">
                                 <Building2 className="h-4 w-4 animate-pulse" />
-                                <span className="hidden sm:inline-block">Carregando empresas...</span>
+                                <span className="hidden sm:inline-block">{t('topbar.loadingCompanies', 'Cargando empresas...')}</span>
                             </Button>
                         ) : empresas && empresas.length > 0 ? (
                             <DropdownMenu>
@@ -61,12 +61,12 @@ export function Topbar() {
                                     <Button variant="outline" className="gap-2">
                                         <Building2 className="h-4 w-4" />
                                         <span className="hidden sm:inline-block">
-                                            {selectedEmpresa ? `${selectedEmpresa.codigo} - ${selectedEmpresa.nome}` : 'Selecione a Empresa'}
+                                            {selectedEmpresa ? `${selectedEmpresa.codigo} - ${selectedEmpresa.nome}` : t('topbar.selectCompany', 'Seleccione la Empresa')}
                                         </span>
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-[200px]">
-                                    <DropdownMenuLabel>Empresas</DropdownMenuLabel>
+                                    <DropdownMenuLabel>{t('topbar.companies', 'Empresas')}</DropdownMenuLabel>
                                     <DropdownMenuSeparator />
                                     {empresas.map((e) => (
                                         <DropdownMenuItem
@@ -82,7 +82,7 @@ export function Topbar() {
                         ) : (
                             <Button variant="outline" className="gap-2 text-muted-foreground" disabled>
                                 <Building2 className="h-4 w-4" />
-                                <span className="hidden sm:inline-block">Nenhuma empresa encontrada</span>
+                                <span className="hidden sm:inline-block">{t('topbar.noCompanyFound', 'Ninguna empresa encontrada')}</span>
                             </Button>
                         )
                     )}

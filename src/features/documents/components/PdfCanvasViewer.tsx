@@ -130,13 +130,13 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
       {loading && (
         <div className="flex flex-col items-center justify-center py-12 text-slate-500">
           <Loader2 className="w-8 h-8 animate-spin text-blue-600 mb-2" />
-          <span className="text-sm font-medium">Renderizando páginas do contrato oficial PDF...</span>
+          <span className="text-sm font-medium">Renderizando páginas del contrato oficial PDF...</span>
         </div>
       )}
 
       {error && objectUrl && (
         <div className="bg-white rounded-xl border border-slate-200 p-4 text-center space-y-3">
-          <p className="text-xs text-slate-500">Visualização direta do PDF:</p>
+          <p className="text-xs text-slate-500">Visualización directa del PDF:</p>
           <iframe
             src={objectUrl}
             title="Contrato PDF"
@@ -148,7 +148,7 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700"
           >
-            <ExternalLink className="w-3.5 h-3.5" /> Abrir PDF em Nova Aba
+            <ExternalLink className="w-3.5 h-3.5" /> Abrir PDF en Nueva Pestaña
           </a>
         </div>
       )}
@@ -156,7 +156,7 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
       {!error && numPages > 0 && objectUrl && (
         <div className="flex items-center justify-between mb-3 px-2">
           <span className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
-            <FileText className="w-4 h-4 text-blue-600" /> {numPages} páginas carregadas
+            <FileText className="w-4 h-4 text-blue-600" /> {numPages} páginas cargadas
           </span>
           <a
             href={objectUrl}

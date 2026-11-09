@@ -14,12 +14,12 @@ export function SolicitudStatusBadge({ status, className, showIcon = true }: Pro
 
   const config = {
     pending: {
-      label: t('solicitud_status.pending', 'Pendente'),
+      label: t('solicitud_status.pending', 'Pendiente'),
       color: 'bg-slate-500/10 text-slate-500 hover:bg-slate-500/20',
       icon: Clock,
     },
     in_progress: {
-      label: t('solicitud_status.in_progress', 'Em Andamento'),
+      label: t('solicitud_status.in_progress', 'En Curso'),
       color: 'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20',
       icon: PlayCircle,
     },
@@ -29,7 +29,7 @@ export function SolicitudStatusBadge({ status, className, showIcon = true }: Pro
       icon: AlertCircle,
     },
     completed: {
-      label: t('solicitud_status.completed', 'Concluída'),
+      label: t('solicitud_status.completed', 'Completada'),
       color: 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20',
       icon: CheckCircle2,
     },
