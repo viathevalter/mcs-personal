@@ -11,23 +11,27 @@ import {
     Users, 
     Loader2, 
     Bookmark, 
-    Bell, 
     Plus,
-    CheckCircle2,
-    X 
+    X,
+    Smartphone
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
+    dispatchMcsChatHoursCampaign,
     sendBatchWorkerMessages, 
     getMessageTemplates, 
     createMessageTemplate, 
     type MessageTemplate 
 } from '../../worker-portal/services/workerCommunicationService';
 
-interface SelectedWorker {
+export interface SelectedWorker {
     worker_id: string;
     worker_name: string;
     movil?: string | null;
+    pasaporte?: string | null;
+    cod_colab?: string | null;
+    contratante?: string | null;
+    funcion?: string | null;
 }
 
 interface BatchWorkerNotificationDialogProps {
@@ -52,6 +56,7 @@ export function BatchWorkerNotificationDialog({
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [text, setText] = useState('');
     const [sending, setSending] = useState(false);
+    const [sendViaMcsChatWhatsApp, setSendViaMcsChatWhatsApp] = useState(true);
     const [showNewTemplateForm, setShowNewTemplateForm] = useState(false);
     const [newTemplateTitle, setNewTemplateTitle] = useState('');
     const [newTemplateText, setNewTemplateText] = useState('');
@@ -63,13 +68,17 @@ export function BatchWorkerNotificationDialog({
     ];
     const monthName = monthNames[periodMonth - 1] || `${periodMonth}`;
 
+    const defaultWeeklyEs = `Hola *{primeiro_nome}*, te recordamos desde *{empresa}* registrar tus horas trabajadas de esta semana en la obra *{cliente}* (${monthName}/${periodYear}).\n\n🔗 Portal: https://mcs-personal.vercel.app/portal/\n• Nombre completo: *{nome}*\n• Contraseña / Pasaporte: *{passaporte}*`;
+
     useEffect(() => {
         if (open) {
-            getMessageTemplates().then(setTemplates);
+            getMessageTemplates().then(loaded => {
+                setTemplates(loaded);
+                if (!text) {
+                    setText(loaded[0]?.message || defaultWeeklyEs);
+                }
+            });
             setShowNewTemplateForm(false);
-            if (templates.length > 0 && !text) {
-                setText(templates[0].message);
-            }
         }
     }, [open]);
 
@@ -110,18 +119,42 @@ export function BatchWorkerNotificationDialog({
 
         try {
             setSending(true);
-            const workerIds = selectedWorkers.map(w => w.worker_id);
-            const total = await sendBatchWorkerMessages({
-                workerIds,
-                year: periodYear,
-                month: periodMonth,
-                senderName: 'Gestor (MCS)',
-                message: text.trim()
-            });
+            if (sendViaMcsChatWhatsApp) {
+                const res = await dispatchMcsChatHoursCampaign({
+                    campaignTitle: `⏱️ Notificação Controle de Horas — ${clientName} (${monthName}/${periodYear})`,
+                    clientName,
+                    year: periodYear,
+                    month: periodMonth,
+                    messageTemplate: text.trim(),
+                    recipients: selectedWorkers.map(w => ({
+                        worker_id: w.worker_id,
+                        worker_name: w.worker_name,
+                        movil: w.movil,
+                        pasaporte: w.pasaporte,
+                        cod_colab: w.cod_colab,
+                        contratante: w.contratante,
+                        funcion: w.funcion,
+                        cliente: clientName
+                    })),
+                    scheduleType: 'immediate',
+                    alsoSendPortalNotification: true
+                });
 
-            toast.success(`Notificação enviada com sucesso para ${total} trabalhadores!`, {
-                description: `As mensagens foram gravadas e notificadas nos aplicativos do cliente ${clientName}.`
-            });
+                toast.success(`Disparo enviado via MCS-Chat para ${res.enqueuedCount} trabalhador(es)!`, {
+                    description: `As mensagens foram enviadas pelo WhatsApp Oficial no MCS-Chat e salvas no Portal.`
+                });
+            } else {
+                const workerIds = selectedWorkers.map(w => w.worker_id);
+                const total = await sendBatchWorkerMessages({
+                    workerIds,
+                    year: periodYear,
+                    month: periodMonth,
+                    senderName: 'Gestor (MCS)',
+                    message: text.trim()
+                });
+
+                toast.success(`Notificação enviada no Portal para ${total} trabalhadores!`);
+            }
 
             setText('');
             onOpenChange(false);
@@ -135,7 +168,7 @@ export function BatchWorkerNotificationDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[650px] w-[95vw] max-h-[85vh] p-0 flex flex-col overflow-hidden bg-background">
+            <DialogContent className="max-w-[650px] w-[95vw] max-h-[88vh] p-0 flex flex-col overflow-hidden bg-background">
                 {/* Header Premium */}
                 <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shrink-0 flex items-center justify-between border-b border-slate-700">
                     <div className="flex items-center gap-3">
@@ -145,7 +178,7 @@ export function BatchWorkerNotificationDialog({
                         <div>
                             <div className="flex items-center gap-2">
                                 <DialogTitle className="font-extrabold text-base tracking-tight text-white">
-                                    Notificar Trabalhadores Selecionados
+                                    Notificar Trabalhadores Selecionados (MCS-Chat)
                                 </DialogTitle>
                                 <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/40">
                                     {selectedWorkers.length} selecionados
@@ -176,7 +209,7 @@ export function BatchWorkerNotificationDialog({
                         <span className="text-[11px] font-bold text-foreground block mb-1.5">
                             Destinatários ({selectedWorkers.length}):
                         </span>
-                        <div className="flex flex-wrap gap-1.5 max-h-[90px] overflow-y-auto pr-1">
+                        <div className="flex flex-wrap gap-1.5 max-h-[80px] overflow-y-auto pr-1">
                             {selectedWorkers.map(w => (
                                 <Badge key={w.worker_id} variant="secondary" className="text-[11px] font-medium py-0.5 px-2">
                                     {w.worker_name}
@@ -184,6 +217,27 @@ export function BatchWorkerNotificationDialog({
                             ))}
                         </div>
                     </div>
+
+                    {/* Opção Canal MCS-Chat */}
+                    <label className="flex items-center justify-between p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 cursor-pointer">
+                        <div className="flex items-center gap-2.5">
+                            <Smartphone className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <div>
+                                <div className="text-xs font-extrabold text-emerald-950 dark:text-emerald-200">
+                                    Enviar por dentro do MCS-Chat (WhatsApp Oficial da Empresa + Portal)
+                                </div>
+                                <div className="text-[10.5px] text-emerald-800/80 dark:text-emerald-300/80">
+                                    Substitui automaticamente {'{nome}'} e {'{passaporte}'} de cada trabalhador e mantém o chat como Fechado.
+                                </div>
+                            </div>
+                        </div>
+                        <input
+                            type="checkbox"
+                            checked={sendViaMcsChatWhatsApp}
+                            onChange={(e) => setSendViaMcsChatWhatsApp(e.target.checked)}
+                            className="h-4 w-4 accent-emerald-600 rounded"
+                        />
+                    </label>
 
                     {/* Frases Prontas (Templates) */}
                     <div>
@@ -205,6 +259,13 @@ export function BatchWorkerNotificationDialog({
                         </div>
 
                         <div className="flex flex-wrap gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => setText(defaultWeeklyEs)}
+                                className="px-2.5 py-1.5 rounded-lg border border-emerald-300 text-xs font-bold bg-emerald-50 text-emerald-900 hover:bg-emerald-100 transition-all text-left shadow-2xs"
+                            >
+                                📅 Cobrança Semanal (ES + Login/Passaporte)
+                            </button>
                             {templates.map(tmpl => (
                                 <button
                                     key={tmpl.id}
@@ -218,9 +279,8 @@ export function BatchWorkerNotificationDialog({
                         </div>
                     </div>
 
-                    {/* Formulário Retrátil para Cadastrar Nova Frase Pronta */}
                     {showNewTemplateForm && (
-                        <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-2 animate-in slide-in-from-top-2">
+                        <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-2">
                             <div className="flex items-center justify-between">
                                 <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
                                     <Bookmark className="h-3.5 w-3.5 text-amber-600" />
@@ -235,7 +295,7 @@ export function BatchWorkerNotificationDialog({
                                 </button>
                             </div>
                             <Input
-                                placeholder="Título (Ex: Lembrete Quinzena)"
+                                placeholder="Título (Ex: Lembrete Semanal)"
                                 value={newTemplateTitle}
                                 onChange={(e) => setNewTemplateTitle(e.target.value)}
                                 className="h-8 text-xs bg-white dark:bg-slate-900"
@@ -261,13 +321,27 @@ export function BatchWorkerNotificationDialog({
 
                     {/* Mensagem a ser enviada */}
                     <div>
-                        <label className="text-xs font-bold text-foreground block mb-1">
-                            Mensagem a Enviar para os {selectedWorkers.length} Trabalhadores:
-                        </label>
+                        <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
+                            <label className="text-xs font-bold text-foreground">
+                                Mensagem para os {selectedWorkers.length} Trabalhadores:
+                            </label>
+                            <div className="flex items-center gap-1">
+                                {['{primeiro_nome}', '{nome}', '{passaporte}', '{empresa}', '{cliente}'].map(v => (
+                                    <button
+                                        key={v}
+                                        type="button"
+                                        onClick={() => setText(prev => `${prev}${prev.endsWith(' ') || !prev ? '' : ' '}${v}`)}
+                                        className="px-1.5 py-0.5 rounded bg-muted border text-[10px] font-mono font-bold text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+                                    >
+                                        {v}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         <Textarea
                             value={text}
                             onChange={(e) => setText(e.target.value)}
-                            rows={4}
+                            rows={5}
                             className="text-xs resize-none rounded-xl"
                             placeholder="Digite a instrução ou selecione um modelo acima..."
                         />
@@ -288,17 +362,17 @@ export function BatchWorkerNotificationDialog({
                         type="button"
                         onClick={handleSendBatch}
                         disabled={sending || !text.trim() || selectedWorkers.length === 0}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs gap-1.5 shadow-sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs gap-1.5 shadow-sm"
                     >
                         {sending ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>A disparar notificações...</span>
+                                <span>Enviando via MCS-Chat...</span>
                             </>
                         ) : (
                             <>
                                 <Send className="h-4 w-4" />
-                                <span>Disparar para {selectedWorkers.length} Trabalhadores</span>
+                                <span>Disparar via MCS-Chat ({selectedWorkers.length} Trab.)</span>
                             </>
                         )}
                     </Button>

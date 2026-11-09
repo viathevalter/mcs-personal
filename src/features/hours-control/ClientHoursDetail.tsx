@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Checkbox } from '../../components/ui/checkbox';
 import { AdminUploadDialog } from './components/AdminUploadDialog';
 import { AdminNotesDialog } from './components/AdminNotesDialog';
-import { BroadcastReminderDialog } from './components/BroadcastReminderDialog';
+import { BroadcastReminderDialog, type WeeklyHoursBreakdown } from './components/BroadcastReminderDialog';
 import { WorkerNotificationDialog } from './components/WorkerNotificationDialog';
 import { BatchWorkerNotificationDialog } from './components/BatchWorkerNotificationDialog';
 import { ValidationScreen } from './ValidationScreen';
@@ -41,6 +41,7 @@ interface WorkerDetail {
     data_baixa?: string | null;
     horas_totais?: number;
     has_portal_hours?: boolean;
+    weekly?: WeeklyHoursBreakdown;
 }
 
 const getBucketName = (filePath?: string): string => {
@@ -66,6 +67,7 @@ export function ClientHoursDetail() {
     const [workers, setWorkers] = useState<WorkerDetail[]>([]);
     const [localSearch, setLocalSearch] = useState(searchQuery || '');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [weekFilter, setWeekFilter] = useState<'all' | 'w1' | 'w2' | 'w3' | 'w4'>('all');
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
@@ -163,14 +165,54 @@ export function ClientHoursDetail() {
             }
 
             // Helper to check if a worker_hours row has portal entries
-            const hasFilledPortalHours = (h: any): boolean => {
-                if (!h) return false;
+            const parseDailyArray = (h: any): any[] => {
+                if (!h) return [];
                 const raw = h.apontamentos_diarios;
-                let arr: any[] = [];
-                if (Array.isArray(raw)) arr = raw;
-                else if (typeof raw === 'string') {
-                    try { arr = JSON.parse(raw); } catch { arr = []; }
+                if (Array.isArray(raw)) return raw;
+                if (typeof raw === 'string') {
+                    try { return JSON.parse(raw); } catch { return []; }
                 }
+                return [];
+            };
+
+            const computeWeeklyBreakdown = (h: any): WeeklyHoursBreakdown => {
+                const arr = parseDailyArray(h);
+                let w1 = 0, w2 = 0, w3 = 0, w4 = 0;
+                let w1Active = false, w2Active = false, w3Active = false, w4Active = false;
+
+                arr.forEach((d: any) => {
+                    const dayNum = Number(d?.day ?? d?.dia ?? 0);
+                    const hrs = Number(d?.totalHoras ?? d?.total_horas ?? d?.horasNormais ?? d?.horas_normais ?? 0);
+                    const hasObs = Boolean(String(d?.obs || '').trim());
+                    const isFilled = hrs > 0 || hasObs;
+
+                    if (dayNum >= 1 && dayNum <= 7) {
+                        w1 += hrs;
+                        if (isFilled) w1Active = true;
+                    } else if (dayNum >= 8 && dayNum <= 14) {
+                        w2 += hrs;
+                        if (isFilled) w2Active = true;
+                    } else if (dayNum >= 15 && dayNum <= 21) {
+                        w3 += hrs;
+                        if (isFilled) w3Active = true;
+                    } else if (dayNum >= 22) {
+                        w4 += hrs;
+                        if (isFilled) w4Active = true;
+                    }
+                });
+
+                if (h?.file_url || h?.status === 'validado' || h?.status === 'assinado_encarregado') {
+                    w1Active = true;
+                    w2Active = true;
+                    w3Active = true;
+                    w4Active = true;
+                }
+
+                return { w1, w2, w3, w4, w1Active, w2Active, w3Active, w4Active };
+            };
+
+            const hasFilledPortalHours = (h: any): boolean => {
+                const arr = parseDailyArray(h);
                 return arr.some((d: any) => Number(d?.totalHoras ?? d?.total_horas ?? d?.horasNormais ?? d?.horas_normais ?? 0) > 0);
             };
 
@@ -210,6 +252,7 @@ export function ClientHoursDetail() {
                 candidates.sort((a, b) => scoreHourRecord(b, w) - scoreHourRecord(a, w));
                 const hr = candidates[0];
                 const portalFilled = hasFilledPortalHours(hr);
+                const weekly = computeWeeklyBreakdown(hr);
                 const totalHrs = Number(hr?.horas_totais || 0);
 
                 let resolvedStatus = hr?.status || 'pendente';
@@ -233,7 +276,8 @@ export function ClientHoursDetail() {
                     worker_status: w.status_trabajador,
                     data_baixa: w.data_baixa,
                     horas_totais: totalHrs,
-                    has_portal_hours: portalFilled
+                    has_portal_hours: portalFilled,
+                    weekly
                 };
             }) || [];
 
@@ -472,13 +516,39 @@ export function ClientHoursDetail() {
         return { total, pendentes, emAndamento, assinaturas, validados, paraValidar };
     }, [workers]);
 
-    const pendingWorkersList = useMemo(() => {
-        return workers.filter(w => w.status === 'pendente').map(w => ({
+    const allWorkersForBroadcast = useMemo(() => {
+        return workers.map(w => ({
             worker_id: w.worker_id,
             worker_name: w.worker_name,
             movil: w.movil,
-            status: w.status
+            status: w.status,
+            pasaporte: w.pasaporte,
+            cod_colab: w.cod_colab,
+            contratante: w.contratante,
+            funcion: w.funcion,
+            weekly: w.weekly
         }));
+    }, [workers]);
+
+    const pendingWorkersList = useMemo(() => {
+        return allWorkersForBroadcast.filter(w => {
+            if (weekFilter === 'w1') return !w.weekly?.w1Active && w.status !== 'validado' && w.status !== 'assinado_encarregado';
+            if (weekFilter === 'w2') return !w.weekly?.w2Active && w.status !== 'validado' && w.status !== 'assinado_encarregado';
+            if (weekFilter === 'w3') return !w.weekly?.w3Active && w.status !== 'validado' && w.status !== 'assinado_encarregado';
+            if (weekFilter === 'w4') return !w.weekly?.w4Active && w.status !== 'validado' && w.status !== 'assinado_encarregado';
+            return w.status === 'pendente';
+        });
+    }, [allWorkersForBroadcast, weekFilter]);
+
+    const weeklyPendingCounts = useMemo(() => {
+        const countMissing = (key: 'w1Active' | 'w2Active' | 'w3Active' | 'w4Active') =>
+            workers.filter(w => w.status !== 'validado' && w.status !== 'assinado_encarregado' && !w.weekly?.[key]).length;
+        return {
+            w1: countMissing('w1Active'),
+            w2: countMissing('w2Active'),
+            w3: countMissing('w3Active'),
+            w4: countMissing('w4Active')
+        };
     }, [workers]);
 
     const filteredWorkers = workers.filter(w => {
@@ -492,7 +562,16 @@ export function ClientHoursDetail() {
             if (!nameMatch && !passportMatch && !phoneMatch && !codeMatch) return false;
         }
 
-        // 2. Status Filter
+        // 2. Weekly Filter
+        if (weekFilter !== 'all') {
+            if (w.status === 'validado' || w.status === 'assinado_encarregado') return false;
+            if (weekFilter === 'w1' && w.weekly?.w1Active) return false;
+            if (weekFilter === 'w2' && w.weekly?.w2Active) return false;
+            if (weekFilter === 'w3' && w.weekly?.w3Active) return false;
+            if (weekFilter === 'w4' && w.weekly?.w4Active) return false;
+        }
+
+        // 3. Status Filter
         if (statusFilter !== 'all') {
             if (statusFilter === 'pendente') {
                 return w.status === 'pendente';
@@ -519,7 +598,11 @@ export function ClientHoursDetail() {
             .map(w => ({
                 worker_id: w.worker_id,
                 worker_name: w.worker_name,
-                movil: w.movil
+                movil: w.movil,
+                pasaporte: w.pasaporte,
+                cod_colab: w.cod_colab,
+                contratante: w.contratante,
+                funcion: w.funcion
             }));
     }, [workers, selectedWorkerIds]);
 
@@ -931,21 +1014,43 @@ export function ClientHoursDetail() {
                         {t('clientHoursDetail.toolbar.selectPending')}
                     </Button>
 
-                    {/* Botão de Cobrança / Notificação para Pendentes */}
+                    {/* Botão de Cobrança / Notificação para Pendentes (Integrado ao MCS-Chat) */}
                     <Button
                         type="button"
                         onClick={() => setBroadcastDialogOpen(true)}
-                        disabled={kpis.pendentes === 0}
-                        className={`h-9 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all ${
-                            kpis.pendentes > 0 
+                        disabled={workers.length === 0}
+                        className={`h-9 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer ${
+                            pendingWorkersList.length > 0 
                                 ? 'bg-rose-600 hover:bg-rose-700 text-white active:scale-95' 
-                                : 'bg-muted text-muted-foreground'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                         }`}
-                        title={t('clientHoursDetail.toolbar.notifyPendingTooltip')}
+                        title="Notificar trabalhadores pendentes da semana ou do mês via MCS-Chat"
                     >
                         <Bell className="h-3.5 w-3.5" />
-                        <span>{t('clientHoursDetail.toolbar.notifyPending', { count: kpis.pendentes })}</span>
+                        <span>
+                            {weekFilter !== 'all'
+                                ? `Cobrar ${weekFilter.toUpperCase()} no MCS-Chat (${pendingWorkersList.length})`
+                                : `${t('clientHoursDetail.toolbar.notifyPending', { count: pendingWorkersList.length })}`}
+                        </span>
                     </Button>
+
+                    {/* Filtro de Controle Semanal (S1 a S4) */}
+                    <Select value={weekFilter} onValueChange={(v: any) => setWeekFilter(v)}>
+                        <SelectTrigger className={`w-full sm:w-[205px] h-9 text-xs rounded-xl font-bold ${
+                            weekFilter !== 'all'
+                                ? 'bg-amber-50 border-amber-400 text-amber-900 dark:bg-amber-950/50 dark:border-amber-700 dark:text-amber-200'
+                                : 'bg-background dark:bg-slate-950 dark:border-slate-800'
+                        }`}>
+                            <SelectValue placeholder="Controle Semanal" />
+                        </SelectTrigger>
+                        <SelectContent className="dark:bg-slate-900 dark:border-slate-800">
+                            <SelectItem value="all">📅 Todas as Semanas (Mês)</SelectItem>
+                            <SelectItem value="w1">⚠️ Pend. Semana 1 (01–07) ({weeklyPendingCounts.w1})</SelectItem>
+                            <SelectItem value="w2">⚠️ Pend. Semana 2 (08–14) ({weeklyPendingCounts.w2})</SelectItem>
+                            <SelectItem value="w3">⚠️ Pend. Semana 3 (15–21) ({weeklyPendingCounts.w3})</SelectItem>
+                            <SelectItem value="w4">⚠️ Pend. Semana 4 (22–Fim) ({weeklyPendingCounts.w4})</SelectItem>
+                        </SelectContent>
+                    </Select>
 
                     {/* Filtro de Busca */}
                     <div className="relative w-full sm:w-[210px]">
@@ -1216,6 +1321,37 @@ export function ClientHoursDetail() {
                                             <Badge variant="default" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 font-bold rounded-lg">
                                                 {t('clientHoursDetail.badges.validated')}
                                             </Badge>
+                                        )}
+                                        {/* Controle Semanal S1 • S2 • S3 • S4 */}
+                                        {worker.weekly && (
+                                            <div className="flex items-center justify-center gap-1 mt-1.5 flex-wrap" title="Controle Semanal de Horas (S1: 01-07, S2: 08-14, S3: 15-21, S4: 22-Fim)">
+                                                {([
+                                                    { id: 'S1', hrs: worker.weekly.w1, ok: worker.weekly.w1Active, endDay: 7 },
+                                                    { id: 'S2', hrs: worker.weekly.w2, ok: worker.weekly.w2Active, endDay: 14 },
+                                                    { id: 'S3', hrs: worker.weekly.w3, ok: worker.weekly.w3Active, endDay: 21 },
+                                                    { id: 'S4', hrs: worker.weekly.w4, ok: worker.weekly.w4Active, endDay: 28 },
+                                                ] as const).map(wk => {
+                                                    const now = new Date();
+                                                    const isPastOrCurrentWeek =
+                                                        year < now.getFullYear() ||
+                                                        (year === now.getFullYear() && month < now.getMonth() + 1) ||
+                                                        (year === now.getFullYear() && month === now.getMonth() + 1 && now.getDate() >= wk.endDay - 2);
+                                                    return (
+                                                        <span
+                                                            key={wk.id}
+                                                            className={`px-1.5 py-0.5 rounded text-[9.5px] font-mono font-extrabold border ${
+                                                                wk.ok
+                                                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800'
+                                                                    : isPastOrCurrentWeek
+                                                                    ? 'bg-rose-50 text-rose-700 border-rose-300 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800'
+                                                                    : 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
+                                                            }`}
+                                                        >
+                                                            {wk.id}:{wk.hrs > 0 ? `${wk.hrs}h` : wk.ok ? '✓' : '0h'}
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
                                         )}
                                     </TableCell>
                                     {/* Coluna 1: Chat e Notificações ao Trabalhador */}
@@ -1497,7 +1633,7 @@ export function ClientHoursDetail() {
                 </DialogContent>
             </Dialog>
 
-            {/* Modal de Disparo de Lembretes e Cobrança aos Pendentes */}
+            {/* Modal de Disparo de Lembretes e Cobrança aos Pendentes (Integrado ao MCS-Chat) */}
             <BroadcastReminderDialog
                 open={broadcastDialogOpen}
                 onOpenChange={setBroadcastDialogOpen}
@@ -1505,6 +1641,9 @@ export function ClientHoursDetail() {
                 month={month}
                 year={year}
                 pendingWorkers={pendingWorkersList}
+                allClientWorkers={allWorkersForBroadcast}
+                initialWeekFilter={weekFilter}
+                onSuccess={() => fetchClientWorkers(true)}
             />
 
             {/* Modal de Chat & Notificação Individual com o Trabalhador */}
@@ -1517,6 +1656,7 @@ export function ClientHoursDetail() {
                     workerCode={workerNotificationDialogState.worker.cod_colab}
                     workerPassport={workerNotificationDialogState.worker.pasaporte || undefined}
                     workerPhone={workerNotificationDialogState.worker.movil || undefined}
+                    workerCompany={workerNotificationDialogState.worker.contratante || undefined}
                     periodYear={year}
                     periodMonth={month}
                     clientName={clientName || ''}

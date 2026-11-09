@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '../../../components/ui/dialog';
+import { Dialog, DialogContent } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { Textarea } from '../../../components/ui/textarea';
 import { Input } from '../../../components/ui/input';
-import { Badge } from '../../../components/ui/badge';
 import { 
     Send, 
     MessageSquare, 
@@ -22,8 +21,8 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { 
+    dispatchMcsChatHoursCampaign,
     getWorkerAllMessages,
-    getWorkerPeriodMessages, 
     sendWorkerMessage, 
     getMessageTemplates, 
     createMessageTemplate, 
@@ -41,6 +40,7 @@ interface WorkerNotificationDialogProps {
     workerCode?: string;
     workerPassport?: string;
     workerPhone?: string;
+    workerCompany?: string;
     periodYear: number;
     periodMonth: number;
     clientName: string;
@@ -56,6 +56,7 @@ export function WorkerNotificationDialog({
     workerCode,
     workerPassport,
     workerPhone,
+    workerCompany,
     periodYear,
     periodMonth,
     clientName,
@@ -67,6 +68,7 @@ export function WorkerNotificationDialog({
     const [text, setText] = useState('');
     const [loading, setLoading] = useState(false);
     const [sending, setSending] = useState(false);
+    const [alsoSendMcsChat, setAlsoSendMcsChat] = useState(true);
     const [showNewTemplateForm, setShowNewTemplateForm] = useState(false);
     const [newTemplateTitle, setNewTemplateTitle] = useState('');
     const [newTemplateText, setNewTemplateText] = useState('');
@@ -103,7 +105,6 @@ export function WorkerNotificationDialog({
             setMessages(msgs);
             setTemplates(tmpls);
 
-            // Marcar mensagens do trabalhador como lidas pelo gestor
             const unreadIds = msgs
                 .filter(m => m.sender_type === 'trabalhador' && !m.read)
                 .map(m => m.id);
@@ -124,12 +125,10 @@ export function WorkerNotificationDialog({
         loadData(false);
         setShowNewTemplateForm(false);
 
-        // Inscrição em tempo real para novas mensagens do trabalhador
         const unsubscribe = subscribeToWorkerMessages(workerId, () => {
             loadData(true);
         });
 
-        // Polling a cada 6s enquanto o modal estiver aberto
         const interval = setInterval(() => {
             loadData(true);
         }, 6000);
@@ -152,18 +151,42 @@ export function WorkerNotificationDialog({
 
         try {
             setSending(true);
-            await sendWorkerMessage({
-                workerId,
-                year: periodYear,
-                month: periodMonth,
-                senderType: 'gestor',
-                senderName: 'Gestor (MCS)',
-                message: text.trim(),
-                hourRecordId
-            });
+            if (alsoSendMcsChat && workerPhone && workerPhone.replace(/\D/g, '').length >= 8) {
+                await dispatchMcsChatHoursCampaign({
+                    campaignTitle: `💬 Notificação Individual Horas — ${workerName} (${monthName}/${periodYear})`,
+                    clientName,
+                    year: periodYear,
+                    month: periodMonth,
+                    messageTemplate: text.trim(),
+                    recipients: [
+                        {
+                            worker_id: workerId,
+                            worker_name: workerName,
+                            movil: workerPhone,
+                            pasaporte: workerPassport || null,
+                            cod_colab: workerCode || null,
+                            contratante: workerCompany || null,
+                            cliente: clientName
+                        }
+                    ],
+                    scheduleType: 'immediate',
+                    alsoSendPortalNotification: true
+                });
+                toast.success('Mensagem enviada pelo MCS-Chat (WhatsApp Oficial) e registrada no Portal!');
+            } else {
+                await sendWorkerMessage({
+                    workerId,
+                    year: periodYear,
+                    month: periodMonth,
+                    senderType: 'gestor',
+                    senderName: 'Gestor (MCS)',
+                    message: text.trim(),
+                    hourRecordId
+                });
+                toast.success('Notificação enviada ao Portal do trabalhador!');
+            }
 
             setText('');
-            toast.success('Notificação enviada ao trabalhador!');
             await loadData();
             if (onMessageSent) onMessageSent();
         } catch (err) {
@@ -238,7 +261,7 @@ export function WorkerNotificationDialog({
 
                     <div className="flex items-center gap-3">
                         <div className="hidden sm:flex flex-col items-end text-xs text-slate-400">
-                            <span className="font-semibold text-slate-200">Notificações & Chat</span>
+                            <span className="font-semibold text-slate-200">MCS-Chat & Portal</span>
                             <span>Rastreabilidade em tempo real</span>
                         </div>
                         <Button
@@ -262,6 +285,17 @@ export function WorkerNotificationDialog({
                             <Sparkles className="h-3 w-3 text-amber-500" />
                             Frases Prontas:
                         </span>
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setText(
+                                    `Hola *${workerName.split(' ')[0]}*, te recordamos registrar tus horas trabajadas de esta semana en el Portal MCS (${monthName}/${periodYear}):\n🔗 https://mcs-personal.vercel.app/portal/\n• Nombre completo: *${workerName}*\n• Contraseña / Pasaporte: *${workerPassport || '{passaporte}'}*`
+                                )
+                            }
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-xs font-bold text-emerald-900 whitespace-nowrap transition-all shadow-2xs"
+                        >
+                            📅 Cobrar Semana (ES + Login)
+                        </button>
                         {templates.slice(0, 4).map((tmpl) => (
                             <button
                                 key={tmpl.id}
@@ -289,7 +323,7 @@ export function WorkerNotificationDialog({
 
                 {/* Formulário Retrátil para Cadastrar Nova Frase Pronta */}
                 {showNewTemplateForm && (
-                    <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/60 shrink-0 space-y-2 animate-in slide-in-from-top-2">
+                    <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800/60 shrink-0 space-y-2">
                         <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
                                 <Bookmark className="h-3.5 w-3.5 text-amber-600" />
@@ -330,7 +364,7 @@ export function WorkerNotificationDialog({
                     </div>
                 )}
 
-                {/* Barra de Filtro de Conversa (Completa vs Período Específico) */}
+                {/* Barra de Filtro de Conversa */}
                 <div className="px-4 py-1.5 bg-muted/40 border-b border-border flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
                     <div className="flex items-center gap-1.5">
                         <span className="text-[11px] font-bold text-muted-foreground mr-0.5">Exibir:</span>
@@ -359,11 +393,11 @@ export function WorkerNotificationDialog({
                     </div>
                     <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Tempo Real Ativo
+                        Integrado ao MCS-Chat
                     </span>
                 </div>
 
-                {/* Histórico de Mensagens (Chat com Rastreabilidade) */}
+                {/* Histórico de Mensagens */}
                 <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-slate-50/50 dark:bg-slate-950/20">
                     {loading && (
                         <div className="h-full flex items-center justify-center">
@@ -382,13 +416,7 @@ export function WorkerNotificationDialog({
                                     : 'Nenhuma notificação enviada ainda'}
                             </h4>
                             <p className="text-xs text-muted-foreground max-w-sm">
-                                {filterMode === 'period' && messages.length > 0 ? (
-                                    <span>
-                                        Existem {messages.length} mensagem(ns) em outros períodos. Clique em <strong>Conversa Completa</strong> acima para visualizar todo o histórico.
-                                    </span>
-                                ) : (
-                                    <span>Envie uma instrução, lembrete ou tire dúvidas sobre as horas de {monthName}/{periodYear} com {workerName}.</span>
-                                )}
+                                Envie um lembrete semanal ou instrução sobre as horas de {monthName}/{periodYear} para {workerName} via MCS-Chat e Portal.
                             </p>
                         </div>
                     )}
@@ -465,7 +493,7 @@ export function WorkerNotificationDialog({
                                                     Lida
                                                 </span>
                                             ) : (
-                                                <span className="text-slate-400 flex items-center" title="Enviada ao aplicativo">
+                                                <span className="text-slate-400 flex items-center" title="Enviada">
                                                     <Check className="h-3 w-3 mr-0.5" />
                                                     Enviada
                                                 </span>
@@ -499,18 +527,24 @@ export function WorkerNotificationDialog({
                             onClick={handleSend}
                             disabled={sending || !text.trim()}
                             size="icon"
-                            className="absolute right-2.5 bottom-2.5 h-8 w-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
-                            title="Enviar Notificação"
+                            className="absolute right-2.5 bottom-2.5 h-8 w-8 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                            title="Enviar Notificação via MCS-Chat e Portal"
                         >
                             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                         </Button>
                     </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
-                        <span className="flex items-center gap-1">
-                            <Bell className="h-3 w-3 text-blue-500" />
-                            A mensagem é entregue no aplicativo do colaborador e gera aviso imediato.
-                        </span>
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5 flex-wrap gap-2">
+                        <label className="flex items-center gap-1.5 cursor-pointer font-semibold text-emerald-700 dark:text-emerald-400">
+                            <input
+                                type="checkbox"
+                                checked={alsoSendMcsChat}
+                                onChange={(e) => setAlsoSendMcsChat(e.target.checked)}
+                                className="accent-emerald-600 rounded"
+                            />
+                            <Smartphone className="h-3.5 w-3.5" />
+                            <span>Enviar também no WhatsApp Oficial via MCS-Chat ({workerPhone || 'sem telefone'})</span>
+                        </label>
                         <Button
                             type="button"
                             variant="outline"
