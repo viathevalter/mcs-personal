@@ -1091,6 +1091,7 @@ export async function approveDocumentRequest(
         if (approvedData.niss) colabSync.niss = approvedData.niss;
         if (approvedData.nie) colabSync.nie = approvedData.nie;
         if (approvedData.dni) colabSync.dni = approvedData.dni;
+        if (approvedData.nuss) colabSync.nuss = approvedData.nuss;
         if (approvedData.pasaporte) colabSync.pasaporte = approvedData.pasaporte;
         if (approvedData.email) colabSync.email = approvedData.email;
         if (approvedData.movil) colabSync.movil = approvedData.movil;

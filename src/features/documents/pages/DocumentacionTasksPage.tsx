@@ -368,6 +368,9 @@ export function DocumentacionTasksPage() {
         retribucion_total: 'SEGUN CONVENIO',
         convenio_colectivo: 'METAL DE CUENCA',
         lugar_firma: 'TARANCON',
+        dni: '',
+        nie: '',
+        pasaporte: '',
         nuss: '',
         codigo_postal: '16400',
         municipio_domicilio: 'TARANCON',
@@ -1559,6 +1562,17 @@ Muchas gracias.`;
                 supabase.schema('core_personal').from('worker_assignments').select('*, client:clients(trade_name, legal_name, address_line, city), site:client_sites(name, address_line, city, province, postal_code)').eq('worker_id', workerId).order('created_at', { ascending: false }).limit(1).maybeSingle()
             ]);
 
+            let colab: any = null;
+            if (w?.cod_colab) {
+                const { data: colabData } = await supabase
+                    .schema('public')
+                    .from('colaboradores')
+                    .select('dni, nie, nuss, pasaporte')
+                    .eq('cod_colab', w.cod_colab)
+                    .maybeSingle();
+                colab = colabData;
+            }
+
             const ed = (dr as any)?.extracted_data || {};
             const rawFunc = String(w?.funcion || ed?.funcion || 'AYUDANTE').trim().toUpperCase();
             const cargosMap = cfg?.cargos_mapeamento || {};
@@ -1587,8 +1601,11 @@ Muchas gracias.`;
                 convenio_colectivo: cfg?.convenio_colectivo || 'METAL DE CUENCA',
                 lugar_firma: cfg?.lugar_firma || 'TARANCON',
                 sepe_codigo: cfg?.sepe_codigo || '300',
-                nuss: w?.nuss || ed?.nuss || w?.niss || ed?.niss || '',
-                codigo_postal: w?.codigo_postal || ed?.codigo_postal || '',
+                dni: w?.dni || colab?.dni || ed?.dni || '',
+                nie: w?.nie || colab?.nie || ed?.nie || '',
+                pasaporte: w?.pasaporte || colab?.pasaporte || ed?.pasaporte || '',
+                nuss: w?.nuss || colab?.nuss || ed?.nuss || '',
+                codigo_postal: w?.codigo_postal || ed?.codigo_postal || '16400',
                 municipio_domicilio: w?.municipio_domicilio || ed?.municipio_domicilio || w?.location || ed?.ubicacion_actual || ctMun,
             }));
         } catch (err) {
@@ -1926,6 +1943,9 @@ Muchas gracias.`;
                 ...(isSepeHexagon ? {
                     sepe_overrides: sepeForm,
                     worker_updates: {
+                        dni: sepeForm.dni,
+                        nie: sepeForm.nie,
+                        pasaporte: sepeForm.pasaporte,
                         nuss: sepeForm.nuss,
                         codigo_postal: sepeForm.codigo_postal,
                         municipio_domicilio: sepeForm.municipio_domicilio
@@ -3893,16 +3913,41 @@ Muchas gracias.`;
 
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                                     <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Nº Afiliación Seg. Social (NUSS - 12 dígitos)">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="NIE (España - Ficha del Trabajador)">
+                                                            NIE (España - Ficha del Trabajador)
+                                                        </Label>
+                                                        <Input
+                                                            value={sepeForm.nie}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, nie: e.target.value.toUpperCase() }))}
+                                                            placeholder="Ej: Z1234567X"
+                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="DNI / Pasaporte (Identificación)">
+                                                            DNI / Pasaporte (Si no tiene NIE)
+                                                        </Label>
+                                                        <Input
+                                                            value={sepeForm.dni || sepeForm.pasaporte}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, dni: e.target.value.toUpperCase() }))}
+                                                            placeholder="Ej: AZ527939"
+                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 block truncate" title="Nº Afiliación Seg. Social (NUSS - 12 dígitos)">
                                                             Nº Afiliación Seg. Social (NUSS - 12 dígitos)
                                                         </Label>
                                                         <Input
                                                             value={sepeForm.nuss}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, nuss: e.target.value }))}
-                                                            placeholder="Ex: 081234567890"
-                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
+                                                            placeholder="Ej: 451031986646"
+                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900 border-emerald-300 dark:border-emerald-700"
                                                         />
                                                     </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                                                     <div className="flex flex-col justify-end space-y-1.5">
                                                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Municipio Domicilio del Trabajador">
                                                             Municipio Domicilio del Trabajador
@@ -3910,7 +3955,7 @@ Muchas gracias.`;
                                                         <Input
                                                             value={sepeForm.municipio_domicilio}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, municipio_domicilio: e.target.value }))}
-                                                            placeholder="Ex: BARCELONA"
+                                                            placeholder="Ej: TARANCON"
                                                             className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
@@ -3921,7 +3966,7 @@ Muchas gracias.`;
                                                         <Input
                                                             value={sepeForm.codigo_postal}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, codigo_postal: e.target.value }))}
-                                                            placeholder="Ex: 08028"
+                                                            placeholder="Ej: 16400"
                                                             className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
                                                         />
                                                     </div>

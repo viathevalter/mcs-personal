@@ -119,7 +119,7 @@ serve(async (req) => {
 
         if (worker.cod_colab) {
           try {
-            const colabAllowed = ["pasaporte", "nif", "niss", "dni", "nie"];
+            const colabAllowed = ["pasaporte", "nif", "niss", "dni", "nie", "nuss"];
             const colabUpdates: Record<string, string> = {};
             for (const cf of colabAllowed) {
               if (validUpdates[cf]) colabUpdates[cf] = validUpdates[cf];
@@ -135,6 +135,41 @@ serve(async (req) => {
             console.warn("Aviso ao sincronizar public.colaboradores:", colabErr);
           }
         }
+      }
+    }
+
+    // Se algum documento espanhol (DNI, NIE, NUSS) ou Passaporte estiver em public.colaboradores mas não em core_personal.workers, sincronizar automaticamente
+    if (worker.cod_colab && (!worker.nuss || !worker.nie || !worker.dni || !worker.pasaporte)) {
+      try {
+        const { data: colabRow } = await supabase
+          .schema("public")
+          .from("colaboradores")
+          .select("dni, nie, nuss, pasaporte, nif, niss, fecha_nacimiento, nacionalidade")
+          .eq("cod_colab", worker.cod_colab)
+          .maybeSingle();
+
+        if (colabRow) {
+          const syncFromColab: Record<string, any> = {};
+          if (!worker.nuss && colabRow.nuss) syncFromColab.nuss = colabRow.nuss;
+          if (!worker.nie && colabRow.nie) syncFromColab.nie = colabRow.nie;
+          if (!worker.dni && colabRow.dni) syncFromColab.dni = colabRow.dni;
+          if (!worker.pasaporte && colabRow.pasaporte) syncFromColab.pasaporte = colabRow.pasaporte;
+          if (!worker.nif && colabRow.nif) syncFromColab.nif = colabRow.nif;
+          if (!worker.niss && colabRow.niss) syncFromColab.niss = colabRow.niss;
+          if (!worker.fecha_nacimiento && colabRow.fecha_nacimiento) syncFromColab.fecha_nacimiento = colabRow.fecha_nacimiento;
+          if (!worker.nacionalidade && colabRow.nacionalidade) syncFromColab.nacionalidade = colabRow.nacionalidade;
+
+          if (Object.keys(syncFromColab).length > 0) {
+            await supabase
+              .schema("core_personal")
+              .from("workers")
+              .update(syncFromColab)
+              .eq("id", worker_id);
+            Object.assign(worker, syncFromColab);
+          }
+        }
+      } catch (e) {
+        console.warn("Aviso ao consultar public.colaboradores para sincronização de documentos:", e);
       }
     }
 
@@ -576,9 +611,9 @@ serve(async (req) => {
         return "";
       };
 
-      // Dados da Pessoa Trabalhadora
-      const workerDocId = (sepe.worker_identificacion || worker.nie || worker.dni || worker.pasaporte || worker.nif || "").trim().toUpperCase();
-      const workerNuss = (sepe.nuss || worker.nuss || worker.niss || "").replace(/\s+/g, "");
+      // Dados da Pessoa Trabalhadora (Puxando da seção Espanha da Ficha do Trabalhador: NIE / DNI / Passaporte e NUSS)
+      const workerDocId = (sepe.worker_identificacion || sepe.nie || sepe.dni || worker.nie || worker.dni || sepe.pasaporte || worker.pasaporte || worker.nif || "").trim().toUpperCase();
+      const workerNuss = (sepe.nuss || worker.nuss || "").replace(/\s+/g, "");
       const workerBirthFormatted = formatDate(sepe.fecha_nacimiento || worker.fecha_nacimiento);
       const workerNacionalidad = (sepe.nacionalidade || worker.nacionalidade || "COLOMBIANO").toUpperCase();
       const workerCodNacionalidad = sepe.cod_nacionalidad || resolveNationalityCode(workerNacionalidad);
